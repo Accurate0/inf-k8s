@@ -12,8 +12,8 @@ spec:
       - ServerSideApply=true
   project: default
   sources:
-    - repoURL: https://github.com/Accurate0/infrastructure.git
-      path: cluster/kubernetes/arch-mirror
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/arch-mirror
 
   destination:
     server: https://kubernetes.default.svc
