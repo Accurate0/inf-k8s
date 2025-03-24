@@ -3,9 +3,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - home/**
-      - .github/workflows/home-build-deploy.yml
   workflow_dispatch:
 
 jobs:
