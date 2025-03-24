@@ -16,7 +16,7 @@ jobs:
     uses: ./.github/workflows/call-terraform.yml
     with:
       directory: terraform
-      backend-config: ./backend-config.tf
+      backend-config: ../backend-config.tf
       output: true
     secrets: inherit
 
