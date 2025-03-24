@@ -1,6 +1,8 @@
 name: PR Build
 on:
   pull_request:
+    paths:
+      - home/**
 
 jobs:
   build:

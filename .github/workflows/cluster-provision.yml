@@ -3,7 +3,9 @@ on:
   push:
     branches: [main]
     paths:
-      - cluster/**
+      - ansible/**
+      - applications/**
+      - terraform/**
       - .github/workflows/cluster-provision.yml
       - .github/workflows/call-terraform.yml
 
