@@ -1,0 +1,92 @@
+name: call-terraform
+on:
+  workflow_dispatch:
+    inputs:
+      directory:
+        type: string
+        required: true
+      use-fly:
+        type: boolean
+        default: false
+  workflow_call:
+    outputs:
+      json:
+        value: ${{ jobs.apply.outputs.json }}
+    inputs:
+      directory:
+        type: string
+        required: true
+      use-fly:
+        type: boolean
+        default: false
+      use-backend-config:
+        type: boolean
+        default: true
+      backend-config:
+        type: string
+        default: ../backend-config.tf
+      output:
+        type: boolean
+        default: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    outputs:
+      json: ${{ steps.terraform-output.outputs.json }}
+
+    defaults:
+      run:
+        working-directory: ${{ inputs.directory }}
+
+    steps:
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+        if: ${{ inputs.use-fly }}
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          cli_config_credentials_hostname: app.terraform.io
+          cli_config_credentials_token: ${{ secrets.TF_TOKEN }}
+          terraform_version: latest
+
+      - name: terraform fmt
+        run: terraform fmt -recursive
+
+      - name: terraform init (backend-config)
+        run: terraform init -backend-config=${{ inputs.backend-config }}
+        if: ${{ inputs.use-backend-config }}
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+
+      - name: terraform init
+        run: terraform init
+        if: ${{ !inputs.use-backend-config }}
+
+      - name: terraform validate
+        run: terraform validate
+
+      - name: terraform apply
+        run: terraform apply -auto-approve
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ vars.AWS_REGION }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          BINARYLANE_API_TOKEN: ${{ secrets.BINARYLANE_API_TOKEN }}
+
+      - name: terraform output
+        id: terraform-output
+        if: ${{ inputs.output }}
+        run: |
+          {
+            echo 'json<<EOF'
+            terraform-bin output -json
+            echo 'EOF'
+          } >> "$GITHUB_OUTPUT"
+
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_REGION: ${{ secrets.AWS_REGION }}
