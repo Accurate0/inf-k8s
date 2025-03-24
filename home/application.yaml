@@ -10,7 +10,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Accurate0/inf-k8s.git
-    path: home
+    path: home/kubernetes
     kustomize:
       images:
         - ingress-home=ghcr.io/accurate0/ingress-home:${ARGOCD_APP_REVISION}
