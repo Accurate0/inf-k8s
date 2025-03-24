@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#000000" />
+    <link rel="stylesheet" href="static/css/sakura.css" type="text/css" />
+    <title>inf-k8s.net</title>
+  </head>
+  <body>
+    <div>
+      {% for groups in grouped_urls %}
+      <h3>{{ groups.name }}</h3>
+      <ul>
+        {% for url in groups.urls %}
+        <li>
+          <a class="ext-link" href="https://{{ url }}" target="_blank">
+            {{ url }}
+          </a>
+        </li>
+        {% endfor %}
+      </ul>
+      {% endfor %}
+    </div>
+  </body>
+</html>

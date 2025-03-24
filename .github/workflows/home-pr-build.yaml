@@ -1,0 +1,25 @@
+name: PR Build
+on:
+  pull_request:
+
+jobs:
+  build:
+    name: Build
+    defaults:
+      run:
+        working-directory: home
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Docker build
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: false
+          build-args: |
+            BINARY_NAME=ingress-home

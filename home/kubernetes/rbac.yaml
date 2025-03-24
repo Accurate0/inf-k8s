@@ -1,0 +1,33 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: ingress-home
+  name: ingress-reader
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
+  - apiGroups:
+      - networking.k8s.io
+    resources:
+      - ingresses
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: ingress-home-read
+  namespace: ingress-home
+subjects:
+  - kind: ServiceAccount
+    name: ingress-home
+    namespace: ingress-home
+roleRef:
+  kind: ClusterRole
+  name: ingress-reader

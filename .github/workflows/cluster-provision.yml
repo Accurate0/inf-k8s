@@ -49,13 +49,12 @@ jobs:
           version: 1.76.6
 
       - name: Run playbooks
+        working-directory: ./ansible
         env:
           K3S_CLUSTER_TOKEN: ${{ secrets.K3S_CLUSTER_TOKEN }}
           TAILSCALE_K8S_AUTH_KEY: ${{ secrets.TAILSCALE_K8S_AUTH_KEY }}
           K3S_URL: ${{ secrets.K3S_URL }}
         run: |
-          cd cluster/ansible
-
           export ANSIBLE_HOST_KEY_CHECKING=False
 
           echo "::group::Check connect"
@@ -89,7 +88,7 @@ jobs:
           fi
 
           echo -n "$KUBE_CONFIG" | base64 -di > $HOME/.kube/config
-          kubectl apply -f cluster/kubernetes
-          kubectl apply -f cluster/kubernetes/misc
-          kubectl apply -f cluster/kubernetes/gatekeeper-rules
-          kubectl apply -f cluster/kubernetes/minio-buckets
+          kubectl apply -f applications
+          kubectl apply -f applications/misc
+          kubectl apply -f applications/gatekeeper-rules
+          kubectl apply -f applications/minio-buckets
