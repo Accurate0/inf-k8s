@@ -27,6 +27,7 @@ spec:
             ingressClassName: nginx
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/proxy-body-size: 30m
             hosts:
               - minio.inf-k8s.net
               - s3.inf-k8s.net
