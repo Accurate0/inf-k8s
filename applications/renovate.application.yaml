@@ -84,6 +84,7 @@ spec:
                     "automerge": true
                   },
                   { "matchCategories": ["docker"], "enabled": false },
+                  { "matchCategories": ["dockerfile"], "enabled": false },
                 ],
               }
 
