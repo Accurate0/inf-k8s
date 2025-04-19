@@ -85,6 +85,7 @@ spec:
                   },
                   { "matchCategories": ["docker"], "enabled": false },
                   { "matchCategories": ["dockerfile"], "enabled": false },
+                  { "matchCategories": ["docker-compose"], "enabled": false },
                 ],
               }
 

@@ -10,3 +10,7 @@ tls-san:
   - "inf-k8s.net"
 etcd-expose-metrics: true
 token: "{{ k3s_cluster_token }}"
+kubelet-arg:
+  - "image-gc-high-threshold=50"
+  - "image-gc-low-threshold=20"
+  - "maximum-dead-containers=0"
