@@ -8,3 +8,4 @@
         package:
           - nfs-common
           - htop
+          - du-dust
