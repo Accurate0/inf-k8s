@@ -2,7 +2,7 @@ terraform {
   required_providers {
     binarylane = {
       source  = "oscarhermoso/binarylane"
-      version = "~> 0.9"
+      version = "~> 0.10"
     }
 
     azurerm = {
@@ -12,7 +12,7 @@ terraform {
 
     tls = {
       source  = "hashicorp/tls"
-      version = "~>4"
+      version = ">= 4"
     }
 
     cloudflare = {
