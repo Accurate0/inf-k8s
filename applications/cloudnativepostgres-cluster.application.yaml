@@ -50,6 +50,7 @@ spec:
                 backupOwnerReference: self
                 method: barmanObjectStore
           cluster:
+            imageName: "ghcr.io/accurate0/cnpg-postgresql:16"
             monitoring:
               enabled: true
               podMonitor:
