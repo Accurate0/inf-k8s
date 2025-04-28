@@ -49,6 +49,19 @@ spec:
                 schedule: "0 0 * * *"
                 backupOwnerReference: self
                 method: barmanObjectStore
+          poolers:
+            - cluster:
+              name: rw
+              instances: 3
+              type: rw
+              monitoring:
+                enabled: true
+                podMonitor:
+                  enabled: true
+              poolMode: session
+              parameters:
+                max_client_conn: "1000"
+                default_pool_size: "10"
           cluster:
             imageName: "ghcr.io/accurate0/cnpg-postgresql:16"
             monitoring:
