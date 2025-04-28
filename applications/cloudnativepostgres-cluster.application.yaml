@@ -61,7 +61,7 @@ spec:
               poolMode: session
               parameters:
                 max_client_conn: "1000"
-                default_pool_size: "40"
+                default_pool_size: "25"
           cluster:
             imageName: "ghcr.io/accurate0/cnpg-postgresql:16"
             monitoring:
