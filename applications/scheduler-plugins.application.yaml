@@ -14,13 +14,13 @@ spec:
   sources:
     - chart: scheduler-plugins
       repoURL: https://scheduler-plugins.sigs.k8s.io
-      targetRevision: 0.30.6
+      targetRevision: 0.31.8
       helm:
         valuesObject:
           scheduler:
             image: registry.k8s.io/scheduler-plugins/kube-scheduler:v0.30.6
             leaderElect: true
-            replicaCount: 5
+            replicaCount: 4
             affinity:
               podAntiAffinity:
                 requiredDuringSchedulingIgnoredDuringExecution:
