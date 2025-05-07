@@ -1,0 +1,61 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: home-assistant
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: default
+  sources:
+    - chart: home-assistant
+      repoURL: http://pajikos.github.io/home-assistant-helm-chart
+      targetRevision: 0.3.0
+      helm:
+        valuesObject:
+          configuration:
+            enabled: true
+            forceInit: true
+            trusted_proxies:
+              - 10.42.0.0/24
+              - 10.42.2.0/24
+              - 10.42.3.0/24
+              - 10.42.4.0/24
+              - 10.42.5.0/24
+          ingress:
+            enabled: true
+            className: "nginx"
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+              nginx.ingress.kubernetes.io/proxy-body-size: 10m
+            hosts:
+              - host: home.inf-k8s.net
+                paths:
+                  - path: /
+                    pathType: ImplementationSpecific
+            tls:
+              - secretName: home-inf-k8s
+                hosts:
+                  - home.inf-k8s.net
+          persistence:
+            enabled: true
+          serviceMonitor:
+            enabled: true
+            scrapeInterval: 30s
+            labels:
+              release: prometheus
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: home-assistant
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}
