@@ -30,13 +30,12 @@ spec:
             config:
               proxy-hide-headers: "Server, X-Powered-By"
               server-tokens: "False"
-              enable-modsecurity: "True"
+              enable-modsecurity: "False"
               enable-owasp-modsecurity-crs: "True"
               enable-real-ip: "True"
               allow-snippet-annotations: "True"
               annotations-risk-level: Critical
               enable-opentelemetry: "false"
-              otlp-collector-host: "jaeger-collector.jaeger.svc.cluster.local"
               opentelemetry-operation-name: "HTTP $request_method $service_name $uri"
               modsecurity-snippet: |
                 SecRuleEngine DetectionOnly
