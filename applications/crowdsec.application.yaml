@@ -1,0 +1,88 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crowdsec
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: default
+  sources:
+    - chart: crowdsec
+      repoURL: https://crowdsecurity.github.io/helm-charts
+      targetRevision: 0.19.2
+      helm:
+        valuesObject:
+          container_runtime: containerd
+          agent:
+            enabled: false
+            lapiURL: "http://crowdsec-service.crowdsec.svc.cluster.local:8080"
+            lapiHost: "http://crowdsec-service.crowdsec.svc.cluster.local"
+            acquisition:
+              - namespace: ingress-nginx
+                podName: ingress-nginx-controller-*
+                program: nginx
+                poll_without_inotify: true
+            env:
+              - name: COLLECTIONS
+                value: "crowdsecurity/nginx"
+          appsec:
+            enabled: true
+            acquisitions:
+              - source: appsec
+                listen_addr: "0.0.0.0:7422"
+                path: /
+                appsec_config: crowdsecurity/appsec-default
+                labels:
+                  type: appsec
+            rules:
+            configs:
+              mycustom-appsec-config.yaml: |
+                name: crowdsecurity/appsec-default
+                default_remediation: allow
+                #log_level: debug
+                outofband_rules:
+                  - crowdsecurity/crs
+                inband_rules:
+                  - crowdsecurity/base-config
+                  - crowdsecurity/vpatch-*
+            env:
+              - name: COLLECTIONS
+                value: "crowdsecurity/nginx crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-crs crowdsecurity/discord-crawler-whitelist"
+          lapi:
+            ingress:
+              enabled: false
+              annotations:
+                nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+              ingressClassName: "nginx"
+              host: "crowdsec.inf-k8s.net"
+              tls:
+                - hosts:
+                    - crowdsec.inf-k8s.net
+                  secretName: crowdsec-inf-k8s-tls
+            env:
+              - name: ENROLL_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: crowdsec-managed-secrets
+                    key: ENROLL_KEY
+              - name: ENROLL_INSTANCE_NAME
+                value: "k8s-cluster"
+              - name: ENROLL_TAGS
+                value: "k8s linux"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crowdsec
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}
