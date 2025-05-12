@@ -3,5 +3,8 @@
   "argocd": {
     "fileMatch": ["applications/.*\\.application\\.yaml"]
   },
-  "ignorePaths": ["applications/redis.application.yaml"]
+  "ignorePaths": [
+    "applications/redis.application.yaml",
+    "applications/ingress-nginx.application.yaml"
+  ]
 }
