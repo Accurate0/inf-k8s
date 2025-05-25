@@ -1,0 +1,13 @@
+- name: Upgrade all hosts
+  hosts: all
+  serial: 1
+
+  tasks:
+    - name: Safe upgrade all packages
+      become: true
+      become_method: sudo
+      become_user: root
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: safe
+        only_upgrade: true

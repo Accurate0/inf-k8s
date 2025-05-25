@@ -13,9 +13,8 @@ spec:
       - Replace=true
   project: default
   sources:
-    - chart: cloudnative-pg
-      repoURL: https://cloudnative-pg.github.io/charts
-      targetRevision: 0.23.2
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/postgres-cluster
 
   destination:
     server: https://kubernetes.default.svc

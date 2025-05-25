@@ -1,0 +1,48 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cloudnative-pg-cluster
+  namespace: cnpg-system
+spec:
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: preferred
+    topologyKey: kubernetes.io/hostname
+  backup:
+    barmanObjectStore:
+      data:
+        compression: gzip
+        encryption: AES256
+        jobs: 2
+      destinationPath: s3://pg-cluster-backup/
+      endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
+      s3Credentials:
+        accessKeyId:
+          key: ACCESS_KEY_ID
+          name: cloudnative-pg-cluster-backup-s3-creds
+        secretAccessKey:
+          key: ACCESS_SECRET_KEY
+          name: cloudnative-pg-cluster-backup-s3-creds
+      wal:
+        compression: gzip
+        encryption: AES256
+        maxParallel: 1
+    retentionPolicy: 7d
+    target: prefer-standby
+  enablePDB: true
+  enableSuperuserAccess: true
+  imageName: ghcr.io/accurate0/cnpg-postgresql:16
+  imagePullPolicy: IfNotPresent
+  instances: 3
+  logLevel: info
+  monitoring:
+    disableDefaultQueries: false
+    enablePodMonitor: true
+  postgresql:
+    parameters:
+      pg_stat_statements.max: "10000"
+      pg_stat_statements.track: all
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 30Gi

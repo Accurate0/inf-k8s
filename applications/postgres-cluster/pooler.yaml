@@ -1,0 +1,17 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Pooler
+metadata:
+  name: cloudnative-pg-cluster-pooler-rw
+  namespace: cnpg-system
+spec:
+  cluster:
+    name: cloudnative-pg-cluster
+  instances: 3
+  monitoring:
+    enablePodMonitor: true
+  pgbouncer:
+    parameters:
+      default_pool_size: "25"
+      max_client_conn: "1000"
+    poolMode: session
+  type: rw
