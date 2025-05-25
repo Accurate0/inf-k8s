@@ -23,74 +23,8 @@ spec:
       - ServerSideApply=true
   project: default
   sources:
-    - chart: cluster
-      repoURL: https://cloudnative-pg.github.io/charts
-      targetRevision: 0.2.1
-      helm:
-        valuesObject:
-          backups:
-            enabled: true
-            endpointURL: "https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com"
-            s3:
-              bucket: "pg-cluster-backup"
-            secret:
-              create: false
-            wal:
-              encryption: null
-            data:
-              encryption: null
-            retentionPolicy: "7d"
-            scheduledBackups:
-              - name: daily-backup
-                schedule: "0 0 0 * * *"
-                backupOwnerReference: self
-                method: barmanObjectStore
-              - name: hourly-backup
-                schedule: "0 0 * * *"
-                backupOwnerReference: self
-                method: barmanObjectStore
-          poolers:
-            - cluster:
-              name: rw
-              instances: 3
-              type: rw
-              monitoring:
-                enabled: true
-                podMonitor:
-                  enabled: true
-              poolMode: session
-              parameters:
-                max_client_conn: "1000"
-                default_pool_size: "25"
-          cluster:
-            imageName: "ghcr.io/accurate0/cnpg-postgresql:16"
-            monitoring:
-              enabled: true
-              podMonitor:
-                enabled: true
-              prometheusRule:
-                enabled: false
-            affinity:
-              podAntiAffinityType: preferred
-              topologyKey: kubernetes.io/hostname
-              enablePodAntiAffinity: true
-              # comment me
-              # nodeAffinity:
-              #   requiredDuringSchedulingIgnoredDuringExecution:
-              #     nodeSelectorTerms:
-              #       - matchExpressions:
-              #           - key: kubernetes.io/hostname
-              #             operator: In
-              #             values:
-              #               - k8s-optiplex-1
-              #               - k8s-optiplex-2
-              #               - k8s-optiplex-3
-            storage:
-              size: "30Gi"
-            postgresql:
-              parameters:
-                pg_stat_statements.max: "10000"
-                pg_stat_statements.track: all
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/postgres-cluster
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg-system
