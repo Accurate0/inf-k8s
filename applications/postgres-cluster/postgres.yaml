@@ -38,6 +38,8 @@ spec:
   monitoring:
     disableDefaultQueries: false
     enablePodMonitor: true
+  postgresGID: 26
+  postgresUID: 26
   postgresql:
     parameters:
       pg_stat_statements.max: "10000"
