@@ -8,6 +8,14 @@ spec:
     enablePodAntiAffinity: true
     podAntiAffinityType: preferred
     topologyKey: kubernetes.io/hostname
+  topologySpreadConstraints:
+    - topologyKey: inf-k8s.net/location
+      whenUnsatisfiable: ScheduleAnyway
+      maxSkew: 1
+      nodeTaintsPolicy: Honor
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: cloudnative-pg-cluster
   backup:
     barmanObjectStore:
       data:
