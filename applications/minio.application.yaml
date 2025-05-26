@@ -17,6 +17,22 @@ spec:
       targetRevision: 5.4.0
       helm:
         valuesObject:
+          affinity:
+            podAntiAffinity:
+              requiredDuringSchedulingIgnoredDuringExecution:
+                - labelSelector:
+                    matchLabels:
+                      app: minio
+                  topologyKey: kubernetes.io/hostname
+
+          topologySpreadConstraints:
+            - topologyKey: inf-k8s.net/location
+              whenUnsatisfiable: ScheduleAnyway
+              maxSkew: 1
+              nodeTaintsPolicy: Honor
+              labelSelector:
+                matchLabels:
+                  app: minio
           replicas: 3
           persistence:
             size: 50Gi

@@ -62,9 +62,6 @@
           - name: k8s-control-1
             ip: 100.66.108.81
             is_api_server: true
-          - name: k8s-control-2
-            ip: 100.65.87.102
-            is_api_server: true
           - name: k8s-optiplex-1
             ip: 100.70.180.118
             is_api_server: true
