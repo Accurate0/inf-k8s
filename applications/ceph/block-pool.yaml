@@ -15,8 +15,8 @@ metadata:
   name: replicapool
   namespace: rook-ceph
 spec:
-  failureDomain: host
+  failureDomain: datacenter
   replicated:
-    size: 3
+    size: 2
 ---
 
