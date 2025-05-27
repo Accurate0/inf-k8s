@@ -6,7 +6,7 @@ metadata:
   annotations:
     kubernetes.io/tls-acme: "true"
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
     nginx.ingress.kubernetes.io/server-snippet: |
       proxy_ssl_verify off;
 spec:
@@ -25,4 +25,4 @@ spec:
               service:
                 name: rook-ceph-mgr-dashboard
                 port:
-                  name: https-dashboard
+                  name: http-dashboard
