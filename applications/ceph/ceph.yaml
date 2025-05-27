@@ -78,12 +78,6 @@ spec:
     readAffinity:
       enabled: false
 
-    cephfs:
-      # Set CephFS Kernel mount options to use https://docs.ceph.com/en/latest/man/8/mount.ceph/#options.
-      # kernelMountOptions: ""
-      # Set CephFS Fuse mount options to use https://docs.ceph.com/en/latest/man/8/ceph-fuse/#options.
-      # fuseMountOptions: ""
-
   # healthChecks
   # Valid values for daemons are 'mon', 'osd', 'status'
   healthCheck:
