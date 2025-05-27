@@ -19,6 +19,8 @@ spec:
         valuesObject:
           crds:
             enabled: true
+          monitoring:
+            enabled: true
 
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/ceph
