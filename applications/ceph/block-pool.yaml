@@ -1,10 +1,10 @@
 apiVersion: ceph.rook.io/v1
 kind: CephBlockPool
 metadata:
-  name: main-pool
+  name: builtin-mgr
   namespace: rook-ceph
 spec:
-  name: main-pool
+  name: .mgr
   replicated:
     size: 1
     requireSafeReplicaSize: false
