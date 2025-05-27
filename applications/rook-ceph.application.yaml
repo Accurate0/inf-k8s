@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rook-ceph
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: default
+  sources:
+    - chart: rook-ceph
+      repoURL: https://charts.rook.io/release
+      targetRevision: v1.17.2
+      helm:
+        valuesObject:
+          crds:
+            enabled: true
+
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/postgres-cluster
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: rook-ceph
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}

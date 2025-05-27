@@ -1,0 +1,27 @@
+- name: Setup K3S
+  hosts:
+    - agent
+    - control
+  become: true
+
+  roles:
+    - role: firewall
+      vars:
+        firewall_allow_http: false
+        firewall_binarylane_k8s_vpc: true
+        firewall_allow_local_lan: true
+
+- name: Setup proxy servers
+  hosts: proxy
+  become: true
+
+  roles:
+    - role: firewall
+
+- name: Setup uptime monitor
+  hosts: uptime
+  become: true
+  become_user: janitor
+
+  roles:
+    - role: firewall

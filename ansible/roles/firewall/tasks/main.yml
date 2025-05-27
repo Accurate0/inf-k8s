@@ -58,6 +58,30 @@
         to: 10.0.1.0/24
       when: firewall_allow_local_lan
 
+    - name: Allow tailscale port (wg)
+      community.general.ufw:
+        rule: allow
+        from_port: 41641
+        protocol: udp
+
+    - name: Allow tailscale port (STUN)
+      community.general.ufw:
+        rule: allow
+        from_port: 3478
+        protocol: udp
+
+    - name: Allow tailscale port (DERP)
+      community.general.ufw:
+        rule: allow
+        from_port: 443
+        protocol: tcp
+
+    - name: Allow tailscale port (HTTP)
+      community.general.ufw:
+        rule: allow
+        from_port: 80
+        protocol: tcp
+
     - name: Allow all outgoing
       community.general.ufw:
         rule: allow
