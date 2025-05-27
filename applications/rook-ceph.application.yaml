@@ -21,7 +21,7 @@ spec:
             enabled: true
 
     - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: applications/postgres-cluster
+      path: applications/ceph
 
   destination:
     server: https://kubernetes.default.svc
