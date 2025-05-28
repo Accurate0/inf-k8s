@@ -18,5 +18,7 @@ spec:
   failureDomain: datacenter
   replicated:
     size: 2
+  parameters:
+    min_size: "1"
 ---
 
