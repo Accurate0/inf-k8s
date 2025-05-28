@@ -80,5 +80,5 @@ spec:
       resources:
         requests:
           storage: 50Gi
-      storageClassName: rook-ceph-unreplicated
+      storageClassName: rook-ceph-block
       volumeMode: Filesystem
