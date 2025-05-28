@@ -19,7 +19,7 @@ spec:
   bootstrap:
     recovery:
       backup:
-        name: rook-ceph-restore
+        name: cloudnative-pg-cluster-hourly-backup-20250528110000
 
   externalClusters:
     - name: cloudnative-pg-cluster
