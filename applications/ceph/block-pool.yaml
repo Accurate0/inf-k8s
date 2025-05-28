@@ -21,4 +21,14 @@ spec:
   parameters:
     min_size: "1"
 ---
+apiVersion: ceph.rook.io/v1
+kind: CephBlockPool
+metadata:
+  name: unreplicatedpool
+  namespace: rook-ceph
+spec:
+  replicated:
+    size: 1
+    requireSafeReplicaSize: false
+---
 

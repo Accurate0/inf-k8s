@@ -62,7 +62,7 @@ spec:
               storageSpec:
                 volumeClaimTemplate:
                   spec:
-                    storageClassName: longhorn-prod
+                    storageClassName: rook-ceph-block
                     accessModes: ["ReadWriteOnce"]
                     resources:
                       requests:
