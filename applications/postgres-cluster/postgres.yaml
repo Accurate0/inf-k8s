@@ -19,7 +19,7 @@ spec:
   bootstrap:
     recovery:
       backup:
-        name: cloudnative-pg-cluster-hourly-backup-20250528110000
+        name: cloudnative-pg-cluster-hourly-backup-20250528120000
 
   externalClusters:
     - name: cloudnative-pg-cluster
@@ -80,5 +80,5 @@ spec:
       resources:
         requests:
           storage: 50Gi
-      storageClassName: rook-ceph-block
+      storageClassName: rook-ceph-unreplicated
       volumeMode: Filesystem
