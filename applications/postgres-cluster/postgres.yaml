@@ -16,6 +16,10 @@ spec:
       labelSelector:
         matchLabels:
           cnpg.io/cluster: cloudnative-pg-cluster
+  bootstrap:
+    recovery:
+      backup:
+        name: rook-ceph-restore
   backup:
     barmanObjectStore:
       data:
@@ -55,4 +59,12 @@ spec:
   primaryUpdateMethod: switchover
   primaryUpdateStrategy: unsupervised
   storage:
-    size: 30Gi
+    size: 50Gi
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 50Gi
+      storageClassName: rook-ceph-block
+      volumeMode: Filesystem

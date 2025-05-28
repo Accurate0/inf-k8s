@@ -36,7 +36,7 @@ spec:
                   - renovate.internal.anurag.sh
           cachePersistence:
             enabled: true
-            storageClass: "longhorn-single"
+            storageClass: "rook-ceph-unreplicated"
             accessModes:
               - ReadWriteOnce
             size: 10Gi
