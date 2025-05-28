@@ -22,7 +22,7 @@ spec:
         name: cloudnative-pg-cluster-hourly-backup-20250528120000
 
   externalClusters:
-    - name: cloudnative-pg-cluster
+    - name: cloudnative-pg-cluster-v2
       barmanObjectStore:
         destinationPath: s3://pg-cluster-backup/
         endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
@@ -41,7 +41,7 @@ spec:
         jobs: 2
       destinationPath: s3://pg-cluster-backup/
       endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-      serverName: "cloudnative-pg-cluster-v2"
+      serverName: "cloudnative-pg-cluster-v3"
       s3Credentials:
         accessKeyId:
           key: ACCESS_KEY_ID
