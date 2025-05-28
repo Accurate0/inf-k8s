@@ -24,7 +24,7 @@ spec:
           replica:
             persistence:
               size: 5Gi
-              storageClass: rook-ceph-block
+              storageClass: longhorn-prod
             replicaCount: 2
             initContainers:
               - name: repair-redis
