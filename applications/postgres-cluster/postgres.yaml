@@ -41,7 +41,7 @@ spec:
         jobs: 2
       destinationPath: s3://pg-cluster-backup/
       endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-      serverName: "cloudnative-pg-cluster-v5"
+      serverName: "cloudnative-pg-cluster-v6"
       s3Credentials:
         accessKeyId:
           key: ACCESS_KEY_ID
@@ -80,5 +80,5 @@ spec:
       resources:
         requests:
           storage: 50Gi
-      storageClassName: mayastor-replica
+      storageClassName: openebs-zfspv
       volumeMode: Filesystem

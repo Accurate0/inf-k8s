@@ -24,7 +24,7 @@ spec:
           replica:
             persistence:
               size: 5Gi
-              storageClass: longhorn-prod
+              storageClass: openebs-zfspv
             replicaCount: 2
             initContainers:
               - name: repair-redis
@@ -41,7 +41,7 @@ spec:
           master:
             persistence:
               size: 5Gi
-              storageClass: longhorn-prod
+              storageClass: openebs-zfspv
             initContainers:
               - name: repair-redis
                 image: docker.io/bitnami/redis:7.4.1-debian-12-r2
