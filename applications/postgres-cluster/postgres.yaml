@@ -80,5 +80,5 @@ spec:
       resources:
         requests:
           storage: 50Gi
-      storageClassName: mayastor-replicated
+      storageClassName: mayastor-replica
       volumeMode: Filesystem
