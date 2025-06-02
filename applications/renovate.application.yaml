@@ -35,10 +35,7 @@ spec:
                 hosts:
                   - renovate.internal.anurag.sh
           cachePersistence:
-            enabled: true
-            storageClass: "rook-ceph-unreplicated"
-            accessModes:
-              - ReadWriteOnce
+            enabled: false
             size: 10Gi
           cacheInMemory:
             enabled: false

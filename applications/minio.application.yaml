@@ -17,13 +17,13 @@ spec:
       targetRevision: 5.4.0
       helm:
         valuesObject:
-          affinity:
-            podAntiAffinity:
-              requiredDuringSchedulingIgnoredDuringExecution:
-                - labelSelector:
-                    matchLabels:
-                      app: minio
-                  topologyKey: kubernetes.io/hostname
+          # affinity:
+          #   podAntiAffinity:
+          #     requiredDuringSchedulingIgnoredDuringExecution:
+          #       - labelSelector:
+          #           matchLabels:
+          #             app: minio
+          #         topologyKey: kubernetes.io/hostname
 
           topologySpreadConstraints:
             - topologyKey: inf-k8s.net/location
@@ -35,6 +35,7 @@ spec:
                   app: minio
           replicas: 3
           persistence:
+            storageClass: openebs-zfspv
             size: 50Gi
           environment:
             MINIO_DOMAIN: s3.inf-k8s.net

@@ -67,7 +67,7 @@ spec:
                   - home.inf-k8s.net
           persistence:
             enabled: true
-            storageClass: "longhorn-prod"
+            storageClass: "mayastor-replica"
           serviceMonitor:
             enabled: true
             scrapeInterval: 30s
