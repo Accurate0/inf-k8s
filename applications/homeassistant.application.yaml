@@ -67,7 +67,7 @@ spec:
                   - home.inf-k8s.net
           persistence:
             enabled: true
-            storageClass: "rook-ceph-block"
+            storageClass: "longhorn-prod"
           serviceMonitor:
             enabled: true
             scrapeInterval: 30s

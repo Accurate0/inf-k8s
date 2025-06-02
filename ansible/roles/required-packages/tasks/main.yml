@@ -2,9 +2,13 @@
 ---
 # tasks file for required-packages
 - name: Install required packages
+  become: true
+  become_user: root
   block:
     - name: Install Packages
       ansible.builtin.apt:
         package:
           - nfs-common
           - htop
+          - neovim
+          - zfsutils-linux

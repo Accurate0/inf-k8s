@@ -19,10 +19,10 @@ spec:
   bootstrap:
     recovery:
       backup:
-        name: cloudnative-pg-cluster-hourly-backup-20250528120000
+        name: rook-ceph-restore-v2
 
   externalClusters:
-    - name: cloudnative-pg-cluster-v2
+    - name: cloudnative-pg-cluster-v4
       barmanObjectStore:
         destinationPath: s3://pg-cluster-backup/
         endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
@@ -41,7 +41,7 @@ spec:
         jobs: 2
       destinationPath: s3://pg-cluster-backup/
       endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-      serverName: "cloudnative-pg-cluster-v4"
+      serverName: "cloudnative-pg-cluster-v5"
       s3Credentials:
         accessKeyId:
           key: ACCESS_KEY_ID
@@ -80,5 +80,5 @@ spec:
       resources:
         requests:
           storage: 50Gi
-      storageClassName: longhorn-single
+      storageClassName: mayastor-replicated
       volumeMode: Filesystem

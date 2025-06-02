@@ -1,0 +1,45 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: openebs
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: default
+  sources:
+    - chart: openebs
+      repoURL: https://openebs.github.io/openebs
+      targetRevision: 4.2.0
+      helm:
+        valuesObject:
+          loki:
+            enabled: false
+          alloy:
+            enabled: false
+          engines:
+            local:
+              lvm:
+                enabled: false
+              zfs:
+                enabled: true
+            replicated:
+              mayastor: true
+          mayastor:
+            io_engine:
+              envcontext: "iova-mode=pa"
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: openebs
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}

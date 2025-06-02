@@ -1,0 +1,10 @@
+- name: Install packages
+  hosts:
+    - agent
+    - control
+    - proxy
+  become: true
+  gather_facts: false
+
+  roles:
+    - role: required-packages

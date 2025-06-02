@@ -1,0 +1,11 @@
+#SPDX-License-Identifier: MIT-0
+---
+# tasks file for kernel-modules
+- name: Load kernel modules
+  become: true
+  become_user: root
+  block:
+    - name: Load nvme-tcp
+      community.general.modprobe:
+        name: nvme-tcp
+        persistent: "present"
