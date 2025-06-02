@@ -50,6 +50,7 @@ spec:
               - 10.42.5.0/24
               - 10.42.6.0/24
               - 10.42.7.0/24
+              - 10.42.8.0/24
           ingress:
             enabled: true
             className: "nginx"
