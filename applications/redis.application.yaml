@@ -25,7 +25,7 @@ spec:
             persistence:
               size: 5Gi
               storageClass: longhorn-single
-            replicaCount: 0
+            replicaCount: 1
             initContainers:
               - name: repair-redis
                 image: docker.io/bitnami/redis:7.4.1-debian-12-r2
