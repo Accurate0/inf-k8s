@@ -18,6 +18,7 @@ spec:
       helm:
         valuesObject:
           ingress:
+            ingressClassName: kong
             enabled: true
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
