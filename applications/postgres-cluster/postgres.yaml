@@ -18,11 +18,10 @@ spec:
           cnpg.io/cluster: cloudnative-pg-cluster
   bootstrap:
     recovery:
-      backup:
-        name: rook-ceph-restore-v2
+      source: clusterBackup
 
   externalClusters:
-    - name: cloudnative-pg-cluster-v4
+    - name: cloudnative-pg-cluster-v6
       barmanObjectStore:
         destinationPath: s3://pg-cluster-backup/
         endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
@@ -41,7 +40,7 @@ spec:
         jobs: 2
       destinationPath: s3://pg-cluster-backup/
       endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-      serverName: "cloudnative-pg-cluster-v6"
+      serverName: "cloudnative-pg-cluster"
       s3Credentials:
         accessKeyId:
           key: ACCESS_KEY_ID
