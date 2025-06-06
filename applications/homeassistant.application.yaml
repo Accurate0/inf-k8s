@@ -56,6 +56,7 @@ spec:
             forceInit: true
             trusted_proxies:
               - 10.42.0.0/24
+              - 10.42.1.0/24
               - 10.42.2.0/24
               - 10.42.3.0/24
               - 10.42.4.0/24
@@ -68,7 +69,7 @@ spec:
             className: "nginx"
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
-              nginx.ingress.kubernetes.io/proxy-body-size: 10m
+              nginx.ingress.kubernetes.io/proxy-body-size: 30m
             hosts:
               - host: home.inf-k8s.net
                 paths:
@@ -80,7 +81,7 @@ spec:
                   - home.inf-k8s.net
           persistence:
             enabled: true
-            storageClass: "mayastor-replica"
+            storageClass: "longhorn-replicated"
           serviceMonitor:
             enabled: true
             scrapeInterval: 30s
