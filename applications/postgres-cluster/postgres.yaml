@@ -18,7 +18,7 @@ spec:
           cnpg.io/cluster: cloudnative-pg-cluster
   bootstrap:
     recovery:
-      source: clusterBackup
+      source: cloudnative-pg-cluster-v6
 
   externalClusters:
     - name: cloudnative-pg-cluster-v6
