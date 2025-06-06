@@ -17,6 +17,18 @@ spec:
       targetRevision: 0.3.4
       helm:
         valuesObject:
+          initContainers:
+            - name: init-hacs
+              image: bash
+              command:
+                [
+                  "bash",
+                  "-c",
+                  "cd /config && wget -O - https://get.hacs.xyz | bash -",
+                ]
+              volumeMounts:
+                - mountPath: /config
+                  name: home-assistant
           configuration:
             templateConfig: |-
               # Loads default set of integrations. Do not remove.
