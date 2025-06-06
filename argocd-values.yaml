@@ -1,0 +1,27 @@
+global:
+  domain: argocd.inf-k8s.net
+
+configs:
+  cm:
+    admin.enabled: true
+  rbac:
+    policy.csv: |
+      p, anurag, *, *, *, allow
+      p, github-actions, applications, sync, default/*, allow
+      p, github-actions, applications, get, default/*, allow
+      p, github-actions, projects, get, *, allow
+  params:
+    server.insecure: true
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: kong
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod
+      nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+    extraTls:
+      - hosts:
+          - argocd.inf-k8s.net
+        secretName: argocd-inf-k8s-tls

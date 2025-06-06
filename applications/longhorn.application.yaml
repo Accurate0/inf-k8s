@@ -36,7 +36,7 @@ spec:
           ingress:
             enabled: true
             secureBackends: true
-            ingressClassName: nginx
+            ingressClassName: kong
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
             host: longhorn.inf-k8s.net
