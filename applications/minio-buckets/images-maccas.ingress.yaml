@@ -5,7 +5,9 @@ metadata:
   namespace: minio
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    nginx.ingress.kubernetes.io/upstream-vhost: maccas-images.s3.inf-k8s.net
+    nginx.ingress.kubernetes.io/upstream-vhost: s3.inf-k8s.net
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/rewrite-target: /maccas-images/$1
     nginx.ingress.kubernetes.io/configuration-snippet: |
       real_ip_header CF-Connecting-IP;
 spec:
@@ -14,8 +16,8 @@ spec:
     - host: images.maccas.one
       http:
         paths:
-          - path: /
-            pathType: Prefix
+          - path: /(.*)
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: minio

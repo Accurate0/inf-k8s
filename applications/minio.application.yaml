@@ -12,71 +12,115 @@ spec:
       - ServerSideApply=true
   project: default
   sources:
-    - chart: minio
-      repoURL: https://charts.min.io
-      targetRevision: 5.4.0
+    - chart: tenant
+      repoURL: https://operator.min.io
+      targetRevision: 7.1.1
       helm:
         valuesObject:
-          # affinity:
-          #   podAntiAffinity:
-          #     requiredDuringSchedulingIgnoredDuringExecution:
-          #       - labelSelector:
-          #           matchLabels:
-          #             app: minio
-          #         topologyKey: kubernetes.io/hostname
-
-          topologySpreadConstraints:
-            - topologyKey: inf-k8s.net/location
-              whenUnsatisfiable: ScheduleAnyway
-              maxSkew: 1
-              nodeTaintsPolicy: Honor
-              labelSelector:
-                matchLabels:
-                  app: minio
-          replicas: 3
-          persistence:
-            storageClass: openebs-zfspv
-            size: 50Gi
-          environment:
-            MINIO_DOMAIN: s3.inf-k8s.net
           ingress:
-            enabled: true
-            ingressClassName: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-              nginx.ingress.kubernetes.io/proxy-body-size: 30m
-            hosts:
-              - minio.inf-k8s.net
-              - s3.inf-k8s.net
-              - "*.s3.inf-k8s.net"
-            tls:
-              - secretName: minio-inf-k8s
-                hosts:
-                  - minio.inf-k8s.net
-                  - s3.inf-k8s.net
-                  - "*.s3.inf-k8s.net"
-          consoleIngress:
-            enabled: true
-            ingressClassName: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-            path: /
-            hosts:
-              - console.minio.inf-k8s.net
-            tls:
-              - secretName: console-minio-inf-k8s
-                hosts:
-                  - console.minio.inf-k8s.net
-          users: []
-          resources:
-            requests:
-              memory: 200Mi
-          metrics:
-            serviceMonitor:
+            api:
               enabled: true
-              includeNode: true
-              interval: 30s
-              scrapeTimeout: 10s
+              ingressClassName: nginx
+              annotations:
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+                nginx.ingress.kubernetes.io/proxy-body-size: 30m
+                nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+              host: s3.inf-k8s.net
+              tls:
+                - secretName: minio-inf-k8s
+                  hosts:
+                    - s3.inf-k8s.net
+                    - "*.s3.inf-k8s.net"
+              path: /
+              pathType: Prefix
+            console:
+              enabled: true
+              ingressClassName: nginx
+              annotations:
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+                nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
+              host: console.minio.inf-k8s.net
+              tls:
+                - secretName: console-minio-inf-k8s
+                  hosts:
+                    - console.minio.inf-k8s.net
+              path: /
+              pathType: Prefix
+          tenant:
+            name: infk8s
+            certificate:
+              requestAutoCert: false
+            pools:
+              - servers: 2
+                name: pool-0
+                volumesPerServer: 2
+                size: 50Gi
+                storageClassName: longhorn-single
+    - chart: operator
+      repoURL: https://operator.min.io
+      targetRevision: 7.1.1
+      helm:
+        valuesObject:
+          # # affinity:
+          # #   podAntiAffinity:
+          # #     requiredDuringSchedulingIgnoredDuringExecution:
+          # #       - labelSelector:
+          # #           matchLabels:
+          # #             app: minio
+          # #         topologyKey: kubernetes.io/hostname
+          #
+          # topologySpreadConstraints:
+          #   - topologyKey: inf-k8s.net/location
+          #     whenUnsatisfiable: ScheduleAnyway
+          #     maxSkew: 1
+          #     nodeTaintsPolicy: Honor
+          #     labelSelector:
+          #       matchLabels:
+          #         app: minio
+          # replicas: 3
+          # persistence:
+          #   storageClass: openebs-zfspv
+          #   size: 50Gi
+          # environment:
+          #   MINIO_DOMAIN: s3.inf-k8s.net
+          # ingress:
+          #   enabled: true
+          #   ingressClassName: nginx
+          #   annotations:
+          #     cert-manager.io/cluster-issuer: letsencrypt-prod
+          #     nginx.ingress.kubernetes.io/proxy-body-size: 30m
+          #   hosts:
+          #     - minio.inf-k8s.net
+          #     - s3.inf-k8s.net
+          #     - "*.s3.inf-k8s.net"
+          #   tls:
+          #     - secretName: minio-inf-k8s
+          #       hosts:
+          #         - minio.inf-k8s.net
+          #         - s3.inf-k8s.net
+          #         - "*.s3.inf-k8s.net"
+          # consoleIngress:
+          #   enabled: true
+          #   ingressClassName: nginx
+          #   annotations:
+          #     cert-manager.io/cluster-issuer: letsencrypt-prod
+          #   path: /
+          #   hosts:
+          #     - console.minio.inf-k8s.net
+          #   tls:
+          #     - secretName: console-minio-inf-k8s
+          #       hosts:
+          #         - console.minio.inf-k8s.net
+          # users: []
+          # resources:
+          #   requests:
+          #     memory: 200Mi
+          # metrics:
+          #   serviceMonitor:
+          #     enabled: true
+          #     includeNode: true
+          #     interval: 30s
+          #     scrapeTimeout: 10s
 
   destination:
     server: https://kubernetes.default.svc

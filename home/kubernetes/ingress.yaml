@@ -6,7 +6,7 @@ metadata:
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
-  ingressClassName: kong
+  ingressClassName: nginx
   rules:
     - host: inf-k8s.net
       http:

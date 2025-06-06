@@ -62,7 +62,7 @@ spec:
               storageSpec:
                 volumeClaimTemplate:
                   spec:
-                    storageClassName: openebs-zfspv
+                    storageClassName: longhorn-single
                     accessModes: ["ReadWriteOnce"]
                     resources:
                       requests:
@@ -136,7 +136,7 @@ spec:
                   token: ""
             persistence:
               enabled: true
-              storageClassName: openebs-zfspv
+              storageClassName: longhorn-single
               size: 1Gi
             ingress:
               enabled: true
