@@ -3,7 +3,7 @@ disable:
   - traefik
 node-external-ip: "{{ tailscale_ip.stdout }}"
 node-ip: "{{ tailscale_ip.stdout }}"
-#server: https://100.78.166.71:6443
+server: https://100.78.166.71:6443
 #cluster-init: true
 tls-san:
   - "100.78.166.71"

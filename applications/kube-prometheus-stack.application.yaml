@@ -42,15 +42,15 @@ spec:
               probeSelectorNilUsesHelmValues: false
               ruleSelectorNilUsesHelmValues: false
               serviceMonitorSelectorNilUsesHelmValues: false
-              # affinity:
-              #   nodeAffinity:
-              #     requiredDuringSchedulingIgnoredDuringExecution:
-              #       nodeSelectorTerms:
-              #         - matchExpressions:
-              #             - key: kubernetes.io/hostname
-              #               operator: In
-              #               values:
-              #                 - ubuntu-arm-oracle
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: inf-k8s.net/location
+                            operator: In
+                            values:
+                              - oracle-sydney
               tolerations:
                 - key: "group"
                   operator: "Equal"
@@ -62,7 +62,7 @@ spec:
               storageSpec:
                 volumeClaimTemplate:
                   spec:
-                    storageClassName: longhorn-single
+                    storageClassName: longhorn-local
                     accessModes: ["ReadWriteOnce"]
                     resources:
                       requests:

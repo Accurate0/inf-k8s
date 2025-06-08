@@ -31,20 +31,19 @@
         tailscale_install: false
         tailscale_join_network: true
         tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_K8S_AUTH_KEY') }}"
-    # - role: firewall
-    #   vars:
-    #     firewall_allow_http: false
-    #     firewall_binarylane_k8s_vpc: true
-    #     firewall_allow_local_lan: true
+    - role: firewall
+      vars:
+        firewall_allow_http: false
+        firewall_binarylane_k8s_vpc: true
+        firewall_allow_local_lan: true
+      when: "inventory_hostname == 'oracle'"
     - role: fix-multipathd
-    # - role: openebs
     - role: k3s
       vars:
         k3s_role: "{{ 'agent' if 'agent' in group_names else 'server' }}"
         k3s_control_ip: https://100.78.166.71:6443
         k3s_tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_K8S_AUTH_KEY') }}"
         k3s_cluster_token: "{{ lookup('ansible.builtin.env', 'K3S_CLUSTER_TOKEN') }}"
-    - role: kernel-modules
 
 - name: Setup proxy servers
   hosts: proxy
@@ -60,15 +59,12 @@
     - role: proxy
       vars:
         proxy_backends:
-          # - name: k8s-agent-1
-          #   ip: 100.93.234.1
-          #   is_api_server: false
-          # - name: k8s-control-1
-          #   ip: 100.66.108.81
-          #   is_api_server: true
-          # - name: k8s-optiplex-1
-          #   ip: 100.70.180.118
-          #   is_api_server: true
+          - name: k8s-control-1
+            ip: 100.66.108.81
+            is_api_server: true
+          - name: k8s-optiplex-1
+            ip: 100.70.180.118
+            is_api_server: true
           # - name: k8s-optiplex-2
           #   ip: 100.89.112.112
           #   is_api_server: false
