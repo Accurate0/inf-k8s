@@ -38,11 +38,6 @@ spec:
               enabled: true
               serviceMonitor:
                 enabled: true
-            tolerations:
-              - key: "group"
-                operator: "Equal"
-                value: "external"
-                effect: "NoSchedule"
             kind: DaemonSet
 
   destination:

@@ -52,9 +52,9 @@ spec:
                             values:
                               - oracle-sydney
               tolerations:
-                - key: "group"
+                - key: "inf-k8s.net/architecture"
                   operator: "Equal"
-                  value: "arm64perf"
+                  value: "arm64"
                   effect: "NoSchedule"
               externalUrl: "https://prometheus.inf-k8s.net"
               retention: 2d

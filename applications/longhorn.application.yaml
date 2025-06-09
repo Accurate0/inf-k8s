@@ -19,18 +19,14 @@ spec:
         valuesObject:
           global:
             tolerations:
-              - effect: NoSchedule
-                key: group
-                operator: Equal
-                value: external
-              - effect: NoSchedule
-                key: group
-                operator: Equal
-                value: arm64perf
+              - key: "inf-k8s.net/architecture"
+                operator: "Equal"
+                value: "arm64"
+                effect: "NoSchedule"
           longhornUI:
             replicas: 1
           defaultSettings:
-            taintToleration: group=external:NoSchedule;group=arm64perf:NoSchedule
+            taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
           preUpgradeChecker:
             jobEnabled: false
           ingress:
