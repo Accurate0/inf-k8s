@@ -14,7 +14,7 @@ spec:
   sources:
     - chart: infisical-standalone
       repoURL: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts
-      targetRevision: 1.4.1
+      targetRevision: 1.5.0
       helm:
         valuesObject:
           ingress:
@@ -41,7 +41,7 @@ spec:
               pullPolicy: IfNotPresent
     - chart: secrets-operator
       repoURL: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts
-      targetRevision: 0.8.15
+      targetRevision: 0.9.3
 
   destination:
     server: https://kubernetes.default.svc
