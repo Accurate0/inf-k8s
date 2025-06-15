@@ -66,8 +66,8 @@ spec:
   postgresGID: 26
   postgresUID: 26
   postgresql:
-    shared_preload_libraries: "timescaledb"
     parameters:
+      shared_preload_libraries: "timescaledb"
       pg_stat_statements.max: "10000"
       pg_stat_statements.track: all
   primaryUpdateMethod: switchover
