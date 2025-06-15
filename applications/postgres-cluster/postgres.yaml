@@ -56,7 +56,7 @@ spec:
     target: prefer-standby
   enablePDB: true
   enableSuperuserAccess: true
-  imageName: ghcr.io/accurate0/cnpg-postgresql:16
+  imageName: ghcr.io/accurate0/cnpg-postgresql:16-1
   imagePullPolicy: IfNotPresent
   instances: 3
   logLevel: info
