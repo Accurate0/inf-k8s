@@ -4,6 +4,7 @@ perthtransport.xyz
 maccas.one
 images.maccas.one
 home.inf-k8s.net
+solar-panels.anurag.sh
 anurag.sh
 anurag.id.au
 s3.inf-k8s.net
