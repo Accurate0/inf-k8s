@@ -14,7 +14,7 @@ spec:
   sources:
     - chart: home-assistant
       repoURL: http://pajikos.github.io/home-assistant-helm-chart
-      targetRevision: 0.3.4
+      targetRevision: 0.3.6
       helm:
         valuesObject:
           initContainers:
