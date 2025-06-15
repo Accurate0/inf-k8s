@@ -16,9 +16,8 @@ spec:
       labelSelector:
         matchLabels:
           cnpg.io/cluster: cloudnative-pg-cluster
+
   bootstrap:
-    recovery:
-      source: cloudnative-pg-cluster-v6
 
   externalClusters:
     - name: cloudnative-pg-cluster-v6
