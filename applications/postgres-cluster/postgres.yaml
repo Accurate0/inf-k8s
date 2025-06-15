@@ -66,7 +66,7 @@ spec:
   postgresUID: 26
   postgresql:
     shared_preload_libraries:
-      - "timescaledb"
+      - "timescaledb.so"
     parameters:
       pg_stat_statements.max: "10000"
       pg_stat_statements.track: all
