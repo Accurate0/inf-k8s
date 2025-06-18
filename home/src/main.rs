@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use askama::Template;
 use axum::{
     extract::{MatchedPath, State},
@@ -78,7 +80,7 @@ async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> 
             .into_iter()
             .flatten()
             .flatten()
-            .collect_vec();
+            .collect::<HashSet<String>>();
 
         let namespace = ingress.namespace().unwrap_or("default".to_string());
 
