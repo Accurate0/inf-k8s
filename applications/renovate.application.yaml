@@ -14,7 +14,7 @@ spec:
   sources:
     - chart: mend-renovate-ce
       repoURL: https://mend.github.io/renovate-ce-ee
-      targetRevision: 10.0.0
+      targetRevision: 10.2.0
       helm:
         valuesObject:
           postgresql:
@@ -24,21 +24,24 @@ spec:
             database: renovate
             user: renovate
           ingress:
-            enabled: false
+            enabled: true
             ingressClassName: nginx
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod
             hosts:
-              - renovate.internal.anurag.sh
+              renovate.inf-k8s.net:
+                paths:
+                  - path: "/"
+                    pathType: ImplementationSpecific
             tls:
-              - secretName: renovate-internal-tls
+              - secretName: renovate-inf-k8s-tls
                 hosts:
-                  - renovate.internal.anurag.sh
+                  - renovate.inf-k8s.net
           cachePersistence:
             enabled: false
             size: 10Gi
           cacheInMemory:
-            enabled: false
+            enabled: true
           podSecurityContext:
             runAsUser: 1000
             fsGroup: 1000
@@ -80,9 +83,9 @@ spec:
                     "automergeType": "branch",
                     "automerge": true
                   },
-                  { "matchCategories": ["docker"], "enabled": false },
-                  { "matchCategories": ["dockerfile"], "enabled": false },
-                  { "matchCategories": ["docker-compose"], "enabled": false },
+                  { "matchCategories": ["docker"], "enabled": true },
+                  { "matchCategories": ["dockerfile"], "enabled": true },
+                  { "matchCategories": ["docker-compose"], "enabled": true },
                 ],
               }
 
