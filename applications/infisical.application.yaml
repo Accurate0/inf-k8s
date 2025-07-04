@@ -14,7 +14,7 @@ spec:
   sources:
     - chart: infisical-standalone
       repoURL: https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts
-      targetRevision: 1.6.0
+      targetRevision: 1.6.1
       helm:
         valuesObject:
           ingress:
