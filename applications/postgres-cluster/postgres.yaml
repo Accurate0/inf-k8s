@@ -10,7 +10,7 @@ spec:
     topologyKey: kubernetes.io/hostname
   topologySpreadConstraints:
     - topologyKey: inf-k8s.net/location
-      whenUnsatisfiable: DoNotSchedule
+      whenUnsatisfiable: ScheduleAnyway
       maxSkew: 1
       nodeTaintsPolicy: Honor
       labelSelector:
