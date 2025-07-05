@@ -6,11 +6,11 @@ metadata:
 spec:
   affinity:
     enablePodAntiAffinity: true
-    podAntiAffinityType: preferred
+    podAntiAffinityType: required
     topologyKey: kubernetes.io/hostname
   topologySpreadConstraints:
     - topologyKey: inf-k8s.net/location
-      whenUnsatisfiable: ScheduleAnyway
+      whenUnsatisfiable: DoNotSchedule
       maxSkew: 1
       nodeTaintsPolicy: Honor
       labelSelector:
@@ -80,5 +80,5 @@ spec:
       resources:
         requests:
           storage: 50Gi
-      storageClassName: longhorn-single
+      storageClassName: longhorn-local-wait
       volumeMode: Filesystem
