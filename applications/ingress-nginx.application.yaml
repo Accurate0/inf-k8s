@@ -22,6 +22,7 @@ spec:
               proxy-hide-headers: "Server, X-Powered-By"
               server-tokens: "False"
               enable-modsecurity: "False"
+              use-proxy-protocol: "True"
               enable-owasp-modsecurity-crs: "True"
               enable-real-ip: "True"
               allow-snippet-annotations: "True"
