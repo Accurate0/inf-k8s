@@ -30,6 +30,9 @@ spec:
                   hosts:
                     - prometheus.inf-k8s.net
             prometheusSpec:
+              tsdb:
+                outOfOrderTimeWindow: 30m
+              enableOTLPReceiver: true
               additionalScrapeConfigs:
                 - job_name: "haproxy-metrics"
                   static_configs:
