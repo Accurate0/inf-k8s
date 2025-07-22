@@ -11,33 +11,33 @@ spec:
       - CreateNamespace=true
       - ServerSideApply=true
   project: default
-  source:
-    repoURL: https://charts.signoz.io
-    targetRevision: 0.87.1
-    chart: signoz
-    helm:
-      valuesObject:
-        clickhouse:
-          persistence:
+  sources:
+    - repoURL: https://charts.signoz.io
+      targetRevision: 0.87.1
+      chart: signoz
+      helm:
+        valuesObject:
+          clickhouse:
+            persistence:
+              storageClass: longhorn-local-perth
+          global:
             storageClass: longhorn-local-perth
-        global:
-          storageClass: longhorn-local-perth
-        signoz:
-          ingress:
-            enabled: true
-            className: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-            hosts:
-              - host: signoz.inf-k8s.net
-                paths:
-                  - path: /
-                    pathType: ImplementationSpecific
-                    port: 8080
-            tls:
-              - secretName: signoz-inf-k8s-tls
-                hosts:
-                  - signoz.inf-k8s.net
+          signoz:
+            ingress:
+              enabled: true
+              className: nginx
+              annotations:
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+              hosts:
+                - host: signoz.inf-k8s.net
+                  paths:
+                    - path: /
+                      pathType: ImplementationSpecific
+                      port: 8080
+              tls:
+                - secretName: signoz-inf-k8s-tls
+                  hosts:
+                    - signoz.inf-k8s.net
 
   destination:
     server: https://kubernetes.default.svc
