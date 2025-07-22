@@ -17,6 +17,11 @@ spec:
     chart: signoz
     helm:
       valuesObject:
+        clickhouse:
+          persistence:
+            storageClass: longhorn-local-perth
+        global:
+          storageClass: longhorn-local-perth
         signoz:
           ingress:
             enabled: true
