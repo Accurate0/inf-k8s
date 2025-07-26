@@ -10,16 +10,3 @@ spec:
   immediate: true
   method: barmanObjectStore
   schedule: 0 0 0 * * *
----
-apiVersion: postgresql.cnpg.io/v1
-kind: ScheduledBackup
-metadata:
-  name: cloudnative-pg-cluster-hourly-backup
-  namespace: cnpg-system
-spec:
-  backupOwnerReference: self
-  cluster:
-    name: cloudnative-pg-cluster
-  immediate: true
-  method: barmanObjectStore
-  schedule: 0 0 * * *
