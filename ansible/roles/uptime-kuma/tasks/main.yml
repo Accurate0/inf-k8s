@@ -18,4 +18,5 @@
         dest: /root/deployment/docker-compose.yaml
         owner: root
         mode: "0644"
+      changed_when: True
       notify: Run uptime-kuma
