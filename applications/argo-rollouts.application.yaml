@@ -1,0 +1,43 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: argo-rollouts
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: default
+  sources:
+    - chart: argo-rollouts
+      repoURL: https://argoproj.github.io/argo-helm
+      targetRevision: 2.40.2
+      helm:
+        valuesObject:
+          dashboard:
+            enabled: true
+            ingress:
+              enabled: true
+              ingressClassName: nginx
+              annotations:
+                cert-manager.io/cluster-issuer: letsencrypt-prod
+              hosts:
+                - rollout.inf-k8s.net
+              tls:
+                - secretName: argo-rollout-inf-k8s-tls
+                  hosts:
+                    - rollout.inf-k8s.net
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argo-rollouts
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}

@@ -1,0 +1,16 @@
+apiVersion: argoproj.io/v1alpha1
+kind: ClusterAnalysisTemplate
+metadata:
+  name: nginx-success-rate
+  namespace: argo-rollouts
+spec:
+  args:
+    - name: service-name
+  metrics:
+    - name: success-rate
+      successCondition: result[0] >= 0.95
+      provider:
+        prometheus:
+          address: "http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090"
+          query: |
+            sum(rate(nginx_ingress_controller_requests{exported_service="{{args.service-name}}",status!~"[4-5].*"}[10m])) / sum(rate(nginx_ingress_controller_requests{exported_service="{{args.service-name}}"}[10m]))
