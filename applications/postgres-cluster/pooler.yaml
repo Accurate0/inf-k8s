@@ -13,6 +13,6 @@ spec:
     parameters:
       default_pool_size: "25"
       max_client_conn: "1000"
-      max_prepared_statements: 10
+      max_prepared_statements: "10"
     poolMode: session
   type: rw
