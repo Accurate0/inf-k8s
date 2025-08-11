@@ -7,7 +7,7 @@ data:
   valkey.conf: |
     protected-mode no
     notify-keyspace-events "KEA$"
-    cluster-enabled ${replicas > 1 ? "yes" : "no"}
+    cluster-enabled yes
     cluster-config-file nodes.conf
     cluster-node-timeout 5000
     cluster-allow-reads-when-down yes
