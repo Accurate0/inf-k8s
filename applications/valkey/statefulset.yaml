@@ -4,7 +4,6 @@ metadata:
   name: valkey
   namespace: valkey
 spec:
-  serviceName: valkey
   replicas: 1
   selector:
     matchLabels:
