@@ -13,8 +13,3 @@ spec:
   endpoints:
     - port: metrics
       interval: 30s
-      # This is to ensure that the hostname of the pod comes out instance
-      # of the instance IP
-      relabelings:
-        - sourceLabels: [__meta_kubernetes_endpoint_hostname]
-          targetLabel: instance
