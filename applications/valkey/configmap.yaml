@@ -6,7 +6,6 @@ metadata:
 data:
   valkey.conf: |
     port 6379
-    cluster-port 16379
   init-config.sh: |
     #!/bin/sh
 
