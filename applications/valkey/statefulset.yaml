@@ -74,7 +74,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: REPLICAS
-              value: "${replicas}"
+              value: "3"
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
