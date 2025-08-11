@@ -4,6 +4,9 @@ metadata:
   name: valkey
   namespace: valkey
 spec:
+  namespaceSelector:
+    matchNames:
+      - valkey
   selector:
     matchLabels:
       app: valkey

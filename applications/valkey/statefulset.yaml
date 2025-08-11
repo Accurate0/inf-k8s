@@ -1,18 +1,11 @@
 apiVersion: apps/v1
-kind: StatefulSet
+kind: Deployment
 metadata:
   name: valkey
   namespace: valkey
 spec:
-  # Using Parallel pod management policy for several key reasons:
-  # 1. Enables simultaneous pod creation/termination instead of sequential
-  # 2. Faster scaling operations as new nodes can join cluster in parallel
-  # 3. More efficient cluster formation as nodes don't wait for predecessors
-  # 4. Better recovery as replacement pods can be created simultaneously
-  # 5. Safe because init-cluster.sh handles race conditions and cluster state checks
-  podManagementPolicy: Parallel
   serviceName: valkey
-  replicas: 5
+  replicas: 1
   selector:
     matchLabels:
       app: valkey
@@ -36,15 +29,7 @@ spec:
               mountPath: /config
             - name: data
               mountPath: /data
-          env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
       containers:
-        # Runs Valkey server
-        # Executes cluster initialization
-        # Exposes client and cluster ports
         - name: valkey
           image: valkey/valkey:8.1.3
           ports:
@@ -62,24 +47,10 @@ spec:
           command: ["sh", "-c"]
           args:
             - |
-              sh /scripts/init-cluster.sh &
               valkey-server /etc/valkey/valkey.conf
-          env:
-            - name: POD_IP
-              valueFrom:
-                fieldRef:
-                  fieldPath: status.podIP
-            - name: HOSTNAME
-              valueFrom:
-                fieldRef:
-                  fieldPath: metadata.name
-            - name: REPLICAS
-              value: "5"
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
-          # Exports Prometheus metrics
-          # Automatically detects cluster mode
         - name: redis-exporter
           image: oliver006/redis_exporter:latest
           securityContext:
@@ -109,8 +80,6 @@ spec:
           configMap:
             name: valkey
             items:
-              - key: init-cluster.sh
-                path: init-cluster.sh
               - key: init-config.sh
                 path: init-config.sh
             defaultMode: 0755

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: valkey
+  name: node
   namespace: valkey
 spec:
   selector:
@@ -10,9 +10,6 @@ spec:
     - name: client
       port: 6379
       targetPort: 6379
-    - name: cluster
-      port: 16379
-      targetPort: 16379
     - name: metrics
       port: 9121
       targetPort: 9121
