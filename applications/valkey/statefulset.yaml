@@ -12,7 +12,7 @@ spec:
   # 5. Safe because init-cluster.sh handles race conditions and cluster state checks
   podManagementPolicy: Parallel
   serviceName: valkey
-  replicas: 3
+  replicas: 5
   selector:
     matchLabels:
       app: valkey
@@ -74,7 +74,7 @@ spec:
                 fieldRef:
                   fieldPath: metadata.name
             - name: REPLICAS
-              value: "3"
+              value: "5"
           securityContext:
             runAsUser: 1000
             runAsGroup: 1000
