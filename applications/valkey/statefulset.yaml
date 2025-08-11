@@ -85,12 +85,5 @@ spec:
             defaultMode: 0755
         - name: workdir
           emptyDir: {}
-  volumeClaimTemplates:
-    - metadata:
-        name: data
-      spec:
-        accessModes: ["ReadWriteOnce"]
-        storageClassName: longhorn-local-wait
-        resources:
-          requests:
-            storage: 10Gi
+        - name: data
+          emptyDir: {}
