@@ -91,10 +91,6 @@
       ansible.builtin.include_tasks:
         file: https.yml
 
-    - name: Allow all
-      community.general.ufw:
-        policy: allow
-
     - name: Reload ufw
       community.general.ufw:
         state: reloaded

@@ -4,7 +4,7 @@ resource "binarylane_server" "control" {
   name              = "k8s-control-${count.index + 1}"
   region            = "per"
   memory            = 4096
-  disk              = 100
+  disk              = 30
   size              = "std-2vcpu"
   port_blocking     = false
   public_ipv4_count = 1
