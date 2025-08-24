@@ -12,6 +12,8 @@ spec:
       - ServerSideApply=true
   project: default
   sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/flipt
     - chart: flipt-v2
       repoURL: https://helm.flipt.io
       targetRevision: 2.0.1
