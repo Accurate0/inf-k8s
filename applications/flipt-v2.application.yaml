@@ -1,0 +1,103 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: flipt-v2
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+  project: default
+  sources:
+    - chart: flipt-v2
+      repoURL: https://helm.flipt.io
+      targetRevision: 2.0.1
+      helm:
+        valuesObject:
+          replicaCount: 1
+          ingress:
+            enabled: true
+            className: nginx
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+            hosts:
+              - host: flipt.inf-k8s.net
+                paths:
+                  - path: /
+                    pathType: ImplementationSpecific
+
+            tls:
+              - secretName: flipt-inf-k8s
+                hosts:
+                  - flipt.inf-k8s.net
+          metrics:
+            serviceMonitor:
+              enabled: true
+          flipt:
+            envFrom:
+              - secretRef:
+                  name: flipt-managed-secrets
+            config:
+              environments:
+                production:
+                  name: "Production"
+                  description: "Production environment"
+                  storage: github
+              cors:
+                enabled: true
+                allowed_origins:
+                  - https://flipt.inf-k8s.net
+              credentials:
+                github:
+                  type: access_token
+                  access_token: "${env:FLIPT_GITHUB_ACCESS_TOKEN}"
+              storage:
+                github:
+                  remote: "https://github.com/Accurate0/flipt-state.git"
+                  branch: "main"
+                  poll_interval: "30s"
+                  credentials: "github"
+              analytics:
+                storage:
+                  prometheus:
+                    enabled: true
+                    url: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+              authentication:
+                required: true
+                exclude:
+                  evaluation: true
+                session:
+                  storage:
+                    type: redis
+                    redis:
+                      mode: single
+                      port: 6379
+                      host: node.valkey.svc.cluster.local
+                  domain: "flipt.inf-k8s.net"
+                  secure: true
+                  csrf:
+                    key: "${env:FLIPT_CSRF_KEY}"
+                methods:
+                  github:
+                    enabled: true
+                    client_id: "${env:FLIPT_GITHUB_CLIENT_ID}"
+                    client_secret: "${env:FLIPT_GITHUB_CLIENT_SECRET}"
+                    redirect_address: "https://flipt.inf-k8s.net"
+                    scopes:
+                      - user:email
+                  token:
+                    enabled: true
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: flipt-v2
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}
