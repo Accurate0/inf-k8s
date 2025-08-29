@@ -16,7 +16,7 @@ spec:
       path: applications/flipt
     - chart: flipt-v2
       repoURL: https://helm.flipt.io
-      targetRevision: 2.0.1
+      targetRevision: 2.0.2
       helm:
         valuesObject:
           replicaCount: 1
