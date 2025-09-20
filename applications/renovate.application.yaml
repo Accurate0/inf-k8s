@@ -78,6 +78,7 @@ spec:
                 timezone: "Australia/Perth",
                 lockFileMaintenance: { "enabled": false, "automerge": true },
                 schedule: ["* 0-3 * * 0,6"],
+                rebaseWhen: "never",
                 packageRules: [
                   {
                     "matchUpdateTypes": ["minor", "patch", "pin", "digest"],
