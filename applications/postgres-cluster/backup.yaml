@@ -10,3 +10,5 @@ spec:
   immediate: true
   method: barmanObjectStore
   schedule: 0 0 0 * * *
+  pluginConfiguration:
+    name: barman-cloud.cloudnative-pg.io

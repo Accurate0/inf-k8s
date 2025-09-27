@@ -31,28 +31,11 @@ spec:
           secretAccessKey:
             key: ACCESS_SECRET_KEY
             name: cloudnative-pg-cluster-backup-s3-creds
-  backup:
-    barmanObjectStore:
-      data:
-        compression: gzip
-        encryption: AES256
-        jobs: 2
-      destinationPath: s3://pg-cluster-backup/
-      endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-      serverName: "cloudnative-pg-cluster-v7"
-      s3Credentials:
-        accessKeyId:
-          key: ACCESS_KEY_ID
-          name: cloudnative-pg-cluster-backup-s3-creds
-        secretAccessKey:
-          key: ACCESS_SECRET_KEY
-          name: cloudnative-pg-cluster-backup-s3-creds
-      wal:
-        compression: gzip
-        encryption: AES256
-        maxParallel: 1
-    retentionPolicy: 7d
-    target: prefer-standby
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      isWALArchiver: true
+      parameters:
+        barmanObjectName: r2-store
   enablePDB: true
   enableSuperuserAccess: true
   imageName: ghcr.io/accurate0/cnpg-postgresql:17.6-bullseye
