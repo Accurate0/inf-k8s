@@ -22,4 +22,4 @@ spec:
       compression: gzip
       encryption: AES256
       maxParallel: 1
-    retentionPolicy: 7d
+  retentionPolicy: 7d
