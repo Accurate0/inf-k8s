@@ -33,6 +33,7 @@ spec:
             name: cloudnative-pg-cluster-backup-s3-creds
   plugins:
     - name: barman-cloud.cloudnative-pg.io
+      enabled: true
       isWALArchiver: true
       parameters:
         serverName: "cloudnative-pg-cluster-v7"
