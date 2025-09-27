@@ -16,10 +16,11 @@ spec:
     - chart: cloudnative-pg
       repoURL: https://cloudnative-pg.github.io/charts
       targetRevision: 0.26.0
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/barman-cloud-plugin
 
-  destination:
-    server: https://kubernetes.default.svc
-    namespace: cnpg-system
+  server: https://kubernetes.default.svc
+  namespace: cnpg-system
 
 operation:
   initiatedBy:
