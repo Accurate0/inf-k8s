@@ -23,4 +23,3 @@ spec:
       encryption: AES256
       maxParallel: 1
     retentionPolicy: 7d
-    target: prefer-standby
