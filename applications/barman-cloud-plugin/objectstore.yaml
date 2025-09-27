@@ -10,7 +10,6 @@ spec:
       jobs: 2
     destinationPath: s3://pg-cluster-backup/
     endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-    serverName: "cloudnative-pg-cluster-v7"
     s3Credentials:
       accessKeyId:
         key: ACCESS_KEY_ID
