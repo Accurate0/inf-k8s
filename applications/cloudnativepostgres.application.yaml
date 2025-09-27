@@ -19,8 +19,9 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/barman-cloud-plugin
 
-  server: https://kubernetes.default.svc
-  namespace: cnpg-system
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
 
 operation:
   initiatedBy:
