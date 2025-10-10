@@ -1,0 +1,32 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: envoy-gateway
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/envoy
+    - chart: gateway-helm
+      helm:
+        valuesObject:
+          deployment:
+            envoyGateway:
+              resources:
+                limits:
+                  cpu: 700m
+                  memory: 256Mi
+      path: gateway-helm
+      repoURL: docker.io/envoyproxy
+      targetRevision: v1.5.3
+  destination:
+    namespace: envoy-gateway-system
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
