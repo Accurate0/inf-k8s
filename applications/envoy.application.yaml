@@ -12,6 +12,7 @@ spec:
       helm:
         valuesObject:
           deployment:
+            replicas: 1
             envoyGateway:
               resources:
                 limits:
