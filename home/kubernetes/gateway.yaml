@@ -8,7 +8,7 @@ spec:
     - name: https
       protocol: HTTPS
       hostname: inf-k8s.net
-      port: 443
+      port: 8443
       tls:
         mode: Terminate
         certificateRefs:
