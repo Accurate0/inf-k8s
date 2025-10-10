@@ -5,3 +5,7 @@ metadata:
   namespace: envoy-gateway-system
 spec:
   mergeGateways: true
+  provider:
+    type: "Kubernetes"
+    kubernetes:
+      envoyDaemonSet:
