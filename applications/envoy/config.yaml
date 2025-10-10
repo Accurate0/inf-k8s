@@ -9,4 +9,10 @@ spec:
     type: "Kubernetes"
     kubernetes:
       envoyDaemonSet:
-        strategy: RollingUpdate
+        patch:
+          value:
+            spec:
+              template:
+                spec:
+                  nodeSelector:
+                    inf-k8s.net/proxy: "true"
