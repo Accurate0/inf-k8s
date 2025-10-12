@@ -1,5 +1,3 @@
-use std::collections::HashSet;
-
 use askama::Template;
 use axum::{
     extract::{MatchedPath, State},
@@ -8,9 +6,11 @@ use axum::{
     routing::get,
     Router,
 };
+use gateway_api::gateways::Gateway;
 use itertools::Itertools;
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::{api::ListParams, Api, ResourceExt};
+use std::collections::{HashMap, HashSet};
 use tower_http::{
     services::ServeDir,
     trace::{DefaultOnRequest, DefaultOnResponse, TraceLayer},
@@ -20,7 +20,7 @@ use tracing::Level;
 
 struct Grouped {
     name: String,
-    urls: Vec<String>,
+    urls: HashSet<String>,
 }
 
 #[derive(Template)]
@@ -61,11 +61,34 @@ where
 
 // basic handler that responds with a static string
 async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
+    let gateway: Api<Gateway> = Api::all(state.client.clone());
+    let params = ListParams::default();
+    let all_gateway = gateway.list(&params).await?;
+
+    let mut map_by_namespace = HashMap::<String, HashSet<String>>::new();
+
+    all_gateway.into_iter().for_each(|gateway| {
+        let urls = gateway
+            .spec
+            .listeners
+            .iter()
+            .map(|l| l.hostname.clone())
+            .flatten()
+            .collect::<HashSet<String>>();
+
+        let namespace = gateway.namespace().unwrap_or("default".to_string());
+
+        map_by_namespace
+            .entry(namespace)
+            .and_modify(|v| v.extend(urls.clone()))
+            .or_insert(urls);
+    });
+
     let ingress: Api<Ingress> = Api::all(state.client);
     let params = ListParams::default();
     let all_ingress = ingress.list(&params).await?;
 
-    let url_namespace_tuple = all_ingress.into_iter().map(|ingress| {
+    all_ingress.into_iter().for_each(|ingress| {
         let urls = ingress
             .spec
             .as_ref()
@@ -84,21 +107,17 @@ async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> 
 
         let namespace = ingress.namespace().unwrap_or("default".to_string());
 
-        (namespace, urls)
+        map_by_namespace
+            .entry(namespace)
+            .and_modify(|v| v.extend(urls.clone()))
+            .or_insert(urls);
     });
 
-    tracing::info!("found {} ingress resources", url_namespace_tuple.len());
-
-    let mut urls = url_namespace_tuple
-        .into_group_map_by(|(namespace, _)| namespace.to_string())
-        .iter()
+    let mut urls = map_by_namespace
+        .into_iter()
         .map(|(k, v)| Grouped {
             name: k.to_string(),
-            urls: v
-                .iter()
-                .flat_map(|u| u.1.iter().to_owned())
-                .map(|s| s.to_string())
-                .collect_vec(),
+            urls: v,
         })
         .collect_vec();
 

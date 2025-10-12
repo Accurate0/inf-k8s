@@ -366,6 +366,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "delegate"
+version = "0.13.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6178a82cf56c836a3ba61a7935cdb1c49bfaa6fa4327cd5bf554a503087de26b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
 name = "derive_more"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -568,6 +579,23 @@ dependencies = [
  "pin-project-lite",
  "pin-utils",
  "slab",
+]
+
+[[package]]
+name = "gateway-api"
+version = "0.16.0"
+source = "git+https://github.com/daniel-white/gateway-api-rs.git?branch=deps#780295f884cdeb94d88e0d65539b17ab123b142d"
+dependencies = [
+ "delegate",
+ "k8s-openapi",
+ "kube-core",
+ "kube-derive",
+ "once_cell",
+ "regex-lite",
+ "schemars",
+ "serde",
+ "serde_json",
+ "serde_yaml",
 ]
 
 [[package]]
@@ -799,6 +827,7 @@ dependencies = [
  "anyhow",
  "askama",
  "axum",
+ "gateway-api",
  "itertools",
  "k8s-openapi",
  "kube",
@@ -887,6 +916,7 @@ checksum = "d13f06d5326a915becaffabdfab75051b8cdc260c2a5c06c0e90226ede89a692"
 dependencies = [
  "base64",
  "chrono",
+ "schemars",
  "serde",
  "serde_json",
 ]
@@ -1320,6 +1350,12 @@ dependencies = [
  "memchr",
  "regex-syntax",
 ]
+
+[[package]]
+name = "regex-lite"
+version = "0.1.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8d942b98df5e658f56f20d592c7f868833fe38115e65c33003d8cd224b0155da"
 
 [[package]]
 name = "regex-syntax"
