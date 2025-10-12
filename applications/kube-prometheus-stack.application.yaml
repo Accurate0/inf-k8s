@@ -59,7 +59,6 @@ spec:
                   static_configs:
                     - targets:
                         - "100.97.97.24:8405"
-                        - "100.88.101.69:8405"
                   tls_config:
                     insecure_skip_verify: true
               podMonitorSelectorNilUsesHelmValues: false
