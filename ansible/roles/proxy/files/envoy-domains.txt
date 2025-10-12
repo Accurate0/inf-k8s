@@ -3,3 +3,5 @@ api.perthtransport.xyz
 perthtransport.xyz
 home.anurag.sh
 solar-panels.anurag.sh
+anurag.sh
+anurag.id.au
