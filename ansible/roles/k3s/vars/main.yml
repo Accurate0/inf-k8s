@@ -3,5 +3,5 @@
 # vars file for k3s-control
 k3s_role: ""
 k3s_systemd_service: "{{ 'k3s' if k3s_role == 'server' else 'k3s-agent' }}"
-k3s_channel: stable
-k3s_version: v1.33.5+k3s1
+k3s_channel: "latest"
+k3s_version: "v1.34.1+k3s1"
