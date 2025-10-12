@@ -9,6 +9,8 @@
           - "k3s_tailscale_auth_key != ''"
           - "k3s_role == 'agent' or k3s_role == 'server'"
           - "k3s_cluster_token != ''"
+          - "k3s_channel != ''"
+          - "k3s_version != ''"
 
     - name: Get Service Status
       ansible.builtin.command: "tailscale ip -4"
@@ -19,6 +21,9 @@
     - name: Copy and Execute the script
       ansible.builtin.shell:
         cmd: curl -sfL https://get.k3s.io | sh -s - {{ k3s_role }}
+      environment:
+        INSTALL_K3S_CHANNEL: "{{ k3s_channel }}"
+        INSTALL_K3S_VERSION: "{{ k3s_version }}"
       tags:
         - skip_ansible_lint
       ignore_errors: true
