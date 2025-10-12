@@ -1,0 +1,27 @@
+- name: Setup proxy servers
+  hosts: proxy
+  become: true
+  serial: 1
+
+  roles:
+    - role: proxy
+      vars:
+        proxy_backends:
+          - name: k8s-control-1
+            ip: 100.66.108.81
+            is_api_server: true
+          - name: k8s-optiplex-1
+            ip: 100.70.180.118
+            is_api_server: true
+          - name: k8s-optiplex-2
+            ip: 100.89.112.112
+            is_api_server: false
+          - name: k8s-optiplex-3
+            ip: 100.115.217.79
+            is_api_server: false
+          - name: k8s-optiplex-4
+            ip: 100.126.172.94
+            is_api_server: false
+          - name: k8s-optiplex-5
+            ip: 100.78.166.71
+            is_api_server: true

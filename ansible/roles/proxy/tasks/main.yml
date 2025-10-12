@@ -31,6 +31,15 @@
       notify:
         - Reload Haproxy
 
+    - name: Copy envoy-domains.txt
+      ansible.builtin.copy:
+        src: envoy-domains.txt
+        dest: /etc/haproxy/envoy-domains.txt
+        owner: root
+        mode: "0644"
+      notify:
+        - Reload Haproxy
+
     - name: Template and copy haproxy config
       ansible.builtin.template:
         src: haproxy.cfg
