@@ -7,7 +7,7 @@ metadata:
 spec:
   gatewayClassName: envoy-gateway
   listeners:
-    - name: https
+    - name: anurag-id-au-https
       protocol: HTTPS
       hostname: anurag.id.au
       allowedRoutes:
@@ -23,7 +23,7 @@ spec:
           - group: ""
             kind: Secret
             name: anurag-id-au-tls
-    - name: https
+    - name: anurag-sh-https
       protocol: HTTPS
       hostname: anurag.sh
       allowedRoutes:
@@ -39,7 +39,7 @@ spec:
           - group: ""
             kind: Secret
             name: anurag-sh-tls
-    - name: https
+    - name: inf-k8s-https
       protocol: HTTPS
       hostname: inf-k8s.net
       allowedRoutes:
