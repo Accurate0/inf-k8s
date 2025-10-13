@@ -7,3 +7,4 @@ anurag.sh
 anurag.id.au
 maccas.one
 graphql.maccas.one
+images.maccas.one
