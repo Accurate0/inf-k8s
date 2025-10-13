@@ -19,18 +19,6 @@ spec:
 
   bootstrap:
 
-  externalClusters:
-    - name: cloudnative-pg-cluster-v6
-      barmanObjectStore:
-        destinationPath: s3://pg-cluster-backup/
-        endpointURL: https://45c8799279b4d50c2126b6188d93045c.r2.cloudflarestorage.com
-        s3Credentials:
-          accessKeyId:
-            key: ACCESS_KEY_ID
-            name: cloudnative-pg-cluster-backup-s3-creds
-          secretAccessKey:
-            key: ACCESS_SECRET_KEY
-            name: cloudnative-pg-cluster-backup-s3-creds
   plugins:
     - name: barman-cloud.cloudnative-pg.io
       enabled: true
