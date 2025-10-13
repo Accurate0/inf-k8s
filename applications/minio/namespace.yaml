@@ -4,3 +4,6 @@ metadata:
   name: minio
   labels:
     shared-gateway-access: "true"
+spec:
+  finalizers:
+    - kubernetes
