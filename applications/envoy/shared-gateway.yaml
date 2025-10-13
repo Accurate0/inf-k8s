@@ -73,6 +73,12 @@ spec:
             name: inf-k8s-tls
     - hostname: "*.perthtransport.xyz"
       name: wildcard-perthtransport-xyz-https
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
       port: 8443
       protocol: HTTPS
       tls:
@@ -82,6 +88,12 @@ spec:
             name: wildcard-perth-transport-map-tls
     - hostname: perthtransport.xyz
       name: perthtransport-xyz-https
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
       port: 8443
       protocol: HTTPS
       tls:
