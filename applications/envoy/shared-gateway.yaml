@@ -71,8 +71,9 @@ spec:
           - group: ""
             kind: Secret
             name: inf-k8s-tls
-    - hostname: "*.perthtransport.xyz"
-      name: wildcard-perthtransport-xyz-https
+    - name: wildcard-perthtransport-xyz-https
+      protocol: HTTPS
+      hostname: "*.perthtransport.xyz"
       allowedRoutes:
         namespaces:
           from: Selector
@@ -80,14 +81,14 @@ spec:
             matchLabels:
               shared-gateway-access: "true"
       port: 8443
-      protocol: HTTPS
       tls:
         certificateRefs:
           - group: ""
             kind: Secret
             name: wildcard-perth-transport-map-tls
-    - hostname: perthtransport.xyz
-      name: perthtransport-xyz-https
+    - name: perthtransport-xyz-https
+      protocol: HTTPS
+      hostname: perthtransport.xyz
       allowedRoutes:
         namespaces:
           from: Selector
@@ -95,14 +96,14 @@ spec:
             matchLabels:
               shared-gateway-access: "true"
       port: 8443
-      protocol: HTTPS
       tls:
         certificateRefs:
           - group: ""
             kind: Secret
             name: perth-transport-map-tls
-    - hostname: "*.maccas.one"
-      name: wildcard-maccas-one-https
+    - name: wildcard-maccas-one-https
+      protocol: HTTPS
+      hostname: "*.maccas.one"
       allowedRoutes:
         namespaces:
           from: Selector
@@ -110,14 +111,14 @@ spec:
             matchLabels:
               shared-gateway-access: "true"
       port: 8443
-      protocol: HTTPS
       tls:
         certificateRefs:
           - group: ""
             kind: Secret
             name: wildcard-maccas-one-tls
-    - hostname: maccas.one
-      name: maccas-one-https
+    - name: maccas-one-https
+      protocol: HTTPS
+      hostname: maccas.one
       allowedRoutes:
         namespaces:
           from: Selector
@@ -125,7 +126,6 @@ spec:
             matchLabels:
               shared-gateway-access: "true"
       port: 8443
-      protocol: HTTPS
       tls:
         certificateRefs:
           - group: ""
