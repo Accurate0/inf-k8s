@@ -6,5 +6,5 @@ spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: inf-k8s-gateway
+      name: shared-gateway
   enableProxyProtocol: true
