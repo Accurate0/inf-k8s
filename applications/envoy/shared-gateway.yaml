@@ -10,9 +10,16 @@ spec:
     - name: https
       protocol: HTTPS
       hostname: inf-k8s.net
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
       port: 8443
       tls:
         mode: Terminate
         certificateRefs:
-          - kind: Secret
+          - group: ""
+            kind: Secret
             name: inf-k8s-tls

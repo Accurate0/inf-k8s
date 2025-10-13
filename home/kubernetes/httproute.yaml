@@ -5,6 +5,7 @@ metadata:
 spec:
   parentRefs:
     - name: shared-gateway
+      namespace: envoy-gateway-system
   hostnames:
     - "inf-k8s.net"
   rules:
