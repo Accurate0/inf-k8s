@@ -3,7 +3,6 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - rbac.yaml
-  - gateway.yaml
   - httproute.yaml
   - namespace.yaml
   - service.yaml

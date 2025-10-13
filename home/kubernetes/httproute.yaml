@@ -4,7 +4,7 @@ metadata:
   name: inf-k8s
 spec:
   parentRefs:
-    - name: inf-k8s-gateway
+    - name: shared-gateway
   hostnames:
     - "inf-k8s.net"
   rules:
