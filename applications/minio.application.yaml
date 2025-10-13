@@ -14,6 +14,8 @@ spec:
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/minio-buckets
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/minio
     - chart: tenant
       repoURL: https://operator.min.io
       targetRevision: 7.1.1
