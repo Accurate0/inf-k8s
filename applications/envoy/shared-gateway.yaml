@@ -25,7 +25,7 @@ spec:
             name: anurag-id-au-tls
     - name: wildcard-anurag-sh-https
       protocol: HTTPS
-      hostname: *.anurag.sh
+      hostname: "*.anurag.sh"
       allowedRoutes:
         namespaces:
           from: Selector
