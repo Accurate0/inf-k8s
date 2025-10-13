@@ -5,3 +5,5 @@ home.anurag.sh
 solar-panels.anurag.sh
 anurag.sh
 anurag.id.au
+maccas.one
+graphql.maccas.one
