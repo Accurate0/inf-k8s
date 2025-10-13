@@ -6,7 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
-use gateway_api::gateways::Gateway;
+use gateway_api::httproutes::HTTPRoute;
 use itertools::Itertools;
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::{api::ListParams, Api, ResourceExt};
@@ -61,20 +61,21 @@ where
 
 // basic handler that responds with a static string
 async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
-    let gateway: Api<Gateway> = Api::all(state.client.clone());
+    let http_routes: Api<HTTPRoute> = Api::all(state.client.clone());
     let params = ListParams::default();
-    let all_gateway = gateway.list(&params).await?;
+    let all_http_routes = http_routes.list(&params).await?;
 
     let mut map_by_namespace = HashMap::<String, HashSet<String>>::new();
 
-    all_gateway.into_iter().for_each(|gateway| {
-        let urls = gateway
-            .spec
-            .listeners
-            .iter()
-            .map(|l| l.hostname.clone())
-            .flatten()
-            .collect::<HashSet<String>>();
+    all_http_routes.into_iter().for_each(|gateway| {
+        let urls = HashSet::from_iter(
+            gateway
+                .spec
+                .hostnames
+                .clone()
+                .unwrap_or_default()
+                .into_iter(),
+        );
 
         let namespace = gateway.namespace().unwrap_or("default".to_string());
 
