@@ -16,6 +16,9 @@ spec:
                 app.kubernetes.io/instance: envoy-gateway
             spec:
               template:
+                metadata:
+                  labels:
+                    app.kubernetes.io/instance: envoy-gateway
                 spec:
                   nodeSelector:
                     inf-k8s.net/proxy: "true"
