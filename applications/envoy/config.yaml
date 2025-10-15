@@ -11,6 +11,9 @@ spec:
       envoyDaemonSet:
         patch:
           value:
+            metadata:
+              labels:
+                argocd.argoproj.io/tracking-id: envoy-gateway:apps/DaemonSet:envoy-gateway-system/envoy-proxy
             spec:
               template:
                 spec:
