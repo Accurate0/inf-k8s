@@ -13,12 +13,12 @@ spec:
           value:
             metadata:
               labels:
-                app.kubernetes.io/instance: envoy-gateway
+                argocd.argoproj.io/tracking-id: envoy-gateway-proxy
             spec:
               template:
                 metadata:
                   labels:
-                    app.kubernetes.io/instance: envoy-gateway
+                    argocd.argoproj.io/tracking-id: envoy-gateway-proxy
                 spec:
                   nodeSelector:
                     inf-k8s.net/proxy: "true"
