@@ -13,12 +13,12 @@ spec:
           value:
             metadata:
               annotations:
-                argocd.argoproj.io/tracking-id: envoy-gateway-proxy
+                argocd.argoproj.io/tracking-id: envoy-gateway:apps/DaemonSet:envoy-gateway-system/envoy-gateway-proxy
             spec:
               template:
                 metadata:
                   annotations:
-                    argocd.argoproj.io/tracking-id: envoy-gateway-proxy
+                    argocd.argoproj.io/tracking-id: envoy-gateway:apps/DaemonSet:envoy-gateway-system/envoy-gateway-proxy
                 spec:
                   nodeSelector:
                     inf-k8s.net/proxy: "true"
