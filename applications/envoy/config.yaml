@@ -12,12 +12,12 @@ spec:
         patch:
           value:
             metadata:
-              labels:
+              annotations:
                 argocd.argoproj.io/tracking-id: envoy-gateway-proxy
             spec:
               template:
                 metadata:
-                  labels:
+                  annotations:
                     argocd.argoproj.io/tracking-id: envoy-gateway-proxy
                 spec:
                   nodeSelector:
