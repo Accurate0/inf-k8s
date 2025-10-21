@@ -24,11 +24,6 @@ spec:
             enabled: false
             lapiURL: "http://crowdsec-service.crowdsec.svc.cluster.local:8080"
             lapiHost: "http://crowdsec-service.crowdsec.svc.cluster.local"
-            acquisition:
-              - namespace: ingress-nginx
-                podName: ingress-nginx-controller-*
-                program: nginx
-                poll_without_inotify: true
           appsec:
             replicas: 2
             metrics:

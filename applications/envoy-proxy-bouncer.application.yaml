@@ -1,0 +1,71 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: envoy-proxy-bouncer
+  namespace: argocd
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/envoy-proxy-bouncer
+    - chart: envoy-proxy-bouncer
+      repoURL: https://kdwils.github.io/envoy-proxy-crowdsec-bouncer
+      targetRevision: 0.3.1
+      helm:
+        valuesObject:
+          replicaCount: 2
+
+          config:
+            server:
+              grpcPort: 8080
+              httpPort: 8081
+              logLevel: "info"
+
+            trustedProxies:
+              - 10.0.0.0/8
+
+            bouncer:
+              enabled: true
+              metrics: true
+              lapiURL: "http://crowdsec-service.crowdsec.svc:8080"
+              apiKeySecretRef:
+                name: envoy-proxy-bouncer-managed-secrets
+                key: BOUNCER_KEY
+
+            waf:
+              enabled: true
+              appSecURL: "http://crowdsec-appsec-service.crowdsec.svc:7422"
+              apiKeySecretRef:
+                name: envoy-proxy-bouncer-managed-secrets
+                key: APPSEC_KEY
+
+            captcha:
+              enabled: false
+              # provider: "turnstile"
+              # siteKey: "0x4AAAAAAAA..."
+              # secretKeySecretRef:
+              #   name: captcha-secrets
+              #   key: secret-key
+              # callbackURL: "https://auth.example.com"
+
+          resources:
+            limits:
+              cpu: 200m
+              memory: 256Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
+
+          autoscaling:
+            enabled: false
+
+  destination:
+    namespace: envoy-proxy-bouncer
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
