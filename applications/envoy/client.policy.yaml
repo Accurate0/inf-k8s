@@ -9,3 +9,9 @@ spec:
       name: shared-gateway
   proxyProtocol:
     optional: false
+  clientIPDetection:
+    xForwardedFor:
+      numTrustedHops: 2
+    customHeader:
+      name: CF-Connecting-IP
+      failClosed: false
