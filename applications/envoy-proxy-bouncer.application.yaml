@@ -18,6 +18,7 @@ spec:
             fromNamespaces:
               - perth-transport-map
               - ingress-home
+              - maccas-api
           replicaCount: 2
 
           config:
