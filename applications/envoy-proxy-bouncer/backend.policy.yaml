@@ -12,9 +12,9 @@ spec:
     local:
       rules:
         - clientSelectors:
-            - sourceCIDR:
-                type: Exact
-                value: 0.0.0.0/0
+            - headers:
+                - name: CF-Connecting-IP
+                  type: Distinct
           limit:
             requests: 10
             unit: Minute
