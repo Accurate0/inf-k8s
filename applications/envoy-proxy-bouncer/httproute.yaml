@@ -17,5 +17,8 @@ spec:
             type: PathPrefix
             value: /captcha/
       backendRefs:
-        - name: envoy-proxy-bouncer
+        - group: ""
+          kind: Service
+          name: envoy-proxy-bouncer
           port: 8081
+          weight: 1
