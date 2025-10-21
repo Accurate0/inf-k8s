@@ -5,7 +5,7 @@ metadata:
   namespace: envoy-proxy-bouncer
 spec:
   hostnames:
-    - bouncer.anurag.sh
+    - check.anurag.sh
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway

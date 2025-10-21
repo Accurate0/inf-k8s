@@ -4,7 +4,7 @@ perthtransport.xyz
 home.anurag.sh
 solar-panels.anurag.sh
 anurag.sh
-bouncer.anurag.sh
+check.anurag.sh
 anurag.id.au
 maccas.one
 graphql.maccas.one
