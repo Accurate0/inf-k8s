@@ -17,6 +17,7 @@ spec:
             create: true
             fromNamespaces:
               - perth-transport-map
+              - ingress-home
           replicaCount: 2
 
           config:
