@@ -52,7 +52,7 @@ spec:
               secretKeySecretRef:
                 name: envoy-proxy-bouncer-managed-secrets
                 key: CAPTCHA_SECRET_KEY
-              callbackURL: "https://bouncer.anurag.sh"
+              callbackURL: "https://check.anurag.sh"
               sessionDuration: "15m"
               timeout: "10s"
 
