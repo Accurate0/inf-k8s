@@ -13,7 +13,8 @@ spec:
       rules:
         - clientSelectors:
             - headers:
-                - name: CF-Connecting-IP
+                - invert: false
+                  name: CF-Connecting-IP
                   type: Distinct
           limit:
             requests: 10
