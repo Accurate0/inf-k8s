@@ -1,0 +1,17 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: RateLimitPolicy
+metadata:
+  name: captcha-rate-limit
+  namespace: envoy-gateway-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: bouncer-captcha
+  rateLimits:
+    - clientSelectors:
+        - sourceCIDR:
+            value: 0.0.0.0/0
+      limit:
+        requests: 10
+        unit: Minute

@@ -53,6 +53,8 @@ spec:
                 name: envoy-proxy-bouncer-managed-secrets
                 key: CAPTCHA_SECRET_KEY
               callbackURL: "https://bouncer.anurag.sh"
+              sessionDuration: "15m"
+              timeout: "10s"
 
           resources:
             limits:
