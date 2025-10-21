@@ -22,3 +22,7 @@ spec:
           name: envoy-proxy-bouncer
           port: 8081
           weight: 1
+      sessionPersistence:
+        sessionName: User-Agent
+        type: Header
+        absoluteTimeout: 15m
