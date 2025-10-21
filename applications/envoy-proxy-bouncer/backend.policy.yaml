@@ -1,7 +1,7 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
-  name: backend-traffic-policy-web
+  name: captcha-backend-policy
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
@@ -13,6 +13,7 @@ spec:
       rules:
         - clientSelectors:
             - sourceCIDR:
+                type: Exact
                 value: 0.0.0.0/0
           limit:
             requests: 10
