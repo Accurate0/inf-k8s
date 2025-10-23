@@ -29,7 +29,9 @@ spec:
                 - home.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: home-assistant
+                    - group: ""
+                      kind: Service
+                      name: home-assistant
                       port: 8080
                       weight: 1
                   matches:

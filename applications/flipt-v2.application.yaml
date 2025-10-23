@@ -31,7 +31,9 @@ spec:
                 - flipt.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: flipt-v2
+                    - group: ""
+                      kind: Service
+                      name: flipt-v2
                       port: 8080
                       weight: 1
                   matches:

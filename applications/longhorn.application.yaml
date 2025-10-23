@@ -31,7 +31,9 @@ spec:
                 - longhorn.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: longhorn-frontend
+                    - group: ""
+                      kind: Service
+                      name: longhorn-frontend
                       port: 80
                       weight: 1
                   matches:

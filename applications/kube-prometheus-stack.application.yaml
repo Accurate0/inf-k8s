@@ -29,7 +29,9 @@ spec:
                 - prometheus.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: monitoring-kube-prometheus-prometheus
+                    - group: ""
+                      kind: Service
+                      name: monitoring-kube-prometheus-prometheus
                       port: 9090
                       weight: 1
                   matches:
@@ -44,7 +46,9 @@ spec:
                 - grafana.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: monitoring-grafana
+                    - group: ""
+                      kind: Service
+                      name: monitoring-grafana
                       port: 80
                       weight: 1
                   matches:

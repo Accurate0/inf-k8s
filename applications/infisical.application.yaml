@@ -29,7 +29,9 @@ spec:
                 - vault.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: infisical-infisical-standalone-infisical
+                    - group: ""
+                      kind: Service
+                      name: infisical-infisical-standalone-infisical
                       port: 8080
                       weight: 1
                   matches:
@@ -37,7 +39,9 @@ spec:
                         type: PathPrefix
                         value: /
                 - backendRefs:
-                    - name: infisical-infisical-standalone-infisical
+                    - group: ""
+                      kind: Service
+                      name: infisical-infisical-standalone-infisical
                       port: 8080
                       weight: 1
                   matches:

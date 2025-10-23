@@ -30,7 +30,9 @@ spec:
                 - s3.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: minio
+                    - group: ""
+                      kind: Service
+                      name: minio
                       port: 80
                       weight: 1
                   matches:
@@ -45,7 +47,9 @@ spec:
                 - minio.inf-k8s.net
               rules:
                 - backendRefs:
-                    - name: infk8s-console
+                    - group: ""
+                      kind: Service
+                      name: infk8s-console
                       port: 9090
                       weight: 1
                   matches:
