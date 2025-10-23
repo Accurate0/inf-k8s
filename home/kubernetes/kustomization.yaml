@@ -3,8 +3,6 @@ kind: Kustomization
 resources:
   - deployment.yaml
   - rbac.yaml
-  - httproute.yaml
-  - securitypolicy.yaml
   - namespace.yaml
   - service.yaml
   - serviceaccount.yaml

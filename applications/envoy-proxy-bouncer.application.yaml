@@ -21,6 +21,7 @@ spec:
               - maccas-api
               - solar-panels
               - anurag-sh
+              - home-gateway
           replicaCount: 1
 
           config:
