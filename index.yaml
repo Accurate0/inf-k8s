@@ -3,6 +3,16 @@ entries:
   k8s-http-routes:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2025-10-23T08:24:58.584590582Z"
+    description: Standardized HTTPRoute resources for my cluster
+    digest: a269dd949fb5b04d8489852e22d173b556644310d8d44f57161a90fa96c4ac24
+    name: k8s-http-routes
+    type: application
+    urls:
+    - https://github.com/Accurate0/inf-k8s/releases/download/k8s-http-routes-1.1.0/k8s-http-routes-1.1.0.tgz
+    version: 1.1.0
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2025-10-23T08:22:28.18213143Z"
     description: Standardized HTTPRoute resources for my cluster
     digest: a28190aa4ad6dfa7355e4a95571634a7c58593cb37231918c4328dfca09ddbfa
@@ -42,4 +52,4 @@ entries:
     urls:
     - https://github.com/Accurate0/inf-k8s/releases/download/secured-http-route-0.1.0/secured-http-route-0.1.0.tgz
     version: 0.1.0
-generated: "2025-10-23T08:22:28.182144134Z"
+generated: "2025-10-23T08:24:58.584601452Z"
