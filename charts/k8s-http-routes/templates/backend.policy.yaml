@@ -12,7 +12,8 @@ spec:
   rateLimit:
     type: Local
     local:
-      {{ toYaml .ratelimit.rules | nindent 4 }}
+      rules:
+      {{ toYaml .ratelimit.rules | nindent 6 }}
 ---
 {{- end }}
 {{- end }}
