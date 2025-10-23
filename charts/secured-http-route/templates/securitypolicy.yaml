@@ -1,0 +1,21 @@
+{{- range .Values.routes }}
+  {{- if .useBouncer -}}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: {{ .name }}-security
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ .name }}
+  extAuth:
+    grpc:
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: envoy-proxy-bouncer
+          port: 8080
+          namespace: envoy-proxy-bouncer
+  {{- end }}
+{{- end }}

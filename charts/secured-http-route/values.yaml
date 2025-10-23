@@ -1,0 +1,16 @@
+routes:
+  - name: "some-route"
+    useBouncer: true
+    gateway:
+      name: shared-gateway
+      namespace: envoy-gateway-system
+    hostnames:
+      - example.com
+    rules:
+      - backendRefs:
+          - name: service
+            port: 8000
+        matches:
+          - path:
+              type: PathPrefix
+              value: /

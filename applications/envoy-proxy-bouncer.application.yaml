@@ -19,6 +19,8 @@ spec:
               - perth-transport-map
               - ingress-home
               - maccas-api
+              - solar-panels
+              - anurag-sh
           replicaCount: 1
 
           config:
