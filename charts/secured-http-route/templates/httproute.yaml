@@ -11,4 +11,5 @@ spec:
       namespace: {{ .gateway.namespace }}
   rules:
   {{ toYaml .rules | nindent 4 }}
+---
 {{- end }}
