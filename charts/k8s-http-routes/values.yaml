@@ -1,11 +1,21 @@
 routes:
   - name: "some-route"
-    useBouncer: true
+    crowdsecBouncer: true
     gateway:
       name: shared-gateway
       namespace: envoy-gateway-system
     hostnames:
       - example.com
+    ratelimit:
+      rules:
+        - clientSelectors:
+            - headers:
+                - name: CF-Connecting-IP
+                  type: Distinct
+          limit:
+            requests: 5
+            unit: Second
+
     rules:
       - backendRefs:
           - name: service

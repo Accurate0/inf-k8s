@@ -1,7 +1,7 @@
 {{- $enabledRoutes := 0 }}
 
 {{- range .Values.routes }}
-  {{- if .useBouncer }}
+  {{- if .crowdsecBouncer }}
     {{- $enabledRoutes = add $enabledRoutes 1 }}
   {{- end }}
 {{- end }}
@@ -10,11 +10,11 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: {{ .Release.Name }}-security
+  name: {{ .Release.Name }}-crowdsec-bouncer-policy
 spec:
   targetRefs:
   {{- range .Values.routes }}
-    {{- if .useBouncer }}
+    {{- if .crowdsecBouncer }}
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: {{ .name }}
