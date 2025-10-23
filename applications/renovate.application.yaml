@@ -5,6 +5,9 @@ metadata:
   namespace: argocd
 spec:
   syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        shared-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
@@ -14,6 +17,26 @@ spec:
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/renovate
+    - chart: k8s-http-routes
+      repoURL: https://accurate0.github.io/inf-k8s
+      targetRevision: 1.2.0
+      helm:
+        valuesObject:
+          routes:
+            - name: renovate
+              gateway:
+                name: shared-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - renovate.inf-k8s.net
+              rules:
+                - backendRefs:
+                    - name: renovate-mend-renovate-ce
+                      port: 80
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
     - chart: mend-renovate-ce
       repoURL: https://mend.github.io/renovate-ce-ee
       targetRevision: 10.3.0
@@ -26,7 +49,7 @@ spec:
             database: renovate
             user: renovate
           ingress:
-            enabled: true
+            enabled: false
             ingressClassName: nginx
             annotations:
               cert-manager.io/cluster-issuer: letsencrypt-prod

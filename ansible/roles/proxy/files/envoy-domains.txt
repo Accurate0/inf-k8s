@@ -1,5 +1,14 @@
 inf-k8s.net
 argocd.inf-k8s.net
+flipt.inf-k8s.net
+minio.inf-k8s.net
+s3.inf-k8s.net
+prometheus.inf-k8s.net
+grafana.inf-k8s.net
+renovate.inf-k8s.net
+home.inf-k8s.net
+vault.inf-k8s.net
+longhorn.inf-k8s.net
 perthtransport.xyz
 api.perthtransport.xyz
 anurag.sh

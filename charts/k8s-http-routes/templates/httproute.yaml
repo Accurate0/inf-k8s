@@ -7,7 +7,9 @@ spec:
   hostnames:
   {{ toYaml .hostnames | nindent 4 }}
   parentRefs:
-    - name: {{ .gateway.name }}
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: {{ .gateway.name }}
       namespace: {{ .gateway.namespace }}
   rules:
   {{ toYaml .rules | nindent 4 }}

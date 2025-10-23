@@ -5,6 +5,9 @@ metadata:
   namespace: argocd
 spec:
   syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        shared-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
@@ -12,6 +15,42 @@ spec:
       - ServerSideApply=true
   project: default
   sources:
+    - chart: k8s-http-routes
+      repoURL: https://accurate0.github.io/inf-k8s
+      targetRevision: 1.3.0
+      helm:
+        valuesObject:
+          routes:
+            - name: prometheus
+              gateway:
+                name: shared-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - prometheus.inf-k8s.net
+              rules:
+                - backendRefs:
+                    - name: monitoring-kube-prometheus-prometheus
+                      port: 9090
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+            - name: grafana
+              gateway:
+                name: shared-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - grafana.inf-k8s.net
+              rules:
+                - backendRefs:
+                    - name: monitoring-grafana
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
     - chart: kube-prometheus-stack
       repoURL: https://prometheus-community.github.io/helm-charts
       targetRevision: 77.12.0
@@ -19,7 +58,7 @@ spec:
         valuesObject:
           prometheus:
             ingress:
-              enabled: true
+              enabled: false
               ingressClassName: nginx
               annotations:
                 cert-manager.io/cluster-issuer: letsencrypt-prod
@@ -162,7 +201,7 @@ spec:
               storageClassName: longhorn-single
               size: 1Gi
             ingress:
-              enabled: true
+              enabled: false
               ingressClassName: nginx
               annotations:
                 cert-manager.io/cluster-issuer: letsencrypt-prod
