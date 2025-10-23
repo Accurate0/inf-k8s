@@ -1,9 +1,10 @@
 inf-k8s.net
-api.perthtransport.xyz
+argocd.inf-k8s.net
 perthtransport.xyz
+api.perthtransport.xyz
+anurag.sh
 home.anurag.sh
 solar-panels.anurag.sh
-anurag.sh
 check.anurag.sh
 anurag.id.au
 maccas.one
