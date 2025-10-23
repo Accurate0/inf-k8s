@@ -24,3 +24,19 @@ routes:
           - path:
               type: PathPrefix
               value: /
+
+  - name: "some-route-2"
+    crowdsecBouncer: true
+    gateway:
+      name: shared-gateway
+      namespace: envoy-gateway-system
+    hostnames:
+      - example.com
+    rules:
+      - backendRefs:
+          - name: service
+            port: 8000
+        matches:
+          - path:
+              type: PathPrefix
+              value: /
