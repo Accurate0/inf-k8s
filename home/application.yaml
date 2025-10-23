@@ -31,6 +31,7 @@ spec:
                         type: PathPrefix
                         value: /
     - repoURL: https://github.com/Accurate0/inf-k8s.git
+      name: application
       path: home/kubernetes
       kustomize:
         images:
