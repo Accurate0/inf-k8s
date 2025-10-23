@@ -22,6 +22,7 @@ spec:
         valuesObject:
           routes:
             - name: homeassistant
+              crowdsecBouncer: true
               gateway:
                 name: shared-gateway
                 namespace: envoy-gateway-system

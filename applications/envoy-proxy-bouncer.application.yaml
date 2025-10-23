@@ -22,6 +22,7 @@ spec:
               - solar-panels
               - anurag-sh
               - home-gateway
+              - home-assistant
           replicaCount: 1
 
           config:
