@@ -1,0 +1,14 @@
+apiVersion: v1
+entries:
+  secured-http-route:
+  - apiVersion: v2
+    appVersion: 0.1.0
+    created: "2025-10-23T07:42:42.65852803Z"
+    description: A Helm chart for Kubernetes
+    digest: 0fb903b518b3504623cfb7419a52585e50e5364b5a780ee5d2235de40d6a15f6
+    name: secured-http-route
+    type: application
+    urls:
+    - https://github.com/Accurate0/inf-k8s/releases/download/secured-http-route-0.1.0/secured-http-route-0.1.0.tgz
+    version: 0.1.0
+generated: "2025-10-23T07:42:42.658533794Z"
