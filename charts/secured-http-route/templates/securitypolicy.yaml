@@ -1,14 +1,25 @@
+{{- $enabledRoutes := 0 }}
+
 {{- range .Values.routes }}
-  {{- if .useBouncer -}}
+  {{- if .useBouncer }}
+    {{- $enabledRoutes = add $enabledRoutes 1 }}
+  {{- end }}
+{{- end }}
+
+{{- if gt $enabledRoutes 0 -}}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
-  name: {{ .name }}-security
+  name: {{ .Release.Name }}-security
 spec:
   targetRefs:
+  {{- range .Values.routes }}
+    {{- if .useBouncer }}
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: {{ .name }}
+    {{- end }}
+  {{- end }}
   extAuth:
     grpc:
       backendRefs:
@@ -17,6 +28,4 @@ spec:
           name: envoy-proxy-bouncer
           port: 8080
           namespace: envoy-proxy-bouncer
-  {{- end }}
----
 {{- end }}
