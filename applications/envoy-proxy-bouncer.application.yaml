@@ -13,6 +13,8 @@ spec:
       targetRevision: 0.3.1
       helm:
         valuesObject:
+          # image:
+          #   tag: "sha-a8ab217f7e3e8035b3df99daf28fed4331847692"
           referenceGrant:
             create: true
             fromNamespaces:
@@ -56,6 +58,9 @@ spec:
               secretKeySecretRef:
                 name: envoy-proxy-bouncer-managed-secrets
                 key: CAPTCHA_SECRET_KEY
+              # signingKeySecretRef:
+              #   name: envoy-proxy-bouncer-managed-secrets
+              #   key: CAPTCHA_SIGNINGKEY
               callbackURL: "https://check.anurag.sh"
               sessionDuration: "15m"
               timeout: "10s"

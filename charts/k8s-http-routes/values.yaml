@@ -1,3 +1,4 @@
+bouncerServiceName: envoy-proxy-bouncer
 routes:
   - name: "some-route"
     crowdsecBouncer: true

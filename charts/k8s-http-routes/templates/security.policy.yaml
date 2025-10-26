@@ -25,7 +25,7 @@ spec:
       backendRefs:
         - group: ""
           kind: Service
-          name: envoy-proxy-bouncer
+          name: {{ .Values.bouncerServiceName }}
           port: 8080
           namespace: envoy-proxy-bouncer
 {{- end }}
