@@ -1,7 +1,10 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "argocd": {
-    "fileMatch": ["applications/.*\\.application\\.yaml"]
+    "fileMatch": [
+      "applications/.*\\.application\\.yaml",
+      "home/application.yaml"
+    ]
   },
   "ignorePaths": ["applications/redis.application.yaml"]
 }
