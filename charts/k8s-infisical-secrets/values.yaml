@@ -1,6 +1,7 @@
-namespace: test
-resyncInterval: 900
-projectSlug: test2
+defaults:
+  namespace: test
+  resyncInterval: 900
+  projectSlug: test2
 
 secrets:
   - name: test-infisical-secret
