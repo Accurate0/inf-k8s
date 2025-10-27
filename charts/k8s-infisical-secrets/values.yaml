@@ -1,19 +1,18 @@
+namespace: test
+resyncInterval: 900
+
 secrets:
   - name: test-infisical-secret
     projectSlug: test
     namespace: test
     secretPath: /test
-    resyncInterval: 900
     managedSecrets:
       - secretName: test-managed
         namespace: test
   - name: test-22-infisical-secret
     projectSlug: test2
-    namespace: test2
     secretPath: /test2
-    resyncInterval: 900
+    resyncInterval: 1600
     managedSecrets:
       - secretName: test2-managed
-        namespace: test
       - secretName: test2222-managed
-        namespace: test
