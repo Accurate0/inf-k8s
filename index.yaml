@@ -54,6 +54,16 @@ entries:
   k8s-infisical-secrets:
   - apiVersion: v2
     appVersion: 0.1.0
+    created: "2025-10-27T09:33:28.376516867Z"
+    description: Standardized infisical secret resources
+    digest: 620a8087d0698200a3b72f93f13327276c18a199c213bd874e92f291d00bbb58
+    name: k8s-infisical-secrets
+    type: application
+    urls:
+    - https://github.com/Accurate0/inf-k8s/releases/download/k8s-infisical-secrets-0.4.0/k8s-infisical-secrets-0.4.0.tgz
+    version: 0.4.0
+  - apiVersion: v2
+    appVersion: 0.1.0
     created: "2025-10-27T09:32:40.106731938Z"
     description: Standardized infisical secret resources
     digest: 485e106229bc79d0189f308f7115587e5c3fe5716c2626bc428a28b8e1e722fc
@@ -113,4 +123,4 @@ entries:
     urls:
     - https://github.com/Accurate0/inf-k8s/releases/download/secured-http-route-0.1.0/secured-http-route-0.1.0.tgz
     version: 0.1.0
-generated: "2025-10-27T09:32:40.106762455Z"
+generated: "2025-10-27T09:33:28.376541887Z"
