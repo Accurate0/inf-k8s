@@ -164,6 +164,8 @@ spec:
                   values:
                     - discord-config
           grafana:
+            deploymentStrategy:
+              type: Recreate
             grafana.ini:
               server:
                 root_url: "%(protocol)s://%(domain)s"
