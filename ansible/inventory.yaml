@@ -7,8 +7,8 @@ all:
 
 uptime:
   hosts:
-    perth-uptime:
-      ansible_host: uptime.host.inf-k8s.net
+    uptime:
+      ansible_host: uptime.inf-k8s.net
       ansible_user: root
 
 control:

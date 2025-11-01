@@ -41,7 +41,7 @@ services:
     networks:
       - caddy
     labels:
-      caddy: "uptime.inf-k8s.net, uptime.anurag.sh"
+      caddy: "uptime.inf-k8s.net"
       caddy.reverse_proxy: "{{upstreams 3001}}"
 
 networks:

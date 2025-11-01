@@ -7,8 +7,8 @@
   block:
     - name: Install Packages
       ansible.builtin.apt:
+        update_cache: true
         package:
           - nfs-common
           - htop
-          - neovim
           - zfsutils-linux

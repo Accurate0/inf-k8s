@@ -44,3 +44,15 @@ resource "binarylane_server" "proxy" {
   ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
 }
 
+resource "binarylane_server" "uptime" {
+  image             = "ubuntu-24.04"
+  name              = "uptime"
+  region            = "sin"
+  size              = "std-min"
+  disk              = 20
+  port_blocking     = true
+  vpc_id            = binarylane_vpc.kubernetes-vpc.id
+  public_ipv4_count = 1
+  ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
+}
+

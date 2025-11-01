@@ -61,5 +61,5 @@
           - docker-compose-plugin
         state: "present"
       notify:
-        - enable docker
-        - restart docker
+        - Enable docker
+        - Restart docker
