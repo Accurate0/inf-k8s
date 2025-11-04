@@ -47,7 +47,7 @@ resource "cloudflare_dns_record" "external" {
 resource "cloudflare_dns_record" "uptime" {
   zone_id = "8d993ee38980642089a2ebad74531806"
   name    = "uptime"
-  content = "100.100.41.112"
+  content = "100.95.253.93"
   proxied = false
   type    = "A"
   ttl     = 1

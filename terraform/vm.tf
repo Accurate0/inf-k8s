@@ -47,7 +47,7 @@ resource "binarylane_server" "proxy" {
 resource "binarylane_server" "uptime" {
   image             = "ubuntu-24.04"
   name              = "uptime"
-  region            = "sin"
+  region            = "syd"
   size              = "std-min"
   disk              = 20
   port_blocking     = true
