@@ -72,7 +72,7 @@
             ip: 100.115.217.79
             is_api_server: false
           - name: k8s-optiplex-4
-            ip: 100.126.172.94
+            ip: 100.122.213.30
             is_api_server: false
           - name: k8s-optiplex-5
             ip: 100.78.166.71
