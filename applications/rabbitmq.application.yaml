@@ -1,0 +1,23 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: rabbitmq
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: true
+      selfHeal: true
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: applications/rabbitmq
+      kustomize:
+        commonLabels:
+          app.kubernetes.io/managed-by: argocd
+          cluster: mqcluster
+  destination:
+    namespace: rabbitmq-system
+    server: https://kubernetes.default.svc
