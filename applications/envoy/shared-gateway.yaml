@@ -17,7 +17,8 @@ spec:
             matchLabels:
               shared-gateway-access: "true"
         kinds:
-          - kind: TCPRoute
+          - group: gateway.networking.k8s.io
+            kind: TCPRoute
     - name: anurag-id-au-https
       protocol: HTTPS
       hostname: anurag.id.au
