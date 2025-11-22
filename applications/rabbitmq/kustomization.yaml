@@ -3,4 +3,6 @@ kind: Kustomization
 
 resources:
   - https://github.com/rabbitmq/cluster-operator/releases/download/v2.17.2/cluster-operator.yml
+  - https://raw.githubusercontent.com/rabbitmq/cluster-operator/main/observability/prometheus/monitors/rabbitmq-servicemonitor.yml
+  - https://raw.githubusercontent.com/rabbitmq/cluster-operator/main/observability/prometheus/monitors/rabbitmq-cluster-operator-podmonitor.yml
   - cluster.yaml
