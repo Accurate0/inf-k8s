@@ -7,4 +7,9 @@ resources:
   - https://raw.githubusercontent.com/rabbitmq/cluster-operator/main/observability/prometheus/monitors/rabbitmq-cluster-operator-podmonitor.yml
   - cluster.yaml
   - tcproute.yaml
-  - namespace.yaml
+
+patches:
+  - path: namespace.yaml
+    target:
+      kind: Namespace
+      name: rabbitmq-system
