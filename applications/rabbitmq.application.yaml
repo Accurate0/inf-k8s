@@ -6,6 +6,9 @@ metadata:
 spec:
   project: default
   syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        shared-gateway-access: "true"
     syncOptions:
       - CreateNamespace=true
       - RespectIgnoreDifferences=true
