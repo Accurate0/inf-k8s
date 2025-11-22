@@ -11,9 +11,11 @@ spec:
       protocol: TCP
       port: 1883
       allowedRoutes:
-        selector:
-          matchLabels:
-            shared-gateway-access: "true"
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              shared-gateway-access: "true"
         kinds:
           - kind: TCPRoute
     - name: anurag-id-au-https
