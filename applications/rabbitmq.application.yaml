@@ -4,6 +4,7 @@ metadata:
   name: rabbitmq
   namespace: argocd
 spec:
+  project: default
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
