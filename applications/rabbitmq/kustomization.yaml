@@ -6,7 +6,6 @@ resources:
   - https://raw.githubusercontent.com/rabbitmq/cluster-operator/main/observability/prometheus/monitors/rabbitmq-servicemonitor.yml
   - https://raw.githubusercontent.com/rabbitmq/cluster-operator/main/observability/prometheus/monitors/rabbitmq-cluster-operator-podmonitor.yml
   - cluster.yaml
-  - tcproute.yaml
 
 patches:
   - path: namespace.yaml

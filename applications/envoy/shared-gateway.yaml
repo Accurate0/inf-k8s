@@ -7,18 +7,6 @@ metadata:
 spec:
   gatewayClassName: envoy-gateway
   listeners:
-    - name: mqtt-inf-k8s
-      protocol: TCP
-      port: 1883
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              shared-gateway-access: "true"
-        kinds:
-          - group: gateway.networking.k8s.io
-            kind: TCPRoute
     - name: anurag-id-au-https
       protocol: HTTPS
       hostname: anurag.id.au

@@ -5,8 +5,8 @@ metadata:
 spec:
   replicas: 3
   rabbitmq:
-    additionalPlugins:
-      - rabbitmq_mqtt
+    # additionalPlugins:
+    #   - rabbitmq_mqtt
     additionalConfig: |
       cluster_partition_handling = pause_minority
       disk_free_limit.relative = 1.0
