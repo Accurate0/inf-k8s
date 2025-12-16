@@ -31,7 +31,10 @@ resource "aws_iam_policy" "home-gateway-policy" {
             "s3:PutObject",
             "s3:ListBucket"
           ],
-          "Resource" : aws_s3_bucket.home-gateway-image-bucket.arn
+          "Resource" : [
+            aws_s3_bucket.home-gateway-image-bucket.arn,
+            "${aws_s3_bucket.home-gateway-image-bucket.arn}/*"
+          ]
         }
       ]
     }
