@@ -29,7 +29,7 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            target
+            config-catalog/target
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
 
       - name: cargo build
@@ -48,6 +48,7 @@ jobs:
         with:
           name: build
           path: ./artifacts
+          if-no-files-found: error
 
   convert-artifacts:
     needs: build
