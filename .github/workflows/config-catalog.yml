@@ -5,10 +5,14 @@ on:
     branches: [main]
     paths:
       - "config-catalog/**"
+      - ".github/workflows/config-catalog.yml"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: config-catalog
     steps:
       - name: install musl gcc
         run: sudo apt install musl-tools
