@@ -1,0 +1,97 @@
+name: lambda
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "config-catalog/**"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install musl gcc
+        run: sudo apt install musl-tools
+
+      - uses: actions/checkout@v4
+      - uses: Accurate0/rust-toolchain@main
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+
+      - uses: actions/cache@v3
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: cargo build
+        run: cargo build --locked --profile release-strip --target x86_64-unknown-linux-musl
+
+      - name: copy artifacts
+        run: |
+          mkdir ./artifacts
+          cp ./target/x86_64-unknown-linux-musl/release-strip/config-catalog-api ./artifacts
+          cp ./target/x86_64-unknown-linux-musl/release-strip/config-catalog-events ./artifacts
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: ./artifacts
+
+  convert-artifacts:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - config-catalog-api
+          - config-catalog-events
+
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          name: build
+
+      - name: create zip (${{ matrix.task }})
+        run: |
+          mv ./${{ matrix.task }} ./bootstrap
+          zip -r bootstrap.zip ./bootstrap
+
+      - name: upload ${{ matrix.task }} artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: ${{ matrix.task }}
+          path: ./bootstrap.zip
+
+  deploy:
+    permissions:
+      id-token: write
+    needs: convert-artifacts
+    environment: production-api
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - config-catalog-api
+          - config-catalog-events
+
+    steps:
+      - name: configure oicd aws credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: actions/download-artifact@v3
+        with:
+          name: ${{ matrix.task }}
+
+      - name: deploy api
+        run: aws lambda update-function-code --function-name ${{ matrix.task }} --zip-file fileb://bootstrap.zip --region ap-southeast-2

@@ -65,3 +65,7 @@ provider "infisical" {
     }
   }
 }
+
+module "catalog" {
+  source = "./catalog"
+}
