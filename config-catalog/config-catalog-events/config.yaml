@@ -7,4 +7,4 @@ events:
       method: POST
       audience: maccas-api
       urls:
-        - https://home.anurag.sh/v1/testing
+        - https://home.anurag.sh/v1/graphql
