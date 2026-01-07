@@ -47,7 +47,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: build
-          path: ./artifacts
+          path: ./config-catalog/artifacts
           if-no-files-found: error
 
   convert-artifacts:
