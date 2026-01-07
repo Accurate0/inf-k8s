@@ -35,8 +35,6 @@ jobs:
       - name: cargo build
         run: cargo build --locked --profile release-strip --target x86_64-unknown-linux-musl
 
-      - run: tree
-
       - name: copy artifacts
         run: |
           mkdir ./artifacts
@@ -80,7 +78,6 @@ jobs:
     permissions:
       id-token: write
     needs: convert-artifacts
-    environment: production-api
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -100,5 +97,5 @@ jobs:
         with:
           name: ${{ matrix.task }}
 
-      - name: deploy api
+      - name: deploy ${{ matrix.task }}
         run: aws lambda update-function-code --function-name ${{ matrix.task }} --zip-file fileb://bootstrap.zip --region ap-southeast-2
