@@ -29,9 +29,10 @@ pub async fn auth_middleware(
 
     let auth_header_value = auth_header
         .to_str()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?;
+        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
+        .replace("Bearer ", "");
 
-    let claims = verify_jwt(jwt_secret.as_bytes(), auth_header_value)
+    let claims = verify_jwt(jwt_secret.as_bytes(), &auth_header_value)
         .map_err(|_| StatusCode::UNAUTHORIZED)?;
 
     tracing::info!("verified requests with claims: {claims:?}");
