@@ -120,7 +120,7 @@ data "archive_file" "dummy" {
 }
 
 resource "aws_lambda_function" "events" {
-  function_name = "catalog-events"
+  function_name = "config-catalog-events"
   handler       = "bootstrap"
   role          = aws_iam_role.catalog-lambda.arn
   filename      = data.archive_file.dummy.output_path
@@ -138,7 +138,7 @@ resource "aws_lambda_function" "events" {
 }
 
 resource "aws_lambda_function" "api" {
-  function_name = "catalog-api"
+  function_name = "config-catalog-api"
   handler       = "bootstrap"
   role          = aws_iam_role.catalog-lambda.arn
   filename      = data.archive_file.dummy.output_path

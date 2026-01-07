@@ -35,6 +35,8 @@ jobs:
       - name: cargo build
         run: cargo build --locked --profile release-strip --target x86_64-unknown-linux-musl
 
+      - run: tree
+
       - name: copy artifacts
         run: |
           mkdir ./artifacts
