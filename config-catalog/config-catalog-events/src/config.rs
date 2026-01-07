@@ -4,6 +4,7 @@ use serde::Deserialize;
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum Notify {
+    #[serde(rename = "HTTP")]
     HTTP {
         method: String,
         urls: Vec<String>,
