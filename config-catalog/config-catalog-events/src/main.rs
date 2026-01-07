@@ -64,6 +64,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
             if (event_keys.contains(&"*".to_owned()) || event_keys.contains(&key))
                 && event_namespace == namespace
             {
+                tracing::info!("match in config for {event_config:?}");
                 let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
                 let payload_to_use = if is_json_type {
                     json!({
@@ -80,6 +81,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                         ref urls,
                         ref audience,
                     } => {
+                        tracing::info!("sending http request: {method} to {urls:?}");
                         let method = Method::from_str(method)?;
                         let auth = generate_jwt(jwt_secret.as_bytes(), "config-catalog", audience)?;
                         for url in urls {
