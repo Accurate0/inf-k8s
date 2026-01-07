@@ -14,10 +14,10 @@ jobs:
       run:
         working-directory: config-catalog
     steps:
+      - uses: actions/checkout@v4
       - name: install musl gcc
         run: sudo apt install musl-tools
 
-      - uses: actions/checkout@v4
       - uses: Accurate0/rust-toolchain@main
         with:
           profile: minimal
