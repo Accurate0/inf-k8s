@@ -38,7 +38,19 @@ resource "aws_iam_policy" "catalog-lambda-access" {
             aws_s3_bucket.catalog-bucket.arn,
             "${aws_s3_bucket.catalog-bucket.arn}/*"
           ]
-        }
+        },
+        {
+          "Effect" = "Allow",
+          "Action" = [
+            "secretsmanager:GetResourcePolicy",
+            "secretsmanager:GetSecretValue",
+            "secretsmanager:DescribeSecret",
+            "secretsmanager:ListSecretVersionIds"
+          ],
+          "Resource" = [
+            "${aws_secretsmanager_secret.jwt-secret.arn}",
+          ]
+        },
       ]
     }
   )

@@ -1,11 +1,19 @@
 [workspace]
 resolver = "3"
-members = ["config-catalog-api", "config-catalog-events"]
+members = ["cli","config-catalog-api",  "config-catalog-events"]
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["macros"] }
 serde = "1.0.228"
 serde_json = "1.0"
+anyhow = "1.0.98"
+aws-config = { version = "1.1.7", features = ["behavior-version-latest"] }
+aws-sdk-secretsmanager = "1.97.0"
+jwt = "0.16.0"
+hmac = "0.12.1"
+sha2 = "0.10.9"
+base64 = "0.22.1"
+jwt-base = { path = "../jwt-base" }
 
 [profile.release-strip]
 inherits = "release"
