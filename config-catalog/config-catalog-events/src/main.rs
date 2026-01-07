@@ -1,8 +1,101 @@
+use crate::config::EventsConfig;
 use aws_lambda_events::event::s3::S3Event;
+use base64::{Engine, prelude::BASE64_STANDARD};
+use jwt_base::generate_jwt;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
+use reqwest::{Method, header::AUTHORIZATION};
+use serde_json::{Value, json};
+use std::str::FromStr;
+
+mod config;
 
 async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
-    tracing::info!("got event: {event:?}");
+    let events_config = EventsConfig::new()?;
+
+    let config = aws_config::load_from_env().await;
+    let s3_client = aws_sdk_s3::Client::new(&config);
+    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
+    let http_client = reqwest::ClientBuilder::new().build()?;
+
+    let jwt_secret = secrets_client
+        .get_secret_value()
+        .secret_id("config-catalog-jwt-secret")
+        .send()
+        .await?
+        .secret_string;
+
+    if jwt_secret.is_none() {
+        tracing::error!("no jwt secret found, cannot send requests");
+        return Ok(());
+    }
+
+    let jwt_secret = jwt_secret.unwrap();
+
+    for record in event.payload.records {
+        let bucket_key = record.s3.object.key;
+        let bucket = record.s3.bucket.name;
+
+        if bucket_key.is_none() || bucket.is_none() {
+            tracing::warn!("key or bucket is not named");
+            continue;
+        }
+
+        let bucket_key = bucket_key.unwrap();
+        let mut values: Vec<&str> = bucket_key.splitn(2, '/').collect();
+        let key = values.pop().unwrap().to_owned();
+        let namespace = values.pop().unwrap();
+        let bucket = bucket.unwrap();
+
+        tracing::info!("{namespace} {key} in bucket {bucket}");
+
+        let stored_object = s3_client
+            .get_object()
+            .key(&bucket_key)
+            .bucket(bucket)
+            .send()
+            .await?;
+
+        let object_value = stored_object.body.collect().await?;
+        let bytes = object_value.to_vec();
+
+        for event_config in &events_config.events {
+            let event_keys = &event_config.keys;
+            let event_namespace = &event_config.namespace;
+            if (event_keys.contains(&"*".to_owned()) || event_keys.contains(&key))
+                && event_namespace == namespace
+            {
+                let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
+                let payload_to_use = if is_json_type {
+                    json!({
+                        "key": key,
+                        "payload": serde_json::from_slice::<Value>(&bytes).unwrap()
+                    })
+                } else {
+                    json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes.clone()) })
+                };
+
+                match event_config.notify {
+                    config::Notify::HTTP {
+                        ref method,
+                        ref urls,
+                        ref audience,
+                    } => {
+                        let method = Method::from_str(method)?;
+                        let auth = generate_jwt(jwt_secret.as_bytes(), "config-catalog", audience)?;
+                        for url in urls {
+                            http_client
+                                .request(method.clone(), url)
+                                .header(AUTHORIZATION, format!("Bearer {auth}"))
+                                .json(&payload_to_use)
+                                .send()
+                                .await?;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     Ok(())
 }
 

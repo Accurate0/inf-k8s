@@ -1,0 +1,10 @@
+events:
+  - namespace: test-namespace
+    keys:
+      - "*"
+    notify:
+      type: HTTP
+      method: POST
+      audience: maccas-api
+      urls:
+        - https://home.anurag.sh/v1/testing
