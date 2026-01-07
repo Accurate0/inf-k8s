@@ -27,7 +27,7 @@ data "aws_iam_policy_document" "deploy-role" {
     condition {
       test     = "StringLike"
       variable = "token.actions.githubusercontent.com:sub"
-      values   = [for s in var.allowed_repos : format("repo:Accurate0/%s:main", s)]
+      values   = [for s in var.allowed_repos : format("repo:Accurate0/%s:*", s)]
     }
 
     condition {
