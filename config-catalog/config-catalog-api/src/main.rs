@@ -17,6 +17,8 @@ mod auth;
 mod error;
 mod state;
 
+const BUCKET_NAME: &str = "config-catalog-inf-k8s";
+
 async fn put_config(
     State(AppState { s3_client, .. }): State<AppState>,
     Path((namespace, object)): Path<(String, String)>,
@@ -28,6 +30,7 @@ async fn put_config(
 
     s3_client
         .put_object()
+        .bucket(BUCKET_NAME)
         .key(key)
         .metadata("jwt_issuer", iss)
         .body(body.into())
@@ -42,7 +45,12 @@ async fn get_config(
     Path((namespace, object)): Path<(String, String)>,
 ) -> Result<Json<Value>, AppError> {
     let key = format!("{namespace}/{object}");
-    let stored_object = s3_client.get_object().key(&key).send().await?;
+    let stored_object = s3_client
+        .get_object()
+        .key(&key)
+        .bucket(BUCKET_NAME)
+        .send()
+        .await?;
     let object_value = stored_object.body.collect().await?;
     let bytes = object_value.to_vec();
 
