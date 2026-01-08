@@ -1,10 +1,10 @@
 events:
-  - namespace: test-namespace
+  - namespace: home-gateway
     keys:
-      - "*"
+      - config.yaml
     notify:
       type: HTTP
       method: POST
-      audience: maccas-api
+      audience: home-gateway
       urls:
-        - https://home.anurag.sh/v1/graphql
+        - https://home.anurag.sh/v1/config/refresh
