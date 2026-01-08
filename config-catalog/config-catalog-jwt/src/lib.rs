@@ -141,7 +141,8 @@ fn de_from_str<'de, D>(deserializer: D) -> Result<GithubActionsOidcExtra, D::Err
 where
     D: serde::Deserializer<'de>,
 {
-    GithubActionsOidcExtra::deserialize(deserializer).map_err(serde::de::Error::custom)
+    let s = String::deserialize(deserializer)?;
+    serde_json::from_str(&s).map_err(serde::de::Error::custom)
 }
 
 pub fn verify_jwt(
