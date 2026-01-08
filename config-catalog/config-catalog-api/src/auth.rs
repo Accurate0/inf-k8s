@@ -33,6 +33,8 @@ pub async fn auth_middleware(
 
     let auth_header_value = auth_header.to_str()?.replace("Bearer ", "");
 
+    tracing::info!("validating ${auth_header_value}");
+
     if is_from_github_actions {
         let jwks = reqwest::get(GITHUB_ACTIONS_JWKS_URL)
             .await?
