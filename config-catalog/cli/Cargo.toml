@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 clap = { version = "4.5.54", features = ["derive"] }
-jwt-base = { workspace = true }
+config-catalog-jwt = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
 tokio = { workspace = true }
 aws-config = { workspace = true }

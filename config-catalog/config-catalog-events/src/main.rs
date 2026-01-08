@@ -1,7 +1,7 @@
 use crate::config::EventsConfig;
 use aws_lambda_events::event::s3::S3Event;
 use base64::{Engine, prelude::BASE64_STANDARD};
-use jwt_base::generate_jwt;
+use config_catalog_jwt::generate_jwt;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
 use reqwest::{Method, header::AUTHORIZATION};
 use serde_json::{Value, json};

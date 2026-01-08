@@ -1,6 +1,6 @@
 use anyhow::Context;
 use clap::{Parser, Subcommand};
-use jwt_base::generate_jwt;
+use config_catalog_jwt::generate_jwt;
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]

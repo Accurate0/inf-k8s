@@ -1,6 +1,6 @@
 use crate::{auth::auth_middleware, error::AppError, state::AppState};
 use axum::{
-    Extension, Router,
+    Router,
     body::Bytes,
     extract::{Path, State},
     http::StatusCode,
@@ -9,7 +9,6 @@ use axum::{
     routing::{get, put},
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
-use jwt_base::JwtClaims;
 use lambda_http::{Error, run, tracing};
 use serde_json::{Value, json};
 
@@ -22,17 +21,14 @@ const BUCKET_NAME: &str = "config-catalog-inf-k8s";
 async fn put_config(
     State(AppState { s3_client, .. }): State<AppState>,
     Path((namespace, object)): Path<(String, String)>,
-    Extension(jwt_claims): Extension<JwtClaims>,
     body: Bytes,
 ) -> anyhow::Result<(), AppError> {
     let key = format!("{namespace}/{object}");
-    let iss = jwt_claims.iss;
 
     s3_client
         .put_object()
         .bucket(BUCKET_NAME)
         .key(key)
-        .metadata("jwt_issuer", iss)
         .body(body.into())
         .send()
         .await?;

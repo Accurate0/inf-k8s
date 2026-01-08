@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["cli","config-catalog-api",  "config-catalog-events"]
+members = ["cli","config-catalog-api",  "config-catalog-events", "config-catalog-jwt"]
 
 [workspace.dependencies]
 tokio = { version = "1", features = ["macros"] }
@@ -13,7 +13,8 @@ jwt = "0.16.0"
 hmac = "0.12.1"
 sha2 = "0.10.9"
 base64 = "0.22.1"
-jwt-base = { path = "../jwt-base" }
+config-catalog-jwt = { path = "./config-catalog-jwt" }
+reqwest = { version = "0.13.1", features = ["json"] }
 
 [profile.release-strip]
 inherits = "release"

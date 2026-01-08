@@ -1,43 +1,62 @@
-use crate::state::AppState;
+use crate::{error::AppError, state::AppState};
+use anyhow::Context;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
-use jwt_base::verify_jwt;
+use config_catalog_jwt::{JwkSet, verify_github_actions_token, verify_jwt};
 use lambda_http::tracing;
+
+const GITHUB_ACTIONS_JWKS_URL: &str =
+    "https://token.actions.githubusercontent.com/.well-known/jwks";
+
+const ALLOWED_REPOS: [&str; 1] = ["Accurate0/home-gateway"];
 
 pub async fn auth_middleware(
     State(AppState { secrets_client, .. }): State<AppState>,
     headers: HeaderMap,
-    mut request: Request,
+    request: Request,
     next: Next,
-) -> Result<Response, StatusCode> {
+) -> Result<Response, AppError> {
     // TODO: verify and allow github actions tokens of specific repos
     let Some(auth_header) = headers.get("Authorization") else {
-        return Err(StatusCode::UNAUTHORIZED);
+        return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
     };
 
-    let jwt_secret = secrets_client
-        .get_secret_value()
-        .secret_id("config-catalog-jwt-secret")
-        .send()
-        .await
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .secret_string
-        .ok_or(StatusCode::INTERNAL_SERVER_ERROR)?;
+    let is_from_github_actions = headers
+        .get("X-Config-Catalog-Source")
+        .map(|v| v.to_str().ok().map(|s| s == "github-actions"))
+        .flatten()
+        .unwrap_or(false);
 
-    let auth_header_value = auth_header
-        .to_str()
-        .map_err(|_| StatusCode::INTERNAL_SERVER_ERROR)?
-        .replace("Bearer ", "");
+    let auth_header_value = auth_header.to_str()?.replace("Bearer ", "");
 
-    let claims = verify_jwt(jwt_secret.as_bytes(), &auth_header_value)
-        .map_err(|_| StatusCode::UNAUTHORIZED)?;
+    if is_from_github_actions {
+        let jwks = reqwest::get(GITHUB_ACTIONS_JWKS_URL)
+            .await?
+            .error_for_status()?
+            .json::<JwkSet>()
+            .await?;
 
-    tracing::info!("verified requests with claims: {claims:?}");
-    request.extensions_mut().insert(claims);
+        let claims =
+            verify_github_actions_token(jwks, &auth_header_value, ALLOWED_REPOS.as_slice())?;
+
+        tracing::info!("verified gha request with claims: {claims:?}");
+    } else {
+        let jwt_secret = secrets_client
+            .get_secret_value()
+            .secret_id("config-catalog-jwt-secret")
+            .send()
+            .await?
+            .secret_string
+            .context("must have secret value")?;
+
+        let claims = verify_jwt(jwt_secret.as_bytes(), &auth_header_value)?;
+
+        tracing::info!("verified request with claims: {claims:?}");
+    }
 
     Ok(next.run(request).await)
 }

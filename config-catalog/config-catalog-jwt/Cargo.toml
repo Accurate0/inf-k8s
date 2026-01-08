@@ -1,10 +1,10 @@
 [package]
-name = "jwt-base"
+name = "config-catalog-jwt"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-jwt = "0.16.0"
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 hmac = "0.12.1"
 sha2 = "0.10.9"
 serde = "1.0.228"

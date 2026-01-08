@@ -13,6 +13,6 @@ config = { version = "0.15.19", features = ["yaml"] }
 aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
 aws-sdk-s3 = "1.119.0"
-jwt-base = { workspace = true }
+config-catalog-jwt = { workspace = true }
 base64 = { workspace = true }
-reqwest = { version = "0.13.1", features = ["json"] }
+reqwest = { workspace = true }
