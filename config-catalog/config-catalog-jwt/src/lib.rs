@@ -201,6 +201,7 @@ pub fn verify_github_actions_token(
     let validation = {
         let mut validation = Validation::new(header.alg);
         validation.set_issuer(&["https://token.actions.githubusercontent.com"]);
+        validation.set_audience(&["vso:0737d593-b84e-452b-99d7-7139cebfd561"]);
         validation.validate_exp = true;
         validation
     };
