@@ -20,6 +20,7 @@ pub async fn auth_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    tracing::info!("request uri: {}", request.uri());
     if request.uri() == "/health" {
         return Ok(next.run(request).await);
     }
