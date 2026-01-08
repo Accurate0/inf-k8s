@@ -20,6 +20,10 @@ pub async fn auth_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
+    if request.uri() == "/health" {
+        return Ok(next.run(request).await);
+    }
+
     let Some(auth_header) = headers.get("Authorization") else {
         return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
     };

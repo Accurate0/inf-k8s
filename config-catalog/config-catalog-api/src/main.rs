@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     middleware,
-    response::{Json, Response},
+    response::Response,
     routing::{get, put},
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
