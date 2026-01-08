@@ -20,7 +20,6 @@ pub async fn auth_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    // TODO: verify and allow github actions tokens of specific repos
     let Some(auth_header) = headers.get("Authorization") else {
         return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
     };

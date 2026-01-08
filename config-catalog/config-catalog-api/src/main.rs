@@ -5,7 +5,7 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
     middleware,
-    response::Json,
+    response::{Json, Response},
     routing::{get, put},
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
@@ -17,6 +17,12 @@ mod error;
 mod state;
 
 const BUCKET_NAME: &str = "config-catalog-inf-k8s";
+
+#[derive(serde::Serialize)]
+struct ConfigResponseYaml {
+    pub key: String,
+    pub payload: serde_yaml::Value,
+}
 
 async fn put_config(
     State(AppState { s3_client, .. }): State<AppState>,
@@ -39,7 +45,7 @@ async fn put_config(
 async fn get_config(
     State(AppState { s3_client, .. }): State<AppState>,
     Path((namespace, object)): Path<(String, String)>,
-) -> Result<Json<Value>, AppError> {
+) -> Result<Response, AppError> {
     let key = format!("{namespace}/{object}");
     let stored_object = s3_client
         .get_object()
@@ -50,16 +56,39 @@ async fn get_config(
     let object_value = stored_object.body.collect().await?;
     let bytes = object_value.to_vec();
 
+    // bad
     let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
+    let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
+
     if is_json_type {
-        Ok(Json(json!({
-            "key": key,
-            "payload": serde_json::from_slice::<Value>(&bytes).unwrap()
-        })))
+        Ok(Response::builder()
+            .status(200)
+            .header("Content-Type", "application/json")
+            .body(
+                json!({ "key": key, "payload": serde_json::from_slice::<Value>(&bytes).unwrap()})
+                    .to_string()
+                    .into(),
+            )?)
+    } else if is_yaml_type {
+        Ok(Response::builder()
+            .status(200)
+            .header("Content-Type", "application/yaml")
+            .body(
+                serde_yaml::to_string(&ConfigResponseYaml {
+                    key,
+                    payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
+                })?
+                .into(),
+            )?)
     } else {
-        Ok(Json(
-            json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes) }),
-        ))
+        Ok(Response::builder()
+            .status(200)
+            .header("Content-Type", "application/json")
+            .body(
+                json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes) })
+                    .to_string()
+                    .into(),
+            )?)
     }
 }
 
