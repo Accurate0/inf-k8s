@@ -1,3 +1,4 @@
+use jsonwebtoken::Algorithm;
 use jsonwebtoken::DecodingKey;
 use jsonwebtoken::EncodingKey;
 use jsonwebtoken::Header;
@@ -149,10 +150,18 @@ pub fn verify_jwt(
     secret: &[u8],
     unverified_token: &str,
 ) -> Result<ConfigCatalogJwtClaims, JwtValidationError> {
+    let validation = {
+        let mut validation = Validation::new(Algorithm::default());
+        validation.set_issuer(&["home-gateway", "config-catalog-cli"]);
+        validation.set_audience(&["config-catalog"]);
+        validation.validate_exp = true;
+        validation
+    };
+
     let validated_token = jsonwebtoken::decode::<ConfigCatalogJwtClaims>(
         unverified_token.as_bytes(),
         &DecodingKey::from_secret(secret),
-        &Validation::default(),
+        &validation,
     )?;
 
     Ok(validated_token.claims)
