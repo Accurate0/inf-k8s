@@ -20,8 +20,8 @@ pub async fn auth_middleware(
     request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    tracing::info!("request uri: {}", request.uri());
-    if request.uri() == "/health" {
+    tracing::info!("request path: {}", request.uri().path());
+    if request.uri().path() == "/health" {
         return Ok(next.run(request).await);
     }
 
@@ -37,7 +37,7 @@ pub async fn auth_middleware(
 
     let auth_header_value = auth_header.to_str()?.replace("Bearer ", "");
 
-    tracing::info!("validating ${auth_header_value}");
+    tracing::info!("validating {auth_header_value}");
 
     if is_from_github_actions {
         let jwks = reqwest::get(GITHUB_ACTIONS_JWKS_URL)
