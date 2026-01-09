@@ -92,6 +92,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                                 .send()
                                 .await?;
                             tracing::info!("response: {response:?}");
+                            tracing::info!("body: {}", response.text().await?);
                         }
                     }
                 }
