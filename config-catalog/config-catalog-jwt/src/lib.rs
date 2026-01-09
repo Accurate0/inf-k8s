@@ -152,7 +152,7 @@ pub fn verify_jwt(
 ) -> Result<ConfigCatalogJwtClaims, JwtValidationError> {
     let validation = {
         let mut validation = Validation::new(Algorithm::default());
-        validation.set_issuer(&["home-gateway", "config-catalog-cli"]);
+        validation.set_issuer(&["home-gateway", "config-catalog-cli", "config-catalog"]);
         validation.set_audience(&["config-catalog"]);
         validation.validate_exp = true;
         validation
