@@ -153,7 +153,7 @@ pub fn verify_jwt(
     let validation = {
         let mut validation = Validation::new(Algorithm::default());
         validation.set_issuer(&["home-gateway", "config-catalog-cli", "config-catalog"]);
-        validation.set_audience(&["config-catalog"]);
+        validation.set_audience(&["config-catalog", "home-gateway"]);
         validation.validate_exp = true;
         validation
     };
