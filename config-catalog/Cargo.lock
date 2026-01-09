@@ -830,6 +830,7 @@ dependencies = [
  "aws-sdk-secretsmanager",
  "clap",
  "config-catalog-jwt",
+ "reqwest",
  "tokio",
 ]
 

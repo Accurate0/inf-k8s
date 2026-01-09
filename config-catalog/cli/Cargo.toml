@@ -10,3 +10,4 @@ aws-sdk-secretsmanager = { workspace = true }
 tokio = { workspace = true }
 aws-config = { workspace = true }
 anyhow = { workspace = true }
+reqwest = { workspace = true }
