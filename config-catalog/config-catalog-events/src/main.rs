@@ -85,12 +85,13 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                         let method = Method::from_str(method)?;
                         let auth = generate_jwt(jwt_secret.as_bytes(), "config-catalog", audience)?;
                         for url in urls {
-                            http_client
+                            let response = http_client
                                 .request(method.clone(), url)
                                 .header(AUTHORIZATION, format!("Bearer {auth}"))
                                 .json(&payload_to_use)
                                 .send()
                                 .await?;
+                            tracing::info!("response: {response:?}");
                         }
                     }
                 }
