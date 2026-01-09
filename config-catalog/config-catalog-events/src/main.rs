@@ -3,11 +3,20 @@ use aws_lambda_events::event::s3::S3Event;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use config_catalog_jwt::generate_jwt;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
-use reqwest::{Method, header::AUTHORIZATION};
+use reqwest::{
+    Method,
+    header::{AUTHORIZATION, CONTENT_TYPE},
+};
 use serde_json::{Value, json};
 use std::str::FromStr;
 
 mod config;
+
+#[derive(serde::Serialize)]
+struct ConfigYamlEvent {
+    pub key: String,
+    pub payload: serde_yaml::Value,
+}
 
 async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
     let events_config = EventsConfig::new()?;
@@ -66,13 +75,31 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
             {
                 tracing::info!("match in config for {event_config:?}");
                 let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
-                let payload_to_use = if is_json_type {
-                    json!({
-                        "key": key,
-                        "payload": serde_json::from_slice::<Value>(&bytes).unwrap()
-                    })
+                let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
+
+                let (mime, payload) = if is_json_type {
+                    (
+                        "application/json",
+                        json!({
+                            "key": key,
+                            "payload": serde_json::from_slice::<Value>(&bytes).unwrap()
+                        })
+                        .to_string(),
+                    )
+                } else if is_yaml_type {
+                    (
+                        "application/yaml",
+                        serde_yaml::to_string(&ConfigYamlEvent {
+                            key: key.clone(),
+                            payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
+                        })?,
+                    )
                 } else {
-                    json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes.clone()) })
+                    (
+                        "application/json",
+                        json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes.clone()) })
+                            .to_string(),
+                    )
                 };
 
                 match event_config.notify {
@@ -88,7 +115,8 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                             let response = http_client
                                 .request(method.clone(), url)
                                 .header(AUTHORIZATION, format!("Bearer {auth}"))
-                                .json(&payload_to_use)
+                                .header(CONTENT_TYPE, mime)
+                                .body(payload.clone())
                                 .send()
                                 .await?;
                             tracing::info!("response: {response:?}");
