@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-kube = { version = "2.0.1", features = ["runtime", "derive"] }
+kube = { version = "3.0.0", features = ["runtime", "derive"] }
 k8s-openapi = { version = "0.26.0", features = ["v1_33"] }
 askama = "0.14.0"
 axum = "0.8.4"
