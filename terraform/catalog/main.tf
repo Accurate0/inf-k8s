@@ -14,3 +14,6 @@ terraform {
   }
 }
 
+// TODO: use dynamodb and provision keys for each namespace
+// keys are used for namespace access
+// JWT is only used for full access?

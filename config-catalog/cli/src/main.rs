@@ -31,7 +31,7 @@ enum Commands {
     },
 }
 
-const API_BASE: &str = "https://config-catalog.inf-k8s.net/v1";
+const API_BASE: &str = "https://object-registry.inf-k8s.net/v1";
 
 async fn generate_jwt(secrets_client: &aws_sdk_secretsmanager::Client) -> anyhow::Result<String> {
     let jwt_secret = secrets_client
