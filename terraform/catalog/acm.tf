@@ -1,5 +1,5 @@
 resource "aws_acm_certificate" "catalog-api" {
-  domain_name       = "config-catalog.inf-k8s.net"
+  domain_name       = "object-registry.inf-k8s.net"
   validation_method = "DNS"
 
   lifecycle {

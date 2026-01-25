@@ -6,8 +6,8 @@ use axum::{
     middleware::Next,
     response::Response,
 };
-use config_catalog_jwt::{JwkSet, verify_github_actions_token, verify_jwt};
 use lambda_http::tracing;
+use object_registry::{JwkSet, verify_github_actions_token, verify_jwt};
 
 const GITHUB_ACTIONS_JWKS_URL: &str =
     "https://token.actions.githubusercontent.com/.well-known/jwks";
@@ -30,7 +30,7 @@ pub async fn auth_middleware(
     };
 
     let is_from_github_actions = headers
-        .get("X-Config-Catalog-Source")
+        .get("X-Object-Registry-Source")
         .map(|v| v.to_str().ok().map(|s| s == "github-actions"))
         .flatten()
         .unwrap_or(false);

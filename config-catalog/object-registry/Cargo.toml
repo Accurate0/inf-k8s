@@ -1,5 +1,5 @@
 [package]
-name = "config-catalog-jwt"
+name = "object-registry"
 version = "0.1.0"
 edition = "2024"
 

@@ -18,5 +18,5 @@ serde_yaml = { workspace = true }
 jwt = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
-config-catalog-jwt = { workspace = true }
+object-registry = { workspace = true }
 reqwest = { workspace = true }

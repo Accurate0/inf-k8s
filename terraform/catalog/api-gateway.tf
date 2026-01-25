@@ -1,5 +1,5 @@
 resource "aws_apigatewayv2_domain_name" "this" {
-  domain_name = "config-catalog.inf-k8s.net"
+  domain_name = "object-registry.inf-k8s.net"
 
   domain_name_configuration {
     certificate_arn = aws_acm_certificate.catalog-api.arn

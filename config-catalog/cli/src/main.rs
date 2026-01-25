@@ -42,7 +42,7 @@ async fn generate_jwt(secrets_client: &aws_sdk_secretsmanager::Client) -> anyhow
         .secret_string
         .context("must have secret")?;
 
-    config_catalog_jwt::generate_jwt(
+    object_registry::generate_jwt(
         jwt_secret.as_bytes(),
         "config-catalog-cli",
         "config-catalog",

@@ -829,7 +829,7 @@ dependencies = [
  "aws-config",
  "aws-sdk-secretsmanager",
  "clap",
- "config-catalog-jwt",
+ "object-registry",
  "reqwest",
  "tokio",
 ]
@@ -889,10 +889,10 @@ dependencies = [
  "aws-sdk-secretsmanager",
  "axum",
  "base64 0.22.1",
- "config-catalog-jwt",
  "hmac",
  "jwt",
  "lambda_http",
+ "object-registry",
  "reqwest",
  "serde",
  "serde_json",
@@ -911,26 +911,13 @@ dependencies = [
  "aws_lambda_events",
  "base64 0.22.1",
  "config",
- "config-catalog-jwt",
  "lambda_runtime",
+ "object-registry",
  "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
  "tokio",
-]
-
-[[package]]
-name = "config-catalog-jwt"
-version = "0.1.0"
-dependencies = [
- "chrono",
- "hmac",
- "jsonwebtoken",
- "serde",
- "serde_json",
- "sha2",
- "thiserror 2.0.17",
 ]
 
 [[package]]
@@ -2284,6 +2271,19 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
  "libm",
+]
+
+[[package]]
+name = "object-registry"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hmac",
+ "jsonwebtoken",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.17",
 ]
 
 [[package]]

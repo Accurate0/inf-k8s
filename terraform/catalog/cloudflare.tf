@@ -25,10 +25,10 @@ resource "cloudflare_dns_record" "validation-record-api" {
   }
 }
 
-resource "cloudflare_dns_record" "maccas-one-api" {
+resource "cloudflare_dns_record" "object-registry-api" {
   zone_id = var.cloudflare_zone_id
   proxied = false
-  name    = "config-catalog"
+  name    = "object-registry"
   type    = "CNAME"
   content = aws_apigatewayv2_domain_name.this.domain_name_configuration[0].target_domain_name
   ttl     = 1
@@ -49,7 +49,7 @@ resource "cloudflare_dns_record" "aws-wild" {
 
 resource "cloudflare_dns_record" "aws-api-issue" {
   zone_id = var.cloudflare_zone_id
-  name    = "config-catalog"
+  name    = "object-registry"
   data = {
     flags = 0
     tag   = "issue"
