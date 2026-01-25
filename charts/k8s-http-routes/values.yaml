@@ -1,7 +1,6 @@
 bouncerServiceName: envoy-proxy-bouncer
 routes:
   - name: "some-route"
-    crowdsecBouncer: true
     gateway:
       name: shared-gateway
       namespace: envoy-gateway-system
@@ -27,7 +26,6 @@ routes:
               value: /
 
   - name: "some-route-2"
-    crowdsecBouncer: true
     gateway:
       name: shared-gateway
       namespace: envoy-gateway-system
