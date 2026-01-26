@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::auth::Permissions;
 use crate::state::AppState;
-use object_registry::event_manager::{Event, Notify};
+use object_registry::event_manager::{Event, Notify, NotificationType};
 use object_registry::types::{CreatedResponse, EventRequest, EventResponse};
 
 pub async fn post_event(
@@ -27,9 +27,8 @@ pub async fn post_event(
     } else {
         Utc::now()
     };
-
     let notify = Notify {
-        typ: req.notify.typ,
+        r#type: NotificationType::from(req.notify.r#type),
         method: req.notify.method,
         urls: req.notify.urls,
     };
@@ -63,7 +62,7 @@ pub async fn put_event(
     };
 
     let notify = Notify {
-        typ: req.notify.typ,
+        r#type: NotificationType::from(req.notify.r#type),
         method: req.notify.method,
         urls: req.notify.urls,
     };

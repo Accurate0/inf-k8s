@@ -1,8 +1,6 @@
 use jsonwebtoken::Algorithm;
-use jsonwebtoken::DecodingKey;
 use jsonwebtoken::EncodingKey;
 use jsonwebtoken::Header;
-use jsonwebtoken::Validation;
 use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
@@ -39,36 +37,9 @@ pub struct ObjectRegistryJwtClaims {
 pub enum JwtValidationError {
     #[error(r#"JwtError has occurred: `{0}`"#)]
     JwtError(#[from] jsonwebtoken::errors::Error),
-    #[error("Token header is invalid")]
-    InvalidTokenHeader,
-    #[error("No matching JWK was found")]
-    NoMatchingJwk,
-    #[error("No matching repository was found")]
-    NoMatchingRepository,
 }
 
-pub fn verify_jwt(
-    secret: &[u8],
-    unverified_token: &str,
-) -> Result<ObjectRegistryJwtClaims, JwtValidationError> {
-    let validation = {
-        let mut validation = Validation::new(Algorithm::default());
-        validation.set_issuer(&["home-gateway", "config-catalog-cli", "config-catalog"]);
-        validation.set_audience(&["config-catalog", "home-gateway"]);
-        validation.validate_exp = true;
-        validation
-    };
-
-    let validated_token = jsonwebtoken::decode::<ObjectRegistryJwtClaims>(
-        unverified_token.as_bytes(),
-        &DecodingKey::from_secret(secret),
-        &validation,
-    )?;
-
-    Ok(validated_token.claims)
-}
-
-pub fn generate_jwt(
+pub fn generate_jwt_from_private_key(
     secret: &[u8],
     creator: &str,
     created_for: &str,
@@ -85,9 +56,9 @@ pub fn generate_jwt(
     };
 
     let token = jsonwebtoken::encode(
-        &Header::default(),
+        &Header::new(Algorithm::RS256),
         &claims,
-        &EncodingKey::from_secret(secret),
+        &EncodingKey::from_rsa_pem(secret)?,
     )?;
 
     Ok(token)

@@ -24,4 +24,5 @@ reqwest = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 uuid = { version = "1.4", features = ["v4"] }
+rsa = { workspace = true, features = ["pem"] }
 jsonwebtoken = "10.2.0"

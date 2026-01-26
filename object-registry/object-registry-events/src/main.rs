@@ -1,16 +1,11 @@
-use crate::config::EventsConfig;
 use aws_lambda_events::event::s3::S3Event;
 use base64::{Engine, prelude::BASE64_STANDARD};
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
-use object_registry::generate_jwt;
-use reqwest::{
-    Method,
-    header::{AUTHORIZATION, CONTENT_TYPE},
-};
+use object_registry::event_manager::{EventManager, NotificationType};
+use object_registry::generate_jwt_from_private_key;
+use reqwest::{Method, header::CONTENT_TYPE};
 use serde_json::{Value, json};
 use std::str::FromStr;
-
-mod config;
 
 #[derive(serde::Serialize)]
 struct ConfigYamlEvent {
@@ -19,22 +14,21 @@ struct ConfigYamlEvent {
 }
 
 async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
-    let events_config = EventsConfig::new()?;
-
     let config = aws_config::load_from_env().await;
     let s3_client = aws_sdk_s3::Client::new(&config);
     let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
     let http_client = reqwest::ClientBuilder::new().build()?;
+    let event_manager = EventManager::new(&config);
 
     let jwt_secret = secrets_client
         .get_secret_value()
-        .secret_id("config-catalog-jwt-secret")
+        .secret_id("object-registry-jwt-secret")
         .send()
         .await?
         .secret_string;
 
     if jwt_secret.is_none() {
-        tracing::error!("no jwt secret found, cannot send requests");
+        tracing::error!("no jwt secret found, cannot sign requests");
         return Ok(());
     }
 
@@ -67,13 +61,12 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
         let object_value = stored_object.body.collect().await?;
         let bytes = object_value.to_vec();
 
-        for event_config in &events_config.events {
-            let event_keys = &event_config.keys;
-            let event_namespace = &event_config.namespace;
-            if (event_keys.contains(&"*".to_owned()) || event_keys.contains(&key))
-                && event_namespace == namespace
+        let events = event_manager.get_events(namespace.to_string()).await?;
+        for event in events {
+            if (event.keys.contains(&"*".to_owned()) || event.keys.contains(&key))
+                && event.namespace == namespace
             {
-                tracing::info!("match in config for {event_config:?}");
+                tracing::info!("match in config for {event:?}");
                 let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
                 let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
 
@@ -102,27 +95,31 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                     )
                 };
 
-                match event_config.notify {
-                    config::Notify::HTTP {
-                        ref method,
-                        ref urls,
-                        ref audience,
-                    } => {
-                        tracing::info!("sending http request: {method} to {urls:?}");
-                        let method = Method::from_str(method)?;
-                        let auth = generate_jwt(jwt_secret.as_bytes(), "config-catalog", audience)?;
-                        for url in urls {
-                            let response = http_client
-                                .request(method.clone(), url)
-                                .header(AUTHORIZATION, format!("Bearer {auth}"))
-                                .header(CONTENT_TYPE, mime)
-                                .body(payload.clone())
-                                .send()
-                                .await?;
-                            tracing::info!("response: {response:?}");
-                            tracing::info!("body: {}", response.text().await?);
-                        }
+                if event.notify.r#type == NotificationType::HTTP {
+                    let method_str = &event.notify.method;
+                    let urls = &event.notify.urls;
+                    tracing::info!("sending http request: {method_str} to {urls:?}");
+                    let method = Method::from_str(method_str)?;
+
+                    let auth_token = generate_jwt_from_private_key(
+                        jwt_secret.as_bytes(),
+                        "object-registry",
+                        &event.namespace,
+                    )?;
+
+                    for url in urls {
+                        let response = http_client
+                            .request(method.clone(), url)
+                            .bearer_auth(&auth_token)
+                            .header(CONTENT_TYPE, mime)
+                            .body(payload.clone())
+                            .send()
+                            .await?;
+                        tracing::info!("response: {response:?}");
+                        tracing::info!("body: {}", response.text().await?);
                     }
+                } else {
+                    tracing::warn!("unsupported notification type: {}", event.notify.r#type);
                 }
             }
         }

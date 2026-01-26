@@ -1,9 +1,10 @@
 use crate::ObjectRegistryJwtClaims;
 use base64::Engine;
-use jsonwebtoken::{Algorithm, EncodingKey, Header};
+use jsonwebtoken::jwk::JwkSet;
+use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode, jwk};
 use reqwest::{Client, Method, Url, header::CONTENT_TYPE};
-use serde::Serialize;
 use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
 use std::any::TypeId;
 use thiserror::Error;
 
@@ -19,6 +20,8 @@ pub enum ApiClientError {
     Yaml(#[from] serde_yaml::Error),
     #[error("Base64 decode error: {0}")]
     Base64(#[from] base64::DecodeError),
+    #[error("JWK not found for kid: {0}")]
+    JwkNotFound(String),
     #[error("Other: {0}")]
     Other(String),
 }
@@ -81,6 +84,29 @@ impl ApiClient {
         let claims = self.make_claims(audience);
         let token = jsonwebtoken::encode(&header, &claims, &key)?;
         Ok(token)
+    }
+
+    pub async fn validate_token(&self, token: &str) -> Result<bool, ApiClientError> {
+        let jwks_url = format!(
+            "{}/.well-known/jwks.json",
+            self.base_url.trim_end_matches('/')
+        );
+        let resp = self.client.get(jwks_url).send().await?.error_for_status()?;
+        let jwks: JwkSet = resp.json().await?;
+
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.set_audience(std::slice::from_ref(&self.issuer));
+        validation.set_issuer(&["object-registry"]);
+
+        let decoding_key = DecodingKey::from_jwk(
+            jwks.keys
+                .first()
+                .ok_or_else(|| ApiClientError::JwkNotFound("could not find jwk".to_string()))?,
+        )?;
+
+        decode::<ObjectRegistryJwtClaims>(token, &decoding_key, &validation)?;
+
+        Ok(true)
     }
 
     /// Centralized request builder that formats the fixed base URL with the provided resource.

@@ -29,14 +29,14 @@ async fn main() -> Result<(), Error> {
 
     let config = aws_config::load_from_env().await;
     let s3_client = aws_sdk_s3::Client::new(&config);
-    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
+
     let event_manager = object_registry::event_manager::EventManager::new(&config);
     let key_manager = object_registry::key_manager::KeyManager::new(&config);
     let permissions_manager = permissions::PermissionsManager::new();
 
     let state = AppState {
         s3_client,
-        secrets_client,
+
         event_manager,
         key_manager,
         permissions_manager,
@@ -46,6 +46,7 @@ async fn main() -> Result<(), Error> {
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))
         .route("/health", get(health_check))
+        .route("/.well-known/jwks", get(routes::jwks::get_jwks))
         // Events
         .route("/events/{namespace}", post(routes::events::post_event))
         .route("/events/{namespace}", get(routes::events::list_events))

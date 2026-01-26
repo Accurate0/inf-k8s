@@ -22,7 +22,7 @@ pub async fn auth_middleware(
     next: Next,
 ) -> Result<Response, AppError> {
     tracing::info!("request path: {}", request.uri().path());
-    if request.uri().path() == "/health" {
+    if request.uri().path() == "/health" || request.uri().path() == "/.well-known/jwks" {
         return Ok(next.run(request).await);
     }
 

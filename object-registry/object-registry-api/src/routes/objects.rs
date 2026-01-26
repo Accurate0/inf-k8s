@@ -9,7 +9,7 @@ use axum::{
 use base64::{Engine, prelude::BASE64_STANDARD};
 use serde_json::Value;
 
-const BUCKET_NAME: &str = "object-registry-inf-k8s";
+pub const BUCKET_NAME: &str = "object-registry-inf-k8s";
 
 #[derive(serde::Serialize)]
 struct ConfigResponseYaml {

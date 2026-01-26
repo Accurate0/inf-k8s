@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Deserialize, Serialize, Debug)]
 pub struct NotifyRequest {
     #[serde(rename = "type")]
-    pub typ: String,
+    pub r#type: String,
     pub method: String,
     pub urls: Vec<String>,
 }
@@ -24,7 +24,7 @@ pub struct CreatedResponse {
 #[derive(Serialize, Deserialize, Debug)]
 pub struct NotifyResponse {
     #[serde(rename = "type")]
-    pub typ: String,
+    pub r#type: String,
     pub method: String,
     pub urls: Vec<String>,
 }
@@ -45,7 +45,7 @@ impl From<&crate::event_manager::Event> for EventResponse {
             id: ev.id.clone(),
             keys: ev.keys.clone(),
             notify: NotifyResponse {
-                typ: ev.notify.typ.clone(),
+                r#type: ev.notify.r#type.to_string(),
                 method: ev.notify.method.clone(),
                 urls: ev.notify.urls.clone(),
             },

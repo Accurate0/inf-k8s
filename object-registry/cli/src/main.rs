@@ -256,7 +256,7 @@ async fn main() -> anyhow::Result<()> {
                 let event_req = object_registry::types::EventRequest {
                     keys,
                     notify: object_registry::types::NotifyRequest {
-                        typ: notify_type,
+                        r#type: notify_type,
                         method: notify_method,
                         urls: notify_urls,
                     },
@@ -366,7 +366,7 @@ async fn main() -> anyhow::Result<()> {
                 let event_req = object_registry::types::EventRequest {
                     keys,
                     notify: object_registry::types::NotifyRequest {
-                        typ: notify_type,
+                        r#type: notify_type,
                         method: notify_method,
                         urls: notify_urls,
                     },

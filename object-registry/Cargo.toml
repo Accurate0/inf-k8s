@@ -16,7 +16,10 @@ jwt = "0.16.0"
 hmac = "0.12.1"
 sha2 = "0.10.9"
 base64 = "0.22.1"
+uuid = { version = "1.4", features = ["v4"] }
+rsa = "0.9"
 object-registry = { path = "./object-registry" }
+
 reqwest = { version = "0.13.1", features = ["json"] }
 chrono = "0.4.43"
 

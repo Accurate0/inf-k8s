@@ -9,6 +9,7 @@ use aws_sdk_dynamodb::{
 };
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
+use std::fmt;
 
 #[derive(thiserror::Error, Debug)]
 pub enum EventManagerError {
@@ -35,9 +36,33 @@ pub struct EventManager {
     db_client: aws_sdk_dynamodb::Client,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum NotificationType {
+    HTTP,
+    Unknown(String), // For handling types not explicitly defined
+}
+
+impl fmt::Display for NotificationType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            NotificationType::HTTP => write!(f, "HTTP"),
+            NotificationType::Unknown(s) => write!(f, "{}", s),
+        }
+    }
+}
+
+impl From<String> for NotificationType {
+    fn from(s: String) -> Self {
+        match s.as_str() {
+            "HTTP" => NotificationType::HTTP,
+            _ => NotificationType::Unknown(s),
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Notify {
-    pub typ: String,
+    pub r#type: NotificationType,
     pub method: String,
     pub urls: Vec<String>,
 }
@@ -57,6 +82,9 @@ impl EventManager {
     const ID: &str = "id";
     const KEYS: &str = "keys";
     const NOTIFY: &str = "notify";
+    const NOTIFY_TYPE: &str = "type";
+    const NOTIFY_METHOD: &str = "method";
+    const NOTIFY_URLS: &str = "urls";
     const CREATED_AT: &str = "created_at";
 
     pub fn new(sdk_config: &SdkConfig) -> Self {
@@ -67,9 +95,9 @@ impl EventManager {
 
     pub async fn add_event(&self, ev: Event) -> Result<(), EventManagerError> {
         let mut notify_map: HashMap<String, AttributeValue> = HashMap::new();
-        notify_map.insert("type".to_string(), AttributeValue::S(ev.notify.typ));
-        notify_map.insert("method".to_string(), AttributeValue::S(ev.notify.method));
-        notify_map.insert("urls".to_string(), AttributeValue::Ss(ev.notify.urls));
+        notify_map.insert(Self::NOTIFY_TYPE.to_string(), AttributeValue::S(ev.notify.r#type.to_string()));
+        notify_map.insert(Self::NOTIFY_METHOD.to_string(), AttributeValue::S(ev.notify.method));
+        notify_map.insert(Self::NOTIFY_URLS.to_string(), AttributeValue::Ss(ev.notify.urls));
 
         self.db_client
             .put_item()
@@ -89,9 +117,9 @@ impl EventManager {
     /// with respect to `namespace`+`id` (it overwrites the item with the same key).
     pub async fn put_event(&self, ev: Event) -> Result<(), EventManagerError> {
         let mut notify_map: HashMap<String, AttributeValue> = HashMap::new();
-        notify_map.insert("type".to_string(), AttributeValue::S(ev.notify.typ));
-        notify_map.insert("method".to_string(), AttributeValue::S(ev.notify.method));
-        notify_map.insert("urls".to_string(), AttributeValue::Ss(ev.notify.urls));
+        notify_map.insert(Self::NOTIFY_TYPE.to_string(), AttributeValue::S(ev.notify.r#type.to_string()));
+        notify_map.insert(Self::NOTIFY_METHOD.to_string(), AttributeValue::S(ev.notify.method));
+        notify_map.insert(Self::NOTIFY_URLS.to_string(), AttributeValue::Ss(ev.notify.urls));
 
         self.db_client
             .put_item()
@@ -152,28 +180,28 @@ impl EventManager {
     fn parse_notify(
         notify_attr: &HashMap<String, AttributeValue>,
     ) -> Result<Notify, EventManagerError> {
-        let typ = notify_attr
-            .get("type")
+        let r#type = notify_attr
+            .get(Self::NOTIFY_TYPE)
             .ok_or_else(|| EventManagerError::MissingEventDetail("notify.type"))?
             .as_s()
-            .map(|s| s.to_string())
+            .map(|s| NotificationType::from(s.to_string()))
             .map_err(|_| EventManagerError::TypeMismatch("notify.type"))?;
 
         let method = notify_attr
-            .get("method")
+            .get(Self::NOTIFY_METHOD)
             .ok_or_else(|| EventManagerError::MissingEventDetail("notify.method"))?
             .as_s()
             .map(|s| s.to_string())
             .map_err(|_| EventManagerError::TypeMismatch("notify.method"))?;
 
         let urls = notify_attr
-            .get("urls")
+            .get(Self::NOTIFY_URLS)
             .ok_or_else(|| EventManagerError::MissingEventDetail("notify.urls"))?
             .as_ss()
             .map(|ss| ss.to_vec())
             .map_err(|_| EventManagerError::TypeMismatch("notify.urls"))?;
 
-        Ok(Notify { typ, method, urls })
+        Ok(Notify { r#type, method, urls })
     }
 
     pub async fn get_events(&self, namespace: String) -> Result<Vec<Event>, EventManagerError> {
