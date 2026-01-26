@@ -47,11 +47,11 @@ async fn main() -> Result<(), Error> {
         .route("/{namespace}/{object}", get(routes::objects::get_object))
         .route("/health", get(health_check))
         // Events
-        .route("/events/:namespace", post(routes::events::post_event))
-        .route("/events/:namespace", get(routes::events::list_events))
-        .route("/events/:namespace/:id", put(routes::events::put_event))
+        .route("/events/{namespace}", post(routes::events::post_event))
+        .route("/events/{namespace}", get(routes::events::list_events))
+        .route("/events/{namespace}/{id}", put(routes::events::put_event))
         .route(
-            "/events/:namespace/:id",
+            "/events/{namespace}/{id}",
             delete(routes::events::delete_event),
         )
         .with_state(state.clone())

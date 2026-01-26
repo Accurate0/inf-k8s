@@ -63,22 +63,22 @@ impl ApiClient {
         header
     }
 
-    fn make_claims(&self, audience: &str, subject: &str) -> ObjectRegistryJwtClaims {
+    fn make_claims(&self, audience: &str) -> ObjectRegistryJwtClaims {
         let now = chrono::offset::Utc::now().timestamp();
         ObjectRegistryJwtClaims {
             iat: now,
             exp: now + 900, // 15 minutes
             aud: audience.to_string(),
             iss: self.issuer.clone(),
-            sub: subject.to_string(),
+            sub: self.issuer.clone(),
             role: vec![],
         }
     }
 
-    pub fn generate_jwt(&self, audience: &str, subject: &str) -> Result<String, ApiClientError> {
+    pub fn generate_jwt(&self, audience: &str) -> Result<String, ApiClientError> {
         let key = self.make_encoding_key()?;
         let header = self.make_header();
-        let claims = self.make_claims(audience, subject);
+        let claims = self.make_claims(audience);
         let token = jsonwebtoken::encode(&header, &claims, &key)?;
         Ok(token)
     }
@@ -100,7 +100,6 @@ impl ApiClient {
         object: &str,
         version: Option<&str>,
         body: &[u8],
-        subject: &str,
     ) -> Result<(), ApiClientError> {
         let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
@@ -110,7 +109,7 @@ impl ApiClient {
         if let Some(v) = version {
             url.query_pairs_mut().append_pair("version", v);
         }
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let _resp = self
             .client
             .put(url)
@@ -128,7 +127,6 @@ impl ApiClient {
         namespace: &str,
         object: &str,
         version: Option<&str>,
-        subject: &str,
     ) -> Result<T, ApiClientError>
     where
         T: DeserializeOwned + 'static,
@@ -141,7 +139,7 @@ impl ApiClient {
         if let Some(v) = version {
             url.query_pairs_mut().append_pair("version", v);
         }
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let resp = self
             .client
             .request(Method::GET, url)
@@ -226,10 +224,9 @@ impl ApiClient {
         &self,
         namespace: &str,
         req: &crate::types::EventRequest,
-        subject: &str,
     ) -> Result<crate::types::CreatedResponse, ApiClientError> {
         let rel = format!("events/{}", namespace);
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let resp = self
             .get_default_request(&rel, Method::POST)
             .bearer_auth(jwt)
@@ -245,10 +242,9 @@ impl ApiClient {
         namespace: &str,
         id: &str,
         req: &crate::types::EventRequest,
-        subject: &str,
     ) -> Result<crate::types::CreatedResponse, ApiClientError> {
         let rel = format!("events/{}/{}", namespace, id);
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let resp = self
             .get_default_request(&rel, Method::PUT)
             .bearer_auth(jwt)
@@ -259,14 +255,9 @@ impl ApiClient {
         Ok(created)
     }
 
-    pub async fn delete_event(
-        &self,
-        namespace: &str,
-        id: &str,
-        subject: &str,
-    ) -> Result<(), ApiClientError> {
+    pub async fn delete_event(&self, namespace: &str, id: &str) -> Result<(), ApiClientError> {
         let rel = format!("events/{}/{}", namespace, id);
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let _resp = self
             .get_default_request(&rel, Method::DELETE)
             .bearer_auth(jwt)
@@ -278,10 +269,9 @@ impl ApiClient {
     pub async fn list_events(
         &self,
         namespace: &str,
-        subject: &str,
     ) -> Result<Vec<crate::types::EventResponse>, ApiClientError> {
         let rel = format!("events/{}", namespace);
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let resp = self
             .get_default_request(&rel, Method::GET)
             .bearer_auth(jwt)
@@ -292,13 +282,9 @@ impl ApiClient {
     }
 
     /// Perform a GET to the API path (appended to base_url) with a freshly-signed JWT.
-    pub async fn get(
-        &self,
-        path: &str,
-        subject: &str,
-    ) -> Result<reqwest::Response, ApiClientError> {
+    pub async fn get(&self, path: &str) -> Result<reqwest::Response, ApiClientError> {
         let rel = path.trim_start_matches('/');
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let resp = self
             .get_default_request(rel, Method::GET)
             .bearer_auth(jwt)
@@ -312,10 +298,9 @@ impl ApiClient {
         &self,
         path: &str,
         body: &T,
-        subject: &str,
     ) -> Result<reqwest::Response, ApiClientError> {
         let rel = path.trim_start_matches('/');
-        let jwt = self.generate_jwt("object-registry", subject)?;
+        let jwt = self.generate_jwt("object-registry")?;
         let resp = self
             .get_default_request(rel, Method::POST)
             .bearer_auth(jwt)

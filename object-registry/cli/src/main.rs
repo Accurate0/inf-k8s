@@ -1,4 +1,3 @@
-use anyhow::Context;
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 use tokio::fs::read_to_string;
@@ -33,8 +32,6 @@ enum Commands {
         object: String,
         #[arg(short, long)]
         file: String,
-        #[arg(short, long)]
-        source: Option<String>,
     },
     Get {
         #[arg(short, long)]
@@ -44,31 +41,10 @@ enum Commands {
     },
 }
 
-const API_BASE: &str = "https://object-registry.inf-k8s.net/v1";
-
-async fn generate_jwt(secrets_client: &aws_sdk_secretsmanager::Client) -> anyhow::Result<String> {
-    let jwt_secret = secrets_client
-        .get_secret_value()
-        .secret_id("object-registry-jwt-secret")
-        .send()
-        .await?
-        .secret_string
-        .context("must have secret")?;
-
-    object_registry::generate_jwt(
-        jwt_secret.as_bytes(),
-        "config-catalog-cli",
-        "config-catalog",
-    )
-    .map_err(Into::into)
-}
-
 #[tokio::main(flavor = "current_thread")]
 async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
     let config = aws_config::load_from_env().await;
-    let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
-    let http_client = reqwest::ClientBuilder::new().build()?;
 
     match args.command {
         Commands::GenerateKeyPair {
@@ -110,7 +86,6 @@ async fn main() -> anyhow::Result<()> {
             namespace,
             object,
             file,
-            source,
         } => {
             // read file
             let path = PathBuf::from(file);
@@ -140,18 +115,12 @@ async fn main() -> anyhow::Result<()> {
             let api = object_registry::ApiClient::new(
                 private_pem.clone(),
                 kid.clone(),
-                "config-catalog-cli",
+                "object-registry-cli",
             );
 
             // perform put_object; include source header via API client's post_json/get helpers is not available for raw body, so call put_object directly
-            api.put_object(
-                &namespace,
-                &object,
-                None,
-                file_contents.as_bytes(),
-                "config-catalog",
-            )
-            .await?;
+            api.put_object(&namespace, &object, None, file_contents.as_bytes())
+                .await?;
 
             println!("stored {}/{}", namespace, object);
         }
@@ -184,9 +153,7 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // fetch object as raw string
-            let body: String = api
-                .get_object(&namespace, &object, None, "config-catalog")
-                .await?;
+            let body: String = api.get_object(&namespace, &object, None).await?;
             println!("{}", body);
         }
     }
