@@ -1,0 +1,101 @@
+name: object-registry
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "object-registry/**"
+      - ".github/workflows/object-registry.yml"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: object-registry
+    steps:
+      - uses: actions/checkout@v6
+      - name: install musl gcc
+        run: sudo apt install musl-tools
+
+      - uses: Accurate0/rust-toolchain@main
+        with:
+          profile: minimal
+          toolchain: stable
+          target: x86_64-unknown-linux-musl
+
+      - uses: actions/cache@v5
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            object-registry/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: cargo build
+        run: cargo build --locked --profile release-strip --target x86_64-unknown-linux-musl
+
+      - name: copy artifacts
+        run: |
+          mkdir ./artifacts
+          cp ./target/x86_64-unknown-linux-musl/release-strip/object-registry-api ./artifacts
+          cp ./target/x86_64-unknown-linux-musl/release-strip/object-registry-events ./artifacts
+
+      - name: upload artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: build
+          path: ./object-registry/artifacts
+          if-no-files-found: error
+
+  convert-artifacts:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - object-registry-api
+          - object-registry-events
+
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          name: build
+
+      - name: create zip (${{ matrix.task }})
+        run: |
+          mv ./${{ matrix.task }} ./bootstrap
+          zip -r bootstrap.zip ./bootstrap
+
+      - name: upload ${{ matrix.task }} artifact
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ matrix.task }}
+          path: ./bootstrap.zip
+
+  deploy:
+    permissions:
+      id-token: write
+    needs: convert-artifacts
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - object-registry-api
+          - object-registry-events
+
+    steps:
+      - name: configure oicd aws credentials
+        uses: aws-actions/configure-aws-credentials@v5
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+
+      - uses: actions/download-artifact@v7
+        with:
+          name: ${{ matrix.task }}
+
+      - name: deploy ${{ matrix.task }}
+        run: aws lambda update-function-code --function-name ${{ matrix.task }} --zip-file fileb://bootstrap.zip --region ap-southeast-2

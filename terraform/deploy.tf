@@ -10,7 +10,7 @@ module "aws-oidc-deploy" {
         "Action" = [
           "lambda:UpdateFunctionCode",
         ],
-        "Resource" = module.catalog.aws_lambda_arns
+        "Resource" = module.object-registry.aws_lambda_arns
       },
     ]
   }

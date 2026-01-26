@@ -66,6 +66,6 @@ provider "infisical" {
   }
 }
 
-module "catalog" {
-  source = "./catalog"
+module "object-registry" {
+  source = "./object-registry"
 }

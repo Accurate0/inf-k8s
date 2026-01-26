@@ -1,0 +1,18 @@
+[package]
+name = "object-registry"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+hmac = "0.12.1"
+sha2 = "0.10.9"
+serde = "1.0.228"
+serde_json = "1.0"
+thiserror = "2.0.18"
+chrono = "0.4.43"
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+reqwest = { workspace = true }
+serde_yaml = { workspace = true }
+base64 = { workspace = true }
