@@ -6,7 +6,6 @@ pub struct NotifyRequest {
     #[serde(rename = "type")]
     pub typ: String,
     pub method: String,
-    pub audience: String,
     pub urls: Vec<String>,
 }
 
@@ -27,7 +26,6 @@ pub struct NotifyResponse {
     #[serde(rename = "type")]
     pub typ: String,
     pub method: String,
-    pub audience: String,
     pub urls: Vec<String>,
 }
 
@@ -49,7 +47,6 @@ impl From<&crate::event_manager::Event> for EventResponse {
             notify: NotifyResponse {
                 typ: ev.notify.typ.clone(),
                 method: ev.notify.method.clone(),
-                audience: ev.notify.audience.clone(),
                 urls: ev.notify.urls.clone(),
             },
             created_at: ev.created_at.to_rfc3339(),

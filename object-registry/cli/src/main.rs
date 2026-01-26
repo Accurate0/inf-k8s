@@ -45,6 +45,50 @@ enum Commands {
         #[arg(long)]
         version: Option<String>,
     },
+    Events {
+        #[command(subcommand)]
+        command: EventsCommand,
+    },
+}
+
+#[derive(Subcommand, Debug)]
+enum EventsCommand {
+    Create {
+        #[arg(short, long)]
+        namespace: String,
+        #[arg(long, required = true, num_args = 1..)]
+        keys: Vec<String>,
+        #[arg(long, default_value = "webhook")]
+        notify_type: String,
+        #[arg(long, default_value = "POST")]
+        notify_method: String,
+        #[arg(long, required = true, num_args = 1..)]
+        notify_urls: Vec<String>,
+    },
+    List {
+        #[arg(short, long)]
+        namespace: String,
+    },
+    Delete {
+        #[arg(short, long)]
+        namespace: String,
+        #[arg(long)]
+        id: String,
+    },
+    Update {
+        #[arg(short, long)]
+        namespace: String,
+        #[arg(long)]
+        id: String,
+        #[arg(long, required = true, num_args = 1..)]
+        keys: Vec<String>,
+        #[arg(long, default_value = "webhook")]
+        notify_type: String,
+        #[arg(long, default_value = "POST")]
+        notify_method: String,
+        #[arg(long, required = true, num_args = 1..)]
+        notify_urls: Vec<String>,
+    },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -174,6 +218,165 @@ async fn main() -> anyhow::Result<()> {
                 .await?;
             println!("{}", body);
         }
+        Commands::Events { command } => match command {
+            EventsCommand::Create {
+                namespace,
+                keys,
+                notify_type,
+                notify_method,
+                notify_urls,
+            } => {
+                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["POST".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+
+                // construct ApiClient using the private key (in-memory)
+                let api = object_registry::ApiClient::new(
+                    private_pem.clone(),
+                    kid.clone(),
+                    "object-registry-cli",
+                );
+
+                let event_req = object_registry::types::EventRequest {
+                    keys,
+                    notify: object_registry::types::NotifyRequest {
+                        typ: notify_type,
+                        method: notify_method,
+                        urls: notify_urls,
+                    },
+                    created_at: None,
+                };
+
+                let created = api.post_event(&namespace, &event_req).await?;
+                println!("created event with id: {}", created.id);
+            }
+            EventsCommand::List { namespace } => {
+                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["GET".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+
+                // construct ApiClient using the private key (in-memory)
+                let api = object_registry::ApiClient::new(
+                    private_pem.clone(),
+                    kid.clone(),
+                    "object-registry-cli",
+                );
+
+                let events = api.list_events(&namespace).await?;
+                println!("{}", serde_json::to_string_pretty(&events)?);
+            }
+            EventsCommand::Delete { namespace, id } => {
+                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["DELETE".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+
+                // construct ApiClient using the private key (in-memory)
+                let api = object_registry::ApiClient::new(
+                    private_pem.clone(),
+                    kid.clone(),
+                    "object-registry-cli",
+                );
+
+                api.delete_event(&namespace, &id).await?;
+                println!("deleted event with id: {}", id);
+            }
+            EventsCommand::Update {
+                namespace,
+                id,
+                keys,
+                notify_type,
+                notify_method,
+                notify_urls,
+            } => {
+                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["PUT".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+
+                // construct ApiClient using the private key (in-memory)
+                let api = object_registry::ApiClient::new(
+                    private_pem.clone(),
+                    kid.clone(),
+                    "object-registry-cli",
+                );
+
+                let event_req = object_registry::types::EventRequest {
+                    keys,
+                    notify: object_registry::types::NotifyRequest {
+                        typ: notify_type,
+                        method: notify_method,
+                        urls: notify_urls,
+                    },
+                    created_at: None,
+                };
+
+                let updated = api.put_event(&namespace, &id, &event_req).await?;
+                println!("updated event with id: {}", updated.id);
+            }
+        },
     }
 
     Ok(())

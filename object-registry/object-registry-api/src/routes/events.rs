@@ -31,7 +31,6 @@ pub async fn post_event(
     let notify = Notify {
         typ: req.notify.typ,
         method: req.notify.method,
-        audience: req.notify.audience,
         urls: req.notify.urls,
     };
 
@@ -66,7 +65,6 @@ pub async fn put_event(
     let notify = Notify {
         typ: req.notify.typ,
         method: req.notify.method,
-        audience: req.notify.audience,
         urls: req.notify.urls,
     };
 

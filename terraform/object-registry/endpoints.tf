@@ -10,6 +10,22 @@ locals {
     },
     {
       "method" : "GET",
+      "url" : "/events/{namespace}"
+    },
+    {
+      "method" : "POST",
+      "url" : "/events/{namespace}"
+    },
+    {
+      "method" : "PUT",
+      "url" : "/events/{namespace}/{id}"
+    },
+    {
+      "method" : "DELETE",
+      "url" : "/events/{namespace}/{id}"
+    },
+    {
+      "method" : "GET",
       "url" : "/health",
     },
   ]
