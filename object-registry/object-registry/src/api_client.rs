@@ -116,7 +116,8 @@ impl ApiClient {
             .bearer_auth(jwt)
             .body(body.to_vec())
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         Ok(())
     }
 
@@ -145,7 +146,8 @@ impl ApiClient {
             .request(Method::GET, url)
             .bearer_auth(jwt)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
 
         let content_type = resp
             .headers()
@@ -232,7 +234,8 @@ impl ApiClient {
             .bearer_auth(jwt)
             .json(req)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         let created: crate::types::CreatedResponse = resp.json().await?;
         Ok(created)
     }
@@ -250,7 +253,8 @@ impl ApiClient {
             .bearer_auth(jwt)
             .json(req)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         let created: crate::types::CreatedResponse = resp.json().await?;
         Ok(created)
     }
@@ -262,7 +266,8 @@ impl ApiClient {
             .get_default_request(&rel, Method::DELETE)
             .bearer_auth(jwt)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         Ok(())
     }
 
@@ -276,7 +281,8 @@ impl ApiClient {
             .get_default_request(&rel, Method::GET)
             .bearer_auth(jwt)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         let arr: Vec<crate::types::EventResponse> = resp.json().await?;
         Ok(arr)
     }
@@ -289,7 +295,8 @@ impl ApiClient {
             .get_default_request(rel, Method::GET)
             .bearer_auth(jwt)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         Ok(resp)
     }
 
@@ -306,7 +313,8 @@ impl ApiClient {
             .bearer_auth(jwt)
             .json(body)
             .send()
-            .await?;
+            .await?
+            .error_for_status()?;
         Ok(resp)
     }
 }

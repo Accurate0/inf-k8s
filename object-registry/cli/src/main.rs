@@ -32,12 +32,18 @@ enum Commands {
         object: String,
         #[arg(short, long)]
         file: String,
+        /// Optional version query parameter
+        #[arg(long)]
+        version: Option<String>,
     },
     Get {
         #[arg(short, long)]
         namespace: String,
         #[arg(short, long)]
         object: String,
+        /// Optional version query parameter
+        #[arg(long)]
+        version: Option<String>,
     },
 }
 
@@ -86,6 +92,7 @@ async fn main() -> anyhow::Result<()> {
             namespace,
             object,
             file,
+            version,
         } => {
             // read file
             let path = PathBuf::from(file);
@@ -119,12 +126,21 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // perform put_object; include source header via API client's post_json/get helpers is not available for raw body, so call put_object directly
-            api.put_object(&namespace, &object, None, file_contents.as_bytes())
-                .await?;
+            api.put_object(
+                &namespace,
+                &object,
+                version.as_deref(),
+                file_contents.as_bytes(),
+            )
+            .await?;
 
             println!("stored {}/{}", namespace, object);
         }
-        Commands::Get { namespace, object } => {
+        Commands::Get {
+            namespace,
+            object,
+            version,
+        } => {
             // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
             let rsa = openssl::rsa::Rsa::generate(4096)?;
             let private_pem = rsa.private_key_to_pem()?;
@@ -153,7 +169,9 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // fetch object as raw string
-            let body: String = api.get_object(&namespace, &object, None).await?;
+            let body: String = api
+                .get_object(&namespace, &object, version.as_deref())
+                .await?;
             println!("{}", body);
         }
     }

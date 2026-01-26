@@ -55,7 +55,13 @@ pub async fn auth_middleware(
     validation.set_audience(&["object-registry"]);
     validation.validate_exp = true;
 
-    let token_data = decode::<ObjectRegistryJwtClaims>(&token, &decoding_key, &validation)?;
+    let token_data = match decode::<ObjectRegistryJwtClaims>(&token, &decoding_key, &validation) {
+        Ok(td) => td,
+        Err(e) => {
+            tracing::error!("JWT decode failed for kid {}: {}", kid, e);
+            return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
+        }
+    };
     tracing::info!("verified request with claims: {:#?}", token_data.claims);
 
     // Attach permitted methods/namespaces from key details into request extensions
