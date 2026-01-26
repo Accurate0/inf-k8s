@@ -1,7 +1,9 @@
 use crate::{error::AppError, state::AppState};
+use aws_sdk_s3::operation::get_object::GetObjectError;
 use axum::{
     body::Bytes,
     extract::{Extension, Path, Query, State},
+    http::StatusCode,
     response::Response,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
@@ -62,13 +64,25 @@ pub async fn get_object(
         Some(v) => format!("{namespace}/{object}@{v}"),
         None => format!("{namespace}/{object}"),
     };
-    let stored_object = state
+    let stored_object = match state
         .s3_client
         .get_object()
         .key(&key)
         .bucket(BUCKET_NAME)
         .send()
-        .await?;
+        .await
+    {
+        Ok(o) => o,
+        Err(e) => {
+            // If this is a modeled service error, detect S3's `NoSuchKey` and return 404.
+            if let Some(svc) = e.as_service_error()
+                && matches!(svc, GetObjectError::NoSuchKey(_))
+            {
+                return Err(AppError::StatusCode(StatusCode::NOT_FOUND));
+            }
+            return Err(e.into());
+        }
+    };
     let object_value = stored_object.body.collect().await?;
     let bytes = object_value.to_vec();
 

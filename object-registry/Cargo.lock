@@ -858,6 +858,7 @@ dependencies = [
  "object-registry",
  "openssl",
  "reqwest",
+ "serde_json",
  "tokio",
  "uuid",
 ]

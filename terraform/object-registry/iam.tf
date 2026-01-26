@@ -31,6 +31,24 @@ resource "aws_iam_policy" "object-registry-lambda-access" {
             "${aws_secretsmanager_secret.jwt-secret.arn}",
           ]
         },
+        {
+          "Effect" : "Allow",
+          "Action" : [
+            "dynamodb:GetItem",
+            "dynamodb:PutItem",
+            "dynamodb:DeleteItem",
+            "dynamodb:UpdateItem",
+            "dynamodb:Query",
+            "dynamodb:Scan",
+            "dynamodb:BatchGetItem",
+            "dynamodb:BatchWriteItem",
+            "dynamodb:ConditionCheckItem"
+          ],
+          "Resource" : [
+            "${aws_dynamodb_table.object-registry-keys.arn}",
+            "${aws_dynamodb_table.object-registry-events.arn}"
+          ]
+        }
       ]
     }
   )

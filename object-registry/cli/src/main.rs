@@ -169,7 +169,7 @@ async fn main() -> anyhow::Result<()> {
             );
 
             // fetch object as raw string
-            let body: String = api
+            let body: serde_json::Value = api
                 .get_object(&namespace, &object, version.as_deref())
                 .await?;
             println!("{}", body);

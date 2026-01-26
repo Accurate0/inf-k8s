@@ -2,6 +2,7 @@ use axum::{
     http::StatusCode,
     response::{IntoResponse, Response},
 };
+use lambda_http::tracing;
 
 pub enum AppError {
     Error(anyhow::Error),
@@ -12,11 +13,14 @@ pub enum AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         match self {
-            AppError::Error(e) => (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                format!("Something went wrong: {}", e),
-            )
-                .into_response(),
+            AppError::Error(e) => {
+                tracing::error!("an app error occurred: {e}");
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    format!("Something went wrong: {}", e),
+                )
+                    .into_response()
+            }
             AppError::StatusCode(s) => {
                 (s, s.canonical_reason().unwrap_or("").to_owned()).into_response()
             }
