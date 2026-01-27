@@ -1,21 +1,15 @@
 use crate::{error::AppError, state::AppState};
-use aws_sdk_s3::operation::get_object::GetObjectError;
 use axum::{
     body::Bytes,
     extract::{Extension, Path, Query, State},
-    http::StatusCode,
+    http::{HeaderMap, StatusCode},
     response::Response,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
+use object_registry::object_manager::ObjectManagerError;
+use object_registry::types::{MetadataResponse, ObjectResponse};
 use serde_json::Value;
-
-pub const BUCKET_NAME: &str = "object-registry-inf-k8s";
-
-#[derive(serde::Serialize)]
-struct ConfigResponseYaml {
-    pub key: String,
-    pub payload: serde_yaml::Value,
-}
+use std::collections::HashMap;
 
 #[derive(serde::Deserialize)]
 pub struct VersionQuery {
@@ -32,9 +26,26 @@ fn validate_namespace(namespace: &str) -> Result<(), AppError> {
     Ok(())
 }
 
+fn extract_labels(headers: &HeaderMap) -> HashMap<String, String> {
+    headers
+        .iter()
+        .filter_map(|(k, v)| {
+            let key_str = k.as_str();
+            if key_str.starts_with("x-label-") {
+                let label_key = key_str.trim_start_matches("x-label-").to_string();
+                let label_value = v.to_str().unwrap_or("").to_string();
+                Some((label_key, label_value))
+            } else {
+                None
+            }
+        })
+        .collect()
+}
+
 pub async fn put_object(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
+    headers: HeaderMap,
     Path((namespace, object)): Path<(String, String)>,
     Query(params): Query<VersionQuery>,
     body: Bytes,
@@ -45,17 +56,34 @@ pub async fn put_object(
         .permissions_manager
         .enforce(&perms, "PUT", &namespace)?;
 
-    let key = match params.version {
-        Some(v) => format!("{namespace}/{object}@{v}"),
-        None => format!("{namespace}/{object}"),
-    };
+    let content_type = headers
+        .get("Content-Type")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("application/octet-stream");
 
-    upload_object_to_s3(&state, key, body).await
+    let labels = extract_labels(&headers);
+
+    state
+        .object_manager
+        .put_object(
+            &namespace,
+            &object,
+            params.version.as_deref(),
+            false,
+            body.to_vec(),
+            content_type,
+            &perms.issuer,
+            labels,
+        )
+        .await?;
+
+    Ok(())
 }
 
 pub async fn put_object_public(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
+    headers: HeaderMap,
     Path((namespace, object)): Path<(String, String)>,
     Query(params): Query<VersionQuery>,
     body: Bytes,
@@ -66,12 +94,28 @@ pub async fn put_object_public(
         .permissions_manager
         .enforce(&perms, "PUT", &namespace)?;
 
-    let key = match params.version {
-        Some(v) => format!("{namespace}/public/{object}@{v}"),
-        None => format!("{namespace}/public/{object}"),
-    };
+    let content_type = headers
+        .get("Content-Type")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("application/octet-stream");
 
-    upload_object_to_s3(&state, key, body).await
+    let labels = extract_labels(&headers);
+
+    state
+        .object_manager
+        .put_object(
+            &namespace,
+            &object,
+            params.version.as_deref(),
+            true,
+            body.to_vec(),
+            content_type,
+            &perms.issuer,
+            labels,
+        )
+        .await?;
+
+    Ok(())
 }
 
 pub async fn get_object(
@@ -84,12 +128,7 @@ pub async fn get_object(
         .permissions_manager
         .enforce(&perms, "GET", &namespace)?;
 
-    let key = match params.version {
-        Some(v) => format!("{namespace}/{object}@{v}"),
-        None => format!("{namespace}/{object}"),
-    };
-
-    fetch_object_from_s3(&state, key).await
+    fetch_object(&state, &namespace, &object, params.version.as_deref(), false).await
 }
 
 pub async fn get_object_public(
@@ -97,52 +136,40 @@ pub async fn get_object_public(
     Path((namespace, object)): Path<(String, String)>,
     Query(params): Query<VersionQuery>,
 ) -> Result<Response, AppError> {
-    let key = match params.version {
-        Some(v) => format!("{namespace}/public/{object}@{v}"),
-        None => format!("{namespace}/public/{object}"),
-    };
-
-    fetch_object_from_s3(&state, key).await
+    fetch_object(&state, &namespace, &object, params.version.as_deref(), true).await
 }
 
-async fn upload_object_to_s3(
+async fn fetch_object(
     state: &AppState,
-    key: String,
-    body: Bytes,
-) -> anyhow::Result<(), AppError> {
-    state
-        .s3_client
-        .put_object()
-        .bucket(BUCKET_NAME)
-        .key(key)
-        .body(body.into())
-        .send()
-        .await?;
-
-    Ok(())
-}
-
-async fn fetch_object_from_s3(state: &AppState, key: String) -> Result<Response, AppError> {
+    namespace: &str,
+    object: &str,
+    version: Option<&str>,
+    public: bool,
+) -> Result<Response, AppError> {
     let stored_object = match state
-        .s3_client
-        .get_object()
-        .key(&key)
-        .bucket(BUCKET_NAME)
-        .send()
+        .object_manager
+        .get_object(namespace, object, version, public)
         .await
     {
         Ok(o) => o,
-        Err(e) => {
-            if let Some(svc) = e.as_service_error()
-                && matches!(svc, GetObjectError::NoSuchKey(_))
-            {
-                return Err(AppError::StatusCode(StatusCode::NOT_FOUND));
-            }
-            return Err(e.into());
+        Err(ObjectManagerError::ObjectNotFound) => {
+            return Err(AppError::StatusCode(StatusCode::NOT_FOUND));
         }
+        Err(e) => return Err(e.into()),
     };
-    let object_value = stored_object.body.collect().await?;
-    let bytes = object_value.to_vec();
+
+    let key = stored_object.key;
+    let bytes = stored_object.data;
+    let meta = MetadataResponse {
+        namespace: stored_object.metadata.namespace,
+        checksum: stored_object.metadata.checksum,
+        size: stored_object.metadata.size,
+        content_type: stored_object.metadata.content_type,
+        created_by: stored_object.metadata.created_by,
+        created_at: stored_object.metadata.created_at,
+        version: stored_object.metadata.version,
+        labels: stored_object.metadata.labels,
+    };
 
     let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
     let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
@@ -152,18 +179,22 @@ async fn fetch_object_from_s3(state: &AppState, key: String) -> Result<Response,
             .status(200)
             .header("Content-Type", "application/json")
             .body(
-                serde_json::json!({ "key": key, "payload": serde_json::from_slice::<Value>(&bytes).unwrap()})
-                    .to_string()
-                    .into(),
+                serde_json::to_string(&ObjectResponse {
+                    key,
+                    payload: serde_json::from_slice::<Value>(&bytes).unwrap(),
+                    metadata: meta,
+                })?
+                .into(),
             )?)
     } else if is_yaml_type {
         Ok(Response::builder()
             .status(200)
             .header("Content-Type", "application/yaml")
             .body(
-                serde_yaml::to_string(&ConfigResponseYaml {
+                serde_yaml::to_string(&ObjectResponse {
                     key,
                     payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
+                    metadata: meta,
                 })?
                 .into(),
             )?)
@@ -172,9 +203,12 @@ async fn fetch_object_from_s3(state: &AppState, key: String) -> Result<Response,
             .status(200)
             .header("Content-Type", "application/json")
             .body(
-                serde_json::json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes) })
-                    .to_string()
-                    .into(),
+                serde_json::to_string(&ObjectResponse {
+                    key,
+                    payload: BASE64_STANDARD.encode(bytes),
+                    metadata: meta,
+                })?
+                .into(),
             )?)
     }
 }

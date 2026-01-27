@@ -55,8 +55,8 @@ impl fmt::Display for NotificationType {
 
 impl From<String> for NotificationType {
     fn from(s: String) -> Self {
-        match s.as_str() {
-            "HTTP" => NotificationType::HTTP,
+        match s.to_lowercase().as_str() {
+            "http" => NotificationType::HTTP,
             _ => NotificationType::Unknown(s),
         }
     }

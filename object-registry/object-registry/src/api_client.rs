@@ -6,6 +6,7 @@ use reqwest::{Client, Method, Url, header::CONTENT_TYPE};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::any::TypeId;
+use std::collections::HashMap;
 use std::future::Future;
 use thiserror::Error;
 
@@ -127,6 +128,7 @@ impl ApiClient {
         version: Option<&str>,
         public: bool,
         body: &[u8],
+        labels: Option<HashMap<String, String>>,
     ) -> Result<(), ApiClientError> {
         let rel = if public {
             format!("{}/public/{}", namespace, object)
@@ -141,16 +143,20 @@ impl ApiClient {
             url.query_pairs_mut().append_pair("version", v);
         }
 
-        let jwt = self.generate_jwt()?;
-        let _resp = self
-            .client
-            .put(url)
-            .bearer_auth(jwt)
-            .body(body.to_vec())
-            .send()
-            .await?
-            .error_for_status()?;
+        let mut req = self.client.put(url).body(body.to_vec());
 
+        if let Some(lbls) = labels {
+            for (k, v) in lbls {
+                req = req.header(format!("x-label-{}", k), v);
+            }
+        }
+
+        if !public {
+            let jwt = self.generate_jwt()?;
+            req = req.bearer_auth(jwt);
+        }
+
+        let _resp = req.send().await?.error_for_status()?;
         Ok(())
     }
 
@@ -440,7 +446,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .put_object("ns1", "obj1", Some("v1"), false, b"hello")
+            .put_object("ns1", "obj1", Some("v1"), false, b"hello", None)
             .await;
         assert!(result.is_ok());
         mock.assert();
@@ -713,7 +719,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .put_object("ns1", "obj1", None, true, b"hello")
+            .put_object("ns1", "obj1", None, true, b"hello", None)
             .await;
         assert!(result.is_ok());
         mock.assert();

@@ -2343,8 +2343,10 @@ version = "0.1.0"
 dependencies = [
  "aws-config",
  "aws-sdk-dynamodb",
+ "aws-sdk-s3",
  "base64 0.22.1",
  "chrono",
+ "hex",
  "hmac",
  "jsonwebtoken",
  "mockito",
@@ -2403,6 +2405,7 @@ dependencies = [
  "serde_json",
  "serde_yaml",
  "tokio",
+ "urlencoding",
 ]
 
 [[package]]

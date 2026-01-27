@@ -13,6 +13,7 @@ use object_registry::ObjectRegistryJwtClaims;
 pub struct Permissions {
     pub permitted_methods: Vec<String>,
     pub permitted_namespaces: Vec<String>,
+    pub issuer: String,
 }
 
 pub async fn auth_middleware(
@@ -72,6 +73,7 @@ pub async fn auth_middleware(
     let perms = Permissions {
         permitted_methods: key_details.permitted_methods.clone(),
         permitted_namespaces: key_details.permitted_namespaces.clone(),
+        issuer: token_data.claims.iss.clone(),
     };
     request.extensions_mut().insert(perms);
 

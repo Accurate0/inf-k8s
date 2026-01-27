@@ -1,4 +1,3 @@
-use crate::routes::objects::BUCKET_NAME;
 use crate::{error::AppError, state::AppState};
 use axum::{Json, extract::State};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
@@ -10,57 +9,57 @@ use serde_json::{Value, json};
 const PUBLIC_KEYS_PREFIX: &str = "public-keys/";
 
 pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let list_output = state
-        .s3_client
-        .list_objects_v2()
-        .bucket(BUCKET_NAME)
-        .prefix(PUBLIC_KEYS_PREFIX)
-        .send()
+    let keys_list = state
+        .object_manager
+        .list_objects(PUBLIC_KEYS_PREFIX)
         .await?;
 
     let mut keys = Vec::new();
 
-    if let Some(objects) = list_output.contents {
-        for object in objects {
-            if let Some(key) = object.key
-                && key.ends_with(".pem") {
-                    let get_output = state
-                        .s3_client
-                        .get_object()
-                        .bucket(BUCKET_NAME)
-                        .key(&key)
-                        .send()
-                        .await?;
+    for key in keys_list {
+        if key.ends_with(".pem") {
+            let parts: Vec<&str> = key.splitn(2, '/').collect();
+            if parts.len() != 2 {
+                continue;
+            }
+            let namespace = parts[0];
+            let object = parts[1];
 
-                    let data = get_output.body.collect().await?.to_vec();
-                    let pem_str = String::from_utf8_lossy(&data);
+            // Use ObjectManager to fetch the key content
+            // Assuming "public-keys" acts as the namespace here
+            let stored = state
+                .object_manager
+                .get_object(namespace, object, None, false)
+                .await?;
 
-                    let public_key = if let Ok(pk) = RsaPublicKey::from_public_key_pem(&pem_str) {
-                        Some(pk)
-                    } else {
-                        RsaPublicKey::from_pkcs1_pem(&pem_str).ok()
-                    };
+            let data = stored.data;
+            let pem_str = String::from_utf8_lossy(&data);
 
-                    if let Some(public_key) = public_key {
-                        let n = BASE64_URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
-                        let e = BASE64_URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
+            let public_key = if let Ok(pk) = RsaPublicKey::from_public_key_pem(&pem_str) {
+                Some(pk)
+            } else {
+                RsaPublicKey::from_pkcs1_pem(&pem_str).ok()
+            };
 
-                        let kid = key
-                            .strip_prefix(PUBLIC_KEYS_PREFIX)
-                            .unwrap_or(&key)
-                            .strip_suffix(".pem")
-                            .unwrap_or(&key);
+            if let Some(public_key) = public_key {
+                let n = BASE64_URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
+                let e = BASE64_URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
-                        keys.push(json!({
-                            "kty": "RSA",
-                            "use": "sig",
-                            "alg": "RS256",
-                            "kid": kid,
-                            "n": n,
-                            "e": e,
-                        }));
-                    }
-                }
+                let kid = key
+                    .strip_prefix(PUBLIC_KEYS_PREFIX)
+                    .unwrap_or(&key)
+                    .strip_suffix(".pem")
+                    .unwrap_or(&key);
+
+                keys.push(json!({
+                    "kty": "RSA",
+                    "use": "sig",
+                    "alg": "RS256",
+                    "kid": kid,
+                    "n": n,
+                    "e": e,
+                }));
+            }
         }
     }
 

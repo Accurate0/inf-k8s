@@ -3,22 +3,19 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
 use object_registry::event_manager::{EventManager, NotificationType};
 use object_registry::generate_jwt_from_private_key;
+use object_registry::object_manager::ObjectManager;
+use object_registry::types::{MetadataResponse, ObjectResponse};
 use reqwest::{Method, header::CONTENT_TYPE};
-use serde_json::{Value, json};
+use serde_json::Value;
 use std::str::FromStr;
-
-#[derive(serde::Serialize)]
-struct ConfigYamlEvent {
-    pub key: String,
-    pub payload: serde_yaml::Value,
-}
+use urlencoding::decode;
 
 async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
     let config = aws_config::load_from_env().await;
-    let s3_client = aws_sdk_s3::Client::new(&config);
     let secrets_client = aws_sdk_secretsmanager::Client::new(&config);
     let http_client = reqwest::ClientBuilder::new().build()?;
     let event_manager = EventManager::new(&config);
+    let object_manager = ObjectManager::new(&config);
 
     let jwt_secret = secrets_client
         .get_secret_value()
@@ -44,22 +41,33 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
         }
 
         let bucket_key = bucket_key.unwrap();
+        let bucket_key = decode(&bucket_key)?.to_string();
         let mut values: Vec<&str> = bucket_key.splitn(2, '/').collect();
         let key = values.pop().unwrap().to_owned();
         let namespace = values.pop().unwrap();
-        let bucket = bucket.unwrap();
+        let _bucket = bucket.unwrap();
 
-        tracing::info!("{namespace} {key} in bucket {bucket}");
+        tracing::info!("{namespace} {key} in bucket {_bucket}");
 
-        let stored_object = s3_client
-            .get_object()
-            .key(&bucket_key)
-            .bucket(bucket)
-            .send()
-            .await?;
+        let stored_object = match object_manager.get_object_by_key(&bucket_key).await {
+            Ok(o) => o,
+            Err(e) => {
+                tracing::error!("error fetching object {bucket_key}: {e}");
+                continue;
+            }
+        };
 
-        let object_value = stored_object.body.collect().await?;
-        let bytes = object_value.to_vec();
+        let bytes = stored_object.data;
+        let meta = MetadataResponse {
+            namespace: stored_object.metadata.namespace,
+            checksum: stored_object.metadata.checksum,
+            size: stored_object.metadata.size,
+            content_type: stored_object.metadata.content_type,
+            created_by: stored_object.metadata.created_by,
+            created_at: stored_object.metadata.created_at,
+            version: stored_object.metadata.version,
+            labels: stored_object.metadata.labels,
+        };
 
         let events = event_manager.get_events(namespace.to_string()).await?;
         for event in events {
@@ -73,25 +81,29 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                 let (mime, payload) = if is_json_type {
                     (
                         "application/json",
-                        json!({
-                            "key": key,
-                            "payload": serde_json::from_slice::<Value>(&bytes).unwrap()
-                        })
-                        .to_string(),
+                        serde_json::to_string(&ObjectResponse {
+                            key: key.clone(),
+                            payload: serde_json::from_slice::<Value>(&bytes).unwrap(),
+                            metadata: meta.clone(),
+                        })?,
                     )
                 } else if is_yaml_type {
                     (
                         "application/yaml",
-                        serde_yaml::to_string(&ConfigYamlEvent {
+                        serde_yaml::to_string(&ObjectResponse {
                             key: key.clone(),
                             payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
+                            metadata: meta.clone(),
                         })?,
                     )
                 } else {
                     (
                         "application/json",
-                        json!({ "key": key, "payload": BASE64_STANDARD.encode(bytes.clone()) })
-                            .to_string(),
+                        serde_json::to_string(&ObjectResponse {
+                            key: key.clone(),
+                            payload: BASE64_STANDARD.encode(bytes.clone()),
+                            metadata: meta.clone(),
+                        })?,
                     )
                 };
 

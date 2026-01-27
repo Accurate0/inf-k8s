@@ -17,3 +17,4 @@ aws-sdk-s3 = "1.120.0"
 object-registry = { workspace = true }
 base64 = { workspace = true }
 reqwest = { workspace = true }
+urlencoding = "2.1.3"

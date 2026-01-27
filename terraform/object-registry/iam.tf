@@ -46,6 +46,7 @@ resource "aws_iam_policy" "object-registry-lambda-access" {
           ],
           "Resource" : [
             "${aws_dynamodb_table.object-registry-keys.arn}",
+            "${aws_dynamodb_table.object-registry-metadata.arn}",
             "${aws_dynamodb_table.object-registry-events.arn}"
           ]
         }

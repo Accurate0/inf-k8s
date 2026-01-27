@@ -7,6 +7,7 @@ use thiserror::Error;
 
 pub mod event_manager;
 pub mod key_manager;
+pub mod object_manager;
 pub mod types;
 pub use types::{CreatedResponse, EventRequest, EventResponse, NotifyRequest, NotifyResponse};
 pub mod api_client;

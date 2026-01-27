@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 #[derive(Deserialize, Serialize, Debug)]
 pub struct NotifyRequest {
@@ -26,6 +27,25 @@ pub struct NotifyResponse {
     pub r#type: String,
     pub method: String,
     pub urls: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct MetadataResponse {
+    pub namespace: String,
+    pub checksum: String,
+    pub size: usize,
+    pub content_type: String,
+    pub created_by: String,
+    pub created_at: String,
+    pub version: String,
+    pub labels: HashMap<String, String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ObjectResponse<T> {
+    pub key: String,
+    pub payload: T,
+    pub metadata: MetadataResponse,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

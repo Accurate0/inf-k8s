@@ -1,6 +1,20 @@
 use clap::{Parser, Subcommand};
+use std::error::Error;
 use std::path::PathBuf;
 use tokio::fs::read_to_string;
+
+fn parse_key_val<T, U>(s: &str) -> Result<(T, U), Box<dyn Error + Send + Sync + 'static>>
+where
+    T: std::str::FromStr,
+    T::Err: Error + Send + Sync + 'static,
+    U: std::str::FromStr,
+    U::Err: Error + Send + Sync + 'static,
+{
+    let pos = s
+        .find('=')
+        .ok_or_else(|| format!("invalid KEY=value: no `=` found in `{}`", s))?;
+    Ok((s[..pos].parse()?, s[pos + 1..].parse()?))
+}
 
 #[derive(Parser, Debug)]
 #[command(author, version, about, long_about = None)]
@@ -38,6 +52,9 @@ enum Commands {
         /// Publicly accessible object
         #[arg(long)]
         public: bool,
+        /// Optional labels (key=value)
+        #[arg(short = 'l', long = "label", value_parser = parse_key_val::<String, String>)]
+        labels: Vec<(String, String)>,
     },
     Get {
         #[arg(short, long)]
@@ -64,7 +81,7 @@ enum EventsCommand {
         namespace: String,
         #[arg(long, required = true, num_args = 1..)]
         keys: Vec<String>,
-        #[arg(long, default_value = "webhook")]
+        #[arg(long, default_value = "HTTP")]
         notify_type: String,
         #[arg(long, default_value = "POST")]
         notify_method: String,
@@ -88,7 +105,7 @@ enum EventsCommand {
         id: String,
         #[arg(long, required = true, num_args = 1..)]
         keys: Vec<String>,
-        #[arg(long, default_value = "webhook")]
+        #[arg(long, default_value = "HTTP")]
         notify_type: String,
         #[arg(long, default_value = "POST")]
         notify_method: String,
@@ -138,28 +155,34 @@ async fn main() -> anyhow::Result<()> {
             file,
             version,
             public,
+            labels,
         } => {
             let path = PathBuf::from(file);
             let file_contents = read_to_string(path).await?;
 
-            let rsa = openssl::rsa::Rsa::generate(4096)?;
-            let private_pem = rsa.private_key_to_pem()?;
-            let public_pem = rsa.public_key_to_pem()?;
-            let kid = uuid::Uuid::new_v4().to_string();
+            let (private_pem, kid) = if !public {
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
 
-            let ttl = chrono::Utc::now().timestamp() + 300;
+                let ttl = chrono::Utc::now().timestamp() + 300;
 
-            let km = object_registry::key_manager::KeyManager::new(&config);
-            let details = object_registry::key_manager::KeyDetails {
-                key_id: kid.clone(),
-                public_key: String::from_utf8(public_pem.clone())?,
-                permitted_namespaces: vec![namespace.clone()],
-                permitted_methods: vec!["PUT".to_string()],
-                created_at: chrono::Utc::now(),
-                ttl: Some(ttl),
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["PUT".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+                (private_pem, kid)
+            } else {
+                (vec![], "".to_string())
             };
-
-            km.add_key(details).await?;
 
             let api = object_registry::ApiClient::new(
                 private_pem,
@@ -167,12 +190,19 @@ async fn main() -> anyhow::Result<()> {
                 "object-registry-cli",
             );
 
+            let labels_map: std::collections::HashMap<String, String> = labels.into_iter().collect();
+
             api.put_object(
                 &namespace,
                 &object,
                 version.as_deref(),
                 public,
                 file_contents.as_bytes(),
+                if labels_map.is_empty() {
+                    None
+                } else {
+                    Some(labels_map)
+                },
             )
             .await?;
 
@@ -208,11 +238,7 @@ async fn main() -> anyhow::Result<()> {
                 (vec![], "".to_string())
             };
 
-            let api = object_registry::ApiClient::new(
-                private_pem,
-                kid,
-                "config-catalog-cli",
-            );
+            let api = object_registry::ApiClient::new(private_pem, kid, "config-catalog-cli");
 
             let body: serde_json::Value = api
                 .get_object(&namespace, &object, version.as_deref(), public)
