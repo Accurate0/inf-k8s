@@ -11,17 +11,11 @@ mod auth;
 mod error;
 mod permissions;
 mod state;
-
-// object bucket and response YAML type live in `routes::objects`
-
-// `put_object` and `get_object` handlers moved to `routes::objects`.
+mod routes;
 
 async fn health_check() -> (StatusCode, String) {
     (StatusCode::OK, "OK".to_string())
 }
-// Event HTTP handlers live in `routes::events` to keep `main.rs` small.
-// See `src/routes/events.rs` for implementations.
-mod routes;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -45,9 +39,16 @@ async fn main() -> Result<(), Error> {
     let app = Router::new()
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))
+        .route(
+            "/{namespace}/public/{object}",
+            put(routes::objects::put_object_public),
+        )
+        .route(
+            "/{namespace}/public/{object}",
+            get(routes::objects::get_object_public),
+        )
         .route("/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))
-        // Events
         .route("/events/{namespace}", post(routes::events::post_event))
         .route("/events/{namespace}", get(routes::events::list_events))
         .route("/events/{namespace}/{id}", put(routes::events::put_event))
@@ -56,7 +57,7 @@ async fn main() -> Result<(), Error> {
             delete(routes::events::delete_event),
         )
         .with_state(state.clone())
-        .layer(middleware::from_fn_with_state(
+        .route_layer(middleware::from_fn_with_state(
             state.clone(),
             auth_middleware,
         ));

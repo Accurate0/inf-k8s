@@ -9,7 +9,6 @@ impl PermissionsManager {
         Self {}
     }
 
-    /// Enforce strict permissions: both method and namespace must be present.
     pub fn enforce(
         &self,
         perms: &Permissions,

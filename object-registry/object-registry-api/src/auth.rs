@@ -1,7 +1,7 @@
 use crate::{error::AppError, state::AppState};
 use axum::{
-    extract::{Request, State},
-    http::{HeaderMap, StatusCode},
+    extract::{MatchedPath, Request, State},
+    http::{HeaderMap, Method, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -18,12 +18,21 @@ pub struct Permissions {
 pub async fn auth_middleware(
     State(app_state): State<AppState>,
     headers: HeaderMap,
+    matched_path: Option<MatchedPath>,
     mut request: Request,
     next: Next,
 ) -> Result<Response, AppError> {
-    tracing::info!("request path: {}", request.uri().path());
-    if request.uri().path() == "/health" || request.uri().path() == "/.well-known/jwks" {
-        return Ok(next.run(request).await);
+    if let Some(path) = matched_path {
+        let path = path.as_str();
+        tracing::info!("request matched path: {}", path);
+
+        if path == "/health" || path == "/.well-known/jwks" {
+            return Ok(next.run(request).await);
+        }
+
+        if path == "/{namespace}/public/{object}" && request.method() == Method::GET {
+            return Ok(next.run(request).await);
+        }
     }
 
     let Some(auth_header) = headers.get("Authorization") else {
@@ -37,21 +46,17 @@ pub async fn auth_middleware(
 
     tracing::info!("validating token");
 
-    // Extract `kid` from token header
     let header = decode_header(&token)?;
     let kid = header
         .kid
         .ok_or_else(|| AppError::StatusCode(StatusCode::UNAUTHORIZED))?;
 
-    // Lookup public key by kid
     let key_details = app_state.key_manager.get_key_details(kid.clone()).await?;
 
     let public_pem = key_details.public_key;
 
-    // Build decoding key and validation
     let decoding_key = DecodingKey::from_rsa_pem(public_pem.as_bytes())?;
     let mut validation = Validation::new(Algorithm::RS256);
-    // Only require the audience to be `object-registry`; do not enforce issuer.
     validation.set_audience(&["object-registry"]);
     validation.validate_exp = true;
 
@@ -64,7 +69,6 @@ pub async fn auth_middleware(
     };
     tracing::info!("verified request with claims: {:#?}", token_data.claims);
 
-    // Attach permitted methods/namespaces from key details into request extensions
     let perms = Permissions {
         permitted_methods: key_details.permitted_methods.clone(),
         permitted_namespaces: key_details.permitted_namespaces.clone(),

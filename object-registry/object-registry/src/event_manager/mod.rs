@@ -39,7 +39,7 @@ pub struct EventManager {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotificationType {
     HTTP,
-    Unknown(String), // For handling types not explicitly defined
+    Unknown(String), 
 }
 
 impl fmt::Display for NotificationType {
@@ -113,8 +113,6 @@ impl EventManager {
         Ok(())
     }
 
-    /// Put (create or update) an event using the provided `ev`. This is idempotent
-    /// with respect to `namespace`+`id` (it overwrites the item with the same key).
     pub async fn put_event(&self, ev: Event) -> Result<(), EventManagerError> {
         let mut notify_map: HashMap<String, AttributeValue> = HashMap::new();
         notify_map.insert(Self::NOTIFY_TYPE.to_string(), AttributeValue::S(ev.notify.r#type.to_string()));
@@ -138,7 +136,6 @@ impl EventManager {
         Ok(())
     }
 
-    /// Delete an event by namespace and id
     pub async fn delete_event(
         &self,
         namespace: String,
@@ -205,7 +202,6 @@ impl EventManager {
     }
 
     pub async fn get_events(&self, namespace: String) -> Result<Vec<Event>, EventManagerError> {
-        // Query by namespace (partition key) and return all matching items
         let response = self
             .db_client
             .query()

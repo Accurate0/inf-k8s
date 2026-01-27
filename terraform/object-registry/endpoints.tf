@@ -10,6 +10,14 @@ locals {
     },
     {
       "method" : "GET",
+      "url" : "/{namespace}/public/{configObject}"
+    },
+    {
+      "method" : "PUT",
+      "url" : "/{namespace}/public/{configObject}"
+    },
+    {
+      "method" : "GET",
       "url" : "/events/{namespace}"
     },
     {

@@ -35,6 +35,9 @@ enum Commands {
         /// Optional version query parameter
         #[arg(long)]
         version: Option<String>,
+        /// Publicly accessible object
+        #[arg(long)]
+        public: bool,
     },
     Get {
         #[arg(short, long)]
@@ -44,6 +47,9 @@ enum Commands {
         /// Optional version query parameter
         #[arg(long)]
         version: Option<String>,
+        /// Publicly accessible object
+        #[arg(long)]
+        public: bool,
     },
     Events {
         #[command(subcommand)]
@@ -103,18 +109,13 @@ async fn main() -> anyhow::Result<()> {
             namespaces,
             methods,
         } => {
-            // generate RSA keypair
             let rsa = openssl::rsa::Rsa::generate(4096)?;
-            let private_pem = rsa.private_key_to_pem()?; // keep private PEM to write to disk
+            let private_pem = rsa.private_key_to_pem()?;
             let public_pem = rsa.public_key_to_pem()?;
 
-            // Do NOT print the private key. Write the public PEM to `cert_output`.
-
-            // build key details and save public key via KeyManager
             let km = object_registry::key_manager::KeyManager::new(&config);
             let id = key_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
-            // keep a UTF-8 string of the public PEM for storage, but retain the bytes
             let public_pem_str = String::from_utf8(public_pem.clone())?;
             let details = object_registry::key_manager::KeyDetails {
                 key_id: id.clone(),
@@ -128,7 +129,6 @@ async fn main() -> anyhow::Result<()> {
             km.add_key(details).await?;
             println!("saved public key with id: {id}");
 
-            // write private key PEM to required path (do not print private contents)
             tokio::fs::write(&cert_output, private_pem).await?;
             println!("wrote private key to: {}", cert_output.display());
         }
@@ -137,18 +137,17 @@ async fn main() -> anyhow::Result<()> {
             object,
             file,
             version,
+            public,
         } => {
-            // read file
             let path = PathBuf::from(file);
             let file_contents = read_to_string(path).await?;
 
-            // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
             let rsa = openssl::rsa::Rsa::generate(4096)?;
             let private_pem = rsa.private_key_to_pem()?;
             let public_pem = rsa.public_key_to_pem()?;
             let kid = uuid::Uuid::new_v4().to_string();
 
-            let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+            let ttl = chrono::Utc::now().timestamp() + 300;
 
             let km = object_registry::key_manager::KeyManager::new(&config);
             let details = object_registry::key_manager::KeyDetails {
@@ -162,18 +161,17 @@ async fn main() -> anyhow::Result<()> {
 
             km.add_key(details).await?;
 
-            // construct ApiClient using the private key (in-memory)
             let api = object_registry::ApiClient::new(
-                private_pem.clone(),
-                kid.clone(),
+                private_pem,
+                kid,
                 "object-registry-cli",
             );
 
-            // perform put_object; include source header via API client's post_json/get helpers is not available for raw body, so call put_object directly
             api.put_object(
                 &namespace,
                 &object,
                 version.as_deref(),
+                public,
                 file_contents.as_bytes(),
             )
             .await?;
@@ -184,37 +182,40 @@ async fn main() -> anyhow::Result<()> {
             namespace,
             object,
             version,
+            public,
         } => {
-            // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
-            let rsa = openssl::rsa::Rsa::generate(4096)?;
-            let private_pem = rsa.private_key_to_pem()?;
-            let public_pem = rsa.public_key_to_pem()?;
-            let kid = uuid::Uuid::new_v4().to_string();
+            let (private_pem, kid) = if !public {
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
 
-            let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+                let ttl = chrono::Utc::now().timestamp() + 300;
 
-            let km = object_registry::key_manager::KeyManager::new(&config);
-            let details = object_registry::key_manager::KeyDetails {
-                key_id: kid.clone(),
-                public_key: String::from_utf8(public_pem.clone())?,
-                permitted_namespaces: vec![namespace.clone()],
-                permitted_methods: vec!["GET".to_string()],
-                created_at: chrono::Utc::now(),
-                ttl: Some(ttl),
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["GET".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+                (private_pem, kid)
+            } else {
+                (vec![], "".to_string())
             };
 
-            km.add_key(details).await?;
-
-            // construct ApiClient using the private key (in-memory)
             let api = object_registry::ApiClient::new(
-                private_pem.clone(),
-                kid.clone(),
+                private_pem,
+                kid,
                 "config-catalog-cli",
             );
 
-            // fetch object as raw string
             let body: serde_json::Value = api
-                .get_object(&namespace, &object, version.as_deref())
+                .get_object(&namespace, &object, version.as_deref(), public)
                 .await?;
             println!("{}", body);
         }
@@ -226,13 +227,12 @@ async fn main() -> anyhow::Result<()> {
                 notify_method,
                 notify_urls,
             } => {
-                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
                 let public_pem = rsa.public_key_to_pem()?;
                 let kid = uuid::Uuid::new_v4().to_string();
 
-                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+                let ttl = chrono::Utc::now().timestamp() + 300;
 
                 let km = object_registry::key_manager::KeyManager::new(&config);
                 let details = object_registry::key_manager::KeyDetails {
@@ -246,7 +246,6 @@ async fn main() -> anyhow::Result<()> {
 
                 km.add_key(details).await?;
 
-                // construct ApiClient using the private key (in-memory)
                 let api = object_registry::ApiClient::new(
                     private_pem.clone(),
                     kid.clone(),
@@ -267,13 +266,12 @@ async fn main() -> anyhow::Result<()> {
                 println!("created event with id: {}", created.id);
             }
             EventsCommand::List { namespace } => {
-                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
                 let public_pem = rsa.public_key_to_pem()?;
                 let kid = uuid::Uuid::new_v4().to_string();
 
-                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+                let ttl = chrono::Utc::now().timestamp() + 300;
 
                 let km = object_registry::key_manager::KeyManager::new(&config);
                 let details = object_registry::key_manager::KeyDetails {
@@ -287,7 +285,6 @@ async fn main() -> anyhow::Result<()> {
 
                 km.add_key(details).await?;
 
-                // construct ApiClient using the private key (in-memory)
                 let api = object_registry::ApiClient::new(
                     private_pem.clone(),
                     kid.clone(),
@@ -298,13 +295,12 @@ async fn main() -> anyhow::Result<()> {
                 println!("{}", serde_json::to_string_pretty(&events)?);
             }
             EventsCommand::Delete { namespace, id } => {
-                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
                 let public_pem = rsa.public_key_to_pem()?;
                 let kid = uuid::Uuid::new_v4().to_string();
 
-                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+                let ttl = chrono::Utc::now().timestamp() + 300;
 
                 let km = object_registry::key_manager::KeyManager::new(&config);
                 let details = object_registry::key_manager::KeyDetails {
@@ -318,7 +314,6 @@ async fn main() -> anyhow::Result<()> {
 
                 km.add_key(details).await?;
 
-                // construct ApiClient using the private key (in-memory)
                 let api = object_registry::ApiClient::new(
                     private_pem.clone(),
                     kid.clone(),
@@ -336,13 +331,12 @@ async fn main() -> anyhow::Result<()> {
                 notify_method,
                 notify_urls,
             } => {
-                // generate temporary keypair (in-memory) and register public key with TTL 5 minutes
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
                 let public_pem = rsa.public_key_to_pem()?;
                 let kid = uuid::Uuid::new_v4().to_string();
 
-                let ttl = chrono::Utc::now().timestamp() + 300; // 5 minutes
+                let ttl = chrono::Utc::now().timestamp() + 300;
 
                 let km = object_registry::key_manager::KeyManager::new(&config);
                 let details = object_registry::key_manager::KeyDetails {
@@ -356,7 +350,6 @@ async fn main() -> anyhow::Result<()> {
 
                 km.add_key(details).await?;
 
-                // construct ApiClient using the private key (in-memory)
                 let api = object_registry::ApiClient::new(
                     private_pem.clone(),
                     kid.clone(),

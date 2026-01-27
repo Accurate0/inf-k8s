@@ -47,7 +47,6 @@ pub fn generate_jwt_from_private_key(
     let now = chrono::offset::Utc::now().timestamp();
     let claims = ObjectRegistryJwtClaims {
         iat: now,
-        // 15mins
         exp: now + 900,
         aud: created_for.to_owned(),
         iss: creator.to_owned(),
@@ -63,3 +62,5 @@ pub fn generate_jwt_from_private_key(
 
     Ok(token)
 }
+
+

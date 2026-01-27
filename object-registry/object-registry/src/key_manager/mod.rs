@@ -123,7 +123,6 @@ impl KeyManager {
 
             let created_at = DateTime::parse_from_rfc3339(&created_at_str)?.with_timezone(&Utc);
 
-            // optional TTL numeric attribute
             let ttl = if let Some(av) = item.get(Self::TTL) {
                 let s = av
                     .as_n()

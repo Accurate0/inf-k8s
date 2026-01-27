@@ -22,8 +22,8 @@ pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppE
 
     if let Some(objects) = list_output.contents {
         for object in objects {
-            if let Some(key) = object.key {
-                if key.ends_with(".pem") {
+            if let Some(key) = object.key
+                && key.ends_with(".pem") {
                     let get_output = state
                         .s3_client
                         .get_object()
@@ -35,11 +35,9 @@ pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppE
                     let data = get_output.body.collect().await?.to_vec();
                     let pem_str = String::from_utf8_lossy(&data);
 
-                    // Try parsing as PKCS#8 first
                     let public_key = if let Ok(pk) = RsaPublicKey::from_public_key_pem(&pem_str) {
                         Some(pk)
                     } else {
-                        // Fallback to PKCS#1 if PKCS#8 fails
                         RsaPublicKey::from_pkcs1_pem(&pem_str).ok()
                     };
 
@@ -63,7 +61,6 @@ pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppE
                         }));
                     }
                 }
-            }
         }
     }
 

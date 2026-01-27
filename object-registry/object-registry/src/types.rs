@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 
-/// Types used by the HTTP API layer for events (requests and responses).
 #[derive(Deserialize, Serialize, Debug)]
 pub struct NotifyRequest {
     #[serde(rename = "type")]

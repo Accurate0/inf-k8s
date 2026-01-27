@@ -8,6 +8,8 @@ pub enum AppError {
     Error(anyhow::Error),
     #[allow(dead_code)]
     StatusCode(StatusCode),
+    #[allow(dead_code)]
+    Message(StatusCode, String),
 }
 
 impl IntoResponse for AppError {
@@ -24,6 +26,7 @@ impl IntoResponse for AppError {
             AppError::StatusCode(s) => {
                 (s, s.canonical_reason().unwrap_or("").to_owned()).into_response()
             }
+            AppError::Message(s, msg) => (s, msg).into_response(),
         }
     }
 }
