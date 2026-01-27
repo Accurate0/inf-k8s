@@ -3,7 +3,7 @@ use aws_sdk_dynamodb::{
     error::SdkError,
     operation::{
         delete_item::DeleteItemError, get_item::GetItemError, put_item::PutItemError,
-        query::QueryError,
+        query::QueryError, scan::ScanError,
     },
     types::AttributeValue,
 };
@@ -19,6 +19,8 @@ pub enum EventManagerError {
     GetEvent(#[from] SdkError<GetItemError>),
     #[error("error querying events: {0}")]
     QueryEvent(#[from] SdkError<QueryError>),
+    #[error("error scanning events: {0}")]
+    ScanEvent(#[from] SdkError<ScanError>),
     #[error("error deleting event: {0}")]
     DeleteEvent(#[from] SdkError<DeleteItemError>),
     #[error("requested event not found: {0}")]
@@ -39,7 +41,7 @@ pub struct EventManager {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum NotificationType {
     HTTP,
-    Unknown(String), 
+    Unknown(String),
 }
 
 impl fmt::Display for NotificationType {
@@ -95,9 +97,18 @@ impl EventManager {
 
     pub async fn add_event(&self, ev: Event) -> Result<(), EventManagerError> {
         let mut notify_map: HashMap<String, AttributeValue> = HashMap::new();
-        notify_map.insert(Self::NOTIFY_TYPE.to_string(), AttributeValue::S(ev.notify.r#type.to_string()));
-        notify_map.insert(Self::NOTIFY_METHOD.to_string(), AttributeValue::S(ev.notify.method));
-        notify_map.insert(Self::NOTIFY_URLS.to_string(), AttributeValue::Ss(ev.notify.urls));
+        notify_map.insert(
+            Self::NOTIFY_TYPE.to_string(),
+            AttributeValue::S(ev.notify.r#type.to_string()),
+        );
+        notify_map.insert(
+            Self::NOTIFY_METHOD.to_string(),
+            AttributeValue::S(ev.notify.method),
+        );
+        notify_map.insert(
+            Self::NOTIFY_URLS.to_string(),
+            AttributeValue::Ss(ev.notify.urls),
+        );
 
         self.db_client
             .put_item()
@@ -115,9 +126,18 @@ impl EventManager {
 
     pub async fn put_event(&self, ev: Event) -> Result<(), EventManagerError> {
         let mut notify_map: HashMap<String, AttributeValue> = HashMap::new();
-        notify_map.insert(Self::NOTIFY_TYPE.to_string(), AttributeValue::S(ev.notify.r#type.to_string()));
-        notify_map.insert(Self::NOTIFY_METHOD.to_string(), AttributeValue::S(ev.notify.method));
-        notify_map.insert(Self::NOTIFY_URLS.to_string(), AttributeValue::Ss(ev.notify.urls));
+        notify_map.insert(
+            Self::NOTIFY_TYPE.to_string(),
+            AttributeValue::S(ev.notify.r#type.to_string()),
+        );
+        notify_map.insert(
+            Self::NOTIFY_METHOD.to_string(),
+            AttributeValue::S(ev.notify.method),
+        );
+        notify_map.insert(
+            Self::NOTIFY_URLS.to_string(),
+            AttributeValue::Ss(ev.notify.urls),
+        );
 
         self.db_client
             .put_item()
@@ -198,15 +218,19 @@ impl EventManager {
             .map(|ss| ss.to_vec())
             .map_err(|_| EventManagerError::TypeMismatch("notify.urls"))?;
 
-        Ok(Notify { r#type, method, urls })
+        Ok(Notify {
+            r#type,
+            method,
+            urls,
+        })
     }
 
     pub async fn get_events(&self, namespace: String) -> Result<Vec<Event>, EventManagerError> {
         let response = self
             .db_client
-            .query()
+            .scan()
             .table_name(Self::TABLE_NAME)
-            .key_condition_expression("namespace = :ns")
+            .filter_expression("namespace = :ns")
             .expression_attribute_values(":ns", AttributeValue::S(namespace))
             .send()
             .await?;
