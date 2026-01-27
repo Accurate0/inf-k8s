@@ -1,11 +1,9 @@
-use crate::{JwtValidationError, ObjectRegistryJwtClaims, Role};
-use base64::Engine;
+use crate::{JwtValidationError, ObjectRegistryJwtClaims, ObjectResponse, Role};
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
 use reqwest::{Client, Method, Url, header::CONTENT_TYPE};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
-use std::any::TypeId;
 use std::collections::HashMap;
 use std::future::Future;
 use thiserror::Error;
@@ -151,10 +149,8 @@ impl ApiClient {
             }
         }
 
-        if !public {
-            let jwt = self.generate_jwt()?;
-            req = req.bearer_auth(jwt);
-        }
+        let jwt = self.generate_jwt()?;
+        req = req.bearer_auth(jwt);
 
         let _resp = req.send().await?.error_for_status()?;
         Ok(())
@@ -166,7 +162,7 @@ impl ApiClient {
         object: &str,
         version: Option<&str>,
         public: bool,
-    ) -> Result<T, ApiClientError>
+    ) -> Result<ObjectResponse<T>, ApiClientError>
     where
         T: DeserializeOwned + 'static,
     {
@@ -203,56 +199,17 @@ impl ApiClient {
         let bytes_vec = bytes.to_vec();
 
         if content_type.contains("json") {
-            let root: serde_json::Value = serde_json::from_slice(&bytes_vec)?;
-            let payload = root
-                .get("payload")
-                .ok_or_else(|| ApiClientError::Other("missing payload field".to_string()))?
-                .clone();
-
-            if payload.is_string() {
-                if TypeId::of::<T>() == TypeId::of::<String>() {
-                    let s = payload.as_str().unwrap().to_string();
-                    let t = serde_json::from_value::<T>(serde_json::Value::String(s))?;
-                    return Ok(t);
-                } else {
-                    return Err(ApiClientError::Other(
-                        "payload is a raw string; cannot deserialize into requested type"
-                            .to_string(),
-                    ));
-                }
-            }
-
-            let t = serde_json::from_value::<T>(payload)?;
-            return Ok(t);
+            let res: ObjectResponse<T> = serde_json::from_slice(&bytes_vec)?;
+            return Ok(res);
         }
 
         if content_type.contains("yaml") || content_type.contains("yml") {
-            let root: serde_yaml::Value = serde_yaml::from_slice(&bytes_vec)?;
-            let payload = root
-                .get("payload")
-                .ok_or_else(|| ApiClientError::Other("missing payload field".to_string()))?
-                .clone();
-
-            let t = serde_yaml::from_value::<T>(payload)?;
-            return Ok(t);
-        }
-
-        if TypeId::of::<T>() == TypeId::of::<String>() {
-            let b64 = base64::engine::general_purpose::STANDARD.encode(&bytes_vec);
-            let json = serde_json::to_string(&b64)?;
-            let t = serde_json::from_str::<T>(&json)?;
-            return Ok(t);
-        }
-
-        if let Ok(parsed) = serde_json::from_slice::<T>(&bytes_vec) {
-            return Ok(parsed);
-        }
-        if let Ok(parsed) = serde_yaml::from_slice::<T>(&bytes_vec) {
-            return Ok(parsed);
+            let res: ObjectResponse<T> = serde_yaml::from_slice(&bytes_vec)?;
+            return Ok(res);
         }
 
         Err(ApiClientError::Other(
-            "unable to deserialize object to requested type".to_string(),
+            format!("unsupported content type: {}", content_type).to_string(),
         ))
     }
 
@@ -357,6 +314,7 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose};
     use mockito::Server;
     use openssl::rsa::Rsa;
+    use std::collections::HashMap;
 
     #[tokio::test]
     async fn test_generate_and_validate_jwt() {
@@ -458,7 +416,21 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let body = r#"{"payload": {"foo": "bar"}}"#;
+        let body = serde_json::json!({
+            "key": "ns1/obj1",
+            "payload": {"foo": "bar"},
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "abc",
+                "size": 10,
+                "content_type": "application/json",
+                "created_by": "user",
+                "created_at": "now",
+                "version": "v1",
+                "labels": {}
+            }
+        }).to_string();
+
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
@@ -479,7 +451,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
         assert_eq!(
-            result.unwrap(),
+            result.unwrap().payload,
             MyObj {
                 foo: "bar".to_string()
             }
@@ -493,7 +465,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let body = "payload:\n  foo: bar";
+        let body = "key: ns1/obj1\npayload:\n  foo: bar\nmetadata:\n  namespace: ns1\n  checksum: abc\n  size: 10\n  content_type: application/yaml\n  created_by: user\n  created_at: now\n  version: v1\n  labels: {}";
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
@@ -514,7 +486,7 @@ mod tests {
             .await;
         assert!(result.is_ok());
         assert_eq!(
-            result.unwrap(),
+            result.unwrap().payload,
             MyObj {
                 foo: "bar".to_string()
             }
@@ -528,10 +500,25 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let body = "hello world";
+        let body = serde_json::json!({
+            "key": "ns1/obj1",
+            "payload": "aGVsbG8gd29ybGQ=",
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "abc",
+                "size": 10,
+                "content_type": "application/json",
+                "created_by": "user",
+                "created_at": "now",
+                "version": "v1",
+                "labels": {}
+            }
+        }).to_string();
+
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
+            .with_header("content-type", "application/json")
             .with_body(body)
             .create();
 
@@ -540,7 +527,7 @@ mod tests {
 
         let result = client.get_object::<String>("ns1", "obj1", None, false).await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap(), "aGVsbG8gd29ybGQ=");
+        assert_eq!(result.unwrap().payload, "aGVsbG8gd29ybGQ=");
         mock.assert();
     }
 
@@ -621,8 +608,8 @@ mod tests {
             .await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            ApiClientError::Other(e) => assert!(e.contains("missing payload field")),
-            _ => panic!("Expected Other error"),
+            ApiClientError::Json(_) => {}
+            _ => panic!("Expected Json error due to missing fields"),
         }
         mock.assert();
     }
@@ -633,7 +620,21 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let body = r#"{"payload": "just a string"}"#;
+        let body = serde_json::json!({
+            "key": "ns1/obj1",
+            "payload": "just a string",
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "abc",
+                "size": 10,
+                "content_type": "application/json",
+                "created_by": "user",
+                "created_at": "now",
+                "version": "v1",
+                "labels": {}
+            }
+        }).to_string();
+
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
@@ -653,8 +654,8 @@ mod tests {
         let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            ApiClientError::Other(e) => assert!(e.contains("payload is a raw string")),
-            _ => panic!("Expected Other error"),
+            ApiClientError::Json(_) => {}
+            _ => panic!("Expected Json error due to type mismatch"),
         }
         mock.assert();
     }
@@ -732,7 +733,21 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let body = r#"{"payload": {"foo": "bar"}}"#;
+        let body = serde_json::json!({
+            "key": "ns1/public/obj1",
+            "payload": {"foo": "bar"},
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "abc",
+                "size": 10,
+                "content_type": "application/json",
+                "created_by": "user",
+                "created_at": "now",
+                "version": "v1",
+                "labels": {}
+            }
+        }).to_string();
+
         let mock = server
             .mock("GET", "/ns1/public/obj1")
             .match_header("authorization", mockito::Matcher::Missing)
@@ -748,7 +763,82 @@ mod tests {
             .get_object::<serde_json::Value>("ns1", "obj1", None, true)
             .await;
         assert!(result.is_ok());
-        assert_eq!(result.unwrap()["foo"], "bar");
+        assert_eq!(result.unwrap().payload["foo"], "bar");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_put_object_with_labels() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("PUT", "/ns1/obj1")
+            .match_header("x-label-env", "prod")
+            .match_header("x-label-team", "backend")
+            .with_status(200)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let mut labels = HashMap::new();
+        labels.insert("env".to_string(), "prod".to_string());
+        labels.insert("team".to_string(), "backend".to_string());
+
+        let result = client
+            .put_object("ns1", "obj1", None, false, b"hello", Some(labels))
+            .await;
+        assert!(result.is_ok());
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_get_object_metadata_verification() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let body = serde_json::json!({
+            "key": "ns1/obj1",
+            "payload": {"foo": "bar"},
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "checksum_123",
+                "size": 42,
+                "content_type": "application/json",
+                "created_by": "test-user",
+                "created_at": "2023-10-27T10:00:00Z",
+                "version": "v1",
+                "labels": {
+                    "env": "staging"
+                }
+            }
+        }).to_string();
+
+        let mock = server
+            .mock("GET", "/ns1/obj1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client
+            .get_object::<serde_json::Value>("ns1", "obj1", None, false)
+            .await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        
+        assert_eq!(response.key, "ns1/obj1");
+        assert_eq!(response.metadata.namespace, "ns1");
+        assert_eq!(response.metadata.checksum, "checksum_123");
+        assert_eq!(response.metadata.size, 42);
+        assert_eq!(response.metadata.labels.get("env").map(|s| s.as_str()), Some("staging"));
+        
         mock.assert();
     }
 }

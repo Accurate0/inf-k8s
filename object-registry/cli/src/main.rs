@@ -240,10 +240,10 @@ async fn main() -> anyhow::Result<()> {
 
             let api = object_registry::ApiClient::new(private_pem, kid, "config-catalog-cli");
 
-            let body: serde_json::Value = api
+            let response: object_registry::types::ObjectResponse<serde_json::Value> = api
                 .get_object(&namespace, &object, version.as_deref(), public)
                 .await?;
-            println!("{}", body);
+            println!("{}", serde_json::to_string_pretty(&response)?);
         }
         Commands::Events { command } => match command {
             EventsCommand::Create {
