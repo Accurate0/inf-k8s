@@ -439,7 +439,9 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client.put_object("ns1", "obj1", Some("v1"), b"hello").await;
+        let result = client
+            .put_object("ns1", "obj1", Some("v1"), false, b"hello")
+            .await;
         assert!(result.is_ok());
         mock.assert();
     }
@@ -466,7 +468,9 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
+        let result = client
+            .get_object::<MyObj>("ns1", "obj1", None, false)
+            .await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap(),
@@ -499,7 +503,9 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
+        let result = client
+            .get_object::<MyObj>("ns1", "obj1", None, false)
+            .await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap(),
@@ -526,7 +532,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client.get_object::<String>("ns1", "obj1", None).await;
+        let result = client.get_object::<String>("ns1", "obj1", None, false).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), "aGVsbG8gd29ybGQ=");
         mock.assert();
@@ -605,7 +611,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1", None)
+            .get_object::<serde_json::Value>("ns1", "obj1", None, false)
             .await;
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -638,7 +644,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiClientError::Other(e) => assert!(e.contains("payload is a raw string")),
@@ -688,6 +694,55 @@ mod tests {
         let body = serde_json::json!({"hello": "world"});
         let resp = client.post_json("/some/path", &body).await.unwrap();
         assert_eq!(resp.status(), 200);
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_put_object_public_success() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("PUT", "/ns1/public/obj1")
+            .match_header("authorization", mockito::Matcher::Regex("^Bearer ".to_string()))
+            .with_status(200)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client
+            .put_object("ns1", "obj1", None, true, b"hello")
+            .await;
+        assert!(result.is_ok());
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_get_object_public_success() {
+        let mut server = Server::new_async().await;
+        // No private key needed for public GET, but ApiClient requires one in constructor
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let body = r#"{"payload": {"foo": "bar"}}"#;
+        let mock = server
+            .mock("GET", "/ns1/public/obj1")
+            .match_header("authorization", mockito::Matcher::Missing)
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client
+            .get_object::<serde_json::Value>("ns1", "obj1", None, true)
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap()["foo"], "bar");
         mock.assert();
     }
 }
