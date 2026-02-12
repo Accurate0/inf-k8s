@@ -1,9 +1,11 @@
 use crate::{JwtValidationError, ObjectRegistryJwtClaims, ObjectResponse, Role};
+use base64::Engine;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
 use reqwest::{Client, Method, Url, header::CONTENT_TYPE};
 use serde::Serialize;
 use serde::de::DeserializeOwned;
+use std::any::TypeId;
 use std::collections::HashMap;
 use std::future::Future;
 use thiserror::Error;
@@ -199,7 +201,46 @@ impl ApiClient {
         let bytes_vec = bytes.to_vec();
 
         if content_type.contains("json") {
-            let res: ObjectResponse<T> = serde_json::from_slice(&bytes_vec)?;
+            let val: serde_json::Value = serde_json::from_slice(&bytes_vec)?;
+            let is_base64 = val
+                .get("is_base64_encoded")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if is_base64 {
+                let payload_str = val
+                    .get("payload")
+                    .and_then(|v| v.as_str())
+                    .ok_or_else(|| ApiClientError::Other("missing payload".to_string()))?;
+                let decoded = base64::engine::general_purpose::STANDARD.decode(payload_str)?;
+
+                let payload: T = if TypeId::of::<T>() == TypeId::of::<Vec<u8>>() {
+                    let boxed: Box<dyn std::any::Any> = Box::new(decoded);
+                    *boxed.downcast::<T>().unwrap()
+                } else if TypeId::of::<T>() == TypeId::of::<String>() {
+                    let s = String::from_utf8(decoded)
+                        .map_err(|e| ApiClientError::Other(e.to_string()))?;
+                    let boxed: Box<dyn std::any::Any> = Box::new(s);
+                    *boxed.downcast::<T>().unwrap()
+                } else {
+                    serde_json::from_slice(&decoded)?
+                };
+
+                return Ok(ObjectResponse {
+                    key: val
+                        .get("key")
+                        .and_then(|v| v.as_str())
+                        .unwrap_or_default()
+                        .to_string(),
+                    is_base64_encoded: true,
+                    payload,
+                    metadata: serde_json::from_value(
+                        val.get("metadata").cloned().unwrap_or(serde_json::Value::Null),
+                    )?,
+                });
+            }
+
+            let res: ObjectResponse<T> = serde_json::from_value(val)?;
             return Ok(res);
         }
 
@@ -429,7 +470,8 @@ mod tests {
                 "version": "v1",
                 "labels": {}
             }
-        }).to_string();
+        })
+        .to_string();
 
         let mock = server
             .mock("GET", "/ns1/obj1")
@@ -446,9 +488,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client
-            .get_object::<MyObj>("ns1", "obj1", None, false)
-            .await;
+        let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().payload,
@@ -481,9 +521,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client
-            .get_object::<MyObj>("ns1", "obj1", None, false)
-            .await;
+        let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().payload,
@@ -513,7 +551,8 @@ mod tests {
                 "version": "v1",
                 "labels": {}
             }
-        }).to_string();
+        })
+        .to_string();
 
         let mock = server
             .mock("GET", "/ns1/obj1")
@@ -525,9 +564,63 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client.get_object::<String>("ns1", "obj1", None, false).await;
+        let result = client
+            .get_object::<String>("ns1", "obj1", None, false)
+            .await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().payload, "aGVsbG8gd29ybGQ=");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_get_object_base64_encoded_success() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        // "hello world" in base64 is "aGVsbG8gd29ybGQ="
+        let body = serde_json::json!({
+            "key": "ns1/obj1",
+            "is_base64_encoded": true,
+            "payload": "aGVsbG8gd29ybGQ=",
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "abc",
+                "size": 11,
+                "content_type": "text/plain",
+                "created_by": "user",
+                "created_at": "now",
+                "version": "v1",
+                "labels": {}
+            }
+        })
+        .to_string();
+
+        let mock = server
+            .mock("GET", "/ns1/obj1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(body)
+            .expect(2)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        // Test String
+        let result = client
+            .get_object::<String>("ns1", "obj1", None, false)
+            .await;
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap().payload, "hello world");
+
+        // Test Vec<u8>
+        let result_bytes = client
+            .get_object::<Vec<u8>>("ns1", "obj1", None, false)
+            .await;
+        assert!(result_bytes.is_ok());
+        assert_eq!(result_bytes.unwrap().payload, b"hello world");
+
         mock.assert();
     }
 
@@ -633,7 +726,8 @@ mod tests {
                 "version": "v1",
                 "labels": {}
             }
-        }).to_string();
+        })
+        .to_string();
 
         let mock = server
             .mock("GET", "/ns1/obj1")
@@ -712,7 +806,10 @@ mod tests {
 
         let mock = server
             .mock("PUT", "/ns1/public/obj1")
-            .match_header("authorization", mockito::Matcher::Regex("^Bearer ".to_string()))
+            .match_header(
+                "authorization",
+                mockito::Matcher::Regex("^Bearer ".to_string()),
+            )
             .with_status(200)
             .create();
 
@@ -746,7 +843,8 @@ mod tests {
                 "version": "v1",
                 "labels": {}
             }
-        }).to_string();
+        })
+        .to_string();
 
         let mock = server
             .mock("GET", "/ns1/public/obj1")
@@ -815,7 +913,8 @@ mod tests {
                     "env": "staging"
                 }
             }
-        }).to_string();
+        })
+        .to_string();
 
         let mock = server
             .mock("GET", "/ns1/obj1")
@@ -832,13 +931,16 @@ mod tests {
             .await;
         assert!(result.is_ok());
         let response = result.unwrap();
-        
+
         assert_eq!(response.key, "ns1/obj1");
         assert_eq!(response.metadata.namespace, "ns1");
         assert_eq!(response.metadata.checksum, "checksum_123");
         assert_eq!(response.metadata.size, 42);
-        assert_eq!(response.metadata.labels.get("env").map(|s| s.as_str()), Some("staging"));
-        
+        assert_eq!(
+            response.metadata.labels.get("env").map(|s| s.as_str()),
+            Some("staging")
+        );
+
         mock.assert();
     }
 }

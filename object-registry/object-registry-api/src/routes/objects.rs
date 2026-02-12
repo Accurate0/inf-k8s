@@ -187,6 +187,7 @@ async fn fetch_object(
             .header("Content-Type", "application/json")
             .body(
                 serde_json::to_string(&ObjectResponse {
+                    is_base64_encoded: false,
                     key,
                     payload: serde_json::from_slice::<Value>(&bytes).unwrap(),
                     metadata: meta,
@@ -199,6 +200,7 @@ async fn fetch_object(
             .header("Content-Type", "application/yaml")
             .body(
                 serde_yaml::to_string(&ObjectResponse {
+                    is_base64_encoded: false,
                     key,
                     payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
                     metadata: meta,
@@ -211,6 +213,7 @@ async fn fetch_object(
             .header("Content-Type", "application/json")
             .body(
                 serde_json::to_string(&ObjectResponse {
+                    is_base64_encoded: true,
                     key,
                     payload: BASE64_STANDARD.encode(bytes),
                     metadata: meta,

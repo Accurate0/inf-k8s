@@ -44,6 +44,8 @@ pub struct MetadataResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObjectResponse<T> {
     pub key: String,
+    #[serde(default)]
+    pub is_base64_encoded: bool,
     pub payload: T,
     pub metadata: MetadataResponse,
 }

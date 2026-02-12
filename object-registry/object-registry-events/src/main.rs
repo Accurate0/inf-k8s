@@ -82,6 +82,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                     (
                         "application/json",
                         serde_json::to_string(&ObjectResponse {
+                            is_base64_encoded: false,
                             key: key.clone(),
                             payload: serde_json::from_slice::<Value>(&bytes).unwrap(),
                             metadata: meta.clone(),
@@ -91,6 +92,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                     (
                         "application/yaml",
                         serde_yaml::to_string(&ObjectResponse {
+                            is_base64_encoded: false,
                             key: key.clone(),
                             payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
                             metadata: meta.clone(),
@@ -100,6 +102,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                     (
                         "application/json",
                         serde_json::to_string(&ObjectResponse {
+                            is_base64_encoded: true,
                             key: key.clone(),
                             payload: BASE64_STANDARD.encode(bytes.clone()),
                             metadata: meta.clone(),
