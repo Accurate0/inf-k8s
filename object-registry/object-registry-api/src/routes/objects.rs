@@ -54,7 +54,7 @@ pub async fn put_object(
 
     state
         .permissions_manager
-        .enforce(&perms, "PUT", &namespace)?;
+        .enforce(&perms, "object:put", &namespace)?;
 
     let content_type = headers
         .get("Content-Type")
@@ -92,7 +92,7 @@ pub async fn put_object_public(
 
     state
         .permissions_manager
-        .enforce(&perms, "PUT", &namespace)?;
+        .enforce(&perms, "object:put", &namespace)?;
 
     let content_type = headers
         .get("Content-Type")
@@ -126,9 +126,16 @@ pub async fn get_object(
 ) -> Result<Response, AppError> {
     state
         .permissions_manager
-        .enforce(&perms, "GET", &namespace)?;
+        .enforce(&perms, "object:get", &namespace)?;
 
-    fetch_object(&state, &namespace, &object, params.version.as_deref(), false).await
+    fetch_object(
+        &state,
+        &namespace,
+        &object,
+        params.version.as_deref(),
+        false,
+    )
+    .await
 }
 
 pub async fn get_object_public(

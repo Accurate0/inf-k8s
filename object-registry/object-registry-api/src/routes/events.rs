@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use crate::auth::Permissions;
 use crate::state::AppState;
-use object_registry::event_manager::{Event, Notify, NotificationType};
+use object_registry::event_manager::{Event, NotificationType, Notify};
 use object_registry::types::{CreatedResponse, EventRequest, EventResponse};
 
 pub async fn post_event(
@@ -19,7 +19,8 @@ pub async fn post_event(
 ) -> Result<impl IntoResponse, crate::error::AppError> {
     state
         .permissions_manager
-        .enforce(&perms, "POST", &namespace)?;
+        .enforce(&perms, "event:post", &namespace)?;
+
     let id = Uuid::new_v4().to_string();
 
     let created_at = if let Some(ts) = req.created_at {
@@ -54,7 +55,8 @@ pub async fn put_event(
 ) -> Result<impl IntoResponse, crate::error::AppError> {
     state
         .permissions_manager
-        .enforce(&perms, "PUT", &namespace)?;
+        .enforce(&perms, "event:put", &namespace)?;
+
     let created_at = if let Some(ts) = req.created_at {
         DateTime::parse_from_rfc3339(&ts)?.with_timezone(&Utc)
     } else {
@@ -87,7 +89,7 @@ pub async fn delete_event(
 ) -> Result<impl IntoResponse, crate::error::AppError> {
     state
         .permissions_manager
-        .enforce(&perms, "DELETE", &namespace)?;
+        .enforce(&perms, "event:delete", &namespace)?;
     state.event_manager.delete_event(namespace, id).await?;
     Ok((StatusCode::NO_CONTENT, ""))
 }
@@ -99,7 +101,7 @@ pub async fn list_events(
 ) -> Result<impl IntoResponse, crate::error::AppError> {
     state
         .permissions_manager
-        .enforce(&perms, "GET", &namespace)?;
+        .enforce(&perms, "event:get", &namespace)?;
     let evs = state.event_manager.get_events(namespace).await?;
     let arr: Vec<EventResponse> = evs.iter().map(EventResponse::from).collect();
     Ok((StatusCode::OK, Json(arr)))

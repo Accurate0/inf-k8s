@@ -10,8 +10,8 @@ use lambda_http::{Error, run, tracing};
 mod auth;
 mod error;
 mod permissions;
-mod state;
 mod routes;
+mod state;
 
 async fn health_check() -> (StatusCode, String) {
     (StatusCode::OK, "OK".to_string())
