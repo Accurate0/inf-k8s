@@ -1,12 +1,10 @@
 use aws_lambda_events::event::s3::S3Event;
-use base64::{Engine, prelude::BASE64_STANDARD};
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
 use object_registry::event_manager::{EventManager, NotificationType};
 use object_registry::generate_jwt_from_private_key;
 use object_registry::object_manager::ObjectManager;
-use object_registry::types::{MetadataResponse, ObjectResponse};
-use reqwest::{Method, header::CONTENT_TYPE};
-use serde_json::Value;
+use object_registry::types::{MetadataResponse, ObjectEvent};
+use reqwest::Method;
 use std::str::FromStr;
 use urlencoding::decode;
 
@@ -57,7 +55,6 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
             }
         };
 
-        let bytes = stored_object.data;
         let meta = MetadataResponse {
             namespace: stored_object.metadata.namespace,
             checksum: stored_object.metadata.checksum,
@@ -69,46 +66,17 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
             labels: stored_object.metadata.labels,
         };
 
+        let payload = ObjectEvent {
+            key: key.clone(),
+            metadata: meta,
+        };
+
         let events = event_manager.get_events(namespace.to_string()).await?;
         for event in events {
             if (event.keys.contains(&"*".to_owned()) || event.keys.contains(&key))
                 && event.namespace == namespace
             {
                 tracing::info!("match in config for {event:?}");
-                let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
-                let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
-
-                let (mime, payload) = if is_json_type {
-                    (
-                        "application/json",
-                        serde_json::to_string(&ObjectResponse {
-                            is_base64_encoded: false,
-                            key: key.clone(),
-                            payload: serde_json::from_slice::<Value>(&bytes).unwrap(),
-                            metadata: meta.clone(),
-                        })?,
-                    )
-                } else if is_yaml_type {
-                    (
-                        "application/yaml",
-                        serde_yaml::to_string(&ObjectResponse {
-                            is_base64_encoded: false,
-                            key: key.clone(),
-                            payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
-                            metadata: meta.clone(),
-                        })?,
-                    )
-                } else {
-                    (
-                        "application/json",
-                        serde_json::to_string(&ObjectResponse {
-                            is_base64_encoded: true,
-                            key: key.clone(),
-                            payload: BASE64_STANDARD.encode(bytes.clone()),
-                            metadata: meta.clone(),
-                        })?,
-                    )
-                };
 
                 if event.notify.r#type == NotificationType::HTTP {
                     let method_str = &event.notify.method;
@@ -126,8 +94,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                         let response = http_client
                             .request(method.clone(), url)
                             .bearer_auth(&auth_token)
-                            .header(CONTENT_TYPE, mime)
-                            .body(payload.clone())
+                            .json(&payload)
                             .send()
                             .await?;
                         tracing::info!("response: {response:?}");
