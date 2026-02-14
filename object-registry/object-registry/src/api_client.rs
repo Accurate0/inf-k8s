@@ -235,7 +235,9 @@ impl ApiClient {
                     is_base64_encoded: true,
                     payload,
                     metadata: serde_json::from_value(
-                        val.get("metadata").cloned().unwrap_or(serde_json::Value::Null),
+                        val.get("metadata")
+                            .cloned()
+                            .unwrap_or(serde_json::Value::Null),
                     )?,
                 });
             }
