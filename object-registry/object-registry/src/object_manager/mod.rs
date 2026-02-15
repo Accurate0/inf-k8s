@@ -1,10 +1,9 @@
 use aws_config::SdkConfig;
-use aws_sdk_dynamodb::{types::AttributeValue, Client as DynamoClient};
+use aws_sdk_dynamodb::{Client as DynamoClient, types::AttributeValue};
 use aws_sdk_s3::{
     error::SdkError,
     operation::{
-        get_object::GetObjectError, list_objects_v2::ListObjectsV2Error,
-        put_object::PutObjectError,
+        get_object::GetObjectError, list_objects_v2::ListObjectsV2Error, put_object::PutObjectError,
     },
     primitives::ByteStream,
 };
@@ -65,6 +64,8 @@ impl ObjectManager {
     pub const CHECKSUM: &str = "checksum";
     pub const SIZE: &str = "size";
     pub const CONTENT_TYPE: &str = "content_type";
+
+    // these are actually updated_at fields
     pub const CREATED_BY: &str = "created_by";
     pub const CREATED_AT: &str = "created_at";
     pub const VERSION: &str = "version";
@@ -77,17 +78,10 @@ impl ObjectManager {
         }
     }
 
-    fn get_key(namespace: &str, object: &str, version: Option<&str>, public: bool) -> String {
-        if public {
-            match version {
-                Some(v) => format!("{namespace}/public/{object}@{v}"),
-                None => format!("{namespace}/public/{object}"),
-            }
-        } else {
-            match version {
-                Some(v) => format!("{namespace}/{object}@{v}"),
-                None => format!("{namespace}/{object}"),
-            }
+    fn get_key(namespace: &str, object: &str, version: Option<&str>) -> String {
+        match version {
+            Some(v) => format!("{namespace}/{object}@{v}"),
+            None => format!("{namespace}/{object}"),
         }
     }
 
@@ -96,13 +90,12 @@ impl ObjectManager {
         namespace: &str,
         object: &str,
         version: Option<&str>,
-        public: bool,
         body: Vec<u8>,
         content_type: &str,
         created_by: &str,
         labels: HashMap<String, String>,
     ) -> Result<String, ObjectManagerError> {
-        let key = Self::get_key(namespace, object, version, public);
+        let key = Self::get_key(namespace, object, version);
 
         let mut hasher = Sha256::new();
         hasher.update(&body);
@@ -130,7 +123,10 @@ impl ObjectManager {
             .item(Self::NAMESPACE, AttributeValue::S(namespace.to_string()))
             .item(Self::CHECKSUM, AttributeValue::S(checksum))
             .item(Self::SIZE, AttributeValue::N(size.to_string()))
-            .item(Self::CONTENT_TYPE, AttributeValue::S(content_type.to_string()))
+            .item(
+                Self::CONTENT_TYPE,
+                AttributeValue::S(content_type.to_string()),
+            )
             .item(Self::CREATED_BY, AttributeValue::S(created_by.to_string()))
             .item(Self::CREATED_AT, AttributeValue::S(created_at))
             .item(
@@ -169,9 +165,8 @@ impl ObjectManager {
         namespace: &str,
         object: &str,
         version: Option<&str>,
-        public: bool,
     ) -> Result<StoredObject, ObjectManagerError> {
-        let key = Self::get_key(namespace, object, version, public);
+        let key = Self::get_key(namespace, object, version);
         self.get_object_by_key(&key).await
     }
 
@@ -188,9 +183,10 @@ impl ObjectManager {
             Ok(o) => o,
             Err(e) => {
                 if let SdkError::ServiceError(err) = &e
-                    && matches!(err.err(), GetObjectError::NoSuchKey(_)) {
-                        return Err(ObjectManagerError::ObjectNotFound);
-                    }
+                    && matches!(err.err(), GetObjectError::NoSuchKey(_))
+                {
+                    return Err(ObjectManagerError::ObjectNotFound);
+                }
                 return Err(ObjectManagerError::GetObject(e));
             }
         };

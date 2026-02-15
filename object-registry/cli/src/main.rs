@@ -49,9 +49,6 @@ enum Commands {
         /// Optional version query parameter
         #[arg(long)]
         version: Option<String>,
-        /// Publicly accessible object
-        #[arg(long)]
-        public: bool,
         /// Optional labels (key=value)
         #[arg(short = 'l', long = "label", value_parser = parse_key_val::<String, String>)]
         labels: Vec<(String, String)>,
@@ -64,9 +61,6 @@ enum Commands {
         /// Optional version query parameter
         #[arg(long)]
         version: Option<String>,
-        /// Publicly accessible object
-        #[arg(long)]
-        public: bool,
     },
     Events {
         #[command(subcommand)]
@@ -158,13 +152,12 @@ async fn main() -> anyhow::Result<()> {
             object,
             file,
             version,
-            public,
             labels,
         } => {
             let path = PathBuf::from(file);
             let file_contents = read_to_string(path).await?;
 
-            let (private_pem, kid) = if !public {
+            let (private_pem, kid) = {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
                 let public_pem = rsa.public_key_to_pem()?;
@@ -184,8 +177,6 @@ async fn main() -> anyhow::Result<()> {
 
                 km.add_key(details).await?;
                 (private_pem, kid)
-            } else {
-                (vec![], "".to_string())
             };
 
             let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
@@ -197,7 +188,6 @@ async fn main() -> anyhow::Result<()> {
                 &namespace,
                 &object,
                 version.as_deref(),
-                public,
                 file_contents.as_bytes(),
                 if labels_map.is_empty() {
                     None
@@ -213,9 +203,8 @@ async fn main() -> anyhow::Result<()> {
             namespace,
             object,
             version,
-            public,
         } => {
-            let (private_pem, kid) = if !public {
+            let (private_pem, kid) = {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
                 let public_pem = rsa.public_key_to_pem()?;
@@ -235,14 +224,12 @@ async fn main() -> anyhow::Result<()> {
 
                 km.add_key(details).await?;
                 (private_pem, kid)
-            } else {
-                (vec![], "".to_string())
             };
 
             let api = object_registry::ApiClient::new(private_pem, kid, "config-catalog-cli");
 
             let response: object_registry::types::ObjectResponse<serde_json::Value> = api
-                .get_object(&namespace, &object, version.as_deref(), public)
+                .get_object(&namespace, &object, version.as_deref())
                 .await?;
             println!("{}", serde_json::to_string_pretty(&response)?);
         }

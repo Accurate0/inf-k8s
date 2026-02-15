@@ -1,7 +1,7 @@
 use crate::{error::AppError, state::AppState};
 use axum::{
     extract::{MatchedPath, Request, State},
-    http::{HeaderMap, Method, StatusCode},
+    http::{HeaderMap, StatusCode},
     middleware::Next,
     response::Response,
 };
@@ -28,10 +28,6 @@ pub async fn auth_middleware(
         tracing::info!("request matched path: {}", path);
 
         if path == "/health" || path == "/.well-known/jwks" {
-            return Ok(next.run(request).await);
-        }
-
-        if path == "/{namespace}/public/{object}" && request.method() == Method::GET {
             return Ok(next.run(request).await);
         }
     }

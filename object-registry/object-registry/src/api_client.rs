@@ -126,15 +126,10 @@ impl ApiClient {
         namespace: &str,
         object: &str,
         version: Option<&str>,
-        public: bool,
         body: &[u8],
         labels: Option<HashMap<String, String>>,
     ) -> Result<(), ApiClientError> {
-        let rel = if public {
-            format!("{}/public/{}", namespace, object)
-        } else {
-            format!("{}/{}", namespace, object)
-        };
+        let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
         let resource = rel.trim_start_matches('/');
         let mut url = Url::parse(&format!("{}/{}", base, resource))
@@ -163,16 +158,11 @@ impl ApiClient {
         namespace: &str,
         object: &str,
         version: Option<&str>,
-        public: bool,
     ) -> Result<ObjectResponse<T>, ApiClientError>
     where
         T: DeserializeOwned + 'static,
     {
-        let rel = if public {
-            format!("{}/public/{}", namespace, object)
-        } else {
-            format!("{}/{}", namespace, object)
-        };
+        let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
         let resource = rel.trim_start_matches('/');
         let mut url = Url::parse(&format!("{}/{}", base, resource))
@@ -181,12 +171,10 @@ impl ApiClient {
             url.query_pairs_mut().append_pair("version", v);
         }
 
-        let mut req = self.client.request(Method::GET, url);
-
-        if !public {
-            let jwt = self.generate_jwt()?;
-            req = req.bearer_auth(jwt);
-        }
+        let req = self
+            .client
+            .request(Method::GET, url)
+            .bearer_auth(self.generate_jwt()?);
 
         let resp = req.send().await?.error_for_status()?;
 
@@ -447,7 +435,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .put_object("ns1", "obj1", Some("v1"), false, b"hello", None)
+            .put_object("ns1", "obj1", Some("v1"), b"hello", None)
             .await;
         assert!(result.is_ok());
         mock.assert();
@@ -490,7 +478,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().payload,
@@ -523,7 +511,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().payload,
@@ -566,9 +554,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client
-            .get_object::<String>("ns1", "obj1", None, false)
-            .await;
+        let result = client.get_object::<String>("ns1", "obj1", None).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().payload, "aGVsbG8gd29ybGQ=");
         mock.assert();
@@ -610,16 +596,12 @@ mod tests {
         client.base_url = server.url();
 
         // Test String
-        let result = client
-            .get_object::<String>("ns1", "obj1", None, false)
-            .await;
+        let result = client.get_object::<String>("ns1", "obj1", None).await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().payload, "hello world");
 
         // Test Vec<u8>
-        let result_bytes = client
-            .get_object::<Vec<u8>>("ns1", "obj1", None, false)
-            .await;
+        let result_bytes = client.get_object::<Vec<u8>>("ns1", "obj1", None).await;
         assert!(result_bytes.is_ok());
         assert_eq!(result_bytes.unwrap().payload, b"hello world");
 
@@ -637,6 +619,7 @@ mod tests {
 
         let req = crate::types::EventRequest {
             keys: vec!["k1".to_string()],
+            audience: "test".to_string(),
             notify: crate::types::NotifyRequest {
                 r#type: "webhook".to_string(),
                 method: "POST".to_string(),
@@ -699,7 +682,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1", None, false)
+            .get_object::<serde_json::Value>("ns1", "obj1", None)
             .await;
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -747,7 +730,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None, false).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiClientError::Json(_) => {}
@@ -801,73 +784,6 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_put_object_public_success() {
-        let mut server = Server::new_async().await;
-        let rsa = Rsa::generate(2048).unwrap();
-        let private_key_pem = rsa.private_key_to_pem().unwrap();
-
-        let mock = server
-            .mock("PUT", "/ns1/public/obj1")
-            .match_header(
-                "authorization",
-                mockito::Matcher::Regex("^Bearer ".to_string()),
-            )
-            .with_status(200)
-            .create();
-
-        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
-        client.base_url = server.url();
-
-        let result = client
-            .put_object("ns1", "obj1", None, true, b"hello", None)
-            .await;
-        assert!(result.is_ok());
-        mock.assert();
-    }
-
-    #[tokio::test]
-    async fn test_get_object_public_success() {
-        let mut server = Server::new_async().await;
-        // No private key needed for public GET, but ApiClient requires one in constructor
-        let rsa = Rsa::generate(2048).unwrap();
-        let private_key_pem = rsa.private_key_to_pem().unwrap();
-
-        let body = serde_json::json!({
-            "key": "ns1/public/obj1",
-            "payload": {"foo": "bar"},
-            "metadata": {
-                "namespace": "ns1",
-                "checksum": "abc",
-                "size": 10,
-                "content_type": "application/json",
-                "created_by": "user",
-                "created_at": "now",
-                "version": "v1",
-                "labels": {}
-            }
-        })
-        .to_string();
-
-        let mock = server
-            .mock("GET", "/ns1/public/obj1")
-            .match_header("authorization", mockito::Matcher::Missing)
-            .with_status(200)
-            .with_header("content-type", "application/json")
-            .with_body(body)
-            .create();
-
-        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
-        client.base_url = server.url();
-
-        let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1", None, true)
-            .await;
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap().payload["foo"], "bar");
-        mock.assert();
-    }
-
-    #[tokio::test]
     async fn test_put_object_with_labels() {
         let mut server = Server::new_async().await;
         let rsa = Rsa::generate(2048).unwrap();
@@ -888,7 +804,7 @@ mod tests {
         labels.insert("team".to_string(), "backend".to_string());
 
         let result = client
-            .put_object("ns1", "obj1", None, false, b"hello", Some(labels))
+            .put_object("ns1", "obj1", None, b"hello", Some(labels))
             .await;
         assert!(result.is_ok());
         mock.assert();
@@ -929,7 +845,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1", None, false)
+            .get_object::<serde_json::Value>("ns1", "obj1", None)
             .await;
         assert!(result.is_ok());
         let response = result.unwrap();

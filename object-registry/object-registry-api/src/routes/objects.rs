@@ -16,16 +16,6 @@ pub struct VersionQuery {
     pub version: Option<String>,
 }
 
-fn validate_namespace(namespace: &str) -> Result<(), AppError> {
-    if namespace == "public-keys" {
-        return Err(AppError::Message(
-            StatusCode::BAD_REQUEST,
-            "Namespace 'public-keys' is reserved".to_string(),
-        ));
-    }
-    Ok(())
-}
-
 fn extract_labels(headers: &HeaderMap) -> HashMap<String, String> {
     headers
         .iter()
@@ -50,8 +40,6 @@ pub async fn put_object(
     Query(params): Query<VersionQuery>,
     body: Bytes,
 ) -> anyhow::Result<(), AppError> {
-    validate_namespace(&namespace)?;
-
     state
         .permissions_manager
         .enforce(&perms, "object:put", &namespace)?;
@@ -69,45 +57,6 @@ pub async fn put_object(
             &namespace,
             &object,
             params.version.as_deref(),
-            false,
-            body.to_vec(),
-            content_type,
-            &perms.issuer,
-            labels,
-        )
-        .await?;
-
-    Ok(())
-}
-
-pub async fn put_object_public(
-    State(state): State<AppState>,
-    Extension(perms): Extension<crate::auth::Permissions>,
-    headers: HeaderMap,
-    Path((namespace, object)): Path<(String, String)>,
-    Query(params): Query<VersionQuery>,
-    body: Bytes,
-) -> anyhow::Result<(), AppError> {
-    validate_namespace(&namespace)?;
-
-    state
-        .permissions_manager
-        .enforce(&perms, "object:put", &namespace)?;
-
-    let content_type = headers
-        .get("Content-Type")
-        .and_then(|h| h.to_str().ok())
-        .unwrap_or("application/octet-stream");
-
-    let labels = extract_labels(&headers);
-
-    state
-        .object_manager
-        .put_object(
-            &namespace,
-            &object,
-            params.version.as_deref(),
-            true,
             body.to_vec(),
             content_type,
             &perms.issuer,
@@ -128,22 +77,7 @@ pub async fn get_object(
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
-    fetch_object(
-        &state,
-        &namespace,
-        &object,
-        params.version.as_deref(),
-        false,
-    )
-    .await
-}
-
-pub async fn get_object_public(
-    State(state): State<AppState>,
-    Path((namespace, object)): Path<(String, String)>,
-    Query(params): Query<VersionQuery>,
-) -> Result<Response, AppError> {
-    fetch_object(&state, &namespace, &object, params.version.as_deref(), true).await
+    fetch_object(&state, &namespace, &object, params.version.as_deref()).await
 }
 
 async fn fetch_object(
@@ -151,11 +85,10 @@ async fn fetch_object(
     namespace: &str,
     object: &str,
     version: Option<&str>,
-    public: bool,
 ) -> Result<Response, AppError> {
     let stored_object = match state
         .object_manager
-        .get_object(namespace, object, version, public)
+        .get_object(namespace, object, version)
         .await
     {
         Ok(o) => o,

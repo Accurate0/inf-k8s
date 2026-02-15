@@ -40,14 +40,6 @@ async fn main() -> Result<(), Error> {
     let app = Router::new()
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))
-        .route(
-            "/{namespace}/public/{object}",
-            put(routes::objects::put_object_public),
-        )
-        .route(
-            "/{namespace}/public/{object}",
-            get(routes::objects::get_object_public),
-        )
         .route("/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))
         .route("/events/{namespace}", post(routes::events::post_event))
