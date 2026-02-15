@@ -1,38 +1,40 @@
 use crate::{error::AppError, state::AppState};
 use axum::{Json, extract::State};
 use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
+use lambda_http::tracing;
 use rsa::pkcs1::DecodeRsaPublicKey;
 use rsa::traits::PublicKeyParts;
 use rsa::{RsaPublicKey, pkcs8::DecodePublicKey};
 use serde_json::{Value, json};
 
-const PUBLIC_KEYS_PREFIX: &str = "public-keys/";
+const PUBLIC_KEYS_BUCKET: &str = "object-registry-public-keys-inf-k8s";
 
 pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppError> {
-    let keys_list = state
-        .object_manager
-        .list_objects(PUBLIC_KEYS_PREFIX)
+    let object_contents = state
+        .s3_client
+        .list_objects_v2()
+        .bucket(PUBLIC_KEYS_BUCKET)
+        .send()
         .await?;
 
     let mut keys = Vec::new();
 
-    for key in keys_list {
-        if key.ends_with(".pem") {
-            let parts: Vec<&str> = key.splitn(2, '/').collect();
-            if parts.len() != 2 {
-                continue;
-            }
-            let namespace = parts[0];
-            let object = parts[1];
+    for object in object_contents.contents() {
+        let Some(object_key) = object.key() else {
+            tracing::warn!("object without key? {object:?}");
+            continue;
+        };
 
-            // Use ObjectManager to fetch the key content
-            // Assuming "public-keys" acts as the namespace here
-            let stored = state
-                .object_manager
-                .get_object(namespace, object, None, false)
+        if object_key.ends_with(".pem") {
+            let stored_object = state
+                .s3_client
+                .get_object()
+                .bucket(PUBLIC_KEYS_BUCKET)
+                .key(object_key)
+                .send()
                 .await?;
 
-            let data = stored.data;
+            let data = stored_object.body.collect().await?.into_bytes();
             let pem_str = String::from_utf8_lossy(&data);
 
             let public_key = if let Ok(pk) = RsaPublicKey::from_public_key_pem(&pem_str) {
@@ -45,11 +47,7 @@ pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppE
                 let n = BASE64_URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
                 let e = BASE64_URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
-                let kid = key
-                    .strip_prefix(PUBLIC_KEYS_PREFIX)
-                    .unwrap_or(&key)
-                    .strip_suffix(".pem")
-                    .unwrap_or(&key);
+                let kid = object_key.strip_suffix(".pem").unwrap_or(&object_key);
 
                 keys.push(json!({
                     "kty": "RSA",

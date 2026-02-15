@@ -173,7 +173,7 @@ async fn main() -> anyhow::Result<()> {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
-                    permitted_methods: vec!["PUT".to_string()],
+                    permitted_methods: vec!["object:put".to_string()],
                     created_at: chrono::Utc::now(),
                     ttl: Some(ttl),
                 };
@@ -184,13 +184,10 @@ async fn main() -> anyhow::Result<()> {
                 (vec![], "".to_string())
             };
 
-            let api = object_registry::ApiClient::new(
-                private_pem,
-                kid,
-                "object-registry-cli",
-            );
+            let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
 
-            let labels_map: std::collections::HashMap<String, String> = labels.into_iter().collect();
+            let labels_map: std::collections::HashMap<String, String> =
+                labels.into_iter().collect();
 
             api.put_object(
                 &namespace,
@@ -227,7 +224,7 @@ async fn main() -> anyhow::Result<()> {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
-                    permitted_methods: vec!["GET".to_string()],
+                    permitted_methods: vec!["object:get".to_string()],
                     created_at: chrono::Utc::now(),
                     ttl: Some(ttl),
                 };
@@ -265,7 +262,7 @@ async fn main() -> anyhow::Result<()> {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
-                    permitted_methods: vec!["POST".to_string()],
+                    permitted_methods: vec!["event:post".to_string()],
                     created_at: chrono::Utc::now(),
                     ttl: Some(ttl),
                 };
@@ -304,7 +301,7 @@ async fn main() -> anyhow::Result<()> {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
-                    permitted_methods: vec!["GET".to_string()],
+                    permitted_methods: vec!["event:get".to_string()],
                     created_at: chrono::Utc::now(),
                     ttl: Some(ttl),
                 };
@@ -333,7 +330,7 @@ async fn main() -> anyhow::Result<()> {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
-                    permitted_methods: vec!["DELETE".to_string()],
+                    permitted_methods: vec!["event:delete".to_string()],
                     created_at: chrono::Utc::now(),
                     ttl: Some(ttl),
                 };
@@ -369,7 +366,7 @@ async fn main() -> anyhow::Result<()> {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
-                    permitted_methods: vec!["PUT".to_string()],
+                    permitted_methods: vec!["event:put".to_string()],
                     created_at: chrono::Utc::now(),
                     ttl: Some(ttl),
                 };

@@ -16,7 +16,9 @@ resource "aws_iam_policy" "object-registry-lambda-access" {
           ],
           "Resource" : [
             aws_s3_bucket.object-registry-bucket.arn,
-            "${aws_s3_bucket.object-registry-bucket.arn}/*"
+            "${aws_s3_bucket.object-registry-bucket.arn}/*",
+            aws_s3_bucket.object-registry-public-keys-bucket.arn,
+            "${aws_s3_bucket.object-registry-public-keys-bucket.arn}/*"
           ]
         },
         {

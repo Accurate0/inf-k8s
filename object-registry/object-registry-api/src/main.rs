@@ -23,6 +23,7 @@ async fn main() -> Result<(), Error> {
 
     let config = aws_config::load_from_env().await;
 
+    let s3_client = aws_sdk_s3::Client::new(&config);
     let event_manager = object_registry::event_manager::EventManager::new(&config);
     let key_manager = object_registry::key_manager::KeyManager::new(&config);
     let object_manager = object_registry::object_manager::ObjectManager::new(&config);
@@ -30,7 +31,7 @@ async fn main() -> Result<(), Error> {
 
     let state = AppState {
         object_manager,
-
+        s3_client,
         event_manager,
         key_manager,
         permissions_manager,
