@@ -169,6 +169,8 @@ spec:
             grafana.ini:
               server:
                 root_url: "%(protocol)s://%(domain)s"
+                domain: grafana.inf-k8s.net
+                protocol: http
             # Provision grafana-dashboards-kubernetes
             dashboardProviders:
               dashboardproviders.yaml:
