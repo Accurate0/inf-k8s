@@ -87,7 +87,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                     let auth_token = generate_jwt_from_private_key(
                         jwt_secret.as_bytes(),
                         "object-registry",
-                        &event.namespace,
+                        &event.audience,
                     )?;
 
                     for url in urls {

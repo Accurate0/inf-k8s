@@ -38,6 +38,7 @@ pub async fn post_event(
         namespace: namespace.clone(),
         id: id.clone(),
         keys: req.keys,
+        audience: req.audience,
         notify,
         created_at,
     };
@@ -73,6 +74,7 @@ pub async fn put_event(
         namespace: namespace.clone(),
         id: id.clone(),
         keys: req.keys,
+        audience: req.audience,
         notify,
         created_at,
     };

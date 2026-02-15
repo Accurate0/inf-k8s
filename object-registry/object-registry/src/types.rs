@@ -13,6 +13,7 @@ pub struct NotifyRequest {
 pub struct EventRequest {
     pub keys: Vec<String>,
     pub notify: NotifyRequest,
+    pub audience: String,
     pub created_at: Option<String>,
 }
 

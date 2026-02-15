@@ -87,6 +87,8 @@ enum EventsCommand {
         notify_method: String,
         #[arg(long, required = true, num_args = 1..)]
         notify_urls: Vec<String>,
+        #[arg(long, required = true)]
+        audience: String,
     },
     List {
         #[arg(short, long)]
@@ -111,6 +113,8 @@ enum EventsCommand {
         notify_method: String,
         #[arg(long, required = true, num_args = 1..)]
         notify_urls: Vec<String>,
+        #[arg(long, required = true)]
+        audience: String,
     },
 }
 
@@ -249,6 +253,7 @@ async fn main() -> anyhow::Result<()> {
                 notify_type,
                 notify_method,
                 notify_urls,
+                audience,
             } => {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
@@ -277,6 +282,7 @@ async fn main() -> anyhow::Result<()> {
 
                 let event_req = object_registry::types::EventRequest {
                     keys,
+                    audience,
                     notify: object_registry::types::NotifyRequest {
                         r#type: notify_type,
                         method: notify_method,
@@ -353,6 +359,7 @@ async fn main() -> anyhow::Result<()> {
                 notify_type,
                 notify_method,
                 notify_urls,
+                audience,
             } => {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
@@ -381,6 +388,7 @@ async fn main() -> anyhow::Result<()> {
 
                 let event_req = object_registry::types::EventRequest {
                     keys,
+                    audience,
                     notify: object_registry::types::NotifyRequest {
                         r#type: notify_type,
                         method: notify_method,

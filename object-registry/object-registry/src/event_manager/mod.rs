@@ -75,6 +75,7 @@ pub struct Event {
     pub id: String,
     pub keys: Vec<String>,
     pub notify: Notify,
+    pub audience: String,
     pub created_at: DateTime<Utc>,
 }
 
@@ -87,6 +88,7 @@ impl EventManager {
     const NOTIFY_TYPE: &str = "type";
     const NOTIFY_METHOD: &str = "method";
     const NOTIFY_URLS: &str = "urls";
+    const AUDIENCE: &str = "audience";
     const CREATED_AT: &str = "created_at";
 
     pub fn new(sdk_config: &SdkConfig) -> Self {
@@ -116,6 +118,7 @@ impl EventManager {
             .item(Self::NAMESPACE, AttributeValue::S(ev.namespace))
             .item(Self::ID, AttributeValue::S(ev.id))
             .item(Self::KEYS, AttributeValue::Ss(ev.keys))
+            .item(Self::AUDIENCE, AttributeValue::S(ev.audience))
             .item(Self::NOTIFY, AttributeValue::M(notify_map))
             .item(Self::CREATED_AT, AttributeValue::S(Utc::now().to_rfc3339()))
             .send()
@@ -145,6 +148,7 @@ impl EventManager {
             .item(Self::NAMESPACE, AttributeValue::S(ev.namespace))
             .item(Self::ID, AttributeValue::S(ev.id))
             .item(Self::KEYS, AttributeValue::Ss(ev.keys))
+            .item(Self::AUDIENCE, AttributeValue::S(ev.audience))
             .item(Self::NOTIFY, AttributeValue::M(notify_map))
             .item(
                 Self::CREATED_AT,
@@ -250,6 +254,7 @@ impl EventManager {
         let namespace = Self::get_required_string(item, Self::NAMESPACE)?;
         let id = Self::get_required_string(item, Self::ID)?;
         let keys = Self::get_required_string_set(item, Self::KEYS)?;
+        let audience = Self::get_required_string(item, Self::AUDIENCE)?;
 
         let notify_attr = item
             .get(Self::NOTIFY)
@@ -265,6 +270,7 @@ impl EventManager {
         Ok(Event {
             namespace,
             id,
+            audience,
             keys,
             notify,
             created_at,
