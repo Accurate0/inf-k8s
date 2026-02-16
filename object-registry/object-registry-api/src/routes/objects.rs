@@ -80,6 +80,49 @@ pub async fn get_object(
     fetch_object(&state, &namespace, &object, params.version.as_deref()).await
 }
 
+pub async fn list_objects(
+    State(state): State<AppState>,
+    Extension(perms): Extension<crate::auth::Permissions>,
+    Path(namespace): Path<String>,
+) -> Result<Response, AppError> {
+    state
+        .permissions_manager
+        .enforce(&perms, "object:get", &namespace)?;
+
+    let keys = state
+        .object_manager
+        .list_objects(&format!("{}/", namespace))
+        .await?;
+
+    let mut object_list = Vec::new();
+    for key in keys {
+        if let Ok(metadata) = state.object_manager.get_metadata_by_key(&key).await {
+            object_list.push(object_registry::types::ObjectMetadata {
+                key,
+                metadata: MetadataResponse {
+                    namespace: metadata.namespace,
+                    checksum: metadata.checksum,
+                    size: metadata.size,
+                    content_type: metadata.content_type,
+                    created_by: metadata.created_by,
+                    created_at: metadata.created_at,
+                    version: metadata.version,
+                    labels: metadata.labels,
+                },
+            });
+        }
+    }
+
+    let response = object_registry::types::ListObjectsResponse {
+        objects: object_list,
+    };
+
+    Ok(Response::builder()
+        .status(200)
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&response)?.into())?)
+}
+
 async fn fetch_object(
     state: &AppState,
     namespace: &str,

@@ -191,6 +191,17 @@ impl ObjectManager {
             }
         };
 
+        let metadata = self.get_metadata_by_key(key).await?;
+
+        let data = output.body.collect().await?.to_vec();
+        Ok(StoredObject {
+            key: key.to_string(),
+            data,
+            metadata,
+        })
+    }
+
+    pub async fn get_metadata_by_key(&self, key: &str) -> Result<ObjectMetadata, ObjectManagerError> {
         let db_result = self
             .dynamo_client
             .get_item()
@@ -248,11 +259,6 @@ impl ObjectManager {
                 .unwrap_or_default(),
         };
 
-        let data = output.body.collect().await?.to_vec();
-        Ok(StoredObject {
-            key: key.to_string(),
-            data,
-            metadata,
-        })
+        Ok(metadata)
     }
 }

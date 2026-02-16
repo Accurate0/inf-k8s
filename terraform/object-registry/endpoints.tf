@@ -5,6 +5,10 @@ locals {
       "url" : "/{namespace}/{configObject}"
     },
     {
+      "method" : "GET",
+      "url" : "/{namespace}"
+    },
+    {
       "method" : "PUT",
       "url" : "/{namespace}/{configObject}"
     },

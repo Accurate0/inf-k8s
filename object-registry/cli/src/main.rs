@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use comfy_table::Table;
 use std::error::Error;
 use std::path::PathBuf;
 use tokio::fs::read_to_string;
@@ -21,6 +22,13 @@ where
 struct Args {
     #[command(subcommand)]
     command: Commands,
+}
+
+#[derive(clap::ValueEnum, Clone, Debug)]
+enum OutputFormat {
+    Json,
+    Yaml,
+    Binary,
 }
 
 #[derive(Subcommand, Debug)]
@@ -61,6 +69,16 @@ enum Commands {
         /// Optional version query parameter
         #[arg(long)]
         version: Option<String>,
+        /// Output format
+        #[arg(short, long, value_enum, default_value_t = OutputFormat::Json)]
+        format: OutputFormat,
+        /// Output file
+        #[arg(long)]
+        file: Option<PathBuf>,
+    },
+    List {
+        #[arg(short, long)]
+        namespace: String,
     },
     Events {
         #[command(subcommand)]
@@ -203,6 +221,8 @@ async fn main() -> anyhow::Result<()> {
             namespace,
             object,
             version,
+            format,
+            file,
         } => {
             let (private_pem, kid) = {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
@@ -226,12 +246,88 @@ async fn main() -> anyhow::Result<()> {
                 (private_pem, kid)
             };
 
-            let api = object_registry::ApiClient::new(private_pem, kid, "config-catalog-cli");
+            let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
 
-            let response: object_registry::types::ObjectResponse<serde_json::Value> = api
-                .get_object(&namespace, &object, version.as_deref())
-                .await?;
-            println!("{}", serde_json::to_string_pretty(&response)?);
+            match format {
+                OutputFormat::Binary => {
+                    let response: object_registry::types::ObjectResponse<Vec<u8>> =
+                        api.get_object(&namespace, &object, version.as_deref()).await?;
+                    if let Some(path) = file {
+                        tokio::fs::write(path, response.payload).await?;
+                    } else {
+                        use std::io::Write;
+                        std::io::stdout().write_all(&response.payload)?;
+                    }
+                }
+                OutputFormat::Json => {
+                    let response: object_registry::types::ObjectResponse<serde_json::Value> =
+                        api.get_object(&namespace, &object, version.as_deref()).await?;
+                    let output = serde_json::to_string_pretty(&response)?;
+                    if let Some(path) = file {
+                        tokio::fs::write(path, output).await?;
+                    } else {
+                        println!("{output}");
+                    }
+                }
+                OutputFormat::Yaml => {
+                    let response: object_registry::types::ObjectResponse<serde_json::Value> =
+                        api.get_object(&namespace, &object, version.as_deref()).await?;
+                    let output = serde_yaml::to_string(&response)?;
+                    if let Some(path) = file {
+                        tokio::fs::write(path, output).await?;
+                    } else {
+                        println!("{output}");
+                    }
+                }
+            }
+        }
+        Commands::List { namespace } => {
+            let (private_pem, kid) = {
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300;
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["object:get".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+                (private_pem, kid)
+            };
+
+            let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
+
+            let response = api.list_objects(&namespace).await?;
+            let mut table = Table::new();
+            table.set_header(vec![
+                "Key",
+                "Version",
+                "Content-Type",
+                "Size",
+                "Created At",
+                "Created By",
+            ]);
+
+            for obj in response.objects {
+                table.add_row(vec![
+                    obj.key,
+                    obj.metadata.version,
+                    obj.metadata.content_type,
+                    obj.metadata.size.to_string(),
+                    obj.metadata.created_at,
+                    obj.metadata.created_by,
+                ]);
+            }
+            println!("{table}");
         }
         Commands::Events { command } => match command {
             EventsCommand::Create {
@@ -308,7 +404,29 @@ async fn main() -> anyhow::Result<()> {
                 );
 
                 let events = api.list_events(&namespace).await?;
-                println!("{}", serde_json::to_string_pretty(&events)?);
+                let mut table = Table::new();
+                table.set_header(vec![
+                    "ID",
+                    "Keys",
+                    "Notify Details",
+                    "Created At",
+                ]);
+
+                for event in events {
+                    let notify_details = format!(
+                        "Type: {}\nMethod: {}\nURLs: {}",
+                        event.notify.r#type,
+                        event.notify.method,
+                        event.notify.urls.join(", ")
+                    );
+                    table.add_row(vec![
+                        event.id,
+                        event.keys.join(", "),
+                        notify_details,
+                        event.created_at,
+                    ]);
+                }
+                println!("{table}");
             }
             EventsCommand::Delete { namespace, id } => {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;

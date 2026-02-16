@@ -49,6 +49,17 @@ pub struct ObjectEvent {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ObjectMetadata {
+    pub key: String,
+    pub metadata: MetadataResponse,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ListObjectsResponse {
+    pub objects: Vec<ObjectMetadata>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObjectResponse<T> {
     pub key: String,
     #[serde(default)]

@@ -17,8 +17,8 @@ resource "tls_private_key" "jwt-private-key" {
 }
 
 resource "aws_s3_object" "object" {
-  bucket  = "object-registry-inf-k8s"
-  key     = "public-keys/77d442a2-e6f9-4e16-b48b-020443aa7515.pem"
+  bucket  = "object-registry-public-keys-inf-k8s"
+  key     = "77d442a2-e6f9-4e16-b48b-020443aa7515.pem"
   content = tls_private_key.jwt-private-key.public_key_pem
   etag    = md5(tls_private_key.jwt-private-key.public_key_pem)
 }

@@ -244,6 +244,22 @@ impl ApiClient {
         ))
     }
 
+    pub async fn list_objects(
+        &self,
+        namespace: &str,
+    ) -> Result<crate::types::ListObjectsResponse, ApiClientError> {
+        let rel = namespace.to_string();
+        let jwt = self.generate_jwt()?;
+        let resp = self
+            .get_default_request(&rel, Method::GET)
+            .bearer_auth(jwt)
+            .send()
+            .await?
+            .error_for_status()?;
+        let res = resp.json().await?;
+        Ok(res)
+    }
+
     pub async fn post_event(
         &self,
         namespace: &str,
@@ -859,6 +875,49 @@ mod tests {
             Some("staging")
         );
 
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_list_objects_success() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let response_body = serde_json::json!({
+            "objects": [
+                {
+                    "key": "ns1/obj1",
+                    "metadata": {
+                        "namespace": "ns1",
+                        "checksum": "abc",
+                        "size": 10,
+                        "content_type": "application/json",
+                        "created_by": "user1",
+                        "created_at": "2023-01-01T00:00:00Z",
+                        "version": "v1",
+                        "labels": {}
+                    }
+                }
+            ]
+        })
+        .to_string();
+
+        let mock = server
+            .mock("GET", "/ns1")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(response_body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.list_objects("ns1").await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response.objects.len(), 1);
+        assert_eq!(response.objects[0].key, "ns1/obj1");
         mock.assert();
     }
 }

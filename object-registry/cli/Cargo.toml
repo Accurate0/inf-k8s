@@ -16,3 +16,5 @@ uuid = { version = "1.4", features = ["v4"] }
 openssl = { version = "0.10", features = ["vendored"]}
 chrono = { workspace = true }
 serde_json = { workspace = true }
+serde_yaml = { workspace = true }
+comfy-table = "7.1"

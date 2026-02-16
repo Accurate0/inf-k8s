@@ -47,7 +47,7 @@ pub async fn get_jwks(State(state): State<AppState>) -> Result<Json<Value>, AppE
                 let n = BASE64_URL_SAFE_NO_PAD.encode(public_key.n().to_bytes_be());
                 let e = BASE64_URL_SAFE_NO_PAD.encode(public_key.e().to_bytes_be());
 
-                let kid = object_key.strip_suffix(".pem").unwrap_or(&object_key);
+                let kid = object_key.strip_suffix(".pem").unwrap_or(object_key);
 
                 keys.push(json!({
                     "kty": "RSA",
