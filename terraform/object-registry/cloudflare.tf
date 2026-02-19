@@ -34,19 +34,6 @@ resource "cloudflare_dns_record" "object-registry-api" {
   ttl     = 1
 }
 
-resource "cloudflare_dns_record" "aws-wild" {
-  zone_id = var.cloudflare_zone_id
-  name    = "@"
-  data = {
-    flags = 0
-    tag   = "issuewild"
-    value = "awstrust.com"
-  }
-  type = "CAA"
-  ttl  = 1
-}
-
-
 resource "cloudflare_dns_record" "aws-api-issue" {
   zone_id = var.cloudflare_zone_id
   name    = "object-registry"

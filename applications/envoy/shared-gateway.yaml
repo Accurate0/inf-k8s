@@ -56,9 +56,9 @@ spec:
             kind: Secret
             name: anurag-sh-tls
 
-    - name: wildcard-object-registry-inf-k8s-https
+    - name: ui-object-registry-inf-k8s-https
       protocol: HTTPS
-      hostname: "*.object-registry.inf-k8s.net"
+      hostname: "ui.object-registry.inf-k8s.net"
       allowedRoutes:
         namespaces:
           from: Selector
@@ -71,7 +71,7 @@ spec:
         certificateRefs:
           - group: ""
             kind: Secret
-            name: wildcard-object-registry-inf-k8s-tls
+            name: ui-object-registry-inf-k8s-tls
 
     - name: wildcard-inf-k8s-https
       protocol: HTTPS
