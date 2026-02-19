@@ -8,7 +8,6 @@ export interface MetadataResponse {
 	content_type: string;
 	created_by: string;
 	created_at: string;
-	version: string;
 	labels: Record<string, string>;
 }
 

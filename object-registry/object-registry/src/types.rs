@@ -38,7 +38,6 @@ pub struct MetadataResponse {
     pub content_type: String,
     pub created_by: String,
     pub created_at: String,
-    pub version: String,
     pub labels: HashMap<String, String>,
 }
 

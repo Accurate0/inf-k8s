@@ -54,9 +54,6 @@ enum Commands {
         object: String,
         #[arg(short, long)]
         file: String,
-        /// Optional version query parameter
-        #[arg(long)]
-        version: Option<String>,
         /// Optional labels (key=value)
         #[arg(short = 'l', long = "label", value_parser = parse_key_val::<String, String>)]
         labels: Vec<(String, String)>,
@@ -66,9 +63,6 @@ enum Commands {
         namespace: String,
         #[arg(short, long)]
         object: String,
-        /// Optional version query parameter
-        #[arg(long)]
-        version: Option<String>,
         /// Output format
         #[arg(short, long, value_enum, default_value_t = OutputFormat::Json)]
         format: OutputFormat,
@@ -85,9 +79,6 @@ enum Commands {
         namespace: String,
         #[arg(short, long)]
         object: String,
-        /// Optional version query parameter
-        #[arg(long)]
-        version: Option<String>,
     },
     Namespaces,
     Events {
@@ -179,7 +170,6 @@ async fn main() -> anyhow::Result<()> {
             namespace,
             object,
             file,
-            version,
             labels,
         } => {
             let path = PathBuf::from(file);
@@ -215,7 +205,6 @@ async fn main() -> anyhow::Result<()> {
             api.put_object(
                 &namespace,
                 &object,
-                version.as_deref(),
                 file_contents.as_bytes(),
                 if labels_map.is_empty() {
                     None
@@ -230,7 +219,6 @@ async fn main() -> anyhow::Result<()> {
         Commands::Get {
             namespace,
             object,
-            version,
             format,
             file,
         } => {
@@ -261,7 +249,7 @@ async fn main() -> anyhow::Result<()> {
             match format {
                 OutputFormat::Binary => {
                     let response: object_registry::types::ObjectResponse<Vec<u8>> =
-                        api.get_object(&namespace, &object, version.as_deref()).await?;
+                        api.get_object(&namespace, &object).await?;
                     if let Some(path) = file {
                         tokio::fs::write(path, response.payload).await?;
                     } else {
@@ -271,7 +259,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 OutputFormat::Json => {
                     let response: object_registry::types::ObjectResponse<serde_json::Value> =
-                        api.get_object(&namespace, &object, version.as_deref()).await?;
+                        api.get_object(&namespace, &object).await?;
                     let output = serde_json::to_string_pretty(&response)?;
                     if let Some(path) = file {
                         tokio::fs::write(path, output).await?;
@@ -281,7 +269,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 OutputFormat::Yaml => {
                     let response: object_registry::types::ObjectResponse<serde_json::Value> =
-                        api.get_object(&namespace, &object, version.as_deref()).await?;
+                        api.get_object(&namespace, &object).await?;
                     let output = serde_yaml::to_string(&response)?;
                     if let Some(path) = file {
                         tokio::fs::write(path, output).await?;
@@ -320,7 +308,6 @@ async fn main() -> anyhow::Result<()> {
             let mut table = Table::new();
             table.set_header(vec![
                 "Key",
-                "Version",
                 "Content-Type",
                 "Size",
                 "Created At",
@@ -330,7 +317,6 @@ async fn main() -> anyhow::Result<()> {
             for obj in response.objects {
                 table.add_row(vec![
                     obj.key,
-                    obj.metadata.version,
                     obj.metadata.content_type,
                     obj.metadata.size.to_string(),
                     obj.metadata.created_at,
@@ -342,7 +328,6 @@ async fn main() -> anyhow::Result<()> {
         Commands::Delete {
             namespace,
             object,
-            version,
         } => {
             let (private_pem, kid) = {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
@@ -368,7 +353,7 @@ async fn main() -> anyhow::Result<()> {
 
             let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
 
-            api.delete_object(&namespace, &object, version.as_deref())
+            api.delete_object(&namespace, &object)
                 .await?;
 
             println!("deleted {}/{}", namespace, object);

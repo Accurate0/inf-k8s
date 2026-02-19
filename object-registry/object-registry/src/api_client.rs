@@ -125,18 +125,14 @@ impl ApiClient {
         &self,
         namespace: &str,
         object: &str,
-        version: Option<&str>,
         body: &[u8],
         labels: Option<HashMap<String, String>>,
     ) -> Result<(), ApiClientError> {
         let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
         let resource = rel.trim_start_matches('/');
-        let mut url = Url::parse(&format!("{}/{}", base, resource))
+        let url = Url::parse(&format!("{}/{}", base, resource))
             .map_err(|e| ApiClientError::Other(e.to_string()))?;
-        if let Some(v) = version {
-            url.query_pairs_mut().append_pair("version", v);
-        }
 
         let mut req = self.client.put(url).body(body.to_vec());
 
@@ -157,16 +153,12 @@ impl ApiClient {
         &self,
         namespace: &str,
         object: &str,
-        version: Option<&str>,
     ) -> Result<(), ApiClientError> {
         let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
         let resource = rel.trim_start_matches('/');
-        let mut url = Url::parse(&format!("{}/{}", base, resource))
+        let url = Url::parse(&format!("{}/{}", base, resource))
             .map_err(|e| ApiClientError::Other(e.to_string()))?;
-        if let Some(v) = version {
-            url.query_pairs_mut().append_pair("version", v);
-        }
 
         let jwt = self.generate_jwt()?;
         let _resp = self
@@ -184,7 +176,6 @@ impl ApiClient {
         &self,
         namespace: &str,
         object: &str,
-        version: Option<&str>,
     ) -> Result<ObjectResponse<T>, ApiClientError>
     where
         T: DeserializeOwned + 'static,
@@ -192,11 +183,8 @@ impl ApiClient {
         let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
         let resource = rel.trim_start_matches('/');
-        let mut url = Url::parse(&format!("{}/{}", base, resource))
+        let url = Url::parse(&format!("{}/{}", base, resource))
             .map_err(|e| ApiClientError::Other(e.to_string()))?;
-        if let Some(v) = version {
-            url.query_pairs_mut().append_pair("version", v);
-        }
 
         let req = self
             .client
@@ -491,7 +479,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .put_object("ns1", "obj1", Some("v1"), b"hello", None)
+            .put_object("ns1", "obj1", b"hello", None)
             .await;
         assert!(result.is_ok());
         mock.assert();
@@ -513,7 +501,6 @@ mod tests {
                 "content_type": "application/json",
                 "created_by": "user",
                 "created_at": "now",
-                "version": "v1",
                 "labels": {}
             }
         })
@@ -534,7 +521,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1").await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().payload,
@@ -551,7 +538,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let body = "key: ns1/obj1\npayload:\n  foo: bar\nmetadata:\n  namespace: ns1\n  checksum: abc\n  size: 10\n  content_type: application/yaml\n  created_by: user\n  created_at: now\n  version: v1\n  labels: {}";
+        let body = "key: ns1/obj1\npayload:\n  foo: bar\nmetadata:\n  namespace: ns1\n  checksum: abc\n  size: 10\n  content_type: application/yaml\n  created_by: user\n  created_at: now\n  labels: {}";
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
@@ -567,7 +554,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1").await;
         assert!(result.is_ok());
         assert_eq!(
             result.unwrap().payload,
@@ -594,7 +581,6 @@ mod tests {
                 "content_type": "application/json",
                 "created_by": "user",
                 "created_at": "now",
-                "version": "v1",
                 "labels": {}
             }
         })
@@ -610,7 +596,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client.get_object::<String>("ns1", "obj1", None).await;
+        let result = client.get_object::<String>("ns1", "obj1").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().payload, "aGVsbG8gd29ybGQ=");
         mock.assert();
@@ -634,7 +620,6 @@ mod tests {
                 "content_type": "text/plain",
                 "created_by": "user",
                 "created_at": "now",
-                "version": "v1",
                 "labels": {}
             }
         })
@@ -652,12 +637,12 @@ mod tests {
         client.base_url = server.url();
 
         // Test String
-        let result = client.get_object::<String>("ns1", "obj1", None).await;
+        let result = client.get_object::<String>("ns1", "obj1").await;
         assert!(result.is_ok());
         assert_eq!(result.unwrap().payload, "hello world");
 
         // Test Vec<u8>
-        let result_bytes = client.get_object::<Vec<u8>>("ns1", "obj1", None).await;
+        let result_bytes = client.get_object::<Vec<u8>>("ns1", "obj1").await;
         assert!(result_bytes.is_ok());
         assert_eq!(result_bytes.unwrap().payload, b"hello world");
 
@@ -738,7 +723,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1", None)
+            .get_object::<serde_json::Value>("ns1", "obj1")
             .await;
         assert!(result.is_err());
         match result.unwrap_err() {
@@ -764,7 +749,6 @@ mod tests {
                 "content_type": "application/json",
                 "created_by": "user",
                 "created_at": "now",
-                "version": "v1",
                 "labels": {}
             }
         })
@@ -786,7 +770,7 @@ mod tests {
             foo: String,
         }
 
-        let result = client.get_object::<MyObj>("ns1", "obj1", None).await;
+        let result = client.get_object::<MyObj>("ns1", "obj1").await;
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiClientError::Json(_) => {}
@@ -860,7 +844,7 @@ mod tests {
         labels.insert("team".to_string(), "backend".to_string());
 
         let result = client
-            .put_object("ns1", "obj1", None, b"hello", Some(labels))
+            .put_object("ns1", "obj1", b"hello", Some(labels))
             .await;
         assert!(result.is_ok());
         mock.assert();
@@ -882,7 +866,6 @@ mod tests {
                 "content_type": "application/json",
                 "created_by": "test-user",
                 "created_at": "2023-10-27T10:00:00Z",
-                "version": "v1",
                 "labels": {
                     "env": "staging"
                 }
@@ -901,7 +884,7 @@ mod tests {
         client.base_url = server.url();
 
         let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1", None)
+            .get_object::<serde_json::Value>("ns1", "obj1")
             .await;
         assert!(result.is_ok());
         let response = result.unwrap();
@@ -935,7 +918,6 @@ mod tests {
                         "content_type": "application/json",
                         "created_by": "user1",
                         "created_at": "2023-01-01T00:00:00Z",
-                        "version": "v1",
                         "labels": {}
                     }
                 }
@@ -975,7 +957,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client.delete_object("ns1", "obj1", None).await;
+        let result = client.delete_object("ns1", "obj1").await;
         assert!(result.is_ok());
         mock.assert();
     }

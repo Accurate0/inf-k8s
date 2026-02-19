@@ -1,11 +1,9 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
 	import {
 		listObjects,
 		downloadObject,
 		uploadObject,
-		listNamespaces,
 		deleteObject,
 		listEvents,
 		type ObjectMetadata,
@@ -14,17 +12,14 @@
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
 	import * as Table from '$lib/components/ui/table';
-	import * as Alert from '$lib/components/ui/alert';
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
-	import { Input } from '$lib/components/ui/input';
 	import { Label } from '$lib/components/ui/label';
 	import { toast } from 'svelte-sonner';
 	import {
 		Loader2,
 		Download,
 		Upload,
-		AlertCircle,
 		RefreshCw,
 		FileText,
 		Trash2,
@@ -35,6 +30,7 @@
 	let { data } = $props();
 
 	let namespaces: string[] = $derived(data.namespaces || ['default']);
+	// svelte-ignore state_referenced_locally
 	let namespace = $state(data.namespaces?.[0] || 'default');
 
 	let objects: ObjectMetadata[] = $state([]);
@@ -288,13 +284,17 @@
 						{/if}
 
 						<!-- Add File Row -->
-						<Table.Row 
-							class="hover:bg-muted/50 cursor-pointer group transition-colors" 
+						<Table.Row
+							class="group cursor-pointer transition-colors hover:bg-muted/50"
 							onclick={() => fileInput?.click()}
 						>
 							<Table.Cell class="pl-6" colspan={5}>
-								<div class="flex items-center gap-3 text-muted-foreground group-hover:text-foreground transition-colors">
-									<div class="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 group-hover:border-primary/50 group-hover:bg-primary/5 transition-all">
+								<div
+									class="flex items-center gap-3 text-muted-foreground transition-colors group-hover:text-foreground"
+								>
+									<div
+										class="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 transition-all group-hover:border-primary/50 group-hover:bg-primary/5"
+									>
 										{#if loading && selectedFile}
 											<Loader2 class="h-4 w-4 animate-spin" />
 										{:else if selectedFile}
@@ -305,8 +305,10 @@
 									</div>
 									<span class="text-sm font-medium">
 										{#if selectedFile}
-											<span class="text-foreground font-semibold">{selectedFile.name}</span>
-											<span class="ml-2 text-xs text-muted-foreground">({formatSize(selectedFile.size)})</span>
+											<span class="font-semibold text-foreground">{selectedFile.name}</span>
+											<span class="ml-2 text-xs text-muted-foreground"
+												>({formatSize(selectedFile.size)})</span
+											>
 										{:else}
 											Click to browse or add a file to this namespace...
 										{/if}
@@ -322,11 +324,14 @@
 							</Table.Cell>
 							<Table.Cell class="pr-6 text-right">
 								<Button
-									onclick={(e) => { e.stopPropagation(); handleUpload(); }}
+									onclick={(e) => {
+										e.stopPropagation();
+										handleUpload();
+									}}
 									disabled={!selectedFile || loading}
 									size="sm"
-									variant={selectedFile ? "default" : "ghost"}
-									class={selectedFile ? "" : "opacity-0 group-hover:opacity-100 transition-opacity"}
+									variant={selectedFile ? 'default' : 'ghost'}
+									class={selectedFile ? '' : 'opacity-0 transition-opacity group-hover:opacity-100'}
 								>
 									{#if loading && selectedFile}
 										<Loader2 class="mr-2 h-4 w-4 animate-spin" />
@@ -382,11 +387,13 @@
 						{:else}
 							{#each events as event (event.id)}
 								<Table.Row>
-									<Table.Cell class="pl-6 font-medium font-mono text-xs">{event.id}</Table.Cell>
+									<Table.Cell class="pl-6 font-mono text-xs font-medium">{event.id}</Table.Cell>
 									<Table.Cell>
 										<div class="flex flex-wrap gap-1">
 											{#each event.keys as key}
-												<span class="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium ring-1 ring-inset ring-gray-500/10">
+												<span
+													class="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium ring-1 ring-gray-500/10 ring-inset"
+												>
 													{key}
 												</span>
 											{/each}
@@ -395,19 +402,24 @@
 									<Table.Cell>
 										<div class="flex flex-col gap-1 text-xs">
 											<div class="flex items-center gap-2">
-												<span class="font-semibold uppercase text-[10px] bg-primary/10 text-primary px-1 rounded">
+												<span
+													class="rounded bg-primary/10 px-1 text-[10px] font-semibold text-primary uppercase"
+												>
 													{event.notify.type}
 												</span>
 												<span class="text-muted-foreground italic">
 													{event.notify.method}
 												</span>
 											</div>
-											<div class="text-muted-foreground truncate max-w-[300px]" title={event.notify.urls.join(', ')}>
+											<div
+												class="max-w-[300px] truncate text-muted-foreground"
+												title={event.notify.urls.join(', ')}
+											>
 												{event.notify.urls.join(', ')}
 											</div>
 										</div>
 									</Table.Cell>
-									<Table.Cell class="pr-6 text-right text-muted-foreground text-sm">
+									<Table.Cell class="pr-6 text-right text-sm text-muted-foreground">
 										{new Date(event.created_at).toLocaleString()}
 									</Table.Cell>
 								</Table.Row>
@@ -433,7 +445,7 @@
 			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
 			<AlertDialog.Action
 				onclick={handleDelete}
-				class="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
 			>
 				Delete
 			</AlertDialog.Action>

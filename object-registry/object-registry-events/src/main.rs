@@ -62,7 +62,6 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
             content_type: stored_object.metadata.content_type,
             created_by: stored_object.metadata.created_by,
             created_at: stored_object.metadata.created_at,
-            version: stored_object.metadata.version,
             labels: stored_object.metadata.labels,
         };
 

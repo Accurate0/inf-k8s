@@ -51,7 +51,6 @@ pub struct ObjectMetadata {
     pub content_type: String,
     pub created_by: String,
     pub created_at: String,
-    pub version: String,
     pub labels: HashMap<String, String>,
 }
 
@@ -74,7 +73,6 @@ impl ObjectManager {
     // these are actually updated_at fields
     pub const CREATED_BY: &str = "created_by";
     pub const CREATED_AT: &str = "created_at";
-    pub const VERSION: &str = "version";
     pub const LABELS: &str = "labels";
 
     pub fn new(config: &SdkConfig) -> Self {
@@ -84,24 +82,20 @@ impl ObjectManager {
         }
     }
 
-    fn get_key(namespace: &str, object: &str, version: Option<&str>) -> String {
-        match version {
-            Some(v) => format!("{namespace}/{object}@{v}"),
-            None => format!("{namespace}/{object}"),
-        }
+    fn get_key(namespace: &str, object: &str) -> String {
+        format!("{namespace}/{object}")
     }
 
     pub async fn put_object(
         &self,
         namespace: &str,
         object: &str,
-        version: Option<&str>,
         body: Vec<u8>,
         content_type: &str,
         created_by: &str,
         labels: HashMap<String, String>,
     ) -> Result<String, ObjectManagerError> {
-        let key = Self::get_key(namespace, object, version);
+        let key = Self::get_key(namespace, object);
 
         let mut hasher = Sha256::new();
         hasher.update(&body);
@@ -135,10 +129,6 @@ impl ObjectManager {
             )
             .item(Self::CREATED_BY, AttributeValue::S(created_by.to_string()))
             .item(Self::CREATED_AT, AttributeValue::S(created_at))
-            .item(
-                Self::VERSION,
-                AttributeValue::S(version.unwrap_or("latest").to_string()),
-            )
             .item(Self::LABELS, AttributeValue::M(labels_attr))
             .send()
             .await?;
@@ -185,7 +175,6 @@ impl ObjectManager {
                     content_type: metadata.content_type,
                     created_by: metadata.created_by,
                     created_at: metadata.created_at,
-                    version: metadata.version,
                     labels: metadata.labels,
                 },
             });
@@ -248,11 +237,6 @@ impl ObjectManager {
                 .and_then(|v| v.as_s().ok())
                 .cloned()
                 .unwrap_or_default(),
-            version: item
-                .get(Self::VERSION)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
             labels: item
                 .get(Self::LABELS)
                 .and_then(|v| v.as_m().ok())
@@ -269,9 +253,8 @@ impl ObjectManager {
         &self,
         namespace: &str,
         object: &str,
-        version: Option<&str>,
     ) -> Result<StoredObject, ObjectManagerError> {
-        let key = Self::get_key(namespace, object, version);
+        let key = Self::get_key(namespace, object);
         self.get_object_by_key(&key).await
     }
 
@@ -323,9 +306,8 @@ impl ObjectManager {
         &self,
         namespace: &str,
         object: &str,
-        version: Option<&str>,
     ) -> Result<(), ObjectManagerError> {
-        let key = Self::get_key(namespace, object, version);
+        let key = Self::get_key(namespace, object);
 
         // Delete from S3
         self.s3_client

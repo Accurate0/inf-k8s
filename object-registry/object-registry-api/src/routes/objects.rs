@@ -1,7 +1,7 @@
 use crate::{error::AppError, state::AppState};
 use axum::{
     body::Bytes,
-    extract::{Extension, Path, Query, State},
+    extract::{Extension, Path, State},
     http::{HeaderMap, StatusCode},
     response::Response,
 };
@@ -10,11 +10,6 @@ use object_registry::object_manager::ObjectManagerError;
 use object_registry::types::{MetadataResponse, ObjectResponse};
 use serde_json::Value;
 use std::collections::HashMap;
-
-#[derive(serde::Deserialize)]
-pub struct VersionQuery {
-    pub version: Option<String>,
-}
 
 fn extract_labels(headers: &HeaderMap) -> HashMap<String, String> {
     headers
@@ -37,7 +32,6 @@ pub async fn put_object(
     Extension(perms): Extension<crate::auth::Permissions>,
     headers: HeaderMap,
     Path((namespace, object)): Path<(String, String)>,
-    Query(params): Query<VersionQuery>,
     body: Bytes,
 ) -> anyhow::Result<(), AppError> {
     state
@@ -56,7 +50,6 @@ pub async fn put_object(
         .put_object(
             &namespace,
             &object,
-            params.version.as_deref(),
             body.to_vec(),
             content_type,
             &perms.issuer,
@@ -71,7 +64,6 @@ pub async fn delete_object(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
     Path((namespace, object)): Path<(String, String)>,
-    Query(params): Query<VersionQuery>,
 ) -> anyhow::Result<(), AppError> {
     state
         .permissions_manager
@@ -79,7 +71,7 @@ pub async fn delete_object(
 
     state
         .object_manager
-        .delete_object(&namespace, &object, params.version.as_deref())
+        .delete_object(&namespace, &object)
         .await?;
 
     Ok(())
@@ -89,13 +81,12 @@ pub async fn get_object(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
     Path((namespace, object)): Path<(String, String)>,
-    Query(params): Query<VersionQuery>,
 ) -> Result<Response, AppError> {
     state
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
-    fetch_object(&state, &namespace, &object, params.version.as_deref()).await
+    fetch_object(&state, &namespace, &object).await
 }
 
 pub async fn list_objects(
@@ -126,11 +117,10 @@ async fn fetch_object(
     state: &AppState,
     namespace: &str,
     object: &str,
-    version: Option<&str>,
 ) -> Result<Response, AppError> {
     let stored_object = match state
         .object_manager
-        .get_object(namespace, object, version)
+        .get_object(namespace, object)
         .await
     {
         Ok(o) => o,
@@ -149,7 +139,6 @@ async fn fetch_object(
         content_type: stored_object.metadata.content_type,
         created_by: stored_object.metadata.created_by,
         created_at: stored_object.metadata.created_at,
-        version: stored_object.metadata.version,
         labels: stored_object.metadata.labels,
     };
 
