@@ -185,3 +185,21 @@ export async function updateEvent(namespace: string, id: string, event: EventReq
 	}
 	return await response.json();
 }
+
+export interface AuditLog {
+	id: string;
+	timestamp: string;
+	action: string;
+	subject: string;
+	namespace?: string;
+	object_key?: string;
+	details: Record<string, string>;
+}
+
+export async function listAuditLogs(limit: number = 100): Promise<AuditLog[]> {
+	const response = await fetch(`${BASE_URL}/audit?limit=${limit}`);
+	if (!response.ok) {
+		await handleError(response, 'list audit logs');
+	}
+	return await response.json();
+}

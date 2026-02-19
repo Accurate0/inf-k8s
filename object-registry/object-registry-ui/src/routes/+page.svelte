@@ -18,7 +18,7 @@
 	} from '$lib/api';
 	import { Button } from '$lib/components/ui/button';
 	import { toast } from 'svelte-sonner';
-	import { RefreshCw } from '@lucide/svelte';
+	import { RefreshCw, History } from '@lucide/svelte';
 	import { downloadBlob } from '$lib/utils';
 
 	// Custom components
@@ -213,18 +213,24 @@
 <div class="container mx-auto max-w-7xl space-y-8 py-10">
 	<div class="flex items-center justify-between">
 		<h1 class="text-3xl font-bold tracking-tight">Object Registry</h1>
-		<Button
-			variant="outline"
-			size="icon"
-			onclick={async () => {
-				await invalidateAll();
-				fetchObjects();
-				fetchEvents();
-			}}
-			disabled={loading || loadingEvents}
-		>
-			<RefreshCw class="h-4 w-4 {loading || loadingEvents ? 'animate-spin' : ''}" />
-		</Button>
+		<div class="flex items-center gap-2">
+			<Button variant="outline" href="/audit" class="flex items-center gap-2">
+				<History class="h-4 w-4" />
+				Audit
+			</Button>
+			<Button
+				variant="outline"
+				size="icon"
+				onclick={async () => {
+					await invalidateAll();
+					fetchObjects();
+					fetchEvents();
+				}}
+				disabled={loading || loadingEvents}
+			>
+				<RefreshCw class="h-4 w-4 {loading || loadingEvents ? 'animate-spin' : ''}" />
+			</Button>
+		</div>
 	</div>
 
 	<NamespaceSelector

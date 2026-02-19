@@ -46,7 +46,7 @@ const proxyRequest: RequestHandler = async ({ request, params, url: eventUrl }) 
 	try {
 		const token = await generateJwtToken();
 
-		console.log(`[Proxy Request] ${method} ${url.toString()}`);
+		console.log(`[Request] ${method} ${url.toString()}`);
 
 		const headers = new Headers(request.headers);
 		headers.set('Authorization', `Bearer ${token}`);
@@ -75,7 +75,7 @@ const proxyRequest: RequestHandler = async ({ request, params, url: eventUrl }) 
 			redirect: method === 'PUT' ? 'manual' : 'follow'
 		});
 
-		console.log(`[Proxy Response] ${apiResponse.status} ${apiResponse.statusText} for ${method} ${url.toString()}`);
+		console.log(`[Response] ${apiResponse.status} ${apiResponse.statusText} for ${method} ${url.toString()}`);
 
 		// If the API returns a redirect (e.g., S3 pre-signed URL for PUT),
 		// we should just pass that redirect response back to the client.

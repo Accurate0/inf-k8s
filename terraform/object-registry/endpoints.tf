@@ -6,6 +6,10 @@ locals {
     },
     {
       "method" : "GET",
+      "url" : "/audit"
+    },
+    {
+      "method" : "GET",
       "url" : "/{namespace}/{object}"
     },
     {

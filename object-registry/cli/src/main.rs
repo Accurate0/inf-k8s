@@ -429,6 +429,10 @@ async fn main() -> anyhow::Result<()> {
             ]);
 
             for log in logs {
+                let dt = chrono::DateTime::from_timestamp(log.timestamp / 1000, ((log.timestamp % 1000) * 1_000_000) as u32)
+                    .unwrap_or_default();
+                let timestamp_str = dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+
                 let details = log
                     .details
                     .iter()
@@ -437,7 +441,7 @@ async fn main() -> anyhow::Result<()> {
                     .join("\n");
 
                 table.add_row(vec![
-                    log.timestamp,
+                    timestamp_str,
                     log.action,
                     log.subject,
                     log.namespace.unwrap_or_default(),
