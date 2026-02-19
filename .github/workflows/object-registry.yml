@@ -107,6 +107,8 @@ jobs:
     with:
       directory: ./object-registry/object-registry-ui
       image-name: object-registry-ui
+      docker-build-args: ""
+      use-rust-caching: false
 
   deploy-ui:
     needs:
