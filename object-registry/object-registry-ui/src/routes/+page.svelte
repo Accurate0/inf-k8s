@@ -210,7 +210,7 @@
 	<title>Object Registry</title>
 </svelte:head>
 
-<div class="container mx-auto max-w-7xl space-y-8 py-10">
+<div class="container mx-auto max-w-7xl space-y-8 px-4 py-10 sm:px-6 lg:px-8">
 	<div class="flex items-center justify-between">
 		<h1 class="text-3xl font-bold tracking-tight">Object Registry</h1>
 		<div class="flex items-center gap-2">

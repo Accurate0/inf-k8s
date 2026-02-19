@@ -60,65 +60,89 @@ impl AuditManager {
         subjects: Option<Vec<String>>,
         namespaces: Option<Vec<String>>,
     ) -> Result<Vec<AuditLog>, AuditManagerError> {
-        let mut query = self
-            .db_client
-            .query()
-            .table_name(Self::TABLE_NAME)
-            .key_condition_expression("#pk = :pk")
-            .expression_attribute_names("#pk", Self::PK)
-            .expression_attribute_values(":pk", AttributeValue::S(Self::PK_VALUE.to_string()))
-            .scan_index_forward(false) // Latest first
-            .limit(limit);
+        let mut all_logs = Vec::new();
+        let mut last_evaluated_key = None;
 
-        let mut filter_parts = Vec::new();
+        loop {
+            let mut query = self
+                .db_client
+                .query()
+                .table_name(Self::TABLE_NAME)
+                .key_condition_expression("#pk = :pk")
+                .expression_attribute_names("#pk", Self::PK)
+                .expression_attribute_values(":pk", AttributeValue::S(Self::PK_VALUE.to_string()))
+                .scan_index_forward(false) // Latest first
+                .set_exclusive_start_key(last_evaluated_key);
 
-        if let Some(actions) = actions {
-            if !actions.is_empty() {
-                let mut action_placeholders = Vec::new();
-                query = query.expression_attribute_names("#action", Self::ACTION);
-                for (i, action) in actions.iter().enumerate() {
-                    let placeholder = format!(":action{}", i);
-                    query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(action.clone()));
-                    action_placeholders.push(placeholder);
+            let mut filter_parts = Vec::new();
+
+            if let Some(ref actions) = actions {
+                if !actions.is_empty() {
+                    let mut action_placeholders = Vec::new();
+                    query = query.expression_attribute_names("#action", Self::ACTION);
+                    for (i, action) in actions.iter().enumerate() {
+                        let placeholder = format!(":action{}", i);
+                        query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(action.clone()));
+                        action_placeholders.push(placeholder);
+                    }
+                    filter_parts.push(format!("#action IN ({})", action_placeholders.join(", ")));
                 }
-                filter_parts.push(format!("#action IN ({})", action_placeholders.join(", ")));
+            }
+
+            if let Some(ref subjects) = subjects {
+                if !subjects.is_empty() {
+                    let mut subject_placeholders = Vec::new();
+                    query = query.expression_attribute_names("#subject", Self::SUBJECT);
+                    for (i, subject) in subjects.iter().enumerate() {
+                        let placeholder = format!(":subject{}", i);
+                        query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(subject.clone()));
+                        subject_placeholders.push(placeholder);
+                    }
+                    filter_parts.push(format!("#subject IN ({})", subject_placeholders.join(", ")));
+                }
+            }
+
+            if let Some(ref namespaces) = namespaces {
+                if !namespaces.is_empty() {
+                    let mut ns_placeholders = Vec::new();
+                    query = query.expression_attribute_names("#namespace", Self::NAMESPACE);
+                    for (i, ns) in namespaces.iter().enumerate() {
+                        let placeholder = format!(":ns{}", i);
+                        query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(ns.clone()));
+                        ns_placeholders.push(placeholder);
+                    }
+                    filter_parts.push(format!("#namespace IN ({})", ns_placeholders.join(", ")));
+                }
+            }
+
+            if !filter_parts.is_empty() {
+                query = query.filter_expression(filter_parts.join(" AND "));
+            } else {
+                query = query.limit(limit - all_logs.len() as i32);
+            }
+
+            let db_result = query.send().await?;
+
+            if let Some(items) = db_result.items {
+                for item in items {
+                    all_logs.push(self.map_item_to_audit_log(item));
+                    if all_logs.len() >= limit as usize {
+                        break;
+                    }
+                }
+            }
+
+            if all_logs.len() >= limit as usize {
+                break;
+            }
+
+            last_evaluated_key = db_result.last_evaluated_key;
+            if last_evaluated_key.is_none() {
+                break;
             }
         }
 
-        if let Some(subjects) = subjects {
-            if !subjects.is_empty() {
-                let mut subject_placeholders = Vec::new();
-                query = query.expression_attribute_names("#subject", Self::SUBJECT);
-                for (i, subject) in subjects.iter().enumerate() {
-                    let placeholder = format!(":subject{}", i);
-                    query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(subject.clone()));
-                    subject_placeholders.push(placeholder);
-                }
-                filter_parts.push(format!("#subject IN ({})", subject_placeholders.join(", ")));
-            }
-        }
-
-        if let Some(namespaces) = namespaces {
-            if !namespaces.is_empty() {
-                let mut ns_placeholders = Vec::new();
-                query = query.expression_attribute_names("#namespace", Self::NAMESPACE);
-                for (i, ns) in namespaces.iter().enumerate() {
-                    let placeholder = format!(":ns{}", i);
-                    query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(ns.clone()));
-                    ns_placeholders.push(placeholder);
-                }
-                filter_parts.push(format!("#namespace IN ({})", ns_placeholders.join(", ")));
-            }
-        }
-
-        if !filter_parts.is_empty() {
-            query = query.filter_expression(filter_parts.join(" AND "));
-        }
-
-        let db_result = query.send().await?;
-
-        let items = db_result.items.unwrap_or_default();
-        Ok(items.into_iter().map(|item| self.map_item_to_audit_log(item)).collect())
+        Ok(all_logs)
     }
 
     fn map_item_to_audit_log(&self, item: HashMap<String, AttributeValue>) -> AuditLog {

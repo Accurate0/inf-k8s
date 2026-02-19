@@ -196,8 +196,26 @@ export interface AuditLog {
 	details: Record<string, string>;
 }
 
-export async function listAuditLogs(limit: number = 100): Promise<AuditLog[]> {
-	const response = await fetch(`${BASE_URL}/audit?limit=${limit}`);
+export async function listAuditLogs(
+	limit: number = 100,
+	actions?: string[],
+	subjects?: string[],
+	namespaces?: string[]
+): Promise<AuditLog[]> {
+	const params = new URLSearchParams();
+	params.set('limit', limit.toString());
+
+	if (actions) {
+		actions.forEach((a) => params.append('action', a));
+	}
+	if (subjects) {
+		subjects.forEach((s) => params.append('subject', s));
+	}
+	if (namespaces) {
+		namespaces.forEach((n) => params.append('namespace', n));
+	}
+
+	const response = await fetch(`${BASE_URL}/audit?${params.toString()}`);
 	if (!response.ok) {
 		await handleError(response, 'list audit logs');
 	}

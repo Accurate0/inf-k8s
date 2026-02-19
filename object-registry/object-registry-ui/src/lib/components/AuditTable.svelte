@@ -18,21 +18,17 @@
 </script>
 
 <div class="space-y-4">
-	<h2 class="text-2xl font-semibold tracking-tight">
-		Audit Logs
-	</h2>
-
 	<Card.Root>
-		<Card.Content class="p-0">
+		<Card.Content class="p-0 overflow-x-auto">
 			<Table.Root>
 				<Table.Header>
 					<Table.Row>
-						<Table.Head class="pl-6">Timestamp</Table.Head>
+						<Table.Head class="pl-6 min-w-[160px]">Timestamp</Table.Head>
 						<Table.Head>Action</Table.Head>
 						<Table.Head>Subject</Table.Head>
-						<Table.Head class="hidden md:table-cell">Namespace</Table.Head>
-						<Table.Head class="hidden lg:table-cell">Object Key</Table.Head>
-						<Table.Head class="pr-6">Details</Table.Head>
+						<Table.Head class="hidden sm:table-cell">Namespace</Table.Head>
+						<Table.Head class="hidden xl:table-cell">Object Key</Table.Head>
+						<Table.Head class="pr-6 min-w-[200px]">Details</Table.Head>
 					</Table.Row>
 				</Table.Header>
 				<Table.Body>
@@ -61,15 +57,15 @@
 									{new Date(log.timestamp).toLocaleString()}
 								</Table.Cell>
 								<Table.Cell>
-									<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary">
+									<span class="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary whitespace-nowrap">
 										{log.action}
 									</span>
 								</Table.Cell>
-								<Table.Cell class="font-mono text-xs">{log.subject}</Table.Cell>
-								<Table.Cell class="hidden text-muted-foreground md:table-cell"
+								<Table.Cell class="font-mono text-xs max-w-[150px] truncate" title={log.subject}>{log.subject}</Table.Cell>
+								<Table.Cell class="hidden text-muted-foreground sm:table-cell"
 									>{log.namespace || '-'}</Table.Cell
 								>
-								<Table.Cell class="hidden lg:table-cell font-mono text-xs">{log.object_key || '-'}</Table.Cell>
+								<Table.Cell class="hidden xl:table-cell font-mono text-xs">{log.object_key || '-'}</Table.Cell>
 								<Table.Cell class="pr-6 text-xs text-muted-foreground max-w-xs truncate" title={formatDetails(log.details)}>
 									{formatDetails(log.details)}
 								</Table.Cell>
