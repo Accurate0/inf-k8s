@@ -168,7 +168,6 @@ impl EventManager {
         self.db_client
             .delete_item()
             .table_name(Self::TABLE_NAME)
-            .key(Self::NAMESPACE, AttributeValue::S(namespace))
             .key(Self::ID, AttributeValue::S(id))
             .send()
             .await?;
