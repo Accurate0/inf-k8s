@@ -53,21 +53,82 @@ impl AuditManager {
         }
     }
 
-    pub async fn get_latest_logs(&self, limit: i32) -> Result<Vec<AuditLog>, AuditManagerError> {
-        let db_result = self
+    pub async fn get_latest_logs(
+        &self,
+        limit: i32,
+        actions: Option<Vec<String>>,
+        subjects: Option<Vec<String>>,
+        namespaces: Option<Vec<String>>,
+    ) -> Result<Vec<AuditLog>, AuditManagerError> {
+        let mut query = self
             .db_client
             .query()
             .table_name(Self::TABLE_NAME)
             .key_condition_expression("#pk = :pk")
             .expression_attribute_names("#pk", Self::PK)
             .expression_attribute_values(":pk", AttributeValue::S(Self::PK_VALUE.to_string()))
-            .scan_index_forward(false) // Latest first
-            .limit(limit)
-            .send()
-            .await?;
+            .scan_index_forward(false); // Latest first
+
+        let mut filter_parts = Vec::new();
+
+        if let Some(actions) = actions {
+            if !actions.is_empty() {
+                let mut action_placeholders = Vec::new();
+                query = query.expression_attribute_names("#action", Self::ACTION);
+                for (i, action) in actions.iter().enumerate() {
+                    let placeholder = format!(":action{}", i);
+                    query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(action.clone()));
+                    action_placeholders.push(placeholder);
+                }
+                filter_parts.push(format!("#action IN ({})", action_placeholders.join(", ")));
+            }
+        }
+
+        if let Some(subjects) = subjects {
+            if !subjects.is_empty() {
+                let mut subject_placeholders = Vec::new();
+                query = query.expression_attribute_names("#subject", Self::SUBJECT);
+                for (i, subject) in subjects.iter().enumerate() {
+                    let placeholder = format!(":subject{}", i);
+                    query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(subject.clone()));
+                    subject_placeholders.push(placeholder);
+                }
+                filter_parts.push(format!("#subject IN ({})", subject_placeholders.join(", ")));
+            }
+        }
+
+        if let Some(namespaces) = namespaces {
+            if !namespaces.is_empty() {
+                let mut ns_placeholders = Vec::new();
+                query = query.expression_attribute_names("#namespace", Self::NAMESPACE);
+                for (i, ns) in namespaces.iter().enumerate() {
+                    let placeholder = format!(":ns{}", i);
+                    query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(ns.clone()));
+                    ns_placeholders.push(placeholder);
+                }
+                filter_parts.push(format!("#namespace IN ({})", ns_placeholders.join(", ")));
+            }
+        }
+
+        if !filter_parts.is_empty() {
+            query = query.filter_expression(filter_parts.join(" AND "));
+        } else {
+            // Only apply limit to query if there are no filters, 
+            // because DynamoDB limit is applied BEFORE filtering.
+            query = query.limit(limit);
+        }
+
+        let db_result = query.send().await?;
 
         let items = db_result.items.unwrap_or_default();
-        Ok(items.into_iter().map(|item| self.map_item_to_audit_log(item)).collect())
+        let mut logs: Vec<AuditLog> = items.into_iter().map(|item| self.map_item_to_audit_log(item)).collect();
+        
+        // Apply limit after filtering if filters were present
+        if !filter_parts.is_empty() && logs.len() > limit as usize {
+            logs.truncate(limit as usize);
+        }
+
+        Ok(logs)
     }
 
     fn map_item_to_audit_log(&self, item: HashMap<String, AttributeValue>) -> AuditLog {

@@ -356,14 +356,40 @@ impl ApiClient {
     pub async fn list_audit_logs(
         &self,
         limit: Option<i32>,
+        actions: Option<Vec<String>>,
+        subjects: Option<Vec<String>>,
+        namespaces: Option<Vec<String>>,
     ) -> Result<Vec<crate::audit_manager::AuditLog>, ApiClientError> {
-        let mut rel = "audit".to_string();
-        if let Some(l) = limit {
-            rel = format!("audit?limit={}", l);
+        let base = self.base_url.trim_end_matches('/');
+        let mut url = Url::parse(&format!("{}/audit", base))
+            .map_err(|e| ApiClientError::Other(e.to_string()))?;
+
+        {
+            let mut query = url.query_pairs_mut();
+            if let Some(l) = limit {
+                query.append_pair("limit", &l.to_string());
+            }
+            if let Some(actions) = actions {
+                for action in actions {
+                    query.append_pair("action", &action);
+                }
+            }
+            if let Some(subjects) = subjects {
+                for subject in subjects {
+                    query.append_pair("subject", &subject);
+                }
+            }
+            if let Some(namespaces) = namespaces {
+                for ns in namespaces {
+                    query.append_pair("namespace", &ns);
+                }
+            }
         }
+
         let jwt = self.generate_jwt()?;
         let resp = self
-            .get_default_request(&rel, Method::GET)
+            .client
+            .get(url)
             .bearer_auth(jwt)
             .send()
             .await?
@@ -709,7 +735,7 @@ mod tests {
         let mock_list = server
             .mock("GET", "/events/ns1")
             .with_status(200)
-            .with_body(r#"[{"namespace": "ns1", "id": "ev1", "keys": ["k1"], "notify": {"type": "webhook", "method": "POST", "urls": ["http://example.com"]}, "created_at": "2023-01-01T00:00:00Z"}]"#)
+            .with_body(r#"[{"namespace": "ns1", "id": "ev1", "keys": ["k1"], "notify": {"type": "webhook", "method": "POST", "urls": ["http://example.com"]}, "audience": "test", "created_at": "2023-01-01T00:00:00Z"}]"#)
             .create();
         let res = client.list_events("ns1").await.unwrap();
         assert_eq!(res.len(), 1);
@@ -1003,6 +1029,54 @@ mod tests {
         assert!(result.is_ok());
         let response = result.unwrap();
         assert_eq!(response, vec!["ns1", "ns2"]);
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_list_audit_logs_with_filters() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let response_body = serde_json::json!([{
+            "id": "log1",
+            "timestamp": 123456789,
+            "action": "PUT_OBJECT",
+            "subject": "user1",
+            "namespace": "ns1",
+            "object_key": "obj1",
+            "details": {}
+        }]).to_string();
+
+        let mock = server
+            .mock("GET", "/audit")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("limit".to_string(), "10".to_string()),
+                mockito::Matcher::UrlEncoded("action".to_string(), "PUT_OBJECT".to_string()),
+                mockito::Matcher::UrlEncoded("subject".to_string(), "user1".to_string()),
+                mockito::Matcher::UrlEncoded("namespace".to_string(), "ns1".to_string()),
+            ]))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(response_body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client
+            .list_audit_logs(
+                Some(10),
+                Some(vec!["PUT_OBJECT".to_string()]),
+                Some(vec!["user1".to_string()]),
+                Some(vec!["ns1".to_string()]),
+            )
+            .await;
+
+        assert!(result.is_ok());
+        let logs = result.unwrap();
+        assert_eq!(logs.len(), 1);
+        assert_eq!(logs[0].id, "log1");
         mock.assert();
     }
 }

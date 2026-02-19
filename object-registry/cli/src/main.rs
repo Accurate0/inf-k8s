@@ -88,6 +88,15 @@ enum Commands {
     Audit {
         #[arg(short, long)]
         limit: Option<i32>,
+        /// Filter by action (can be specified multiple times)
+        #[arg(short, long = "action")]
+        actions: Vec<String>,
+        /// Filter by subject (can be specified multiple times)
+        #[arg(short, long = "subject")]
+        subjects: Vec<String>,
+        /// Filter by namespace (can be specified multiple times)
+        #[arg(short, long = "namespace")]
+        namespaces: Vec<String>,
     },
 }
 
@@ -392,7 +401,12 @@ async fn main() -> anyhow::Result<()> {
                 println!("{ns}");
             }
         }
-        Commands::Audit { limit } => {
+        Commands::Audit {
+            limit,
+            actions,
+            subjects,
+            namespaces,
+        } => {
             let (private_pem, kid) = {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
@@ -417,7 +431,11 @@ async fn main() -> anyhow::Result<()> {
 
             let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
 
-            let logs = api.list_audit_logs(limit).await?;
+            let actions_opt = if actions.is_empty() { None } else { Some(actions) };
+            let subjects_opt = if subjects.is_empty() { None } else { Some(subjects) };
+            let namespaces_opt = if namespaces.is_empty() { None } else { Some(namespaces) };
+
+            let logs = api.list_audit_logs(limit, actions_opt, subjects_opt, namespaces_opt).await?;
             let mut table = Table::new();
             table.set_header(vec![
                 "Timestamp",
