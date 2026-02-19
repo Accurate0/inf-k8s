@@ -99,3 +99,24 @@ jobs:
 
       - name: deploy ${{ matrix.task }}
         run: aws lambda update-function-code --function-name ${{ matrix.task }} --zip-file fileb://bootstrap.zip --region ap-southeast-2
+
+  build-ui:
+    permissions:
+      packages: write
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@main
+    with:
+      directory: ./object-registry/object-registry-ui
+      image-name: object-registry-ui
+
+  deploy-ui:
+    needs:
+      - build-ui
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s.yaml@main
+    with:
+      directory: ./object-registry/object-registry-ui
+      application-name: object-registry
+      source-name: application
+    secrets:
+      TS_OAUTH_CLIENT_ID: ${{ secrets.TS_OAUTH_CLIENT_ID }}
+      TS_OAUTH_SECRET: ${{ secrets.TS_OAUTH_SECRET }}
+      ARGOCD_AUTH_TOKEN: ${{ secrets.ARGOCD_AUTH_TOKEN }}

@@ -1,0 +1,14 @@
+node_modules
+.svelte-kit
+build
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.prettier*
+.eslintrc*
+eslint.config.js
+README.md
+tests
+pnpm-workspace.yaml

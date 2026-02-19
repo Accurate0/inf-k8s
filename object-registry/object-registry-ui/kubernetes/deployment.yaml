@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: object-registry-ui
+  namespace: object-registry-ui
+spec:
+  selector:
+    matchLabels:
+      app: object-registry-ui
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: object-registry-ui
+    spec:
+      containers:
+        - name: object-registry-ui
+          image: object-registry-ui:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
