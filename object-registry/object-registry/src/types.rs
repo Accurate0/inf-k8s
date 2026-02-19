@@ -22,7 +22,7 @@ pub struct CreatedResponse {
     pub id: String,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct NotifyResponse {
     #[serde(rename = "type")]
     pub r#type: String,
@@ -67,12 +67,13 @@ pub struct ObjectResponse<T> {
     pub metadata: MetadataResponse,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct EventResponse {
     pub namespace: String,
     pub id: String,
     pub keys: Vec<String>,
     pub notify: NotifyResponse,
+    pub audience: String,
     pub created_at: String,
 }
 
@@ -87,6 +88,7 @@ impl From<&crate::event_manager::Event> for EventResponse {
                 method: ev.notify.method.clone(),
                 urls: ev.notify.urls.clone(),
             },
+            audience: ev.audience.clone(),
             created_at: ev.created_at.to_rfc3339(),
         }
     }

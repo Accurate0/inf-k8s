@@ -124,6 +124,7 @@ export interface EventResponse {
 	id: string;
 	keys: string[];
 	notify: NotifyResponse;
+	audience: string;
 	created_at: string;
 }
 
