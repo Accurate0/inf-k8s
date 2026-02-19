@@ -92,7 +92,7 @@ pub async fn delete_event(
     state
         .permissions_manager
         .enforce(&perms, "event:delete", &namespace)?;
-    state.event_manager.delete_event(namespace, id).await?;
+    state.event_manager.delete_event(id).await?;
     Ok((StatusCode::NO_CONTENT, ""))
 }
 

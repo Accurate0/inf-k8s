@@ -160,11 +160,7 @@ impl EventManager {
         Ok(())
     }
 
-    pub async fn delete_event(
-        &self,
-        namespace: String,
-        id: String,
-    ) -> Result<(), EventManagerError> {
+    pub async fn delete_event(&self, id: String) -> Result<(), EventManagerError> {
         self.db_client
             .delete_item()
             .table_name(Self::TABLE_NAME)
