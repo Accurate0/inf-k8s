@@ -134,3 +134,53 @@ export async function listEvents(namespace: string): Promise<EventResponse[]> {
 	}
 	return await response.json();
 }
+
+export interface EventRequest {
+	keys: string[];
+	notify: {
+		type: string;
+		method: string;
+		urls: string[];
+	};
+	audience: string;
+}
+
+export async function createEvent(namespace: string, event: EventRequest): Promise<{ id: string }> {
+	const response = await fetch(`${BASE_URL}/events/${namespace}`, {
+		method: 'POST',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(event)
+	});
+
+	if (!response.ok) {
+		await handleError(response, 'create event');
+	}
+	return await response.json();
+}
+
+export async function deleteEvent(namespace: string, id: string): Promise<void> {
+	const response = await fetch(`${BASE_URL}/events/${namespace}/${id}`, {
+		method: 'DELETE'
+	});
+
+	if (!response.ok) {
+		await handleError(response, 'delete event');
+	}
+}
+
+export async function updateEvent(namespace: string, id: string, event: EventRequest): Promise<{ id: string }> {
+	const response = await fetch(`${BASE_URL}/events/${namespace}/${id}`, {
+		method: 'PUT',
+		headers: {
+			'Content-Type': 'application/json'
+		},
+		body: JSON.stringify(event)
+	});
+
+	if (!response.ok) {
+		await handleError(response, 'update event');
+	}
+	return await response.json();
+}

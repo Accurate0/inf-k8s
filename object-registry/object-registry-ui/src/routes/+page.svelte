@@ -1,13 +1,18 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
+	import { untrack } from 'svelte';
 	import {
 		listObjects,
 		downloadObject,
 		uploadObject,
 		deleteObject,
 		listEvents,
+		createEvent,
+		deleteEvent,
+		updateEvent,
 		type ObjectMetadata,
-		type EventResponse
+		type EventResponse,
+		type EventRequest
 	} from '$lib/api';
 	import * as Card from '$lib/components/ui/card';
 	import * as Select from '$lib/components/ui/select';
@@ -15,6 +20,8 @@
 	import * as AlertDialog from '$lib/components/ui/alert-dialog';
 	import { Button } from '$lib/components/ui/button';
 	import { Label } from '$lib/components/ui/label';
+	import { Input } from '$lib/components/ui/input';
+	import { Separator } from '$lib/components/ui/separator';
 	import { toast } from 'svelte-sonner';
 	import {
 		Loader2,
@@ -24,12 +31,15 @@
 		FileText,
 		Trash2,
 		Plus,
-		Bell
+		Bell,
+		Pencil,
+		X
 	} from '@lucide/svelte';
 
 	let { data } = $props();
 
-	let namespaces: string[] = $derived(data.namespaces || ['default']);
+	let addedNamespaces: string[] = $state([]);
+	let namespaces: string[] = $derived([...(data.namespaces || []), ...addedNamespaces]);
 	// svelte-ignore state_referenced_locally
 	let namespace = $state(data.namespaces?.[0] || 'default');
 
@@ -44,6 +54,23 @@
 	// AlertDialog state
 	let deleteDialogOpen = $state(false);
 	let objectToDelete: string | null = $state(null);
+
+	// Create Namespace state
+	let createNamespaceDialogOpen = $state(false);
+	let newNamespaceName = $state('');
+
+	// Create Event state
+	let showEventForm = $state(false);
+	let editingEventId: string | null = $state(null);
+	let newEventKeys = $state(['*']);
+	let newEventNotifyType = $state('HTTP');
+	let newEventNotifyMethod = $state('POST');
+	let newEventNotifyUrls = $state(['']);
+	let newEventAudience = $state('object-registry');
+
+	// Delete Event state
+	let deleteEventDialogOpen = $state(false);
+	let eventToDelete: string | null = $state(null);
 
 	async function fetchObjects() {
 		if (!browser) return;
@@ -72,6 +99,23 @@
 		} finally {
 			loadingEvents = false;
 		}
+	}
+
+	function handleCreateNamespace() {
+		if (!newNamespaceName.trim()) {
+			toast.warning('Namespace name cannot be empty');
+			return;
+		}
+		if (namespaces.includes(newNamespaceName.trim())) {
+			toast.warning('Namespace already exists');
+			return;
+		}
+		const name = newNamespaceName.trim();
+		addedNamespaces = [...addedNamespaces, name];
+		namespace = name;
+		newNamespaceName = '';
+		createNamespaceDialogOpen = false;
+		toast.success(`Namespace '${name}' added to local view`);
 	}
 
 	async function handleUpload() {
@@ -146,6 +190,113 @@
 		}
 	}
 
+	async function handleSaveEvent() {
+		const keys = newEventKeys.map((k) => k.trim()).filter(Boolean);
+		const urls = newEventNotifyUrls.map((u) => u.trim()).filter(Boolean);
+
+		if (keys.length === 0 || urls.length === 0 || !newEventAudience.trim()) {
+			toast.warning('Please fill in all required fields');
+			return;
+		}
+
+		loadingEvents = true;
+		try {
+			const req: EventRequest = {
+				keys,
+				notify: {
+					type: newEventNotifyType,
+					method: newEventNotifyMethod,
+					urls
+				},
+				audience: newEventAudience.trim()
+			};
+
+			if (editingEventId) {
+				await updateEvent(namespace, editingEventId, req);
+				toast.success('Successfully updated event');
+			} else {
+				await createEvent(namespace, req);
+				toast.success('Successfully created event');
+			}
+
+			showEventForm = false;
+			editingEventId = null;
+			// Reset form
+			newEventKeys = ['*'];
+			newEventNotifyUrls = [''];
+			newEventNotifyType = 'HTTP';
+			newEventNotifyMethod = 'POST';
+			newEventAudience = 'object-registry';
+			await fetchEvents();
+		} catch (err: any) {
+			toast.error(err.message || 'Failed to save event');
+		} finally {
+			loadingEvents = false;
+		}
+	}
+
+	function startEditingEvent(event: EventResponse) {
+		editingEventId = event.id;
+		newEventKeys = [...event.keys];
+		newEventNotifyType = event.notify.type;
+		newEventNotifyMethod = event.notify.method;
+		newEventNotifyUrls = [...event.notify.urls];
+		newEventAudience = 'object-registry';
+		showEventForm = true;
+	}
+
+	function cancelEditingEvent() {
+		showEventForm = false;
+		editingEventId = null;
+		newEventKeys = ['*'];
+		newEventNotifyUrls = [''];
+		newEventNotifyType = 'HTTP';
+		newEventNotifyMethod = 'POST';
+		newEventAudience = 'object-registry';
+	}
+
+	function addKey() {
+		newEventKeys = [...newEventKeys, ''];
+	}
+
+	function removeKey(index: number) {
+		newEventKeys = newEventKeys.filter((_, i) => i !== index);
+		if (newEventKeys.length === 0) newEventKeys = [''];
+	}
+
+	function addUrl() {
+		newEventNotifyUrls = [...newEventNotifyUrls, ''];
+	}
+
+	function removeUrl(index: number) {
+		newEventNotifyUrls = newEventNotifyUrls.filter((_, i) => i !== index);
+		if (newEventNotifyUrls.length === 0) newEventNotifyUrls = [''];
+	}
+
+	function confirmDeleteEvent(id: string) {
+		eventToDelete = id;
+		deleteEventDialogOpen = true;
+	}
+
+	async function handleDeleteEvent() {
+		if (!eventToDelete) return;
+
+		const id = eventToDelete;
+		deleteEventDialogOpen = false;
+		eventToDelete = null;
+
+		loadingEvents = true;
+		try {
+			await deleteEvent(namespace, id);
+			toast.success(`Successfully deleted event ${id}`);
+			await fetchEvents();
+		} catch (err: any) {
+			toast.error(err.message || 'Failed to delete event');
+		} finally {
+			loadingEvents = false;
+		}
+	}
+
 	function handleFileChange(event: Event) {
 		const target = event.target as HTMLInputElement;
 		selectedFile = target.files ? target.files[0] : null;
@@ -158,6 +309,18 @@
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 	}
+
+	$effect(() => {
+		// Only run this when data.namespaces changes
+		if (data.namespaces) {
+			const filtered = untrack(() => addedNamespaces).filter(
+				(ns) => !data.namespaces.includes(ns)
+			);
+			if (filtered.length !== addedNamespaces.length) {
+				addedNamespaces = filtered;
+			}
+		}
+	});
 
 	$effect(() => {
 		if (browser && namespace) {
@@ -193,16 +356,26 @@
 		<Card.Content>
 			<div class="grid w-full max-w-sm items-center gap-1.5">
 				<Label for="namespace-select">Namespace</Label>
-				<Select.Root type="single" bind:value={namespace}>
-					<Select.Trigger class="w-full">
-						{selectedNamespaceLabel}
-					</Select.Trigger>
-					<Select.Content>
-						{#each namespaces as ns}
-							<Select.Item value={ns}>{ns}</Select.Item>
-						{/each}
-					</Select.Content>
-				</Select.Root>
+				<div class="flex gap-2">
+					<Select.Root type="single" bind:value={namespace}>
+						<Select.Trigger class="w-full">
+							{selectedNamespaceLabel}
+						</Select.Trigger>
+						<Select.Content>
+							{#each namespaces as ns}
+								<Select.Item value={ns}>{ns}</Select.Item>
+							{/each}
+						</Select.Content>
+					</Select.Root>
+					<Button
+						variant="outline"
+						size="icon"
+						onclick={() => (createNamespaceDialogOpen = true)}
+						title="Create new namespace"
+					>
+						<Plus class="h-4 w-4" />
+					</Button>
+				</div>
 			</div>
 		</Card.Content>
 	</Card.Root>
@@ -288,7 +461,7 @@
 							class="group cursor-pointer transition-colors hover:bg-muted/50"
 							onclick={() => fileInput?.click()}
 						>
-							<Table.Cell class="pl-6" colspan={5}>
+							<Table.Cell class="px-6 py-4" colspan={6}>
 								<div
 									class="flex items-center gap-3 text-muted-foreground transition-colors group-hover:text-foreground"
 								>
@@ -310,7 +483,7 @@
 												>({formatSize(selectedFile.size)})</span
 											>
 										{:else}
-											Click to browse or add a file to this namespace...
+											Click to add a file to this namespace...
 										{/if}
 									</span>
 									<input
@@ -320,27 +493,26 @@
 										bind:this={fileInput}
 										class="hidden"
 									/>
-								</div>
-							</Table.Cell>
-							<Table.Cell class="pr-6 text-right">
-								<Button
-									onclick={(e) => {
-										e.stopPropagation();
-										handleUpload();
-									}}
-									disabled={!selectedFile || loading}
-									size="sm"
-									variant={selectedFile ? 'default' : 'ghost'}
-									class={selectedFile ? '' : 'opacity-0 transition-opacity group-hover:opacity-100'}
-								>
-									{#if loading && selectedFile}
-										<Loader2 class="mr-2 h-4 w-4 animate-spin" />
-										Uploading
-									{:else}
-										<Upload class="mr-2 h-4 w-4" />
-										{selectedFile ? 'Confirm Upload' : 'Upload'}
+									{#if selectedFile}
+										<Button
+											onclick={(e) => {
+												e.stopPropagation();
+												handleUpload();
+											}}
+											disabled={loading}
+											size="sm"
+											class="ml-4"
+										>
+											{#if loading}
+												<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+												Uploading
+											{:else}
+												<Upload class="mr-2 h-4 w-4" />
+												Confirm Upload
+											{/if}
+										</Button>
 									{/if}
-								</Button>
+								</div>
 							</Table.Cell>
 						</Table.Row>
 					</Table.Body>
@@ -350,9 +522,11 @@
 	</div>
 
 	<div class="space-y-4">
-		<h2 class="text-2xl font-semibold tracking-tight">
-			Events in <span class="text-primary">{namespace}</span>
-		</h2>
+		<div class="flex items-center justify-between">
+			<h2 class="text-2xl font-semibold tracking-tight">
+				Events in <span class="text-primary">{namespace}</span>
+			</h2>
+		</div>
 
 		<Card.Root>
 			<Card.Content class="p-0">
@@ -362,13 +536,14 @@
 							<Table.Head class="pl-6">ID</Table.Head>
 							<Table.Head>Keys</Table.Head>
 							<Table.Head>Notification</Table.Head>
-							<Table.Head class="pr-6 text-right">Created At</Table.Head>
+							<Table.Head>Created At</Table.Head>
+							<Table.Head class="pr-6 text-right">Actions</Table.Head>
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
 						{#if loadingEvents && events.length === 0}
 							<Table.Row>
-								<Table.Cell colspan={4} class="h-32 text-center">
+								<Table.Cell colspan={5} class="h-32 text-center">
 									<div class="flex flex-col items-center justify-center space-y-2">
 										<Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
 										<p class="animate-pulse text-muted-foreground">Loading events...</p>
@@ -377,7 +552,7 @@
 							</Table.Row>
 						{:else if events.length === 0}
 							<Table.Row>
-								<Table.Cell colspan={4} class="h-32 text-center">
+								<Table.Cell colspan={5} class="h-32 text-center">
 									<div class="flex flex-col items-center justify-center space-y-2">
 										<Bell class="h-12 w-12 text-muted-foreground/50" />
 										<p class="text-muted-foreground">No events found in this namespace.</p>
@@ -419,18 +594,191 @@
 											</div>
 										</div>
 									</Table.Cell>
-									<Table.Cell class="pr-6 text-right text-sm text-muted-foreground">
+									<Table.Cell class="text-sm text-muted-foreground">
 										{new Date(event.created_at).toLocaleString()}
+									</Table.Cell>
+									<Table.Cell class="pr-6 text-right">
+										<div class="flex justify-end gap-1">
+											<Button
+												variant="ghost"
+												size="sm"
+												onclick={() => startEditingEvent(event)}
+												disabled={loadingEvents}
+												class="h-8 w-8 p-0"
+											>
+												<Pencil class="h-4 w-4" />
+											</Button>
+											<Button
+												variant="ghost"
+												size="sm"
+												onclick={() => confirmDeleteEvent(event.id)}
+												disabled={loadingEvents}
+												class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+											>
+												<Trash2 class="h-4 w-4" />
+											</Button>
+										</div>
 									</Table.Cell>
 								</Table.Row>
 							{/each}
 						{/if}
+
+						<!-- Add Event Row -->
+						<Table.Row
+							class="group cursor-pointer transition-colors hover:bg-muted/50"
+							onclick={() => {
+								cancelEditingEvent();
+								showEventForm = true;
+							}}
+						>
+							<Table.Cell class="px-6 py-4" colspan={5}>
+								<div
+									class="flex items-center gap-3 text-muted-foreground transition-colors group-hover:text-foreground"
+								>
+									<div
+										class="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 transition-all group-hover:border-primary/50 group-hover:bg-primary/5"
+									>
+										<Plus class="h-4 w-4" />
+									</div>
+									<span class="text-sm font-medium"
+										>Click to configure a new event notification for this namespace...</span
+									>
+								</div>
+							</Table.Cell>
+						</Table.Row>
 					</Table.Body>
 				</Table.Root>
 			</Card.Content>
 		</Card.Root>
 	</div>
 </div>
+
+<AlertDialog.Root bind:open={createNamespaceDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Create Namespace</AlertDialog.Title>
+			<AlertDialog.Description>
+				Enter a name for the new namespace. It will be created when you upload your first object.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<div class="grid gap-2 py-4">
+			<div class="grid gap-1.5">
+				<Label for="new-namespace-name">Namespace Name</Label>
+				<Input
+					id="new-namespace-name"
+					bind:value={newNamespaceName}
+					placeholder="e.g. production-configs"
+					onkeydown={(e) => e.key === 'Enter' && handleCreateNamespace()}
+				/>
+			</div>
+		</div>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel onclick={() => (newNamespaceName = '')}>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={handleCreateNamespace}>Create</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<AlertDialog.Root bind:open={showEventForm}>
+	<AlertDialog.Content class="max-w-2xl">
+		<AlertDialog.Header>
+			<AlertDialog.Title>{editingEventId ? 'Edit' : 'Create'} Event Notification</AlertDialog.Title>
+			<AlertDialog.Description>
+				Configure a notification for object changes in <strong>{namespace}</strong>.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<div class="grid gap-4 py-4">
+			<div class="grid gap-2">
+				<Label>Object Keys / Patterns</Label>
+				{#each newEventKeys as _, i}
+					<div class="flex gap-2">
+						<Input bind:value={newEventKeys[i]} placeholder="e.g. *, data/*, config.json" />
+						<Button variant="outline" size="icon" onclick={() => removeKey(i)} disabled={newEventKeys.length <= 1}>
+							<X class="h-4 w-4" />
+						</Button>
+					</div>
+				{/each}
+				<Button variant="ghost" size="sm" onclick={addKey} class="justify-start w-fit px-2">
+					<Plus class="mr-2 h-4 w-4" /> Add another key
+				</Button>
+			</div>
+
+			<Separator />
+
+			<div class="grid grid-cols-2 gap-4">
+				<div class="grid gap-1.5">
+					<Label for="popup-notify-type">Type</Label>
+					<Select.Root type="single" bind:value={newEventNotifyType}>
+						<Select.Trigger id="popup-notify-type">{newEventNotifyType}</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="HTTP">HTTP</Select.Item>
+						</Select.Content>
+					</Select.Root>
+				</div>
+				<div class="grid gap-1.5">
+					<Label for="popup-notify-method">Method</Label>
+					<Select.Root type="single" bind:value={newEventNotifyMethod}>
+						<Select.Trigger id="popup-notify-method">{newEventNotifyMethod}</Select.Trigger>
+						<Select.Content>
+							<Select.Item value="POST">POST</Select.Item>
+							<Select.Item value="PUT">PUT</Select.Item>
+							<Select.Item value="GET">GET</Select.Item>
+						</Select.Content>
+					</Select.Root>
+				</div>
+			</div>
+
+			<div class="grid gap-2">
+				<Label>Notification URLs</Label>
+				{#each newEventNotifyUrls as _, i}
+					<div class="flex gap-2">
+						<Input bind:value={newEventNotifyUrls[i]} placeholder="https://..." />
+						<Button variant="outline" size="icon" onclick={() => removeUrl(i)} disabled={newEventNotifyUrls.length <= 1}>
+							<X class="h-4 w-4" />
+						</Button>
+					</div>
+				{/each}
+				<Button variant="ghost" size="sm" onclick={addUrl} class="justify-start w-fit px-2">
+					<Plus class="mr-2 h-4 w-4" /> Add another URL
+				</Button>
+			</div>
+
+			<div class="grid gap-1.5">
+				<Label for="popup-audience">Audience (JWT Aud)</Label>
+				<Input id="popup-audience" bind:value={newEventAudience} />
+			</div>
+		</div>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel onclick={cancelEditingEvent}>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action onclick={handleSaveEvent} disabled={loadingEvents}>
+				{#if loadingEvents}
+					<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+				{/if}
+				{editingEventId ? 'Update' : 'Create'} Event
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
+
+<AlertDialog.Root bind:open={deleteEventDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Delete Event Notification</AlertDialog.Title>
+			<AlertDialog.Description>
+				Are you sure you want to delete event <strong>{eventToDelete}</strong>? This cannot be undone.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				onclick={handleDeleteEvent}
+				class="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+			>
+				Delete
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
 <AlertDialog.Root bind:open={deleteDialogOpen}>
 	<AlertDialog.Content>
