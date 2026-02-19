@@ -5,6 +5,8 @@ use axum::http::StatusCode;
 pub struct PermissionsManager {}
 
 impl PermissionsManager {
+    const WILDCARD: &str = "*";
+
     pub fn new() -> Self {
         Self {}
     }
@@ -15,8 +17,15 @@ impl PermissionsManager {
         method: &str,
         namespace: &str,
     ) -> Result<(), AppError> {
-        let method_allowed = perms.permitted_methods.iter().any(|m| m == method);
-        let namespace_allowed = perms.permitted_namespaces.iter().any(|n| n == namespace);
+        let method_allowed = perms
+            .permitted_methods
+            .iter()
+            .any(|m| m == method || m == Self::WILDCARD);
+
+        let namespace_allowed = perms
+            .permitted_namespaces
+            .iter()
+            .any(|n| n == namespace || n == Self::WILDCARD);
 
         if method_allowed && namespace_allowed {
             Ok(())
