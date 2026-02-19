@@ -3,3 +3,4 @@
 **/lambda_function_payload.zip
 cluster/inventory.yaml
 **/.ansible
+*.pem
