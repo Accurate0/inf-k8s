@@ -64,7 +64,7 @@ pub async fn auth_middleware(
             return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
         }
     };
-    tracing::info!("verified request with claims: {:#?}", token_data.claims);
+    tracing::info!("verified request with claims: {:?}", token_data.claims);
 
     let perms = Permissions {
         permitted_methods: key_details.permitted_methods.clone(),
