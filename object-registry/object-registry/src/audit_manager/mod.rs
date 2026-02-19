@@ -67,7 +67,8 @@ impl AuditManager {
             .key_condition_expression("#pk = :pk")
             .expression_attribute_names("#pk", Self::PK)
             .expression_attribute_values(":pk", AttributeValue::S(Self::PK_VALUE.to_string()))
-            .scan_index_forward(false); // Latest first
+            .scan_index_forward(false) // Latest first
+            .limit(limit);
 
         let mut filter_parts = Vec::new();
 
@@ -112,23 +113,12 @@ impl AuditManager {
 
         if !filter_parts.is_empty() {
             query = query.filter_expression(filter_parts.join(" AND "));
-        } else {
-            // Only apply limit to query if there are no filters, 
-            // because DynamoDB limit is applied BEFORE filtering.
-            query = query.limit(limit);
         }
 
         let db_result = query.send().await?;
 
         let items = db_result.items.unwrap_or_default();
-        let mut logs: Vec<AuditLog> = items.into_iter().map(|item| self.map_item_to_audit_log(item)).collect();
-        
-        // Apply limit after filtering if filters were present
-        if !filter_parts.is_empty() && logs.len() > limit as usize {
-            logs.truncate(limit as usize);
-        }
-
-        Ok(logs)
+        Ok(items.into_iter().map(|item| self.map_item_to_audit_log(item)).collect())
     }
 
     fn map_item_to_audit_log(&self, item: HashMap<String, AttributeValue>) -> AuditLog {
