@@ -55,6 +55,7 @@ spec:
           - group: ""
             kind: Secret
             name: anurag-sh-tls
+
     - name: wildcard-object-registry-inf-k8s-https
       protocol: HTTPS
       hostname: "*.object-registry.inf-k8s.net"
@@ -64,6 +65,14 @@ spec:
           selector:
             matchLabels:
               shared-gateway-access: "true"
+      port: 8443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: wildcard-object-registry-inf-k8s-tls
+
     - name: wildcard-inf-k8s-https
       protocol: HTTPS
       hostname: "*.inf-k8s.net"
