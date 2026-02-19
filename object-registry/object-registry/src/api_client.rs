@@ -260,6 +260,19 @@ impl ApiClient {
         Ok(res)
     }
 
+    pub async fn list_namespaces(&self) -> Result<Vec<String>, ApiClientError> {
+        let rel = "namespaces".to_string();
+        let jwt = self.generate_jwt()?;
+        let resp = self
+            .get_default_request(&rel, Method::GET)
+            .bearer_auth(jwt)
+            .send()
+            .await?
+            .error_for_status()?;
+        let res = resp.json().await?;
+        Ok(res)
+    }
+
     pub async fn post_event(
         &self,
         namespace: &str,

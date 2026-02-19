@@ -2,7 +2,11 @@ locals {
   endpoints = [
     {
       "method" : "GET",
-      "url" : "/{namespace}/{configObject}"
+      "url" : "/namespaces"
+    },
+    {
+      "method" : "GET",
+      "url" : "/{namespace}/{object}"
     },
     {
       "method" : "GET",
@@ -10,15 +14,7 @@ locals {
     },
     {
       "method" : "PUT",
-      "url" : "/{namespace}/{configObject}"
-    },
-    {
-      "method" : "GET",
-      "url" : "/{namespace}/public/{configObject}"
-    },
-    {
-      "method" : "PUT",
-      "url" : "/{namespace}/public/{configObject}"
+      "url" : "/{namespace}/{object}"
     },
     {
       "method" : "GET",

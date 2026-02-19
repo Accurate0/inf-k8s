@@ -38,6 +38,7 @@ async fn main() -> Result<(), Error> {
     };
 
     let app = Router::new()
+        .route("/namespaces", get(routes::namespaces::list_namespaces))
         .route("/{namespace}", get(routes::objects::list_objects))
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))

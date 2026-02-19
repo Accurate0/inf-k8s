@@ -27,6 +27,8 @@ pub enum ObjectManagerError {
     DynamoPut(#[from] SdkError<aws_sdk_dynamodb::operation::put_item::PutItemError>),
     #[error("error getting item from dynamodb: {0}")]
     DynamoGet(#[from] SdkError<aws_sdk_dynamodb::operation::get_item::GetItemError>),
+    #[error("error scanning dynamodb: {0}")]
+    DynamoScan(#[from] SdkError<aws_sdk_dynamodb::operation::scan::ScanError>),
 }
 
 #[derive(Clone)]
@@ -140,24 +142,123 @@ impl ObjectManager {
         Ok(key)
     }
 
-    pub async fn list_objects(&self, prefix: &str) -> Result<Vec<String>, ObjectManagerError> {
-        let list_output = self
-            .s3_client
-            .list_objects_v2()
-            .bucket(Self::BUCKET_NAME)
-            .prefix(prefix)
+    pub async fn list_objects(
+        &self,
+        namespace: &str,
+    ) -> Result<Vec<crate::types::ObjectMetadata>, ObjectManagerError> {
+        let db_result = self
+            .dynamo_client
+            .scan()
+            .table_name(Self::TABLE_NAME)
+            .filter_expression("#ns = :ns")
+            .expression_attribute_names("#ns", Self::NAMESPACE)
+            .expression_attribute_values(":ns", AttributeValue::S(namespace.to_string()))
             .send()
             .await?;
 
-        let mut keys = Vec::new();
-        if let Some(objects) = list_output.contents {
-            for object in objects {
-                if let Some(key) = object.key {
-                    keys.push(key);
-                }
-            }
+        let items = db_result.items.unwrap_or_default();
+        let mut objects = Vec::new();
+
+        for item in items {
+            let full_key = item
+                .get(Self::OBJECT_KEY)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default();
+
+            let stripped_key = full_key
+                .strip_prefix(&format!("{}/", namespace))
+                .unwrap_or(&full_key)
+                .to_string();
+
+            let metadata = self.map_item_to_metadata(&item);
+            objects.push(crate::types::ObjectMetadata {
+                key: stripped_key,
+                metadata: crate::types::MetadataResponse {
+                    namespace: metadata.namespace,
+                    checksum: metadata.checksum,
+                    size: metadata.size,
+                    content_type: metadata.content_type,
+                    created_by: metadata.created_by,
+                    created_at: metadata.created_at,
+                    version: metadata.version,
+                    labels: metadata.labels,
+                },
+            });
         }
-        Ok(keys)
+
+        Ok(objects)
+    }
+
+    pub async fn list_namespaces(&self) -> Result<Vec<String>, ObjectManagerError> {
+        let db_result = self
+            .dynamo_client
+            .scan()
+            .table_name(Self::TABLE_NAME)
+            .projection_expression("#ns")
+            .expression_attribute_names("#ns", Self::NAMESPACE)
+            .send()
+            .await?;
+
+        let items = db_result.items.unwrap_or_default();
+        let mut namespaces: Vec<String> = items
+            .iter()
+            .filter_map(|item| item.get(Self::NAMESPACE).and_then(|v| v.as_s().ok()).cloned())
+            .collect();
+
+        namespaces.sort();
+        namespaces.dedup();
+
+        Ok(namespaces)
+    }
+
+    fn map_item_to_metadata(&self, item: &HashMap<String, AttributeValue>) -> ObjectMetadata {
+        ObjectMetadata {
+            namespace: item
+                .get(Self::NAMESPACE)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            checksum: item
+                .get(Self::CHECKSUM)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            size: item
+                .get(Self::SIZE)
+                .and_then(|v| v.as_n().ok())
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_default(),
+            content_type: item
+                .get(Self::CONTENT_TYPE)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            created_by: item
+                .get(Self::CREATED_BY)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            created_at: item
+                .get(Self::CREATED_AT)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            version: item
+                .get(Self::VERSION)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            labels: item
+                .get(Self::LABELS)
+                .and_then(|v| v.as_m().ok())
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, v)| v.as_s().ok().map(|s| (k.clone(), s.clone())))
+                        .collect()
+                })
+                .unwrap_or_default(),
+        }
     }
 
     pub async fn get_object(
@@ -211,54 +312,6 @@ impl ObjectManager {
             .await?;
 
         let item = db_result.item.ok_or(ObjectManagerError::ObjectNotFound)?;
-
-        let metadata = ObjectMetadata {
-            namespace: item
-                .get(Self::NAMESPACE)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
-            checksum: item
-                .get(Self::CHECKSUM)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
-            size: item
-                .get(Self::SIZE)
-                .and_then(|v| v.as_n().ok())
-                .and_then(|s| s.parse().ok())
-                .unwrap_or_default(),
-            content_type: item
-                .get(Self::CONTENT_TYPE)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
-            created_by: item
-                .get(Self::CREATED_BY)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
-            created_at: item
-                .get(Self::CREATED_AT)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
-            version: item
-                .get(Self::VERSION)
-                .and_then(|v| v.as_s().ok())
-                .cloned()
-                .unwrap_or_default(),
-            labels: item
-                .get(Self::LABELS)
-                .and_then(|v| v.as_m().ok())
-                .map(|m| {
-                    m.iter()
-                        .filter_map(|(k, v)| v.as_s().ok().map(|s| (k.clone(), s.clone())))
-                        .collect()
-                })
-                .unwrap_or_default(),
-        };
-
-        Ok(metadata)
+        Ok(self.map_item_to_metadata(&item))
     }
 }

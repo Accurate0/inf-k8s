@@ -89,32 +89,13 @@ pub async fn list_objects(
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
-    let keys = state
+    let objects = state
         .object_manager
-        .list_objects(&format!("{}/", namespace))
+        .list_objects(&namespace)
         .await?;
 
-    let mut object_list = Vec::new();
-    for key in keys {
-        if let Ok(metadata) = state.object_manager.get_metadata_by_key(&key).await {
-            object_list.push(object_registry::types::ObjectMetadata {
-                key,
-                metadata: MetadataResponse {
-                    namespace: metadata.namespace,
-                    checksum: metadata.checksum,
-                    size: metadata.size,
-                    content_type: metadata.content_type,
-                    created_by: metadata.created_by,
-                    created_at: metadata.created_at,
-                    version: metadata.version,
-                    labels: metadata.labels,
-                },
-            });
-        }
-    }
-
     let response = object_registry::types::ListObjectsResponse {
-        objects: object_list,
+        objects,
     };
 
     Ok(Response::builder()

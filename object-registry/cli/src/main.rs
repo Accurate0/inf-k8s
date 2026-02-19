@@ -80,6 +80,7 @@ enum Commands {
         #[arg(short, long)]
         namespace: String,
     },
+    Namespaces,
     Events {
         #[command(subcommand)]
         command: EventsCommand,
@@ -328,6 +329,36 @@ async fn main() -> anyhow::Result<()> {
                 ]);
             }
             println!("{table}");
+        }
+        Commands::Namespaces => {
+            let (private_pem, kid) = {
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300;
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec!["*".to_string()],
+                    permitted_methods: vec!["namespace:list".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+                (private_pem, kid)
+            };
+
+            let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
+
+            let namespaces = api.list_namespaces().await?;
+            for ns in namespaces {
+                println!("{ns}");
+            }
         }
         Commands::Events { command } => match command {
             EventsCommand::Create {
