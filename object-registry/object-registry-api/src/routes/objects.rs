@@ -53,9 +53,21 @@ pub async fn put_object(
             body.to_vec(),
             content_type,
             &perms.issuer,
-            labels,
+            labels.clone(),
         )
         .await?;
+
+    let mut details = labels;
+    details.insert("content_type".to_string(), content_type.to_string());
+    details.insert("size".to_string(), body.len().to_string());
+
+    let _ = state.audit_manager.log(
+        "PUT_OBJECT",
+        &perms.issuer,
+        Some(&namespace),
+        Some(&object),
+        details,
+    ).await;
 
     Ok(())
 }
@@ -74,6 +86,14 @@ pub async fn delete_object(
         .delete_object(&namespace, &object)
         .await?;
 
+    let _ = state.audit_manager.log(
+        "DELETE_OBJECT",
+        &perms.issuer,
+        Some(&namespace),
+        Some(&object),
+        HashMap::new(),
+    ).await;
+
     Ok(())
 }
 
@@ -86,6 +106,14 @@ pub async fn get_object(
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
+    let _ = state.audit_manager.log(
+        "GET_OBJECT",
+        &perms.issuer,
+        Some(&namespace),
+        Some(&object),
+        HashMap::new(),
+    ).await;
+
     fetch_object(&state, &namespace, &object).await
 }
 
@@ -97,6 +125,14 @@ pub async fn list_objects(
     state
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
+
+    let _ = state.audit_manager.log(
+        "LIST_OBJECTS",
+        &perms.issuer,
+        Some(&namespace),
+        None,
+        HashMap::new(),
+    ).await;
 
     let objects = state
         .object_manager

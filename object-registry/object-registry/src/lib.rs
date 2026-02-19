@@ -8,6 +8,7 @@ use thiserror::Error;
 pub mod event_manager;
 pub mod key_manager;
 pub mod object_manager;
+pub mod audit_manager;
 pub mod types;
 pub use types::{
     CreatedResponse, EventRequest, EventResponse, MetadataResponse, NotifyRequest, NotifyResponse,

@@ -1,10 +1,12 @@
 use aws_lambda_events::event::s3::S3Event;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
+use object_registry::audit_manager::AuditManager;
 use object_registry::event_manager::{EventManager, NotificationType};
 use object_registry::generate_jwt_from_private_key;
 use object_registry::object_manager::ObjectManager;
 use object_registry::types::{MetadataResponse, ObjectEvent};
 use reqwest::Method;
+use std::collections::HashMap;
 use std::str::FromStr;
 use urlencoding::decode;
 
@@ -14,6 +16,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
     let http_client = reqwest::ClientBuilder::new().build()?;
     let event_manager = EventManager::new(&config);
     let object_manager = ObjectManager::new(&config);
+    let audit_manager = AuditManager::new(&config);
 
     let jwt_secret = secrets_client
         .get_secret_value()
@@ -96,8 +99,26 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                             .json(&payload)
                             .send()
                             .await?;
+                        
+                        let status = response.status();
                         tracing::info!("response: {response:?}");
-                        tracing::info!("body: {}", response.text().await?);
+                        let body = response.text().await?;
+                        tracing::info!("body: {}", body);
+
+                        let mut details = HashMap::new();
+                        details.insert("event_id".to_string(), event.id.clone());
+                        details.insert("url".to_string(), url.clone());
+                        details.insert("status".to_string(), status.to_string());
+                        details.insert("method".to_string(), method_str.clone());
+                        details.insert("audience".to_string(), event.audience.clone());
+
+                        let _ = audit_manager.log(
+                            "EVENT_NOTIFY",
+                            "object-registry-events",
+                            Some(namespace),
+                            Some(&key),
+                            details,
+                        ).await;
                     }
                 } else {
                     tracing::warn!("unsupported notification type: {}", event.notify.r#type);

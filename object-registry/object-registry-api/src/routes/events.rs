@@ -4,6 +4,7 @@ use axum::{
     response::IntoResponse,
 };
 use chrono::{DateTime, Utc};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::auth::Permissions;
@@ -38,12 +39,24 @@ pub async fn post_event(
         namespace: namespace.clone(),
         id: id.clone(),
         keys: req.keys,
-        audience: req.audience,
+        audience: req.audience.clone(),
         notify,
         created_at,
     };
 
     state.event_manager.put_event(ev).await?;
+
+    let mut details = HashMap::new();
+    details.insert("event_id".to_string(), id.clone());
+    details.insert("audience".to_string(), req.audience);
+
+    let _ = state.audit_manager.log(
+        "POST_EVENT",
+        &perms.issuer,
+        Some(&namespace),
+        None,
+        details,
+    ).await;
 
     Ok((StatusCode::CREATED, Json(CreatedResponse { id })))
 }
@@ -74,12 +87,24 @@ pub async fn put_event(
         namespace: namespace.clone(),
         id: id.clone(),
         keys: req.keys,
-        audience: req.audience,
+        audience: req.audience.clone(),
         notify,
         created_at,
     };
 
     state.event_manager.put_event(ev).await?;
+
+    let mut details = HashMap::new();
+    details.insert("event_id".to_string(), id.clone());
+    details.insert("audience".to_string(), req.audience);
+
+    let _ = state.audit_manager.log(
+        "PUT_EVENT",
+        &perms.issuer,
+        Some(&namespace),
+        None,
+        details,
+    ).await;
 
     Ok((StatusCode::OK, Json(CreatedResponse { id })))
 }
@@ -92,7 +117,19 @@ pub async fn delete_event(
     state
         .permissions_manager
         .enforce(&perms, "event:delete", &namespace)?;
-    state.event_manager.delete_event(id).await?;
+    state.event_manager.delete_event(id.clone()).await?;
+
+    let mut details = HashMap::new();
+    details.insert("event_id".to_string(), id);
+
+    let _ = state.audit_manager.log(
+        "DELETE_EVENT",
+        &perms.issuer,
+        Some(&namespace),
+        None,
+        details,
+    ).await;
+
     Ok((StatusCode::NO_CONTENT, ""))
 }
 
@@ -104,6 +141,15 @@ pub async fn list_events(
     state
         .permissions_manager
         .enforce(&perms, "event:get", &namespace)?;
+
+    let _ = state.audit_manager.log(
+        "LIST_EVENTS",
+        &perms.issuer,
+        Some(&namespace),
+        None,
+        HashMap::new(),
+    ).await;
+
     let evs = state.event_manager.get_events(namespace).await?;
     let arr: Vec<EventResponse> = evs.iter().map(EventResponse::from).collect();
     Ok((StatusCode::OK, Json(arr)))

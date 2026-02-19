@@ -88,25 +88,26 @@
 									{new Date(object.metadata.created_at).toLocaleString()}
 								</Table.Cell>
 								<Table.Cell class="pr-6 text-right">
-									<div class="flex justify-end gap-2">
+									<div class="flex justify-end gap-1">
 										<Button
 											variant="ghost"
 											size="sm"
 											onclick={() => onDownload(object.key)}
 											disabled={loading}
+											class="h-8 w-8 p-0"
+											title="Download"
 										>
-											<Download class="mr-2 h-4 w-4" />
-											Download
+											<Download class="h-4 w-4" />
 										</Button>
 										<Button
 											variant="ghost"
 											size="sm"
 											onclick={() => onDelete(object.key)}
 											disabled={loading}
-											class="text-destructive hover:bg-destructive/10"
+											class="h-8 w-8 p-0 text-destructive hover:bg-destructive/10"
+											title="Delete"
 										>
-											<Trash2 class="mr-2 h-4 w-4" />
-											Delete
+											<Trash2 class="h-4 w-4" />
 										</Button>
 									</div>
 								</Table.Cell>

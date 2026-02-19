@@ -85,6 +85,10 @@ enum Commands {
         #[command(subcommand)]
         command: EventsCommand,
     },
+    Audit {
+        #[arg(short, long)]
+        limit: Option<i32>,
+    },
 }
 
 #[derive(Subcommand, Debug)]
@@ -387,6 +391,61 @@ async fn main() -> anyhow::Result<()> {
             for ns in namespaces {
                 println!("{ns}");
             }
+        }
+        Commands::Audit { limit } => {
+            let (private_pem, kid) = {
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300;
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec!["*".to_string()],
+                    permitted_methods: vec!["audit:list".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+                (private_pem, kid)
+            };
+
+            let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
+
+            let logs = api.list_audit_logs(limit).await?;
+            let mut table = Table::new();
+            table.set_header(vec![
+                "Timestamp",
+                "Action",
+                "Subject",
+                "Namespace",
+                "Object Key",
+                "Details",
+            ]);
+
+            for log in logs {
+                let details = log
+                    .details
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .collect::<Vec<String>>()
+                    .join("\n");
+
+                table.add_row(vec![
+                    log.timestamp,
+                    log.action,
+                    log.subject,
+                    log.namespace.unwrap_or_default(),
+                    log.object_key.unwrap_or_default(),
+                    details,
+                ]);
+            }
+            println!("{table}");
         }
         Commands::Events { command } => match command {
             EventsCommand::Create {

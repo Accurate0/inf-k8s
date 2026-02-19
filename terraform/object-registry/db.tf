@@ -34,6 +34,7 @@ resource "aws_dynamodb_table" "object-registry-events" {
     prevent_destroy = true
   }
 }
+
 resource "aws_dynamodb_table" "object-registry-metadata" {
   name                        = "object-registry-metadata"
   billing_mode                = "PAY_PER_REQUEST"
@@ -42,6 +43,22 @@ resource "aws_dynamodb_table" "object-registry-metadata" {
 
   attribute {
     name = "object_key"
+    type = "S"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
+}
+
+resource "aws_dynamodb_table" "object-registry-audit" {
+  name                        = "object-registry-audit"
+  billing_mode                = "PAY_PER_REQUEST"
+  hash_key                    = "id"
+  deletion_protection_enabled = true
+
+  attribute {
+    name = "id"
     type = "S"
   }
 

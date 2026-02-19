@@ -27,6 +27,7 @@ async fn main() -> Result<(), Error> {
     let event_manager = object_registry::event_manager::EventManager::new(&config);
     let key_manager = object_registry::key_manager::KeyManager::new(&config);
     let object_manager = object_registry::object_manager::ObjectManager::new(&config);
+    let audit_manager = object_registry::audit_manager::AuditManager::new(&config);
     let permissions_manager = permissions::PermissionsManager::new();
 
     let state = AppState {
@@ -35,6 +36,7 @@ async fn main() -> Result<(), Error> {
         event_manager,
         key_manager,
         permissions_manager,
+        audit_manager,
     };
 
     let app = Router::new()
@@ -43,6 +45,7 @@ async fn main() -> Result<(), Error> {
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))
         .route("/{namespace}/{object}", delete(routes::objects::delete_object))
+        .route("/audit", get(routes::audit::list_audit_logs))
         .route("/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))
         .route("/events/{namespace}", post(routes::events::post_event))

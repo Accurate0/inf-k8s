@@ -3,6 +3,7 @@ use axum::{
     extract::{Extension, State},
     response::Response,
 };
+use std::collections::HashMap;
 
 pub async fn list_namespaces(
     State(state): State<AppState>,
@@ -11,6 +12,14 @@ pub async fn list_namespaces(
     state
         .permissions_manager
         .enforce(&perms, "namespace:list", "*")?;
+
+    let _ = state.audit_manager.log(
+        "LIST_NAMESPACES",
+        &perms.issuer,
+        None,
+        None,
+        HashMap::new(),
+    ).await;
 
     let namespaces = state.object_manager.list_namespaces().await?;
 

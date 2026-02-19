@@ -353,6 +353,25 @@ impl ApiClient {
         Ok(arr)
     }
 
+    pub async fn list_audit_logs(
+        &self,
+        limit: Option<i32>,
+    ) -> Result<Vec<crate::audit_manager::AuditLog>, ApiClientError> {
+        let mut rel = "audit".to_string();
+        if let Some(l) = limit {
+            rel = format!("audit?limit={}", l);
+        }
+        let jwt = self.generate_jwt()?;
+        let resp = self
+            .get_default_request(&rel, Method::GET)
+            .bearer_auth(jwt)
+            .send()
+            .await?
+            .error_for_status()?;
+        let arr: Vec<crate::audit_manager::AuditLog> = resp.json().await?;
+        Ok(arr)
+    }
+
     pub async fn get(&self, path: &str) -> Result<reqwest::Response, ApiClientError> {
         let rel = path.trim_start_matches('/');
         let jwt = self.generate_jwt()?;

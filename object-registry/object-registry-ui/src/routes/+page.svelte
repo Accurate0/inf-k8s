@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { browser } from '$app/environment';
-	import { goto } from '$app/navigation';
+	import { goto, invalidateAll } from '$app/navigation';
 	import { page } from '$app/state';
 	import { untrack } from 'svelte';
 	import {
@@ -216,7 +216,8 @@
 		<Button
 			variant="outline"
 			size="icon"
-			onclick={() => {
+			onclick={async () => {
+				await invalidateAll();
 				fetchObjects();
 				fetchEvents();
 			}}
