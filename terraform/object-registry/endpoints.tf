@@ -17,6 +17,10 @@ locals {
       "url" : "/{namespace}/{object}"
     },
     {
+      "method" : "DELETE",
+      "url" : "/{namespace}/{object}"
+    },
+    {
       "method" : "GET",
       "url" : "/events/{namespace}"
     },

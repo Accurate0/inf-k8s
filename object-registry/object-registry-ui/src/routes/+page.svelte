@@ -1,14 +1,53 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { listObjects, downloadObject, uploadObject, type ObjectMetadata } from '$lib/api';
+	import {
+		listObjects,
+		downloadObject,
+		uploadObject,
+		listNamespaces,
+		deleteObject,
+		listEvents,
+		type ObjectMetadata,
+		type EventResponse
+	} from '$lib/api';
+	import * as Card from '$lib/components/ui/card';
+	import * as Select from '$lib/components/ui/select';
+	import * as Table from '$lib/components/ui/table';
+	import * as Alert from '$lib/components/ui/alert';
+	import * as AlertDialog from '$lib/components/ui/alert-dialog';
+	import { Button } from '$lib/components/ui/button';
+	import { Input } from '$lib/components/ui/input';
+	import { Label } from '$lib/components/ui/label';
+	import { toast } from 'svelte-sonner';
+	import {
+		Loader2,
+		Download,
+		Upload,
+		AlertCircle,
+		RefreshCw,
+		FileText,
+		Trash2,
+		Plus,
+		Bell
+	} from '@lucide/svelte';
 
-	let namespace = 'default'; // Default namespace
-	let objects: ObjectMetadata[] = [];
-	let loading = false;
-	let error: string | null = null;
-	let fileInput: HTMLInputElement;
-	let selectedFile: File | null = null;
+	let { data } = $props();
+
+	let namespaces: string[] = $derived(data.namespaces || ['default']);
+	let namespace = $state(data.namespaces?.[0] || 'default');
+
+	let objects: ObjectMetadata[] = $state([]);
+	let events: EventResponse[] = $state([]);
+	let loading = $state(true);
+	let loadingEvents = $state(true);
+	let error: string | null = $state(null);
+	let fileInput: HTMLInputElement | null = $state(null);
+	let selectedFile: File | null = $state(null);
+
+	// AlertDialog state
+	let deleteDialogOpen = $state(false);
+	let objectToDelete: string | null = $state(null);
 
 	async function fetchObjects() {
 		if (!browser) return;
@@ -18,28 +57,44 @@
 			const fetchedObjects = await listObjects(namespace);
 			objects = fetchedObjects;
 		} catch (err: any) {
-			error = err.message || 'Failed to fetch objects';
+			const msg = err.message || 'Failed to fetch objects';
+			error = msg;
+			toast.error(msg);
 		} finally {
 			loading = false;
 		}
 	}
 
+	async function fetchEvents() {
+		if (!browser) return;
+		loadingEvents = true;
+		try {
+			const fetchedEvents = await listEvents(namespace);
+			events = fetchedEvents;
+		} catch (err: any) {
+			console.error('Failed to fetch events:', err);
+		} finally {
+			loadingEvents = false;
+		}
+	}
+
 	async function handleUpload() {
 		if (!selectedFile) {
-			alert('Please select a file to upload.');
+			toast.warning('Please select a file to upload.');
 			return;
 		}
 		loading = true;
 		error = null;
 		try {
-			// Use the original file name as the object key
 			await uploadObject(namespace, selectedFile.name, selectedFile);
-			alert(`File "${selectedFile.name}" uploaded successfully.`);
-			selectedFile = null; // Clear selected file
-			if (fileInput) fileInput.value = ''; // Clear file input visual
-			await fetchObjects(); // Refresh the list
+			toast.success(`Successfully uploaded ${selectedFile.name}`);
+			selectedFile = null;
+			if (fileInput) fileInput.value = '';
+			await fetchObjects();
 		} catch (err: any) {
-			error = err.message || 'Failed to upload file';
+			const msg = err.message || 'Failed to upload file';
+			error = msg;
+			toast.error(msg);
 		} finally {
 			loading = false;
 		}
@@ -58,8 +113,38 @@
 			a.click();
 			a.remove();
 			window.URL.revokeObjectURL(url);
+			toast.success(`Downloading ${filename}`);
 		} catch (err: any) {
-			error = err.message || 'Failed to download file';
+			const msg = err.message || 'Failed to download file';
+			error = msg;
+			toast.error(msg);
+		} finally {
+			loading = false;
+		}
+	}
+
+	function confirmDelete(key: string) {
+		objectToDelete = key;
+		deleteDialogOpen = true;
+	}
+
+	async function handleDelete() {
+		if (!objectToDelete) return;
+
+		const key = objectToDelete;
+		deleteDialogOpen = false;
+		objectToDelete = null;
+
+		loading = true;
+		error = null;
+		try {
+			await deleteObject(namespace, key);
+			toast.success(`Successfully deleted ${key}`);
+			await fetchObjects();
+		} catch (err: any) {
+			const msg = err.message || 'Failed to delete object';
+			error = msg;
+			toast.error(msg);
 		} finally {
 			loading = false;
 		}
@@ -78,222 +163,287 @@
 		return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
 	}
 
-	// Fetch objects when the component mounts or namespace changes
-	onMount(() => {
-		fetchObjects();
+	$effect(() => {
+		if (browser && namespace) {
+			fetchObjects();
+			fetchEvents();
+		}
 	});
 
-	// Reactive statement to re-fetch when namespace changes
-	// We check for browser to avoid SSR fetch issues
-	$: if (browser && namespace) {
-		fetchObjects();
-	}
+	let selectedNamespaceLabel = $derived(namespaces.find((ns) => ns === namespace) || namespace);
 </script>
 
-<div class="container mx-auto p-4 max-w-7xl">
-	<h1 class="text-3xl font-bold mb-6 text-gray-800">Object Registry Console</h1>
-
-	{#if error}
-		<div
-			role="alert"
-			class="alert alert-error mb-6 flex items-start justify-between bg-red-50 border-red-200 text-red-800 p-4 rounded-lg shadow-sm"
+<div class="container mx-auto max-w-7xl space-y-8 py-10">
+	<div class="flex items-center justify-between">
+		<h1 class="text-3xl font-bold tracking-tight">Object Registry</h1>
+		<Button
+			variant="outline"
+			size="icon"
+			onclick={() => {
+				fetchObjects();
+				fetchEvents();
+			}}
+			disabled={loading || loadingEvents}
 		>
-			<div class="flex items-start">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					class="stroke-current shrink-0 h-6 w-6 mr-3 mt-0.5"
-					fill="none"
-					viewBox="0 0 24 24"
-					><path
-						stroke-linecap="round"
-						stroke-linejoin="round"
-						stroke-width="2"
-						d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-					/></svg
-				>
-				<div>
-					<h3 class="font-bold">Error Occurred</h3>
-					<div class="text-sm opacity-90 break-all">{error}</div>
-				</div>
-			</div>
-			<button class="btn btn-ghost btn-xs" on:click={() => (error = null)}>✕</button>
-		</div>
-	{/if}
-
-	<div class="bg-white shadow-md rounded-lg p-6 mb-8">
-		<div class="flex items-center mb-4">
-			<label for="namespace-input" class="text-lg font-medium text-gray-700 mr-3"
-				>Namespace:</label
-			>
-			<input
-				id="namespace-input"
-				type="text"
-				bind:value={namespace}
-				class="input input-bordered w-full max-w-xs px-4 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-				placeholder="Enter namespace"
-			/>
-		</div>
-
-		<div class="flex items-center space-x-4">
-			<input
-				type="file"
-				bind:this={fileInput}
-				on:change={handleFileChange}
-				class="file-input file-input-bordered w-full max-w-xs"
-			/>
-			<button
-				on:click={handleUpload}
-				class="btn btn-primary px-6 py-2 rounded-md shadow hover:bg-blue-600 transition duration-200"
-				disabled={!selectedFile || loading}
-			>
-				{#if loading && selectedFile?.name}
-					Uploading {selectedFile.name}...
-				{:else}
-					Upload
-				{/if}
-			</button>
-		</div>
+			<RefreshCw class="h-4 w-4 {loading || loadingEvents ? 'animate-spin' : ''}" />
+		</Button>
 	</div>
 
-	<h2 class="text-2xl font-semibold mb-4 text-gray-800">Objects in "{namespace}"</h2>
+	<Card.Root>
+		<Card.Header>
+			<Card.Title>Namespace Selection</Card.Title>
+			<Card.Description>Select the namespace you want to browse.</Card.Description>
+		</Card.Header>
+		<Card.Content>
+			<div class="grid w-full max-w-sm items-center gap-1.5">
+				<Label for="namespace-select">Namespace</Label>
+				<Select.Root type="single" bind:value={namespace}>
+					<Select.Trigger class="w-full">
+						{selectedNamespaceLabel}
+					</Select.Trigger>
+					<Select.Content>
+						{#each namespaces as ns}
+							<Select.Item value={ns}>{ns}</Select.Item>
+						{/each}
+					</Select.Content>
+				</Select.Root>
+			</div>
+		</Card.Content>
+	</Card.Root>
 
-	{#if loading && objects.length === 0}
-		<div class="flex items-center justify-center p-8">
-			<span class="loading loading-spinner loading-lg"></span>
-			<p class="ml-3 text-gray-600">Loading objects...</p>
-		</div>
-	{:else if objects.length === 0 && !error}
-		<p class="text-gray-600 p-4 bg-gray-50 rounded-md">No objects found in this namespace.</p>
-	{:else}
-		<div class="overflow-x-auto bg-white shadow-md rounded-lg">
-			<table class="table w-full text-left">
-				<thead>
-					<tr class="bg-gray-100 text-gray-600 uppercase text-sm leading-normal">
-						<th class="py-3 px-6">Key</th>
-						<th class="py-3 px-6">Size</th>
-						<th class="py-3 px-6">Content Type</th>
-						<th class="py-3 px-6">Created By</th>
-						<th class="py-3 px-6">Last Modified</th>
-						<th class="py-3 px-6 text-center">Actions</th>
-					</tr>
-				</thead>
-				<tbody class="text-gray-700 text-sm font-light">
-					{#each objects as object (object.key)}
-						<tr class="border-b border-gray-200 hover:bg-gray-50">
-							<td class="py-3 px-6 whitespace-nowrap">{object.key}</td>
-							<td class="py-3 px-6 whitespace-nowrap">
-								{formatSize(object.metadata.size)}
-							</td>
-							<td class="py-3 px-6 whitespace-nowrap">
-								{object.metadata.content_type}
-							</td>
-							<td class="py-3 px-6 whitespace-nowrap">
-								{object.metadata.created_by}
-							</td>
-							<td class="py-3 px-6 whitespace-nowrap">
-								{new Date(object.metadata.created_at).toLocaleString()}
-							</td>
-							<td class="py-3 px-6 text-center">
-								<div class="flex item-center justify-center space-x-2">
-									<button
-										on:click={() => handleDownload(object.key)}
-										class="btn btn-sm btn-info text-white"
-										disabled={loading}
+	<div class="space-y-4">
+		<h2 class="text-2xl font-semibold tracking-tight">
+			Objects in <span class="text-primary">{namespace}</span>
+		</h2>
+
+		<Card.Root>
+			<Card.Content class="p-0">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							<Table.Head class="pl-6">Key</Table.Head>
+							<Table.Head>Size</Table.Head>
+							<Table.Head class="hidden md:table-cell">Content Type</Table.Head>
+							<Table.Head class="hidden lg:table-cell">Created By</Table.Head>
+							<Table.Head class="hidden sm:table-cell">Last Modified</Table.Head>
+							<Table.Head class="pr-6 text-right">Actions</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#if loading && objects.length === 0}
+							<Table.Row>
+								<Table.Cell colspan={6} class="h-32 text-center">
+									<div class="flex flex-col items-center justify-center space-y-2">
+										<Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+										<p class="animate-pulse text-muted-foreground">Loading objects...</p>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{:else if objects.length === 0 && !error}
+							<Table.Row>
+								<Table.Cell colspan={6} class="h-32 text-center">
+									<div class="flex flex-col items-center justify-center space-y-2">
+										<FileText class="h-12 w-12 text-muted-foreground/50" />
+										<p class="text-muted-foreground">No objects found in this namespace.</p>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{:else}
+							{#each objects as object (object.key)}
+								<Table.Row>
+									<Table.Cell class="pl-6 font-medium">{object.key}</Table.Cell>
+									<Table.Cell>{formatSize(object.metadata.size)}</Table.Cell>
+									<Table.Cell class="hidden text-muted-foreground md:table-cell"
+										>{object.metadata.content_type}</Table.Cell
 									>
-										Download
-									</button>
+									<Table.Cell class="hidden lg:table-cell">{object.metadata.created_by}</Table.Cell>
+									<Table.Cell class="hidden text-muted-foreground sm:table-cell">
+										{new Date(object.metadata.created_at).toLocaleString()}
+									</Table.Cell>
+									<Table.Cell class="pr-6 text-right">
+										<div class="flex justify-end gap-2">
+											<Button
+												variant="ghost"
+												size="sm"
+												onclick={() => handleDownload(object.key)}
+												disabled={loading}
+											>
+												<Download class="mr-2 h-4 w-4" />
+												Download
+											</Button>
+											<Button
+												variant="ghost"
+												size="sm"
+												onclick={() => confirmDelete(object.key)}
+												disabled={loading}
+												class="text-destructive hover:bg-destructive/10"
+											>
+												<Trash2 class="mr-2 h-4 w-4" />
+												Delete
+											</Button>
+										</div>
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
+
+						<!-- Add File Row -->
+						<Table.Row 
+							class="hover:bg-muted/50 cursor-pointer group transition-colors" 
+							onclick={() => fileInput?.click()}
+						>
+							<Table.Cell class="pl-6" colspan={5}>
+								<div class="flex items-center gap-3 text-muted-foreground group-hover:text-foreground transition-colors">
+									<div class="flex h-8 w-8 items-center justify-center rounded-lg border-2 border-dashed border-muted-foreground/25 group-hover:border-primary/50 group-hover:bg-primary/5 transition-all">
+										{#if loading && selectedFile}
+											<Loader2 class="h-4 w-4 animate-spin" />
+										{:else if selectedFile}
+											<FileText class="h-4 w-4 text-primary" />
+										{:else}
+											<Plus class="h-4 w-4" />
+										{/if}
+									</div>
+									<span class="text-sm font-medium">
+										{#if selectedFile}
+											<span class="text-foreground font-semibold">{selectedFile.name}</span>
+											<span class="ml-2 text-xs text-muted-foreground">({formatSize(selectedFile.size)})</span>
+										{:else}
+											Click to browse or add a file to this namespace...
+										{/if}
+									</span>
+									<input
+										id="file-upload"
+										type="file"
+										onchange={handleFileChange}
+										bind:this={fileInput}
+										class="hidden"
+									/>
 								</div>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
+							</Table.Cell>
+							<Table.Cell class="pr-6 text-right">
+								<Button
+									onclick={(e) => { e.stopPropagation(); handleUpload(); }}
+									disabled={!selectedFile || loading}
+									size="sm"
+									variant={selectedFile ? "default" : "ghost"}
+									class={selectedFile ? "" : "opacity-0 group-hover:opacity-100 transition-opacity"}
+								>
+									{#if loading && selectedFile}
+										<Loader2 class="mr-2 h-4 w-4 animate-spin" />
+										Uploading
+									{:else}
+										<Upload class="mr-2 h-4 w-4" />
+										{selectedFile ? 'Confirm Upload' : 'Upload'}
+									{/if}
+								</Button>
+							</Table.Cell>
+						</Table.Row>
+					</Table.Body>
+				</Table.Root>
+			</Card.Content>
+		</Card.Root>
+	</div>
+
+	<div class="space-y-4">
+		<h2 class="text-2xl font-semibold tracking-tight">
+			Events in <span class="text-primary">{namespace}</span>
+		</h2>
+
+		<Card.Root>
+			<Card.Content class="p-0">
+				<Table.Root>
+					<Table.Header>
+						<Table.Row>
+							<Table.Head class="pl-6">ID</Table.Head>
+							<Table.Head>Keys</Table.Head>
+							<Table.Head>Notification</Table.Head>
+							<Table.Head class="pr-6 text-right">Created At</Table.Head>
+						</Table.Row>
+					</Table.Header>
+					<Table.Body>
+						{#if loadingEvents && events.length === 0}
+							<Table.Row>
+								<Table.Cell colspan={4} class="h-32 text-center">
+									<div class="flex flex-col items-center justify-center space-y-2">
+										<Loader2 class="h-8 w-8 animate-spin text-muted-foreground" />
+										<p class="animate-pulse text-muted-foreground">Loading events...</p>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{:else if events.length === 0}
+							<Table.Row>
+								<Table.Cell colspan={4} class="h-32 text-center">
+									<div class="flex flex-col items-center justify-center space-y-2">
+										<Bell class="h-12 w-12 text-muted-foreground/50" />
+										<p class="text-muted-foreground">No events found in this namespace.</p>
+									</div>
+								</Table.Cell>
+							</Table.Row>
+						{:else}
+							{#each events as event (event.id)}
+								<Table.Row>
+									<Table.Cell class="pl-6 font-medium font-mono text-xs">{event.id}</Table.Cell>
+									<Table.Cell>
+										<div class="flex flex-wrap gap-1">
+											{#each event.keys as key}
+												<span class="inline-flex items-center rounded-md bg-muted px-2 py-1 text-xs font-medium ring-1 ring-inset ring-gray-500/10">
+													{key}
+												</span>
+											{/each}
+										</div>
+									</Table.Cell>
+									<Table.Cell>
+										<div class="flex flex-col gap-1 text-xs">
+											<div class="flex items-center gap-2">
+												<span class="font-semibold uppercase text-[10px] bg-primary/10 text-primary px-1 rounded">
+													{event.notify.type}
+												</span>
+												<span class="text-muted-foreground italic">
+													{event.notify.method}
+												</span>
+											</div>
+											<div class="text-muted-foreground truncate max-w-[300px]" title={event.notify.urls.join(', ')}>
+												{event.notify.urls.join(', ')}
+											</div>
+										</div>
+									</Table.Cell>
+									<Table.Cell class="pr-6 text-right text-muted-foreground text-sm">
+										{new Date(event.created_at).toLocaleString()}
+									</Table.Cell>
+								</Table.Row>
+							{/each}
+						{/if}
+					</Table.Body>
+				</Table.Root>
+			</Card.Content>
+		</Card.Root>
+	</div>
 </div>
 
-<style lang="postcss">
-	@reference "tailwindcss";
+<AlertDialog.Root bind:open={deleteDialogOpen}>
+	<AlertDialog.Content>
+		<AlertDialog.Header>
+			<AlertDialog.Title>Are you absolutely sure?</AlertDialog.Title>
+			<AlertDialog.Description>
+				This action cannot be undone. This will permanently delete <strong>{objectToDelete}</strong> from
+				the registry.
+			</AlertDialog.Description>
+		</AlertDialog.Header>
+		<AlertDialog.Footer>
+			<AlertDialog.Cancel>Cancel</AlertDialog.Cancel>
+			<AlertDialog.Action
+				onclick={handleDelete}
+				class="text-destructive-foreground bg-destructive hover:bg-destructive/90"
+			>
+				Delete
+			</AlertDialog.Action>
+		</AlertDialog.Footer>
+	</AlertDialog.Content>
+</AlertDialog.Root>
 
-	:global(html) {
-		background-color: #f3f4f6; /* Light gray background */
-	}
-
-	/* Minimal DaisyUI-like styling if DaisyUI is not fully integrated */
-	.btn {
-		@apply font-semibold py-2 px-4 rounded-lg cursor-pointer;
-		transition: background-color 0.2s ease-in-out;
-	}
-
-	.btn-primary {
-		@apply bg-blue-500 text-white;
-	}
-
-	.btn-primary:hover {
-		@apply bg-blue-600;
-	}
-
-	.btn-info {
-		@apply bg-sky-500 text-white;
-	}
-
-	.btn-info:hover {
-		@apply bg-sky-600;
-	}
-
-	.btn-error {
-		@apply bg-red-500 text-white;
-	}
-
-	.btn-error:hover {
-		@apply bg-red-600;
-	}
-
-	.btn-ghost {
-		@apply bg-transparent text-gray-500;
-	}
-
-	.btn-ghost:hover {
-		@apply bg-gray-200;
-	}
-
-	.btn-xs {
-		@apply px-2 py-1 text-xs;
-	}
-
-	.btn:disabled {
-		@apply opacity-50 cursor-not-allowed;
-	}
-
-	.input,
-	.file-input {
-		@apply border border-gray-300 rounded-md p-2;
-	}
-
-	.input:focus,
-	.file-input:focus {
-		@apply outline-none ring-2 ring-blue-500/50;
-	}
-
-	.alert {
-		@apply p-4 rounded-md flex items-center;
-	}
-
-	.alert-error {
-		@apply bg-red-100 text-red-700 border border-red-400;
-	}
-
-	.alert-error svg {
-		@apply w-5 h-5 mr-3;
-	}
-
-	/* Table specific styles for better readability */
-	.table th,
-	.table td {
-		padding: 12px 24px;
-	}
-
-	.table thead th {
-		border-bottom: 2px solid #e2e8f0; /* gray-200 */
+<style>
+	:global(body) {
+		background-color: hsl(var(--background));
+		color: hsl(var(--foreground));
 	}
 </style>

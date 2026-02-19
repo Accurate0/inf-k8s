@@ -67,6 +67,24 @@ pub async fn put_object(
     Ok(())
 }
 
+pub async fn delete_object(
+    State(state): State<AppState>,
+    Extension(perms): Extension<crate::auth::Permissions>,
+    Path((namespace, object)): Path<(String, String)>,
+    Query(params): Query<VersionQuery>,
+) -> anyhow::Result<(), AppError> {
+    state
+        .permissions_manager
+        .enforce(&perms, "object:delete", &namespace)?;
+
+    state
+        .object_manager
+        .delete_object(&namespace, &object, params.version.as_deref())
+        .await?;
+
+    Ok(())
+}
+
 pub async fn get_object(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,

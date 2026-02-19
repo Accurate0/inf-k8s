@@ -38,7 +38,7 @@ async function generateJwtToken(): Promise<string> {
 	return token;
 }
 
-const proxyRequest = async ({ request, params, url: eventUrl }: RequestHandler): Promise<Response> => {
+const proxyRequest: RequestHandler = async ({ request, params, url: eventUrl }) => {
 	const method = request.method;
 	const targetPath = params.path;
 	const url = new URL(`${OBJECT_REGISTRY_API_URL}/${targetPath}${eventUrl.search}`);

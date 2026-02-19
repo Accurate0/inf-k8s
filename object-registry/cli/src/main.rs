@@ -80,6 +80,15 @@ enum Commands {
         #[arg(short, long)]
         namespace: String,
     },
+    Delete {
+        #[arg(short, long)]
+        namespace: String,
+        #[arg(short, long)]
+        object: String,
+        /// Optional version query parameter
+        #[arg(long)]
+        version: Option<String>,
+    },
     Namespaces,
     Events {
         #[command(subcommand)]
@@ -329,6 +338,40 @@ async fn main() -> anyhow::Result<()> {
                 ]);
             }
             println!("{table}");
+        }
+        Commands::Delete {
+            namespace,
+            object,
+            version,
+        } => {
+            let (private_pem, kid) = {
+                let rsa = openssl::rsa::Rsa::generate(4096)?;
+                let private_pem = rsa.private_key_to_pem()?;
+                let public_pem = rsa.public_key_to_pem()?;
+                let kid = uuid::Uuid::new_v4().to_string();
+
+                let ttl = chrono::Utc::now().timestamp() + 300;
+
+                let km = object_registry::key_manager::KeyManager::new(&config);
+                let details = object_registry::key_manager::KeyDetails {
+                    key_id: kid.clone(),
+                    public_key: String::from_utf8(public_pem.clone())?,
+                    permitted_namespaces: vec![namespace.clone()],
+                    permitted_methods: vec!["object:delete".to_string()],
+                    created_at: chrono::Utc::now(),
+                    ttl: Some(ttl),
+                };
+
+                km.add_key(details).await?;
+                (private_pem, kid)
+            };
+
+            let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
+
+            api.delete_object(&namespace, &object, version.as_deref())
+                .await?;
+
+            println!("deleted {}/{}", namespace, object);
         }
         Commands::Namespaces => {
             let (private_pem, kid) = {

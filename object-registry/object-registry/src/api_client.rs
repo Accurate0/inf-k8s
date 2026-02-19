@@ -153,6 +153,33 @@ impl ApiClient {
         Ok(())
     }
 
+    pub async fn delete_object(
+        &self,
+        namespace: &str,
+        object: &str,
+        version: Option<&str>,
+    ) -> Result<(), ApiClientError> {
+        let rel = format!("{}/{}", namespace, object);
+        let base = self.base_url.trim_end_matches('/');
+        let resource = rel.trim_start_matches('/');
+        let mut url = Url::parse(&format!("{}/{}", base, resource))
+            .map_err(|e| ApiClientError::Other(e.to_string()))?;
+        if let Some(v) = version {
+            url.query_pairs_mut().append_pair("version", v);
+        }
+
+        let jwt = self.generate_jwt()?;
+        let _resp = self
+            .client
+            .request(Method::DELETE, url)
+            .bearer_auth(jwt)
+            .send()
+            .await?
+            .error_for_status()?;
+
+        Ok(())
+    }
+
     pub async fn get_object<T>(
         &self,
         namespace: &str,
@@ -931,6 +958,50 @@ mod tests {
         let response = result.unwrap();
         assert_eq!(response.objects.len(), 1);
         assert_eq!(response.objects[0].key, "ns1/obj1");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_delete_object_success() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("DELETE", "/ns1/obj1")
+            .with_status(200)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.delete_object("ns1", "obj1", None).await;
+        assert!(result.is_ok());
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_list_namespaces_success() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let response_body = serde_json::json!(["ns1", "ns2"]).to_string();
+
+        let mock = server
+            .mock("GET", "/namespaces")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(response_body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.list_namespaces().await;
+        assert!(result.is_ok());
+        let response = result.unwrap();
+        assert_eq!(response, vec!["ns1", "ns2"]);
         mock.assert();
     }
 }

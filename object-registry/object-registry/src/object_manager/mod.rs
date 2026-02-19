@@ -29,6 +29,10 @@ pub enum ObjectManagerError {
     DynamoGet(#[from] SdkError<aws_sdk_dynamodb::operation::get_item::GetItemError>),
     #[error("error scanning dynamodb: {0}")]
     DynamoScan(#[from] SdkError<aws_sdk_dynamodb::operation::scan::ScanError>),
+    #[error("error deleting object from s3: {0}")]
+    DeleteObject(#[from] SdkError<aws_sdk_s3::operation::delete_object::DeleteObjectError>),
+    #[error("error deleting item from dynamodb: {0}")]
+    DynamoDelete(#[from] SdkError<aws_sdk_dynamodb::operation::delete_item::DeleteItemError>),
 }
 
 #[derive(Clone)]
@@ -313,5 +317,32 @@ impl ObjectManager {
 
         let item = db_result.item.ok_or(ObjectManagerError::ObjectNotFound)?;
         Ok(self.map_item_to_metadata(&item))
+    }
+
+    pub async fn delete_object(
+        &self,
+        namespace: &str,
+        object: &str,
+        version: Option<&str>,
+    ) -> Result<(), ObjectManagerError> {
+        let key = Self::get_key(namespace, object, version);
+
+        // Delete from S3
+        self.s3_client
+            .delete_object()
+            .bucket(Self::BUCKET_NAME)
+            .key(&key)
+            .send()
+            .await?;
+
+        // Delete from DynamoDB
+        self.dynamo_client
+            .delete_item()
+            .table_name(Self::TABLE_NAME)
+            .key(Self::OBJECT_KEY, AttributeValue::S(key))
+            .send()
+            .await?;
+
+        Ok(())
     }
 }

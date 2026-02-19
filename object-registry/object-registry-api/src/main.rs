@@ -42,6 +42,7 @@ async fn main() -> Result<(), Error> {
         .route("/{namespace}", get(routes::objects::list_objects))
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))
+        .route("/{namespace}/{object}", delete(routes::objects::delete_object))
         .route("/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))
         .route("/events/{namespace}", post(routes::events::post_event))

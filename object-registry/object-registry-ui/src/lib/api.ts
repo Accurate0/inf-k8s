@@ -56,6 +56,14 @@ export async function listObjects(namespace: string): Promise<ObjectMetadata[]> 
 	return data.objects;
 }
 
+export async function listNamespaces(): Promise<string[]> {
+	const response = await fetch(`${BASE_URL}/namespaces`);
+	if (!response.ok) {
+		await handleError(response, 'list namespaces');
+	}
+	return await response.json();
+}
+
 export async function downloadObject(namespace: string, key: string): Promise<{ blob: Blob; filename: string }> {
 	const response = await fetch(`${BASE_URL}/${namespace}/${key}`);
 	if (!response.ok) {
@@ -96,7 +104,34 @@ export async function uploadObject(namespace: string, key: string, file: File): 
 	}
 }
 
-// Note: DELETE is not currently supported by the API for objects
 export async function deleteObject(namespace: string, key: string): Promise<void> {
-	throw new Error('Delete is not supported by the API for objects.');
+	const response = await fetch(`${BASE_URL}/${namespace}/${key}`, {
+		method: 'DELETE'
+	});
+
+	if (!response.ok) {
+		await handleError(response, 'delete object');
+	}
+}
+
+export interface NotifyResponse {
+	type: string;
+	method: string;
+	urls: string[];
+}
+
+export interface EventResponse {
+	namespace: string;
+	id: string;
+	keys: string[];
+	notify: NotifyResponse;
+	created_at: string;
+}
+
+export async function listEvents(namespace: string): Promise<EventResponse[]> {
+	const response = await fetch(`${BASE_URL}/events/${namespace}`);
+	if (!response.ok) {
+		await handleError(response, 'list events');
+	}
+	return await response.json();
 }
