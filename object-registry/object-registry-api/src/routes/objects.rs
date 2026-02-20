@@ -6,8 +6,8 @@ use axum::{
     response::Response,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
-use object_registry::object_manager::ObjectManagerError;
 use object_registry::types::{MetadataResponse, ObjectResponse};
+use object_registry_foundations::object_manager::ObjectManagerError;
 use serde_json::Value;
 use std::collections::HashMap;
 

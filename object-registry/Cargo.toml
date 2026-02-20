@@ -1,27 +1,28 @@
 [workspace]
 resolver = "3"
-members = ["cli","object-registry-api",  "object-registry-events", "object-registry"]
+members = ["cli", "object-registry-api", "object-registry-events", "object-registry", "object-registry-foundations"]
 
 [workspace.dependencies]
-tokio = { version = "1", features = ["macros"] }
-serde = "1.0.228"
+tokio = { version = "1", features = ["macros", "full"] }
+serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
 serde_yaml = "0.9"
 anyhow = "1.0.100"
 aws-config = { version = "1.8.12", features = ["behavior-version-latest"] }
 aws-sdk-secretsmanager = "1.98.0"
 aws-sdk-dynamodb = "1.103.0"
+aws-sdk-s3 = "1.120.0"
 thiserror = "2.0.18"
-jwt = "0.16.0"
-hmac = "0.12.1"
-sha2 = "0.10.9"
 base64 = "0.22.1"
-uuid = { version = "1.4", features = ["v4"] }
-rsa = "0.9"
-object-registry = { path = "./object-registry" }
-
+uuid = { version = "1.10", features = ["v4"] }
 reqwest = { version = "0.13.1", features = ["json"] }
-chrono = "0.4.43"
+chrono = { version = "0.4.43", features = ["serde"] }
+jsonwebtoken = { version = "10", features = ["aws_lc_rs"] }
+tracing = "0.1"
+sha2 = "0.10.9"
+
+object-registry = { path = "./object-registry" }
+object-registry-foundations = { path = "./object-registry-foundations" }
 
 [profile.release-strip]
 inherits = "release"

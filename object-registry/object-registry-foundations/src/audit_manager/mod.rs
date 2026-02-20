@@ -5,7 +5,7 @@ use aws_sdk_dynamodb::{
     types::AttributeValue,
 };
 use chrono::Utc;
-use serde::{Deserialize, Serialize};
+use object_registry::types::AuditLog;
 use std::collections::HashMap;
 use uuid::Uuid;
 
@@ -17,18 +17,6 @@ pub enum AuditManagerError {
     ScanAuditLogs(#[from] SdkError<ScanError>),
     #[error("error querying audit logs: {0}")]
     QueryAuditLogs(#[from] SdkError<QueryError>),
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AuditLog {
-    pub id: String,
-    pub timestamp: i64,
-    pub ttl: i64,
-    pub action: String,
-    pub subject: String,
-    pub namespace: Option<String>,
-    pub object_key: Option<String>,
-    pub details: HashMap<String, String>,
 }
 
 #[derive(Clone)]

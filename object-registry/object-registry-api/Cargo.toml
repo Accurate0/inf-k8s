@@ -8,7 +8,7 @@ axum = "0.8.8"
 lambda_http = "1.0.2"
 aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
-aws-sdk-s3 = "1.120.0"
+aws-sdk-s3 = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
 tokio = { workspace = true }
 anyhow = { workspace = true }
@@ -16,14 +16,15 @@ base64 = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 serde_yaml = { workspace = true }
-jwt = { workspace = true }
-hmac = { workspace = true }
+jwt = "0.16.0"
+hmac = "0.12.1"
 sha2 = { workspace = true }
 object-registry = { workspace = true }
+object-registry-foundations = { workspace = true }
 reqwest = { workspace = true }
 thiserror = { workspace = true }
 chrono = { workspace = true }
 form_urlencoded = "1.2.1"
-uuid = { version = "1.4", features = ["v4"] }
-rsa = { workspace = true, features = ["pem"] }
-jsonwebtoken = "10.2.0"
+uuid = { workspace = true }
+rsa = { version = "0.9", features = ["pem"] }
+jsonwebtoken = { workspace = true }

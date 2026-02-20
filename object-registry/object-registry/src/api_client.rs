@@ -1,4 +1,4 @@
-use crate::{JwtValidationError, ObjectRegistryJwtClaims, ObjectResponse, Role};
+use crate::{ObjectRegistryJwtClaims, ObjectResponse, Role};
 use base64::Engine;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
@@ -11,8 +11,6 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum ApiClientError {
-    #[error("JWT error: {0}")]
-    JwtValidation(#[from] JwtValidationError),
     #[error("JWT error: {0}")]
     Jwt(#[from] jsonwebtoken::errors::Error),
     #[error("HTTP error: {0}")]
@@ -400,7 +398,7 @@ impl ApiClient {
         actions: Option<Vec<String>>,
         subjects: Option<Vec<String>>,
         namespaces: Option<Vec<String>>,
-    ) -> Result<Vec<crate::audit_manager::AuditLog>, ApiClientError> {
+    ) -> Result<Vec<crate::types::AuditLog>, ApiClientError> {
         let base = self.base_url.trim_end_matches('/');
         let mut url = Url::parse(&format!("{}/audit", base))
             .map_err(|e| ApiClientError::Other(e.to_string()))?;
@@ -431,7 +429,7 @@ impl ApiClient {
         let resp = self.client.get(url).bearer_auth(jwt).send().await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
         let resp = resp.error_for_status()?;
-        let arr: Vec<crate::audit_manager::AuditLog> = resp.json().await?;
+        let arr: Vec<crate::types::AuditLog> = resp.json().await?;
         Ok(arr)
     }
 }

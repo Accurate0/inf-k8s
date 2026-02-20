@@ -160,11 +160,11 @@ async fn main() -> anyhow::Result<()> {
             let private_pem = rsa.private_key_to_pem()?;
             let public_pem = rsa.public_key_to_pem()?;
 
-            let km = object_registry::key_manager::KeyManager::new(&config);
+            let km = object_registry_foundations::key_manager::KeyManager::new(&config);
             let id = key_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
 
             let public_pem_str = String::from_utf8(public_pem.clone())?;
-            let details = object_registry::key_manager::KeyDetails {
+            let details = object_registry_foundations::key_manager::KeyDetails {
                 key_id: id.clone(),
                 public_key: public_pem_str,
                 permitted_namespaces: namespaces,
@@ -196,8 +196,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -243,8 +243,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -301,8 +301,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -347,8 +347,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -376,8 +376,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec!["*".to_string()],
@@ -411,8 +411,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec!["*".to_string()],
@@ -498,8 +498,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -538,8 +538,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -584,8 +584,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],
@@ -621,8 +621,8 @@ async fn main() -> anyhow::Result<()> {
 
                 let ttl = chrono::Utc::now().timestamp() + 300;
 
-                let km = object_registry::key_manager::KeyManager::new(&config);
-                let details = object_registry::key_manager::KeyDetails {
+                let km = object_registry_foundations::key_manager::KeyManager::new(&config);
+                let details = object_registry_foundations::key_manager::KeyDetails {
                     key_id: kid.clone(),
                     public_key: String::from_utf8(public_pem.clone())?,
                     permitted_namespaces: vec![namespace.clone()],

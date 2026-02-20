@@ -77,19 +77,14 @@ pub struct EventResponse {
     pub created_at: String,
 }
 
-impl From<&crate::event_manager::Event> for EventResponse {
-    fn from(ev: &crate::event_manager::Event) -> Self {
-        EventResponse {
-            namespace: ev.namespace.clone(),
-            id: ev.id.clone(),
-            keys: ev.keys.clone(),
-            notify: NotifyResponse {
-                r#type: ev.notify.r#type.to_string(),
-                method: ev.notify.method.clone(),
-                urls: ev.notify.urls.clone(),
-            },
-            audience: ev.audience.clone(),
-            created_at: ev.created_at.to_rfc3339(),
-        }
-    }
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AuditLog {
+    pub id: String,
+    pub timestamp: i64,
+    pub ttl: i64,
+    pub action: String,
+    pub subject: String,
+    pub namespace: Option<String>,
+    pub object_key: Option<String>,
+    pub details: HashMap<String, String>,
 }

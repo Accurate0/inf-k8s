@@ -862,6 +862,7 @@ dependencies = [
  "clap",
  "comfy-table",
  "object-registry",
+ "object-registry-foundations",
  "openssl",
  "reqwest",
  "serde_json",
@@ -2262,13 +2263,8 @@ dependencies = [
 name = "object-registry"
 version = "0.1.0"
 dependencies = [
- "aws-config",
- "aws-sdk-dynamodb",
- "aws-sdk-s3",
  "base64 0.22.1",
  "chrono",
- "hex",
- "hmac",
  "jsonwebtoken",
  "mockito",
  "openssl",
@@ -2276,7 +2272,6 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml",
- "sha2",
  "thiserror 2.0.18",
  "tokio",
  "tracing",
@@ -2301,6 +2296,7 @@ dependencies = [
  "jwt",
  "lambda_http",
  "object-registry",
+ "object-registry-foundations",
  "reqwest",
  "rsa",
  "serde",
@@ -2324,12 +2320,33 @@ dependencies = [
  "config",
  "lambda_runtime",
  "object-registry",
+ "object-registry-foundations",
  "reqwest",
  "serde",
  "serde_json",
  "serde_yaml",
  "tokio",
  "urlencoding",
+]
+
+[[package]]
+name = "object-registry-foundations"
+version = "0.1.0"
+dependencies = [
+ "aws-config",
+ "aws-sdk-dynamodb",
+ "aws-sdk-s3",
+ "base64 0.22.1",
+ "chrono",
+ "hex",
+ "jsonwebtoken",
+ "object-registry",
+ "serde",
+ "serde_json",
+ "sha2",
+ "thiserror 2.0.18",
+ "tracing",
+ "uuid",
 ]
 
 [[package]]

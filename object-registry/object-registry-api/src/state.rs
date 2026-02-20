@@ -1,8 +1,8 @@
 use crate::permissions::PermissionsManager;
-use object_registry::audit_manager::AuditManager;
-use object_registry::event_manager::EventManager;
-use object_registry::key_manager::KeyManager;
-use object_registry::object_manager::ObjectManager;
+use object_registry_foundations::audit_manager::AuditManager;
+use object_registry_foundations::event_manager::EventManager;
+use object_registry_foundations::key_manager::KeyManager;
+use object_registry_foundations::object_manager::ObjectManager;
 
 #[derive(Clone)]
 pub struct AppState {

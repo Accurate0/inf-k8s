@@ -1,0 +1,20 @@
+[package]
+name = "object-registry-foundations"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+object-registry = { workspace = true }
+jsonwebtoken = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }
+aws-config = { workspace = true }
+aws-sdk-dynamodb = { workspace = true }
+aws-sdk-s3 = { workspace = true }
+uuid = { workspace = true }
+sha2 = { workspace = true }
+hex = "0.4"
+base64 = { workspace = true }
+tracing = { workspace = true }

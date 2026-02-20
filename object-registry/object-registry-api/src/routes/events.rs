@@ -10,8 +10,8 @@ use uuid::Uuid;
 
 use crate::auth::Permissions;
 use crate::state::AppState;
-use object_registry::event_manager::{Event, NotificationType, Notify};
 use object_registry::types::{CreatedResponse, EventRequest, EventResponse};
+use object_registry_foundations::event_manager::{Event, NotificationType, Notify};
 
 pub async fn post_event(
     State(state): State<AppState>,

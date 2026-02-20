@@ -139,7 +139,7 @@ impl ObjectManager {
     pub async fn list_objects(
         &self,
         namespace: &str,
-    ) -> Result<Vec<crate::types::ObjectMetadata>, ObjectManagerError> {
+    ) -> Result<Vec<object_registry::types::ObjectMetadata>, ObjectManagerError> {
         let db_result = self
             .dynamo_client
             .scan()
@@ -166,9 +166,9 @@ impl ObjectManager {
                 .to_string();
 
             let metadata = self.map_item_to_metadata(&item);
-            objects.push(crate::types::ObjectMetadata {
+            objects.push(object_registry::types::ObjectMetadata {
                 key: stripped_key,
-                metadata: crate::types::MetadataResponse {
+                metadata: object_registry::types::MetadataResponse {
                     namespace: metadata.namespace,
                     checksum: metadata.checksum,
                     size: metadata.size,

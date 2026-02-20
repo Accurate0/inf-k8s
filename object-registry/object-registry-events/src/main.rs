@@ -1,10 +1,10 @@
 use aws_lambda_events::event::s3::S3Event;
 use lambda_runtime::{Error, LambdaEvent, run, service_fn, tracing};
-use object_registry::audit_manager::AuditManager;
-use object_registry::event_manager::{EventManager, NotificationType};
-use object_registry::generate_jwt_from_private_key;
-use object_registry::object_manager::ObjectManager;
 use object_registry::types::{MetadataResponse, ObjectEvent};
+use object_registry_foundations::audit_manager::AuditManager;
+use object_registry_foundations::event_manager::{EventManager, NotificationType};
+use object_registry_foundations::generate_jwt_from_private_key;
+use object_registry_foundations::object_manager::ObjectManager;
 use reqwest::Method;
 use std::collections::HashMap;
 use std::str::FromStr;

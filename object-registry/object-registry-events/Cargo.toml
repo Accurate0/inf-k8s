@@ -13,8 +13,9 @@ lambda_runtime = "1.0.2"
 config = { version = "0.15.19", features = ["yaml"] }
 aws-config = { workspace = true }
 aws-sdk-secretsmanager = { workspace = true }
-aws-sdk-s3 = "1.120.0"
+aws-sdk-s3 = { workspace = true }
 object-registry = { workspace = true }
+object-registry-foundations = { workspace = true }
 base64 = { workspace = true }
 reqwest = { workspace = true }
 urlencoding = "2.1.3"
