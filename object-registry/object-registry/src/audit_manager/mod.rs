@@ -178,7 +178,7 @@ impl AuditManager {
     ) -> Result<(), AuditManagerError> {
         let now = Utc::now();
         let timestamp = now.timestamp_millis();
-        let ttl = now.timestamp() + 14 * 24 * 60 * 60; // 14 days in seconds
+        let ttl = (now + chrono::Duration::days(14)).timestamp();
         let id = Uuid::new_v4().to_string();
 
         let mut item = HashMap::new();
