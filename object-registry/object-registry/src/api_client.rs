@@ -1041,6 +1041,7 @@ mod tests {
         let response_body = serde_json::json!([{
             "id": "log1",
             "timestamp": 123456789,
+            "ttl": 123456789 + 1209600,
             "action": "PUT_OBJECT",
             "subject": "user1",
             "namespace": "ns1",
@@ -1077,6 +1078,158 @@ mod tests {
         let logs = result.unwrap();
         assert_eq!(logs.len(), 1);
         assert_eq!(logs[0].id, "log1");
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_get_object_unsupported_content_type() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("GET", "/ns1/obj1")
+            .with_status(200)
+            .with_header("content-type", "text/plain")
+            .with_body("some plain text")
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.get_object::<String>("ns1", "obj1").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiClientError::Other(s) => assert!(s.contains("unsupported content type")),
+            _ => panic!("Expected Other error for unsupported content type"),
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_put_object_error_status() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("PUT", "/ns1/obj1")
+            .with_status(403)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.put_object("ns1", "obj1", b"data", None).await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiClientError::Http(e) => assert_eq!(e.status(), Some(reqwest::StatusCode::FORBIDDEN)),
+            _ => panic!("Expected Http error"),
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_list_objects_error_status() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("GET", "/ns1")
+            .with_status(404)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.list_objects("ns1").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiClientError::Http(e) => assert_eq!(e.status(), Some(reqwest::StatusCode::NOT_FOUND)),
+            _ => panic!("Expected Http error"),
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_list_audit_logs_no_filters() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let response_body = serde_json::json!([{
+            "id": "log1",
+            "timestamp": 123456789,
+            "ttl": 123456789 + 1209600,
+            "action": "PUT_OBJECT",
+            "subject": "user1",
+            "namespace": "ns1",
+            "object_key": "obj1",
+            "details": {}
+        }]).to_string();
+
+        let mock = server
+            .mock("GET", mockito::Matcher::Regex("^/audit\\??$".to_string()))
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(response_body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.list_audit_logs(None, None, None, None).await;
+
+        assert!(result.is_ok());
+        let logs = result.unwrap();
+        assert_eq!(logs.len(), 1);
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_delete_object_error_status() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("DELETE", "/ns1/obj1")
+            .with_status(404)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.delete_object("ns1", "obj1").await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiClientError::Http(e) => assert_eq!(e.status(), Some(reqwest::StatusCode::NOT_FOUND)),
+            _ => panic!("Expected Http error"),
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_list_namespaces_error_status() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("GET", "/namespaces")
+            .with_status(500)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client.list_namespaces().await;
+        assert!(result.is_err());
+        match result.unwrap_err() {
+            ApiClientError::Http(e) => assert_eq!(e.status(), Some(reqwest::StatusCode::INTERNAL_SERVER_ERROR)),
+            _ => panic!("Expected Http error"),
+        }
         mock.assert();
     }
 }

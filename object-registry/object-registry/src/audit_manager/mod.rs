@@ -23,6 +23,7 @@ pub enum AuditManagerError {
 pub struct AuditLog {
     pub id: String,
     pub timestamp: i64,
+    pub ttl: i64,
     pub action: String,
     pub subject: String,
     pub namespace: Option<String>,
@@ -41,6 +42,7 @@ impl AuditManager {
     const PK_VALUE: &str = "AUDIT";
     const ID: &str = "id";
     const TIMESTAMP: &str = "timestamp";
+    const TTL: &str = "ttl";
     const ACTION: &str = "action";
     const SUBJECT: &str = "subject";
     const NAMESPACE: &str = "namespace";
@@ -152,6 +154,10 @@ impl AuditManager {
                 .and_then(|v| v.as_n().ok())
                 .and_then(|s| s.parse().ok())
                 .unwrap_or_default(),
+            ttl: item.get(Self::TTL)
+                .and_then(|v| v.as_n().ok())
+                .and_then(|s| s.parse().ok())
+                .unwrap_or_default(),
             action: item.get(Self::ACTION).and_then(|v| v.as_s().ok()).cloned().unwrap_or_default(),
             subject: item.get(Self::SUBJECT).and_then(|v| v.as_s().ok()).cloned().unwrap_or_default(),
             namespace: item.get(Self::NAMESPACE).and_then(|v| v.as_s().ok()).cloned(),
@@ -170,13 +176,16 @@ impl AuditManager {
         object_key: Option<&str>,
         details: HashMap<String, String>,
     ) -> Result<(), AuditManagerError> {
-        let timestamp = Utc::now().timestamp_millis();
+        let now = Utc::now();
+        let timestamp = now.timestamp_millis();
+        let ttl = now.timestamp() + 14 * 24 * 60 * 60; // 14 days in seconds
         let id = Uuid::new_v4().to_string();
 
         let mut item = HashMap::new();
         item.insert(Self::PK.to_string(), AttributeValue::S(Self::PK_VALUE.to_string()));
         item.insert(Self::ID.to_string(), AttributeValue::S(id));
         item.insert(Self::TIMESTAMP.to_string(), AttributeValue::N(timestamp.to_string()));
+        item.insert(Self::TTL.to_string(), AttributeValue::N(ttl.to_string()));
         item.insert(Self::ACTION.to_string(), AttributeValue::S(action.to_string()));
         item.insert(Self::SUBJECT.to_string(), AttributeValue::S(subject.to_string()));
 

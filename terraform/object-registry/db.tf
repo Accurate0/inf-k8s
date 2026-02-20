@@ -68,7 +68,12 @@ resource "aws_dynamodb_table" "object-registry-audit" {
     type = "N"
   }
 
-  # lifecycle {
-  #   prevent_destroy = true
-  # }
+  ttl {
+    enabled        = true
+    attribute_name = "ttl"
+  }
+
+  lifecycle {
+    prevent_destroy = true
+  }
 }

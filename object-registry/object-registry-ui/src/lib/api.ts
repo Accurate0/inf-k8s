@@ -188,7 +188,8 @@ export async function updateEvent(namespace: string, id: string, event: EventReq
 
 export interface AuditLog {
 	id: string;
-	timestamp: string;
+	timestamp: number;
+	ttl: number;
 	action: string;
 	subject: string;
 	namespace?: string;
