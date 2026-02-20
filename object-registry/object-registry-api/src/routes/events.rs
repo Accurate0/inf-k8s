@@ -1,7 +1,8 @@
 use axum::{
+    body::Body,
     extract::{Extension, Json, Path, State},
     http::StatusCode,
-    response::IntoResponse,
+    response::Response,
 };
 use chrono::{DateTime, Utc};
 use std::collections::HashMap;
@@ -17,7 +18,7 @@ pub async fn post_event(
     Extension(perms): Extension<Permissions>,
     Path(namespace): Path<String>,
     Json(req): Json<EventRequest>,
-) -> Result<impl IntoResponse, crate::error::AppError> {
+) -> Result<Response, crate::error::AppError> {
     state
         .permissions_manager
         .enforce(&perms, "event:post", &namespace)?;
@@ -50,15 +51,16 @@ pub async fn post_event(
     details.insert("event_id".to_string(), id.clone());
     details.insert("audience".to_string(), req.audience);
 
-    let _ = state.audit_manager.log(
-        "POST_EVENT",
-        &perms.issuer,
-        Some(&namespace),
-        None,
-        details,
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log("POST_EVENT", &perms.issuer, Some(&namespace), None, details)
+        .await?;
 
-    Ok((StatusCode::CREATED, Json(CreatedResponse { id })))
+    Ok(Response::builder()
+        .status(StatusCode::CREATED)
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&CreatedResponse { id })?.into())?)
 }
 
 pub async fn put_event(
@@ -66,7 +68,7 @@ pub async fn put_event(
     Extension(perms): Extension<Permissions>,
     Path((namespace, id)): Path<(String, String)>,
     Json(req): Json<EventRequest>,
-) -> Result<impl IntoResponse, crate::error::AppError> {
+) -> Result<Response, crate::error::AppError> {
     state
         .permissions_manager
         .enforce(&perms, "event:put", &namespace)?;
@@ -98,22 +100,23 @@ pub async fn put_event(
     details.insert("event_id".to_string(), id.clone());
     details.insert("audience".to_string(), req.audience);
 
-    let _ = state.audit_manager.log(
-        "PUT_EVENT",
-        &perms.issuer,
-        Some(&namespace),
-        None,
-        details,
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log("PUT_EVENT", &perms.issuer, Some(&namespace), None, details)
+        .await?;
 
-    Ok((StatusCode::OK, Json(CreatedResponse { id })))
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&CreatedResponse { id })?.into())?)
 }
 
 pub async fn delete_event(
     State(state): State<AppState>,
     Extension(perms): Extension<Permissions>,
     Path((namespace, id)): Path<(String, String)>,
-) -> Result<impl IntoResponse, crate::error::AppError> {
+) -> Result<Response, crate::error::AppError> {
     state
         .permissions_manager
         .enforce(&perms, "event:delete", &namespace)?;
@@ -122,35 +125,49 @@ pub async fn delete_event(
     let mut details = HashMap::new();
     details.insert("event_id".to_string(), id);
 
-    let _ = state.audit_manager.log(
-        "DELETE_EVENT",
-        &perms.issuer,
-        Some(&namespace),
-        None,
-        details,
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log(
+            "DELETE_EVENT",
+            &perms.issuer,
+            Some(&namespace),
+            None,
+            details,
+        )
+        .await?;
 
-    Ok((StatusCode::NO_CONTENT, ""))
+    Ok(Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
+        .body(Body::empty())?)
 }
 
 pub async fn list_events(
     State(state): State<AppState>,
     Extension(perms): Extension<Permissions>,
     Path(namespace): Path<String>,
-) -> Result<impl IntoResponse, crate::error::AppError> {
+) -> Result<Response, crate::error::AppError> {
     state
         .permissions_manager
         .enforce(&perms, "event:get", &namespace)?;
 
-    let _ = state.audit_manager.log(
-        "LIST_EVENTS",
-        &perms.issuer,
-        Some(&namespace),
-        None,
-        HashMap::new(),
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log(
+            "LIST_EVENTS",
+            &perms.issuer,
+            Some(&namespace),
+            None,
+            HashMap::new(),
+        )
+        .await?;
 
     let evs = state.event_manager.get_events(namespace).await?;
     let arr: Vec<EventResponse> = evs.iter().map(EventResponse::from).collect();
-    Ok((StatusCode::OK, Json(arr)))
+
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
+        .header("Content-Type", "application/json")
+        .body(serde_json::to_string(&arr)?.into())?)
 }

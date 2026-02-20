@@ -338,10 +338,7 @@ async fn main() -> anyhow::Result<()> {
             }
             println!("{table}");
         }
-        Commands::Delete {
-            namespace,
-            object,
-        } => {
+        Commands::Delete { namespace, object } => {
             let (private_pem, kid) = {
                 let rsa = openssl::rsa::Rsa::generate(4096)?;
                 let private_pem = rsa.private_key_to_pem()?;
@@ -366,8 +363,7 @@ async fn main() -> anyhow::Result<()> {
 
             let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
 
-            api.delete_object(&namespace, &object)
-                .await?;
+            api.delete_object(&namespace, &object).await?;
 
             println!("deleted {}/{}", namespace, object);
         }
@@ -431,11 +427,25 @@ async fn main() -> anyhow::Result<()> {
 
             let api = object_registry::ApiClient::new(private_pem, kid, "object-registry-cli");
 
-            let actions_opt = if actions.is_empty() { None } else { Some(actions) };
-            let subjects_opt = if subjects.is_empty() { None } else { Some(subjects) };
-            let namespaces_opt = if namespaces.is_empty() { None } else { Some(namespaces) };
+            let actions_opt = if actions.is_empty() {
+                None
+            } else {
+                Some(actions)
+            };
+            let subjects_opt = if subjects.is_empty() {
+                None
+            } else {
+                Some(subjects)
+            };
+            let namespaces_opt = if namespaces.is_empty() {
+                None
+            } else {
+                Some(namespaces)
+            };
 
-            let logs = api.list_audit_logs(limit, actions_opt, subjects_opt, namespaces_opt).await?;
+            let logs = api
+                .list_audit_logs(limit, actions_opt, subjects_opt, namespaces_opt)
+                .await?;
             let mut table = Table::new();
             table.set_header(vec![
                 "Timestamp",
@@ -447,8 +457,11 @@ async fn main() -> anyhow::Result<()> {
             ]);
 
             for log in logs {
-                let dt = chrono::DateTime::from_timestamp(log.timestamp / 1000, ((log.timestamp % 1000) * 1_000_000) as u32)
-                    .unwrap_or_default();
+                let dt = chrono::DateTime::from_timestamp(
+                    log.timestamp / 1000,
+                    ((log.timestamp % 1000) * 1_000_000) as u32,
+                )
+                .unwrap_or_default();
                 let timestamp_str = dt.to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
 
                 let details = log
@@ -545,12 +558,7 @@ async fn main() -> anyhow::Result<()> {
 
                 let events = api.list_events(&namespace).await?;
                 let mut table = Table::new();
-                table.set_header(vec![
-                    "ID",
-                    "Keys",
-                    "Notify Details",
-                    "Created At",
-                ]);
+                table.set_header(vec!["ID", "Keys", "Notify Details", "Created At"]);
 
                 for event in events {
                     let notify_details = format!(

@@ -196,7 +196,11 @@ impl ObjectManager {
         let items = db_result.items.unwrap_or_default();
         let mut namespaces: Vec<String> = items
             .iter()
-            .filter_map(|item| item.get(Self::NAMESPACE).and_then(|v| v.as_s().ok()).cloned())
+            .filter_map(|item| {
+                item.get(Self::NAMESPACE)
+                    .and_then(|v| v.as_s().ok())
+                    .cloned()
+            })
             .collect();
 
         namespaces.sort();
@@ -289,7 +293,10 @@ impl ObjectManager {
         })
     }
 
-    pub async fn get_metadata_by_key(&self, key: &str) -> Result<ObjectMetadata, ObjectManagerError> {
+    pub async fn get_metadata_by_key(
+        &self,
+        key: &str,
+    ) -> Result<ObjectMetadata, ObjectManagerError> {
         let db_result = self
             .dynamo_client
             .get_item()

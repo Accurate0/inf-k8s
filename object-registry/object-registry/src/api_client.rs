@@ -3,7 +3,6 @@ use base64::Engine;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
 use reqwest::{Client, Method, Url, header::CONTENT_TYPE};
-use serde::Serialize;
 use serde::de::DeserializeOwned;
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -81,14 +80,18 @@ impl ApiClient {
         Ok(token)
     }
 
+    #[tracing::instrument(name = "GET /.well-known/jwks", skip_all, fields(status_code = tracing::field::Empty))]
     pub async fn get_jwks(base_url: String) -> Result<JwkSet, ApiClientError> {
         let jwks_url = format!("{}/.well-known/jwks", base_url.trim_end_matches('/'));
         let client = Client::new();
-        let resp = client.get(jwks_url).send().await?.error_for_status()?;
+        let resp = client.get(jwks_url).send().await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let jwks: JwkSet = resp.json().await?;
         Ok(jwks)
     }
 
+    #[tracing::instrument(skip(self, get_jwks_fn, token))]
     pub async fn validate_event_token<F, Fut>(
         &self,
         get_jwks_fn: F,
@@ -121,6 +124,11 @@ impl ApiClient {
             .header("content-type", "application/json")
     }
 
+    #[tracing::instrument(
+        name = "PUT /{namespace}/{object}",
+        skip(self, body, labels),
+        fields(status_code = tracing::field::Empty)
+    )]
     pub async fn put_object(
         &self,
         namespace: &str,
@@ -145,15 +153,14 @@ impl ApiClient {
         let jwt = self.generate_jwt()?;
         req = req.bearer_auth(jwt);
 
-        let _resp = req.send().await?.error_for_status()?;
+        let resp = req.send().await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let _resp = resp.error_for_status()?;
         Ok(())
     }
 
-    pub async fn delete_object(
-        &self,
-        namespace: &str,
-        object: &str,
-    ) -> Result<(), ApiClientError> {
+    #[tracing::instrument(name = "DELETE /{namespace}/{object}", skip(self), fields(status_code = tracing::field::Empty))]
+    pub async fn delete_object(&self, namespace: &str, object: &str) -> Result<(), ApiClientError> {
         let rel = format!("{}/{}", namespace, object);
         let base = self.base_url.trim_end_matches('/');
         let resource = rel.trim_start_matches('/');
@@ -161,17 +168,20 @@ impl ApiClient {
             .map_err(|e| ApiClientError::Other(e.to_string()))?;
 
         let jwt = self.generate_jwt()?;
-        let _resp = self
+        let resp = self
             .client
             .request(Method::DELETE, url)
             .bearer_auth(jwt)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let _resp = resp.error_for_status()?;
 
         Ok(())
     }
 
+    #[tracing::instrument(name = "GET /{namespace}/{object}", skip(self), fields(status_code = tracing::field::Empty))]
     pub async fn get_object<T>(
         &self,
         namespace: &str,
@@ -191,7 +201,9 @@ impl ApiClient {
             .request(Method::GET, url)
             .bearer_auth(self.generate_jwt()?);
 
-        let resp = req.send().await?.error_for_status()?;
+        let resp = req.send().await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
 
         let content_type = resp
             .headers()
@@ -259,6 +271,7 @@ impl ApiClient {
         ))
     }
 
+    #[tracing::instrument(name = "GET /{namespace}", skip(self), fields(status_code = tracing::field::Empty))]
     pub async fn list_objects(
         &self,
         namespace: &str,
@@ -269,12 +282,14 @@ impl ApiClient {
             .get_default_request(&rel, Method::GET)
             .bearer_auth(jwt)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let res = resp.json().await?;
         Ok(res)
     }
 
+    #[tracing::instrument(name = "GET /namespaces", skip(self), fields(status_code = tracing::field::Empty))]
     pub async fn list_namespaces(&self) -> Result<Vec<String>, ApiClientError> {
         let rel = "namespaces".to_string();
         let jwt = self.generate_jwt()?;
@@ -282,12 +297,18 @@ impl ApiClient {
             .get_default_request(&rel, Method::GET)
             .bearer_auth(jwt)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let res = resp.json().await?;
         Ok(res)
     }
 
+    #[tracing::instrument(
+        name = "POST /events/{namespace}",
+        skip(self, req),
+        fields(status_code = tracing::field::Empty)
+    )]
     pub async fn post_event(
         &self,
         namespace: &str,
@@ -300,12 +321,18 @@ impl ApiClient {
             .bearer_auth(jwt)
             .json(req)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let created: crate::types::CreatedResponse = resp.json().await?;
         Ok(created)
     }
 
+    #[tracing::instrument(
+        name = "PUT /events/{namespace}/{id}",
+        skip(self, req),
+        fields(status_code = tracing::field::Empty)
+    )]
     pub async fn put_event(
         &self,
         namespace: &str,
@@ -319,24 +346,36 @@ impl ApiClient {
             .bearer_auth(jwt)
             .json(req)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let created: crate::types::CreatedResponse = resp.json().await?;
         Ok(created)
     }
 
+    #[tracing::instrument(
+        name = "DELETE /events/{namespace}/{id}",
+        skip(self),
+        fields(status_code = tracing::field::Empty)
+    )]
     pub async fn delete_event(&self, namespace: &str, id: &str) -> Result<(), ApiClientError> {
         let rel = format!("events/{}/{}", namespace, id);
         let jwt = self.generate_jwt()?;
-        let _resp = self
+        let resp = self
             .get_default_request(&rel, Method::DELETE)
             .bearer_auth(jwt)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let _resp = resp.error_for_status()?;
         Ok(())
     }
 
+    #[tracing::instrument(
+        name = "GET /events/{namespace}",
+        skip(self),
+        fields(status_code = tracing::field::Empty)
+    )]
     pub async fn list_events(
         &self,
         namespace: &str,
@@ -347,12 +386,14 @@ impl ApiClient {
             .get_default_request(&rel, Method::GET)
             .bearer_auth(jwt)
             .send()
-            .await?
-            .error_for_status()?;
+            .await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let arr: Vec<crate::types::EventResponse> = resp.json().await?;
         Ok(arr)
     }
 
+    #[tracing::instrument(name = "GET /audit", skip(self), fields(status_code = tracing::field::Empty))]
     pub async fn list_audit_logs(
         &self,
         limit: Option<i32>,
@@ -387,44 +428,11 @@ impl ApiClient {
         }
 
         let jwt = self.generate_jwt()?;
-        let resp = self
-            .client
-            .get(url)
-            .bearer_auth(jwt)
-            .send()
-            .await?
-            .error_for_status()?;
+        let resp = self.client.get(url).bearer_auth(jwt).send().await?;
+        tracing::Span::current().record("status_code", resp.status().as_u16());
+        let resp = resp.error_for_status()?;
         let arr: Vec<crate::audit_manager::AuditLog> = resp.json().await?;
         Ok(arr)
-    }
-
-    pub async fn get(&self, path: &str) -> Result<reqwest::Response, ApiClientError> {
-        let rel = path.trim_start_matches('/');
-        let jwt = self.generate_jwt()?;
-        let resp = self
-            .get_default_request(rel, Method::GET)
-            .bearer_auth(jwt)
-            .send()
-            .await?
-            .error_for_status()?;
-        Ok(resp)
-    }
-
-    pub async fn post_json<T: Serialize + ?Sized>(
-        &self,
-        path: &str,
-        body: &T,
-    ) -> Result<reqwest::Response, ApiClientError> {
-        let rel = path.trim_start_matches('/');
-        let jwt = self.generate_jwt()?;
-        let resp = self
-            .get_default_request(rel, Method::POST)
-            .bearer_auth(jwt)
-            .json(body)
-            .send()
-            .await?
-            .error_for_status()?;
-        Ok(resp)
     }
 }
 
@@ -523,9 +531,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client
-            .put_object("ns1", "obj1", b"hello", None)
-            .await;
+        let result = client.put_object("ns1", "obj1", b"hello", None).await;
         assert!(result.is_ok());
         mock.assert();
     }
@@ -767,9 +773,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1")
-            .await;
+        let result = client.get_object::<serde_json::Value>("ns1", "obj1").await;
         assert!(result.is_err());
         match result.unwrap_err() {
             ApiClientError::Json(_) => {}
@@ -821,50 +825,6 @@ mod tests {
             ApiClientError::Json(_) => {}
             _ => panic!("Expected Json error due to type mismatch"),
         }
-        mock.assert();
-    }
-
-    #[tokio::test]
-    async fn test_get_generic_success() {
-        let mut server = Server::new_async().await;
-        let rsa = Rsa::generate(2048).unwrap();
-        let private_key_pem = rsa.private_key_to_pem().unwrap();
-
-        let mock = server
-            .mock("GET", "/some/path")
-            .with_status(200)
-            .with_body("ok")
-            .create();
-
-        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
-        client.base_url = server.url();
-
-        let resp = client.get("/some/path").await.unwrap();
-        assert_eq!(resp.status(), 200);
-        assert_eq!(resp.text().await.unwrap(), "ok");
-        mock.assert();
-    }
-
-    #[tokio::test]
-    async fn test_post_json_generic_success() {
-        let mut server = Server::new_async().await;
-        let rsa = Rsa::generate(2048).unwrap();
-        let private_key_pem = rsa.private_key_to_pem().unwrap();
-
-        let mock = server
-            .mock("POST", "/some/path")
-            .with_status(200)
-            .match_body(mockito::Matcher::JsonString(
-                r#"{"hello":"world"}"#.to_string(),
-            ))
-            .create();
-
-        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
-        client.base_url = server.url();
-
-        let body = serde_json::json!({"hello": "world"});
-        let resp = client.post_json("/some/path", &body).await.unwrap();
-        assert_eq!(resp.status(), 200);
         mock.assert();
     }
 
@@ -928,9 +888,7 @@ mod tests {
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
 
-        let result = client
-            .get_object::<serde_json::Value>("ns1", "obj1")
-            .await;
+        let result = client.get_object::<serde_json::Value>("ns1", "obj1").await;
         assert!(result.is_ok());
         let response = result.unwrap();
 
@@ -994,10 +952,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let mock = server
-            .mock("DELETE", "/ns1/obj1")
-            .with_status(200)
-            .create();
+        let mock = server.mock("DELETE", "/ns1/obj1").with_status(200).create();
 
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
@@ -1047,7 +1002,8 @@ mod tests {
             "namespace": "ns1",
             "object_key": "obj1",
             "details": {}
-        }]).to_string();
+        }])
+        .to_string();
 
         let mock = server
             .mock("GET", "/audit")
@@ -1112,10 +1068,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let mock = server
-            .mock("PUT", "/ns1/obj1")
-            .with_status(403)
-            .create();
+        let mock = server.mock("PUT", "/ns1/obj1").with_status(403).create();
 
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
@@ -1135,10 +1088,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let mock = server
-            .mock("GET", "/ns1")
-            .with_status(404)
-            .create();
+        let mock = server.mock("GET", "/ns1").with_status(404).create();
 
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
@@ -1167,7 +1117,8 @@ mod tests {
             "namespace": "ns1",
             "object_key": "obj1",
             "details": {}
-        }]).to_string();
+        }])
+        .to_string();
 
         let mock = server
             .mock("GET", mockito::Matcher::Regex("^/audit\\??$".to_string()))
@@ -1193,10 +1144,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let mock = server
-            .mock("DELETE", "/ns1/obj1")
-            .with_status(404)
-            .create();
+        let mock = server.mock("DELETE", "/ns1/obj1").with_status(404).create();
 
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
@@ -1216,10 +1164,7 @@ mod tests {
         let rsa = Rsa::generate(2048).unwrap();
         let private_key_pem = rsa.private_key_to_pem().unwrap();
 
-        let mock = server
-            .mock("GET", "/namespaces")
-            .with_status(500)
-            .create();
+        let mock = server.mock("GET", "/namespaces").with_status(500).create();
 
         let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
         client.base_url = server.url();
@@ -1227,7 +1172,9 @@ mod tests {
         let result = client.list_namespaces().await;
         assert!(result.is_err());
         match result.unwrap_err() {
-            ApiClientError::Http(e) => assert_eq!(e.status(), Some(reqwest::StatusCode::INTERNAL_SERVER_ERROR)),
+            ApiClientError::Http(e) => {
+                assert_eq!(e.status(), Some(reqwest::StatusCode::INTERNAL_SERVER_ERROR))
+            }
             _ => panic!("Expected Http error"),
         }
         mock.assert();

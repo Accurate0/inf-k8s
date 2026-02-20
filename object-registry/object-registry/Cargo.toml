@@ -15,6 +15,7 @@ aws-config = { workspace = true }
 aws-sdk-dynamodb = { workspace = true }
 aws-sdk-s3 = "1.120.0"
 reqwest = { workspace = true }
+tracing = "0.1"
 serde_yaml = { workspace = true }
 base64 = { workspace = true }
 hex = "0.4"

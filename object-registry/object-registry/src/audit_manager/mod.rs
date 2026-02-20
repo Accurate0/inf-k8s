@@ -78,43 +78,52 @@ impl AuditManager {
 
             let mut filter_parts = Vec::new();
 
-            if let Some(ref actions) = actions {
-                if !actions.is_empty() {
-                    let mut action_placeholders = Vec::new();
-                    query = query.expression_attribute_names("#action", Self::ACTION);
-                    for (i, action) in actions.iter().enumerate() {
-                        let placeholder = format!(":action{}", i);
-                        query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(action.clone()));
-                        action_placeholders.push(placeholder);
-                    }
-                    filter_parts.push(format!("#action IN ({})", action_placeholders.join(", ")));
+            if let Some(ref actions) = actions
+                && !actions.is_empty()
+            {
+                let mut action_placeholders = Vec::new();
+                query = query.expression_attribute_names("#action", Self::ACTION);
+                for (i, action) in actions.iter().enumerate() {
+                    let placeholder = format!(":action{}", i);
+                    query = query.expression_attribute_values(
+                        placeholder.clone(),
+                        AttributeValue::S(action.clone()),
+                    );
+                    action_placeholders.push(placeholder);
                 }
+                filter_parts.push(format!("#action IN ({})", action_placeholders.join(", ")));
             }
 
-            if let Some(ref subjects) = subjects {
-                if !subjects.is_empty() {
-                    let mut subject_placeholders = Vec::new();
-                    query = query.expression_attribute_names("#subject", Self::SUBJECT);
-                    for (i, subject) in subjects.iter().enumerate() {
-                        let placeholder = format!(":subject{}", i);
-                        query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(subject.clone()));
-                        subject_placeholders.push(placeholder);
-                    }
-                    filter_parts.push(format!("#subject IN ({})", subject_placeholders.join(", ")));
+            if let Some(ref subjects) = subjects
+                && !subjects.is_empty()
+            {
+                let mut subject_placeholders = Vec::new();
+                query = query.expression_attribute_names("#subject", Self::SUBJECT);
+                for (i, subject) in subjects.iter().enumerate() {
+                    let placeholder = format!(":subject{}", i);
+                    query = query.expression_attribute_values(
+                        placeholder.clone(),
+                        AttributeValue::S(subject.clone()),
+                    );
+                    subject_placeholders.push(placeholder);
                 }
+                filter_parts.push(format!("#subject IN ({})", subject_placeholders.join(", ")));
             }
 
-            if let Some(ref namespaces) = namespaces {
-                if !namespaces.is_empty() {
-                    let mut ns_placeholders = Vec::new();
-                    query = query.expression_attribute_names("#namespace", Self::NAMESPACE);
-                    for (i, ns) in namespaces.iter().enumerate() {
-                        let placeholder = format!(":ns{}", i);
-                        query = query.expression_attribute_values(placeholder.clone(), AttributeValue::S(ns.clone()));
-                        ns_placeholders.push(placeholder);
-                    }
-                    filter_parts.push(format!("#namespace IN ({})", ns_placeholders.join(", ")));
+            if let Some(ref namespaces) = namespaces
+                && !namespaces.is_empty()
+            {
+                let mut ns_placeholders = Vec::new();
+                query = query.expression_attribute_names("#namespace", Self::NAMESPACE);
+                for (i, ns) in namespaces.iter().enumerate() {
+                    let placeholder = format!(":ns{}", i);
+                    query = query.expression_attribute_values(
+                        placeholder.clone(),
+                        AttributeValue::S(ns.clone()),
+                    );
+                    ns_placeholders.push(placeholder);
                 }
+                filter_parts.push(format!("#namespace IN ({})", ns_placeholders.join(", ")));
             }
 
             if !filter_parts.is_empty() {
@@ -149,22 +158,48 @@ impl AuditManager {
 
     fn map_item_to_audit_log(&self, item: HashMap<String, AttributeValue>) -> AuditLog {
         AuditLog {
-            id: item.get(Self::ID).and_then(|v| v.as_s().ok()).cloned().unwrap_or_default(),
-            timestamp: item.get(Self::TIMESTAMP)
+            id: item
+                .get(Self::ID)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            timestamp: item
+                .get(Self::TIMESTAMP)
                 .and_then(|v| v.as_n().ok())
                 .and_then(|s| s.parse().ok())
                 .unwrap_or_default(),
-            ttl: item.get(Self::TTL)
+            ttl: item
+                .get(Self::TTL)
                 .and_then(|v| v.as_n().ok())
                 .and_then(|s| s.parse().ok())
                 .unwrap_or_default(),
-            action: item.get(Self::ACTION).and_then(|v| v.as_s().ok()).cloned().unwrap_or_default(),
-            subject: item.get(Self::SUBJECT).and_then(|v| v.as_s().ok()).cloned().unwrap_or_default(),
-            namespace: item.get(Self::NAMESPACE).and_then(|v| v.as_s().ok()).cloned(),
-            object_key: item.get(Self::OBJECT_KEY).and_then(|v| v.as_s().ok()).cloned(),
-            details: item.get(Self::DETAILS).and_then(|v| v.as_m().ok()).map(|m| {
-                m.iter().filter_map(|(k, v)| v.as_s().ok().map(|s| (k.clone(), s.clone()))).collect()
-            }).unwrap_or_default(),
+            action: item
+                .get(Self::ACTION)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            subject: item
+                .get(Self::SUBJECT)
+                .and_then(|v| v.as_s().ok())
+                .cloned()
+                .unwrap_or_default(),
+            namespace: item
+                .get(Self::NAMESPACE)
+                .and_then(|v| v.as_s().ok())
+                .cloned(),
+            object_key: item
+                .get(Self::OBJECT_KEY)
+                .and_then(|v| v.as_s().ok())
+                .cloned(),
+            details: item
+                .get(Self::DETAILS)
+                .and_then(|v| v.as_m().ok())
+                .map(|m| {
+                    m.iter()
+                        .filter_map(|(k, v)| v.as_s().ok().map(|s| (k.clone(), s.clone())))
+                        .collect()
+                })
+                .unwrap_or_default(),
         }
     }
 
@@ -175,26 +210,44 @@ impl AuditManager {
         namespace: Option<&str>,
         object_key: Option<&str>,
         details: HashMap<String, String>,
-    ) -> Result<(), AuditManagerError> {
+    ) -> Result<Uuid, AuditManagerError> {
         let now = Utc::now();
         let timestamp = now.timestamp_millis();
         let ttl = (now + chrono::Duration::days(14)).timestamp();
-        let id = Uuid::new_v4().to_string();
+        let id = Uuid::new_v4();
 
         let mut item = HashMap::new();
-        item.insert(Self::PK.to_string(), AttributeValue::S(Self::PK_VALUE.to_string()));
-        item.insert(Self::ID.to_string(), AttributeValue::S(id));
-        item.insert(Self::TIMESTAMP.to_string(), AttributeValue::N(timestamp.to_string()));
+        item.insert(
+            Self::PK.to_string(),
+            AttributeValue::S(Self::PK_VALUE.to_string()),
+        );
+        item.insert(Self::ID.to_string(), AttributeValue::S(id.to_string()));
+        item.insert(
+            Self::TIMESTAMP.to_string(),
+            AttributeValue::N(timestamp.to_string()),
+        );
         item.insert(Self::TTL.to_string(), AttributeValue::N(ttl.to_string()));
-        item.insert(Self::ACTION.to_string(), AttributeValue::S(action.to_string()));
-        item.insert(Self::SUBJECT.to_string(), AttributeValue::S(subject.to_string()));
+        item.insert(
+            Self::ACTION.to_string(),
+            AttributeValue::S(action.to_string()),
+        );
+        item.insert(
+            Self::SUBJECT.to_string(),
+            AttributeValue::S(subject.to_string()),
+        );
 
         if let Some(ns) = namespace {
-            item.insert(Self::NAMESPACE.to_string(), AttributeValue::S(ns.to_string()));
+            item.insert(
+                Self::NAMESPACE.to_string(),
+                AttributeValue::S(ns.to_string()),
+            );
         }
 
         if let Some(key) = object_key {
-            item.insert(Self::OBJECT_KEY.to_string(), AttributeValue::S(key.to_string()));
+            item.insert(
+                Self::OBJECT_KEY.to_string(),
+                AttributeValue::S(key.to_string()),
+            );
         }
 
         if !details.is_empty() {
@@ -212,6 +265,6 @@ impl AuditManager {
             .send()
             .await?;
 
-        Ok(())
+        Ok(id)
     }
 }

@@ -1,8 +1,8 @@
 use crate::{error::AppError, state::AppState};
 use axum::{
-    body::Bytes,
+    body::{Body, Bytes},
     extract::{Extension, Path, State},
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::Response,
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
@@ -33,7 +33,7 @@ pub async fn put_object(
     headers: HeaderMap,
     Path((namespace, object)): Path<(String, String)>,
     body: Bytes,
-) -> anyhow::Result<(), AppError> {
+) -> Result<Response, AppError> {
     state
         .permissions_manager
         .enforce(&perms, "object:put", &namespace)?;
@@ -61,22 +61,28 @@ pub async fn put_object(
     details.insert("content_type".to_string(), content_type.to_string());
     details.insert("size".to_string(), body.len().to_string());
 
-    let _ = state.audit_manager.log(
-        "PUT_OBJECT",
-        &perms.issuer,
-        Some(&namespace),
-        Some(&object),
-        details,
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log(
+            "PUT_OBJECT",
+            &perms.issuer,
+            Some(&namespace),
+            Some(&object),
+            details,
+        )
+        .await?;
 
-    Ok(())
+    Ok(Response::builder()
+        .status(StatusCode::OK)
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
+        .body(Body::empty())?)
 }
 
 pub async fn delete_object(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
     Path((namespace, object)): Path<(String, String)>,
-) -> anyhow::Result<(), AppError> {
+) -> Result<Response, AppError> {
     state
         .permissions_manager
         .enforce(&perms, "object:delete", &namespace)?;
@@ -86,15 +92,21 @@ pub async fn delete_object(
         .delete_object(&namespace, &object)
         .await?;
 
-    let _ = state.audit_manager.log(
-        "DELETE_OBJECT",
-        &perms.issuer,
-        Some(&namespace),
-        Some(&object),
-        HashMap::new(),
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log(
+            "DELETE_OBJECT",
+            &perms.issuer,
+            Some(&namespace),
+            Some(&object),
+            HashMap::new(),
+        )
+        .await?;
 
-    Ok(())
+    Ok(Response::builder()
+        .status(StatusCode::NO_CONTENT)
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
+        .body(Body::empty())?)
 }
 
 pub async fn get_object(
@@ -106,15 +118,23 @@ pub async fn get_object(
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
-    let _ = state.audit_manager.log(
-        "GET_OBJECT",
-        &perms.issuer,
-        Some(&namespace),
-        Some(&object),
-        HashMap::new(),
-    ).await;
+    let audit_id = state
+        .audit_manager
+        .log(
+            "GET_OBJECT",
+            &perms.issuer,
+            Some(&namespace),
+            Some(&object),
+            HashMap::new(),
+        )
+        .await?;
 
-    fetch_object(&state, &namespace, &object).await
+    let mut response = fetch_object(&state, &namespace, &object).await?;
+    response.headers_mut().insert(
+        object_registry::X_AUDIT_ID_HEADER,
+        HeaderValue::from_str(&audit_id.to_string()).unwrap(),
+    );
+    Ok(response)
 }
 
 pub async fn list_objects(
@@ -126,26 +146,25 @@ pub async fn list_objects(
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
-    let _ = state.audit_manager.log(
-        "LIST_OBJECTS",
-        &perms.issuer,
-        Some(&namespace),
-        None,
-        HashMap::new(),
-    ).await;
-
-    let objects = state
-        .object_manager
-        .list_objects(&namespace)
+    let audit_id = state
+        .audit_manager
+        .log(
+            "LIST_OBJECTS",
+            &perms.issuer,
+            Some(&namespace),
+            None,
+            HashMap::new(),
+        )
         .await?;
 
-    let response = object_registry::types::ListObjectsResponse {
-        objects,
-    };
+    let objects = state.object_manager.list_objects(&namespace).await?;
+
+    let response = object_registry::types::ListObjectsResponse { objects };
 
     Ok(Response::builder()
         .status(200)
         .header("Content-Type", "application/json")
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
         .body(serde_json::to_string(&response)?.into())?)
 }
 
@@ -154,11 +173,7 @@ async fn fetch_object(
     namespace: &str,
     object: &str,
 ) -> Result<Response, AppError> {
-    let stored_object = match state
-        .object_manager
-        .get_object(namespace, object)
-        .await
-    {
+    let stored_object = match state.object_manager.get_object(namespace, object).await {
         Ok(o) => o,
         Err(ObjectManagerError::ObjectNotFound) => {
             return Err(AppError::StatusCode(StatusCode::NOT_FOUND));

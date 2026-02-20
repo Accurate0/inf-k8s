@@ -5,10 +5,10 @@ use serde::Deserialize;
 use serde::Serialize;
 use thiserror::Error;
 
+pub mod audit_manager;
 pub mod event_manager;
 pub mod key_manager;
 pub mod object_manager;
-pub mod audit_manager;
 pub mod types;
 pub use types::{
     CreatedResponse, EventRequest, EventResponse, MetadataResponse, NotifyRequest, NotifyResponse,
@@ -16,6 +16,8 @@ pub use types::{
 };
 pub mod api_client;
 pub use api_client::ApiClient;
+
+pub const X_AUDIT_ID_HEADER: &str = "x-object-registry-audit-id";
 
 pub use jsonwebtoken::jwk::JwkSet;
 
@@ -67,5 +69,3 @@ pub fn generate_jwt_from_private_key(
 
     Ok(token)
 }
-
-

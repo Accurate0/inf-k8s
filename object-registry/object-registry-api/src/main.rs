@@ -44,7 +44,10 @@ async fn main() -> Result<(), Error> {
         .route("/{namespace}", get(routes::objects::list_objects))
         .route("/{namespace}/{object}", put(routes::objects::put_object))
         .route("/{namespace}/{object}", get(routes::objects::get_object))
-        .route("/{namespace}/{object}", delete(routes::objects::delete_object))
+        .route(
+            "/{namespace}/{object}",
+            delete(routes::objects::delete_object),
+        )
         .route("/audit", get(routes::audit::list_audit_logs))
         .route("/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))

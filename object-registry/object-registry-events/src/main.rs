@@ -99,7 +99,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                             .json(&payload)
                             .send()
                             .await?;
-                        
+
                         let status = response.status();
                         tracing::info!("response: {response:?}");
                         let body = response.text().await?;
@@ -112,13 +112,15 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
                         details.insert("method".to_string(), method_str.clone());
                         details.insert("audience".to_string(), event.audience.clone());
 
-                        let _ = audit_manager.log(
-                            "EVENT_NOTIFY",
-                            "object-registry-events",
-                            Some(namespace),
-                            Some(&key),
-                            details,
-                        ).await;
+                        let _ = audit_manager
+                            .log(
+                                "EVENT_NOTIFY",
+                                "object-registry-events",
+                                Some(namespace),
+                                Some(&key),
+                                details,
+                            )
+                            .await;
                     }
                 } else {
                     tracing::warn!("unsupported notification type: {}", event.notify.r#type);

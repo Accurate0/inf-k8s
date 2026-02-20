@@ -1,9 +1,11 @@
 use crate::{error::AppError, state::AppState};
 use axum::{
     extract::{Extension, RawQuery, State},
-    response::Response,
     http::StatusCode,
+    response::Response,
 };
+
+use std::collections::HashMap;
 
 pub async fn list_audit_logs(
     State(state): State<AppState>,
@@ -13,6 +15,11 @@ pub async fn list_audit_logs(
     state
         .permissions_manager
         .enforce(&perms, "audit:list", "*")?;
+
+    let audit_id = state
+        .audit_manager
+        .log("LIST_AUDIT_LOGS", &perms.issuer, None, None, HashMap::new())
+        .await?;
 
     let mut limit = 50;
     let mut actions = Vec::new();
@@ -35,9 +42,21 @@ pub async fn list_audit_logs(
         }
     }
 
-    let actions = if actions.is_empty() { None } else { Some(actions) };
-    let subjects = if subjects.is_empty() { None } else { Some(subjects) };
-    let namespaces = if namespaces.is_empty() { None } else { Some(namespaces) };
+    let actions = if actions.is_empty() {
+        None
+    } else {
+        Some(actions)
+    };
+    let subjects = if subjects.is_empty() {
+        None
+    } else {
+        Some(subjects)
+    };
+    let namespaces = if namespaces.is_empty() {
+        None
+    } else {
+        Some(namespaces)
+    };
 
     let logs = state
         .audit_manager
@@ -48,5 +67,6 @@ pub async fn list_audit_logs(
     Ok(Response::builder()
         .status(200)
         .header("Content-Type", "application/json")
+        .header(object_registry::X_AUDIT_ID_HEADER, audit_id.to_string())
         .body(serde_json::to_string(&logs)?.into())?)
 }
