@@ -1,5 +1,5 @@
 # Build stage
-FROM node:22-slim AS build
+FROM node:25-slim AS build
 
 # Install pnpm
 ENV PNPM_HOME="/pnpm"
@@ -21,7 +21,7 @@ COPY . .
 RUN pnpm run build
 
 # Runtime stage
-FROM node:22-slim AS runtime
+FROM node:25-slim AS runtime
 
 WORKDIR /app
 
