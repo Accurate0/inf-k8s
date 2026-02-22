@@ -84,6 +84,7 @@ impl ApiClient {
         let client = Client::new();
         let resp = client.get(jwks_url).send().await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received jwks response");
         let resp = resp.error_for_status()?;
         let jwks: JwkSet = resp.json().await?;
         Ok(jwks)
@@ -153,6 +154,7 @@ impl ApiClient {
 
         let resp = req.send().await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received put_object response");
         let _resp = resp.error_for_status()?;
         Ok(())
     }
@@ -174,6 +176,7 @@ impl ApiClient {
             .await?;
 
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received delete_object response");
         let _resp = resp.error_for_status()?;
 
         Ok(())
@@ -222,6 +225,7 @@ impl ApiClient {
 
         let resp = req.send().await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received get_object_optional response");
 
         if resp.status() == reqwest::StatusCode::NOT_MODIFIED {
             return Ok(OptionalObjectResponse::ExistingObjectIsValid);
@@ -308,6 +312,7 @@ impl ApiClient {
             .send()
             .await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received list_objects response");
         let resp = resp.error_for_status()?;
         let res = resp.json().await?;
         Ok(res)
@@ -323,6 +328,7 @@ impl ApiClient {
             .send()
             .await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received list_namespaces response");
         let resp = resp.error_for_status()?;
         let res = resp.json().await?;
         Ok(res)
@@ -347,6 +353,7 @@ impl ApiClient {
             .send()
             .await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received post_event response");
         let resp = resp.error_for_status()?;
         let created: crate::types::CreatedResponse = resp.json().await?;
         Ok(created)
@@ -372,6 +379,7 @@ impl ApiClient {
             .send()
             .await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received put_event response");
         let resp = resp.error_for_status()?;
         let created: crate::types::CreatedResponse = resp.json().await?;
         Ok(created)
@@ -391,6 +399,7 @@ impl ApiClient {
             .send()
             .await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received delete_event response");
         let _resp = resp.error_for_status()?;
         Ok(())
     }
@@ -412,6 +421,7 @@ impl ApiClient {
             .send()
             .await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received list_events response");
         let resp = resp.error_for_status()?;
         let arr: Vec<crate::types::EventResponse> = resp.json().await?;
         Ok(arr)
@@ -454,6 +464,7 @@ impl ApiClient {
         let jwt = self.generate_jwt()?;
         let resp = self.client.get(url).bearer_auth(jwt).send().await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+        tracing::info!("received list_audit_logs response");
         let resp = resp.error_for_status()?;
         let arr: Vec<crate::types::AuditLog> = resp.json().await?;
         Ok(arr)
