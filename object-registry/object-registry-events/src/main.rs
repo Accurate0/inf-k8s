@@ -50,7 +50,7 @@ async fn s3_event_handler(event: LambdaEvent<S3Event>) -> Result<(), Error> {
 
         tracing::info!("{namespace} {key} in bucket {_bucket}");
 
-        let stored_object = match object_manager.get_object_by_key(&bucket_key).await {
+        let stored_object = match object_manager.get_object(namespace, &key).await {
             Ok(o) => o,
             Err(e) => {
                 tracing::error!("error fetching object {bucket_key}: {e}");

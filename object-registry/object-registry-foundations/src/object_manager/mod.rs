@@ -82,7 +82,7 @@ impl ObjectManager {
         }
     }
 
-    fn get_key(namespace: &str, object: &str) -> String {
+    pub fn get_key(namespace: &str, object: &str) -> String {
         format!("{namespace}/{object}")
     }
 
@@ -259,15 +259,11 @@ impl ObjectManager {
         object: &str,
     ) -> Result<StoredObject, ObjectManagerError> {
         let key = Self::get_key(namespace, object);
-        self.get_object_by_key(&key).await
-    }
-
-    pub async fn get_object_by_key(&self, key: &str) -> Result<StoredObject, ObjectManagerError> {
         let s3_result = self
             .s3_client
             .get_object()
             .bucket(Self::BUCKET_NAME)
-            .key(key)
+            .key(key.to_owned())
             .send()
             .await;
 
@@ -283,7 +279,7 @@ impl ObjectManager {
             }
         };
 
-        let metadata = self.get_metadata_by_key(key).await?;
+        let metadata = self.get_metadata_for(namespace, object).await?;
 
         let data = output.body.collect().await?.to_vec();
         Ok(StoredObject {
@@ -293,10 +289,42 @@ impl ObjectManager {
         })
     }
 
-    pub async fn get_metadata_by_key(
+    pub async fn get_object_only(
         &self,
-        key: &str,
+        namespace: &str,
+        object: &str,
+    ) -> Result<Vec<u8>, ObjectManagerError> {
+        let key = Self::get_key(namespace, object);
+        let s3_result = self
+            .s3_client
+            .get_object()
+            .bucket(Self::BUCKET_NAME)
+            .key(key.to_owned())
+            .send()
+            .await;
+
+        let output = match s3_result {
+            Ok(o) => o,
+            Err(e) => {
+                if let SdkError::ServiceError(err) = &e
+                    && matches!(err.err(), GetObjectError::NoSuchKey(_))
+                {
+                    return Err(ObjectManagerError::ObjectNotFound);
+                }
+                return Err(ObjectManagerError::GetObject(e));
+            }
+        };
+
+        let data = output.body.collect().await?.to_vec();
+        Ok(data)
+    }
+
+    pub async fn get_metadata_for(
+        &self,
+        namespace: &str,
+        object: &str,
     ) -> Result<ObjectMetadata, ObjectManagerError> {
+        let key = Self::get_key(namespace, object);
         let db_result = self
             .dynamo_client
             .get_item()

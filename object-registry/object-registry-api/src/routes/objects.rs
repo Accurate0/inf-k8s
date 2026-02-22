@@ -7,7 +7,10 @@ use axum::{
 };
 use base64::{Engine, prelude::BASE64_STANDARD};
 use object_registry::types::{MetadataResponse, ObjectResponse};
-use object_registry_foundations::object_manager::ObjectManagerError;
+use object_registry_foundations::object_manager::{
+    ObjectManager, ObjectManagerError, ObjectMetadata,
+};
+use reqwest::header::{ETAG, IF_NONE_MATCH};
 use serde_json::Value;
 use std::collections::HashMap;
 
@@ -113,7 +116,13 @@ pub async fn get_object(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
     Path((namespace, object)): Path<(String, String)>,
+    headers: HeaderMap,
 ) -> Result<Response, AppError> {
+    let incoming_etag = headers
+        .get(IF_NONE_MATCH)
+        .map(|h| h.to_str().ok())
+        .flatten();
+
     state
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
@@ -129,12 +138,58 @@ pub async fn get_object(
         )
         .await?;
 
-    let mut response = fetch_object(&state, &namespace, &object).await?;
-    response.headers_mut().insert(
-        object_registry::X_AUDIT_ID_HEADER,
-        HeaderValue::from_str(&audit_id.to_string()).unwrap(),
-    );
-    Ok(response)
+    if let Some(etag) = incoming_etag {
+        let metadata = state
+            .object_manager
+            .get_metadata_for(&namespace, &object)
+            .await?;
+
+        let checksum = metadata.checksum.to_owned();
+        let mut response = if metadata.checksum == etag {
+            Response::builder()
+                .status(StatusCode::NOT_MODIFIED)
+                .body(Body::empty())?
+                .into()
+        } else {
+            let stored_object = match state
+                .object_manager
+                .get_object_only(&namespace, &object)
+                .await
+            {
+                Ok(o) => o,
+                Err(ObjectManagerError::ObjectNotFound) => {
+                    return Err(AppError::StatusCode(StatusCode::NOT_FOUND));
+                }
+                Err(e) => return Err(e.into()),
+            };
+
+            let key = ObjectManager::get_key(&namespace, &object);
+
+            convert_to_response(metadata, key, stored_object)?
+        };
+
+        let headers = response.headers_mut();
+
+        headers.insert(
+            object_registry::X_AUDIT_ID_HEADER,
+            HeaderValue::from_str(&audit_id.to_string()).unwrap(),
+        );
+        headers.insert(ETAG, HeaderValue::from_str(&checksum).unwrap());
+
+        Ok(response)
+    } else {
+        let (mut response, checksum) = fetch_object(&state, &namespace, &object).await?;
+        let headers = response.headers_mut();
+
+        headers.insert(
+            object_registry::X_AUDIT_ID_HEADER,
+            HeaderValue::from_str(&audit_id.to_string()).unwrap(),
+        );
+
+        headers.insert(ETAG, HeaderValue::from_str(&checksum).unwrap());
+
+        Ok(response)
+    }
 }
 
 pub async fn list_objects(
@@ -172,7 +227,7 @@ async fn fetch_object(
     state: &AppState,
     namespace: &str,
     object: &str,
-) -> Result<Response, AppError> {
+) -> Result<(Response, String), AppError> {
     let stored_object = match state.object_manager.get_object(namespace, object).await {
         Ok(o) => o,
         Err(ObjectManagerError::ObjectNotFound) => {
@@ -183,21 +238,30 @@ async fn fetch_object(
 
     let key = stored_object.key;
     let bytes = stored_object.data;
-    let meta = MetadataResponse {
-        namespace: stored_object.metadata.namespace,
-        checksum: stored_object.metadata.checksum,
-        size: stored_object.metadata.size,
-        content_type: stored_object.metadata.content_type,
-        created_by: stored_object.metadata.created_by,
-        created_at: stored_object.metadata.created_at,
-        labels: stored_object.metadata.labels,
-    };
+    let checksum = stored_object.metadata.checksum.to_owned();
+    let response = convert_to_response(stored_object.metadata, key, bytes)?;
 
+    Ok((response, checksum))
+}
+
+fn convert_to_response(
+    metadata: ObjectMetadata,
+    key: String,
+    bytes: Vec<u8>,
+) -> Result<lambda_http::Response<Body>, AppError> {
+    let meta = MetadataResponse {
+        namespace: metadata.namespace,
+        checksum: metadata.checksum.clone(),
+        size: metadata.size,
+        content_type: metadata.content_type,
+        created_by: metadata.created_by,
+        created_at: metadata.created_at,
+        labels: metadata.labels,
+    };
     let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
     let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
-
-    if is_json_type {
-        Ok(Response::builder()
+    let response = if is_json_type {
+        Response::builder()
             .status(200)
             .header("Content-Type", "application/json")
             .body(
@@ -208,9 +272,9 @@ async fn fetch_object(
                     metadata: meta,
                 })?
                 .into(),
-            )?)
+            )?
     } else if is_yaml_type {
-        Ok(Response::builder()
+        Response::builder()
             .status(200)
             .header("Content-Type", "application/yaml")
             .body(
@@ -221,9 +285,9 @@ async fn fetch_object(
                     metadata: meta,
                 })?
                 .into(),
-            )?)
+            )?
     } else {
-        Ok(Response::builder()
+        Response::builder()
             .status(200)
             .header("Content-Type", "application/json")
             .body(
@@ -234,6 +298,7 @@ async fn fetch_object(
                     metadata: meta,
                 })?
                 .into(),
-            )?)
-    }
+            )?
+    };
+    Ok(response)
 }
