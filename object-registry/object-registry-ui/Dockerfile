@@ -4,6 +4,7 @@ FROM node:25-slim AS build
 # Install pnpm
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+RUN npm install -g corepack
 RUN corepack enable
 
 WORKDIR /app
@@ -28,6 +29,7 @@ WORKDIR /app
 # Install pnpm for production install
 ENV PNPM_HOME="/pnpm"
 ENV PATH="$PNPM_HOME:$PATH"
+RUN npm install -g corepack
 RUN corepack enable
 
 # Copy built application and package files
