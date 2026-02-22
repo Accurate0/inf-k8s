@@ -1,8 +1,8 @@
-use crate::{ObjectRegistryJwtClaims, ObjectResponse, Role};
+use crate::{ObjectRegistryJwtClaims, ObjectResponse, OptionalObjectResponse, Role};
 use base64::Engine;
 use jsonwebtoken::jwk::JwkSet;
 use jsonwebtoken::{Algorithm, DecodingKey, EncodingKey, Header, Validation, decode};
-use reqwest::{Client, Method, Url, header::CONTENT_TYPE};
+use reqwest::{Client, Method, Url, header::ACCEPT, header::CONTENT_TYPE, header::IF_NONE_MATCH};
 use serde::de::DeserializeOwned;
 use std::any::TypeId;
 use std::collections::HashMap;
@@ -118,8 +118,8 @@ impl ApiClient {
         let url = format!("{}/{}", base, resource);
         self.client
             .request(method, url)
-            .header("accept", "application/json")
-            .header("content-type", "application/json")
+            .header(ACCEPT, "application/json")
+            .header(CONTENT_TYPE, "application/json")
     }
 
     #[tracing::instrument(
@@ -179,12 +179,29 @@ impl ApiClient {
         Ok(())
     }
 
-    #[tracing::instrument(name = "GET /{namespace}/{object}", skip(self), fields(status_code = tracing::field::Empty))]
     pub async fn get_object<T>(
         &self,
         namespace: &str,
         object: &str,
     ) -> Result<ObjectResponse<T>, ApiClientError>
+    where
+        T: DeserializeOwned + 'static,
+    {
+        match self.get_object_optional(namespace, object, None).await? {
+            OptionalObjectResponse::ObjectUpdated(res) => Ok(res),
+            OptionalObjectResponse::ExistingObjectIsValid => {
+                Err(ApiClientError::Other("Unexpected 304 Not Modified".to_string()))
+            }
+        }
+    }
+
+    #[tracing::instrument(name = "GET /{namespace}/{object}", skip(self), fields(status_code = tracing::field::Empty))]
+    pub async fn get_object_optional<T>(
+        &self,
+        namespace: &str,
+        object: &str,
+        etag: Option<&str>,
+    ) -> Result<OptionalObjectResponse<T>, ApiClientError>
     where
         T: DeserializeOwned + 'static,
     {
@@ -194,13 +211,22 @@ impl ApiClient {
         let url = Url::parse(&format!("{}/{}", base, resource))
             .map_err(|e| ApiClientError::Other(e.to_string()))?;
 
-        let req = self
+        let mut req = self
             .client
             .request(Method::GET, url)
             .bearer_auth(self.generate_jwt()?);
 
+        if let Some(e) = etag {
+            req = req.header(IF_NONE_MATCH, e);
+        }
+
         let resp = req.send().await?;
         tracing::Span::current().record("status_code", resp.status().as_u16());
+
+        if resp.status() == reqwest::StatusCode::NOT_MODIFIED {
+            return Ok(OptionalObjectResponse::ExistingObjectIsValid);
+        }
+
         let resp = resp.error_for_status()?;
 
         let content_type = resp
@@ -239,7 +265,7 @@ impl ApiClient {
                     serde_json::from_slice(&decoded)?
                 };
 
-                return Ok(ObjectResponse {
+                return Ok(OptionalObjectResponse::ObjectUpdated(ObjectResponse {
                     key: val
                         .get("key")
                         .and_then(|v| v.as_str())
@@ -252,16 +278,16 @@ impl ApiClient {
                             .cloned()
                             .unwrap_or(serde_json::Value::Null),
                     )?,
-                });
+                }));
             }
 
             let res: ObjectResponse<T> = serde_json::from_value(val)?;
-            return Ok(res);
+            return Ok(OptionalObjectResponse::ObjectUpdated(res));
         }
 
         if content_type.contains("yaml") || content_type.contains("yml") {
             let res: ObjectResponse<T> = serde_yaml::from_slice(&bytes_vec)?;
-            return Ok(res);
+            return Ok(OptionalObjectResponse::ObjectUpdated(res));
         }
 
         Err(ApiClientError::Other(
@@ -440,6 +466,7 @@ mod tests {
     use base64::{Engine as _, engine::general_purpose};
     use mockito::Server;
     use openssl::rsa::Rsa;
+    use reqwest::header::{CONTENT_TYPE, IF_NONE_MATCH};
     use std::collections::HashMap;
 
     #[tokio::test]
@@ -462,7 +489,7 @@ mod tests {
         let mock = server
             .mock("GET", "/.well-known/jwks")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(&jwks_body)
             .create();
 
@@ -486,7 +513,7 @@ mod tests {
         let mock = server
             .mock("GET", "/.well-known/jwks")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(r#"{"keys": [{"kty": "RSA", "n": "...", "e": "AQAB"}]}"#)
             .create();
 
@@ -558,7 +585,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(body)
             .create();
 
@@ -591,7 +618,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/x-yaml")
+            .with_header(CONTENT_TYPE, "application/x-yaml")
             .with_body(body)
             .create();
 
@@ -638,7 +665,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(body)
             .create();
 
@@ -677,7 +704,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(body)
             .expect(2)
             .create();
@@ -764,7 +791,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(body)
             .create();
 
@@ -804,7 +831,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(body)
             .create();
 
@@ -879,7 +906,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(body)
             .create();
 
@@ -899,6 +926,77 @@ mod tests {
             Some("staging")
         );
 
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_get_object_optional_304() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let mock = server
+            .mock("GET", "/ns1/obj1")
+            .match_header(IF_NONE_MATCH.as_str(), "etag123")
+            .with_status(304)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client
+            .get_object_optional::<serde_json::Value>("ns1", "obj1", Some("etag123"))
+            .await;
+        assert!(result.is_ok());
+        match result.unwrap() {
+            crate::types::OptionalObjectResponse::ExistingObjectIsValid => {}
+            _ => panic!("Expected ExistingObjectIsValid"),
+        }
+        mock.assert();
+    }
+
+    #[tokio::test]
+    async fn test_get_object_optional_200() {
+        let mut server = Server::new_async().await;
+        let rsa = Rsa::generate(2048).unwrap();
+        let private_key_pem = rsa.private_key_to_pem().unwrap();
+
+        let body = serde_json::json!({
+            "key": "ns1/obj1",
+            "payload": {"foo": "bar"},
+            "metadata": {
+                "namespace": "ns1",
+                "checksum": "abc",
+                "size": 10,
+                "content_type": "application/json",
+                "created_by": "user",
+                "created_at": "now",
+                "labels": {}
+            }
+        })
+        .to_string();
+
+        let mock = server
+            .mock("GET", "/ns1/obj1")
+            .match_header(IF_NONE_MATCH.as_str(), "etag123")
+            .with_status(200)
+            .with_header(CONTENT_TYPE, "application/json")
+            .with_body(body)
+            .create();
+
+        let mut client = ApiClient::new(private_key_pem, "test-key", "object-registry");
+        client.base_url = server.url();
+
+        let result = client
+            .get_object_optional::<serde_json::Value>("ns1", "obj1", Some("etag123"))
+            .await;
+        assert!(result.is_ok());
+        match result.unwrap() {
+            crate::types::OptionalObjectResponse::ObjectUpdated(res) => {
+                assert_eq!(res.key, "ns1/obj1");
+            }
+            _ => panic!("Expected ObjectUpdated"),
+        }
         mock.assert();
     }
 
@@ -929,7 +1027,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(response_body)
             .create();
 
@@ -971,7 +1069,7 @@ mod tests {
         let mock = server
             .mock("GET", "/namespaces")
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(response_body)
             .create();
 
@@ -1012,7 +1110,7 @@ mod tests {
                 mockito::Matcher::UrlEncoded("namespace".to_string(), "ns1".to_string()),
             ]))
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(response_body)
             .create();
 
@@ -1044,7 +1142,7 @@ mod tests {
         let mock = server
             .mock("GET", "/ns1/obj1")
             .with_status(200)
-            .with_header("content-type", "text/plain")
+            .with_header(CONTENT_TYPE, "text/plain")
             .with_body("some plain text")
             .create();
 
@@ -1121,7 +1219,7 @@ mod tests {
         let mock = server
             .mock("GET", mockito::Matcher::Regex("^/audit\\??$".to_string()))
             .with_status(200)
-            .with_header("content-type", "application/json")
+            .with_header(CONTENT_TYPE, "application/json")
             .with_body(response_body)
             .create();
 

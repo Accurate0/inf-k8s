@@ -4,7 +4,7 @@ use serde::Serialize;
 pub mod types;
 pub use types::{
     CreatedResponse, EventRequest, EventResponse, MetadataResponse, NotifyRequest, NotifyResponse,
-    ObjectResponse,
+    ObjectResponse, OptionalObjectResponse,
 };
 pub mod api_client;
 pub use api_client::ApiClient;

@@ -59,6 +59,12 @@ pub struct ListObjectsResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum OptionalObjectResponse<T> {
+    ExistingObjectIsValid,
+    ObjectUpdated(ObjectResponse<T>),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObjectResponse<T> {
     pub key: String,
     #[serde(default)]
