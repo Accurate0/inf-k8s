@@ -15,7 +15,7 @@ spec:
   sources:
     - chart: cloudnative-pg
       repoURL: https://cloudnative-pg.github.io/charts
-      targetRevision: 0.26.0
+      targetRevision: 0.27.1
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/barman-cloud-plugin
 

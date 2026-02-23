@@ -42,7 +42,7 @@ spec:
                         value: /
     - chart: longhorn
       repoURL: https://charts.longhorn.io/
-      targetRevision: 1.10.0
+      targetRevision: 1.11.0
       helm:
         valuesObject:
           global:

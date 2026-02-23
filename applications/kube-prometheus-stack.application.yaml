@@ -55,6 +55,18 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
+    - chart: tempo
+      repoURL: https://grafana-community.github.io/helm-charts
+      targetRevision: 1.26.4
+      helm:
+        valuesObject:
+          persistence:
+            enabled: true
+            enableStatefulSetAutoDeletePVC: false
+            storageClassName: longhorn-local-perth
+            accessModes:
+              - ReadWriteOnce
+            size: 100Gi
     - chart: kube-prometheus-stack
       repoURL: https://prometheus-community.github.io/helm-charts
       targetRevision: 82.2.0

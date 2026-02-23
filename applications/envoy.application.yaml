@@ -20,7 +20,7 @@ spec:
                   memory: 256Mi
       path: gateway-helm
       repoURL: docker.io/envoyproxy
-      targetRevision: v1.5.3
+      targetRevision: 1.7.0
   destination:
     namespace: envoy-gateway-system
     server: https://kubernetes.default.svc
