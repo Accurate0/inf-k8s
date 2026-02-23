@@ -60,6 +60,9 @@ spec:
       targetRevision: 1.26.4
       helm:
         valuesObject:
+          tempo:
+            reportingEnabled: false
+            retention: 168h
           persistence:
             enabled: true
             enableStatefulSetAutoDeletePVC: false
