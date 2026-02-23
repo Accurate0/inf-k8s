@@ -24,13 +24,14 @@ jobs:
         id: multi-arch-digests
         run: |
           image=$(docker manifest inspect ghcr.io/accurate0/ingress-home | jq -r '.manifests.[] | .digest' | paste -s -d ' ' -)
-          echo "multi-arch-digests=$image" >> $GITHUB_OUTPUT
+          object_registry=$(docker manifest inspect ghcr.io/accurate0/object-registry-ui | jq -r '.manifests.[] | .digest' | paste -s -d ' ' -)
+          echo "multi-arch-digests=$image,$object_registry" >> $GITHUB_OUTPUT
 
       - uses: snok/container-retention-policy@v3.0.0
         with:
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-names: "ingress-home"
+          image-names: "ingress-home object-registry-ui"
           image-tags: "!latest"
           keep-n-most-recent: 10
           cut-off: 3d
