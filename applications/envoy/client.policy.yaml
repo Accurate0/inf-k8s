@@ -9,7 +9,6 @@ spec:
       name: shared-gateway
   proxyProtocol:
     optional: false
-  disableRateLimitHeaders: true
   clientIPDetection:
     customHeader:
       name: CF-Connecting-IP
