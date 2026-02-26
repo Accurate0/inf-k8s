@@ -62,7 +62,7 @@ spec:
         valuesObject:
           tempo:
             reportingEnabled: false
-            retention: 168h
+            retention: 336h
           persistence:
             enabled: true
             enableStatefulSetAutoDeletePVC: false
