@@ -63,6 +63,23 @@ spec:
           tempo:
             reportingEnabled: false
             retention: 336h
+            metricsGenerator:
+              enabled: true
+              remoteWriteUrl: "http://prometheus-operated.monitoring:9090/api/v1/write"
+              processor:
+                local_blocks:
+                  flush_to_storage: true
+                  filter_server_spans: false
+                  max_block_duration: 1m
+                service_graphs:
+                  wait: 30s
+                  max_items: 10000
+                span_metrics:
+                  enable_target_info: true
+              storage:
+                path: "/var/tempo/metrics"
+              traces_storage:
+                path: "/tmp/traces"
           persistence:
             enabled: true
             enableStatefulSetAutoDeletePVC: false
