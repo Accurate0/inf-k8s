@@ -9,7 +9,12 @@ spec:
       name: shared-gateway
   proxyProtocol:
     optional: false
+  disableRateLimitHeaders: true
   clientIPDetection:
     customHeader:
       name: CF-Connecting-IP
       failClosed: false
+  lateResponseHeaders:
+    set:
+      - name: "x-request-id"
+        value: "%REQ(x-request-id)%"
