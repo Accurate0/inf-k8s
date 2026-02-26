@@ -19,5 +19,3 @@ spec:
       set:
         - name: "x-request-id"
           value: "%REQ(x-request-id)%"
-        - name: "x-b3-traceid"
-          value: "%REQ(x-b3-traceid)%"
