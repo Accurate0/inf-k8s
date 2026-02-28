@@ -8,7 +8,7 @@ spec:
     name: cloudnative-pg-cluster
   instances: 3
   monitoring:
-    enablePodMonitor: true
+    enablePodMonitor: false
   pgbouncer:
     parameters:
       default_pool_size: "25"
