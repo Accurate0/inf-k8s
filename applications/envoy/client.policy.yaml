@@ -13,6 +13,10 @@ spec:
     customHeader:
       name: CF-Connecting-IP
       failClosed: false
+  tcpKeepalive:
+    probes: 9
+    idleTime: "7200s"
+    interval: "75s"
   headers:
     disableRateLimitHeaders: true
     lateResponseHeaders:
