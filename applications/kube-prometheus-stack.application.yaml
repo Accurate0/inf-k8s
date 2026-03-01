@@ -65,7 +65,7 @@ spec:
             retention: 336h
             metricsGenerator:
               enabled: true
-              remoteWriteUrl: "http://prometheus-operated.monitoring:9090/api/v1/write"
+              remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
               processor:
                 local_blocks:
                   flush_to_storage: true

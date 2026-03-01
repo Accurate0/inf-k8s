@@ -118,25 +118,14 @@ pub async fn get_object(
     Path((namespace, object)): Path<(String, String)>,
     headers: HeaderMap,
 ) -> Result<Response, AppError> {
-    let incoming_etag = headers
-        .get(IF_NONE_MATCH)
-        .map(|h| h.to_str().ok())
-        .flatten();
-
     state
         .permissions_manager
         .enforce(&perms, "object:get", &namespace)?;
 
-    let audit_id = state
-        .audit_manager
-        .log(
-            "GET_OBJECT",
-            &perms.issuer,
-            Some(&namespace),
-            Some(&object),
-            HashMap::new(),
-        )
-        .await?;
+    let incoming_etag = headers
+        .get(IF_NONE_MATCH)
+        .map(|h| h.to_str().ok())
+        .flatten();
 
     if let Some(etag) = incoming_etag {
         let metadata = state
@@ -145,7 +134,8 @@ pub async fn get_object(
             .await?;
 
         let checksum = metadata.checksum.to_owned();
-        let mut response = if metadata.checksum == etag {
+        let checksum_matches_etag = metadata.checksum == etag;
+        let mut response = if checksum_matches_etag {
             Response::builder()
                 .status(StatusCode::NOT_MODIFIED)
                 .body(Body::empty())?
@@ -168,6 +158,28 @@ pub async fn get_object(
             convert_to_response(metadata, key, stored_object)?
         };
 
+        let mut map = HashMap::new();
+        map.insert(
+            "etag_matched".to_owned(),
+            if checksum_matches_etag {
+                "true"
+            } else {
+                "false"
+            }
+            .to_owned(),
+        );
+
+        let audit_id = state
+            .audit_manager
+            .log(
+                "GET_OBJECT",
+                &perms.issuer,
+                Some(&namespace),
+                Some(&object),
+                map,
+            )
+            .await?;
+
         let headers = response.headers_mut();
 
         headers.insert(
@@ -180,6 +192,17 @@ pub async fn get_object(
     } else {
         let (mut response, checksum) = fetch_object(&state, &namespace, &object).await?;
         let headers = response.headers_mut();
+
+        let audit_id = state
+            .audit_manager
+            .log(
+                "GET_OBJECT",
+                &perms.issuer,
+                Some(&namespace),
+                Some(&object),
+                HashMap::new(),
+            )
+            .await?;
 
         headers.insert(
             object_registry::X_AUDIT_ID_HEADER,

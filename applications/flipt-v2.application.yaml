@@ -48,19 +48,6 @@ spec:
           replicaCount: 1
           ingress:
             enabled: false
-            className: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-            hosts:
-              - host: flipt.inf-k8s.net
-                paths:
-                  - path: /
-                    pathType: ImplementationSpecific
-
-            tls:
-              - secretName: flipt-inf-k8s
-                hosts:
-                  - flipt.inf-k8s.net
           metrics:
             serviceMonitor:
               enabled: true
