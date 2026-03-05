@@ -42,7 +42,7 @@ spec:
                         value: /
     - chart: flipt-v2
       repoURL: https://helm.flipt.io
-      targetRevision: 2.7.1
+      targetRevision: 2.7.2
       helm:
         valuesObject:
           replicaCount: 1

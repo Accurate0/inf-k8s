@@ -40,7 +40,7 @@ spec:
                         value: /
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.4.4
+      targetRevision: 9.4.7
       helm:
         valuesObject:
           global:

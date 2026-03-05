@@ -27,7 +27,7 @@ jobs:
           object_registry=$(docker manifest inspect ghcr.io/accurate0/object-registry-ui | jq -r '.manifests.[] | .digest' | paste -s -d ' ' -)
           echo "multi-arch-digests=$image,$object_registry" >> $GITHUB_OUTPUT
 
-      - uses: snok/container-retention-policy@v3.0.0
+      - uses: snok/container-retention-policy@v3.0.1
         with:
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
