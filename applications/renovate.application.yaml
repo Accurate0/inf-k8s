@@ -82,6 +82,7 @@ spec:
             logLevel: info
             mendRnvAdminApiEnabled: true
             mendRnvEnqueueJobsOnStartup: "enabled"
+            mendRnvPrometheusMetricsEnabled: true
             extraEnvVars:
               - name: RENOVATE_X_DOCKER_HUB_DISABLE_LABEL_LOOKUP
                 value: "true"
