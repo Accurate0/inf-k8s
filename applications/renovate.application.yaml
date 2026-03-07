@@ -66,10 +66,11 @@ spec:
                 hosts:
                   - renovate.inf-k8s.net
           cachePersistence:
-            enabled: false
+            enabled: true
+            storageClass: longhorn-replicated-perth
             size: 10Gi
           cacheInMemory:
-            enabled: true
+            enabled: false
           podSecurityContext:
             runAsUser: 1000
             fsGroup: 1000
