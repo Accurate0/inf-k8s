@@ -35,20 +35,3 @@ resource "cloudflare_dns_record" "external" {
   ttl     = 1
 }
 
-# resource "cloudflare_dns_record" "uptime" {
-#   zone_id = "8d993ee38980642089a2ebad74531806"
-#   name    = "uptime"
-#   content = binarylane_server.uptime.public_ipv4_addresses[0]
-#   proxied = false
-#   type    = "A"
-#   ttl     = 1
-# }
-
-resource "cloudflare_dns_record" "uptime" {
-  zone_id = "8d993ee38980642089a2ebad74531806"
-  name    = "uptime"
-  content = "100.95.253.93"
-  proxied = false
-  type    = "A"
-  ttl     = 1
-}

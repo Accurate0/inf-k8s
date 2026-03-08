@@ -13,7 +13,6 @@
           - nginx
           - libnginx-mod-stream
       notify:
-        - Start Nginx
         - Start Haproxy
 
     - name: Get tailscale ip
@@ -31,15 +30,6 @@
       notify:
         - Reload Haproxy
 
-    - name: Copy envoy-domains.txt
-      ansible.builtin.copy:
-        src: envoy-domains.txt
-        dest: /etc/haproxy/envoy-domains.txt
-        owner: root
-        mode: "0644"
-      notify:
-        - Reload Haproxy
-
     - name: Template and copy haproxy config
       ansible.builtin.template:
         src: haproxy.cfg
@@ -49,13 +39,3 @@
         validate: "haproxy -f %s -c"
       notify:
         - Reload Haproxy
-
-    - name: Copy nginx config
-      ansible.builtin.copy:
-        src: nginx.conf
-        dest: /etc/nginx/nginx.conf
-        owner: root
-        mode: "0644"
-        validate: "nginx -t -c %s"
-      notify:
-        - Reload Nginx

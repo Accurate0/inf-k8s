@@ -1,6 +1,6 @@
 resource "binarylane_server" "control" {
   count             = local.control_count
-  image             = "ubuntu-24.04"
+  image             = "ubuntu-24.04.0"
   name              = "k8s-control-${count.index + 1}"
   region            = "per"
   memory            = 4096
@@ -10,6 +10,10 @@ resource "binarylane_server" "control" {
   public_ipv4_count = 1
   vpc_id            = binarylane_vpc.kubernetes-vpc.id
   ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
+
+  lifecycle {
+    ignore_changes = [image]
+  }
 }
 
 locals {
@@ -20,7 +24,7 @@ locals {
 
 resource "binarylane_server" "agent" {
   count             = local.agent_count
-  image             = "ubuntu-24.04"
+  image             = "ubuntu-24.04.0"
   name              = "k8s-agent-${count.index + 1}"
   region            = "per"
   disk              = 100
@@ -29,11 +33,15 @@ resource "binarylane_server" "agent" {
   public_ipv4_count = 1
   vpc_id            = binarylane_vpc.kubernetes-vpc.id
   ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
+
+  lifecycle {
+    ignore_changes = [image]
+  }
 }
 
 resource "binarylane_server" "proxy" {
   count             = local.proxy_count
-  image             = "ubuntu-24.04"
+  image             = "ubuntu-24.04.0"
   name              = "k8s-proxy-${count.index + 1}"
   region            = "per"
   size              = "std-min"
@@ -42,17 +50,8 @@ resource "binarylane_server" "proxy" {
   public_ipv4_count = 1
   vpc_id            = binarylane_vpc.kubernetes-vpc.id
   ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
-}
 
-resource "binarylane_server" "uptime" {
-  image             = "ubuntu-24.04"
-  name              = "uptime"
-  region            = "syd"
-  size              = "std-min"
-  disk              = 20
-  port_blocking     = true
-  vpc_id            = binarylane_vpc.kubernetes-vpc.id
-  public_ipv4_count = 1
-  ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
+  lifecycle {
+    ignore_changes = [image]
+  }
 }
-

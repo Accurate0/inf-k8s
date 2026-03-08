@@ -3,13 +3,6 @@ all:
     optiplex: {}
     agent: {}
     proxy: {}
-    uptime: {}
-
-uptime:
-  hosts:
-    uptime:
-      ansible_host: uptime.inf-k8s.net
-      ansible_user: root
 
 control:
   hosts:

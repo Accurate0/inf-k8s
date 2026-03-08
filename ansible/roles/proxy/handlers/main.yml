@@ -10,23 +10,6 @@
     state: "started"
     enabled: true
 
-- name: Restart Nginx
-  become: true
-  become_method: sudo
-  become_user: root
-  ansible.builtin.systemd_service:
-    name: "nginx"
-    state: "started"
-    enabled: true
-
-- name: Reload Nginx
-  become: true
-  become_method: sudo
-  become_user: root
-  ansible.builtin.systemd_service:
-    name: "nginx"
-    state: "reloaded"
-
 - name: Reload Haproxy
   become: true
   become_method: sudo

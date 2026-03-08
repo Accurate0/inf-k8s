@@ -41,7 +41,8 @@
     - role: k3s
       vars:
         k3s_role: "{{ 'agent' if 'agent' in group_names else 'server' }}"
-        k3s_control_ip: https://100.66.108.81:6443
+        # k3s_control_ip: https://100.66.108.81:6443
+        k3s_control_ip: https://100.72.50.9:6443
         k3s_tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_K8S_AUTH_KEY') }}"
         k3s_cluster_token: "{{ lookup('ansible.builtin.env', 'K3S_CLUSTER_TOKEN') }}"
 
@@ -60,7 +61,7 @@
       vars:
         proxy_backends:
           - name: k8s-control-1
-            ip: 100.66.108.81
+            ip: 100.100.125.120
             is_api_server: true
           - name: k8s-optiplex-1
             ip: 100.70.180.118
@@ -77,18 +78,3 @@
           - name: k8s-optiplex-5
             ip: 100.72.50.9
             is_api_server: true
-
-- name: Setup uptime monitor
-  hosts: uptime
-  become: true
-  become_user: janitor
-
-  roles:
-    - role: firewall
-    - role: tailscale
-      vars:
-        tailscale_install: false
-        tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_K8S_AUTH_KEY') }}"
-        tailscale_extra_args: "--advertise-exit-node"
-    - role: docker
-    - role: uptime-kuma
