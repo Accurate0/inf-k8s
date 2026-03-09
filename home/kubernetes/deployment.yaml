@@ -14,11 +14,6 @@ spec:
         app: ingress-home
     spec:
       serviceAccountName: ingress-home
-      tolerations:
-        - key: "group"
-          operator: "Equal"
-          value: "external"
-          effect: "NoSchedule"
       containers:
         - name: ingress-home
           image: ingress-home:latest
