@@ -24,7 +24,7 @@ locals {
 
 resource "binarylane_server" "agent" {
   count             = local.agent_count
-  image             = "ubuntu-24.04.0"
+  image             = "ubuntu-24.04"
   name              = "k8s-agent-${count.index + 1}"
   region            = "per"
   disk              = 100
@@ -40,16 +40,18 @@ resource "binarylane_server" "agent" {
 }
 
 resource "binarylane_server" "proxy" {
-  count             = local.proxy_count
-  image             = "ubuntu-24.04.0"
-  name              = "k8s-proxy-${count.index + 1}"
-  region            = "per"
-  size              = "std-min"
-  disk              = 20
-  port_blocking     = false
-  public_ipv4_count = 1
-  vpc_id            = binarylane_vpc.kubernetes-vpc.id
-  ssh_keys          = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
+  count                        = local.proxy_count
+  image                        = "ubuntu-24.04"
+  name                         = "k8s-proxy-${count.index + 1}"
+  region                       = "per"
+  size                         = "std-min"
+  disk                         = 20
+  port_blocking                = false
+  public_ipv4_count            = 1
+  vpc_id                       = binarylane_vpc.kubernetes-vpc.id
+  ssh_keys                     = [binarylane_ssh_key.ssh-key.id, data.binarylane_ssh_key.default-ssh-key.id]
+  ipv6                         = true
+  source_and_destination_check = false
 
   lifecycle {
     ignore_changes = [image]

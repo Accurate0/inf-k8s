@@ -35,3 +35,13 @@ resource "cloudflare_dns_record" "external" {
   ttl     = 1
 }
 
+resource "cloudflare_dns_record" "external-ipv6" {
+  count   = local.proxy_count
+  zone_id = "8d993ee38980642089a2ebad74531806"
+  name    = "external"
+  content = binarylane_server.proxy[count.index].public_ipv6_addresses[0]
+  proxied = false
+  type    = "AAAA"
+  ttl     = 1
+}
+
