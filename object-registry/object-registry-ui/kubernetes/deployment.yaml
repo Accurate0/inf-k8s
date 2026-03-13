@@ -24,3 +24,6 @@ spec:
           envFrom:
             - secretRef:
                 name: object-registry-ui-managed-secrets
+          env:
+            - name: BODY_SIZE_LIMIT
+              value: 10M
