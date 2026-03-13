@@ -192,9 +192,9 @@ impl ApiClient {
     {
         match self.get_object_optional(namespace, object, None).await? {
             OptionalObjectResponse::ObjectUpdated(res) => Ok(res),
-            OptionalObjectResponse::ExistingObjectIsValid => {
-                Err(ApiClientError::Other("Unexpected 304 Not Modified".to_string()))
-            }
+            OptionalObjectResponse::ExistingObjectIsValid => Err(ApiClientError::Other(
+                "Unexpected 304 Not Modified".to_string(),
+            )),
         }
     }
 
@@ -286,11 +286,6 @@ impl ApiClient {
             }
 
             let res: ObjectResponse<T> = serde_json::from_value(val)?;
-            return Ok(OptionalObjectResponse::ObjectUpdated(res));
-        }
-
-        if content_type.contains("yaml") || content_type.contains("yml") {
-            let res: ObjectResponse<T> = serde_yaml::from_slice(&bytes_vec)?;
             return Ok(OptionalObjectResponse::ObjectUpdated(res));
         }
 

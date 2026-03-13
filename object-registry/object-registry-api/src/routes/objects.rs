@@ -281,8 +281,9 @@ fn convert_to_response(
         created_at: metadata.created_at,
         labels: metadata.labels,
     };
+
     let is_json_type = { serde_json::from_slice::<Value>(&bytes).is_ok() };
-    let is_yaml_type = { serde_yaml::from_slice::<serde_yaml::Value>(&bytes).is_ok() };
+
     let response = if is_json_type {
         Response::builder()
             .status(200)
@@ -292,19 +293,6 @@ fn convert_to_response(
                     is_base64_encoded: false,
                     key,
                     payload: serde_json::from_slice::<Value>(&bytes).unwrap(),
-                    metadata: meta,
-                })?
-                .into(),
-            )?
-    } else if is_yaml_type {
-        Response::builder()
-            .status(200)
-            .header("Content-Type", "application/yaml")
-            .body(
-                serde_yaml::to_string(&ObjectResponse {
-                    is_base64_encoded: false,
-                    key,
-                    payload: serde_yaml::from_slice::<serde_yaml::Value>(&bytes).unwrap(),
                     metadata: meta,
                 })?
                 .into(),
@@ -323,5 +311,6 @@ fn convert_to_response(
                 .into(),
             )?
     };
+
     Ok(response)
 }
