@@ -52,6 +52,7 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: resources
       path: object-registry/object-registry-api/kubernetes
+      kustomize:
   destination:
     server: https://kubernetes.default.svc
     namespace: object-registry
