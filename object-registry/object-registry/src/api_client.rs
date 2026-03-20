@@ -55,6 +55,13 @@ impl ApiClient {
         }
     }
 
+    pub fn with_base_url(self, base_url: &str) -> Self {
+        Self {
+            base_url: base_url.to_string(),
+            ..self
+        }
+    }
+
     pub fn generate_jwt(&self) -> Result<String, ApiClientError> {
         let now = chrono::offset::Utc::now().timestamp();
         let claims = ObjectRegistryJwtClaims {
