@@ -57,7 +57,7 @@ impl ApiClient {
 
     pub fn with_base_url(self, base_url: &str) -> Self {
         Self {
-            base_url: base_url.to_string(),
+            base_url: format!("{base_url}/v1"),
             ..self
         }
     }
