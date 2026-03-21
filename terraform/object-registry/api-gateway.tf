@@ -8,6 +8,22 @@ resource "aws_apigatewayv2_domain_name" "this" {
   }
 }
 
+resource "aws_apigatewayv2_domain_name" "s3" {
+  domain_name = "s3.object-registry.inf-k8s.net"
+
+  domain_name_configuration {
+    certificate_arn = aws_acm_certificate.object-registry-s3.arn
+    endpoint_type   = "REGIONAL"
+    security_policy = "TLS_1_2"
+  }
+}
+
+resource "aws_apigatewayv2_api_mapping" "s3" {
+  api_id      = aws_apigatewayv2_api.this.id
+  domain_name = aws_apigatewayv2_domain_name.s3.id
+  stage       = "v1"
+}
+
 resource "aws_apigatewayv2_api_mapping" "this" {
   api_id          = aws_apigatewayv2_api.this.id
   domain_name     = aws_apigatewayv2_domain_name.this.id

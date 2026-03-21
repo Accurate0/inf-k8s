@@ -6,3 +6,12 @@ resource "aws_acm_certificate" "object-registry-api" {
     create_before_destroy = true
   }
 }
+
+resource "aws_acm_certificate" "object-registry-s3" {
+  domain_name       = "s3.object-registry.inf-k8s.net"
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}

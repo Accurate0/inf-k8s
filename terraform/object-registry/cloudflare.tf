@@ -25,6 +25,28 @@ resource "cloudflare_dns_record" "validation-record-api" {
   }
 }
 
+
+resource "cloudflare_dns_record" "validation-record-s3" {
+  for_each = {
+    for item in aws_acm_certificate.object-registry-s3.domain_validation_options : item.domain_name => {
+      name   = item.resource_record_name
+      record = item.resource_record_value
+      type   = item.resource_record_type
+    }
+  }
+
+  zone_id = var.cloudflare_zone_id
+  proxied = false
+  name    = each.value.name
+  type    = each.value.type
+  content = each.value.record
+  ttl     = 1
+
+  lifecycle {
+    ignore_changes = [content]
+  }
+}
+
 resource "cloudflare_dns_record" "object-registry-api" {
   zone_id = var.cloudflare_zone_id
   proxied = false
@@ -34,9 +56,30 @@ resource "cloudflare_dns_record" "object-registry-api" {
   ttl     = 1
 }
 
+resource "cloudflare_dns_record" "object-registry-s3" {
+  zone_id = var.cloudflare_zone_id
+  proxied = false
+  name    = "s3.object-registry"
+  type    = "CNAME"
+  content = aws_apigatewayv2_domain_name.s3.domain_name_configuration[0].target_domain_name
+  ttl     = 1
+}
+
 resource "cloudflare_dns_record" "aws-api-issue" {
   zone_id = var.cloudflare_zone_id
   name    = "object-registry"
+  data = {
+    flags = 0
+    tag   = "issue"
+    value = "awstrust.com"
+  }
+  type = "CAA"
+  ttl  = 1
+}
+
+resource "cloudflare_dns_record" "aws-s3-issue" {
+  zone_id = var.cloudflare_zone_id
+  name    = "s3.object-registry"
   data = {
     flags = 0
     tag   = "issue"

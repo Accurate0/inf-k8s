@@ -43,27 +43,27 @@ async fn main() -> Result<(), Error> {
     };
 
     let app = Router::new()
-        .route("/namespaces", get(routes::namespaces::list_namespaces))
-        .route("/{namespace}", get(routes::objects::list_objects))
-        .route("/{namespace}/{object}", put(routes::objects::put_object))
-        .route("/{namespace}/{object}", get(routes::objects::get_object))
+        .route("/api/namespaces", get(routes::namespaces::list_namespaces))
+        .route("/api/{namespace}", get(routes::objects::list_objects))
+        .route("/api/{namespace}/{object}", put(routes::objects::put_object))
+        .route("/api/{namespace}/{object}", get(routes::objects::get_object))
         .route(
-            "/{namespace}/{object}",
+            "/api/{namespace}/{object}",
             delete(routes::objects::delete_object),
         )
-        .route("/audit", get(routes::audit::list_audit_logs))
-        .route("/health", get(health_check))
+        .route("/api/audit", get(routes::audit::list_audit_logs))
+        .route("/api/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))
-        .route("/events/{namespace}", post(routes::events::post_event))
-        .route("/events/{namespace}", get(routes::events::list_events))
-        .route("/events/{namespace}/{id}", put(routes::events::put_event))
+        .route("/api/events/{namespace}", post(routes::events::post_event))
+        .route("/api/events/{namespace}", get(routes::events::list_events))
+        .route("/api/events/{namespace}/{id}", put(routes::events::put_event))
         .route(
-            "/events/{namespace}/{id}",
+            "/api/events/{namespace}/{id}",
             delete(routes::events::delete_event),
         )
-        .route("/s3/{bucket}", get(routes::s3::list_objects))
+        .route("/{bucket}", get(routes::s3::list_objects))
         .route(
-            "/s3/{bucket}/{*key}",
+            "/{bucket}/{*key}",
             put(routes::s3::put_object)
                 .get(routes::s3::get_object)
                 .head(routes::s3::head_object)

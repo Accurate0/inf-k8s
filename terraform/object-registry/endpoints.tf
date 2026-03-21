@@ -2,67 +2,71 @@ locals {
   endpoints = [
     {
       "method" : "GET",
-      "url" : "/s3/{namespace}/{object}"
+      "url" : "/{bucket}/{object}"
     },
     {
       "method" : "PUT",
-      "url" : "/s3/{namespace}/{object}"
+      "url" : "/{bucket}/{object}"
     },
     {
       "method" : "HEAD",
-      "url" : "/s3/{namespace}/{object}"
+      "url" : "/{bucket}/{object}"
     },
     {
       "method" : "DELETE",
-      "url" : "/s3/{namespace}/{object}"
+      "url" : "/{bucket}/{object}"
     },
     {
       "method" : "GET",
-      "url" : "/s3/{namespace}"
+      "url" : "/{bucket}"
     },
     {
       "method" : "GET",
-      "url" : "/namespaces"
+      "url" : "/api/namespaces"
     },
     {
       "method" : "GET",
-      "url" : "/audit"
+      "url" : "/api/audit"
     },
     {
       "method" : "GET",
-      "url" : "/{namespace}/{object}"
+      "url" : "/api/{namespace}/{object}"
     },
     {
       "method" : "GET",
-      "url" : "/{namespace}"
+      "url" : "/api/{namespace}"
     },
     {
       "method" : "PUT",
-      "url" : "/{namespace}/{object}"
+      "url" : "/api/{namespace}/{object}"
     },
     {
       "method" : "DELETE",
-      "url" : "/{namespace}/{object}"
+      "url" : "/api/{namespace}/{object}"
     },
     {
       "method" : "GET",
-      "url" : "/events/{namespace}"
+      "url" : "/api/events/{namespace}"
     },
     {
       "method" : "POST",
-      "url" : "/events/{namespace}"
+      "url" : "/api/events/{namespace}"
     },
     {
       "method" : "PUT",
-      "url" : "/events/{namespace}/{id}"
+      "url" : "/api/events/{namespace}/{id}"
     },
     {
       "method" : "DELETE",
-      "url" : "/events/{namespace}/{id}"
+      "url" : "/api/events/{namespace}/{id}"
     },
     {
       "method" : "GET",
-      "url" : "/health",
+      "url" : "/api/health",
+    },
+    {
+      "method" : "GET",
+      "url" : "/.well-known/jwks",
     },
   ]
 }

@@ -29,3 +29,6 @@ uuid = { workspace = true }
 rsa = { version = "0.9", features = ["pem"] }
 jsonwebtoken = { workspace = true }
 quick-xml = { version = "0.39.2", features = ["serialize"] }
+
+[dev-dependencies]
+rust-s3 = "0.37"
