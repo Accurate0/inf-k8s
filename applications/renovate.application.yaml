@@ -7,7 +7,7 @@ spec:
   syncPolicy:
     managedNamespaceMetadata:
       labels:
-        shared-gateway-access: "true"
+        internal-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
