@@ -31,7 +31,7 @@ spec:
           routes:
             - name: object-registry-ui-route
               gateway:
-                name: shared-gateway
+                name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - ui.object-registry.inf-k8s.net

@@ -25,7 +25,7 @@ spec:
           routes:
             - name: renovate
               gateway:
-                name: shared-gateway
+                name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - renovate.inf-k8s.net

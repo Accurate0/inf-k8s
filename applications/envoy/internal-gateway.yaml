@@ -15,7 +15,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              internal-gateway-access: "true"
       port: 8443
       tls:
         mode: Terminate
@@ -32,7 +32,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              internal-gateway-access: "true"
       port: 8443
       tls:
         mode: Terminate
@@ -48,7 +48,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              internal-gateway-access: "true"
       port: 8443
       tls:
         mode: Terminate
