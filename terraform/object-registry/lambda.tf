@@ -36,7 +36,7 @@ resource "aws_lambda_function" "api" {
   runtime       = "provided.al2"
   environment {
     variables = {
-      "AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH" = "false"
+      "AWS_LAMBDA_HTTP_IGNORE_STAGE_IN_PATH" = "true"
       "AWS_LAMBDA_EXEC_WRAPPER"              = "/opt/bootstrap"
       "RUST_LOG"                             = "info"
       "AWS_LWA_PORT"                         = "8000"

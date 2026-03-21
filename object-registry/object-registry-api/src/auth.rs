@@ -27,7 +27,7 @@ pub async fn auth_middleware(
         let path = path.as_str();
         tracing::info!("request matched path: {}", path);
 
-        if path == "/v1/health" || path == "/.well-known/jwks" {
+        if path == "/health" || path == "/.well-known/jwks" {
             return Ok(next.run(request).await);
         }
     }

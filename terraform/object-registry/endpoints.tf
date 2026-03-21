@@ -30,22 +30,6 @@ locals {
     },
     {
       "method" : "GET",
-      "url" : "/{namespace}/{object}"
-    },
-    {
-      "method" : "GET",
-      "url" : "/{namespace}"
-    },
-    {
-      "method" : "PUT",
-      "url" : "/{namespace}/{object}"
-    },
-    {
-      "method" : "DELETE",
-      "url" : "/{namespace}/{object}"
-    },
-    {
-      "method" : "GET",
       "url" : "/events/{namespace}"
     },
     {

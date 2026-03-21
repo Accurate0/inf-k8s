@@ -6,6 +6,7 @@ use axum::{
     routing::{delete, get, post, put},
 };
 use lambda_http::{Error, run, tracing};
+use tower::ServiceExt;
 
 mod auth;
 mod error;
@@ -42,25 +43,7 @@ async fn main() -> Result<(), Error> {
         audit_manager,
     };
 
-    let app = Router::new()
-        .route("/v1/namespaces", get(routes::namespaces::list_namespaces))
-        .route("/v1/{namespace}", get(routes::objects::list_objects))
-        .route("/v1/{namespace}/{object}", put(routes::objects::put_object))
-        .route("/v1/{namespace}/{object}", get(routes::objects::get_object))
-        .route(
-            "/v1/{namespace}/{object}",
-            delete(routes::objects::delete_object),
-        )
-        .route("/v1/audit", get(routes::audit::list_audit_logs))
-        .route("/v1/health", get(health_check))
-        .route("/.well-known/jwks", get(routes::jwks::get_jwks))
-        .route("/v1/events/{namespace}", post(routes::events::post_event))
-        .route("/v1/events/{namespace}", get(routes::events::list_events))
-        .route("/v1/events/{namespace}/{id}", put(routes::events::put_event))
-        .route(
-            "/v1/events/{namespace}/{id}",
-            delete(routes::events::delete_event),
-        )
+    let s3_router = Router::new()
         .route("/{bucket}", get(routes::s3::list_objects))
         .route(
             "/{bucket}/{*key}",
@@ -74,6 +57,48 @@ async fn main() -> Result<(), Error> {
             state.clone(),
             auth_middleware,
         ));
+
+    let api_router = Router::new()
+        .route("/namespaces", get(routes::namespaces::list_namespaces))
+        .route("/{namespace}", get(routes::objects::list_objects))
+        .route("/{namespace}/{object}", put(routes::objects::put_object))
+        .route("/{namespace}/{object}", get(routes::objects::get_object))
+        .route(
+            "/{namespace}/{object}",
+            delete(routes::objects::delete_object),
+        )
+        .route("/audit", get(routes::audit::list_audit_logs))
+        .route("/health", get(health_check))
+        .route("/.well-known/jwks", get(routes::jwks::get_jwks))
+        .route("/events/{namespace}", post(routes::events::post_event))
+        .route("/events/{namespace}", get(routes::events::list_events))
+        .route("/events/{namespace}/{id}", put(routes::events::put_event))
+        .route(
+            "/events/{namespace}/{id}",
+            delete(routes::events::delete_event),
+        )
+        .with_state(state.clone())
+        .route_layer(middleware::from_fn_with_state(
+            state.clone(),
+            auth_middleware,
+        ));
+
+    let app = tower::service_fn(move |req: lambda_http::Request| {
+        let s3 = s3_router.clone();
+        let api = api_router.clone();
+        async move {
+            let host = req
+                .headers()
+                .get("host")
+                .and_then(|v| v.to_str().ok())
+                .unwrap_or("");
+            if host.starts_with("s3.") {
+                s3.oneshot(req).await
+            } else {
+                api.oneshot(req).await
+            }
+        }
+    });
 
     run(app).await
 }
