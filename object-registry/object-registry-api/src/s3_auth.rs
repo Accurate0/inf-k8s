@@ -1,6 +1,7 @@
 use crate::{auth::Permissions, error::AppError, state::AppState};
 use axum::http::{HeaderMap, StatusCode, Uri};
 use hmac::{Hmac, Mac};
+use lambda_http::tracing;
 use sha2::{Digest, Sha256};
 
 type HmacSha256 = Hmac<Sha256>;
@@ -83,21 +84,40 @@ pub async fn verify_sigv4(
     let parsed = parse_authorization(auth_header)
         .ok_or_else(|| AppError::StatusCode(StatusCode::UNAUTHORIZED))?;
 
+    tracing::info!(
+        access_key_id = %parsed.access_key_id,
+        date = %parsed.date,
+        region = %parsed.region,
+        service = %parsed.service,
+        signed_headers = %parsed.signed_headers.join(";"),
+        "parsed SigV4 authorization"
+    );
+
     let key_details = state
         .s3_key_manager
         .get_key(&parsed.access_key_id)
         .await
-        .map_err(|_| AppError::StatusCode(StatusCode::UNAUTHORIZED))?;
+        .map_err(|e| {
+            tracing::info!(access_key_id = %parsed.access_key_id, error = %e, "failed to look up S3 key");
+            AppError::StatusCode(StatusCode::UNAUTHORIZED)
+        })?;
+
+    tracing::info!(access_key_id = %parsed.access_key_id, "found S3 key");
 
     let datetime = headers
         .get("x-amz-date")
         .and_then(|v| v.to_str().ok())
-        .ok_or_else(|| AppError::StatusCode(StatusCode::UNAUTHORIZED))?;
+        .ok_or_else(|| {
+            tracing::info!("missing x-amz-date header");
+            AppError::StatusCode(StatusCode::UNAUTHORIZED)
+        })?;
 
     let content_sha256 = headers
         .get("x-amz-content-sha256")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("UNSIGNED-PAYLOAD");
+
+    tracing::info!(datetime = %datetime, content_sha256 = %content_sha256, "request datetime and payload hash");
 
     // Build canonical headers from the signed headers list (already sorted by the client)
     let mut canonical_headers = String::new();
@@ -136,6 +156,8 @@ pub async fn verify_sigv4(
         uri.path(),
     );
 
+    tracing::info!(canonical_request = %canonical_request, "built canonical request");
+
     let scope = format!(
         "{}/{}/{}/aws4_request",
         parsed.date, parsed.region, parsed.service
@@ -144,6 +166,8 @@ pub async fn verify_sigv4(
         "AWS4-HMAC-SHA256\n{datetime}\n{scope}\n{}",
         sha256_hex(canonical_request.as_bytes())
     );
+
+    tracing::info!(scope = %scope, string_to_sign = %string_to_sign, "built string to sign");
 
     let signing_key = derive_signing_key(
         &key_details.secret_access_key,
@@ -156,9 +180,20 @@ pub async fn verify_sigv4(
         .map(|b| format!("{b:02x}"))
         .collect();
 
+    tracing::info!(computed = %computed_sig, provided = %parsed.signature, "comparing signatures");
+
     if computed_sig != parsed.signature {
+        tracing::error!(
+            computed = %computed_sig,
+            provided = %parsed.signature,
+            method = %method,
+            path = %uri.path(),
+            "SigV4 signature mismatch"
+        );
         return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
     }
+
+    tracing::info!(access_key_id = %parsed.access_key_id, "SigV4 signature verified");
 
     Ok(Permissions {
         permitted_methods: key_details.permitted_methods,
