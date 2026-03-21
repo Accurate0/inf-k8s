@@ -56,55 +56,6 @@ spec:
             kind: Secret
             name: anurag-sh-tls
 
-    - name: ui-object-registry-inf-k8s-https
-      protocol: HTTPS
-      hostname: "ui.object-registry.inf-k8s.net"
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              shared-gateway-access: "true"
-      port: 8443
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: ui-object-registry-inf-k8s-tls
-
-    - name: wildcard-inf-k8s-https
-      protocol: HTTPS
-      hostname: "*.inf-k8s.net"
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              shared-gateway-access: "true"
-      port: 8443
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: wildcard-inf-k8s-tls
-    - name: inf-k8s-https
-      protocol: HTTPS
-      hostname: inf-k8s.net
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              shared-gateway-access: "true"
-      port: 8443
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: inf-k8s-tls
     - name: wildcard-perthtransport-xyz-https
       protocol: HTTPS
       hostname: "*.perthtransport.xyz"

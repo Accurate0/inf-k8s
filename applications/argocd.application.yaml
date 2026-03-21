@@ -23,7 +23,7 @@ spec:
           routes:
             - name: argocd-server
               gateway:
-                name: shared-gateway
+                name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - argocd.inf-k8s.net

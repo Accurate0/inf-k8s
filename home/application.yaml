@@ -17,7 +17,7 @@ spec:
           routes:
             - name: inf-k8s-route
               gateway:
-                name: shared-gateway
+                name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - inf-k8s.net
