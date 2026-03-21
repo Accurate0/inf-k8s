@@ -2,19 +2,19 @@ locals {
   endpoints = [
     {
       "method" : "GET",
-      "url" : "/{bucket}/{object}"
+      "url" : "/{bucket}/{object+}"
     },
     {
       "method" : "PUT",
-      "url" : "/{bucket}/{object}"
+      "url" : "/{bucket}/{object+}"
     },
     {
       "method" : "HEAD",
-      "url" : "/{bucket}/{object}"
+      "url" : "/{bucket}/{object+}"
     },
     {
       "method" : "DELETE",
-      "url" : "/{bucket}/{object}"
+      "url" : "/{bucket}/{object+}"
     },
     {
       "method" : "GET",
