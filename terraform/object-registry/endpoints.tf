@@ -2,6 +2,26 @@ locals {
   endpoints = [
     {
       "method" : "GET",
+      "url" : "/s3/{namespace}/{object}"
+    },
+    {
+      "method" : "PUT",
+      "url" : "/s3/{namespace}/{object}"
+    },
+    {
+      "method" : "HEAD",
+      "url" : "/s3/{namespace}/{object}"
+    },
+    {
+      "method" : "DELETE",
+      "url" : "/s3/{namespace}/{object}"
+    },
+    {
+      "method" : "GET",
+      "url" : "/s3/{namespace}"
+    },
+    {
+      "method" : "GET",
       "url" : "/namespaces"
     },
     {

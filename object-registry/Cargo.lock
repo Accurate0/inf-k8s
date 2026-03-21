@@ -895,6 +895,7 @@ dependencies = [
  "anyhow",
  "aws-config",
  "aws-sdk-secretsmanager",
+ "base64 0.22.1",
  "chrono",
  "clap",
  "comfy-table",
@@ -2361,6 +2362,7 @@ dependencies = [
  "lambda_http",
  "object-registry",
  "object-registry-foundations",
+ "quick-xml",
  "reqwest",
  "rsa",
  "serde",
@@ -2724,6 +2726,16 @@ dependencies = [
  "form_urlencoded",
  "serde",
  "serde_derive",
+]
+
+[[package]]
+name = "quick-xml"
+version = "0.39.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "958f21e8e7ceb5a1aa7fa87fab28e7c75976e0bfe7e23ff069e0a260f894067d"
+dependencies = [
+ "memchr",
+ "serde",
 ]
 
 [[package]]

@@ -11,6 +11,7 @@ mod auth;
 mod error;
 mod permissions;
 mod routes;
+mod s3_auth;
 mod state;
 
 async fn health_check() -> (StatusCode, String) {
@@ -26,6 +27,7 @@ async fn main() -> Result<(), Error> {
     let s3_client = aws_sdk_s3::Client::new(&config);
     let event_manager = object_registry_foundations::event_manager::EventManager::new(&config);
     let key_manager = object_registry_foundations::key_manager::KeyManager::new(&config);
+    let s3_key_manager = object_registry_foundations::s3_key_manager::S3KeyManager::new(&config);
     let object_manager = object_registry_foundations::object_manager::ObjectManager::new(&config);
     let audit_manager = object_registry_foundations::audit_manager::AuditManager::new(&config);
     let permissions_manager = permissions::PermissionsManager::new();
@@ -35,6 +37,7 @@ async fn main() -> Result<(), Error> {
         s3_client,
         event_manager,
         key_manager,
+        s3_key_manager,
         permissions_manager,
         audit_manager,
     };
@@ -57,6 +60,14 @@ async fn main() -> Result<(), Error> {
         .route(
             "/events/{namespace}/{id}",
             delete(routes::events::delete_event),
+        )
+        .route("/s3/{bucket}", get(routes::s3::list_objects))
+        .route(
+            "/s3/{bucket}/{*key}",
+            put(routes::s3::put_object)
+                .get(routes::s3::get_object)
+                .head(routes::s3::head_object)
+                .delete(routes::s3::delete_object),
         )
         .with_state(state.clone())
         .route_layer(middleware::from_fn_with_state(

@@ -2,6 +2,7 @@ pub mod audit_manager;
 pub mod event_manager;
 pub mod key_manager;
 pub mod object_manager;
+pub mod s3_key_manager;
 
 use jsonwebtoken::Algorithm;
 use jsonwebtoken::EncodingKey;

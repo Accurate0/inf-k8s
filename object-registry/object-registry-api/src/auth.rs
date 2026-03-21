@@ -1,4 +1,4 @@
-use crate::{error::AppError, state::AppState};
+use crate::{error::AppError, s3_auth, state::AppState};
 use axum::{
     extract::{MatchedPath, Request, State},
     http::{HeaderMap, StatusCode},
@@ -36,42 +36,51 @@ pub async fn auth_middleware(
         return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
     };
 
-    let token = auth_header
-        .to_str()?
-        .trim_start_matches("Bearer ")
-        .to_string();
+    let auth_str = auth_header.to_str()?;
 
-    tracing::info!("validating token");
+    let perms = if auth_str.starts_with("AWS4-HMAC-SHA256") {
+        tracing::info!("validating AWS SigV4 signature");
+        s3_auth::verify_sigv4(
+            &app_state,
+            request.method().as_str(),
+            request.uri(),
+            &headers,
+            auth_str,
+        )
+        .await?
+    } else {
+        let token = auth_str.trim_start_matches("Bearer ").to_string();
 
-    let header = decode_header(&token)?;
-    let kid = header
-        .kid
-        .ok_or_else(|| AppError::StatusCode(StatusCode::UNAUTHORIZED))?;
+        tracing::info!("validating JWT token");
 
-    let key_details = app_state.key_manager.get_key_details(kid.clone()).await?;
+        let header = decode_header(&token)?;
+        let kid = header
+            .kid
+            .ok_or_else(|| AppError::StatusCode(StatusCode::UNAUTHORIZED))?;
 
-    let public_pem = key_details.public_key;
+        let key_details = app_state.key_manager.get_key_details(kid.clone()).await?;
 
-    let decoding_key = DecodingKey::from_rsa_pem(public_pem.as_bytes())?;
-    let mut validation = Validation::new(Algorithm::RS256);
-    validation.set_audience(&["object-registry"]);
-    validation.validate_exp = true;
+        let decoding_key = DecodingKey::from_rsa_pem(key_details.public_key.as_bytes())?;
+        let mut validation = Validation::new(Algorithm::RS256);
+        validation.set_audience(&["object-registry"]);
+        validation.validate_exp = true;
 
-    let token_data = match decode::<ObjectRegistryJwtClaims>(&token, &decoding_key, &validation) {
-        Ok(td) => td,
-        Err(e) => {
-            tracing::error!("JWT decode failed for kid {}: {}", kid, e);
-            return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
+        let token_data = match decode::<ObjectRegistryJwtClaims>(&token, &decoding_key, &validation) {
+            Ok(td) => td,
+            Err(e) => {
+                tracing::error!("JWT decode failed for kid {}: {}", kid, e);
+                return Err(AppError::StatusCode(StatusCode::UNAUTHORIZED));
+            }
+        };
+        tracing::info!("verified request with claims: {:?}", token_data.claims);
+
+        Permissions {
+            permitted_methods: key_details.permitted_methods.clone(),
+            permitted_namespaces: key_details.permitted_namespaces.clone(),
+            issuer: token_data.claims.iss.clone(),
         }
     };
-    tracing::info!("verified request with claims: {:?}", token_data.claims);
 
-    let perms = Permissions {
-        permitted_methods: key_details.permitted_methods.clone(),
-        permitted_namespaces: key_details.permitted_namespaces.clone(),
-        issuer: token_data.claims.iss.clone(),
-    };
     request.extensions_mut().insert(perms);
-
     Ok(next.run(request).await)
 }

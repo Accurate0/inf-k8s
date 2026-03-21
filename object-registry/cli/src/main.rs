@@ -1,3 +1,4 @@
+use base64::{Engine, prelude::BASE64_URL_SAFE_NO_PAD};
 use clap::{Parser, Subcommand};
 use comfy_table::Table;
 use std::error::Error;
@@ -79,6 +80,17 @@ enum Commands {
         namespace: String,
         #[arg(short, long)]
         object: String,
+    },
+    GenerateS3Key {
+        /// Optional access key ID; if omitted a UUID will be generated
+        #[arg(short, long)]
+        key_id: Option<String>,
+        /// Permitted namespace(s)
+        #[arg(short = 'n', long = "namespace", required = true, num_args = 1..)]
+        namespaces: Vec<String>,
+        /// Permitted method(s)
+        #[arg(short = 'm', long = "method", required = true, num_args = 1..)]
+        methods: Vec<String>,
     },
     Namespaces,
     Events {
@@ -178,6 +190,27 @@ async fn main() -> anyhow::Result<()> {
 
             tokio::fs::write(&cert_output, private_pem).await?;
             println!("wrote private key to: {}", cert_output.display());
+        }
+        Commands::GenerateS3Key {
+            key_id,
+            namespaces,
+            methods,
+        } => {
+            let access_key_id = key_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
+
+            // Build 32 random bytes from two UUID v4s and base64-encode as the secret
+            let mut secret_bytes = [0u8; 32];
+            secret_bytes[..16].copy_from_slice(uuid::Uuid::new_v4().as_bytes());
+            secret_bytes[16..].copy_from_slice(uuid::Uuid::new_v4().as_bytes());
+            let secret_access_key = BASE64_URL_SAFE_NO_PAD.encode(secret_bytes);
+
+            let km =
+                object_registry_foundations::s3_key_manager::S3KeyManager::new(&config);
+            km.add_key(&access_key_id, &secret_access_key, namespaces, methods)
+                .await?;
+
+            println!("Access Key ID:     {access_key_id}");
+            println!("Secret Access Key: {secret_access_key}");
         }
         Commands::Store {
             namespace,
