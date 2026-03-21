@@ -2,12 +2,12 @@ use crate::{error::AppError, state::AppState};
 use axum::{
     body::Body,
     body::Bytes,
-    extract::{Extension, Path, State},
+    extract::{Extension, Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::Response,
 };
 use object_registry_foundations::object_manager::ObjectManagerError;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 const XML_DECL: &str = r#"<?xml version="1.0" encoding="UTF-8"?>"#;
@@ -21,13 +21,27 @@ struct ListBucketResult {
     #[serde(rename = "Name")]
     name: String,
     #[serde(rename = "Prefix")]
-    prefix: &'static str,
+    prefix: String,
     #[serde(rename = "MaxKeys")]
     max_keys: u32,
+    #[serde(rename = "KeyCount", skip_serializing_if = "Option::is_none")]
+    key_count: Option<usize>,
     #[serde(rename = "IsTruncated")]
     is_truncated: bool,
     #[serde(rename = "Contents", skip_serializing_if = "Vec::is_empty")]
     contents: Vec<S3Object>,
+}
+
+#[derive(Deserialize, Default)]
+pub struct ListObjectsParams {
+    #[serde(rename = "list-type")]
+    list_type: Option<u8>,
+    prefix: Option<String>,
+    #[serde(rename = "max-keys")]
+    max_keys: Option<u32>,
+    #[allow(unused)]
+    #[serde(rename = "continuation-token")]
+    continuation_token: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -74,29 +88,45 @@ pub async fn list_objects(
     State(state): State<AppState>,
     Extension(perms): Extension<crate::auth::Permissions>,
     Path(bucket): Path<String>,
+    Query(params): Query<ListObjectsParams>,
 ) -> Result<Response, AppError> {
     state
         .permissions_manager
         .enforce(&perms, "object:get", &bucket)?;
 
-    let objects = state.object_manager.list_objects(&bucket).await?;
+    let is_v2 = params.list_type == Some(2);
+    let prefix = params.prefix.unwrap_or_default();
+    let max_keys = params.max_keys.unwrap_or(1000);
+
+    let mut objects = state.object_manager.list_objects(&bucket).await?;
+
+    let effective_prefix = prefix.trim_start_matches('/');
+    if !effective_prefix.is_empty() {
+        objects.retain(|obj| obj.key.starts_with(effective_prefix));
+    }
+
+    let contents: Vec<S3Object> = objects
+        .iter()
+        .take(max_keys as usize)
+        .map(|obj| S3Object {
+            key: obj.key.clone(),
+            last_modified: obj.metadata.created_at.clone(),
+            etag: format!("\"{}\"", obj.metadata.checksum),
+            size: obj.metadata.size,
+            storage_class: "STANDARD",
+        })
+        .collect();
+
+    let key_count = contents.len();
 
     let result = ListBucketResult {
         xmlns: S3_NS,
         name: bucket.clone(),
-        prefix: "",
-        max_keys: 1000,
-        is_truncated: false,
-        contents: objects
-            .iter()
-            .map(|obj| S3Object {
-                key: obj.key.clone(),
-                last_modified: obj.metadata.created_at.clone(),
-                etag: format!("\"{}\"", obj.metadata.checksum),
-                size: obj.metadata.size,
-                storage_class: "STANDARD",
-            })
-            .collect(),
+        prefix: effective_prefix.to_string(),
+        max_keys,
+        key_count: if is_v2 { Some(key_count) } else { None },
+        is_truncated: objects.len() > max_keys as usize,
+        contents,
     };
 
     let xml = to_xml(&result)?;

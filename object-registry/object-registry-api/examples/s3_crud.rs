@@ -12,7 +12,7 @@ use s3::{Bucket, Region, creds::Credentials};
 
 const ENDPOINT: &str = "https://s3.object-registry.inf-k8s.net";
 const BUCKET: &str = "test-namespace";
-const REGION: &str = "object-registry.inf-k8s.net";
+const REGION: &str = "us-east-1";
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -60,7 +60,7 @@ async fn main() -> anyhow::Result<()> {
 
     // ── LIST ─────────────────────────────────────────────────────────────────
     println!("LIST {} ...", BUCKET);
-    let pages = bucket.list(String::new(), None).await?;
+    let pages = bucket.list("/".to_owned(), None).await?;
     for page in &pages {
         for obj in &page.contents {
             println!("  - {} ({} bytes)", obj.key, obj.size);

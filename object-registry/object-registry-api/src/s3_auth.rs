@@ -41,7 +41,7 @@ fn parse_authorization(auth: &str) -> Option<ParsedAuth> {
     let mut signed_headers_str = None;
     let mut signature = None;
 
-    for part in rest.split(", ") {
+    for part in rest.split(",") {
         if let Some((k, v)) = part.split_once('=') {
             match k.trim() {
                 "Credential" => credential_str = Some(v),

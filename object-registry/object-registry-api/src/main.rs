@@ -45,6 +45,7 @@ async fn main() -> Result<(), Error> {
 
     let s3_router = Router::new()
         .route("/{bucket}", get(routes::s3::list_objects))
+        .route("/{bucket}/", get(routes::s3::list_objects))
         .route(
             "/{bucket}/{*key}",
             put(routes::s3::put_object)
@@ -89,12 +90,17 @@ async fn main() -> Result<(), Error> {
         async move {
             let host = req
                 .headers()
-                .get("host")
+                .get("x-forwarded-host")
+                .or_else(|| req.headers().get("host"))
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
+
+            tracing::info!("request: {:?}", req);
             if host.starts_with("s3.") {
+                tracing::info!("s3 request");
                 s3.oneshot(req).await
             } else {
+                tracing::info!("api request");
                 api.oneshot(req).await
             }
         }
