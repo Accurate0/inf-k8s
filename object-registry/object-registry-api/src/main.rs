@@ -43,22 +43,22 @@ async fn main() -> Result<(), Error> {
     };
 
     let app = Router::new()
-        .route("/api/namespaces", get(routes::namespaces::list_namespaces))
-        .route("/api/{namespace}", get(routes::objects::list_objects))
-        .route("/api/{namespace}/{object}", put(routes::objects::put_object))
-        .route("/api/{namespace}/{object}", get(routes::objects::get_object))
+        .route("/v1/namespaces", get(routes::namespaces::list_namespaces))
+        .route("/v1/{namespace}", get(routes::objects::list_objects))
+        .route("/v1/{namespace}/{object}", put(routes::objects::put_object))
+        .route("/v1/{namespace}/{object}", get(routes::objects::get_object))
         .route(
-            "/api/{namespace}/{object}",
+            "/v1/{namespace}/{object}",
             delete(routes::objects::delete_object),
         )
-        .route("/api/audit", get(routes::audit::list_audit_logs))
-        .route("/api/health", get(health_check))
+        .route("/v1/audit", get(routes::audit::list_audit_logs))
+        .route("/v1/health", get(health_check))
         .route("/.well-known/jwks", get(routes::jwks::get_jwks))
-        .route("/api/events/{namespace}", post(routes::events::post_event))
-        .route("/api/events/{namespace}", get(routes::events::list_events))
-        .route("/api/events/{namespace}/{id}", put(routes::events::put_event))
+        .route("/v1/events/{namespace}", post(routes::events::post_event))
+        .route("/v1/events/{namespace}", get(routes::events::list_events))
+        .route("/v1/events/{namespace}/{id}", put(routes::events::put_event))
         .route(
-            "/api/events/{namespace}/{id}",
+            "/v1/events/{namespace}/{id}",
             delete(routes::events::delete_event),
         )
         .route("/{bucket}", get(routes::s3::list_objects))

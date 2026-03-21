@@ -22,47 +22,47 @@ locals {
     },
     {
       "method" : "GET",
-      "url" : "/api/namespaces"
+      "url" : "/namespaces"
     },
     {
       "method" : "GET",
-      "url" : "/api/audit"
+      "url" : "/audit"
     },
     {
       "method" : "GET",
-      "url" : "/api/{namespace}/{object}"
+      "url" : "/{namespace}/{object}"
     },
     {
       "method" : "GET",
-      "url" : "/api/{namespace}"
+      "url" : "/{namespace}"
     },
     {
       "method" : "PUT",
-      "url" : "/api/{namespace}/{object}"
+      "url" : "/{namespace}/{object}"
     },
     {
       "method" : "DELETE",
-      "url" : "/api/{namespace}/{object}"
+      "url" : "/{namespace}/{object}"
     },
     {
       "method" : "GET",
-      "url" : "/api/events/{namespace}"
+      "url" : "/events/{namespace}"
     },
     {
       "method" : "POST",
-      "url" : "/api/events/{namespace}"
+      "url" : "/events/{namespace}"
     },
     {
       "method" : "PUT",
-      "url" : "/api/events/{namespace}/{id}"
+      "url" : "/events/{namespace}/{id}"
     },
     {
       "method" : "DELETE",
-      "url" : "/api/events/{namespace}/{id}"
+      "url" : "/events/{namespace}/{id}"
     },
     {
       "method" : "GET",
-      "url" : "/api/health",
+      "url" : "/health",
     },
     {
       "method" : "GET",
