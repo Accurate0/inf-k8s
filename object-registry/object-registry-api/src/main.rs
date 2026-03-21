@@ -95,7 +95,6 @@ async fn main() -> Result<(), Error> {
                 .and_then(|v| v.to_str().ok())
                 .unwrap_or("");
 
-            tracing::info!("request: {:?}", req);
             if host.starts_with("s3.") {
                 tracing::info!("s3 request");
                 s3.oneshot(req).await
