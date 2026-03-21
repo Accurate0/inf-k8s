@@ -138,7 +138,7 @@ pub async fn list_objects(
             &perms.issuer,
             Some(&bucket),
             None,
-            HashMap::new(),
+            HashMap::from([("s3_api".to_string(), "true".to_string())]),
         )
         .await?;
 
@@ -197,6 +197,7 @@ pub async fn put_object(
     let mut details = labels;
     details.insert("content_type".to_string(), content_type.to_string());
     details.insert("size".to_string(), body.len().to_string());
+    details.insert("s3_api".to_string(), "true".to_string());
 
     let audit_id = state
         .audit_manager
@@ -249,9 +250,10 @@ pub async fn get_object(
             state
                 .audit_manager
                 .log("GET_OBJECT", &perms.issuer, Some(&bucket), Some(&key), {
-                    let mut m = HashMap::new();
-                    m.insert("etag_matched".to_string(), "true".to_string());
-                    m
+                    HashMap::from([
+                        ("etag_matched".to_string(), "true".to_string()),
+                        ("s3_api".to_string(), "true".to_string()),
+                    ])
                 })
                 .await?;
 
@@ -281,7 +283,7 @@ pub async fn get_object(
             &perms.issuer,
             Some(&bucket),
             Some(&key),
-            HashMap::new(),
+            HashMap::from([("s3_api".to_string(), "true".to_string())]),
         )
         .await?;
 
@@ -348,7 +350,7 @@ pub async fn delete_object(
             &perms.issuer,
             Some(&bucket),
             Some(&key),
-            HashMap::new(),
+            HashMap::from([("s3_api".to_string(), "true".to_string())]),
         )
         .await?;
 
