@@ -1,7 +1,6 @@
 api.perthtransport.xyz
 perthtransport.xyz
 maccas.one
-images.maccas.one
 home.anurag.sh
 solar-panels.anurag.sh
 anurag.sh
