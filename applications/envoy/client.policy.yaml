@@ -29,7 +29,6 @@ kind: ClientTrafficPolicy
 metadata:
   name: internal-gateway-client-policy
 spec:
-  mergeType: "StrategicMerge"
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
