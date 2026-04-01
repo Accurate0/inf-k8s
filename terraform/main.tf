@@ -37,7 +37,11 @@ terraform {
   }
 
   backend "s3" {
-    key = "k8s/terraform.tfstate"
+    bucket         = "shared-tf-state"
+    region         = "ap-southeast-2"
+    encrypt        = true
+    dynamodb_table = "shared-tf-state-lock"
+    key            = "k8s/terraform.tfstate"
   }
 }
 
