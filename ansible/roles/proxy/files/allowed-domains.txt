@@ -1,5 +1,3 @@
-api.perthtransport.xyz
-perthtransport.xyz
 maccas.one
 home.anurag.sh
 solar-panels.anurag.sh
