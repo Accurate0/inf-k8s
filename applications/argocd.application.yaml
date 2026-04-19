@@ -38,6 +38,22 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
+    - chart: k8s-infisical-secrets
+      repoURL: https://accurate0.github.io/inf-k8s
+      targetRevision: 0.7.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: argocd
+            projectSlug: argo-cd-d-yw-k
+            resyncInterval: 900
+          secrets:
+            - name: argocd-secrets
+              labels:
+                app.kubernetes.io/part-of: argocd
+              secretPath: /
+              managedSecrets:
+                - secretName: argocd-managed-secrets
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
       targetRevision: 9.4.4
@@ -49,9 +65,24 @@ spec:
           configs:
             cm:
               admin.enabled: false
+              dex.config: |
+                connectors:
+                - config:
+                    issuer: https://authentik.inf-k8s.net/application/o/argo-cd/
+                    clientID: $argocd-managed-secrets:AUTHENTIK_CLIENT_ID
+                    clientSecret: $argocd-managed-secrets:AUTHENTIK_CLIENT_SECRET
+                    insecureEnableGroups: true
+                    scopes:
+                      - openid
+                      - profile
+                      - email
+                  name: authentik
+                  type: oidc
+                  id: authentik
             rbac:
               policy.csv: |
                 p, anurag, *, *, *, allow
+                g, ArgoCD Admins, role:admin
                 p, github-actions, applications, sync, default/*, allow
                 p, github-actions, applications, get, default/*, allow
                 p, github-actions, projects, get, *, allow
