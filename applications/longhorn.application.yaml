@@ -31,6 +31,11 @@ spec:
               secretPath: /
               managedSecrets:
                 - secretName: longhorn-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      client-id: "{{ .AUTHENTIK_CLIENT_ID.Value }}"
+                      client-secret: "{{ .AUTHENTIK_CLIENT_SECRET.Value }}"
     - chart: k8s-http-routes
       repoURL: https://accurate0.github.io/inf-k8s
       targetRevision: 2.0.0
