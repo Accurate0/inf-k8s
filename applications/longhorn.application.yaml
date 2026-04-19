@@ -23,7 +23,7 @@ spec:
       helm:
         valuesObject:
           defaults:
-            namespace: longhorn
+            namespace: longhorn-system
             projectSlug: longhorn-uc3e
             resyncInterval: 900
           secrets:

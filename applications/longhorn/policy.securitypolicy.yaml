@@ -10,7 +10,6 @@ spec:
   oidc:
     provider:
       issuer: "https://authentik.inf-k8s.net/application/o/longhorn/"
-    clientID: "${CLIENT_ID}"
     clientIDRef:
       name: longhorn-managed-secrets
     clientSecret:
