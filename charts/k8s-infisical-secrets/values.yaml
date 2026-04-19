@@ -2,24 +2,15 @@ defaults:
   namespace: test
   resyncInterval: 900
   projectSlug: test2
-  labels:
-    test: hey
 
 secrets:
   - name: test-infisical-secret
     projectSlug: test
-    annotations:
-      test: hey2
     namespace: test
     secretPath: /test
     managedSecrets:
       - secretName: test-managed
         namespace: test
-        template:
-          includeAllSecrets: true
-          data:
-            NEW_KEY: "{{ .DB_PASSWORD.Value }}"
-            API_URL: "https://api.{{.COMPANY_NAME.Value}}.{{.REGION.Value}}.com"
   - name: test-22-infisical-secret
     secretPath: /test2
     resyncInterval: 1600
