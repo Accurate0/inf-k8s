@@ -60,9 +60,15 @@ spec:
       helm:
         valuesObject:
           global:
+            topologySpreadConstraints:
+              - topologyKey: inf-k8s.net/location
+                whenUnsatisfiable: ScheduleAnyway
+                maxSkew: 1
             envFrom:
               - secretRef:
                   name: authentik-managed-secrets
+          server:
+            replicas: 3
 
   destination:
     server: https://kubernetes.default.svc
