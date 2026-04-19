@@ -1,0 +1,25 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: backend-authentik
+spec:
+  endpoints:
+    - fqdn:
+        hostname: "authentik.inf-k8s.net"
+        port: 443
+---
+apiVersion: gateway.networking.k8s.io/v1alpha3
+kind: BackendTLSPolicy
+metadata:
+  name: authentik-btls
+spec:
+  targetRefs:
+    - group: gateway.envoyproxy.io
+      kind: Backend
+      name: backend-authentik
+  validation:
+    caCertificateRefs:
+      - name: backend-authentik-tls-certificate
+        group: ""
+        kind: ConfigMap
+    hostname: authentik.inf-k8s.net

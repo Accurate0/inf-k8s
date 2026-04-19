@@ -9,7 +9,23 @@ spec:
       name: longhorn
   oidc:
     provider:
+      backendRefs:
+        - group: gateway.envoyproxy.io
+          kind: Backend
+          name: backend-authentik
+          port: 443
+      backendSettings:
+        retry:
+          numRetries: 3
+          perRetry:
+            backOff:
+              baseInterval: 1s
+              maxInterval: 5s
+          retryOn:
+            triggers: ["5xx", "gateway-error", "reset"]
       issuer: "https://authentik.inf-k8s.net/application/o/longhorn/"
+      authorizationEndpoint: "https://authentik.inf-k8s.net/application/o/authorize/"
+      tokenEndpoint: "https://authentik.inf-k8s.net/application/o/token/"
     clientIDRef:
       name: longhorn-managed-secrets
     clientSecret:
