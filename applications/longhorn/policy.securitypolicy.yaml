@@ -14,5 +14,5 @@ spec:
       name: longhorn-managed-secrets
     clientSecret:
       name: longhorn-managed-secrets
-    redirectURL: "https://longhorn.inf-k8s.net:8443"
+    redirectURL: "https://longhorn.inf-k8s.net"
     logoutPath: "/"
