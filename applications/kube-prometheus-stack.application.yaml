@@ -214,9 +214,13 @@ spec:
             deploymentStrategy:
               type: Recreate
             grafana.ini:
+              auth:
+                disable_login_form: true
+              auth.basic:
+                enabled: false
               auth.generic_oauth:
                 enabled: true
-                allow_sign_up: false
+                allow_sign_up: true
                 auto_login: false
                 name: Authentik
                 scopes: openid profile email groups offline_access
@@ -224,7 +228,10 @@ spec:
                 use_refresh_token: true
                 auth_url: https://authentik.inf-k8s.net/application/o/authorize/
                 token_url: https://authentik.inf-k8s.net/application/o/token/
-                api_url: https://authentik.inf-k8s.net/application/o/userinfo/
+                api_url: https://authentik.inf-k8s.net/application/o/userinfo
+                role_attribute_strict: true
+                allow_assign_grafana_admin: true
+                role_attribute_path: contains(groups[*], 'Grafana Admins') && 'GrafanaAdmin' || contains(groups[*], 'Grafana Users') && 'Editor' || 'Viewer'
               server:
                 root_url: "%(protocol)s://%(domain)s"
                 domain: grafana.inf-k8s.net
