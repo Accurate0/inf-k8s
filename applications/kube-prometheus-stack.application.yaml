@@ -55,6 +55,20 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
+    - chart: k8s-infisical-secrets
+      repoURL: https://accurate0.github.io/inf-k8s
+      targetRevision: 0.10.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: monitoring
+            projectSlug: monitoring-wg-xi
+            resyncInterval: 900
+          secrets:
+            - name: monitoring-secrets
+              secretPath: /
+              managedSecrets:
+                - secretName: monitoring-managed-secrets
     - chart: tempo
       repoURL: https://grafana-community.github.io/helm-charts
       targetRevision: 2.0.0
@@ -196,9 +210,21 @@ spec:
                   values:
                     - discord-config
           grafana:
+            envFromSecret: "monitoring-managed-secrets"
             deploymentStrategy:
               type: Recreate
             grafana.ini:
+              auth.generic_oauth:
+                enabled: true
+                allow_sign_up: false
+                auto_login: false
+                name: Authentik
+                scopes: openid profile email groups offline_access
+                use_pkce: true
+                use_refresh_token: true
+                auth_url: https://authentik.inf-k8s.net/application/o/authorize/
+                token_url: https://authentik.inf-k8s.net/application/o/token/
+                api_url: https://authentik.inf-k8s.net/application/o/userinfo/
               server:
                 root_url: "%(protocol)s://%(domain)s"
                 domain: grafana.inf-k8s.net
