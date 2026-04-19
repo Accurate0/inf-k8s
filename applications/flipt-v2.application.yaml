@@ -96,8 +96,19 @@ spec:
                   csrf:
                     key: "${env:FLIPT_CSRF_KEY}"
                 methods:
-                  github:
+                  oidc:
                     enabled: true
+                    providers:
+                      authentik:
+                        issuer_url: "https://authentik.inf-k8s.net/application/o/flipt/"
+                        client_id: "${env:FLIPT_AUTHENTIK_CLIENT_ID}"
+                        client_secret: "${env:FLIPT_AUTHENTIK_CLIENT_SECRET}"
+                        redirect_address: "https://flipt.inf-k8s.net"
+                        scopes:
+                          - email
+                          - profile
+                  github:
+                    enabled: false
                     client_id: "${env:FLIPT_GITHUB_CLIENT_ID}"
                     client_secret: "${env:FLIPT_GITHUB_CLIENT_SECRET}"
                     redirect_address: "https://flipt.inf-k8s.net"
