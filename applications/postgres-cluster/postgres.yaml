@@ -8,6 +8,14 @@ spec:
     enablePodAntiAffinity: true
     podAntiAffinityType: required
     topologyKey: kubernetes.io/hostname
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: inf-k8s.net/postgres
+                operator: In
+                values:
+                  - "true"
   topologySpreadConstraints:
     - topologyKey: inf-k8s.net/location
       whenUnsatisfiable: ScheduleAnyway
