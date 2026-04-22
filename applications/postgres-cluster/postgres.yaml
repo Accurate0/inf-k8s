@@ -14,6 +14,7 @@ spec:
           - matchExpressions:
               - key: inf-k8s.net/postgres
                 operator: In
+                # currently, optiplex-2, optiplex-3 and optiplex-4 (non API nodes)
                 values:
                   - "true"
   topologySpreadConstraints:
