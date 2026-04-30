@@ -19,7 +19,7 @@ jobs:
           fetch-depth: 0
 
       - name: Push Helm Chart to forgejo
-        uses: bsord/helm-push@4.2.0
+        uses: bsord/helm-push@4.1.0
         with:
           username: anurag
           password: ${{ secrets.FORGEJO_PAT }}
