@@ -21,6 +21,23 @@ spec:
       helm:
         valuesObject:
           routes:
+            - name: authentik-external
+              gateway:
+                name: shared-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - authentik.anurag.sh
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: authentik-server
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
             - name: authentik
               gateway:
                 name: internal-gateway
