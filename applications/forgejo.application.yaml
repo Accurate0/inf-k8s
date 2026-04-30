@@ -29,11 +29,11 @@ spec:
               secretPath: /oauth
               managedSecrets:
                 - secretName: forgejo-oauth-managed-secrets
-              template:
-                includeAllSecrets: false
-                data:
-                  key: "{{ .AUTHENTIK_CLIENT_ID.Value }}"
-                  secret: "{{ .AUTHENTIK_CLIENT_SECRET.Value }}"
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      key: "{{ .AUTHENTIK_CLIENT_ID.Value }}"
+                      secret: "{{ .AUTHENTIK_CLIENT_SECRET.Value }}"
             - name: forgejo-secrets
               secretPath: /
               managedSecrets:
@@ -57,13 +57,53 @@ spec:
                 namespace: envoy-gateway-system
                 sectionName: ssh
           persistence:
-            enabled: true
+            enabled: false
             storageClass: longhorn-replicated
           gitea:
+            admin:
+              username: ""
+              existingSecret: ""
             config:
+              storage:
+                STORAGE_TYPE: minio
+                MINIO_BUCKET: forgejo-storage
+                MINIO_USE_SSL: "true"
               database:
-                HOST: cloudnative-pg-cluster-rw.cnpg-system.svc.cluster.local
+                DB_TYPE: postgres
+              oauth2_client:
+                ENABLE_AUTO_REGISTRATION: "true"
             additionalConfigFromEnvs:
+              - name: FORGEJO__STORAGE__MINIO_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-managed-secrets
+                    key: MINIO_ENDPOINT
+              - name: FORGEJO__STORAGE__MINIO_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-managed-secrets
+                    key: MINIO_ACCESS_KEY_ID
+              - name: FORGEJO__STORAGE__MINIO_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-managed-secrets
+                    key: MINIO_SECRET_ACCESS_KEY
+
+              - name: FORGEJO__DATABASE__NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-database-secret
+                    key: PGDATABASE
+              - name: FORGEJO__DATABASE__USER
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-database-secret
+                    key: PGUSER
+              - name: FORGEJO__DATABASE__HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-database-secret
+                    key: PGHOST
               - name: FORGEJO__DATABASE__PASSWD
                 valueFrom:
                   secretKeyRef:
@@ -74,9 +114,15 @@ spec:
               serviceMonitor:
                 enabled: true
             oauth:
-              - name: "Authentik"
+              - name: "authentik"
                 provider: "openidConnect"
                 existingSecret: forgejo-oauth-managed-secrets
+                autoDiscoverUrl: "https://authentik.inf-k8s.net/application/o/forgejo/.well-known/openid-configuration"
+                scopes: "email profile forgejo"
+                requiredClaimName: forgejo
+                groupClaimName: "forgejo"
+                adminGroup: "admin"
+                restrictedGroup: "restricted"
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/forgejo
 
