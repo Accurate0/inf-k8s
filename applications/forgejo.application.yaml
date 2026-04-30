@@ -43,6 +43,16 @@ spec:
       targetRevision: 17.0.1
       helm:
         valuesObject:
+          replicaCount: 1
+          topologySpreadConstraints:
+            - topologyKey: inf-k8s.net/location
+              whenUnsatisfiable: ScheduleAnyway
+              maxSkew: 1
+              nodeTaintsPolicy: Honor
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: forgejo
+
           httpRoute:
             enabled: true
             parentRefs:
@@ -59,6 +69,8 @@ spec:
           persistence:
             enabled: false
             storageClass: longhorn-replicated
+            accessModes:
+              - ReadWriteMany
           gitea:
             admin:
               username: ""
