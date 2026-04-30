@@ -87,6 +87,8 @@ spec:
               username: ""
               existingSecret: ""
             config:
+              indexer:
+                REPO_INDEXER_ENABLED: true
               storage:
                 STORAGE_TYPE: minio
                 MINIO_BUCKET: forgejo-storage
@@ -99,6 +101,14 @@ spec:
                 ENABLE_OPENID_SIGNUP: "false"
               service:
                 DISABLE_REGISTRATION: "true"
+                ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
+                ENABLE_INTERNAL_SIGNIN: "false"
+                DEFAULT_KEEP_EMAIL_PRIVATE: "true"
+              service.explore:
+                REQUIRE_SIGNIN_VIEW: "true"
+                DISABLE_USERS_PAGE: "true"
+                DISABLE_ORGANIZATIONS_PAGE: "true"
+                DISABLE_CODE_PAGE: "true"
             additionalConfigFromEnvs:
               - name: FORGEJO__STORAGE__MINIO_ENDPOINT
                 valueFrom:
