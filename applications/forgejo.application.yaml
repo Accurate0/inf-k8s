@@ -8,6 +8,7 @@ spec:
     managedNamespaceMetadata:
       labels:
         internal-gateway-access: "true"
+        shared-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
@@ -33,14 +34,6 @@ spec:
                     includeAllSecrets: false
                     data:
                       privateKey: "{{ .GPG_PRIVATE_KEY.Value }}"
-            - name: forgejo-ssh-secrets
-              secretPath: /ssh
-              managedSecrets:
-                - secretName: forgejo-ssh-managed-secrets
-                  template:
-                    includeAllSecrets: false
-                    data:
-                      privateKey: "{{ .SSH_PRIVATE_KEY.Value }}"
             - name: forgejo-oauth-secrets
               secretPath: /oauth
               managedSecrets:
@@ -74,24 +67,28 @@ spec:
             parentRefs:
               - name: internal-gateway
                 namespace: envoy-gateway-system
+              - name: shared-gateway
+                namespace: envoy-gateway-system
             hostnames:
               - git.inf-k8s.net
+              - git.anurag.sh
           tcpRoute:
             enabled: true
             parentRefs:
               - name: internal-gateway
                 namespace: envoy-gateway-system
                 sectionName: git-ssh
+              - name: shared-gateway
+                namespace: envoy-gateway-system
+                sectionName: git-ssh
           persistence:
-            enabled: false
+            enabled: true
             storageClass: longhorn-replicated
             accessModes:
-              - ReadWriteMany
+              - ReadWriteOnce
           signing:
             enabled: true
             existingSecret: forgejo-gpg-managed-secrets
-            ssh:
-              existingSecret: forgejo-ssh-managed-secrets
           gitea:
             admin:
               username: ""
@@ -105,6 +102,10 @@ spec:
                 DB_TYPE: postgres
               oauth2_client:
                 ENABLE_AUTO_REGISTRATION: "true"
+              openid:
+                ENABLE_OPENID_SIGNUP: "false"
+              service:
+                DISABLE_REGISTRATION: "true"
             additionalConfigFromEnvs:
               - name: FORGEJO__STORAGE__MINIO_ENDPOINT
                 valueFrom:
