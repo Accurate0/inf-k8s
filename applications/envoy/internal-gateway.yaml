@@ -17,7 +17,8 @@ spec:
             matchLabels:
               internal-gateway-access: "true"
         kinds:
-          - kind: TCPRoute
+          - group: gateway.networking.k8s.io
+            kind: TCPRoute
     - name: ui-object-registry-inf-k8s-https
       protocol: HTTPS
       hostname: "ui.object-registry.inf-k8s.net"
