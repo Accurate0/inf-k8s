@@ -25,6 +25,22 @@ spec:
             projectSlug: forgejo-lmh-v
             resyncInterval: 900
           secrets:
+            - name: forgejo-gpg-secrets
+              secretPath: /gpg
+              managedSecrets:
+                - secretName: forgejo-gpg-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      privateKey: "{{ .GPG_PRIVATE_KEY.Value }}"
+            - name: forgejo-ssh-secrets
+              secretPath: /ssh
+              managedSecrets:
+                - secretName: forgejo-ssh-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      privateKey: "{{ .SSH_PRIVATE_KEY.Value }}"
             - name: forgejo-oauth-secrets
               secretPath: /oauth
               managedSecrets:
@@ -71,6 +87,11 @@ spec:
             storageClass: longhorn-replicated
             accessModes:
               - ReadWriteMany
+          signing:
+            enabled: true
+            existingSecret: forgejo-gpg-managed-secrets
+            ssh:
+              existingSecret: forgejo-ssh-managed-secrets
           gitea:
             admin:
               username: ""
