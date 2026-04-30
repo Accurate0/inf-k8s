@@ -21,6 +21,7 @@ proxy:
     k8s-proxy-1:
       ansible_host: k8s-proxy-1.host.inf-k8s.net
       ansible_user: root
+      ansible_port: 2222
 
 agent:
   hosts:

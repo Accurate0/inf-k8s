@@ -37,11 +37,19 @@ resource "binarylane_server_firewall_rules" "proxy_firewall" {
 
   firewall_rules = [
     {
-      description           = "SSH"
+      description           = "SSH Proxy"
       protocol              = "all"
       source_addresses      = ["0.0.0.0/0"],
       destination_addresses = binarylane_server.proxy[count.index].public_ipv4_addresses
       destination_ports     = ["22"]
+      action                = "accept"
+    },
+    {
+      description           = "SSH"
+      protocol              = "all"
+      source_addresses      = ["0.0.0.0/0"],
+      destination_addresses = binarylane_server.proxy[count.index].public_ipv4_addresses
+      destination_ports     = ["2222"]
       action                = "accept"
     },
     {

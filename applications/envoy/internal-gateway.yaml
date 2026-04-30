@@ -7,7 +7,7 @@ metadata:
 spec:
   gatewayClassName: envoy-gateway
   listeners:
-    - name: ssh
+    - name: git-ssh
       protocol: TCP
       port: 2222
       allowedRoutes:

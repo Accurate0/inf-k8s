@@ -51,11 +51,11 @@ spec:
             hostnames:
               - git.inf-k8s.net
           tcpRoute:
-            enabled: false
+            enabled: true
             parentRefs:
               - name: internal-gateway
                 namespace: envoy-gateway-system
-                sectionName: ssh
+                sectionName: git-ssh
           persistence:
             enabled: false
             storageClass: longhorn-replicated

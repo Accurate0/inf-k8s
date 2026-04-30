@@ -39,3 +39,10 @@
         validate: "haproxy -f %s -c"
       notify:
         - Reload Haproxy
+
+    - name: Setup alternate SSH port
+      lineinfile:
+        dest: "/etc/ssh/sshd_config"
+        regexp: "^Port"
+        line: "Port 2222"
+      notify: "Restart sshd"
