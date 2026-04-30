@@ -1,0 +1,9 @@
+apiVersion: inf-k8s.net/v1
+kind: PostgresDatabase
+metadata:
+  name: forgejo-database
+  namespace: forgejo
+spec:
+  databaseName: forgejo
+  secretName: forgejo-database-secret
+  secretNamespace: forgejo
