@@ -7,7 +7,6 @@ spec:
   syncPolicy:
     managedNamespaceMetadata:
       labels:
-        internal-gateway-access: "true"
         shared-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
@@ -65,15 +64,12 @@ spec:
           httpRoute:
             enabled: true
             parentRefs:
-              - name: internal-gateway
-                namespace: envoy-gateway-system
               - name: shared-gateway
                 namespace: envoy-gateway-system
             hostnames:
-              - git.inf-k8s.net
               - git.anurag.sh
           tcpRoute:
-            enabled: true
+            enabled: false
             parentRefs:
               - name: internal-gateway
                 namespace: envoy-gateway-system
@@ -151,7 +147,7 @@ spec:
               - name: "authentik"
                 provider: "openidConnect"
                 existingSecret: forgejo-oauth-managed-secrets
-                autoDiscoverUrl: "https://authentik.inf-k8s.net/application/o/forgejo/.well-known/openid-configuration"
+                autoDiscoverUrl: "https://authentik.anurag.sh/application/o/forgejo/.well-known/openid-configuration"
                 scopes: "email profile forgejo"
                 requiredClaimName: forgejo
                 groupClaimName: "forgejo"

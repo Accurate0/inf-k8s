@@ -8,6 +8,7 @@ spec:
     managedNamespaceMetadata:
       labels:
         internal-gateway-access: "true"
+        shared-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
