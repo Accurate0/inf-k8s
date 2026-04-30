@@ -18,14 +18,23 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push Helm Chart to forgejo
+      - name: Push k8s-http-routes to forgejo
         uses: bsord/helm-push@v4.1.0
         with:
           username: anurag
           password: ${{ secrets.FORGEJO_PAT }}
           registry-url: "https://git.anurag.sh/api/packages/anurag/helm"
           force: false
-          chart-folder: charts
+          chart-folder: charts/k8s-http-routes
+
+      - name: Push k8s-infisical-secrets to forgejo
+        uses: bsord/helm-push@v4.1.0
+        with:
+          username: anurag
+          password: ${{ secrets.FORGEJO_PAT }}
+          registry-url: "https://git.anurag.sh/api/packages/anurag/helm"
+          force: false
+          chart-folder: charts/k8s-infisical-secrets
 
       - name: Configure Git
         run: |
