@@ -69,11 +69,8 @@ spec:
             hostnames:
               - git.anurag.sh
           tcpRoute:
-            enabled: false
+            enabled: true
             parentRefs:
-              - name: internal-gateway
-                namespace: envoy-gateway-system
-                sectionName: git-ssh
               - name: shared-gateway
                 namespace: envoy-gateway-system
                 sectionName: git-ssh
