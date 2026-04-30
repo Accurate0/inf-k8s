@@ -11,6 +11,11 @@ spec:
       protocol: TCP
       port: 2222
       allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              internal-gateway-access: "true"
         kinds:
           - kind: TCPRoute
     - name: ui-object-registry-inf-k8s-https
