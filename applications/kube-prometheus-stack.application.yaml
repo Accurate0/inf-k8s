@@ -147,7 +147,7 @@ spec:
                 - job_name: "haproxy-metrics"
                   static_configs:
                     - targets:
-                        - "100.97.97.24:8405"
+                        - "100.98.212.43:8405"
                   tls_config:
                     insecure_skip_verify: true
               podMonitorSelectorNilUsesHelmValues: false

@@ -87,6 +87,8 @@ spec:
               username: ""
               existingSecret: ""
             config:
+              admin:
+                EXTERNAL_USER_DISABLE_FEATURES: "manage_password, deletion"
               indexer:
                 REPO_INDEXER_ENABLED: true
               storage:
@@ -95,20 +97,34 @@ spec:
                 MINIO_USE_SSL: "true"
               database:
                 DB_TYPE: postgres
+              session:
+                PROVIDER: db
+                COOKIE_NAME: "git_session"
               oauth2_client:
                 ENABLE_AUTO_REGISTRATION: "true"
               openid:
                 ENABLE_OPENID_SIGNUP: "false"
+              security:
+                INSTALL_LOCK: "true"
               service:
                 DISABLE_REGISTRATION: "true"
                 ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
                 ENABLE_INTERNAL_SIGNIN: "false"
                 DEFAULT_KEEP_EMAIL_PRIVATE: "true"
+                ENABLE_BASIC_AUTHENTICATION: "false"
               service.explore:
                 REQUIRE_SIGNIN_VIEW: "true"
-                DISABLE_USERS_PAGE: "true"
-                DISABLE_ORGANIZATIONS_PAGE: "true"
-                DISABLE_CODE_PAGE: "true"
+                DISABLE_USERS_PAGE: "false"
+                DISABLE_ORGANIZATIONS_PAGE: "false"
+                DISABLE_CODE_PAGE: "false"
+              api:
+                ENABLE_SWAGGER: "false"
+              other:
+                SHOW_FOOTER_VERSION: "false"
+                SHOW_FOOTER_TEMPLATE_LOAD_TIME: "false"
+                SHOW_FOOTER_POWERED_BY: "false"
+                ENABLE_SITEMAP: "false"
+                ENABLE_FEED: "false"
             additionalConfigFromEnvs:
               - name: FORGEJO__STORAGE__MINIO_ENDPOINT
                 valueFrom:
