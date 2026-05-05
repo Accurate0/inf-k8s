@@ -25,6 +25,14 @@ spec:
             projectSlug: forgejo-lmh-v
             resyncInterval: 900
           secrets:
+            - name: forgejo-ssh-host-secrets
+              secretPath: /ssh
+              managedSecrets:
+                - secretName: forgejo-ssh-host-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ssh_host_ed25519_key: "{{ .SSH_HOST_KEY.Value }}"
             - name: forgejo-gpg-secrets
               secretPath: /gpg
               managedSecrets:
@@ -55,11 +63,17 @@ spec:
             - name: forgejo-themes
               configMap:
                 name: forgejo-themes
+            - name: forgejo-ssh-host
+              secret:
+                secretName: forgejo-ssh-host-managed-secrets
 
           extraContainerVolumeMounts:
             - name: forgejo-themes
               readOnly: true
               mountPath: "/data/gitea/public/assets/css"
+            - name: forgejo-ssh-host
+              mountPath: "/data/gitea/ssh/ssh_host_ed25519_key"
+              subPath: ssh_host_ed25519_key
 
           replicaCount: 1
           topologySpreadConstraints:
@@ -115,12 +129,16 @@ spec:
               session:
                 PROVIDER: db
                 COOKIE_NAME: "git_session"
+              repository:
+                DISABLE_DOWNLOAD_SOURCE_ARCHIVES: "true"
               oauth2_client:
                 ENABLE_AUTO_REGISTRATION: "true"
               openid:
                 ENABLE_OPENID_SIGNUP: "false"
               security:
                 INSTALL_LOCK: "true"
+              server:
+                SSH_SERVER_HOST_KEYS: ssh/ssh_host_ed25519_key
               service:
                 DISABLE_REGISTRATION: "true"
                 ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
