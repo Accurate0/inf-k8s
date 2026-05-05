@@ -1,0 +1,25 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pg-db-controller
+  namespace: pg-db-controller
+spec:
+  selector:
+    matchLabels:
+      app: pg-db-controller
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: pg-db-controller
+    spec:
+      serviceAccountName: pg-db-controller
+      containers:
+        - name: pg-db-controller
+          image: pg-db-controller:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: pg-db-controller-managed-secrets
