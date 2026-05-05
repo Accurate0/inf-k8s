@@ -1,0 +1,68 @@
+name: Build & Push Postgres Container
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - applications/postgres-cluster/container/Dockerfile
+      - .github/workflows/container-image.yaml
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      packages: write
+
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Login to Forgejo Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: git.anurag.sh
+          username: anurag
+          password: ${{ secrets.FORGEJO_PAT }}
+
+      - name: Cache Docker layers
+        uses: actions/cache@v4
+        with:
+          path: /tmp/.buildx-cache
+          key: ${{ runner.os }}-buildx-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-buildx
+
+      - name: Docker build
+        uses: docker/build-push-action@v6
+        env:
+          DOCKER_BUILD_RECORD_UPLOAD: false
+        with:
+          context: .
+          push: true
+          tags: |
+            ghcr.io/accurate0/cnpg-postgresql:17.6-bullseye
+            git.anurag.sh/anurag/cnpg-postgresql:17.6-bullseye
+          cache-from: type=local,src=/tmp/.buildx-cache
+          cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
+
+      # This ugly bit is necessary if you don't want your cache to grow forever
+      # till it hits GitHub's limit of 5GB.
+      # Temp fix
+      # https://github.com/docker/build-push-action/issues/252
+      # https://github.com/moby/buildkit/issues/1896
+      - name: Move cache
+        run: |
+          rm -rf /tmp/.buildx-cache
+          mv /tmp/.buildx-cache-new /tmp/.buildx-cache
