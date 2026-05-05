@@ -92,6 +92,13 @@ spec:
                 namespace: envoy-gateway-system
             hostnames:
               - git.anurag.sh
+            matches:
+              path:
+                type: PathPrefix
+                value: "/"
+              timeouts:
+                request: 90s
+                backendRequest: 90s
           tcpRoute:
             enabled: true
             parentRefs:
