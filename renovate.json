@@ -3,7 +3,8 @@
   "argocd": {
     "fileMatch": [
       "applications/.*\\.application\\.yaml",
-      "home/application.yaml"
+      "home/application.yaml",
+      "pg-db-controller/application.yaml"
     ]
   },
   "ignorePaths": ["applications/redis.application.yaml"]
