@@ -51,6 +51,16 @@ spec:
       targetRevision: 17.0.1
       helm:
         valuesObject:
+          extraVolumes:
+            - name: forgejo-themes
+              configMap:
+                name: forgejo-themes
+
+          extraContainerVolumeMounts:
+            - name: forgejo-themes
+              readOnly: true
+              mountPath: "/data/gitea/public/assets/css"
+
           replicaCount: 1
           topologySpreadConstraints:
             - topologyKey: inf-k8s.net/location
@@ -89,6 +99,9 @@ spec:
             config:
               APP_NAME: "git"
               APP_SLOGAN: ""
+              ui:
+                THEMES: forgejo-auto,forgejo-light,forgejo-dark,anthracite,anthracite-dark,anthracite-light
+                DEFAULT_THEME: anthracite
               admin:
                 EXTERNAL_USER_DISABLE_FEATURES: "manage_password, deletion"
               indexer:
@@ -180,6 +193,7 @@ spec:
                 restrictedGroup: "restricted"
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/forgejo
+      kustomize:
 
   destination:
     server: https://kubernetes.default.svc
