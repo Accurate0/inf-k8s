@@ -69,7 +69,3 @@ provider "infisical" {
     }
   }
 }
-
-module "object-registry" {
-  source = "./object-registry"
-}

@@ -87,6 +87,8 @@ spec:
               username: ""
               existingSecret: ""
             config:
+              APP_NAME: "git"
+              APP_SLOGAN: ""
               admin:
                 EXTERNAL_USER_DISABLE_FEATURES: "manage_password, deletion"
               indexer:
