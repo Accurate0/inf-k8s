@@ -15,7 +15,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              kubernetes.io/metadata.name: forgejo
         kinds:
           - group: gateway.networking.k8s.io
             kind: TCPRoute
