@@ -1,11 +1,11 @@
-name: Build & Push Postgres Container
+name: Build & publish postgres container image
 on:
   push:
     branches:
       - main
     paths:
       - applications/postgres-cluster/container/Dockerfile
-      - .github/workflows/container-image.yaml
+      - .github/workflows/build-publish-postgres-container-image.yaml
   workflow_dispatch:
 
 jobs:

@@ -1,10 +1,11 @@
-name: Deploy pg-db-controller
+name: Build & deploy pg-db-controller
 on:
   push:
     branches:
       - main
     paths:
       - pg-db-controller/**
+      - .github/workflows/build-deploy-pg-db-controller.yaml
   workflow_dispatch:
 
 jobs:

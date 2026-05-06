@@ -1,11 +1,11 @@
-name: Build & Deploy Home
+name: Build & deploy ingress-home
 on:
   push:
     branches:
       - main
     paths:
       - home/**
-      - .github/workflows/home-build-deploy.yml
+      - .github/workflows/build-deploy-ingress-home.yaml
   workflow_dispatch:
 
 jobs:
