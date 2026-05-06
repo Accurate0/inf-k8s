@@ -4,8 +4,8 @@
     "fileMatch": [
       "applications/.*\\.application\\.yaml",
       "services/**/.*\\.application\\.yaml",
-      "home/application.yaml",
-      "pg-db-controller/application.yaml"
+      "components/ingress-home/application.yaml",
+      "components/pg-db-controller/application.yaml"
     ]
   },
   "ignorePaths": ["applications/redis.application.yaml"]
