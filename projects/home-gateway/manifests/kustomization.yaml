@@ -11,6 +11,6 @@ resources:
   - selfbot/selfbot.service.yaml
 images:
   - name: ghcr.io/accurate0/home-gateway
-    newTag: 52b438d9690b4b381af7cb6d18dac4bbe94cb376
+    newTag: 70c9110fd4c66289282e91b3ebe12a33e49e9854
   - name: ghcr.io/accurate0/home-selfbot
-    newTag: 52b438d9690b4b381af7cb6d18dac4bbe94cb376
+    newTag: 70c9110fd4c66289282e91b3ebe12a33e49e9854
