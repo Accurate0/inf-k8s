@@ -31,13 +31,17 @@ spec:
                       - headers:
                           - name: CF-Connecting-IP
                             type: Distinct
+                            invert: false
                     limit:
                       requests: 5
                       unit: Second
               rules:
                 - backendRefs:
-                    - name: home-gateway
+                    - group: ""
+                      kind: Service
+                      name: home-gateway
                       port: 80
+                      weight: 1
                   matches:
                     - path:
                         type: PathPrefix
