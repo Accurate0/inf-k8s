@@ -114,6 +114,25 @@ spec:
             enabled: true
             existingSecret: forgejo-gpg-managed-secrets
           gitea:
+            readinessProbe:
+              enabled: true
+              httpGet:
+                path: /api/healthz
+                port: http
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+              periodSeconds: 120
+              successThreshold: 1
+              failureThreshold: 3
+            livenessProbe:
+              enabled: true
+              tcpSocket:
+                port: http
+              initialDelaySeconds: 200
+              timeoutSeconds: 1
+              periodSeconds: 120
+              successThreshold: 1
+              failureThreshold: 10
             admin:
               username: ""
               existingSecret: ""

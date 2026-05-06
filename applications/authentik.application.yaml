@@ -86,7 +86,19 @@ spec:
               - secretRef:
                   name: authentik-managed-secrets
           server:
-            replicas: 3
+            livenessProbe:
+              failureThreshold: 3
+              initialDelaySeconds: 5
+              periodSeconds: 120
+              successThreshold: 1
+              timeoutSeconds: 3
+            readinessProbe:
+              failureThreshold: 3
+              initialDelaySeconds: 5
+              periodSeconds: 120
+              successThreshold: 1
+              timeoutSeconds: 3
+            replicas: 2
 
   destination:
     server: https://kubernetes.default.svc
