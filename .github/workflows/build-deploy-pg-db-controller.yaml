@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - pg-db-controller/**
+      - components/pg-db-controller/**
       - .github/workflows/build-deploy-pg-db-controller.yaml
   workflow_dispatch:
 
@@ -15,7 +15,7 @@ jobs:
 
     uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@main
     with:
-      directory: ./pg-db-controller
+      directory: ./components/pg-db-controller
       image-name: pg-db-controller
       docker-build-args: |
         BINARY_NAME=pg-db-controller
