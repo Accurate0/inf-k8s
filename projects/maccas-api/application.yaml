@@ -91,7 +91,7 @@ spec:
                         value: /
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
-      path: services/maccas-api/manifests
+      path: projects/maccas-api/manifests
       kustomize:
 
   destination:

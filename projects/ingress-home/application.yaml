@@ -35,7 +35,7 @@ spec:
                         value: /
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
-      path: services/ingress-home/manifests
+      path: projects/ingress-home/manifests
       kustomize:
   destination:
     server: https://kubernetes.default.svc

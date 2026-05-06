@@ -14,7 +14,7 @@ spec:
   project: default
   source:
     repoURL: https://github.com/Accurate0/inf-k8s.git
-    path: services/pg-db-controller/manifests
+    path: projects/pg-db-controller/manifests
     kustomize:
   destination:
     server: https://kubernetes.default.svc
