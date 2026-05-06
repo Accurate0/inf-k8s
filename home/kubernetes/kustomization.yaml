@@ -6,3 +6,7 @@ resources:
   - namespace.yaml
   - service.yaml
   - serviceaccount.yaml
+images:
+  - name: ingress-home
+    newName: ghcr.io/accurate0/ingress-home
+    newTag: 25689738858ff605742bade7503dae5994892176
