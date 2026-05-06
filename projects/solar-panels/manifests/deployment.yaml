@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
         - name: solar
-          image: solar:latest
+          image: ghcr.io/accurate0/solar
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3
@@ -57,7 +57,7 @@ spec:
     spec:
       containers:
         - name: solar-web
-          image: solar-web:latest
+          image: ghcr.io/accurate0/solar-web
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3
