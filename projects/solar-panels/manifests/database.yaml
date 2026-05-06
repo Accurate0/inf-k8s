@@ -1,0 +1,9 @@
+apiVersion: inf-k8s.net/v1
+kind: PostgresDatabase
+metadata:
+  name: solar-database
+  namespace: solar-panels
+spec:
+  databaseName: solarpanels
+  secretName: solar-database-secret
+  secretNamespace: solar-panels

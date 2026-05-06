@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: solar
+  namespace: solar-panels
+  annotations:
+    secrets.infisical.com/auto-reload: "true"
+spec:
+  selector:
+    matchLabels:
+      app: solar
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: solar
+    spec:
+      containers:
+        - name: solar
+          image: solar:latest
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /api/health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 3
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          env:
+            - name: HOME_GATEWAY_BASE_URL
+              value: http://home-gateway.home-gateway.svc.cluster.local
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+          envFrom:
+            - secretRef:
+                name: solar-managed-secrets
+            - secretRef:
+                name: solar-database-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: solar-web
+  namespace: solar-panels
+spec:
+  selector:
+    matchLabels:
+      app: solar-web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: solar-web
+    spec:
+      containers:
+        - name: solar-web
+          image: solar-web:latest
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /
+              port: 3000
+              scheme: HTTP
+            initialDelaySeconds: 3
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
