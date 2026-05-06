@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anurag-sh
+  namespace: anurag-sh
+spec:
+  selector:
+    matchLabels:
+      app: anurag-sh
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: anurag-sh
+    spec:
+      containers:
+        - name: anurag-sh
+          image: ghcr.io/accurate0/anurag-sh
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
