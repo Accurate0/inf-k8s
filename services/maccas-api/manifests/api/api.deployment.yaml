@@ -25,7 +25,7 @@ spec:
 
       initContainers:
         - name: maccas-migration
-          image: maccas-migration
+          image: ghcr.io/accurate0/maccas-migration
           imagePullPolicy: Always
           envFrom:
             - secretRef:
