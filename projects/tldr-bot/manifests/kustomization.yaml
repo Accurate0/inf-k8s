@@ -6,4 +6,4 @@ resources:
   - secret.yaml
 images:
   - name: ghcr.io/accurate0/tldr-bot
-    newTag: 9418785de117e4f8869d01b3c967c4f5250dc97d
+    newTag: 2f2037c52b711094864762b7905e760275d23618
