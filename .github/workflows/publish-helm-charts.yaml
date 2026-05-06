@@ -58,9 +58,20 @@ jobs:
       - name: Push charts to GHCR
         run: |
           shopt -s nullglob
+          # helm push fails when registry path contains Uppercase letters
+          chart_registry="ghcr.io/accurate0/charts"
           for pkg in *.tgz; do
             if [ -z "${pkg:-}" ]; then
               break
             fi
-            helm push "${pkg}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts"
-          done
+            chart_name=$(helm show chart "${pkg}" | yq .name)
+            chart_version=$(helm show chart "${pkg}" | yq .version)
+            if helm show chart oci://${chart_registry}/${chart_name} --version ${chart_version} > /dev/null 2>&1; then
+              echo "Chart oci://${chart_name}:${chart_version} already exists in repository - skipping..."
+              echo "push_status=skipped" >> "$GITHUB_OUTPUT"
+              continue
+            fi
+
+            helm_push_output=$(helm push "${pkg}" "oci://${chart_registry}" 2>&1)
+            digest=$(echo "$helm_push_output" | grep -o 'sha256:[a-z0-9]*')
+            echo "$helm_push_output"
