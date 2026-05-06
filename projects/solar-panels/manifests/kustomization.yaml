@@ -8,6 +8,6 @@ resources:
   - service.yaml
 images:
   - name: ghcr.io/accurate0/solar
-    newTag: cdfda1e05b0d6499e83dda7ba75f76feb62f82db
+    newTag: 57a4e1815dc77e946e867cf8c66ba069f6ea38cc
   - name: ghcr.io/accurate0/solar-web
-    newTag: cdfda1e05b0d6499e83dda7ba75f76feb62f82db
+    newTag: 57a4e1815dc77e946e867cf8c66ba069f6ea38cc
