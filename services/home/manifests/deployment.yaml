@@ -16,7 +16,7 @@ spec:
       serviceAccountName: ingress-home
       containers:
         - name: ingress-home
-          image: ingress-home
+          image: ghcr.io/accurate0/ingress-home
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

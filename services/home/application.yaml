@@ -7,6 +7,10 @@ spec:
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
   project: default
   sources:
     - chart: k8s-http-routes
@@ -31,7 +35,7 @@ spec:
                         value: /
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
-      path: home/kubernetes
+      path: services/home/manifests
       kustomize:
   destination:
     server: https://kubernetes.default.svc
