@@ -193,10 +193,7 @@ spec:
                     name: forgejo-database-secret
                     key: PGUSER
               - name: FORGEJO__DATABASE__HOST
-                valueFrom:
-                  secretKeyRef:
-                    name: forgejo-database-secret
-                    key: PGHOST
+                value: cloudnative-pg-cluster-pooler-rw.cnpg-system
               - name: FORGEJO__DATABASE__PASSWD
                 valueFrom:
                   secretKeyRef:
