@@ -3,7 +3,7 @@ kind: Dragonfly
 metadata:
   name: dragonfly
 spec:
-  replicas: 1
+  replicas: 2
   args:
     - --maxmemory=$(MAX_MEMORY)Mi
     - --proactor_threads=2
@@ -16,6 +16,11 @@ spec:
       cpu: 100m
     limits:
       memory: 512Mi
+  topologySpreadConstraints:
+    - topologyKey: inf-k8s.net/location
+      whenUnsatisfiable: ScheduleAnyway
+      maxSkew: 1
+  memcachedPort: 11211
 
   labels:
     role: master
