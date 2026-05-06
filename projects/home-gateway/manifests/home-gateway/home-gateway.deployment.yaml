@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-gateway
+  namespace: home-gateway
+  annotations:
+    secrets.infisical.com/auto-reload: "true"
+spec:
+  selector:
+    matchLabels:
+      app: home-gateway
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: home-gateway
+    spec:
+      containers:
+        - name: home-gateway
+          image: ghcr.io/accurate0/home-gateway
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /v1/health
+              port: 8000
+              scheme: HTTP
+            initialDelaySeconds: 3
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 1
+          env:
+            - name: FLIPT_URL
+              value: http://flipt-v2.flipt-v2.svc.cluster.local:8080
+            - name: SELFBOT_API_BASE
+              value: http://selfbot.home-gateway.svc.cluster.local
+            - name: SOLAR_API_BASE
+              value: http://solar-panel-api.solar-panels.svc.cluster.local:8000/api
+            - name: BOM_API_BASE
+              value: http://bom-api.bom.svc.cluster.local:8000
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+          envFrom:
+            - secretRef:
+                name: home-gateway-managed-secrets
+            - secretRef:
+                name: home-gateway-database-secret
+          ports:
+            - containerPort: 8000

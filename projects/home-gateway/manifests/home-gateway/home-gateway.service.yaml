@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: home-gateway
+  namespace: home-gateway
+spec:
+  selector:
+    app: home-gateway
+  ports:
+    - name: api
+      protocol: TCP
+      port: 80
+      targetPort: 8000
