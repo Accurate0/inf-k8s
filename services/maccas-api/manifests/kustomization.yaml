@@ -1,42 +1,56 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - api/api.deployment.yaml
-  - web/web.deployment.yaml
-  - scheduler/scheduler.deployment.yaml
-  - recommendations/recommendations.service.yaml
-  - recommendations/recommendations.deployment.yaml
-  - api/api.service.yaml
-  - namespace.yaml
-  - web/web.service.yaml
+- api/api.deployment.yaml
+- web/web.deployment.yaml
+- scheduler/scheduler.deployment.yaml
+- recommendations/recommendations.service.yaml
+- recommendations/recommendations.deployment.yaml
+- api/api.service.yaml
+- namespace.yaml
+- web/web.service.yaml
   # - sensordata/sensordata.deployment.yaml
   # - sensordata/sensordata.service.yaml
   # - sensordata/pvc.yaml
+
+
+
+
+
+
 images:
-  - name: maccas-api
-    newName: ghcr.io/accurate0/maccas-api
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
-
-  - name: maccas-scheduler
-    newName: ghcr.io/accurate0/maccas-scheduler
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
-
-  - name: maccas-recommendations
-    newName: ghcr.io/accurate0/maccas-recommendations
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
-
-  - name: maccas-migration
-    newName: ghcr.io/accurate0/maccas-migration
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
-
-  - name: maccas-clustering
-    newName: ghcr.io/accurate0/maccas-clustering
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
-
-  - name: maccas-web
-    newName: ghcr.io/accurate0/maccas-web
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
-
-  - name: maccas-sensordata
-    newName: ghcr.io/accurate0/maccas-sensordata
-    newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: ghcr.io/accurate0/maccas-api
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: ghcr.io/accurate0/maccas-clustering
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: ghcr.io/accurate0/maccas-migration
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: ghcr.io/accurate0/maccas-recommendations
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: ghcr.io/accurate0/maccas-scheduler
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: ghcr.io/accurate0/maccas-sensordata
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: ghcr.io/accurate0/maccas-web
+  newTag: 9feff6466c2941719fdf125b932cb791d112d89d
+- name: maccas-api
+  newName: ghcr.io/accurate0/maccas-api
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: maccas-clustering
+  newName: ghcr.io/accurate0/maccas-clustering
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: maccas-migration
+  newName: ghcr.io/accurate0/maccas-migration
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: maccas-recommendations
+  newName: ghcr.io/accurate0/maccas-recommendations
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: maccas-scheduler
+  newName: ghcr.io/accurate0/maccas-scheduler
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: maccas-sensordata
+  newName: ghcr.io/accurate0/maccas-sensordata
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
+- name: maccas-web
+  newName: ghcr.io/accurate0/maccas-web
+  newTag: 48c28d135e023134333ec555bd31d8268f40b5bf
