@@ -28,6 +28,7 @@ jobs:
     with:
       service-name: pg-db-controller
       images: ghcr.io/accurate0/pg-db-controller
+      manifests-path: projects/pg-db-controller/manifests
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

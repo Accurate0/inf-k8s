@@ -27,6 +27,7 @@ jobs:
     with:
       service-name: ingress-home
       images: ghcr.io/accurate0/ingress-home
+      manifests-path: projects/ingress-home/manifests
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}
