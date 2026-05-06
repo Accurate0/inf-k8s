@@ -1,11 +1,11 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - deployment.yaml
-  - rbac.yaml
-  - namespace.yaml
-  - service.yaml
-  - serviceaccount.yaml
+- deployment.yaml
+- rbac.yaml
+- namespace.yaml
+- service.yaml
+- serviceaccount.yaml
 images:
-  - name: ghcr.io/accurate0/ingress-home
-    newTag: 25689738858ff605742bade7503dae5994892176
+- name: ghcr.io/accurate0/ingress-home
+  newTag: 6e5e8c9dff11f0bf530eb2df407147e9abd44ddc
