@@ -11,6 +11,8 @@ jobs:
   release:
     permissions:
       contents: write
+      packages: write
+
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -36,14 +38,29 @@ jobs:
           force: false
           chart-folder: charts/k8s-infisical-secrets
 
-      - name: Configure Git
-        run: |
-          git config user.name "$GITHUB_ACTOR"
-          git config user.email "$GITHUB_ACTOR@users.noreply.github.com"
-
-      - name: Run chart-releaser
-        uses: helm/chart-releaser-action@v1.7.0
+      - name: Set up Helm
+        uses: azure/setup-helm@v5.0.0
         with:
-          skip_existing: true
-        env:
-          CR_TOKEN: "${{ secrets.HELM_PAT_TOKEN }}"
+          version: v3.18.3
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Package helm charts
+        run: |
+          helm package charts/k8s-infisical-secrets
+          helm package charts/k8s-http-routes
+
+      - name: Push charts to GHCR
+        run: |
+          shopt -s nullglob
+          for pkg in *.tgz; do
+            if [ -z "${pkg:-}" ]; then
+              break
+            fi
+            helm push "${pkg}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/charts"
+          done
