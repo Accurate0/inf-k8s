@@ -18,6 +18,9 @@ spec:
       memory: 512Mi
   topologySpreadConstraints:
     - topologyKey: inf-k8s.net/location
+      labelSelector:
+        matchLabels:
+          app: dragonfly
       whenUnsatisfiable: ScheduleAnyway
       maxSkew: 1
   memcachedPort: 11211
