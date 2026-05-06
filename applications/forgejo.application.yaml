@@ -152,9 +152,18 @@ spec:
                 MINIO_USE_SSL: "true"
               database:
                 DB_TYPE: postgres
+              queue:
+                TYPE: redis
+                CONN_STR: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
               session:
-                PROVIDER: db
                 COOKIE_NAME: "git_session"
+                PROVIDER: redis
+                PROVIDER_CONFIG: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+                SESSION_LIFE_TIME: "1209600"
+              cache:
+                ENABLED: true
+                ADAPTER: redis
+                HOST: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
               repository:
                 DISABLE_DOWNLOAD_SOURCE_ARCHIVES: "true"
               oauth2_client:

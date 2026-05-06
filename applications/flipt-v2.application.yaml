@@ -90,7 +90,7 @@ spec:
                     redis:
                       mode: single
                       port: 6379
-                      host: node.valkey.svc.cluster.local
+                      host: dragonfly.dragonfly-system.svc.cluster.local
                   domain: "flipt.inf-k8s.net"
                   secure: true
                   csrf:
