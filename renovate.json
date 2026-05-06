@@ -3,6 +3,7 @@
   "argocd": {
     "fileMatch": [
       "applications/.*\\.application\\.yaml",
+      "services/**/.*\\.application\\.yaml",
       "home/application.yaml",
       "pg-db-controller/application.yaml"
     ]
