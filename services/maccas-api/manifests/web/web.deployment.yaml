@@ -25,7 +25,7 @@ spec:
 
       containers:
         - name: maccas-web
-          image: maccas-web
+          image: ghcr.io/accurate0/maccas-web
           imagePullPolicy: Always
           resources:
             requests:

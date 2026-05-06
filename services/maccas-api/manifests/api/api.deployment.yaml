@@ -32,7 +32,7 @@ spec:
                 name: maccas-migration-managed-secrets
       containers:
         - name: maccas-api
-          image: maccas-api
+          image: ghcr.io/accurate0/maccas-api
           imagePullPolicy: Always
           resources:
             requests:

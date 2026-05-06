@@ -24,7 +24,7 @@ spec:
                 name: maccas-migration-managed-secrets
       containers:
         - name: maccas-recommendations
-          image: maccas-recommendations
+          image: ghcr.io/accurate0/maccas-recommendations
           imagePullPolicy: Always
           resources:
             requests:
@@ -57,7 +57,7 @@ spec:
           ports:
             - containerPort: 8003
         - name: maccas-clustering
-          image: maccas-clustering:latest
+          image: ghcr.io/accurate0/maccas-clustering
           imagePullPolicy: Always
           livenessProbe:
             failureThreshold: 3

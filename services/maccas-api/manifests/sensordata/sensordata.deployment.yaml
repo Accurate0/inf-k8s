@@ -33,7 +33,7 @@ spec:
             claimName: sensordata-android-pvc
       containers:
         - name: maccas-sensordata
-          image: maccas-sensordata
+          image: ghcr.io/accurate0/maccas-sensordata
           imagePullPolicy: Always
           volumeMounts:
             - name: sensordata-volume

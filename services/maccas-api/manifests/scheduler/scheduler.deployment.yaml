@@ -24,7 +24,7 @@ spec:
               topologyKey: kubernetes.io/hostname
       containers:
         - name: maccas-scheduler
-          image: maccas-scheduler
+          image: ghcr.io/accurate0/maccas-scheduler
           imagePullPolicy: Always
           resources:
             requests:
