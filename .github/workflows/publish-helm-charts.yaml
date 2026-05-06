@@ -1,4 +1,4 @@
-name: Helm Publish
+name: Publish helm charts
 on:
   push:
     branches:
