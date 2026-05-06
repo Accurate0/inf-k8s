@@ -6,4 +6,4 @@ resources:
   - service.yaml
 images:
   - name: ghcr.io/accurate0/anurag-sh
-    newTag: 4d1d4c385bfdea1d197df71fb415be13d48d5cd6
+    newTag: 9f4283aa2c8e8bbba3a3fc1857dbf2a0bbc276cd
