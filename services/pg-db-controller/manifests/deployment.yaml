@@ -16,7 +16,7 @@ spec:
       serviceAccountName: pg-db-controller
       containers:
         - name: pg-db-controller
-          image: pg-db-controller:latest
+          image: ghcr.io/accurate0/pg-db-controller
           imagePullPolicy: Always
           ports:
             - containerPort: 3000

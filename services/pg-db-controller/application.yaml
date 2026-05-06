@@ -7,13 +7,15 @@ spec:
   syncPolicy:
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
   project: default
   source:
     repoURL: https://github.com/Accurate0/inf-k8s.git
-    path: pg-db-controller/kubernetes
+    path: services/pg-db-controller/manifests
     kustomize:
-      images:
-        - pg-db-controller=ghcr.io/accurate0/pg-db-controller:${ARGOCD_APP_REVISION}
   destination:
     server: https://kubernetes.default.svc
     namespace: pg-db-controller
