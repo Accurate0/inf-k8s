@@ -75,3 +75,4 @@ jobs:
             helm_push_output=$(helm push "${pkg}" "oci://${chart_registry}" 2>&1)
             digest=$(echo "$helm_push_output" | grep -o 'sha256:[a-z0-9]*')
             echo "$helm_push_output"
+          done
