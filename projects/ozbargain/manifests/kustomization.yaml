@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - discord-bot.deployment.yaml
+  - finder.deployment.yaml
+  - secret.yaml
+  - trigger.deployment.yaml
+images:
+  - name: ghcr.io/accurate0/ozb-discord-bot
+    newTag: 3ed0841ef88c522c4c19a5094ab7f70f7813ce50
+  - name: ghcr.io/accurate0/ozb-finder
+    newTag: 3ed0841ef88c522c4c19a5094ab7f70f7813ce50
+  - name: ghcr.io/accurate0/ozb-trigger
+    newTag: 3ed0841ef88c522c4c19a5094ab7f70f7813ce50
