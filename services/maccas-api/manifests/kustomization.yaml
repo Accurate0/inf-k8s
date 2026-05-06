@@ -11,7 +11,7 @@ resources:
   - web/web.service.yaml
   # - sensordata/sensordata.deployment.yaml
   # - sensordata/sensordata.service.yaml
-  - sensordata/pvc.yaml
+  # - sensordata/pvc.yaml
 images:
   - name: maccas-api
     newName: ghcr.io/accurate0/maccas-api
