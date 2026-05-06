@@ -7,8 +7,6 @@ resources:
   - trigger.deployment.yaml
 images:
   - name: ghcr.io/accurate0/ozb-discord-bot
-    newTag: 3ed0841ef88c522c4c19a5094ab7f70f7813ce50
-  - name: ghcr.io/accurate0/ozb-discordbot
     newTag: c6ca593b2b85fb9b93e57e6383f609123db2f371
   - name: ghcr.io/accurate0/ozb-finder
     newTag: c6ca593b2b85fb9b93e57e6383f609123db2f371
