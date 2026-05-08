@@ -1,0 +1,81 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: garagefs
+  namespace: argocd
+spec:
+  ignoreDifferences:
+    - group: apps
+      kind: StatefulSet
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[].apiVersion
+        - .spec.volumeClaimTemplates[].kind
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        internal-gateway-access: "true"
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: default
+  sources:
+    - repoURL: https://git.deuxfleurs.fr/Deuxfleurs/garage.git
+      path: script/helm/garage
+      targetRevision: 3a5f06069363f1ae739202aba98aeb8db7d529d1
+      helm:
+        valuesObject:
+          monitoring:
+            enabled: true
+            serviceMonitor:
+              enabled: true
+            tracing:
+              sink: http://monitoring-tempo.monitoring.svc.cluster.local:4317
+          deployment:
+            replicaCount: 2
+          garage:
+            dbEngine: "sqlite"
+            s3:
+              api:
+                bindAddr: "[::]:3900"
+                region: "garage"
+                rootDomain: ".s3.inf-k8s.net"
+            replicationFactor: 2
+          persistence:
+            enabled: true
+            meta:
+              storageClass: "longhorn-local-wait"
+              size: 50Gi
+            data:
+              storageClass: "longhorn-local-wait"
+              size: 100Gi
+    - chart: k8s-http-routes
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      targetRevision: 2.1.0
+      helm:
+        valuesObject:
+          routes:
+            - name: s3-api
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - s3.inf-k8s.net
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: garagefs
+                      port: 3900
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+  destination:
+    namespace: garagefs-system
+    server: https://kubernetes.default.svc
