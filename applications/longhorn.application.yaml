@@ -42,7 +42,7 @@ spec:
                         value: /
     - chart: longhorn
       repoURL: https://charts.longhorn.io/
-      targetRevision: 1.11.0
+      targetRevision: 1.11.1
       helm:
         valuesObject:
           global:
@@ -51,20 +51,15 @@ spec:
                 operator: "Equal"
                 value: "arm64"
                 effect: "NoSchedule"
+          preUpgradeChecker:
+            jobEnabled: false
+            upgradeVersionCheck: false
           longhornUI:
             replicas: 1
           defaultSettings:
             taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
-          preUpgradeChecker:
-            jobEnabled: false
           ingress:
             enabled: false
-            secureBackends: true
-            ingressClassName: nginx
-            annotations:
-              cert-manager.io/cluster-issuer: letsencrypt-prod
-            host: longhorn.inf-k8s.net
-            tls: true
   destination:
     server: https://kubernetes.default.svc
     namespace: longhorn-system
