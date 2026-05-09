@@ -1,0 +1,24 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: janitor-bot
+  namespace: janitor-bot
+spec:
+  selector:
+    matchLabels:
+      app: janitor-bot
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: janitor-bot
+    spec:
+      containers:
+        - name: janitor-bot
+          image: ghcr.io/accurate0/janitor-bot
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3000
+          envFrom:
+            - secretRef:
+                name: janitor-bot-managed-secrets
