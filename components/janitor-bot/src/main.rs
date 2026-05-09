@@ -25,12 +25,14 @@ async fn handle_webhook(
     if auth != state.webhook_secret {
         return StatusCode::UNAUTHORIZED;
     }
-    let Some(pr_event) = event.as_pr_event() else {
+    let Some(pr_event) = event.into_pr_event() else {
         return StatusCode::OK;
     };
 
-    let rules = rules::all_rules();
-    rules::evaluate(&rules, &state.client, &pr_event).await;
+    tokio::spawn(async move {
+        let rules = rules::all_rules();
+        rules::evaluate(&rules, &state.client, &pr_event).await;
+    });
 
     StatusCode::OK
 }

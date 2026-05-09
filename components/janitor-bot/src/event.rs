@@ -34,30 +34,32 @@ pub struct WebhookEvent {
 }
 
 #[allow(dead_code)]
-pub struct PrEvent<'a> {
-    pub action: &'a str,
-    pub author: &'a str,
-    pub owner: &'a str,
-    pub repo: &'a str,
+pub struct PrEvent {
+    pub action: String,
+    pub author: String,
+    pub owner: String,
+    pub repo: String,
     pub pr_number: u64,
-    pub title: &'a str,
-    pub labels: &'a [Label],
+    pub title: String,
+    pub labels: Vec<Label>,
 }
 
 impl WebhookEvent {
-    pub fn as_pr_event(&self) -> Option<PrEvent<'_>> {
-        let pr = self.pull_request.as_ref()?;
-        let sender = self.sender.as_ref()?;
-        let repository = self.repository.as_ref()?;
+    pub fn into_pr_event(self) -> Option<PrEvent> {
+        let pr = self.pull_request?;
+        let sender = self.sender?;
+        let repository = self.repository?;
         let (owner, repo) = repository.full_name.split_once('/')?;
+        let owner = owner.to_owned();
+        let repo = repo.to_owned();
         Some(PrEvent {
-            action: &self.action,
-            author: &sender.login,
+            action: self.action,
+            author: sender.login,
             owner,
             repo,
             pr_number: pr.number,
-            title: &pr.title,
-            labels: &pr.labels,
+            title: pr.title,
+            labels: pr.labels,
         })
     }
 }

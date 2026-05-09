@@ -240,6 +240,8 @@ spec:
                 DISABLE_CODE_PAGE: "false"
               api:
                 ENABLE_SWAGGER: "false"
+              webhook:
+                ALLOWED_HOST_LIST: "janitor-bot.janitor-bot.svc.cluster.local,external"
               other:
                 SHOW_FOOTER_VERSION: "false"
                 SHOW_FOOTER_TEMPLATE_LOAD_TIME: "false"

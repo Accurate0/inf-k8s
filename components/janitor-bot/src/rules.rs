@@ -48,13 +48,13 @@ pub struct Rule {
     pub actions: fn() -> Vec<Action>,
 }
 
-pub async fn evaluate(rules: &[Rule], client: &ForgejoClient, event: &PrEvent<'_>) {
+pub async fn evaluate(rules: &[Rule], client: &ForgejoClient, event: &PrEvent) {
     for rule in rules {
         if (rule.matches)(event) {
             tracing::info!(rule = rule.name, pr = event.pr_number, "rule matched");
             for action in (rule.actions)() {
                 action
-                    .execute(client, event.owner, event.repo, event.pr_number as i64)
+                    .execute(client, &event.owner, &event.repo, event.pr_number as i64)
                     .await;
             }
         }
