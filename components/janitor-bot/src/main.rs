@@ -25,6 +25,9 @@ async fn handle_webhook(
     if auth != state.webhook_secret {
         return StatusCode::UNAUTHORIZED;
     }
+
+    tracing::info!(action = event.action, "received webhook event");
+
     let Some(pr_event) = event.into_pr_event() else {
         return StatusCode::OK;
     };
