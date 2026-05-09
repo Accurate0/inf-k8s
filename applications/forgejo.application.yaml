@@ -46,6 +46,15 @@ spec:
             projectSlug: forgejo-lmh-v
             resyncInterval: 900
           secrets:
+            - name: forgejo-ssh-signing-secrets
+              secretPath: /ssh-signing
+              managedSecrets:
+                - secretName: forgejo-ssh-signing-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ed25519: "{{ .SSH_SIGNING_KEY.Value }}"
+                      ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC.Value }}"
             - name: forgejo-ssh-host-secrets
               secretPath: /ssh
               managedSecrets:
@@ -87,6 +96,10 @@ spec:
             - name: forgejo-ssh-host
               secret:
                 secretName: forgejo-ssh-host-managed-secrets
+            - name: forgejo-ssh-signing
+              secret:
+                secretName: forgejo-ssh-signing-managed-secrets
+                defaultMode: 0o444
 
           extraContainerVolumeMounts:
             - name: forgejo-themes
@@ -95,6 +108,17 @@ spec:
             - name: forgejo-ssh-host
               mountPath: "/data/gitea/ssh/ssh_host_ed25519_key"
               subPath: ssh_host_ed25519_key
+            - name: forgejo-ssh-signing
+              mountPath: /data/signing
+              readOnly: true
+
+          extraInitVolumeMounts:
+            - name: forgejo-ssh-signing
+              mountPath: /data/signing
+              readOnly: true
+
+          image:
+            rootless: true
 
           replicaCount: 1
           topologySpreadConstraints:
@@ -132,8 +156,7 @@ spec:
             accessModes:
               - ReadWriteOnce
           signing:
-            enabled: true
-            existingSecret: forgejo-gpg-managed-secrets
+            enabled: false
           gitea:
             readinessProbe:
               enabled: true
@@ -187,6 +210,15 @@ spec:
                 HOST: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
               repository:
                 DISABLE_DOWNLOAD_SOURCE_ARCHIVES: "true"
+              repository.signing:
+                FORMAT: ssh
+                SIGNING_KEY: /data/signing/ed25519.pub
+                SIGNING_NAME: git.anurag.sh Instance
+                SIGNING_EMAIL: noreply@git.anurag.sh
+                INITIAL_COMMIT: pubkey
+                CRUD_ACTIONS: pubkey, parentsigned
+                WIKI: never
+                MERGES: pubkey
               oauth2_client:
                 ENABLE_AUTO_REGISTRATION: "true"
               openid:
