@@ -17,9 +17,6 @@ pub enum Action {
     AddLabels {
         label_ids: Vec<i64>,
     },
-    Delay {
-        duration: Duration,
-    },
 }
 
 impl Action {
@@ -37,11 +34,6 @@ impl Action {
             Action::Comment { body } => client.comment(owner, repo, pr, body).await,
             Action::AddLabels { label_ids } => {
                 client.add_labels(owner, repo, pr, label_ids.clone()).await
-            }
-            Action::Delay { duration } => {
-                tracing::info!(pr, seconds = duration.as_secs(), "delaying");
-                tokio::time::sleep(*duration).await;
-                return;
             }
         };
         if let Err(e) = result {
