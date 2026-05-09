@@ -7,4 +7,4 @@ resources:
   - service.yaml
 images:
   - name: ghcr.io/accurate0/janitor-bot
-    newTag: 34ca39f5a4f760ff8943cb64e48f85617b9f7f51
+    newTag: 81f28663b9b97ea3329135a339b84da63498636f
