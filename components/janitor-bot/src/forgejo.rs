@@ -119,4 +119,31 @@ impl ForgejoClient {
         tracing::info!(pr, owner, repo, "labels added");
         Ok(())
     }
+
+    pub async fn add_labels_by_name(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+        labels: Vec<String>,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        let labels: Vec<serde_json::Value> = labels
+            .into_iter()
+            .map(serde_json::Value::String)
+            .collect();
+        self.api
+            .issue_add_label(
+                owner,
+                repo,
+                pr,
+                IssueLabelsOption {
+                    labels: Some(labels),
+                    updated_at: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(pr, owner, repo, "labels added by name");
+        Ok(())
+    }
 }

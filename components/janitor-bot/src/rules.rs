@@ -17,6 +17,9 @@ pub enum Action {
     AddLabels {
         label_ids: Vec<i64>,
     },
+    AddLabelsByName {
+        labels: Vec<String>,
+    },
 }
 
 impl Action {
@@ -34,6 +37,11 @@ impl Action {
             Action::Comment { body } => client.comment(owner, repo, pr, body).await,
             Action::AddLabels { label_ids } => {
                 client.add_labels(owner, repo, pr, label_ids.clone()).await
+            }
+            Action::AddLabelsByName { labels } => {
+                client
+                    .add_labels_by_name(owner, repo, pr, labels.clone())
+                    .await
             }
         };
         if let Err(e) = result {
@@ -71,6 +79,9 @@ fn auto_merge_image_updater() -> Rule {
         matches: |ev| ev.action == "opened" && ev.author == "ci-image-updater",
         actions: || {
             vec![
+                Action::AddLabelsByName {
+                    labels: vec!["image-update".into(), "automated".into()],
+                },
                 Action::Approve {
                     body: "Auto-approved: PR from ci-image-updater".into(),
                 },
