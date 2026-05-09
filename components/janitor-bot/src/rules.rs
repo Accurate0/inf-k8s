@@ -1,7 +1,6 @@
 use crate::event::PrEvent;
 use crate::forgejo::ForgejoClient;
 use forgejo_api::structs::MergePullRequestOptionDo;
-use std::time::Duration;
 
 #[allow(dead_code)]
 pub enum Action {
@@ -77,20 +76,14 @@ pub fn all_rules() -> Vec<Rule> {
 fn auto_merge_image_updater() -> Rule {
     Rule {
         name: "auto-merge-ci-image-updater",
-        matches: |ev| {
-            (ev.action == "opened" || ev.action == "synchronized")
-                && ev.author == "ci-image-updater"
-        },
+        matches: |ev| ev.action == "opened" && ev.author == "ci-image-updater",
         actions: || {
             vec![
                 Action::Approve {
                     body: "Auto-approved: PR from ci-image-updater".into(),
                 },
-                Action::Delay {
-                    duration: Duration::from_secs(30),
-                },
                 Action::Merge {
-                    strategy: MergePullRequestOptionDo::Squash,
+                    strategy: MergePullRequestOptionDo::Rebase,
                     delete_branch: true,
                 },
             ]
