@@ -8,4 +8,4 @@ resources:
   - database.yaml
 images:
   - name: ghcr.io/accurate0/bom
-    newTag: cef19d01c8d9a74d8bd9313e4892b6aaee8dd459
+    newTag: 03afdf34e91a6748600b247ac7ffe361071a684d
