@@ -1,2 +1,2 @@
 # k8s
-k8s infra monorepo
+k8s infrastructure monorepo
