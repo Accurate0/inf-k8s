@@ -8,4 +8,4 @@ resources:
   - serviceaccount.yaml
 images:
   - name: ghcr.io/accurate0/ingress-home
-    newTag: cf524cb36bafdc5d9ef984db7b8404ad7685e5ed
+    newTag: fa43b30fb6839aabea759d6fc93ab3883ef83c63
