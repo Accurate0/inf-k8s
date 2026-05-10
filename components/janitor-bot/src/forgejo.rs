@@ -2,6 +2,8 @@ use forgejo_api::structs::*;
 use forgejo_api::{Auth, Forgejo};
 use url::Url;
 
+const BOT_USERNAME: &str = "janitor";
+
 pub struct ForgejoClient {
     api: Forgejo,
 }
@@ -13,6 +15,21 @@ impl ForgejoClient {
         let url = Url::parse(&base_url)?;
         let api = Forgejo::new(Auth::Token(&token), url)?;
         Ok(Self { api })
+    }
+
+    pub async fn is_pr_approved_by_bot(&self, owner: &str, repo: &str, pr: i64) -> bool {
+        let reviews = match self.api.repo_list_pull_reviews(owner, repo, pr).send().await {
+            Ok((_, reviews)) => reviews,
+            Err(e) => {
+                tracing::warn!(pr, "failed to list reviews: {e}");
+                return false;
+            }
+        };
+        reviews.iter().any(|r| {
+            r.user.as_ref().and_then(|u| u.login.as_deref()) == Some(BOT_USERNAME)
+                && r.state.as_deref() == Some("APPROVED")
+                && !r.dismissed.unwrap_or(false)
+        })
     }
 
     pub async fn approve_pr(

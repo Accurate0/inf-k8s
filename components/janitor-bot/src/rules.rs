@@ -44,6 +44,10 @@ impl Action {
                 tracing::info!(pr, "PR is not open, skipping remaining actions");
                 return ActionResult::StopProcessing;
             }
+            if client.is_pr_approved_by_bot(owner, repo, pr).await {
+                tracing::info!(pr, "PR already approved by bot, skipping remaining actions");
+                return ActionResult::StopProcessing;
+            }
             return ActionResult::Continue;
         }
 
