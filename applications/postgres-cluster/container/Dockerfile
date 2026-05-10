@@ -14,7 +14,7 @@ RUN wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey \
 
 RUN set -xe ;\
     apt update;\
-    apt-get install -y timescaledb-2-postgresql-17_2.23;
+    apt-get install -y timescaledb-2-postgresql-17=2.23.1~ubuntu22.04-1706;
 
 RUN pgxn install pgmq==1.7.0
 
