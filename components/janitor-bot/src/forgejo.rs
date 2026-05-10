@@ -127,10 +127,8 @@ impl ForgejoClient {
         pr: i64,
         labels: Vec<String>,
     ) -> Result<(), forgejo_api::ForgejoError> {
-        let labels: Vec<serde_json::Value> = labels
-            .into_iter()
-            .map(serde_json::Value::String)
-            .collect();
+        let labels: Vec<serde_json::Value> =
+            labels.into_iter().map(serde_json::Value::String).collect();
         self.api
             .issue_add_label(
                 owner,
@@ -144,6 +142,41 @@ impl ForgejoClient {
             .send()
             .await?;
         tracing::info!(pr, owner, repo, "labels added by name");
+        Ok(())
+    }
+
+    pub async fn ensure_labels(
+        &self,
+        owner: &str,
+        repo: &str,
+        labels: Vec<(String, String)>,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        let (_, existing) = self
+            .api
+            .issue_list_labels(owner, repo, IssueListLabelsQuery { sort: None })
+            .send()
+            .await?;
+        let existing_names: std::collections::HashSet<String> =
+            existing.iter().filter_map(|l| l.name.clone()).collect();
+        for (name, color) in labels {
+            if !existing_names.contains(&name) {
+                self.api
+                    .issue_create_label(
+                        owner,
+                        repo,
+                        CreateLabelOption {
+                            name: name.clone(),
+                            color,
+                            description: None,
+                            exclusive: None,
+                            is_archived: None,
+                        },
+                    )
+                    .send()
+                    .await?;
+                tracing::info!(owner, repo, label = name, "created label");
+            }
+        }
         Ok(())
     }
 }
