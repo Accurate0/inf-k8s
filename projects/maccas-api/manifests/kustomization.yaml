@@ -9,21 +9,21 @@ resources:
   - api/api.service.yaml
   - namespace.yaml
   - web/web.service.yaml
-  # - sensordata/sensordata.deployment.yaml
-  # - sensordata/sensordata.service.yaml
-  # - sensordata/pvc.yaml
+# - sensordata/sensordata.deployment.yaml
+# - sensordata/sensordata.service.yaml
+# - sensordata/pvc.yaml
 images:
   - name: ghcr.io/accurate0/maccas-api
-    newTag: c7f3758bda1aa90c4810f9779121b321c2ec8db3
+    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
   - name: ghcr.io/accurate0/maccas-clustering
-    newTag: c7f3758bda1aa90c4810f9779121b321c2ec8db3
+    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
   - name: ghcr.io/accurate0/maccas-migration
-    newTag: c7f3758bda1aa90c4810f9779121b321c2ec8db3
+    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
   - name: ghcr.io/accurate0/maccas-recommendations
-    newTag: c7f3758bda1aa90c4810f9779121b321c2ec8db3
+    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
   - name: ghcr.io/accurate0/maccas-scheduler
-    newTag: c7f3758bda1aa90c4810f9779121b321c2ec8db3
+    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
   - name: ghcr.io/accurate0/maccas-sensordata
-    newTag: c7f3758bda1aa90c4810f9779121b321c2ec8db3
+    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
   - name: ghcr.io/accurate0/maccas-web
     newTag: 0f4c9cff257fe215019a1cb184958a9290962718
