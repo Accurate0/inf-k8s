@@ -50,6 +50,8 @@ pub enum LeafMatcher {
     HasChangedFiles,
     #[serde(rename = "changed_files_all_match")]
     ChangedFilesAllMatch { patterns: Vec<FilePattern> },
+    #[serde(rename = "changed_files_none_match")]
+    ChangedFilesNoneMatch { patterns: Vec<FilePattern> },
     #[serde(rename = "is_open")]
     IsOpen,
     #[serde(rename = "not_approved_by_self")]
@@ -125,6 +127,11 @@ impl Matcher {
                                 .changed_files
                                 .iter()
                                 .all(|f| patterns.iter().any(|p| p.matches(f)))
+                    }
+                    LeafMatcher::ChangedFilesNoneMatch { patterns } => {
+                        ev.changed_files
+                            .iter()
+                            .all(|f| !patterns.iter().any(|p| p.matches(f)))
                     }
                 },
             }

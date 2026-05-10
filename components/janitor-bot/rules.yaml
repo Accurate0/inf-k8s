@@ -55,6 +55,9 @@ rules:
           patterns:
             - starts_with: ".github/workflows/"
             - contains: Dockerfile
+        - type: changed_files_none_match
+          patterns:
+            - contains: "applications/postgres-cluster/container/Dockerfile"
         - type: is_open
         - type: not_approved_by_self
     actions:
