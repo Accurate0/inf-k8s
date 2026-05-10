@@ -165,6 +165,14 @@ impl ForgejoClient {
         Ok(prs)
     }
 
+    pub async fn is_pr_merged(&self, owner: &str, repo: &str, pr: i64) -> bool {
+        self.api
+            .repo_pull_request_is_merged(owner, repo, pr)
+            .send()
+            .await
+            .is_ok()
+    }
+
     pub async fn get_pr_changed_files(
         &self,
         owner: &str,

@@ -7,6 +7,7 @@ use axum::{
 };
 use forgejo::ForgejoClient;
 use std::sync::Arc;
+use tokio::sync::Mutex;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
 
 const FORGEJO_OWNER: &str = "anurag";
@@ -15,6 +16,7 @@ const WATCH_REPOS: &[&str] = &["k8s"];
 struct AppState {
     client: ForgejoClient,
     webhook_secret: String,
+    rules_lock: Mutex<()>,
 }
 
 async fn handle_webhook(
@@ -37,6 +39,8 @@ async fn handle_webhook(
     };
 
     tokio::spawn(async move {
+        let _guard = state.rules_lock.lock().await;
+
         match state
             .client
             .get_pr_changed_files(&pr_event.owner, &pr_event.repo, pr_event.pr_number as i64)
@@ -56,7 +60,9 @@ async fn handle_webhook(
     StatusCode::OK
 }
 
-async fn evaluate_open_prs(client: &ForgejoClient) {
+async fn evaluate_open_prs(state: &AppState) {
+    let _guard = state.rules_lock.lock().await;
+    let client = &state.client;
     let rules = rules::all_rules();
 
     for repo in WATCH_REPOS {
@@ -103,6 +109,7 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         client: ForgejoClient::from_env()?,
         webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
+        rules_lock: Mutex::new(()),
     });
 
     let scheduler = JobScheduler::new().await?;
@@ -116,7 +123,7 @@ async fn main() -> anyhow::Result<()> {
             tracing::info!("running PR poll: {uuid}");
             let state = Arc::clone(&poll_state);
             Box::pin(async move {
-                evaluate_open_prs(&state.client).await;
+                evaluate_open_prs(&state).await;
             })
         }))
         .build()?;

@@ -23,10 +23,30 @@ pub enum Action {
     EnsureLabelsExist {
         labels: Vec<(String, String)>,
     },
+    PreflightCheck,
+}
+
+pub enum ActionResult {
+    Continue,
+    StopProcessing,
 }
 
 impl Action {
-    pub async fn execute(&self, client: &ForgejoClient, owner: &str, repo: &str, pr: i64) {
+    pub async fn execute(
+        &self,
+        client: &ForgejoClient,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+    ) -> ActionResult {
+        if let Action::PreflightCheck = self {
+            if client.is_pr_merged(owner, repo, pr).await {
+                tracing::info!(pr, "PR already merged, skipping remaining actions");
+                return ActionResult::StopProcessing;
+            }
+            return ActionResult::Continue;
+        }
+
         let result = match self {
             Action::Approve { body } => client.approve_pr(owner, repo, pr, body).await,
             Action::Merge {
@@ -49,10 +69,12 @@ impl Action {
             Action::EnsureLabelsExist { labels } => {
                 client.ensure_labels(owner, repo, labels.clone()).await
             }
+            Action::PreflightCheck => unreachable!(),
         };
         if let Err(e) = result {
             tracing::error!(pr, "action failed: {e}");
         }
+        ActionResult::Continue
     }
 }
 
@@ -67,9 +89,14 @@ pub async fn evaluate(rules: &[Rule], client: &ForgejoClient, event: &PrEvent) {
         if (rule.matches)(event) {
             tracing::info!(rule = rule.name, pr = event.pr_number, "rule matched");
             for action in (rule.actions)() {
-                action
-                    .execute(client, &event.owner, &event.repo, event.pr_number as i64)
-                    .await;
+                if matches!(
+                    action
+                        .execute(client, &event.owner, &event.repo, event.pr_number as i64)
+                        .await,
+                    ActionResult::StopProcessing
+                ) {
+                    break;
+                }
             }
         }
     }
@@ -97,6 +124,7 @@ fn auto_merge_renovate() -> Rule {
         },
         actions: || {
             vec![
+                Action::PreflightCheck,
                 Action::EnsureLabelsExist {
                     labels: vec![
                         ("renovate".into(), "#1a7f37".into()),
@@ -124,6 +152,7 @@ fn auto_merge_image_updater() -> Rule {
         matches: |ev| ev.action == "opened" && ev.author == "ci-image-updater",
         actions: || {
             vec![
+                Action::PreflightCheck,
                 Action::EnsureLabelsExist {
                     labels: vec![
                         ("image-update".into(), "#0075ca".into()),
