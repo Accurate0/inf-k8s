@@ -103,11 +103,33 @@ pub async fn evaluate(rules: &[Rule], client: &ForgejoClient, event: &PrEvent) {
 }
 
 pub fn all_rules() -> Vec<Rule> {
-    vec![auto_merge_image_updater(), auto_merge_renovate()]
+    vec![
+        label_renovate(),
+        auto_merge_image_updater(),
+        auto_merge_renovate(),
+    ]
 }
 
 fn is_workflow_or_dockerfile(path: &str) -> bool {
     path.starts_with(".github/workflows/") || path.contains("Dockerfile")
+}
+
+fn label_renovate() -> Rule {
+    Rule {
+        name: "label-renovate",
+        matches: |ev| ev.action == "opened" && ev.author == "renovate",
+        actions: || {
+            vec![
+                Action::PreflightCheck,
+                Action::EnsureLabelsExist {
+                    labels: vec![("renovate".into(), "#1a7f37".into())],
+                },
+                Action::AddLabelsByName {
+                    labels: vec!["renovate".into()],
+                },
+            ]
+        },
+    }
 }
 
 fn auto_merge_renovate() -> Rule {
@@ -126,13 +148,10 @@ fn auto_merge_renovate() -> Rule {
             vec![
                 Action::PreflightCheck,
                 Action::EnsureLabelsExist {
-                    labels: vec![
-                        ("renovate".into(), "#1a7f37".into()),
-                        ("automated".into(), "#e4e669".into()),
-                    ],
+                    labels: vec![("automated".into(), "#e4e669".into())],
                 },
                 Action::AddLabelsByName {
-                    labels: vec!["renovate".into(), "automated".into()],
+                    labels: vec!["automated".into()],
                 },
                 Action::Approve {
                     body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles".into(),
