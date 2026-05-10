@@ -9,4 +9,4 @@ resources:
   - database.yaml
 images:
   - name: ghcr.io/accurate0/pg-db-controller
-    newTag: c7b9a786c368e87048a2d6c3f0aa45466922219e
+    newTag: cf524cb36bafdc5d9ef984db7b8404ad7685e5ed
