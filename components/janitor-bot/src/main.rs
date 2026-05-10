@@ -124,6 +124,12 @@ async fn main() -> anyhow::Result<()> {
     scheduler.add(job).await?;
     scheduler.start().await?;
 
+    // Run once on startup
+    let startup_state = Arc::clone(&state);
+    tokio::spawn(async move {
+        evaluate_open_prs(&startup_state.client).await;
+    });
+
     let app = Router::new()
         .route("/webhook", post(handle_webhook))
         .with_state(state);
