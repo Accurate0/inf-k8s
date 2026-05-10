@@ -18,7 +18,6 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/longhorn
     - chart: k8s-http-routes
-      # renovate: datasource=docker depName=ghcr.io/accurate0/charts/k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.1.0
       helm:

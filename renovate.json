@@ -8,5 +8,34 @@
       "/components/pg-db-controller/application.yaml/"
     ]
   },
-  "ignorePaths": ["applications/redis.application.yaml"]
+  "ignorePaths": ["applications/redis.application.yaml"],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "fileMatch": [
+        "applications/.*\\.application\\.yaml$",
+        "services/.*\\.application\\.yaml$",
+        "components/ingress-home/application\\.yaml$",
+        "components/pg-db-controller/application\\.yaml$"
+      ],
+      "matchStrings": [
+        "repoURL:\\s*oci://(?<depName>[^\\s]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    }
+  ],
+  "packageRules": [
+    {
+      "matchManagers": ["argocd"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": [
+        "ghcr.io/accurate0/charts/k8s-http-routes/k8s-http-routes",
+        "ghcr.io/accurate0/charts/k8s-infisical-secrets/k8s-infisical-secrets",
+        "ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator/dragonfly-operator",
+        "code.forgejo.org/forgejo-helm/forgejo/forgejo"
+      ],
+      "enabled": false
+    }
+  ]
 }
