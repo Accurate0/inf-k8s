@@ -37,8 +37,8 @@ spec:
         barmanObjectName: r2-store
   enablePDB: true
   enableSuperuserAccess: true
-  imageName: ghcr.io/accurate0/cnpg-postgresql:18.0-bullseye
-  imagePullPolicy: IfNotPresent
+  imageName: ghcr.io/accurate0/cnpg-postgresql:17.6-bullseye
+  imagePullPolicy: Always
   instances: 3
   logLevel: info
   monitoring:
