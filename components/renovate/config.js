@@ -4,6 +4,6 @@ module.exports = {
   autodiscover: true,
   autodiscoverFilter: "/topic/renovate/",
   dependencyDashboard: true,
-  gitAuthor: "Renovate <noreply@git.anurag.sh>"
+  gitAuthor: "Renovate <noreply@git.anurag.sh>",
   extends: ["config:recommended"],
 };
