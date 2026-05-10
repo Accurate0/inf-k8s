@@ -21,7 +21,7 @@ jobs:
           fetch-depth: 0
 
       - name: Push k8s-http-routes to forgejo
-        uses: bsord/helm-push@v4.1.0
+        uses: bsord/helm-push@v4.2.0
         with:
           username: anurag
           password: ${{ secrets.FORGEJO_PAT }}
@@ -30,7 +30,7 @@ jobs:
           chart-folder: charts/k8s-http-routes
 
       - name: Push k8s-infisical-secrets to forgejo
-        uses: bsord/helm-push@v4.1.0
+        uses: bsord/helm-push@v4.2.0
         with:
           username: anurag
           password: ${{ secrets.FORGEJO_PAT }}
