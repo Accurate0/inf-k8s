@@ -1,11 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "argocd": {
-    "fileMatch": [
-      "applications/.*\\.application\\.yaml",
-      "services/.*\\.application\\.yaml",
-      "components/ingress-home/application.yaml",
-      "components/pg-db-controller/application.yaml"
+    "managerFilePatterns": [
+      "/applications/.*\\.application\\.yaml/",
+      "/services/.*\\.application\\.yaml/",
+      "/components/ingress-home/application.yaml/",
+      "/components/pg-db-controller/application.yaml/"
     ]
   },
   "ignorePaths": ["applications/redis.application.yaml"]
