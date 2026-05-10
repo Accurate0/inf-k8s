@@ -1,4 +1,4 @@
-FROM ghcr.io/cloudnative-pg/postgresql:17.6-202509261031-standard-bullseye
+FROM ghcr.io/cloudnative-pg/postgresql:18.0-202509261031-standard-bullseye
 
 USER root
 RUN set -xe ;\
