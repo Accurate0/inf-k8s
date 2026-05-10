@@ -19,6 +19,7 @@ spec:
   project: default
   sources:
     - chart: k8s-http-routes
+      # renovate: datasource=docker depName=ghcr.io/accurate0/charts/k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.1.0
       helm:
@@ -42,6 +43,7 @@ spec:
                         type: PathPrefix
                         value: /
     - chart: k8s-infisical-secrets
+      # renovate: datasource=docker depName=ghcr.io/accurate0/charts/k8s-infisical-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
       targetRevision: 0.10.0
       helm:

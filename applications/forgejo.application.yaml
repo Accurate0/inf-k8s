@@ -37,6 +37,7 @@ spec:
   project: default
   sources:
     - chart: k8s-infisical-secrets
+      # renovate: datasource=docker depName=ghcr.io/accurate0/charts/k8s-infisical-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
       targetRevision: 0.10.0
       helm:
@@ -85,6 +86,7 @@ spec:
               managedSecrets:
                 - secretName: forgejo-managed-secrets
     - chart: forgejo
+      # renovate: datasource=docker depName=code.forgejo.org/forgejo-helm/forgejo
       repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
       targetRevision: 17.0.1
       helm:
