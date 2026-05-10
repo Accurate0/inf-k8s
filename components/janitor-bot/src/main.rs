@@ -1,13 +1,14 @@
 mod event;
 mod forgejo;
 mod rules;
+mod schema;
 
 use axum::{
     Router, extract::Json, extract::State, http::HeaderMap, http::StatusCode, routing::post,
 };
 use forgejo::ForgejoClient;
+use rules::RulesOrchestrator;
 use std::sync::Arc;
-use tokio::sync::Mutex;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
 
 const FORGEJO_OWNER: &str = "anurag";
@@ -16,7 +17,7 @@ const WATCH_REPOS: &[&str] = &["k8s"];
 struct AppState {
     client: ForgejoClient,
     webhook_secret: String,
-    rules_lock: Mutex<()>,
+    orchestrator: RulesOrchestrator,
 }
 
 async fn handle_webhook(
@@ -39,31 +40,17 @@ async fn handle_webhook(
     };
 
     tokio::spawn(async move {
-        let _guard = state.rules_lock.lock().await;
-
-        match state
-            .client
-            .get_pr_changed_files(&pr_event.owner, &pr_event.repo, pr_event.pr_number as i64)
-            .await
-        {
-            Ok(files) => pr_event.changed_files = files,
-            Err(e) => tracing::warn!(
-                pr = pr_event.pr_number,
-                "failed to fetch changed files: {e}"
-            ),
-        }
-
-        let rules = rules::all_rules();
-        rules::evaluate(&rules, &state.client, &pr_event).await;
+        state
+            .orchestrator
+            .evaluate(&state.client, &mut pr_event)
+            .await;
     });
 
     StatusCode::OK
 }
 
 async fn evaluate_open_prs(state: &AppState) {
-    let _guard = state.rules_lock.lock().await;
     let client = &state.client;
-    let rules = rules::all_rules();
 
     for repo in WATCH_REPOS {
         tracing::info!(owner = FORGEJO_OWNER, repo, "polling open PRs");
@@ -83,21 +70,7 @@ async fn evaluate_open_prs(state: &AppState) {
                 continue;
             };
 
-            match client
-                .get_pr_changed_files(FORGEJO_OWNER, repo, pr_event.pr_number as i64)
-                .await
-            {
-                Ok(files) => pr_event.changed_files = files,
-                Err(e) => {
-                    tracing::warn!(
-                        pr = pr_event.pr_number,
-                        "failed to fetch changed files: {e}"
-                    );
-                    continue;
-                }
-            }
-
-            rules::evaluate(&rules, client, &pr_event).await;
+            state.orchestrator.evaluate(client, &mut pr_event).await;
         }
     }
 }
@@ -109,7 +82,7 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState {
         client: ForgejoClient::from_env()?,
         webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
-        rules_lock: Mutex::new(()),
+        orchestrator: RulesOrchestrator::new(),
     });
 
     let scheduler = JobScheduler::new().await?;

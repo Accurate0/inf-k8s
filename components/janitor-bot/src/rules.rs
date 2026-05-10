@@ -1,6 +1,50 @@
 use crate::event::PrEvent;
 use crate::forgejo::ForgejoClient;
+use crate::schema::RulesFile;
 use forgejo_api::structs::MergePullRequestOptionDo;
+use tokio::sync::Mutex;
+
+const RULES_YAML: &str = include_str!("../rules.yaml");
+
+pub struct RulesOrchestrator {
+    rules: RulesFile,
+    lock: Mutex<()>,
+}
+
+impl RulesOrchestrator {
+    pub fn new() -> Self {
+        let rules = serde_yaml::from_str(RULES_YAML).expect("failed to parse rules.yaml");
+        Self {
+            rules,
+            lock: Mutex::new(()),
+        }
+    }
+
+    pub async fn evaluate(&self, client: &ForgejoClient, event: &mut PrEvent) {
+        let _guard = self.lock.lock().await;
+
+        let pr_id = event.pr_number as i64;
+        match client
+            .get_pr_changed_files(&event.owner, &event.repo, pr_id)
+            .await
+        {
+            Ok(files) => event.changed_files = files,
+            Err(e) => tracing::warn!(pr = event.pr_number, "failed to fetch changed files: {e}"),
+        }
+
+        for rule in &self.rules.rules {
+            if rule.matches.matches(event, client).await {
+                tracing::info!(rule = rule.name, pr = event.pr_number, "rule matched");
+                for action_def in &rule.actions {
+                    let action = action_def.to_action();
+                    action
+                        .execute(client, &event.owner, &event.repo, event.pr_number as i64)
+                        .await;
+                }
+            }
+        }
+    }
+}
 
 #[allow(dead_code)]
 pub enum Action {
@@ -23,12 +67,6 @@ pub enum Action {
     EnsureLabelsExist {
         labels: Vec<(String, String)>,
     },
-    PreflightCheck,
-}
-
-pub enum ActionResult {
-    Continue,
-    StopProcessing,
 }
 
 impl Action {
@@ -38,19 +76,7 @@ impl Action {
         owner: &str,
         repo: &str,
         pr: i64,
-    ) -> ActionResult {
-        if let Action::PreflightCheck = self {
-            if !client.is_pr_open(owner, repo, pr).await {
-                tracing::info!(pr, "PR is not open, skipping remaining actions");
-                return ActionResult::StopProcessing;
-            }
-            if client.is_pr_approved_by_bot(owner, repo, pr).await {
-                tracing::info!(pr, "PR already approved by bot, skipping remaining actions");
-                return ActionResult::StopProcessing;
-            }
-            return ActionResult::Continue;
-        }
-
+    ) {
         let result = match self {
             Action::Approve { body } => client.approve_pr(owner, repo, pr, body).await,
             Action::Merge {
@@ -73,126 +99,10 @@ impl Action {
             Action::EnsureLabelsExist { labels } => {
                 client.ensure_labels(owner, repo, labels.clone()).await
             }
-            Action::PreflightCheck => unreachable!(),
         };
         if let Err(e) = result {
             tracing::error!(pr, "action failed: {e}");
         }
-        ActionResult::Continue
     }
 }
 
-pub struct Rule {
-    pub name: &'static str,
-    pub matches: fn(&PrEvent) -> bool,
-    pub actions: fn() -> Vec<Action>,
-}
-
-pub async fn evaluate(rules: &[Rule], client: &ForgejoClient, event: &PrEvent) {
-    for rule in rules {
-        if (rule.matches)(event) {
-            tracing::info!(rule = rule.name, pr = event.pr_number, "rule matched");
-            for action in (rule.actions)() {
-                if matches!(
-                    action
-                        .execute(client, &event.owner, &event.repo, event.pr_number as i64)
-                        .await,
-                    ActionResult::StopProcessing
-                ) {
-                    break;
-                }
-            }
-        }
-    }
-}
-
-pub fn all_rules() -> Vec<Rule> {
-    vec![
-        label_renovate(),
-        auto_merge_image_updater(),
-        auto_merge_renovate(),
-    ]
-}
-
-fn is_workflow_or_dockerfile(path: &str) -> bool {
-    path.starts_with(".github/workflows/") || path.contains("Dockerfile")
-}
-
-fn label_renovate() -> Rule {
-    Rule {
-        name: "label-renovate",
-        matches: |ev| ev.action == "opened" && ev.author == "renovate",
-        actions: || {
-            vec![
-                Action::PreflightCheck,
-                Action::EnsureLabelsExist {
-                    labels: vec![("renovate".into(), "#1a7f37".into())],
-                },
-                Action::AddLabelsByName {
-                    labels: vec!["renovate".into()],
-                },
-            ]
-        },
-    }
-}
-
-fn auto_merge_renovate() -> Rule {
-    Rule {
-        name: "auto-merge-renovate",
-        matches: |ev| {
-            ev.action == "opened"
-                && ev.author == "renovate"
-                && !ev.changed_files.is_empty()
-                && ev
-                    .changed_files
-                    .iter()
-                    .all(|f| is_workflow_or_dockerfile(f))
-        },
-        actions: || {
-            vec![
-                Action::PreflightCheck,
-                Action::EnsureLabelsExist {
-                    labels: vec![("automated".into(), "#e4e669".into())],
-                },
-                Action::AddLabelsByName {
-                    labels: vec!["automated".into()],
-                },
-                Action::Approve {
-                    body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles".into(),
-                },
-                Action::Merge {
-                    strategy: MergePullRequestOptionDo::Squash,
-                    delete_branch: true,
-                },
-            ]
-        },
-    }
-}
-
-fn auto_merge_image_updater() -> Rule {
-    Rule {
-        name: "auto-merge-ci-image-updater",
-        matches: |ev| ev.action == "opened" && ev.author == "ci-image-updater",
-        actions: || {
-            vec![
-                Action::PreflightCheck,
-                Action::EnsureLabelsExist {
-                    labels: vec![
-                        ("image-update".into(), "#0075ca".into()),
-                        ("automated".into(), "#e4e669".into()),
-                    ],
-                },
-                Action::AddLabelsByName {
-                    labels: vec!["image-update".into(), "automated".into()],
-                },
-                Action::Approve {
-                    body: "Auto-approved: PR from ci-image-updater".into(),
-                },
-                Action::Merge {
-                    strategy: MergePullRequestOptionDo::Squash,
-                    delete_branch: true,
-                },
-            ]
-        },
-    }
-}
