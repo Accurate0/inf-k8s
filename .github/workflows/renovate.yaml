@@ -1,18 +1,23 @@
 name: Renovate
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger
   schedule:
-    - cron: "0 3 * * *"
+    - cron: "0 * * * *" # Runs every hour
 
 jobs:
   renovate:
     runs-on: ubuntu-latest
-    container: ghcr.io/renovatebot/renovate:40
     steps:
-      - uses: actions/checkout@v4
-      - run: renovate
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Self-hosted Renovate
+        uses: renovatebot/github-action@v40
+        with:
+          configurationFile: components/renovate/config.js
+          token: ${{ secrets.FORGEJO_RENOVATE_TOKEN }}
         env:
-          RENOVATE_CONFIG_FILE: components/renovate/config.js
-          LOG_LEVEL: info
-          RENOVATE_TOKEN: ${{ secrets.FORGEJO_RENOVATE_TOKEN }}
-          GITHUB_COM_TOKEN: ${{ secrets.GITHUB_COM_TOKEN }}
+          RENOVATE_PLATFORM: forgejo
+          RENOVATE_ENDPOINT: https://git.anurag.sh
+          RENOVATE_AUTODISCOVER: "true"
+          RENOVATE_GITHUB_COM_TOKEN: ${{ secrets.RENOVATE_GITHUB_COM_TOKEN }}
