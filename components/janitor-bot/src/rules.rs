@@ -86,7 +86,7 @@ fn auto_merge_image_updater() -> Rule {
                     body: "Auto-approved: PR from ci-image-updater".into(),
                 },
                 Action::Merge {
-                    strategy: MergePullRequestOptionDo::Rebase,
+                    strategy: MergePullRequestOptionDo::Squash,
                     delete_branch: true,
                 },
             ]
