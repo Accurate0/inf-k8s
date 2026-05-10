@@ -29,13 +29,6 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Login to Forgejo Container Registry
-        uses: docker/login-action@v4
-        with:
-          registry: git.anurag.sh
-          username: anurag
-          password: ${{ secrets.FORGEJO_PAT }}
-
       - name: Cache Docker layers
         uses: actions/cache@v5
         with:
@@ -53,7 +46,6 @@ jobs:
           push: true
           tags: |
             ghcr.io/accurate0/cnpg-postgresql:18.0-bullseye
-            git.anurag.sh/anurag/cnpg-postgresql:18.0-bullseye
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
 
