@@ -1,5 +1,5 @@
 module.exports = {
-  platform: "gitea",
+  platform: "forgejo",
   endpoint: "https://git.anurag.sh/api/v1",
   autodiscover: true,
   autodiscoverFilter: "/topic/renovate/",
