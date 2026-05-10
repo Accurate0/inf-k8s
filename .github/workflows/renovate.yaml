@@ -17,7 +17,7 @@ jobs:
           configurationFile: components/renovate/config.js
           token: ${{ secrets.FORGEJO_RENOVATE_TOKEN }}
         env:
-          LOG_LEVEL: debug
+          LOG_LEVEL: info
           RENOVATE_PLATFORM: forgejo
           RENOVATE_ENDPOINT: https://git.anurag.sh
           RENOVATE_AUTODISCOVER: "true"
