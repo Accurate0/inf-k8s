@@ -1,0 +1,22 @@
+name: Renovate
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  renovate:
+    runs-on: ubuntu-latest
+    name: Run Renovate
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run Renovate
+        uses: renovatebot/github-action@v42.0.0
+        env:
+          RENOVATE_TOKEN: ${{ secrets.FORGEJO_RENOVATE_TOKEN }}
+        with:
+          configurationFile: components/renovate/config.js
+          token: ${{ secrets.GITHUB_TOKEN }}
