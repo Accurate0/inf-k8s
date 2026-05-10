@@ -1,8 +1,8 @@
-FROM ghcr.io/cloudnative-pg/postgresql:18.0-202509261031-standard-bullseye
+FROM ghcr.io/cloudnative-pg/postgresql:17.6-202509261031-standard-bullseye
 
 USER root
 RUN set -xe ;\
-    apt update && apt install build-essential pgxnclient postgresql-server-dev-18 -y;
+    apt update && apt install build-essential pgxnclient -y;
 
 # TimescaleDB
 RUN apt-get install -y gnupg postgresql-common apt-transport-https lsb-release wget
@@ -14,10 +14,9 @@ RUN wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey \
 
 RUN set -xe ;\
     apt update;\
-    apt-get install -y timescaledb-2-postgresql-18;
+    apt-get install -y timescaledb-2-postgresql-17_2.23;
 
-RUN pgxn install pgmq==1.11.1
-RUN pgxn install vector==0.8.2
+RUN pgxn install pgmq==1.7.0
 
 RUN usermod -u 26 postgres
 
