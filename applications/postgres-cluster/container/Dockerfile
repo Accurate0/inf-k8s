@@ -2,7 +2,7 @@ FROM ghcr.io/cloudnative-pg/postgresql:18.0-202509261031-standard-bullseye
 
 USER root
 RUN set -xe ;\
-    apt update && apt install build-essential pgxnclient -y;
+    apt update && apt install build-essential pgxnclient postgresql-server-dev-18 -y;
 
 # TimescaleDB
 RUN apt-get install -y gnupg postgresql-common apt-transport-https lsb-release wget
