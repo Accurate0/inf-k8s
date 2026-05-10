@@ -76,7 +76,46 @@ pub async fn evaluate(rules: &[Rule], client: &ForgejoClient, event: &PrEvent) {
 }
 
 pub fn all_rules() -> Vec<Rule> {
-    vec![auto_merge_image_updater()]
+    vec![auto_merge_image_updater(), auto_merge_renovate()]
+}
+
+fn is_workflow_or_dockerfile(path: &str) -> bool {
+    path.starts_with(".github/workflows/") || path.contains("Dockerfile")
+}
+
+fn auto_merge_renovate() -> Rule {
+    Rule {
+        name: "auto-merge-renovate",
+        matches: |ev| {
+            ev.action == "opened"
+                && ev.author == "renovate"
+                && !ev.changed_files.is_empty()
+                && ev
+                    .changed_files
+                    .iter()
+                    .all(|f| is_workflow_or_dockerfile(f))
+        },
+        actions: || {
+            vec![
+                Action::EnsureLabelsExist {
+                    labels: vec![
+                        ("renovate".into(), "#1a7f37".into()),
+                        ("automated".into(), "#e4e669".into()),
+                    ],
+                },
+                Action::AddLabelsByName {
+                    labels: vec!["renovate".into(), "automated".into()],
+                },
+                Action::Approve {
+                    body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles".into(),
+                },
+                Action::Merge {
+                    strategy: MergePullRequestOptionDo::Squash,
+                    delete_branch: true,
+                },
+            ]
+        },
+    }
 }
 
 fn auto_merge_image_updater() -> Rule {

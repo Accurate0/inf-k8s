@@ -7,7 +7,7 @@ pub struct ForgejoClient {
 }
 
 impl ForgejoClient {
-    pub fn from_env() -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn from_env() -> anyhow::Result<Self> {
         let base_url = std::env::var("FORGEJO_INSTANCE_URL")?;
         let token = std::env::var("FORGEJO_ACCESS_KEY")?;
         let url = Url::parse(&base_url)?;
@@ -143,6 +143,40 @@ impl ForgejoClient {
             .await?;
         tracing::info!(pr, owner, repo, "labels added by name");
         Ok(())
+    }
+
+    pub async fn list_open_prs(
+        &self,
+        owner: &str,
+        repo: &str,
+    ) -> Result<Vec<PullRequest>, forgejo_api::ForgejoError> {
+        let (_, prs) = self
+            .api
+            .repo_list_pull_requests(
+                owner,
+                repo,
+                RepoListPullRequestsQuery {
+                    state: Some(RepoListPullRequestsQueryState::Open),
+                    ..Default::default()
+                },
+            )
+            .send()
+            .await?;
+        Ok(prs)
+    }
+
+    pub async fn get_pr_changed_files(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+    ) -> Result<Vec<String>, forgejo_api::ForgejoError> {
+        let (_, files) = self
+            .api
+            .repo_get_pull_request_files(owner, repo, pr, RepoGetPullRequestFilesQuery::default())
+            .send()
+            .await?;
+        Ok(files.into_iter().filter_map(|f| f.filename).collect())
     }
 
     pub async fn ensure_labels(

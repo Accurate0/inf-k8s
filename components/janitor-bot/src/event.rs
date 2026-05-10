@@ -42,6 +42,39 @@ pub struct PrEvent {
     pub pr_number: u64,
     pub title: String,
     pub labels: Vec<Label>,
+    pub changed_files: Vec<String>,
+}
+
+impl PrEvent {
+    pub fn from_api_pr(
+        pr: &forgejo_api::structs::PullRequest,
+        owner: String,
+        repo: String,
+    ) -> Option<Self> {
+        Some(PrEvent {
+            action: "opened".into(),
+            author: pr.user.as_ref()?.login.clone()?,
+            owner,
+            repo,
+            pr_number: pr.number? as u64,
+            title: pr.title.clone()?,
+            labels: pr
+                .labels
+                .as_ref()
+                .map(|ls| {
+                    ls.iter()
+                        .filter_map(|l| {
+                            Some(Label {
+                                id: l.id? as u64,
+                                name: l.name.clone()?,
+                            })
+                        })
+                        .collect()
+                })
+                .unwrap_or_default(),
+            changed_files: Vec::new(),
+        })
+    }
 }
 
 impl WebhookEvent {
@@ -60,6 +93,7 @@ impl WebhookEvent {
             pr_number: pr.number,
             title: pr.title,
             labels: pr.labels,
+            changed_files: Vec::new(),
         })
     }
 }
