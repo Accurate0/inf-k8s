@@ -40,8 +40,8 @@ impl Action {
         pr: i64,
     ) -> ActionResult {
         if let Action::PreflightCheck = self {
-            if client.is_pr_merged(owner, repo, pr).await {
-                tracing::info!(pr, "PR already merged, skipping remaining actions");
+            if !client.is_pr_open(owner, repo, pr).await {
+                tracing::info!(pr, "PR is not open, skipping remaining actions");
                 return ActionResult::StopProcessing;
             }
             return ActionResult::Continue;
