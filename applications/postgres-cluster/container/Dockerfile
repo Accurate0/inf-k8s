@@ -1,4 +1,4 @@
-FROM ghcr.io/cloudnative-pg/postgresql:17.6-202509261031-standard-bullseye
+FROM ghcr.io/cloudnative-pg/postgresql:18.0-202509261031-standard-bullseye
 
 USER root
 RUN set -xe ;\
@@ -14,9 +14,9 @@ RUN wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey \
 
 RUN set -xe ;\
     apt update;\
-    apt-get install -y timescaledb-2-postgresql-17=2.23.1~debian11-1706
+    apt-get install -y timescaledb-2-postgresql-18;
 
-RUN pgxn install pgmq==1.7.0
+RUN pgxn install pgmq==1.11.1
 
 RUN usermod -u 26 postgres
 
