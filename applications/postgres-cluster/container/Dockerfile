@@ -1,4 +1,4 @@
-FROM ghcr.io/cloudnative-pg/postgresql:18.0-202509261031-standard-trixie
+FROM ghcr.io/cloudnative-pg/postgresql:18.3-standard-trixie
 
 USER root
 RUN set -xe ;\
@@ -14,7 +14,7 @@ RUN wget --quiet -O - https://packagecloud.io/timescale/timescaledb/gpgkey \
 
 RUN set -xe ;\
     apt update;\
-    apt-get install -y timescaledb-2-postgresql-18=2.23.1~debian13-1800
+    apt-get install -y timescaledb-2-postgresql-18
 
 RUN pgxn install pgmq==1.11.1
 
