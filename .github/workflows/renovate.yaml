@@ -21,4 +21,4 @@ jobs:
           RENOVATE_PLATFORM: forgejo
           RENOVATE_ENDPOINT: https://git.anurag.sh
           RENOVATE_AUTODISCOVER: "true"
-          RENOVATE_GITHUB_COM_TOKEN: ${{ secrets.RENOVATE_GITHUB_COM_TOKEN }}
+          GITHUB_COM_TOKEN: ${{ secrets.RENOVATE_GITHUB_COM_TOKEN }}
