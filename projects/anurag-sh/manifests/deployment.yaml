@@ -17,5 +17,9 @@ spec:
         - name: anurag-sh
           image: ghcr.io/accurate0/anurag-sh
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 15m
+              memory: 16Mi
           ports:
             - containerPort: 3000

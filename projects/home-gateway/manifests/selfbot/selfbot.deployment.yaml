@@ -19,6 +19,10 @@ spec:
         - name: selfbot
           image: ghcr.io/accurate0/home-selfbot
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 15m
+              memory: 128Mi
           livenessProbe:
             failureThreshold: 3
             httpGet:

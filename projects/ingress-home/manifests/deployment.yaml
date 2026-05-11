@@ -18,5 +18,9 @@ spec:
         - name: ingress-home
           image: ghcr.io/accurate0/ingress-home
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 15m
+              memory: 16Mi
           ports:
             - containerPort: 3000

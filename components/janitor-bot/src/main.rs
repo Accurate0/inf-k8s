@@ -9,7 +9,7 @@ use axum::{
     body::Bytes,
     extract::{Json, State},
     http::{HeaderMap, StatusCode},
-    routing::post,
+    routing::{get, post},
 };
 use forgejo::ForgejoClient;
 use rules::RulesOrchestrator;
@@ -149,6 +149,7 @@ async fn main() -> anyhow::Result<()> {
     scheduler.start().await?;
 
     let app = Router::new()
+        .route("/health", get(|| async { StatusCode::OK }))
         .route("/forgejo/webhook", post(handle_forgejo_webhook))
         .route("/github/webhook", post(handle_github_webhook))
         .with_state(state);

@@ -19,6 +19,10 @@ spec:
         - name: bom
           image: ghcr.io/accurate0/bom
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 30m
+              memory: 512Mi
           livenessProbe:
             failureThreshold: 3
             httpGet:

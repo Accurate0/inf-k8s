@@ -18,6 +18,10 @@ spec:
         - name: pg-db-controller
           image: ghcr.io/accurate0/pg-db-controller
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 15m
+              memory: 16Mi
           ports:
             - containerPort: 3000
           envFrom:

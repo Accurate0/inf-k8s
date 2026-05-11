@@ -19,6 +19,10 @@ spec:
         - name: ozb-trigger
           image: ghcr.io/accurate0/ozb-trigger
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 15m
+              memory: 16Mi
           envFrom:
             - secretRef:
                 name: ozb-managed-secrets

@@ -19,6 +19,10 @@ spec:
         - name: home-gateway
           image: ghcr.io/accurate0/home-gateway
           imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 20m
+              memory: 256Mi
           livenessProbe:
             failureThreshold: 3
             httpGet:
