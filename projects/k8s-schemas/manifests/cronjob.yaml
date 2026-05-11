@@ -19,6 +19,9 @@ spec:
             - name: k8s-schemas
               image: ghcr.io/accurate0/k8s-schemas
               imagePullPolicy: Always
+              env:
+                - name: K8S_VERSION
+                  value: v1.35.2
               envFrom:
                 - secretRef:
                     name: k8s-schemas-managed-secrets
