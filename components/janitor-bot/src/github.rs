@@ -98,6 +98,7 @@ impl GitHubClient {
             }
         }
 
+        let logs = logs.trim_end_matches('\n').to_string();
         FailedJobsResult { logs }
     }
 }
