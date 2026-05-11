@@ -5,6 +5,9 @@ resources:
   - finder.deployment.yaml
   - secret.yaml
   - trigger.deployment.yaml
+commonAnnotations:
+  inf-k8s.net/repository: "https://github.com/Accurate0/ozb"
+  inf-k8s.net/app: "ozbargain"
 images:
   - name: ghcr.io/accurate0/ozb-discord-bot
     newTag: 4244046453085abff15029c383ac9854ba746e50

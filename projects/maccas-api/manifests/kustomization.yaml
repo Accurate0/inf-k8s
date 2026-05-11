@@ -12,6 +12,9 @@ resources:
 # - sensordata/sensordata.deployment.yaml
 # - sensordata/sensordata.service.yaml
 # - sensordata/pvc.yaml
+commonAnnotations:
+  inf-k8s.net/repository: "https://github.com/Accurate0/maccas-api"
+  inf-k8s.net/app: "maccas-api"
 images:
   - name: ghcr.io/accurate0/maccas-api
     newTag: 0f4c9cff257fe215019a1cb184958a9290962718

@@ -6,6 +6,9 @@ resources:
   - secret.yaml
   - database.yaml
   - service.yaml
+commonAnnotations:
+  inf-k8s.net/repository: "https://github.com/Accurate0/solar-panels"
+  inf-k8s.net/app: "solar-panels"
 images:
   - name: ghcr.io/accurate0/solar
     newTag: 57a4e1815dc77e946e867cf8c66ba069f6ea38cc

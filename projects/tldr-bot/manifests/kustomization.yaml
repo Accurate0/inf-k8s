@@ -4,6 +4,9 @@ resources:
   - deployment.yaml
   - namespace.yaml
   - secret.yaml
+commonAnnotations:
+  inf-k8s.net/repository: "https://github.com/Accurate0/tldr-bot"
+  inf-k8s.net/app: "tldr-bot"
 images:
   - name: ghcr.io/accurate0/tldr-bot
     newTag: 2f2037c52b711094864762b7905e760275d23618
