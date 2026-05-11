@@ -115,10 +115,7 @@ impl BotEvent<'_> {
     }
 }
 
-pub fn render_template(
-    template: &str,
-    vars: &std::collections::HashMap<&str, String>,
-) -> String {
+pub fn render_template(template: &str, vars: &std::collections::HashMap<&str, String>) -> String {
     let mut result = template.to_owned();
     for (key, value) in vars {
         result = result.replace(&format!("{{{key}}}"), value);
