@@ -1,11 +1,18 @@
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
+pub struct PrBase {
+    #[serde(rename = "ref")]
+    pub r#ref: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
 pub struct PullRequest {
     pub number: u64,
     pub title: String,
     #[serde(default)]
     pub labels: Vec<Label>,
+    pub base: Option<PrBase>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -41,6 +48,7 @@ pub struct PrEvent {
     pub repo: String,
     pub pr_number: u64,
     pub title: String,
+    pub target_branch: String,
     pub labels: Vec<Label>,
     pub changed_files: Vec<String>,
 }
@@ -59,6 +67,42 @@ pub enum BotEvent<'a> {
     GitHubWorkflow(&'a WorkflowEvent),
 }
 
+impl BotEvent<'_> {
+    pub fn template_vars(&self) -> std::collections::HashMap<&'static str, String> {
+        let mut vars = std::collections::HashMap::new();
+        match self {
+            BotEvent::ForgejoPr(pr) => {
+                vars.insert("action", pr.action.clone());
+                vars.insert("author", pr.author.clone());
+                vars.insert("owner", pr.owner.clone());
+                vars.insert("repo", pr.repo.clone());
+                vars.insert("pr_number", pr.pr_number.to_string());
+                vars.insert("title", pr.title.clone());
+                vars.insert("target_branch", pr.target_branch.clone());
+            }
+            BotEvent::GitHubWorkflow(wf) => {
+                vars.insert("workflow_name", wf.workflow_name.clone());
+                vars.insert("conclusion", wf.conclusion.clone());
+                vars.insert("run_url", wf.run_url.clone());
+                vars.insert("repository", wf.repository.clone());
+                vars.insert("branch", wf.branch.clone());
+            }
+        }
+        vars
+    }
+}
+
+pub fn render_template(
+    template: &str,
+    vars: &std::collections::HashMap<&str, String>,
+) -> String {
+    let mut result = template.to_owned();
+    for (key, value) in vars {
+        result = result.replace(&format!("{{{key}}}"), value);
+    }
+    result
+}
+
 impl PrEvent {
     pub fn from_api_pr(
         pr: &forgejo_api::structs::PullRequest,
@@ -72,6 +116,7 @@ impl PrEvent {
             repo,
             pr_number: pr.number? as u64,
             title: pr.title.clone()?,
+            target_branch: pr.base.as_ref()?.r#ref.clone().unwrap_or_default(),
             labels: pr
                 .labels
                 .as_ref()
@@ -106,6 +151,7 @@ impl WebhookEvent {
             repo,
             pr_number: pr.number,
             title: pr.title,
+            target_branch: pr.base.and_then(|b| b.r#ref).unwrap_or_default(),
             labels: pr.labels,
             changed_files: Vec::new(),
         })

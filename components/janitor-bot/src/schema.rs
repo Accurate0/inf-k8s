@@ -73,6 +73,8 @@ pub enum LeafMatcher {
     // Workflow-specific matchers
     #[serde(rename = "workflow_conclusion")]
     WorkflowConclusion { value: String },
+    #[serde(rename = "target_branch")]
+    TargetBranch { value: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -187,6 +189,10 @@ impl Matcher {
                         BotEvent::GitHubWorkflow(wf) => wf.conclusion == *value,
                         _ => false,
                     },
+                    LeafMatcher::TargetBranch { value } => match ev {
+                        BotEvent::ForgejoPr(pr) => pr.target_branch == *value,
+                        BotEvent::GitHubWorkflow(wf) => wf.branch == *value,
+                    },
                 },
             }
         })
@@ -200,7 +206,7 @@ pub struct LabelColor {
 }
 
 #[derive(Debug, Deserialize)]
-pub struct WorkflowIssueTarget {
+pub struct IssueTarget {
     pub owner: String,
     pub repo: String,
 }
@@ -222,10 +228,22 @@ pub enum ActionDef {
     AddLabelsByName { labels: Vec<String> },
     #[serde(rename = "ensure_labels_exist")]
     EnsureLabelsExist { labels: Vec<LabelColor> },
-    #[serde(rename = "report_workflow_failure")]
-    ReportWorkflowFailure { target: WorkflowIssueTarget },
-    #[serde(rename = "resolve_workflow_failure")]
-    ResolveWorkflowFailure { target: WorkflowIssueTarget },
+    #[serde(rename = "create_issue")]
+    CreateIssue {
+        target: IssueTarget,
+        dedup_key: String,
+        title: String,
+        body: String,
+        #[serde(default)]
+        comment_body: Option<String>,
+    },
+    #[serde(rename = "close_issue")]
+    CloseIssue {
+        target: IssueTarget,
+        dedup_key: String,
+        #[serde(default)]
+        comment_body: Option<String>,
+    },
 }
 
 fn default_true() -> bool {
@@ -271,13 +289,29 @@ impl ActionDef {
                     .map(|l| (l.name.clone(), l.color.clone()))
                     .collect(),
             },
-            ActionDef::ReportWorkflowFailure { target } => Action::ReportWorkflowFailure {
+            ActionDef::CreateIssue {
+                target,
+                dedup_key,
+                title,
+                body,
+                comment_body,
+            } => Action::CreateIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
+                dedup_key: dedup_key.clone(),
+                title: title.clone(),
+                body: body.clone(),
+                comment_body: comment_body.clone(),
             },
-            ActionDef::ResolveWorkflowFailure { target } => Action::ResolveWorkflowFailure {
+            ActionDef::CloseIssue {
+                target,
+                dedup_key,
+                comment_body,
+            } => Action::CloseIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
+                dedup_key: dedup_key.clone(),
+                comment_body: comment_body.clone(),
             },
         }
     }

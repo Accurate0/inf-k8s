@@ -1,10 +1,8 @@
-use crate::event::{BotEvent, PrEvent, WorkflowEvent};
+use crate::event::{self, BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
 use crate::schema::RulesFile;
 use forgejo_api::structs::MergePullRequestOptionDo;
 use tokio::sync::Mutex;
-
-const WORKFLOW_ISSUE_PREFIX: &str = "[GitHub CI] ";
 
 const RULES_YAML: &str = include_str!("../rules.yaml");
 
@@ -81,13 +79,19 @@ pub enum Action {
     EnsureLabelsExist {
         labels: Vec<(String, String)>,
     },
-    ReportWorkflowFailure {
+    CreateIssue {
         target_owner: String,
         target_repo: String,
+        dedup_key: String,
+        title: String,
+        body: String,
+        comment_body: Option<String>,
     },
-    ResolveWorkflowFailure {
+    CloseIssue {
         target_owner: String,
         target_repo: String,
+        dedup_key: String,
+        comment_body: Option<String>,
     },
 }
 
@@ -151,23 +155,71 @@ impl Action {
                     .ensure_labels(&pr.owner, &pr.repo, labels.clone())
                     .await
             }
-            Action::ReportWorkflowFailure {
+            Action::CreateIssue {
                 target_owner,
                 target_repo,
+                dedup_key,
+                title,
+                body,
+                comment_body,
             } => {
-                let BotEvent::GitHubWorkflow(wf) = event else {
-                    return;
-                };
-                report_workflow_failure(client, target_owner, target_repo, wf).await
+                let vars = event.template_vars();
+                let rendered_key = event::render_template(dedup_key, &vars);
+                let rendered_title = event::render_template(title, &vars);
+                let rendered_body = event::render_template(body, &vars);
+                async {
+                    if let Some(existing) = client
+                        .find_open_issue_by_title(target_owner, target_repo, &rendered_key)
+                        .await?
+                    {
+                        let index = existing.number.unwrap();
+                        let text = comment_body
+                            .as_deref()
+                            .map(|t| event::render_template(t, &vars))
+                            .unwrap_or(rendered_body);
+                        client
+                            .comment_on_issue(target_owner, target_repo, index, &text)
+                            .await?;
+                    } else {
+                        client
+                            .create_issue(
+                                target_owner,
+                                target_repo,
+                                &rendered_title,
+                                &rendered_body,
+                            )
+                            .await?;
+                    }
+                    Ok(())
+                }
+                .await
             }
-            Action::ResolveWorkflowFailure {
+            Action::CloseIssue {
                 target_owner,
                 target_repo,
+                dedup_key,
+                comment_body,
             } => {
-                let BotEvent::GitHubWorkflow(wf) = event else {
-                    return;
-                };
-                resolve_workflow_failure(client, target_owner, target_repo, wf).await
+                let vars = event.template_vars();
+                let rendered_key = event::render_template(dedup_key, &vars);
+                async {
+                    let Some(existing) = client
+                        .find_open_issue_by_title(target_owner, target_repo, &rendered_key)
+                        .await?
+                    else {
+                        return Ok(());
+                    };
+                    let index = existing.number.unwrap();
+                    if let Some(tmpl) = comment_body {
+                        let text = event::render_template(tmpl, &vars);
+                        client
+                            .comment_on_issue(target_owner, target_repo, index, &text)
+                            .await?;
+                    }
+                    client.close_issue(target_owner, target_repo, index).await?;
+                    Ok(())
+                }
+                .await
             }
         };
         if let Err(e) = result {
@@ -176,58 +228,3 @@ impl Action {
     }
 }
 
-async fn report_workflow_failure(
-    client: &ForgejoClient,
-    owner: &str,
-    repo: &str,
-    wf: &WorkflowEvent,
-) -> Result<(), forgejo_api::ForgejoError> {
-    let title = format!("{WORKFLOW_ISSUE_PREFIX}{}", wf.workflow_name);
-
-    if let Some(issue) = client.find_open_issue_by_title(owner, repo, &title).await? {
-        let index = issue.number.unwrap();
-        let body = format!(
-            "Another failure on branch `{}`.\n\n**Run:** {}",
-            wf.branch, wf.run_url
-        );
-        client.comment_on_issue(owner, repo, index, &body).await?;
-        tracing::info!(
-            owner,
-            repo,
-            issue = index,
-            workflow = wf.workflow_name,
-            "commented on existing workflow failure issue"
-        );
-    } else {
-        let body = format!(
-            "Workflow **{}** failed on branch `{}`.\n\n**Run:** {}",
-            wf.workflow_name, wf.branch, wf.run_url
-        );
-        client.create_issue(owner, repo, &title, &body).await?;
-    }
-
-    Ok(())
-}
-
-async fn resolve_workflow_failure(
-    client: &ForgejoClient,
-    owner: &str,
-    repo: &str,
-    wf: &WorkflowEvent,
-) -> Result<(), forgejo_api::ForgejoError> {
-    let title = format!("{WORKFLOW_ISSUE_PREFIX}{}", wf.workflow_name);
-
-    let Some(issue) = client.find_open_issue_by_title(owner, repo, &title).await? else {
-        return Ok(());
-    };
-
-    let index = issue.number.unwrap();
-    let body = format!(
-        "Workflow is passing again on branch `{}`.\n\n**Run:** {}",
-        wf.branch, wf.run_url
-    );
-    client.comment_on_issue(owner, repo, index, &body).await?;
-    client.close_issue(owner, repo, index).await?;
-
-    Ok(())
-}

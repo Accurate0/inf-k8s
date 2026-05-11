@@ -4,6 +4,8 @@ rules:
       all:
         - type: forgejo
         - type: pr_event
+        - type: target_branch
+          value: main
         - type: action
           value: opened
         - type: author
@@ -26,6 +28,8 @@ rules:
       all:
         - type: forgejo
         - type: pr_event
+        - type: target_branch
+          value: main
         - type: action
           value: opened
         - type: author
@@ -52,6 +56,8 @@ rules:
       all:
         - type: forgejo
         - type: pr_event
+        - type: target_branch
+          value: main
         - type: action
           value: opened
         - type: author
@@ -84,23 +90,46 @@ rules:
       all:
         - type: github
         - type: workflow_event
+        - type: target_branch
+          value: main
         - type: workflow_conclusion
           value: failure
     actions:
-      - type: report_workflow_failure
+      - type: create_issue
         target:
           owner: anurag
           repo: k8s
+        dedup_key: "[GitHub CI] {workflow_name}"
+        title: "[GitHub CI] {workflow_name}"
+        body: |
+          | Detail | Value |
+          |--------|-------|
+          | Workflow | **{workflow_name}** |
+          | Result | `failure` |
+          | Run | {run_url} |
+        comment_body: |
+          | Detail | Value |
+          |--------|-------|
+          | Result | `failure` |
+          | Run | {run_url} |
 
   - name: github-workflow-resolved
     matches:
       all:
         - type: github
         - type: workflow_event
+        - type: target_branch
+          value: main
         - type: workflow_conclusion
           value: success
     actions:
-      - type: resolve_workflow_failure
+      - type: close_issue
         target:
           owner: anurag
           repo: k8s
+        dedup_key: "[GitHub CI] {workflow_name}"
+        comment_body: |
+          | Detail | Value |
+          |--------|-------|
+          | Result | `success` |
+          | Run | {run_url} |
