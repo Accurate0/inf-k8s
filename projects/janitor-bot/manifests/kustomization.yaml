@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - secret.yaml
   - service.yaml
+  - securitypolicy.yaml
 images:
   - name: ghcr.io/accurate0/janitor-bot
     newTag: c5e08d106e9eb2f1806de349b3979f07fd627255

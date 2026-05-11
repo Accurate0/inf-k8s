@@ -5,3 +5,4 @@ anurag.sh
 anurag.id.au
 git.anurag.sh
 authentik.anurag.sh
+janitor-bot.inf-k8s.net
