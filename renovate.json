@@ -12,11 +12,11 @@
   "customManagers": [
     {
       "customType": "regex",
-      "fileMatch": [
-        "applications/.*\\.application\\.yaml$",
-        "services/.*\\.application\\.yaml$",
-        "components/ingress-home/application\\.yaml$",
-        "components/pg-db-controller/application\\.yaml$"
+      "managerFilePatterns": [
+        "/applications/.*\\.application\\.yaml$/",
+        "/services/.*\\.application\\.yaml$/",
+        "/components/ingress-home/application\\.yaml$/",
+        "/components/pg-db-controller/application\\.yaml$/"
       ],
       "matchStrings": [
         "repoURL:\\s*oci://(?<depName>[^\\s]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[^\\s]+)"
