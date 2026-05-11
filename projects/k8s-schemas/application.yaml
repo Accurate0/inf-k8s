@@ -1,0 +1,35 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: k8s-schemas
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: default
+  sources:
+    - chart: k8s-infisical-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
+      targetRevision: 0.10.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: k8s-schemas
+            projectSlug: k8s-schemas-p-pb-y
+            resyncInterval: 900
+          secrets:
+            - name: k8s-schemas-secret
+              secretPath: /
+              managedSecrets:
+                - secretName: k8s-schemas-managed-secrets
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: projects/k8s-schemas/manifests
+      kustomize:
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: k8s-schemas

@@ -1,0 +1,14 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - cronjob.yaml
+  - rbac.yaml
+  - namespace.yaml
+  - serviceaccount.yaml
+
+commonAnnotations:
+  inf-k8s.net/repository: "https://github.com/Accurate0/inf-k8s"
+  inf-k8s.net/app: "k8s-schemas"
+images:
+  - name: ghcr.io/accurate0/k8s-schemas
+    newTag: latest

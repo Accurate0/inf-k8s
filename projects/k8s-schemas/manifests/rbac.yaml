@@ -1,0 +1,26 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: k8s-schemas
+  name: k8s-schemas-crd-reader
+rules:
+  - apiGroups:
+      - apiextensions.k8s.io
+    resources:
+      - customresourcedefinitions
+    verbs:
+      - get
+      - list
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: k8s-schemas-crd-reader
+  namespace: k8s-schemas
+subjects:
+  - kind: ServiceAccount
+    name: k8s-schemas
+    namespace: k8s-schemas
+roleRef:
+  kind: ClusterRole
+  name: k8s-schemas-crd-reader
