@@ -1,5 +1,5 @@
 use crate::event::WorkflowEvent;
-use hmac::{Hmac, Mac};
+use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
 
@@ -253,10 +253,7 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         branch: run.head_branch.unwrap_or_default(),
         head_sha: run.head_sha.unwrap_or_default(),
         commit_message: head_commit.message.unwrap_or_default(),
-        commit_author: head_commit
-            .author
-            .and_then(|a| a.name)
-            .unwrap_or_default(),
+        commit_author: head_commit.author.and_then(|a| a.name).unwrap_or_default(),
         actor: run.actor.and_then(|a| a.login).unwrap_or_default(),
         run_number: run.run_number.unwrap_or(0),
         run_attempt: run.run_attempt.unwrap_or(1),
