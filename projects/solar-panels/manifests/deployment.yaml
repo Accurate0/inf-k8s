@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -44,6 +45,7 @@ spec:
             - secretRef:
                 name: solar-database-secret
 ---
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
 apiVersion: apps/v1
 kind: Deployment
 metadata:

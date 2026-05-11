@@ -27,7 +27,7 @@ rm -rf "$BUILTIN_TMP_DIR"
 openapi2jsonschema --kubernetes --stand-alone --expanded -o "$BUILTIN_TMP_DIR" "$SWAGGER_FILE"
 python3 /reorganize-schemas.py "$BUILTIN_TMP_DIR" "$OUTPUT_DIR"
 
-echo "Building available-schemas.json index..."
+echo "Building index.json..."
 python3 /build-index.py "$OUTPUT_DIR"
 
 echo "Uploading schemas to S3..."
