@@ -45,6 +45,20 @@ pub struct PrEvent {
     pub changed_files: Vec<String>,
 }
 
+#[allow(dead_code)]
+pub struct WorkflowEvent {
+    pub workflow_name: String,
+    pub conclusion: String,
+    pub run_url: String,
+    pub repository: String,
+    pub branch: String,
+}
+
+pub enum BotEvent<'a> {
+    ForgejoPr(&'a PrEvent),
+    GitHubWorkflow(&'a WorkflowEvent),
+}
+
 impl PrEvent {
     pub fn from_api_pr(
         pr: &forgejo_api::structs::PullRequest,

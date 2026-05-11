@@ -18,7 +18,12 @@ impl ForgejoClient {
     }
 
     pub async fn is_pr_approved_by_bot(&self, owner: &str, repo: &str, pr: i64) -> bool {
-        let reviews = match self.api.repo_list_pull_reviews(owner, repo, pr).send().await {
+        let reviews = match self
+            .api
+            .repo_list_pull_reviews(owner, repo, pr)
+            .send()
+            .await
+        {
             Ok((_, reviews)) => reviews,
             Err(e) => {
                 tracing::warn!(pr, "failed to list reviews: {e}");
@@ -184,9 +189,7 @@ impl ForgejoClient {
 
     pub async fn is_pr_open(&self, owner: &str, repo: &str, pr: i64) -> bool {
         match self.api.repo_get_pull_request(owner, repo, pr).send().await {
-            Ok(pr) => {
-                matches!(pr.state, Some(StateType::Open)) && !pr.merged.unwrap_or(false)
-            }
+            Ok(pr) => matches!(pr.state, Some(StateType::Open)) && !pr.merged.unwrap_or(false),
             Err(_) => false,
         }
     }
@@ -203,6 +206,114 @@ impl ForgejoClient {
             .send()
             .await?;
         Ok(files.into_iter().filter_map(|f| f.filename).collect())
+    }
+
+    pub async fn find_open_issue_by_title(
+        &self,
+        owner: &str,
+        repo: &str,
+        title: &str,
+    ) -> Result<Option<Issue>, forgejo_api::ForgejoError> {
+        let (_, issues) = self
+            .api
+            .issue_list_issues(
+                owner,
+                repo,
+                IssueListIssuesQuery {
+                    state: Some(IssueListIssuesQueryState::Open),
+                    q: Some(title.to_owned()),
+                    r#type: Some(IssueListIssuesQueryType::Issues),
+                    ..Default::default()
+                },
+            )
+            .send()
+            .await?;
+        Ok(issues
+            .into_iter()
+            .find(|i| i.title.as_deref() == Some(title)))
+    }
+
+    pub async fn create_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        title: &str,
+        body: &str,
+    ) -> Result<Issue, forgejo_api::ForgejoError> {
+        let issue = self
+            .api
+            .issue_create_issue(
+                owner,
+                repo,
+                CreateIssueOption {
+                    title: title.to_owned(),
+                    body: Some(body.to_owned()),
+                    assignee: None,
+                    assignees: None,
+                    closed: None,
+                    due_date: None,
+                    labels: None,
+                    milestone: None,
+                    r#ref: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(owner, repo, issue = issue.number, "created issue");
+        Ok(issue)
+    }
+
+    pub async fn comment_on_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        index: i64,
+        body: &str,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        self.api
+            .issue_create_comment(
+                owner,
+                repo,
+                index,
+                CreateIssueCommentOption {
+                    body: body.to_owned(),
+                    updated_at: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(owner, repo, issue = index, "commented on issue");
+        Ok(())
+    }
+
+    pub async fn close_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        index: i64,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        self.api
+            .issue_edit_issue(
+                owner,
+                repo,
+                index,
+                EditIssueOption {
+                    state: Some("closed".into()),
+                    assignee: None,
+                    assignees: None,
+                    body: None,
+                    due_date: None,
+                    milestone: None,
+                    r#ref: None,
+                    title: None,
+                    unset_due_date: None,
+                    updated_at: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(owner, repo, issue = index, "closed issue");
+        Ok(())
     }
 
     pub async fn ensure_labels(

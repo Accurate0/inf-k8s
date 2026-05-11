@@ -1,10 +1,15 @@
 mod event;
 mod forgejo;
+mod github;
 mod rules;
 mod schema;
 
 use axum::{
-    Router, extract::Json, extract::State, http::HeaderMap, http::StatusCode, routing::post,
+    Router,
+    body::Bytes,
+    extract::{Json, State},
+    http::{HeaderMap, StatusCode},
+    routing::post,
 };
 use forgejo::ForgejoClient;
 use rules::RulesOrchestrator;
@@ -16,7 +21,8 @@ const WATCH_REPOS: &[&str] = &["k8s"];
 
 struct AppState {
     client: ForgejoClient,
-    webhook_secret: String,
+    forgejo_webhook_secret: String,
+    github_webhook_secret: String,
     orchestrator: RulesOrchestrator,
 }
 
@@ -29,7 +35,7 @@ async fn handle_forgejo_webhook(
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
-    if auth != state.webhook_secret {
+    if auth != state.forgejo_webhook_secret {
         return StatusCode::UNAUTHORIZED;
     }
 
@@ -42,7 +48,42 @@ async fn handle_forgejo_webhook(
     tokio::spawn(async move {
         state
             .orchestrator
-            .evaluate(&state.client, &mut pr_event)
+            .evaluate_pr(&state.client, &mut pr_event)
+            .await;
+    });
+
+    StatusCode::OK
+}
+
+async fn handle_github_webhook(
+    State(state): State<Arc<AppState>>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> StatusCode {
+    let signature = headers
+        .get("X-Hub-Signature-256")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if !github::verify_signature(&state.github_webhook_secret, signature, &body) {
+        return StatusCode::UNAUTHORIZED;
+    }
+
+    let Some(wf_event) = github::parse_workflow_event(&body) else {
+        tracing::info!("received github webhook (not a workflow_run event, ignoring)");
+        return StatusCode::OK;
+    };
+
+    tracing::info!(
+        workflow = wf_event.workflow_name,
+        conclusion = wf_event.conclusion,
+        "received github workflow event"
+    );
+
+    tokio::spawn(async move {
+        state
+            .orchestrator
+            .evaluate_workflow(&state.client, &wf_event)
             .await;
     });
 
@@ -70,7 +111,7 @@ async fn evaluate_open_prs(state: &AppState) {
                 continue;
             };
 
-            state.orchestrator.evaluate(client, &mut pr_event).await;
+            state.orchestrator.evaluate_pr(client, &mut pr_event).await;
         }
     }
 }
@@ -81,7 +122,8 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         client: ForgejoClient::from_env()?,
-        webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
+        forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
+        github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
         orchestrator: RulesOrchestrator::new(),
     });
 
@@ -106,6 +148,7 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/forgejo/webhook", post(handle_forgejo_webhook))
+        .route("/github/webhook", post(handle_github_webhook))
         .with_state(state);
 
     let addr = "0.0.0.0:3000";

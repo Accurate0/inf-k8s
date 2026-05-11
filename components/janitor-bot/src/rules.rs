@@ -1,14 +1,17 @@
-use crate::event::PrEvent;
+use crate::event::{BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
 use crate::schema::RulesFile;
 use forgejo_api::structs::MergePullRequestOptionDo;
 use tokio::sync::Mutex;
 
+const WORKFLOW_ISSUE_PREFIX: &str = "[GitHub CI] ";
+
 const RULES_YAML: &str = include_str!("../rules.yaml");
 
 pub struct RulesOrchestrator {
     rules: RulesFile,
-    lock: Mutex<()>,
+    pr_lock: Mutex<()>,
+    workflow_lock: Mutex<()>,
 }
 
 impl RulesOrchestrator {
@@ -16,12 +19,13 @@ impl RulesOrchestrator {
         let rules = serde_yaml::from_str(RULES_YAML).expect("failed to parse rules.yaml");
         Self {
             rules,
-            lock: Mutex::new(()),
+            pr_lock: Mutex::new(()),
+            workflow_lock: Mutex::new(()),
         }
     }
 
-    pub async fn evaluate(&self, client: &ForgejoClient, event: &mut PrEvent) {
-        let _guard = self.lock.lock().await;
+    pub async fn evaluate_pr(&self, client: &ForgejoClient, event: &mut PrEvent) {
+        let _guard = self.pr_lock.lock().await;
 
         let pr_id = event.pr_number as i64;
         match client
@@ -32,14 +36,24 @@ impl RulesOrchestrator {
             Err(e) => tracing::warn!(pr = event.pr_number, "failed to fetch changed files: {e}"),
         }
 
+        let bot_event = BotEvent::ForgejoPr(event);
+        self.run_rules(client, &bot_event).await;
+    }
+
+    pub async fn evaluate_workflow(&self, client: &ForgejoClient, event: &WorkflowEvent) {
+        let _guard = self.workflow_lock.lock().await;
+
+        let bot_event = BotEvent::GitHubWorkflow(event);
+        self.run_rules(client, &bot_event).await;
+    }
+
+    async fn run_rules<'a>(&self, client: &ForgejoClient, event: &BotEvent<'a>) {
         for rule in &self.rules.rules {
             if rule.matches.matches(event, client).await {
-                tracing::info!(rule = rule.name, pr = event.pr_number, "rule matched");
+                tracing::info!(rule = rule.name, "rule matched");
                 for action_def in &rule.actions {
                     let action = action_def.to_action();
-                    action
-                        .execute(client, &event.owner, &event.repo, event.pr_number as i64)
-                        .await;
+                    action.execute(client, event).await;
                 }
             }
         }
@@ -67,42 +81,153 @@ pub enum Action {
     EnsureLabelsExist {
         labels: Vec<(String, String)>,
     },
+    ReportWorkflowFailure {
+        target_owner: String,
+        target_repo: String,
+    },
+    ResolveWorkflowFailure {
+        target_owner: String,
+        target_repo: String,
+    },
 }
 
 impl Action {
-    pub async fn execute(
-        &self,
-        client: &ForgejoClient,
-        owner: &str,
-        repo: &str,
-        pr: i64,
-    ) {
+    pub async fn execute(&self, client: &ForgejoClient, event: &BotEvent<'_>) {
         let result = match self {
-            Action::Approve { body } => client.approve_pr(owner, repo, pr, body).await,
+            Action::Approve { body } => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                client
+                    .approve_pr(&pr.owner, &pr.repo, pr.pr_number as i64, body)
+                    .await
+            }
             Action::Merge {
                 strategy,
                 delete_branch,
             } => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
                 client
-                    .merge_pr(owner, repo, pr, *strategy, *delete_branch)
+                    .merge_pr(
+                        &pr.owner,
+                        &pr.repo,
+                        pr.pr_number as i64,
+                        *strategy,
+                        *delete_branch,
+                    )
                     .await
             }
-            Action::Comment { body } => client.comment(owner, repo, pr, body).await,
+            Action::Comment { body } => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                client
+                    .comment(&pr.owner, &pr.repo, pr.pr_number as i64, body)
+                    .await
+            }
             Action::AddLabels { label_ids } => {
-                client.add_labels(owner, repo, pr, label_ids.clone()).await
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                client
+                    .add_labels(&pr.owner, &pr.repo, pr.pr_number as i64, label_ids.clone())
+                    .await
             }
             Action::AddLabelsByName { labels } => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
                 client
-                    .add_labels_by_name(owner, repo, pr, labels.clone())
+                    .add_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
                     .await
             }
             Action::EnsureLabelsExist { labels } => {
-                client.ensure_labels(owner, repo, labels.clone()).await
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                client
+                    .ensure_labels(&pr.owner, &pr.repo, labels.clone())
+                    .await
+            }
+            Action::ReportWorkflowFailure {
+                target_owner,
+                target_repo,
+            } => {
+                let BotEvent::GitHubWorkflow(wf) = event else {
+                    return;
+                };
+                report_workflow_failure(client, target_owner, target_repo, wf).await
+            }
+            Action::ResolveWorkflowFailure {
+                target_owner,
+                target_repo,
+            } => {
+                let BotEvent::GitHubWorkflow(wf) = event else {
+                    return;
+                };
+                resolve_workflow_failure(client, target_owner, target_repo, wf).await
             }
         };
         if let Err(e) = result {
-            tracing::error!(pr, "action failed: {e}");
+            tracing::error!("action failed: {e}");
         }
     }
 }
 
+async fn report_workflow_failure(
+    client: &ForgejoClient,
+    owner: &str,
+    repo: &str,
+    wf: &WorkflowEvent,
+) -> Result<(), forgejo_api::ForgejoError> {
+    let title = format!("{WORKFLOW_ISSUE_PREFIX}{}", wf.workflow_name);
+
+    if let Some(issue) = client.find_open_issue_by_title(owner, repo, &title).await? {
+        let index = issue.number.unwrap();
+        let body = format!(
+            "Another failure on branch `{}`.\n\n**Run:** {}",
+            wf.branch, wf.run_url
+        );
+        client.comment_on_issue(owner, repo, index, &body).await?;
+        tracing::info!(
+            owner,
+            repo,
+            issue = index,
+            workflow = wf.workflow_name,
+            "commented on existing workflow failure issue"
+        );
+    } else {
+        let body = format!(
+            "Workflow **{}** failed on branch `{}`.\n\n**Run:** {}",
+            wf.workflow_name, wf.branch, wf.run_url
+        );
+        client.create_issue(owner, repo, &title, &body).await?;
+    }
+
+    Ok(())
+}
+
+async fn resolve_workflow_failure(
+    client: &ForgejoClient,
+    owner: &str,
+    repo: &str,
+    wf: &WorkflowEvent,
+) -> Result<(), forgejo_api::ForgejoError> {
+    let title = format!("{WORKFLOW_ISSUE_PREFIX}{}", wf.workflow_name);
+
+    let Some(issue) = client.find_open_issue_by_title(owner, repo, &title).await? else {
+        return Ok(());
+    };
+
+    let index = issue.number.unwrap();
+    let body = format!(
+        "Workflow is passing again on branch `{}`.\n\n**Run:** {}",
+        wf.branch, wf.run_url
+    );
+    client.comment_on_issue(owner, repo, index, &body).await?;
+    client.close_issue(owner, repo, index).await?;
+
+    Ok(())
+}

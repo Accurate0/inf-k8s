@@ -16,3 +16,6 @@ tokio-cron-scheduler = { version = "0.15", features = ["english"] }
 chrono-tz = "0.10"
 anyhow = "1"
 serde_yaml = "0.9"
+hmac = "0.12"
+sha2 = "0.10"
+hex = "0.4"

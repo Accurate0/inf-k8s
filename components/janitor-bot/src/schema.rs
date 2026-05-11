@@ -1,4 +1,4 @@
-use crate::event::PrEvent;
+use crate::event::BotEvent;
 use crate::forgejo::ForgejoClient;
 use crate::rules::Action;
 use forgejo_api::structs::MergePullRequestOptionDo;
@@ -38,6 +38,19 @@ pub enum Combinator {
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum LeafMatcher {
+    // Source matchers
+    #[serde(rename = "forgejo")]
+    Forgejo,
+    #[serde(rename = "github")]
+    GitHub,
+
+    // Event type matchers
+    #[serde(rename = "pr_event")]
+    PrEvent,
+    #[serde(rename = "workflow_event")]
+    WorkflowEvent,
+
+    // PR-specific matchers
     #[serde(rename = "action")]
     Action { value: String },
     #[serde(rename = "author")]
@@ -56,6 +69,10 @@ pub enum LeafMatcher {
     IsOpen,
     #[serde(rename = "not_approved_by_self")]
     NotApprovedBySelf,
+
+    // Workflow-specific matchers
+    #[serde(rename = "workflow_conclusion")]
+    WorkflowConclusion { value: String },
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,7 +96,7 @@ impl FilePattern {
 impl Matcher {
     pub fn matches<'a>(
         &'a self,
-        ev: &'a PrEvent,
+        ev: &'a BotEvent<'a>,
         client: &'a ForgejoClient,
     ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         Box::pin(async move {
@@ -104,47 +121,88 @@ impl Matcher {
                     Combinator::Not(matcher) => !matcher.matches(ev, client).await,
                 },
                 Matcher::Leaf(leaf) => match leaf {
-                    LeafMatcher::Action { value } => ev.action == *value,
-                    LeafMatcher::Author { value } => ev.author == *value,
-                    LeafMatcher::TitleContains { value } => ev.title.contains(value.as_str()),
-                    LeafMatcher::HasLabel { value } => {
-                        ev.labels.iter().any(|l| l.name == *value)
-                    }
-                    LeafMatcher::IsOpen => {
-                        client
-                            .is_pr_open(&ev.owner, &ev.repo, ev.pr_number as i64)
-                            .await
-                    }
-                    LeafMatcher::NotApprovedBySelf => {
-                        !client
-                            .is_pr_approved_by_bot(&ev.owner, &ev.repo, ev.pr_number as i64)
-                            .await
-                    }
-                    LeafMatcher::HasChangedFiles => !ev.changed_files.is_empty(),
-                    LeafMatcher::ChangedFilesAllMatch { patterns } => {
-                        !ev.changed_files.is_empty()
-                            && ev
-                                .changed_files
-                                .iter()
-                                .all(|f| patterns.iter().any(|p| p.matches(f)))
-                    }
-                    LeafMatcher::ChangedFilesNoneMatch { patterns } => {
-                        ev.changed_files
+                    // Source matchers
+                    LeafMatcher::Forgejo => matches!(ev, BotEvent::ForgejoPr(_)),
+                    LeafMatcher::GitHub => matches!(ev, BotEvent::GitHubWorkflow(_)),
+                    LeafMatcher::PrEvent => matches!(ev, BotEvent::ForgejoPr(_)),
+                    LeafMatcher::WorkflowEvent => matches!(ev, BotEvent::GitHubWorkflow(_)),
+
+                    // PR-specific matchers (only match on ForgejoPr)
+                    LeafMatcher::Action { value } => match ev {
+                        BotEvent::ForgejoPr(pr) => pr.action == *value,
+                        _ => false,
+                    },
+                    LeafMatcher::Author { value } => match ev {
+                        BotEvent::ForgejoPr(pr) => pr.author == *value,
+                        _ => false,
+                    },
+                    LeafMatcher::TitleContains { value } => match ev {
+                        BotEvent::ForgejoPr(pr) => pr.title.contains(value.as_str()),
+                        _ => false,
+                    },
+                    LeafMatcher::HasLabel { value } => match ev {
+                        BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
+                        _ => false,
+                    },
+                    LeafMatcher::IsOpen => match ev {
+                        BotEvent::ForgejoPr(pr) => {
+                            client
+                                .is_pr_open(&pr.owner, &pr.repo, pr.pr_number as i64)
+                                .await
+                        }
+                        _ => false,
+                    },
+                    LeafMatcher::NotApprovedBySelf => match ev {
+                        BotEvent::ForgejoPr(pr) => {
+                            !client
+                                .is_pr_approved_by_bot(&pr.owner, &pr.repo, pr.pr_number as i64)
+                                .await
+                        }
+                        _ => false,
+                    },
+                    LeafMatcher::HasChangedFiles => match ev {
+                        BotEvent::ForgejoPr(pr) => !pr.changed_files.is_empty(),
+                        _ => false,
+                    },
+                    LeafMatcher::ChangedFilesAllMatch { patterns } => match ev {
+                        BotEvent::ForgejoPr(pr) => {
+                            !pr.changed_files.is_empty()
+                                && pr
+                                    .changed_files
+                                    .iter()
+                                    .all(|f| patterns.iter().any(|p| p.matches(f)))
+                        }
+                        _ => false,
+                    },
+                    LeafMatcher::ChangedFilesNoneMatch { patterns } => match ev {
+                        BotEvent::ForgejoPr(pr) => pr
+                            .changed_files
                             .iter()
-                            .all(|f| !patterns.iter().any(|p| p.matches(f)))
-                    }
+                            .all(|f| !patterns.iter().any(|p| p.matches(f))),
+                        _ => false,
+                    },
+
+                    // Workflow-specific matchers
+                    LeafMatcher::WorkflowConclusion { value } => match ev {
+                        BotEvent::GitHubWorkflow(wf) => wf.conclusion == *value,
+                        _ => false,
+                    },
                 },
             }
         })
     }
 }
 
-// --- Action deserialization ---
-
 #[derive(Debug, Deserialize)]
 pub struct LabelColor {
     pub name: String,
     pub color: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct WorkflowIssueTarget {
+    pub owner: String,
+    pub repo: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -164,6 +222,10 @@ pub enum ActionDef {
     AddLabelsByName { labels: Vec<String> },
     #[serde(rename = "ensure_labels_exist")]
     EnsureLabelsExist { labels: Vec<LabelColor> },
+    #[serde(rename = "report_workflow_failure")]
+    ReportWorkflowFailure { target: WorkflowIssueTarget },
+    #[serde(rename = "resolve_workflow_failure")]
+    ResolveWorkflowFailure { target: WorkflowIssueTarget },
 }
 
 fn default_true() -> bool {
@@ -208,6 +270,14 @@ impl ActionDef {
                     .iter()
                     .map(|l| (l.name.clone(), l.color.clone()))
                     .collect(),
+            },
+            ActionDef::ReportWorkflowFailure { target } => Action::ReportWorkflowFailure {
+                target_owner: target.owner.clone(),
+                target_repo: target.repo.clone(),
+            },
+            ActionDef::ResolveWorkflowFailure { target } => Action::ResolveWorkflowFailure {
+                target_owner: target.owner.clone(),
+                target_repo: target.repo.clone(),
             },
         }
     }

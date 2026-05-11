@@ -2,6 +2,8 @@ rules:
   - name: label-renovate
     matches:
       all:
+        - type: forgejo
+        - type: pr_event
         - type: action
           value: opened
         - type: author
@@ -22,6 +24,8 @@ rules:
   - name: auto-merge-ci-image-updater
     matches:
       all:
+        - type: forgejo
+        - type: pr_event
         - type: action
           value: opened
         - type: author
@@ -46,6 +50,8 @@ rules:
   - name: auto-merge-renovate
     matches:
       all:
+        - type: forgejo
+        - type: pr_event
         - type: action
           value: opened
         - type: author
@@ -72,3 +78,29 @@ rules:
       - type: merge
         strategy: squash
         delete_branch: true
+
+  - name: github-workflow-failure
+    matches:
+      all:
+        - type: github
+        - type: workflow_event
+        - type: workflow_conclusion
+          value: failure
+    actions:
+      - type: report_workflow_failure
+        target:
+          owner: anurag
+          repo: k8s
+
+  - name: github-workflow-resolved
+    matches:
+      all:
+        - type: github
+        - type: workflow_event
+        - type: workflow_conclusion
+          value: success
+    actions:
+      - type: resolve_workflow_failure
+        target:
+          owner: anurag
+          repo: k8s
