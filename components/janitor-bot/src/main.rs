@@ -20,7 +20,7 @@ struct AppState {
     orchestrator: RulesOrchestrator,
 }
 
-async fn handle_webhook(
+async fn handle_forgejo_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
     Json(event): Json<event::WebhookEvent>,
@@ -33,7 +33,7 @@ async fn handle_webhook(
         return StatusCode::UNAUTHORIZED;
     }
 
-    tracing::info!(action = event.action, "received webhook event");
+    tracing::info!(action = event.action, "received forgejo webhook event");
 
     let Some(mut pr_event) = event.into_pr_event() else {
         return StatusCode::OK;
@@ -105,7 +105,7 @@ async fn main() -> anyhow::Result<()> {
     scheduler.start().await?;
 
     let app = Router::new()
-        .route("/webhook", post(handle_webhook))
+        .route("/forgejo/webhook", post(handle_forgejo_webhook))
         .with_state(state);
 
     let addr = "0.0.0.0:3000";
