@@ -8,4 +8,4 @@ resources:
   - securitypolicy.yaml
 images:
   - name: ghcr.io/accurate0/janitor-bot
-    newTag: eb7bb9e8eb3e774b93a98db3d93dc6a5b70161be
+    newTag: 4efdd62126e00a2fa40e317fac1dc727ef5da30a
