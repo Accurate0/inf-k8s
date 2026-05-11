@@ -15,7 +15,7 @@ pub struct RulesOrchestrator {
 
 impl RulesOrchestrator {
     pub fn new() -> Self {
-        let rules = serde_yaml::from_str(RULES_YAML).expect("failed to parse rules.yaml");
+        let rules = yaml_serde::from_str(RULES_YAML).expect("failed to parse rules.yaml");
         Self {
             rules,
             pr_lock: Mutex::new(()),
