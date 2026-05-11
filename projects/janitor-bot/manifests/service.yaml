@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: janitor-bot
+  name: api
   namespace: janitor-bot
 spec:
   selector:

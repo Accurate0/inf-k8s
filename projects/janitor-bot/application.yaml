@@ -42,7 +42,7 @@ spec:
                 - backendRefs:
                     - group: ""
                       kind: Service
-                      name: janitor-bot
+                      name: api
                       port: 80
                       weight: 1
                   matches:
