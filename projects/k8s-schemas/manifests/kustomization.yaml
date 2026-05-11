@@ -5,10 +5,9 @@ resources:
   - rbac.yaml
   - namespace.yaml
   - serviceaccount.yaml
-
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/inf-k8s"
-  inf-k8s.net/app: "k8s-schemas"
+  inf-k8s.net/app: k8s-schemas
+  inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/k8s-schemas
-    newTag: latest
+    newTag: c6d7746fbe509dceb81296f05b6b7f702336c475
