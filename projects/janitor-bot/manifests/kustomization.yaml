@@ -7,8 +7,8 @@ resources:
   - service.yaml
   - securitypolicy.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/inf-k8s"
-  inf-k8s.net/app: "janitor-bot"
+  inf-k8s.net/app: janitor-bot
+  inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/janitor-bot
-    newTag: 5d7f5b2dc74590b8ce2f0db072f1b2c0b3735577
+    newTag: d41a11cb3e4b9472477959fba8be732cecaa08fd
