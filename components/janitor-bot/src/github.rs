@@ -7,8 +7,6 @@ use sha2::Sha256;
 pub struct FailedJobsResult {
     /// Raw log output from failed steps (no markdown)
     pub logs: String,
-    /// Markdown-formatted links for each failed job
-    pub links: String,
 }
 
 pub struct GitHubClient {
@@ -80,33 +78,16 @@ impl GitHubClient {
         };
 
         let mut logs = String::new();
-        let mut links = Vec::<String>::new();
 
         for job in &jobs_resp.jobs {
             let conclusion = job.conclusion.as_deref().unwrap_or("unknown");
             if conclusion != "failure" {
                 continue;
             }
-            let job_name = job.name.as_deref().unwrap_or("unknown");
-            let job_url = job.html_url.as_deref().unwrap_or("");
-
-            links.push(format!("- [{job_name}]({job_url})"));
-
-            let failed_step_names: Vec<String> = job
-                .steps
-                .as_ref()
-                .map(|steps| {
-                    steps
-                        .iter()
-                        .filter(|s| s.conclusion.as_deref() == Some("failure"))
-                        .filter_map(|s| s.name.clone())
-                        .collect()
-                })
-                .unwrap_or_default();
 
             if let Some(job_id) = job.id {
                 if let Some(raw_logs) = self.fetch_job_logs(jobs_url, job_id).await {
-                    let filtered = extract_failed_step_logs(&raw_logs, &failed_step_names);
+                    let filtered = extract_error_lines(&raw_logs);
                     if !filtered.is_empty() {
                         if !logs.is_empty() {
                             logs.push('\n');
@@ -117,10 +98,7 @@ impl GitHubClient {
             }
         }
 
-        FailedJobsResult {
-            logs,
-            links: links.join("\n"),
-        }
+        FailedJobsResult { logs }
     }
 }
 
@@ -183,20 +161,9 @@ struct WorkflowRunPayload {
 }
 
 #[derive(Debug, Deserialize)]
-struct JobStep {
-    name: Option<String>,
-    conclusion: Option<String>,
-    #[allow(dead_code)]
-    number: Option<u64>,
-}
-
-#[derive(Debug, Deserialize)]
 struct Job {
     id: Option<u64>,
-    name: Option<String>,
     conclusion: Option<String>,
-    html_url: Option<String>,
-    steps: Option<Vec<JobStep>>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -204,52 +171,62 @@ struct JobsResponse {
     jobs: Vec<Job>,
 }
 
-/// Extract log lines belonging to failed steps from raw GitHub Actions job logs.
+/// Extract error lines from raw GitHub Actions job logs.
 ///
-/// GitHub Actions logs have lines like:
-///   `2024-01-01T00:00:00.0000000Z ##[group]Step Name`
-/// to mark the start of a step, and `##[endgroup]` to end it.
-/// Lines within a step are prefixed with a timestamp.
-fn extract_failed_step_logs(raw_logs: &str, failed_step_names: &[String]) -> String {
+/// Looks for `##[error]` annotations and includes surrounding context lines.
+fn extract_error_lines(raw_logs: &str) -> String {
+    let lines: Vec<&str> = raw_logs.lines().collect();
+
+    // Strip timestamp prefix from a log line
+    fn strip_ts(line: &str) -> &str {
+        line.find("Z ").map(|i| &line[i + 2..]).unwrap_or(line)
+    }
+
+    // Find indices of error lines
+    let error_indices: Vec<usize> = lines
+        .iter()
+        .enumerate()
+        .filter(|(_, line)| strip_ts(line).starts_with("##[error]"))
+        .map(|(i, _)| i)
+        .collect();
+
+    if error_indices.is_empty() {
+        return String::new();
+    }
+
+    const CONTEXT: usize = 3;
     let mut result = String::new();
-    let mut capturing = false;
-    for line in raw_logs.lines() {
-        // Strip the timestamp prefix (everything up to and including the first space after the Z)
-        let content = line
-            .find("Z ")
-            .map(|i| &line[i + 2..])
-            .unwrap_or(line);
+    let mut last_printed = None::<usize>;
 
-        if let Some(group_name) = content.strip_prefix("##[group]") {
-            let step_name = group_name.trim();
-            if failed_step_names.iter().any(|n| n == step_name) {
-                capturing = true;
-                if !result.is_empty() {
-                    result.push('\n');
-                }
-                result.push_str(&format!("=== {step_name} ===\n"));
-            } else {
-                capturing = false;
+    for &idx in &error_indices {
+        let start = idx.saturating_sub(CONTEXT);
+        let end = (idx + CONTEXT + 1).min(lines.len());
+
+        // Add separator if there's a gap from the last printed range
+        if let Some(last) = last_printed {
+            if start > last + 1 && !result.is_empty() {
+                result.push_str("...\n");
             }
-            continue;
         }
 
-        if content.starts_with("##[endgroup]") {
-            capturing = false;
-            continue;
-        }
-
-        if capturing {
-            // Strip ##[error] prefixes for cleaner output
-            let clean = content
-                .strip_prefix("##[error]")
-                .unwrap_or(content);
+        for i in start..end {
+            if let Some(last) = last_printed {
+                if i <= last {
+                    continue;
+                }
+            }
+            let content = strip_ts(lines[i]);
+            // Skip group markers
+            if content.starts_with("##[group]") || content.starts_with("##[endgroup]") {
+                continue;
+            }
+            let clean = content.strip_prefix("##[error]").unwrap_or(content);
             result.push_str(clean);
             result.push('\n');
+            last_printed = Some(i);
         }
     }
 
-    // Truncate to avoid creating excessively large issues
     const MAX_LOG_BYTES: usize = 50_000;
     if result.len() > MAX_LOG_BYTES {
         result.truncate(MAX_LOG_BYTES);
@@ -285,6 +262,5 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         jobs_url: run.jobs_url.unwrap_or_default(),
         display_title: run.display_title.unwrap_or_default(),
         failed_jobs_logs: String::new(),
-        failed_jobs_links: String::new(),
     })
 }

@@ -50,7 +50,6 @@ impl RulesOrchestrator {
         if event.conclusion == "failure" {
             let result = github_client.fetch_failed_jobs(&event.jobs_url).await;
             event.failed_jobs_logs = result.logs;
-            event.failed_jobs_links = result.links;
         }
 
         let bot_event = BotEvent::GitHubWorkflow(event);
