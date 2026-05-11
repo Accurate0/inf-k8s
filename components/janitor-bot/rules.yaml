@@ -108,8 +108,8 @@ rules:
         target:
           owner: anurag
           repo: k8s
-        dedup_key: "[GitHub CI] {workflow_name}"
-        title: "[GitHub CI] {workflow_name} #{run_number} failed"
+        dedup_key: "[GitHub CI] {workflow_name} failed"
+        title: "[GitHub CI] {workflow_name} failed"
         labels:
           - name: github-ci-failure
             color: "#d73a4a"
@@ -167,7 +167,7 @@ rules:
         target:
           owner: anurag
           repo: k8s
-        dedup_key: "[GitHub CI] {workflow_name}"
+        dedup_key: "[GitHub CI] {workflow_name} failed"
         comment_body: |
           ## Resolved
 
