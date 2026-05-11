@@ -5,23 +5,23 @@ default:
 
 # Apply a single ArgoCD application manifest
 apply app:
-    kubectl apply -f applications/{{app}}.application.yaml
+    kubectl apply -f {{app}}.application.yaml
 
 # Apply all ArgoCD application manifests
 apply-all:
-    kubectl apply -f applications/*.application.yaml
+    kubectl apply -f *.application.yaml
 
 # Delete an ArgoCD application
 delete app:
-    kubectl delete -f applications/{{app}}.application.yaml
+    kubectl delete -f {{app}}.application.yaml
 
 # Show diff for an application before applying
 diff app:
-    kubectl diff -f applications/{{app}}.application.yaml
+    kubectl diff -f {{app}}.application.yaml
 
 # Diff a project's manifests
 diff-project project:
-    kubectl diff -k projects/{{project}}/manifests
+    kubectl diff -k ../projects/{{project}}/manifests
 
 # Show ArgoCD applications status
 status:

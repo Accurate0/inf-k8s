@@ -3,6 +3,7 @@
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
 mod apps     'applications/mod.just'
+mod projects 'projects/mod.just'
 mod ansible  'ansible/mod.just'
 mod tf       'terraform/mod.just'
 mod cluster  'charts/mod.just'

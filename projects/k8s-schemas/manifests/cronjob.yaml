@@ -22,17 +22,6 @@ spec:
               envFrom:
                 - secretRef:
                     name: k8s-schemas-managed-secrets
-              env:
-                - name: S3_BUCKET
-                  valueFrom:
-                    secretKeyRef:
-                      name: k8s-schemas-managed-secrets
-                      key: S3_BUCKET
-                - name: S3_ENDPOINT
-                  valueFrom:
-                    secretKeyRef:
-                      name: k8s-schemas-managed-secrets
-                      key: S3_ENDPOINT
               resources:
                 requests:
                   cpu: 50m
