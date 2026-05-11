@@ -48,9 +48,9 @@ impl RulesOrchestrator {
         let _guard = self.workflow_lock.lock().await;
 
         if event.conclusion == "failure" {
-            event.failed_jobs_summary = github_client
-                .fetch_failed_jobs_summary(&event.jobs_url)
-                .await;
+            let result = github_client.fetch_failed_jobs(&event.jobs_url).await;
+            event.failed_jobs_logs = result.logs;
+            event.failed_jobs_links = result.links;
         }
 
         let bot_event = BotEvent::GitHubWorkflow(event);
@@ -90,6 +90,8 @@ pub enum Action {
     },
     EnsureLabelsExist {
         labels: Vec<(String, String)>,
+        target_owner: Option<String>,
+        target_repo: Option<String>,
     },
     CreateIssue {
         target_owner: String,
@@ -98,6 +100,7 @@ pub enum Action {
         title: String,
         body: String,
         comment_body: Option<String>,
+        labels: Vec<(String, String)>,
     },
     CloseIssue {
         target_owner: String,
@@ -159,13 +162,19 @@ impl Action {
                     .add_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
                     .await
             }
-            Action::EnsureLabelsExist { labels } => {
-                let BotEvent::ForgejoPr(pr) = event else {
-                    return;
+            Action::EnsureLabelsExist {
+                labels,
+                target_owner,
+                target_repo,
+            } => {
+                let (owner, repo) = match (target_owner, target_repo) {
+                    (Some(o), Some(r)) => (o.as_str(), r.as_str()),
+                    _ => match event {
+                        BotEvent::ForgejoPr(pr) => (pr.owner.as_str(), pr.repo.as_str()),
+                        _ => return,
+                    },
                 };
-                client
-                    .ensure_labels(&pr.owner, &pr.repo, labels.clone())
-                    .await
+                client.ensure_labels(owner, repo, labels.clone()).await
             }
             Action::CreateIssue {
                 target_owner,
@@ -174,6 +183,7 @@ impl Action {
                 title,
                 body,
                 comment_body,
+                labels,
             } => {
                 let vars = event.template_vars();
                 let rendered_key = event::render_template(dedup_key, &vars);
@@ -193,12 +203,15 @@ impl Action {
                             .comment_on_issue(target_owner, target_repo, index, &text)
                             .await?;
                     } else {
+                        let label_names: Vec<String> =
+                            labels.iter().map(|(name, _)| name.clone()).collect();
                         client
-                            .create_issue(
+                            .create_issue_with_labels(
                                 target_owner,
                                 target_repo,
                                 &rendered_title,
                                 &rendered_body,
+                                &label_names,
                             )
                             .await?;
                     }

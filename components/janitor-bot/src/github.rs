@@ -3,6 +3,14 @@ use hmac::{Hmac, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
 
+#[derive(Default)]
+pub struct FailedJobsResult {
+    /// Raw log output from failed steps (no markdown)
+    pub logs: String,
+    /// Markdown-formatted links for each failed job
+    pub links: String,
+}
+
 pub struct GitHubClient {
     client: reqwest::Client,
     token: String,
@@ -17,25 +25,49 @@ impl GitHubClient {
         })
     }
 
-    pub async fn fetch_failed_jobs_summary(&self, jobs_url: &str) -> String {
-        if jobs_url.is_empty() {
-            return String::new();
-        }
-
-        let resp = match self
-            .client
-            .get(jobs_url)
+    async fn github_get(&self, url: &str) -> Result<reqwest::Response, reqwest::Error> {
+        self.client
+            .get(url)
             .header("Authorization", format!("Bearer {}", self.token))
             .header("Accept", "application/vnd.github+json")
             .header("User-Agent", "janitor-bot")
             .header("X-GitHub-Api-Version", "2022-11-28")
             .send()
             .await
-        {
+    }
+
+    async fn fetch_job_logs(&self, jobs_url: &str, job_id: u64) -> Option<String> {
+        // jobs_url: https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/jobs
+        // logs_url: https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs
+        let base = jobs_url.split("/actions/runs/").next()?;
+        let logs_url = format!("{base}/actions/jobs/{job_id}/logs");
+
+        match self.github_get(&logs_url).await {
+            Ok(resp) => match resp.text().await {
+                Ok(text) => Some(text),
+                Err(e) => {
+                    tracing::warn!(job_id, "failed to read job logs body: {e}");
+                    None
+                }
+            },
+            Err(e) => {
+                tracing::warn!(job_id, "failed to fetch job logs: {e}");
+                None
+            }
+        }
+    }
+
+    pub async fn fetch_failed_jobs(&self, jobs_url: &str) -> FailedJobsResult {
+        let empty = FailedJobsResult::default();
+        if jobs_url.is_empty() {
+            return empty;
+        }
+
+        let resp = match self.github_get(jobs_url).await {
             Ok(r) => r,
             Err(e) => {
                 tracing::warn!("failed to fetch jobs: {e}");
-                return String::new();
+                return empty;
             }
         };
 
@@ -43,45 +75,52 @@ impl GitHubClient {
             Ok(j) => j,
             Err(e) => {
                 tracing::warn!("failed to parse jobs response: {e}");
-                return String::new();
+                return empty;
             }
         };
 
-        let mut summary = String::new();
+        let mut logs = String::new();
+        let mut links = Vec::<String>::new();
+
         for job in &jobs_resp.jobs {
             let conclusion = job.conclusion.as_deref().unwrap_or("unknown");
             if conclusion != "failure" {
                 continue;
             }
             let job_name = job.name.as_deref().unwrap_or("unknown");
-            let job_url = job.html_url.as_deref().unwrap_or("N/A");
+            let job_url = job.html_url.as_deref().unwrap_or("");
 
-            summary.push_str(&format!("### :x: {}\n", job_name));
-            summary.push_str(&format!("[View logs]({})\n", job_url));
+            links.push(format!("- [{job_name}]({job_url})"));
 
-            if let Some(steps) = &job.steps {
-                let failed_steps: Vec<_> = steps
-                    .iter()
-                    .filter(|s| s.conclusion.as_deref() == Some("failure"))
-                    .collect();
+            let failed_step_names: Vec<String> = job
+                .steps
+                .as_ref()
+                .map(|steps| {
+                    steps
+                        .iter()
+                        .filter(|s| s.conclusion.as_deref() == Some("failure"))
+                        .filter_map(|s| s.name.clone())
+                        .collect()
+                })
+                .unwrap_or_default();
 
-                if !failed_steps.is_empty() {
-                    summary.push_str("\n| Step | # | Status |\n");
-                    summary.push_str("|------|---|--------|\n");
-                    for step in &failed_steps {
-                        let step_name = step.name.as_deref().unwrap_or("unknown");
-                        let step_num = step.number.unwrap_or(0);
-                        summary.push_str(&format!(
-                            "| {} | {} | `failure` |\n",
-                            step_name, step_num
-                        ));
+            if let Some(job_id) = job.id {
+                if let Some(raw_logs) = self.fetch_job_logs(jobs_url, job_id).await {
+                    let filtered = extract_failed_step_logs(&raw_logs, &failed_step_names);
+                    if !filtered.is_empty() {
+                        if !logs.is_empty() {
+                            logs.push('\n');
+                        }
+                        logs.push_str(&filtered);
                     }
                 }
             }
-            summary.push('\n');
         }
 
-        summary
+        FailedJobsResult {
+            logs,
+            links: links.join("\n"),
+        }
     }
 }
 
@@ -147,11 +186,13 @@ struct WorkflowRunPayload {
 struct JobStep {
     name: Option<String>,
     conclusion: Option<String>,
+    #[allow(dead_code)]
     number: Option<u64>,
 }
 
 #[derive(Debug, Deserialize)]
 struct Job {
+    id: Option<u64>,
     name: Option<String>,
     conclusion: Option<String>,
     html_url: Option<String>,
@@ -161,6 +202,61 @@ struct Job {
 #[derive(Debug, Deserialize)]
 struct JobsResponse {
     jobs: Vec<Job>,
+}
+
+/// Extract log lines belonging to failed steps from raw GitHub Actions job logs.
+///
+/// GitHub Actions logs have lines like:
+///   `2024-01-01T00:00:00.0000000Z ##[group]Step Name`
+/// to mark the start of a step, and `##[endgroup]` to end it.
+/// Lines within a step are prefixed with a timestamp.
+fn extract_failed_step_logs(raw_logs: &str, failed_step_names: &[String]) -> String {
+    let mut result = String::new();
+    let mut capturing = false;
+    for line in raw_logs.lines() {
+        // Strip the timestamp prefix (everything up to and including the first space after the Z)
+        let content = line
+            .find("Z ")
+            .map(|i| &line[i + 2..])
+            .unwrap_or(line);
+
+        if let Some(group_name) = content.strip_prefix("##[group]") {
+            let step_name = group_name.trim();
+            if failed_step_names.iter().any(|n| n == step_name) {
+                capturing = true;
+                if !result.is_empty() {
+                    result.push('\n');
+                }
+                result.push_str(&format!("=== {step_name} ===\n"));
+            } else {
+                capturing = false;
+            }
+            continue;
+        }
+
+        if content.starts_with("##[endgroup]") {
+            capturing = false;
+            continue;
+        }
+
+        if capturing {
+            // Strip ##[error] prefixes for cleaner output
+            let clean = content
+                .strip_prefix("##[error]")
+                .unwrap_or(content);
+            result.push_str(clean);
+            result.push('\n');
+        }
+    }
+
+    // Truncate to avoid creating excessively large issues
+    const MAX_LOG_BYTES: usize = 50_000;
+    if result.len() > MAX_LOG_BYTES {
+        result.truncate(MAX_LOG_BYTES);
+        result.push_str("\n... (truncated)\n");
+    }
+
+    result
 }
 
 pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
@@ -188,6 +284,7 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         run_attempt: run.run_attempt.unwrap_or(1),
         jobs_url: run.jobs_url.unwrap_or_default(),
         display_title: run.display_title.unwrap_or_default(),
-        failed_jobs_summary: String::new(),
+        failed_jobs_logs: String::new(),
+        failed_jobs_links: String::new(),
     })
 }

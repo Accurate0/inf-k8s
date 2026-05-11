@@ -227,7 +227,11 @@ pub enum ActionDef {
     #[serde(rename = "add_labels_by_name")]
     AddLabelsByName { labels: Vec<String> },
     #[serde(rename = "ensure_labels_exist")]
-    EnsureLabelsExist { labels: Vec<LabelColor> },
+    EnsureLabelsExist {
+        labels: Vec<LabelColor>,
+        #[serde(default)]
+        target: Option<IssueTarget>,
+    },
     #[serde(rename = "create_issue")]
     CreateIssue {
         target: IssueTarget,
@@ -236,6 +240,8 @@ pub enum ActionDef {
         body: String,
         #[serde(default)]
         comment_body: Option<String>,
+        #[serde(default)]
+        labels: Vec<LabelColor>,
     },
     #[serde(rename = "close_issue")]
     CloseIssue {
@@ -283,11 +289,13 @@ impl ActionDef {
             ActionDef::AddLabelsByName { labels } => Action::AddLabelsByName {
                 labels: labels.clone(),
             },
-            ActionDef::EnsureLabelsExist { labels } => Action::EnsureLabelsExist {
+            ActionDef::EnsureLabelsExist { labels, target } => Action::EnsureLabelsExist {
                 labels: labels
                     .iter()
                     .map(|l| (l.name.clone(), l.color.clone()))
                     .collect(),
+                target_owner: target.as_ref().map(|t| t.owner.clone()),
+                target_repo: target.as_ref().map(|t| t.repo.clone()),
             },
             ActionDef::CreateIssue {
                 target,
@@ -295,6 +303,7 @@ impl ActionDef {
                 title,
                 body,
                 comment_body,
+                labels,
             } => Action::CreateIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
@@ -302,6 +311,10 @@ impl ActionDef {
                 title: title.clone(),
                 body: body.clone(),
                 comment_body: comment_body.clone(),
+                labels: labels
+                    .iter()
+                    .map(|l| (l.name.clone(), l.color.clone()))
+                    .collect(),
             },
             ActionDef::CloseIssue {
                 target,

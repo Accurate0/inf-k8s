@@ -95,12 +95,26 @@ rules:
         - type: workflow_conclusion
           value: failure
     actions:
+      - type: ensure_labels_exist
+        target:
+          owner: anurag
+          repo: k8s
+        labels:
+          - name: github-ci-failure
+            color: "#d73a4a"
+          - name: automated
+            color: "#e4e669"
       - type: create_issue
         target:
           owner: anurag
           repo: k8s
         dedup_key: "[GitHub CI] {workflow_name}"
         title: "[GitHub CI] {workflow_name} #{run_number} failed"
+        labels:
+          - name: github-ci-failure
+            color: "#d73a4a"
+          - name: automated
+            color: "#e4e669"
         body: |
           ## Workflow Failed
 
@@ -120,7 +134,13 @@ rules:
           | Message | {commit_message} |
           | Author | {commit_author} |
 
-          {failed_jobs_summary}
+          ### Failed Jobs
+
+          {failed_jobs_links}
+
+          ```
+          {failed_jobs_logs}
+          ```
         comment_body: |
           ## Re-run Failed
 
@@ -131,7 +151,11 @@ rules:
           | Triggered by | `{actor}` |
           | Commit | `{short_sha}` — {commit_message} |
 
-          {failed_jobs_summary}
+          {failed_jobs_links}
+
+          ```
+          {failed_jobs_logs}
+          ```
 
   - name: github-workflow-resolved
     matches:

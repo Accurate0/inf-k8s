@@ -233,13 +233,33 @@ impl ForgejoClient {
             .find(|i| i.title.as_deref() == Some(title)))
     }
 
-    pub async fn create_issue(
+    pub async fn create_issue_with_labels(
         &self,
         owner: &str,
         repo: &str,
         title: &str,
         body: &str,
+        label_names: &[String],
     ) -> Result<Issue, forgejo_api::ForgejoError> {
+        let label_ids = if label_names.is_empty() {
+            None
+        } else {
+            let (_, all_labels) = self
+                .api
+                .issue_list_labels(owner, repo, IssueListLabelsQuery { sort: None })
+                .send()
+                .await?;
+            let ids: Vec<i64> = all_labels
+                .iter()
+                .filter(|l| {
+                    l.name
+                        .as_deref()
+                        .is_some_and(|n| label_names.iter().any(|ln| ln == n))
+                })
+                .filter_map(|l| l.id)
+                .collect();
+            Some(ids)
+        };
         let issue = self
             .api
             .issue_create_issue(
@@ -252,7 +272,7 @@ impl ForgejoClient {
                     assignees: None,
                     closed: None,
                     due_date: None,
-                    labels: None,
+                    labels: label_ids,
                     milestone: None,
                     r#ref: None,
                 },

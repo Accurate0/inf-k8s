@@ -68,7 +68,8 @@ pub struct WorkflowEvent {
     pub run_attempt: u64,
     pub jobs_url: String,
     pub display_title: String,
-    pub failed_jobs_summary: String,
+    pub failed_jobs_logs: String,
+    pub failed_jobs_links: String,
 }
 
 pub enum BotEvent<'a> {
@@ -102,7 +103,8 @@ impl BotEvent<'_> {
                 vars.insert("run_number", wf.run_number.to_string());
                 vars.insert("run_attempt", wf.run_attempt.to_string());
                 vars.insert("display_title", wf.display_title.clone());
-                vars.insert("failed_jobs_summary", wf.failed_jobs_summary.clone());
+                vars.insert("failed_jobs_logs", wf.failed_jobs_logs.clone());
+                vars.insert("failed_jobs_links", wf.failed_jobs_links.clone());
                 let short_sha = if wf.head_sha.len() >= 7 {
                     &wf.head_sha[..7]
                 } else {
