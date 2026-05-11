@@ -11,6 +11,7 @@ RUN git clone --depth 1 https://github.com/datreeio/CRDs-catalog.git /opt/CRDs-c
 
 COPY entrypoint.sh /entrypoint.sh
 COPY reorganize-schemas.py /reorganize-schemas.py
-RUN chmod +x /entrypoint.sh /reorganize-schemas.py
+COPY build-index.py /build-index.py
+RUN chmod +x /entrypoint.sh /reorganize-schemas.py /build-index.py
 
 ENTRYPOINT ["/entrypoint.sh"]
