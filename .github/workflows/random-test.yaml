@@ -1,20 +1,23 @@
 name: Random Test
 
 on:
-  push:
-  pull_request:
   workflow_dispatch:
+    inputs:
+      should_pass:
+        description: 'Should the test pass?'
+        required: true
+        type: boolean
+        default: true
 
 jobs:
   random-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Roll the dice
+      - name: Run test
         run: |
-          RANDOM_NUM=$((RANDOM % 2))
-          if [ "$RANDOM_NUM" -eq 0 ]; then
-            echo "Lucky! Test passed."
+          if [ "${{ inputs.should_pass }}" = "true" ]; then
+            echo "Test passed."
           else
-            echo "Unlucky! Test failed."
+            echo "Test failed."
             exit 1
           fi
