@@ -60,6 +60,15 @@ pub struct WorkflowEvent {
     pub run_url: String,
     pub repository: String,
     pub branch: String,
+    pub head_sha: String,
+    pub commit_message: String,
+    pub commit_author: String,
+    pub actor: String,
+    pub run_number: u64,
+    pub run_attempt: u64,
+    pub jobs_url: String,
+    pub display_title: String,
+    pub failed_jobs_summary: String,
 }
 
 pub enum BotEvent<'a> {
@@ -86,6 +95,20 @@ impl BotEvent<'_> {
                 vars.insert("run_url", wf.run_url.clone());
                 vars.insert("repository", wf.repository.clone());
                 vars.insert("branch", wf.branch.clone());
+                vars.insert("head_sha", wf.head_sha.clone());
+                vars.insert("commit_message", wf.commit_message.clone());
+                vars.insert("commit_author", wf.commit_author.clone());
+                vars.insert("actor", wf.actor.clone());
+                vars.insert("run_number", wf.run_number.to_string());
+                vars.insert("run_attempt", wf.run_attempt.to_string());
+                vars.insert("display_title", wf.display_title.clone());
+                vars.insert("failed_jobs_summary", wf.failed_jobs_summary.clone());
+                let short_sha = if wf.head_sha.len() >= 7 {
+                    &wf.head_sha[..7]
+                } else {
+                    &wf.head_sha
+                };
+                vars.insert("short_sha", short_sha.to_string());
             }
         }
         vars

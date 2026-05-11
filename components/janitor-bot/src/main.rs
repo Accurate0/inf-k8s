@@ -21,6 +21,7 @@ const WATCH_REPOS: &[&str] = &["k8s"];
 
 struct AppState {
     client: ForgejoClient,
+    github_client: github::GitHubClient,
     forgejo_webhook_secret: String,
     github_webhook_secret: String,
     orchestrator: RulesOrchestrator,
@@ -69,7 +70,7 @@ async fn handle_github_webhook(
         return StatusCode::UNAUTHORIZED;
     }
 
-    let Some(wf_event) = github::parse_workflow_event(&body) else {
+    let Some(mut wf_event) = github::parse_workflow_event(&body) else {
         tracing::info!("received github webhook (not a workflow_run event, ignoring)");
         return StatusCode::OK;
     };
@@ -83,7 +84,7 @@ async fn handle_github_webhook(
     tokio::spawn(async move {
         state
             .orchestrator
-            .evaluate_workflow(&state.client, &wf_event)
+            .evaluate_workflow(&state.client, &state.github_client, &mut wf_event)
             .await;
     });
 
@@ -122,6 +123,7 @@ async fn main() -> anyhow::Result<()> {
 
     let state = Arc::new(AppState {
         client: ForgejoClient::from_env()?,
+        github_client: github::GitHubClient::from_env()?,
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
         orchestrator: RulesOrchestrator::new(),

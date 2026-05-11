@@ -1,5 +1,6 @@
 use crate::event::{self, BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
+use crate::github::GitHubClient;
 use crate::schema::RulesFile;
 use forgejo_api::structs::MergePullRequestOptionDo;
 use tokio::sync::Mutex;
@@ -38,8 +39,19 @@ impl RulesOrchestrator {
         self.run_rules(client, &bot_event).await;
     }
 
-    pub async fn evaluate_workflow(&self, client: &ForgejoClient, event: &WorkflowEvent) {
+    pub async fn evaluate_workflow(
+        &self,
+        client: &ForgejoClient,
+        github_client: &GitHubClient,
+        event: &mut WorkflowEvent,
+    ) {
         let _guard = self.workflow_lock.lock().await;
+
+        if event.conclusion == "failure" {
+            event.failed_jobs_summary = github_client
+                .fetch_failed_jobs_summary(&event.jobs_url)
+                .await;
+        }
 
         let bot_event = BotEvent::GitHubWorkflow(event);
         self.run_rules(client, &bot_event).await;
