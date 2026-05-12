@@ -1,0 +1,569 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "RulesFile",
+  "type": "object",
+  "properties": {
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RuleDef"
+      }
+    }
+  },
+  "required": [
+    "rules"
+  ],
+  "$defs": {
+    "ActionDef": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "approve"
+            }
+          },
+          "required": [
+            "type",
+            "body"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "delete_branch": {
+              "type": "boolean",
+              "default": true
+            },
+            "strategy": {
+              "$ref": "#/$defs/MergeStrategy"
+            },
+            "type": {
+              "type": "string",
+              "const": "merge"
+            }
+          },
+          "required": [
+            "type",
+            "strategy"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "comment"
+            }
+          },
+          "required": [
+            "type",
+            "body"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "add_labels_by_name"
+            }
+          },
+          "required": [
+            "type",
+            "labels"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabelColor"
+              }
+            },
+            "target": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/IssueTarget"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "type": {
+              "type": "string",
+              "const": "ensure_labels_exist"
+            }
+          },
+          "required": [
+            "type",
+            "labels"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "body": {
+              "type": "string"
+            },
+            "comment_body": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "deduplicateByTitle": {
+              "type": "boolean",
+              "default": false
+            },
+            "labels": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/LabelColor"
+              }
+            },
+            "target": {
+              "$ref": "#/$defs/IssueTarget"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "create_issue"
+            }
+          },
+          "required": [
+            "type",
+            "target",
+            "title",
+            "body"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "comment_body": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
+            "target": {
+              "$ref": "#/$defs/IssueTarget"
+            },
+            "title": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "close_issue"
+            }
+          },
+          "required": [
+            "type",
+            "target",
+            "title"
+          ]
+        }
+      ]
+    },
+    "Combinator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Matcher"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "all"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Matcher"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "any"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/Matcher"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "not"
+          ]
+        }
+      ]
+    },
+    "FilePattern": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "starts_with": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "starts_with"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contains": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "contains"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "ends_with": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "ends_with"
+          ]
+        }
+      ]
+    },
+    "IssueTarget": {
+      "type": "object",
+      "properties": {
+        "owner": {
+          "type": "string"
+        },
+        "repo": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "owner",
+        "repo"
+      ]
+    },
+    "LabelColor": {
+      "type": "object",
+      "properties": {
+        "color": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "color"
+      ]
+    },
+    "LeafMatcher": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "forgejo"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "github"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "pr_event"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "workflow_event"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "action"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "author"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "title_contains"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "has_label"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "has_changed_files"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "patterns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FilePattern"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "changed_files_all_match"
+            }
+          },
+          "required": [
+            "type",
+            "patterns"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "patterns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FilePattern"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "changed_files_none_match"
+            }
+          },
+          "required": [
+            "type",
+            "patterns"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "is_open"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "not_approved_by_self"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "workflow_conclusion"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "target_branch"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "value"
+          ]
+        }
+      ]
+    },
+    "Matcher": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Combinator"
+        },
+        {
+          "$ref": "#/$defs/LeafMatcher"
+        }
+      ]
+    },
+    "MergeStrategy": {
+      "type": "string",
+      "enum": [
+        "merge",
+        "squash",
+        "rebase"
+      ]
+    },
+    "RuleDef": {
+      "type": "object",
+      "properties": {
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionDef"
+          }
+        },
+        "enabled": {
+          "type": "boolean",
+          "default": false
+        },
+        "matches": {
+          "$ref": "#/$defs/Matcher"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "matches",
+        "actions"
+      ]
+    }
+  }
+}

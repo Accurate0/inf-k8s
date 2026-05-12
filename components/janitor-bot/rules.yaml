@@ -1,5 +1,6 @@
 rules:
   - name: label-renovate
+    enabled: true
     matches:
       all:
         - type: forgejo
@@ -24,6 +25,7 @@ rules:
         labels: [renovate]
 
   - name: auto-merge-ci-image-updater
+    enabled: true
     matches:
       all:
         - type: forgejo
@@ -52,6 +54,7 @@ rules:
         delete_branch: true
 
   - name: auto-merge-renovate
+    enabled: true
     matches:
       all:
         - type: forgejo
@@ -86,6 +89,7 @@ rules:
         delete_branch: true
 
   - name: github-workflow-failure
+    enabled: true
     matches:
       all:
         - type: github
@@ -146,6 +150,7 @@ rules:
           ```
 
   - name: github-workflow-resolved
+    enabled: true
     matches:
       all:
         - type: github

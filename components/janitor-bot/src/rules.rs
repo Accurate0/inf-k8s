@@ -58,6 +58,9 @@ impl RulesOrchestrator {
 
     async fn run_rules<'a>(&self, client: &ForgejoClient, event: &BotEvent<'a>) {
         for rule in &self.rules.rules {
+            if !rule.enabled {
+                continue;
+            }
             if rule.matches.matches(event, client).await {
                 tracing::info!(rule = rule.name, "rule matched");
                 for action_def in &rule.actions {
@@ -95,7 +98,7 @@ pub enum Action {
     CreateIssue {
         target_owner: String,
         target_repo: String,
-        dedup_key: String,
+        deduplicate_by_title: bool,
         title: String,
         body: String,
         comment_body: Option<String>,
@@ -104,7 +107,7 @@ pub enum Action {
     CloseIssue {
         target_owner: String,
         target_repo: String,
-        dedup_key: String,
+        title: String,
         comment_body: Option<String>,
     },
 }
@@ -178,21 +181,24 @@ impl Action {
             Action::CreateIssue {
                 target_owner,
                 target_repo,
-                dedup_key,
+                deduplicate_by_title,
                 title,
                 body,
                 comment_body,
                 labels,
             } => {
                 let vars = event.template_vars();
-                let rendered_key = event::render_template(dedup_key, &vars);
                 let rendered_title = event::render_template(title, &vars);
                 let rendered_body = event::render_template(body, &vars);
                 async {
-                    if let Some(existing) = client
-                        .find_open_issue_by_title(target_owner, target_repo, &rendered_key)
-                        .await?
-                    {
+                    let existing = if *deduplicate_by_title {
+                        client
+                            .find_open_issue_by_title(target_owner, target_repo, &rendered_title)
+                            .await?
+                    } else {
+                        None
+                    };
+                    if let Some(existing) = existing {
                         let index = existing.number.unwrap();
                         let text = comment_body
                             .as_deref()
@@ -221,14 +227,14 @@ impl Action {
             Action::CloseIssue {
                 target_owner,
                 target_repo,
-                dedup_key,
+                title,
                 comment_body,
             } => {
                 let vars = event.template_vars();
-                let rendered_key = event::render_template(dedup_key, &vars);
+                let rendered_title = event::render_template(title, &vars);
                 async {
                     let Some(existing) = client
-                        .find_open_issue_by_title(target_owner, target_repo, &rendered_key)
+                        .find_open_issue_by_title(target_owner, target_repo, &rendered_title)
                         .await?
                     else {
                         return Ok(());

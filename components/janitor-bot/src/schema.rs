@@ -2,30 +2,33 @@ use crate::event::BotEvent;
 use crate::forgejo::ForgejoClient;
 use crate::rules::Action;
 use forgejo_api::structs::MergePullRequestOptionDo;
+use schemars::JsonSchema;
 use serde::Deserialize;
 use std::future::Future;
 use std::pin::Pin;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct RulesFile {
     pub rules: Vec<RuleDef>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct RuleDef {
     pub name: String,
+    #[serde(default)]
+    pub enabled: bool,
     pub matches: Matcher,
     pub actions: Vec<ActionDef>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum Matcher {
     Combinator(Combinator),
     Leaf(LeafMatcher),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub enum Combinator {
     #[serde(rename = "all")]
     All(Vec<Matcher>),
@@ -35,7 +38,7 @@ pub enum Combinator {
     Not(Box<Matcher>),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(tag = "type")]
 pub enum LeafMatcher {
     // Source matchers
@@ -77,7 +80,7 @@ pub enum LeafMatcher {
     TargetBranch { value: String },
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(untagged)]
 pub enum FilePattern {
     StartsWith { starts_with: String },
@@ -199,19 +202,19 @@ impl Matcher {
     }
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct LabelColor {
     pub name: String,
     pub color: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 pub struct IssueTarget {
     pub owner: String,
     pub repo: String,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, JsonSchema)]
 #[serde(tag = "type")]
 pub enum ActionDef {
     #[serde(rename = "approve")]
@@ -235,7 +238,8 @@ pub enum ActionDef {
     #[serde(rename = "create_issue")]
     CreateIssue {
         target: IssueTarget,
-        dedup_key: String,
+        #[serde(rename = "deduplicateByTitle", default)]
+        deduplicate_by_title: bool,
         title: String,
         body: String,
         #[serde(default)]
@@ -246,7 +250,7 @@ pub enum ActionDef {
     #[serde(rename = "close_issue")]
     CloseIssue {
         target: IssueTarget,
-        dedup_key: String,
+        title: String,
         #[serde(default)]
         comment_body: Option<String>,
     },
@@ -256,7 +260,7 @@ fn default_true() -> bool {
     true
 }
 
-#[derive(Debug, Deserialize, Clone, Copy)]
+#[derive(Debug, Deserialize, JsonSchema, Clone, Copy)]
 #[serde(rename_all = "snake_case")]
 pub enum MergeStrategy {
     Merge,
@@ -299,7 +303,7 @@ impl ActionDef {
             },
             ActionDef::CreateIssue {
                 target,
-                dedup_key,
+                deduplicate_by_title,
                 title,
                 body,
                 comment_body,
@@ -307,7 +311,7 @@ impl ActionDef {
             } => Action::CreateIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
-                dedup_key: dedup_key.clone(),
+                deduplicate_by_title: *deduplicate_by_title,
                 title: title.clone(),
                 body: body.clone(),
                 comment_body: comment_body.clone(),
@@ -318,12 +322,12 @@ impl ActionDef {
             },
             ActionDef::CloseIssue {
                 target,
-                dedup_key,
+                title,
                 comment_body,
             } => Action::CloseIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
-                dedup_key: dedup_key.clone(),
+                title: title.clone(),
                 comment_body: comment_body.clone(),
             },
         }

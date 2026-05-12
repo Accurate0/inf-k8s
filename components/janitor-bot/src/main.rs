@@ -1,9 +1,3 @@
-mod event;
-mod forgejo;
-mod github;
-mod rules;
-mod schema;
-
 use axum::{
     Router,
     body::Bytes,
@@ -12,6 +6,7 @@ use axum::{
     routing::{get, post},
 };
 use forgejo::ForgejoClient;
+use janitor_bot::{event, forgejo, github, rules, schema};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
