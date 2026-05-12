@@ -81,7 +81,6 @@ async fn handle_forgejo_webhook(
     StatusCode::OK
 }
 
-
 async fn handle_github_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,

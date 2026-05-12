@@ -226,12 +226,7 @@ impl Action {
                     return;
                 };
                 client
-                    .remove_labels_by_name(
-                        &pr.owner,
-                        &pr.repo,
-                        pr.pr_number as i64,
-                        labels.clone(),
-                    )
+                    .remove_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
                     .await
             }
             Action::EnsureLabelsExist {

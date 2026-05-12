@@ -16,7 +16,9 @@ pub enum Command {
 pub const IGNORE_LABEL: &str = "janitor/ignore";
 
 pub fn parse(body: &str) -> Option<Command> {
-    let line = body.lines().find(|l| l.trim_start().starts_with("@janitor"))?;
+    let line = body
+        .lines()
+        .find(|l| l.trim_start().starts_with("@janitor"))?;
     let rest = line.trim_start().strip_prefix("@janitor")?.trim();
     match rest.split_whitespace().next()? {
         "approve" => Some(Command::Approve),
@@ -36,10 +38,18 @@ pub async fn handle(
     command: Command,
 ) {
     let pr = cmd.pr_number as i64;
-    tracing::info!(?command, pr, owner = cmd.owner, repo = cmd.repo, "running command");
+    tracing::info!(
+        ?command,
+        pr,
+        owner = cmd.owner,
+        repo = cmd.repo,
+        "running command"
+    );
     match command {
         Command::Approve => {
-            if !client.is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr).await
+            if !client
+                .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
+                .await
                 && let Err(e) = client
                     .approve_pr(&cmd.owner, &cmd.repo, pr, "Approved via @janitor approve")
                     .await
@@ -48,16 +58,29 @@ pub async fn handle(
             }
         }
         Command::Merge => {
-            if !client.is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr).await
+            if !client
+                .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
+                .await
                 && let Err(e) = client
-                    .approve_pr(&cmd.owner, &cmd.repo, pr, "Auto-approved via @janitor merge")
+                    .approve_pr(
+                        &cmd.owner,
+                        &cmd.repo,
+                        pr,
+                        "Auto-approved via @janitor merge",
+                    )
                     .await
             {
                 tracing::error!("approve-before-merge failed: {e}");
                 return;
             }
             if let Err(e) = client
-                .merge_pr(&cmd.owner, &cmd.repo, pr, MergePullRequestOptionDo::Squash, true)
+                .merge_pr(
+                    &cmd.owner,
+                    &cmd.repo,
+                    pr,
+                    MergePullRequestOptionDo::Squash,
+                    true,
+                )
                 .await
             {
                 tracing::error!("merge failed: {e}");
@@ -83,7 +106,10 @@ pub async fn handle(
             }
         }
         Command::Close => {
-            if let Err(e) = client.set_pr_state(&cmd.owner, &cmd.repo, pr, "closed").await {
+            if let Err(e) = client
+                .set_pr_state(&cmd.owner, &cmd.repo, pr, "closed")
+                .await
+            {
                 tracing::error!("close failed: {e}");
             }
         }
