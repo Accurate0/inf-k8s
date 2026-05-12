@@ -12,7 +12,7 @@ jobs:
   build:
     permissions:
       packages: write
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@main
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@903765c7413c2790ea6fa24aea7cba0e603a1f31 # main
     with:
       directory: ./components/ingress-home
       image-name: ingress-home
@@ -23,7 +23,7 @@ jobs:
   deploy:
     needs:
       - build
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@903765c7413c2790ea6fa24aea7cba0e603a1f31 # main
     with:
       service-name: ingress-home
       images: ghcr.io/accurate0/ingress-home
