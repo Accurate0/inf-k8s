@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.envoyproxy.io/clienttrafficpolicy_v1alpha1.json
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
@@ -13,28 +14,6 @@ spec:
     customHeader:
       name: CF-Connecting-IP
       failClosed: false
-  tcpKeepalive:
-    probes: 9
-    idleTime: "7200s"
-    interval: "75s"
-  headers:
-    disableRateLimitHeaders: true
-    lateResponseHeaders:
-      set:
-        - name: "x-request-id"
-          value: "%REQ(x-request-id)%"
----
-apiVersion: gateway.envoyproxy.io/v1alpha1
-kind: ClientTrafficPolicy
-metadata:
-  name: internal-gateway-client-policy
-spec:
-  targetRefs:
-    - group: gateway.networking.k8s.io
-      kind: Gateway
-      name: internal-gateway
-  proxyProtocol:
-    optional: false
   tcpKeepalive:
     probes: 9
     idleTime: "7200s"

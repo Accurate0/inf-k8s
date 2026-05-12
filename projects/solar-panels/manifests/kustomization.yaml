@@ -1,11 +1,13 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - deployment.yaml
+  - solar/solar.deployment.yaml
+  - solar/solar.service.yaml
+  - solar-web/solar-web.deployment.yaml
+  - solar-web/solar-web.service.yaml
   - namespace.yaml
   - secret.yaml
   - database.yaml
-  - service.yaml
 commonAnnotations:
   inf-k8s.net/repository: "https://github.com/Accurate0/solar-panels"
   inf-k8s.net/app: "solar-panels"

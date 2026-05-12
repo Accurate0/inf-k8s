@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/service_v1.json
+apiVersion: v1
+kind: Service
+metadata:
+  name: solar-panel-api
+  namespace: solar-panels
+spec:
+  selector:
+    app: solar
+  ports:
+    - name: app
+      protocol: TCP
+      port: 8000
+      targetPort: 8000
