@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=./rules.schema.json
 rules:
   - name: label-renovate
     enabled: true
@@ -112,7 +113,6 @@ rules:
         target:
           owner: anurag
           repo: k8s
-        dedup_key: "[GitHub CI] {workflow_name} failed"
         title: "[GitHub CI] {workflow_name} failed"
         labels:
           - name: github-ci-failure
@@ -164,7 +164,7 @@ rules:
         target:
           owner: anurag
           repo: k8s
-        dedup_key: "[GitHub CI] {workflow_name} failed"
+        title: "[GitHub CI] {workflow_name} failed"
         comment_body: |
           ## Resolved
 
