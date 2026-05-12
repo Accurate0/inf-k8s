@@ -9,8 +9,8 @@ resources:
   - secret.yaml
   - database.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/inf-k8s"
-  inf-k8s.net/app: "pg-db-controller"
+  inf-k8s.net/app: pg-db-controller
+  inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/pg-db-controller
-    newTag: 25124acf382c3296aac5841fac0de54b06a9598f
+    newTag: 653cd1ab11a17f024c3e80602f91f6e1240c9b4c
