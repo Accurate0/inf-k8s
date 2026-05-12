@@ -13,6 +13,12 @@ pub struct RulesOrchestrator {
     workflow_lock: Mutex<()>,
 }
 
+impl Default for RulesOrchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl RulesOrchestrator {
     pub fn new() -> Self {
         let rules = yaml_serde::from_str(RULES_YAML).expect("failed to parse rules.yaml");

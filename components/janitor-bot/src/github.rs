@@ -85,15 +85,15 @@ impl GitHubClient {
                 continue;
             }
 
-            if let Some(job_id) = job.id {
-                if let Some(raw_logs) = self.fetch_job_logs(jobs_url, job_id).await {
-                    let filtered = extract_error_lines(&raw_logs);
-                    if !filtered.is_empty() {
-                        if !logs.is_empty() {
-                            logs.push('\n');
-                        }
-                        logs.push_str(&filtered);
+            if let Some(job_id) = job.id
+                && let Some(raw_logs) = self.fetch_job_logs(jobs_url, job_id).await
+            {
+                let filtered = extract_error_lines(&raw_logs);
+                if !filtered.is_empty() {
+                    if !logs.is_empty() {
+                        logs.push('\n');
                     }
+                    logs.push_str(&filtered);
                 }
             }
         }
@@ -204,17 +204,18 @@ fn extract_error_lines(raw_logs: &str) -> String {
         let end = (idx + CONTEXT + 1).min(lines.len());
 
         // Add separator if there's a gap from the last printed range
-        if let Some(last) = last_printed {
-            if start > last + 1 && !result.is_empty() {
-                result.push_str("...\n");
-            }
+        if let Some(last) = last_printed
+            && start > last + 1
+            && !result.is_empty()
+        {
+            result.push_str("...\n");
         }
 
         for i in start..end {
-            if let Some(last) = last_printed {
-                if i <= last {
-                    continue;
-                }
+            if let Some(last) = last_printed
+                && i <= last
+            {
+                continue;
             }
             let content = strip_ts(lines[i]);
             // Skip group markers

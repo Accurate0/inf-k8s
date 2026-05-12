@@ -122,10 +122,8 @@ impl ForgejoClient {
         pr: i64,
         label_ids: Vec<i64>,
     ) -> Result<(), forgejo_api::ForgejoError> {
-        let labels: Vec<serde_json::Value> = label_ids
-            .into_iter()
-            .map(|id| serde_json::Value::from(id))
-            .collect();
+        let labels: Vec<serde_json::Value> =
+            label_ids.into_iter().map(serde_json::Value::from).collect();
         self.api
             .issue_add_label(
                 owner,
