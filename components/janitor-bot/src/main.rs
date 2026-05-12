@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
 };
 use forgejo::ForgejoClient;
-use janitor_bot::{event, forgejo, github, rules};
+use janitor_bot::{command, event, forgejo, github, rules};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
@@ -35,7 +35,37 @@ async fn handle_forgejo_webhook(
         return StatusCode::UNAUTHORIZED;
     }
 
-    tracing::info!(action = event.action, "received forgejo webhook event");
+    let forgejo_event = headers
+        .get("X-Forgejo-Event")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+    let forgejo_event_type = headers
+        .get("X-Forgejo-Event-Type")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    tracing::info!(
+        action = event.action,
+        forgejo_event,
+        forgejo_event_type,
+        "received forgejo webhook event"
+    );
+
+    if forgejo_event == "issue_comment" && forgejo_event_type == "pull_request_comment" {
+        if let Some(cmd) = event.into_comment_event()
+            && cmd.author == FORGEJO_OWNER
+            && let Some(parsed) = command::parse(&cmd.body)
+        {
+            tokio::spawn(async move {
+                command::handle(&state.client, &state.orchestrator, &cmd, parsed).await;
+            });
+        }
+        return StatusCode::OK;
+    }
+
+    if forgejo_event != "pull_request" {
+        return StatusCode::OK;
+    }
 
     let Some(mut pr_event) = event.into_pr_event() else {
         return StatusCode::OK;
@@ -50,6 +80,7 @@ async fn handle_forgejo_webhook(
 
     StatusCode::OK
 }
+
 
 async fn handle_github_webhook(
     State(state): State<Arc<AppState>>,
@@ -116,12 +147,14 @@ async fn evaluate_open_prs(state: &AppState) {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
+    let rules = rules::validate::load_and_validate_rules()?;
+
     let state = Arc::new(AppState {
         client: ForgejoClient::from_env()?,
         github_client: github::GitHubClient::from_env()?,
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
-        orchestrator: RulesOrchestrator::new(),
+        orchestrator: RulesOrchestrator::from_rules(rules),
     });
 
     let scheduler = JobScheduler::new().await?;

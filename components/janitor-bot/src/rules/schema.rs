@@ -1,6 +1,6 @@
+use super::Action;
 use crate::event::BotEvent;
 use crate::forgejo::ForgejoClient;
-use crate::rules::Action;
 use forgejo_api::structs::MergePullRequestOptionDo;
 use schemars::JsonSchema;
 use serde::Deserialize;
@@ -16,9 +16,37 @@ pub struct RulesFile {
 pub struct RuleDef {
     pub name: String,
     #[serde(default)]
-    pub enabled: bool,
+    pub enabled: RuleEnabled,
     pub matches: Matcher,
     pub actions: Vec<ActionDef>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(untagged)]
+pub enum RuleEnabled {
+    Bool(bool),
+    Mode(EnabledMode),
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum EnabledMode {
+    DryRun,
+}
+
+impl Default for RuleEnabled {
+    fn default() -> Self {
+        Self::Bool(false)
+    }
+}
+
+impl RuleEnabled {
+    pub fn is_active(&self) -> bool {
+        matches!(self, Self::Bool(true) | Self::Mode(_))
+    }
+    pub fn is_dry_run(&self) -> bool {
+        matches!(self, Self::Mode(EnabledMode::DryRun))
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -70,6 +98,8 @@ pub enum LeafMatcher {
     ChangedFilesNoneMatch { patterns: Vec<FilePattern> },
     #[serde(rename = "is_open")]
     IsOpen,
+    #[serde(rename = "has_conflicts")]
+    HasConflicts,
     #[serde(rename = "not_approved_by_self")]
     NotApprovedBySelf,
 
@@ -147,6 +177,15 @@ impl Matcher {
                     },
                     LeafMatcher::HasLabel { value } => match ev {
                         BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
+                        _ => false,
+                    },
+                    LeafMatcher::HasConflicts => match ev {
+                        BotEvent::ForgejoPr(pr) => {
+                            client
+                                .is_pr_mergeable(&pr.owner, &pr.repo, pr.pr_number as i64)
+                                .await
+                                == Some(false)
+                        }
                         _ => false,
                     },
                     LeafMatcher::IsOpen => match ev {
@@ -229,6 +268,8 @@ pub enum ActionDef {
     Comment { body: String },
     #[serde(rename = "add_labels_by_name")]
     AddLabelsByName { labels: Vec<String> },
+    #[serde(rename = "remove_labels_by_name")]
+    RemoveLabelsByName { labels: Vec<String> },
     #[serde(rename = "ensure_labels_exist")]
     EnsureLabelsExist {
         labels: Vec<LabelColor>,
@@ -291,6 +332,9 @@ impl ActionDef {
             },
             ActionDef::Comment { body } => Action::Comment { body: body.clone() },
             ActionDef::AddLabelsByName { labels } => Action::AddLabelsByName {
+                labels: labels.clone(),
+            },
+            ActionDef::RemoveLabelsByName { labels } => Action::RemoveLabelsByName {
                 labels: labels.clone(),
             },
             ActionDef::EnsureLabelsExist { labels, target } => Action::EnsureLabelsExist {

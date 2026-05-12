@@ -36,8 +36,48 @@ pub struct Repository {
 pub struct WebhookEvent {
     pub action: String,
     pub pull_request: Option<PullRequest>,
+    pub issue: Option<IssueRef>,
+    pub comment: Option<Comment>,
     pub sender: Option<User>,
     pub repository: Option<Repository>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct Comment {
+    pub body: String,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct IssueRef {
+    pub number: u64,
+    #[serde(default)]
+    pub pull_request: Option<serde_json::Value>,
+}
+
+#[derive(Debug)]
+pub struct CommentEvent {
+    pub owner: String,
+    pub repo: String,
+    pub pr_number: u64,
+    pub author: String,
+    pub body: String,
+}
+
+impl WebhookEvent {
+    pub fn into_comment_event(self) -> Option<CommentEvent> {
+        let comment = self.comment?;
+        let issue = self.issue?;
+        let sender = self.sender?;
+        let repository = self.repository?;
+        let (owner, repo) = repository.full_name.split_once('/')?;
+        Some(CommentEvent {
+            owner: owner.to_owned(),
+            repo: repo.to_owned(),
+            pr_number: issue.number,
+            author: sender.login,
+            body: comment.body,
+        })
+    }
 }
 
 #[allow(dead_code)]

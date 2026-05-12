@@ -36,6 +36,14 @@
         "code.forgejo.org/forgejo-helm/forgejo/forgejo"
       ],
       "enabled": false
+    },
+    {
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["update-major"]
+    },
+    {
+      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "rollback", "bump"],
+      "addLabels": ["update-non-major"]
     }
   ]
 }

@@ -21,6 +21,7 @@ hex = "0.4"
 reqwest = { version = "0.13", features = ["json"] }
 yaml_serde = "0.10.4"
 schemars = "1"
+jsonschema = { version = "0.30", default-features = false }
 
 [[bin]]
 name = "janitor-bot"

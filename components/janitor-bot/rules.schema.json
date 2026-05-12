@@ -93,6 +93,25 @@
             "labels": {
               "type": "array",
               "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "remove_labels_by_name"
+            }
+          },
+          "required": [
+            "type",
+            "labels"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "array",
+              "items": {
                 "$ref": "#/$defs/LabelColor"
               }
             },
@@ -230,6 +249,12 @@
             "not"
           ]
         }
+      ]
+    },
+    "EnabledMode": {
+      "type": "string",
+      "enum": [
+        "dry_run"
       ]
     },
     "FilePattern": {
@@ -480,6 +505,18 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "has_conflicts"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "not_approved_by_self"
             }
           },
@@ -549,8 +586,7 @@
           }
         },
         "enabled": {
-          "type": "boolean",
-          "default": false
+          "$ref": "#/$defs/RuleEnabled"
         },
         "matches": {
           "$ref": "#/$defs/Matcher"
@@ -563,6 +599,16 @@
         "name",
         "matches",
         "actions"
+      ]
+    },
+    "RuleEnabled": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "$ref": "#/$defs/EnabledMode"
+        }
       ]
     }
   }

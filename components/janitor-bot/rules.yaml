@@ -54,6 +54,25 @@ rules:
         strategy: squash
         delete_branch: true
 
+  - name: label-conflicts
+    enabled: true
+    matches:
+      all:
+        - type: forgejo
+        - type: pr_event
+        - type: is_open
+        - type: has_conflicts
+        - not:
+            type: has_label
+            value: conflicts
+    actions:
+      - type: ensure_labels_exist
+        labels:
+          - name: conflicts
+            color: "#d73a4a"
+      - type: add_labels_by_name
+        labels: [conflicts]
+
   - name: auto-merge-renovate
     enabled: true
     matches:
@@ -74,6 +93,9 @@ rules:
         - type: changed_files_none_match
           patterns:
             - contains: "applications/postgres-cluster/container/Dockerfile"
+        - not:
+            type: has_label
+            value: update-major
         - type: is_open
         - type: not_approved_by_self
     actions:
@@ -113,7 +135,7 @@ rules:
         target:
           owner: anurag
           repo: k8s
-        title: "[GitHub CI] {workflow_name} failed"
+        title: "[GitHub CI] {repository} {workflow_name} failed"
         labels:
           - name: github-ci-failure
             color: "#d73a4a"
@@ -164,7 +186,7 @@ rules:
         target:
           owner: anurag
           repo: k8s
-        title: "[GitHub CI] {workflow_name} failed"
+        title: "[GitHub CI] {repository} {workflow_name} failed"
         comment_body: |
           ## Resolved
 

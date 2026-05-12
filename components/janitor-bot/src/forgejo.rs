@@ -185,6 +185,66 @@ impl ForgejoClient {
         Ok(prs)
     }
 
+    pub async fn is_pr_mergeable(&self, owner: &str, repo: &str, pr: i64) -> Option<bool> {
+        match self.api.repo_get_pull_request(owner, repo, pr).send().await {
+            Ok(pr) => pr.mergeable,
+            Err(e) => {
+                tracing::warn!(pr, "failed to fetch PR for mergeable check: {e}");
+                None
+            }
+        }
+    }
+
+    pub async fn remove_labels_by_name(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+        labels: Vec<String>,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        let (_, all_labels) = self
+            .api
+            .issue_list_labels(owner, repo, IssueListLabelsQuery { sort: None })
+            .send()
+            .await?;
+        for name in &labels {
+            let Some(id) = all_labels
+                .iter()
+                .find(|l| l.name.as_deref() == Some(name.as_str()))
+                .and_then(|l| l.id)
+            else {
+                continue;
+            };
+            let id_str = id.to_string();
+            if let Err(e) = self
+                .api
+                .issue_remove_label(
+                    owner,
+                    repo,
+                    pr,
+                    &id_str,
+                    DeleteLabelsOption { updated_at: None },
+                )
+                .send()
+                .await
+            {
+                tracing::warn!(pr, label = name, "failed to remove label: {e}");
+            } else {
+                tracing::info!(pr, owner, repo, label = name, "label removed");
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn get_pr(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+    ) -> Result<PullRequest, forgejo_api::ForgejoError> {
+        self.api.repo_get_pull_request(owner, repo, pr).send().await
+    }
+
     pub async fn is_pr_open(&self, owner: &str, repo: &str, pr: i64) -> bool {
         match self.api.repo_get_pull_request(owner, repo, pr).send().await {
             Ok(pr) => matches!(pr.state, Some(StateType::Open)) && !pr.merged.unwrap_or(false),
@@ -301,6 +361,37 @@ impl ForgejoClient {
             .send()
             .await?;
         tracing::info!(owner, repo, issue = index, "commented on issue");
+        Ok(())
+    }
+
+    pub async fn set_pr_state(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+        state: &str,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        self.api
+            .issue_edit_issue(
+                owner,
+                repo,
+                pr,
+                EditIssueOption {
+                    state: Some(state.to_owned()),
+                    assignee: None,
+                    assignees: None,
+                    body: None,
+                    due_date: None,
+                    milestone: None,
+                    r#ref: None,
+                    title: None,
+                    unset_due_date: None,
+                    updated_at: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(pr, owner, repo, state, "PR state changed");
         Ok(())
     }
 

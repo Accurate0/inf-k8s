@@ -1,4 +1,4 @@
-use janitor_bot::schema::RulesFile;
+use janitor_bot::rules::schema::RulesFile;
 use std::path::PathBuf;
 
 fn main() {

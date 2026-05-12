@@ -10,6 +10,17 @@ locals {
     "solar-panels",
     "home-gateway",
   ])
+
+  janitor_bot_webhook_repos = toset([
+    "tldr-bot",
+    "ozb",
+    "maccas-api",
+    "anurag.sh",
+    "bom",
+    "inf-k8s",
+    "solar-panels",
+    "home-gateway",
+  ])
 }
 
 module "forgejo-ci-image-updater-appkey" {
@@ -20,6 +31,25 @@ module "forgejo-ci-image-updater-appkey" {
 module "forgejo-renovate-token" {
   source      = "./modules/keyvault-value-output"
   secret_name = "forgejo-renovate-token"
+}
+
+module "janitor-bot-github-webhook-secret" {
+  source      = "./modules/keyvault-value-output"
+  secret_name = "janitor-bot-github-webhook-secret"
+}
+
+resource "github_repository_webhook" "janitor-bot" {
+  for_each   = local.janitor_bot_webhook_repos
+  repository = each.value
+  events     = ["workflow_run"]
+  active     = true
+
+  configuration {
+    url          = "https://janitor-bot.inf-k8s.net/github/webhook"
+    content_type = "json"
+    insecure_ssl = false
+    secret       = module.janitor-bot-github-webhook-secret.secret_value
+  }
 }
 
 resource "github_actions_secret" "ci-image-updater" {

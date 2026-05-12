@@ -1,11 +1,12 @@
+pub mod schema;
+pub mod validate;
+
 use crate::event::{self, BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
 use crate::github::GitHubClient;
-use crate::schema::RulesFile;
 use forgejo_api::structs::MergePullRequestOptionDo;
+use schema::RulesFile;
 use tokio::sync::Mutex;
-
-const RULES_YAML: &str = include_str!("../rules.yaml");
 
 pub struct RulesOrchestrator {
     rules: RulesFile,
@@ -13,15 +14,8 @@ pub struct RulesOrchestrator {
     workflow_lock: Mutex<()>,
 }
 
-impl Default for RulesOrchestrator {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl RulesOrchestrator {
-    pub fn new() -> Self {
-        let rules = yaml_serde::from_str(RULES_YAML).expect("failed to parse rules.yaml");
+    pub fn from_rules(rules: RulesFile) -> Self {
         Self {
             rules,
             pr_lock: Mutex::new(()),
@@ -31,6 +25,19 @@ impl RulesOrchestrator {
 
     pub async fn evaluate_pr(&self, client: &ForgejoClient, event: &mut PrEvent) {
         let _guard = self.pr_lock.lock().await;
+
+        if event
+            .labels
+            .iter()
+            .any(|l| l.name == crate::command::IGNORE_LABEL)
+        {
+            tracing::info!(
+                pr = event.pr_number,
+                "skipping rules: {} label present",
+                crate::command::IGNORE_LABEL
+            );
+            return;
+        }
 
         let pr_id = event.pr_number as i64;
         match client
@@ -64,16 +71,43 @@ impl RulesOrchestrator {
 
     async fn run_rules<'a>(&self, client: &ForgejoClient, event: &BotEvent<'a>) {
         for rule in &self.rules.rules {
-            if !rule.enabled {
+            if !rule.enabled.is_active() {
                 continue;
             }
-            if rule.matches.matches(event, client).await {
-                tracing::info!(rule = rule.name, "rule matched");
-                for action_def in &rule.actions {
-                    let action = action_def.to_action();
-                    action.execute(client, event).await;
-                }
+            let match_start = std::time::Instant::now();
+            let matched = rule.matches.matches(event, client).await;
+            let match_ms = match_start.elapsed().as_millis();
+            if !matched {
+                tracing::debug!(rule = rule.name, match_ms, "rule did not match");
+                continue;
             }
+            let dry_run = rule.enabled.is_dry_run();
+            tracing::info!(rule = rule.name, dry_run, match_ms, "rule matched");
+            let rule_start = std::time::Instant::now();
+            for action_def in &rule.actions {
+                let action = action_def.to_action();
+                if dry_run {
+                    tracing::info!(
+                        rule = rule.name,
+                        action = action.kind(),
+                        "[dry-run] would execute action"
+                    );
+                    continue;
+                }
+                let action_start = std::time::Instant::now();
+                action.execute(client, event).await;
+                tracing::info!(
+                    rule = rule.name,
+                    action = action.kind(),
+                    elapsed_ms = action_start.elapsed().as_millis(),
+                    "action executed"
+                );
+            }
+            tracing::info!(
+                rule = rule.name,
+                elapsed_ms = rule_start.elapsed().as_millis(),
+                "rule actions complete"
+            );
         }
     }
 }
@@ -94,6 +128,9 @@ pub enum Action {
         label_ids: Vec<i64>,
     },
     AddLabelsByName {
+        labels: Vec<String>,
+    },
+    RemoveLabelsByName {
         labels: Vec<String>,
     },
     EnsureLabelsExist {
@@ -119,6 +156,20 @@ pub enum Action {
 }
 
 impl Action {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            Action::Approve { .. } => "approve",
+            Action::Merge { .. } => "merge",
+            Action::Comment { .. } => "comment",
+            Action::AddLabels { .. } => "add_labels",
+            Action::AddLabelsByName { .. } => "add_labels_by_name",
+            Action::RemoveLabelsByName { .. } => "remove_labels_by_name",
+            Action::EnsureLabelsExist { .. } => "ensure_labels_exist",
+            Action::CreateIssue { .. } => "create_issue",
+            Action::CloseIssue { .. } => "close_issue",
+        }
+    }
+
     pub async fn execute(&self, client: &ForgejoClient, event: &BotEvent<'_>) {
         let result = match self {
             Action::Approve { body } => {
@@ -168,6 +219,19 @@ impl Action {
                 };
                 client
                     .add_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
+                    .await
+            }
+            Action::RemoveLabelsByName { labels } => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                client
+                    .remove_labels_by_name(
+                        &pr.owner,
+                        &pr.repo,
+                        pr.pr_number as i64,
+                        labels.clone(),
+                    )
                     .await
             }
             Action::EnsureLabelsExist {
