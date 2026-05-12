@@ -38,6 +38,11 @@
       "enabled": false
     },
     {
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "description": "Pin GitHub Actions to immutable SHA for security."
+    },
+    {
       "matchUpdateTypes": ["major"],
       "addLabels": ["update-major"]
     },
