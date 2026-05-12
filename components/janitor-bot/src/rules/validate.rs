@@ -16,7 +16,7 @@ pub fn load_and_validate_rules() -> anyhow::Result<RulesFile> {
 
     let errors: Vec<String> = validator
         .iter_errors(&yaml_value)
-        .map(|e| format!("  at {}: {}", e.instance_path, e))
+        .map(|e| format!("  at {}: {}", e.instance_path(), e))
         .collect();
 
     if !errors.is_empty() {

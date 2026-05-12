@@ -42,7 +42,14 @@
       "addLabels": ["update-major"]
     },
     {
-      "matchUpdateTypes": ["minor", "patch", "digest", "pin", "rollback", "bump"],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin",
+        "rollback",
+        "bump"
+      ],
       "addLabels": ["update-non-major"]
     }
   ]
