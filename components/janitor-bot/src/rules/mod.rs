@@ -23,6 +23,35 @@ impl RulesOrchestrator {
         }
     }
 
+    pub async fn explain_pr(
+        &self,
+        client: &ForgejoClient,
+        event: &mut PrEvent,
+    ) -> Vec<(String, bool, Vec<&'static str>)> {
+        let _guard = self.pr_lock.lock().await;
+
+        let pr_id = event.pr_number as i64;
+        if let Ok(files) = client
+            .get_pr_changed_files(&event.owner, &event.repo, pr_id)
+            .await
+        {
+            event.changed_files = files;
+        }
+
+        let bot_event = BotEvent::ForgejoPr(event);
+        let mut out = Vec::new();
+        for rule in &self.rules.rules {
+            if !rule.enabled.is_active() {
+                continue;
+            }
+            if rule.matches.matches(&bot_event, client).await {
+                let actions = rule.actions.iter().map(|a| a.to_action().kind()).collect();
+                out.push((rule.name.clone(), rule.enabled.is_dry_run(), actions));
+            }
+        }
+        out
+    }
+
     pub async fn evaluate_pr(&self, client: &ForgejoClient, event: &mut PrEvent) {
         let _guard = self.pr_lock.lock().await;
 

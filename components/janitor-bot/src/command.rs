@@ -11,9 +11,22 @@ pub enum Command {
     Close,
     Reopen,
     Ignore,
+    Explain,
 }
 
 pub const IGNORE_LABEL: &str = "janitor/ignore";
+
+fn format_explain(matched: &[(String, bool, Vec<&'static str>)]) -> String {
+    if matched.is_empty() {
+        return "## janitor explain\n\nNo rules matched this PR.".to_owned();
+    }
+    let mut s = String::from("## janitor explain\n\n");
+    for (name, dry_run, actions) in matched {
+        let suffix = if *dry_run { " _(dry-run)_" } else { "" };
+        s.push_str(&format!("- **{name}**{suffix}: {}\n", actions.join(", ")));
+    }
+    s
+}
 
 pub fn parse(body: &str) -> Option<Command> {
     let line = body
@@ -27,6 +40,7 @@ pub fn parse(body: &str) -> Option<Command> {
         "close" => Some(Command::Close),
         "reopen" => Some(Command::Reopen),
         "ignore" => Some(Command::Ignore),
+        "explain" => Some(Command::Explain),
         _ => None,
     }
 }
@@ -116,6 +130,26 @@ pub async fn handle(
         Command::Reopen => {
             if let Err(e) = client.set_pr_state(&cmd.owner, &cmd.repo, pr, "open").await {
                 tracing::error!("reopen failed: {e}");
+            }
+        }
+        Command::Explain => {
+            let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!("explain: failed to fetch PR: {e}");
+                    return;
+                }
+            };
+            let Some(mut pr_event) =
+                event::PrEvent::from_api_pr(&api_pr, cmd.owner.clone(), cmd.repo.clone())
+            else {
+                tracing::warn!("explain: could not build PrEvent");
+                return;
+            };
+            let matched = orchestrator.explain_pr(client, &mut pr_event).await;
+            let body = format_explain(&matched);
+            if let Err(e) = client.comment(&cmd.owner, &cmd.repo, pr, &body).await {
+                tracing::error!("explain: comment failed: {e}");
             }
         }
         Command::Recheck => {

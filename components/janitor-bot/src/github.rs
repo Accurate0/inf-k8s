@@ -211,13 +211,13 @@ fn extract_error_lines(raw_logs: &str) -> String {
             result.push_str("...\n");
         }
 
-        for i in start..end {
+        for (i, line) in lines.iter().enumerate().take(end).skip(start) {
             if let Some(last) = last_printed
                 && i <= last
             {
                 continue;
             }
-            let content = strip_ts(lines[i]);
+            let content = strip_ts(line);
             // Skip group markers
             if content.starts_with("##[group]") || content.starts_with("##[endgroup]") {
                 continue;
