@@ -87,7 +87,7 @@ spec:
                 - secretName: forgejo-managed-secrets
     - chart: forgejo
       repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
-      targetRevision: 17.0.1
+      targetRevision: 17.1.0
       helm:
         valuesObject:
           extraVolumes:
