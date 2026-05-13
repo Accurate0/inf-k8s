@@ -159,6 +159,8 @@ rules:
           ```
           {failed_jobs_logs}
           ```
+
+          <!-- {metadata_json} -->
         comment_body: |
           ## Re-run Failed
 
@@ -171,6 +173,8 @@ rules:
           ```
           {failed_jobs_logs}
           ```
+
+          <!-- {metadata_json} -->
 
   - name: github-workflow-resolved
     enabled: true

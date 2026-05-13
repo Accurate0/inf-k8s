@@ -2,10 +2,10 @@ pub mod actions;
 pub mod schema;
 pub mod validate;
 
-pub use actions::Action;
 use crate::event::{BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
 use crate::github::GitHubClient;
+pub use actions::Action;
 use moka::sync::Cache;
 use schema::RulesFile;
 use std::sync::Arc;

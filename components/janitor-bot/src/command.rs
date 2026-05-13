@@ -1,11 +1,12 @@
-use crate::event::{self, CommentEvent};
+use crate::event::{self, CommentEvent, IssueCommentEvent};
 use crate::forgejo::ForgejoClient;
 use crate::git;
+use crate::github::GitHubClient;
 use crate::rules::RulesOrchestrator;
 use forgejo_api::structs::MergePullRequestOptionDo;
 
 #[derive(Debug, Clone, Copy)]
-pub enum Command {
+pub enum PrCommand {
     Approve,
     Merge { strategy: MergePullRequestOptionDo },
     Revert,
@@ -14,6 +15,11 @@ pub enum Command {
     Reopen,
     Ignore,
     Explain,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum IssueCommand {
+    RetryWorkflow,
 }
 
 pub const IGNORE_LABEL: &str = "janitor/ignore";
@@ -30,14 +36,14 @@ fn format_explain(matched: &[(String, bool, Vec<&'static str>)]) -> String {
     s
 }
 
-pub fn parse(body: &str) -> Option<Command> {
+pub fn parse_pr_command(body: &str) -> Option<PrCommand> {
     let line = body
         .lines()
         .find(|l| l.trim_start().starts_with("@janitor"))?;
     let rest = line.trim_start().strip_prefix("@janitor")?.trim();
     let mut words = rest.split_whitespace();
     match words.next()? {
-        "approve" => Some(Command::Approve),
+        "approve" => Some(PrCommand::Approve),
         "merge" => {
             let strategy = match words.next() {
                 Some("rebase") => MergePullRequestOptionDo::Rebase,
@@ -45,23 +51,35 @@ pub fn parse(body: &str) -> Option<Command> {
                 Some("squash") | None => MergePullRequestOptionDo::Squash,
                 _ => return None,
             };
-            Some(Command::Merge { strategy })
+            Some(PrCommand::Merge { strategy })
         }
-        "revert" => Some(Command::Revert),
-        "recheck" => Some(Command::Recheck),
-        "close" => Some(Command::Close),
-        "reopen" => Some(Command::Reopen),
-        "ignore" => Some(Command::Ignore),
-        "explain" => Some(Command::Explain),
+        "revert" => Some(PrCommand::Revert),
+        "recheck" => Some(PrCommand::Recheck),
+        "close" => Some(PrCommand::Close),
+        "reopen" => Some(PrCommand::Reopen),
+        "ignore" => Some(PrCommand::Ignore),
+        "explain" => Some(PrCommand::Explain),
         _ => None,
     }
 }
 
-pub async fn handle(
+pub fn parse_issue_command(body: &str) -> Option<IssueCommand> {
+    let line = body
+        .lines()
+        .find(|l| l.trim_start().starts_with("@janitor"))?;
+    let rest = line.trim_start().strip_prefix("@janitor")?.trim();
+    let mut words = rest.split_whitespace();
+    match words.next()? {
+        "retry-workflow" => Some(IssueCommand::RetryWorkflow),
+        _ => None,
+    }
+}
+
+pub async fn handle_pr_command(
     client: &ForgejoClient,
     orchestrator: &RulesOrchestrator,
     cmd: &CommentEvent,
-    command: Command,
+    command: PrCommand,
 ) {
     let pr = cmd.pr_number as i64;
     tracing::info!(
@@ -69,10 +87,10 @@ pub async fn handle(
         pr,
         owner = cmd.owner,
         repo = cmd.repo,
-        "running command"
+        "running PR command"
     );
     match command {
-        Command::Approve => {
+        PrCommand::Approve => {
             if !client
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
@@ -81,7 +99,7 @@ pub async fn handle(
                 tracing::error!("approve failed: {e}");
             }
         }
-        Command::Merge { strategy } => {
+        PrCommand::Merge { strategy } => {
             if !client
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
@@ -97,7 +115,7 @@ pub async fn handle(
                 tracing::error!("merge failed: {e}");
             }
         }
-        Command::Revert => match revert_pr(client, &cmd.owner, &cmd.repo, pr).await {
+        PrCommand::Revert => match revert_pr(client, &cmd.owner, &cmd.repo, pr).await {
             Ok(revert_pr_number) => {
                 tracing::info!(pr, revert_pr = revert_pr_number, "revert PR created");
             }
@@ -105,7 +123,7 @@ pub async fn handle(
                 tracing::error!("revert failed: {e}");
             }
         },
-        Command::Ignore => {
+        PrCommand::Ignore => {
             if let Err(e) = client
                 .ensure_labels(
                     &cmd.owner,
@@ -124,7 +142,7 @@ pub async fn handle(
                 tracing::error!("add ignore label failed: {e}");
             }
         }
-        Command::Close => {
+        PrCommand::Close => {
             if let Err(e) = client
                 .set_pr_state(&cmd.owner, &cmd.repo, pr, "closed")
                 .await
@@ -132,12 +150,12 @@ pub async fn handle(
                 tracing::error!("close failed: {e}");
             }
         }
-        Command::Reopen => {
+        PrCommand::Reopen => {
             if let Err(e) = client.set_pr_state(&cmd.owner, &cmd.repo, pr, "open").await {
                 tracing::error!("reopen failed: {e}");
             }
         }
-        Command::Explain => {
+        PrCommand::Explain => {
             let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
                 Ok(p) => p,
                 Err(e) => {
@@ -157,7 +175,7 @@ pub async fn handle(
                 tracing::error!("explain: comment failed: {e}");
             }
         }
-        Command::Recheck => {
+        PrCommand::Recheck => {
             let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
                 Ok(p) => p,
                 Err(e) => {
@@ -172,6 +190,88 @@ pub async fn handle(
                 return;
             };
             orchestrator.evaluate_pr(client, &mut pr_event).await;
+        }
+    }
+}
+
+fn extract_metadata_json(text: &str) -> Option<serde_json::Value> {
+    let start = text.rfind("<!-- ")? + 5;
+    let end = text[start..].find(" -->")? + start;
+    serde_json::from_str(text[start..end].trim()).ok()
+}
+
+pub async fn handle_issue_command(
+    client: &ForgejoClient,
+    github_client: &GitHubClient,
+    event: &IssueCommentEvent,
+    command: IssueCommand,
+) {
+    tracing::info!(
+        ?command,
+        issue = event.issue_number,
+        owner = event.owner,
+        repo = event.repo,
+        "running issue command"
+    );
+    match command {
+        IssueCommand::RetryWorkflow => {
+            if !event.issue_labels.iter().any(|l| l == "github-ci-failure") {
+                tracing::warn!(
+                    issue = event.issue_number,
+                    "retry-workflow: issue missing github-ci-failure label"
+                );
+                return;
+            }
+            let Some(metadata) = extract_metadata_json(&event.issue_body) else {
+                tracing::warn!(
+                    issue = event.issue_number,
+                    "retry-workflow: no metadata JSON found in issue body"
+                );
+                return;
+            };
+            let Some(run_id) = metadata["run_id"].as_u64() else {
+                tracing::warn!(
+                    issue = event.issue_number,
+                    "retry-workflow: no run_id in metadata"
+                );
+                return;
+            };
+            let repo = metadata["html_url"].as_str().and_then(|url| {
+                // https://github.com/{owner}/{repo}/actions/runs/{id}
+                let path = url.strip_prefix("https://github.com/")?;
+                let parts: Vec<&str> = path.splitn(3, '/').collect();
+                if parts.len() >= 2 {
+                    Some(format!("{}/{}", parts[0], parts[1]))
+                } else {
+                    None
+                }
+            });
+            let Some(full_repo) = repo else {
+                tracing::warn!(
+                    issue = event.issue_number,
+                    "retry-workflow: could not extract repo from html_url"
+                );
+                return;
+            };
+            let (owner, repo) = full_repo.split_once('/').unwrap();
+            if let Err(e) = github_client.rerun_workflow(owner, repo, run_id).await {
+                tracing::error!(
+                    issue = event.issue_number,
+                    run_id,
+                    "retry-workflow failed: {e}"
+                );
+                if let Err(e) = client
+                    .comment_on_issue(
+                        &event.owner,
+                        &event.repo,
+                        event.issue_number as i64,
+                        &format!("Failed to retry workflow run {run_id}: {e}"),
+                    )
+                    .await
+                {
+                    tracing::error!("failed to comment on issue: {e}");
+                }
+            }
         }
     }
 }

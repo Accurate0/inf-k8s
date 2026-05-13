@@ -52,6 +52,9 @@ pub struct IssueRef {
     pub number: u64,
     #[serde(default)]
     pub pull_request: Option<serde_json::Value>,
+    pub body: Option<String>,
+    #[serde(default)]
+    pub labels: Vec<Label>,
 }
 
 #[derive(Debug)]
@@ -63,7 +66,35 @@ pub struct CommentEvent {
     pub body: String,
 }
 
+#[derive(Debug)]
+pub struct IssueCommentEvent {
+    pub owner: String,
+    pub repo: String,
+    pub issue_number: u64,
+    pub author: String,
+    pub comment_body: String,
+    pub issue_body: String,
+    pub issue_labels: Vec<String>,
+}
+
 impl WebhookEvent {
+    pub fn into_issue_comment_event(self) -> Option<IssueCommentEvent> {
+        let comment = self.comment?;
+        let issue = self.issue?;
+        let sender = self.sender?;
+        let repository = self.repository?;
+        let (owner, repo) = repository.full_name.split_once('/')?;
+        Some(IssueCommentEvent {
+            owner: owner.to_owned(),
+            repo: repo.to_owned(),
+            issue_number: issue.number,
+            author: sender.login,
+            comment_body: comment.body,
+            issue_body: issue.body.unwrap_or_default(),
+            issue_labels: issue.labels.into_iter().map(|l| l.name).collect(),
+        })
+    }
+
     pub fn into_comment_event(self) -> Option<CommentEvent> {
         let comment = self.comment?;
         let issue = self.issue?;
@@ -95,6 +126,7 @@ pub struct PrEvent {
 
 #[allow(dead_code)]
 pub struct WorkflowEvent {
+    pub run_id: u64,
     pub workflow_name: String,
     pub conclusion: String,
     pub run_url: String,
@@ -109,6 +141,8 @@ pub struct WorkflowEvent {
     pub jobs_url: String,
     pub display_title: String,
     pub failed_jobs_logs: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 pub enum BotEvent<'a> {
@@ -130,6 +164,7 @@ impl BotEvent<'_> {
                 vars.insert("target_branch", pr.target_branch.clone());
             }
             BotEvent::GitHubWorkflow(wf) => {
+                vars.insert("run_id", wf.run_id.to_string());
                 vars.insert("workflow_name", wf.workflow_name.clone());
                 vars.insert("conclusion", wf.conclusion.clone());
                 vars.insert("run_url", wf.run_url.clone());
@@ -143,6 +178,23 @@ impl BotEvent<'_> {
                 vars.insert("run_attempt", wf.run_attempt.to_string());
                 vars.insert("display_title", wf.display_title.clone());
                 vars.insert("failed_jobs_logs", wf.failed_jobs_logs.clone());
+                vars.insert("created_at", wf.created_at.clone());
+                vars.insert("updated_at", wf.updated_at.clone());
+                let logs_url = format!("{}/logs", wf.run_url);
+                vars.insert("logs_url", logs_url.clone());
+                let metadata_json = serde_json::json!({
+                    "run_id": wf.run_id,
+                    "workflow": wf.workflow_name,
+                    "status": "completed",
+                    "conclusion": wf.conclusion,
+                    "branch": wf.branch,
+                    "commit_sha": wf.head_sha,
+                    "created_at": wf.created_at,
+                    "updated_at": wf.updated_at,
+                    "html_url": wf.run_url,
+                    "logs_url": logs_url,
+                });
+                vars.insert("metadata_json", metadata_json.to_string());
                 let short_sha = if wf.head_sha.len() >= 7 {
                     &wf.head_sha[..7]
                 } else {

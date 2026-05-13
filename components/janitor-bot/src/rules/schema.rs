@@ -325,7 +325,9 @@ impl From<MergeStrategy> for MergePullRequestOptionDo {
 impl ActionDef {
     pub fn to_action(&self) -> Action {
         match self {
-            ActionDef::Approve { comment } => Action::Approve { body: comment.clone() },
+            ActionDef::Approve { comment } => Action::Approve {
+                body: comment.clone(),
+            },
             ActionDef::Merge {
                 strategy,
                 delete_branch,

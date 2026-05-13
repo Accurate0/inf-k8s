@@ -11,9 +11,8 @@ pub fn revert_and_push(
     let tmp = tempfile::tempdir()?;
 
     let mut callbacks = git2::RemoteCallbacks::new();
-    callbacks.credentials(|_url, _username, _allowed| {
-        git2::Cred::userpass_plaintext("oauth2", token)
-    });
+    callbacks
+        .credentials(|_url, _username, _allowed| git2::Cred::userpass_plaintext("oauth2", token));
 
     let mut fetch_opts = git2::FetchOptions::new();
     fetch_opts.remote_callbacks(callbacks);
@@ -32,9 +31,12 @@ pub fn revert_and_push(
     // revert_commit(revert_commit, our_commit, mainline, opts)
     // our_commit = HEAD (the commit we're applying the revert onto)
     // mainline = 1 for merge commits (first parent is mainline), 0 for regular commits
-    let mainline = if merge_commit.parent_count() > 1 { 1 } else { 0 };
-    let mut revert_index =
-        repo.revert_commit(&merge_commit, &head_commit, mainline, None)?;
+    let mainline = if merge_commit.parent_count() > 1 {
+        1
+    } else {
+        0
+    };
+    let mut revert_index = repo.revert_commit(&merge_commit, &head_commit, mainline, None)?;
 
     if revert_index.has_conflicts() {
         anyhow::bail!("revert has conflicts — manual resolution needed");
@@ -51,9 +53,8 @@ pub fn revert_and_push(
     // Push the new branch
     let mut remote = repo.find_remote("origin")?;
     let mut push_callbacks = git2::RemoteCallbacks::new();
-    push_callbacks.credentials(|_url, _username, _allowed| {
-        git2::Cred::userpass_plaintext("oauth2", token)
-    });
+    push_callbacks
+        .credentials(|_url, _username, _allowed| git2::Cred::userpass_plaintext("oauth2", token));
     let mut push_opts = git2::PushOptions::new();
     push_opts.remote_callbacks(push_callbacks);
     let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");

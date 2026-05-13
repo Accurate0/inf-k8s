@@ -55,6 +55,28 @@ impl GitHubClient {
         }
     }
 
+    pub async fn rerun_workflow(&self, owner: &str, repo: &str, run_id: u64) -> anyhow::Result<()> {
+        let url = format!(
+            "https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs"
+        );
+        let resp = self
+            .client
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .header("Accept", "application/vnd.github+json")
+            .header("User-Agent", "janitor-bot")
+            .header("X-GitHub-Api-Version", "2022-11-28")
+            .send()
+            .await?;
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("rerun failed: {status} — {body}");
+        }
+        tracing::info!(owner, repo, run_id, "rerun workflow triggered");
+        Ok(())
+    }
+
     pub async fn fetch_failed_jobs(&self, jobs_url: &str) -> FailedJobsResult {
         let empty = FailedJobsResult::default();
         if jobs_url.is_empty() {
@@ -137,6 +159,7 @@ struct Actor {
 
 #[derive(Debug, Deserialize)]
 struct WorkflowRun {
+    id: Option<u64>,
     name: Option<String>,
     conclusion: Option<String>,
     html_url: Option<String>,
@@ -148,6 +171,8 @@ struct WorkflowRun {
     run_attempt: Option<u64>,
     jobs_url: Option<String>,
     display_title: Option<String>,
+    created_at: Option<String>,
+    updated_at: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -247,6 +272,7 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         author: None,
     });
     Some(WorkflowEvent {
+        run_id: run.id?,
         workflow_name: run.name?,
         conclusion: run.conclusion.unwrap_or_default(),
         run_url: run.html_url?,
@@ -261,5 +287,7 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         jobs_url: run.jobs_url.unwrap_or_default(),
         display_title: run.display_title.unwrap_or_default(),
         failed_jobs_logs: String::new(),
+        created_at: run.created_at.unwrap_or_default(),
+        updated_at: run.updated_at.unwrap_or_default(),
     })
 }

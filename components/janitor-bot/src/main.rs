@@ -51,13 +51,26 @@ async fn handle_forgejo_webhook(
         "received forgejo webhook event"
     );
 
+    if forgejo_event == "issue_comment" && (forgejo_event_type != "pull_request_comment") {
+        if let Some(cmd) = event.into_issue_comment_event()
+            && cmd.author == FORGEJO_OWNER
+            && let Some(parsed) = command::parse_issue_command(&cmd.comment_body)
+        {
+            tokio::spawn(async move {
+                command::handle_issue_command(&state.client, &state.github_client, &cmd, parsed)
+                    .await;
+            });
+        }
+        return StatusCode::OK;
+    }
+
     if forgejo_event == "issue_comment" && forgejo_event_type == "pull_request_comment" {
         if let Some(cmd) = event.into_comment_event()
             && cmd.author == FORGEJO_OWNER
-            && let Some(parsed) = command::parse(&cmd.body)
+            && let Some(parsed) = command::parse_pr_command(&cmd.body)
         {
             tokio::spawn(async move {
-                command::handle(&state.client, &state.orchestrator, &cmd, parsed).await;
+                command::handle_pr_command(&state.client, &state.orchestrator, &cmd, parsed).await;
             });
         }
         return StatusCode::OK;
