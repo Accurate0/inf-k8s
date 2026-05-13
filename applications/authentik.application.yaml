@@ -75,7 +75,7 @@ spec:
       path: applications/authentik
     - chart: authentik
       repoURL: https://charts.goauthentik.io
-      targetRevision: 2026.2.2
+      targetRevision: 2026.2.3
       helm:
         valuesObject:
           global:
