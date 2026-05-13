@@ -229,7 +229,7 @@ async fn revert_pr(
         .create_pull_request(
             owner,
             repo,
-            &format!("Revert: {original_title}"),
+            &format!("Revert \"{original_title}\""),
             &format!("Reverts #{pr}"),
             &branch_name,
             &target_branch,
