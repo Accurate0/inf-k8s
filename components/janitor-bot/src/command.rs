@@ -203,7 +203,11 @@ async fn revert_pr(
         .ok_or_else(|| anyhow::anyhow!("PR #{pr} has no merge commit SHA"))?;
 
     let original_title = api_pr.title.as_deref().unwrap_or("unknown");
-    let branch_name = format!("revert-pr-{pr}");
+    let timestamp = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let branch_name = format!("revert-pr-{pr}-{timestamp}");
     let target_branch = api_pr
         .base
         .as_ref()
