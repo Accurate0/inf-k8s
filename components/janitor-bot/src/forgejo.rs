@@ -2,10 +2,12 @@ use forgejo_api::structs::*;
 use forgejo_api::{Auth, Forgejo};
 use url::Url;
 
-const BOT_USERNAME: &str = "janitor";
+pub(crate) const BOT_USERNAME: &str = "janitor";
 
 pub struct ForgejoClient {
     api: Forgejo,
+    pub base_url: String,
+    pub token: String,
 }
 
 impl ForgejoClient {
@@ -14,7 +16,15 @@ impl ForgejoClient {
         let token = std::env::var("FORGEJO_ACCESS_KEY")?;
         let url = Url::parse(&base_url)?;
         let api = Forgejo::new(Auth::Token(&token), url)?;
-        Ok(Self { api })
+        Ok(Self {
+            api,
+            base_url,
+            token,
+        })
+    }
+
+    pub fn clone_url(&self, owner: &str, repo: &str) -> String {
+        format!("{}/{}/{}.git", self.base_url, owner, repo)
     }
 
     pub async fn is_pr_approved_by_bot(&self, owner: &str, repo: &str, pr: i64) -> bool {
@@ -459,4 +469,44 @@ impl ForgejoClient {
         }
         Ok(())
     }
+
+    pub async fn create_pull_request(
+        &self,
+        owner: &str,
+        repo: &str,
+        title: &str,
+        body: &str,
+        head: &str,
+        base: &str,
+    ) -> Result<PullRequest, forgejo_api::ForgejoError> {
+        let pr = self
+            .api
+            .repo_create_pull_request(
+                owner,
+                repo,
+                CreatePullRequestOption {
+                    title: Some(title.to_owned()),
+                    body: Some(body.to_owned()),
+                    head: Some(head.to_owned()),
+                    base: Some(base.to_owned()),
+                    assignee: None,
+                    assignees: None,
+                    due_date: None,
+                    labels: None,
+                    milestone: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(
+            owner,
+            repo,
+            pr = pr.number,
+            head,
+            base,
+            "created pull request"
+        );
+        Ok(pr)
+    }
+
 }

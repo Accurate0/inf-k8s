@@ -135,6 +135,7 @@ rules:
         target:
           owner: anurag
           repo: k8s
+        deduplicateByTitle: true
         title: "[GitHub CI] {repository} {workflow_name} failed"
         labels:
           - name: github-ci-failure

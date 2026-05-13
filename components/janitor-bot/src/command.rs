@@ -1,12 +1,16 @@
 use crate::event::{self, CommentEvent};
 use crate::forgejo::ForgejoClient;
+use crate::git;
 use crate::rules::RulesOrchestrator;
 use forgejo_api::structs::MergePullRequestOptionDo;
 
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
     Approve,
-    Merge,
+    Merge {
+        strategy: MergePullRequestOptionDo,
+    },
+    Revert,
     Recheck,
     Close,
     Reopen,
@@ -33,9 +37,19 @@ pub fn parse(body: &str) -> Option<Command> {
         .lines()
         .find(|l| l.trim_start().starts_with("@janitor"))?;
     let rest = line.trim_start().strip_prefix("@janitor")?.trim();
-    match rest.split_whitespace().next()? {
+    let mut words = rest.split_whitespace();
+    match words.next()? {
         "approve" => Some(Command::Approve),
-        "merge" => Some(Command::Merge),
+        "merge" => {
+            let strategy = match words.next() {
+                Some("rebase") => MergePullRequestOptionDo::Rebase,
+                Some("merge") => MergePullRequestOptionDo::Merge,
+                Some("squash") | None => MergePullRequestOptionDo::Squash,
+                _ => return None,
+            };
+            Some(Command::Merge { strategy })
+        }
+        "revert" => Some(Command::Revert),
         "recheck" => Some(Command::Recheck),
         "close" => Some(Command::Close),
         "reopen" => Some(Command::Reopen),
@@ -71,7 +85,7 @@ pub async fn handle(
                 tracing::error!("approve failed: {e}");
             }
         }
-        Command::Merge => {
+        Command::Merge { strategy } => {
             if !client
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
@@ -83,16 +97,20 @@ pub async fn handle(
                 return;
             }
             if let Err(e) = client
-                .merge_pr(
-                    &cmd.owner,
-                    &cmd.repo,
-                    pr,
-                    MergePullRequestOptionDo::Squash,
-                    true,
-                )
+                .merge_pr(&cmd.owner, &cmd.repo, pr, strategy, true)
                 .await
             {
                 tracing::error!("merge failed: {e}");
+            }
+        }
+        Command::Revert => {
+            match revert_pr(client, &cmd.owner, &cmd.repo, pr).await {
+                Ok(revert_pr_number) => {
+                    tracing::info!(pr, revert_pr = revert_pr_number, "revert PR created");
+                }
+                Err(e) => {
+                    tracing::error!("revert failed: {e}");
+                }
             }
         }
         Command::Ignore => {
@@ -164,4 +182,55 @@ pub async fn handle(
             orchestrator.evaluate_pr(client, &mut pr_event).await;
         }
     }
+}
+
+async fn revert_pr(
+    client: &ForgejoClient,
+    owner: &str,
+    repo: &str,
+    pr: i64,
+) -> Result<i64, anyhow::Error> {
+    let api_pr = client.get_pr(owner, repo, pr).await?;
+
+    if !api_pr.merged.unwrap_or(false) {
+        anyhow::bail!("PR #{pr} is not merged");
+    }
+
+    let merge_sha = api_pr
+        .merge_commit_sha
+        .clone()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("PR #{pr} has no merge commit SHA"))?;
+
+    let original_title = api_pr.title.as_deref().unwrap_or("unknown");
+    let branch_name = format!("revert-pr-{pr}");
+    let target_branch = api_pr
+        .base
+        .as_ref()
+        .and_then(|b| b.r#ref.clone())
+        .unwrap_or_else(|| "main".to_owned());
+
+    let clone_url = client.clone_url(owner, repo);
+    let token = client.token.clone();
+    let commit_msg = format!("Revert \"{original_title}\" (#{pr})");
+    let branch = branch_name.clone();
+    let target = target_branch.clone();
+
+    tokio::task::spawn_blocking(move || {
+        git::revert_and_push(&clone_url, &token, &merge_sha, &commit_msg, &branch, &target)
+    })
+    .await??;
+
+    let revert = client
+        .create_pull_request(
+            owner,
+            repo,
+            &format!("Revert: {original_title}"),
+            &format!("Reverts #{pr}"),
+            &branch_name,
+            &target_branch,
+        )
+        .await?;
+
+    Ok(revert.number.unwrap_or(0))
 }
