@@ -1,17 +1,28 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "title": "RulesFile",
+  "title": "RuleDef",
   "type": "object",
   "properties": {
-    "rules": {
+    "actions": {
       "type": "array",
       "items": {
-        "$ref": "#/$defs/RuleDef"
+        "$ref": "#/$defs/ActionDef"
       }
+    },
+    "enabled": {
+      "$ref": "#/$defs/RuleEnabled"
+    },
+    "matches": {
+      "$ref": "#/$defs/Matcher"
+    },
+    "name": {
+      "type": "string"
     }
   },
   "required": [
-    "rules"
+    "name",
+    "matches",
+    "actions"
   ],
   "$defs": {
     "ActionDef": {
@@ -609,31 +620,6 @@
         "merge",
         "squash",
         "rebase"
-      ]
-    },
-    "RuleDef": {
-      "type": "object",
-      "properties": {
-        "actions": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ActionDef"
-          }
-        },
-        "enabled": {
-          "$ref": "#/$defs/RuleEnabled"
-        },
-        "matches": {
-          "$ref": "#/$defs/Matcher"
-        },
-        "name": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "name",
-        "matches",
-        "actions"
       ]
     },
     "RuleEnabled": {

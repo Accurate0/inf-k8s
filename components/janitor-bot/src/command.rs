@@ -20,9 +20,11 @@ pub enum PrCommand {
 #[derive(Debug, Clone, Copy)]
 pub enum IssueCommand {
     RetryWorkflow,
+    Ack,
 }
 
 pub const IGNORE_LABEL: &str = "janitor/ignore";
+pub const ACK_LABEL: &str = "janitor/acknowledged";
 
 fn format_explain(matched: &[(String, bool, Vec<&'static str>)]) -> String {
     if matched.is_empty() {
@@ -71,6 +73,7 @@ pub fn parse_issue_command(body: &str) -> Option<IssueCommand> {
     let mut words = rest.split_whitespace();
     match words.next()? {
         "retry-workflow" => Some(IssueCommand::RetryWorkflow),
+        "ack" => Some(IssueCommand::Ack),
         _ => None,
     }
 }
@@ -271,6 +274,26 @@ pub async fn handle_issue_command(
                 {
                     tracing::error!("failed to comment on issue: {e}");
                 }
+            }
+        }
+        IssueCommand::Ack => {
+            let issue = event.issue_number as i64;
+            if let Err(e) = client
+                .ensure_labels(
+                    &event.owner,
+                    &event.repo,
+                    vec![(ACK_LABEL.to_owned(), "#c5def5".to_owned())],
+                )
+                .await
+            {
+                tracing::error!("ensure ack label failed: {e}");
+                return;
+            }
+            if let Err(e) = client
+                .add_labels_by_name(&event.owner, &event.repo, issue, vec![ACK_LABEL.to_owned()])
+                .await
+            {
+                tracing::error!("add ack label failed: {e}");
             }
         }
     }

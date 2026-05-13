@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: github-workflow-failure
+enabled: true
+matches:
+  all:
+    - type: github
+    - type: workflow_event
+    - type: target_branch
+      value: main
+    - type: workflow_conclusion
+      value: failure
+actions:
+  - type: ensure_labels_exist
+    target:
+      owner: anurag
+      repo: k8s
+    labels:
+      - name: github-ci-failure
+        color: "#d73a4a"
+      - name: automated
+        color: "#e4e669"
+  - type: create_issue
+    target:
+      owner: anurag
+      repo: k8s
+    deduplicateByTitle: true
+    title: "[GitHub CI] {repository} {workflow_name} failed"
+    labels:
+      - name: github-ci-failure
+        color: "#d73a4a"
+      - name: automated
+        color: "#e4e669"
+    body: |
+      ## Workflow Failed
+
+      | Detail | Value |
+      |--------|-------|
+      | Workflow | **{workflow_name}** |
+      | Result | `failure` |
+      | Branch | `{branch}` |
+      | Run | [#{run_number} (attempt {run_attempt})]({run_url}) |
+      | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{head_sha}) — {commit_message} |
+      | Author | {commit_author} |
+
+      ### Logs
+
+      ```
+      {failed_jobs_logs}
+      ```
+
+      <!-- {metadata_json} -->
+    comment_body: |
+      ## Re-run Failed
+
+      | Detail | Value |
+      |--------|-------|
+      | Result | `failure` |
+      | Run | [#{run_number} (attempt {run_attempt})]({run_url}) |
+      | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{head_sha}) — {commit_message} |
+
+      ```
+      {failed_jobs_logs}
+      ```
+
+      <!-- {metadata_json} -->

@@ -1,8 +1,8 @@
 use super::schema::RulesFile;
 use anyhow::{Context, anyhow};
 
-const RULES_YAML: &str = include_str!("../../rules.yaml");
-const RULES_SCHEMA: &str = include_str!("../../rules.schema.json");
+const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
+const RULES_SCHEMA: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.schema.json"));
 
 pub fn load_and_validate_rules() -> anyhow::Result<RulesFile> {
     let yaml_value: serde_json::Value =

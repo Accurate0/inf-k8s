@@ -185,7 +185,6 @@ impl BotEvent<'_> {
                 let metadata_json = serde_json::json!({
                     "run_id": wf.run_id,
                     "workflow": wf.workflow_name,
-                    "status": "completed",
                     "conclusion": wf.conclusion,
                     "branch": wf.branch,
                     "commit_sha": wf.head_sha,

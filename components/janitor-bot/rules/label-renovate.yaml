@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: label-renovate
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: target_branch
+      value: main
+    - type: action
+      value: opened
+    - type: author
+      value: renovate
+    - not:
+        type: has_label
+        value: renovate
+    - type: is_open
+    - type: not_approved_by_self
+actions:
+  - type: ensure_labels_exist
+    labels:
+      - name: renovate
+        color: "#1a7f37"
+  - type: add_labels_by_name
+    labels: [renovate]

@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod matchers;
 pub mod schema;
 pub mod validate;
 

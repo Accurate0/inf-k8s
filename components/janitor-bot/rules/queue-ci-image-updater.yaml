@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: queue-ci-image-updater
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: target_branch
+      value: main
+    - type: action
+      value: opened
+    - type: author
+      value: ci-image-updater
+    - type: is_open
+    - not:
+        type: time_window
+        timezone: Australia/Perth
+        start: 17
+        end: 22
+    - not:
+        type: has_label
+        value: janitor/queued
+actions:
+  - type: ensure_labels_exist
+    labels:
+      - name: janitor/queued
+        color: "#fbca04"
+  - type: add_labels_by_name
+    labels: [janitor/queued]

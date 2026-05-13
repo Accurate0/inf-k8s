@@ -1,3 +1,4 @@
+use crate::command::ACK_LABEL;
 use crate::event::{self, BotEvent};
 use crate::forgejo::ForgejoClient;
 use forgejo_api::structs::MergePullRequestOptionDo;
@@ -155,6 +156,13 @@ impl Action {
                     };
                     if let Some(existing) = existing {
                         let index = existing.number.unwrap();
+                        let is_acked = existing.labels.as_ref().is_some_and(|ls| {
+                            ls.iter().any(|l| l.name.as_deref() == Some(ACK_LABEL))
+                        });
+                        if is_acked {
+                            tracing::info!(issue = index, "skipping comment on acknowledged issue");
+                            return Ok(());
+                        }
                         let text = comment_body
                             .as_deref()
                             .map(|t| event::render_template(t, &vars))

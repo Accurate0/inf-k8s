@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: github-workflow-resolved
+enabled: true
+matches:
+  all:
+    - type: github
+    - type: workflow_event
+    - type: target_branch
+      value: main
+    - type: workflow_conclusion
+      value: success
+actions:
+  - type: close_issue
+    target:
+      owner: anurag
+      repo: k8s
+    title: "[GitHub CI] {repository} {workflow_name} failed"
+    comment_body: |
+      ## Resolved
+
+      | Detail | Value |
+      |--------|-------|
+      | Result | `success` |
+      | Run | [#{run_number} (attempt {run_attempt})]({run_url}) |
+      | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{head_sha}) — {commit_message} |
