@@ -60,7 +60,7 @@ spec:
                 - secretName: argocd-managed-secrets
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 9.5.13
+      targetRevision: 9.5.14
       helm:
         valuesObject:
           global:
