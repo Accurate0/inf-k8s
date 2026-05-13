@@ -23,15 +23,18 @@ pub fn revert_and_push(
     builder.branch(target_branch);
     let repo = builder.clone(clone_url, tmp.path())?;
 
+    let head_commit = repo.head()?.peel_to_commit()?;
+
     // Find the merge commit
     let merge_oid = git2::Oid::from_str(merge_sha)?;
     let merge_commit = repo.find_commit(merge_oid)?;
 
-    // For a merge commit, revert against the first parent (mainline = 1)
-    // For a regular commit, mainline = 0 (not applicable)
+    // revert_commit(revert_commit, our_commit, mainline, opts)
+    // our_commit = HEAD (the commit we're applying the revert onto)
+    // mainline = 1 for merge commits (first parent is mainline), 0 for regular commits
     let mainline = if merge_commit.parent_count() > 1 { 1 } else { 0 };
     let mut revert_index =
-        repo.revert_commit(&merge_commit, &merge_commit.parent(0)?, mainline, None)?;
+        repo.revert_commit(&merge_commit, &head_commit, mainline, None)?;
 
     if revert_index.has_conflicts() {
         anyhow::bail!("revert has conflicts — manual resolution needed");
@@ -39,8 +42,6 @@ pub fn revert_and_push(
 
     let tree_oid = revert_index.write_tree_to(&repo)?;
     let tree = repo.find_tree(tree_oid)?;
-
-    let head_commit = repo.head()?.peel_to_commit()?;
     let sig = git2::Signature::now(BOT_USERNAME, "janitor@git.anurag.sh")?;
     let commit_oid = repo.commit(None, &sig, &sig, commit_msg, &tree, &[&head_commit])?;
 
