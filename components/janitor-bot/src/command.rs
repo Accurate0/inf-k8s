@@ -7,9 +7,7 @@ use forgejo_api::structs::MergePullRequestOptionDo;
 #[derive(Debug, Clone, Copy)]
 pub enum Command {
     Approve,
-    Merge {
-        strategy: MergePullRequestOptionDo,
-    },
+    Merge { strategy: MergePullRequestOptionDo },
     Revert,
     Recheck,
     Close,
@@ -78,9 +76,7 @@ pub async fn handle(
             if !client
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
-                && let Err(e) = client
-                    .approve_pr(&cmd.owner, &cmd.repo, pr, None)
-                    .await
+                && let Err(e) = client.approve_pr(&cmd.owner, &cmd.repo, pr, None).await
             {
                 tracing::error!("approve failed: {e}");
             }
@@ -89,9 +85,7 @@ pub async fn handle(
             if !client
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
-                && let Err(e) = client
-                    .approve_pr(&cmd.owner, &cmd.repo, pr, None)
-                    .await
+                && let Err(e) = client.approve_pr(&cmd.owner, &cmd.repo, pr, None).await
             {
                 tracing::error!("approve-before-merge failed: {e}");
                 return;
@@ -103,16 +97,14 @@ pub async fn handle(
                 tracing::error!("merge failed: {e}");
             }
         }
-        Command::Revert => {
-            match revert_pr(client, &cmd.owner, &cmd.repo, pr).await {
-                Ok(revert_pr_number) => {
-                    tracing::info!(pr, revert_pr = revert_pr_number, "revert PR created");
-                }
-                Err(e) => {
-                    tracing::error!("revert failed: {e}");
-                }
+        Command::Revert => match revert_pr(client, &cmd.owner, &cmd.repo, pr).await {
+            Ok(revert_pr_number) => {
+                tracing::info!(pr, revert_pr = revert_pr_number, "revert PR created");
             }
-        }
+            Err(e) => {
+                tracing::error!("revert failed: {e}");
+            }
+        },
         Command::Ignore => {
             if let Err(e) = client
                 .ensure_labels(
@@ -221,7 +213,14 @@ async fn revert_pr(
     let target = target_branch.clone();
 
     tokio::task::spawn_blocking(move || {
-        git::revert_and_push(&clone_url, &token, &merge_sha, &commit_msg, &branch, &target)
+        git::revert_and_push(
+            &clone_url,
+            &token,
+            &merge_sha,
+            &commit_msg,
+            &branch,
+            &target,
+        )
     })
     .await??;
 
