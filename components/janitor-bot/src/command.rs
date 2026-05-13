@@ -65,7 +65,7 @@ pub async fn handle(
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
                 && let Err(e) = client
-                    .approve_pr(&cmd.owner, &cmd.repo, pr, "Approved via @janitor approve")
+                    .approve_pr(&cmd.owner, &cmd.repo, pr, None)
                     .await
             {
                 tracing::error!("approve failed: {e}");
@@ -76,12 +76,7 @@ pub async fn handle(
                 .is_pr_approved_by_bot(&cmd.owner, &cmd.repo, pr)
                 .await
                 && let Err(e) = client
-                    .approve_pr(
-                        &cmd.owner,
-                        &cmd.repo,
-                        pr,
-                        "Auto-approved via @janitor merge",
-                    )
+                    .approve_pr(&cmd.owner, &cmd.repo, pr, None)
                     .await
             {
                 tracing::error!("approve-before-merge failed: {e}");

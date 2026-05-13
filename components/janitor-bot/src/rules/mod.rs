@@ -144,7 +144,7 @@ impl RulesOrchestrator {
 #[allow(dead_code)]
 pub enum Action {
     Approve {
-        body: String,
+        body: Option<String>,
     },
     Merge {
         strategy: MergePullRequestOptionDo,
@@ -206,7 +206,7 @@ impl Action {
                     return;
                 };
                 client
-                    .approve_pr(&pr.owner, &pr.repo, pr.pr_number as i64, body)
+                    .approve_pr(&pr.owner, &pr.repo, pr.pr_number as i64, body.as_deref())
                     .await
             }
             Action::Merge {

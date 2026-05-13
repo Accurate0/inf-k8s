@@ -42,7 +42,7 @@ impl ForgejoClient {
         owner: &str,
         repo: &str,
         pr: i64,
-        body: &str,
+        body: Option<&str>,
     ) -> Result<(), forgejo_api::ForgejoError> {
         self.api
             .repo_create_pull_review(
@@ -51,7 +51,7 @@ impl ForgejoClient {
                 pr,
                 CreatePullReviewOptions {
                     event: Some("APPROVED".into()),
-                    body: Some(body.into()),
+                    body: body.map(|b| b.into()),
                     comments: None,
                     commit_id: None,
                 },

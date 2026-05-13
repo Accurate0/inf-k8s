@@ -257,7 +257,10 @@ pub struct IssueTarget {
 #[serde(tag = "type")]
 pub enum ActionDef {
     #[serde(rename = "approve")]
-    Approve { body: String },
+    Approve {
+        #[serde(default)]
+        comment: Option<String>,
+    },
     #[serde(rename = "merge")]
     Merge {
         strategy: MergeStrategy,
@@ -322,7 +325,7 @@ impl From<MergeStrategy> for MergePullRequestOptionDo {
 impl ActionDef {
     pub fn to_action(&self) -> Action {
         match self {
-            ActionDef::Approve { body } => Action::Approve { body: body.clone() },
+            ActionDef::Approve { comment } => Action::Approve { body: comment.clone() },
             ActionDef::Merge {
                 strategy,
                 delete_branch,

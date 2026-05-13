@@ -19,8 +19,12 @@
         {
           "type": "object",
           "properties": {
-            "body": {
-              "type": "string"
+            "comment": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             },
             "type": {
               "type": "string",
@@ -28,8 +32,7 @@
             }
           },
           "required": [
-            "type",
-            "body"
+            "type"
           ]
         },
         {

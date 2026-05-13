@@ -49,7 +49,7 @@ rules:
       - type: add_labels_by_name
         labels: [image-update, automated]
       - type: approve
-        body: "Auto-approved: PR from ci-image-updater"
+        comment: "Auto-approved: PR from ci-image-updater"
       - type: merge
         strategy: squash
         delete_branch: true
@@ -106,7 +106,7 @@ rules:
       - type: add_labels_by_name
         labels: [automated]
       - type: approve
-        body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
+        comment: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
       - type: merge
         strategy: squash
         delete_branch: true
