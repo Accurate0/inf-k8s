@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: unlabel-conflicts
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: is_open
+    - not:
+        type: has_conflicts
+    - type: has_label
+      value: conflicts
+actions:
+  - type: remove_labels_by_name
+    labels: [conflicts]

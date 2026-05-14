@@ -4,6 +4,7 @@ rules:
   - !include rules/auto-merge-ci-image-updater.yaml
   - !include rules/queue-ci-image-updater.yaml
   - !include rules/label-conflicts.yaml
+  - !include rules/unlabel-conflicts.yaml
   - !include rules/auto-merge-renovate.yaml
   - !include rules/queue-renovate.yaml
   - !include rules/github-workflow-failure.yaml
