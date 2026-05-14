@@ -4,6 +4,7 @@ use crate::git;
 use crate::github::GitHubClient;
 use crate::rules::RulesOrchestrator;
 use forgejo_api::structs::MergePullRequestOptionDo;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 #[derive(Debug, Clone, Copy)]
 pub enum PrCommand {
@@ -26,14 +27,18 @@ pub enum IssueCommand {
 pub const IGNORE_LABEL: &str = "janitor/ignore";
 pub const ACK_LABEL: &str = "janitor/acknowledged";
 
-fn format_explain(matched: &[(String, bool, Vec<&'static str>)]) -> String {
+fn format_explain(matched: &[crate::rules::MatchedRule]) -> String {
     if matched.is_empty() {
         return "## janitor explain\n\nNo rules matched this PR.".to_owned();
     }
     let mut s = String::from("## janitor explain\n\n");
-    for (name, dry_run, actions) in matched {
-        let suffix = if *dry_run { " _(dry-run)_" } else { "" };
-        s.push_str(&format!("- **{name}**{suffix}: {}\n", actions.join(", ")));
+    for rule in matched {
+        let suffix = if rule.dry_run { " _(dry-run)_" } else { "" };
+        s.push_str(&format!(
+            "- **{}**{suffix}: {}\n",
+            rule.name,
+            rule.actions.join(", ")
+        ));
     }
     s
 }
@@ -299,6 +304,249 @@ pub async fn handle_issue_command(
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_approve() {
+        let cmd = parse_pr_command("@janitor approve").unwrap();
+        assert!(matches!(cmd, PrCommand::Approve));
+    }
+
+    #[test]
+    fn parse_merge_default_squash() {
+        let cmd = parse_pr_command("@janitor merge").unwrap();
+        match cmd {
+            PrCommand::Merge { strategy } => {
+                assert!(matches!(strategy, MergePullRequestOptionDo::Squash));
+            }
+            _ => panic!("expected Merge"),
+        }
+    }
+
+    #[test]
+    fn parse_merge_squash_explicit() {
+        let cmd = parse_pr_command("@janitor merge squash").unwrap();
+        match cmd {
+            PrCommand::Merge { strategy } => {
+                assert!(matches!(strategy, MergePullRequestOptionDo::Squash));
+            }
+            _ => panic!("expected Merge"),
+        }
+    }
+
+    #[test]
+    fn parse_merge_rebase() {
+        let cmd = parse_pr_command("@janitor merge rebase").unwrap();
+        match cmd {
+            PrCommand::Merge { strategy } => {
+                assert!(matches!(strategy, MergePullRequestOptionDo::Rebase));
+            }
+            _ => panic!("expected Merge"),
+        }
+    }
+
+    #[test]
+    fn parse_merge_merge() {
+        let cmd = parse_pr_command("@janitor merge merge").unwrap();
+        match cmd {
+            PrCommand::Merge { strategy } => {
+                assert!(matches!(strategy, MergePullRequestOptionDo::Merge));
+            }
+            _ => panic!("expected Merge"),
+        }
+    }
+
+    #[test]
+    fn parse_merge_invalid_strategy() {
+        assert!(parse_pr_command("@janitor merge yolo").is_none());
+    }
+
+    #[test]
+    fn parse_revert() {
+        assert!(matches!(
+            parse_pr_command("@janitor revert").unwrap(),
+            PrCommand::Revert
+        ));
+    }
+
+    #[test]
+    fn parse_recheck() {
+        assert!(matches!(
+            parse_pr_command("@janitor recheck").unwrap(),
+            PrCommand::Recheck
+        ));
+    }
+
+    #[test]
+    fn parse_close() {
+        assert!(matches!(
+            parse_pr_command("@janitor close").unwrap(),
+            PrCommand::Close
+        ));
+    }
+
+    #[test]
+    fn parse_reopen() {
+        assert!(matches!(
+            parse_pr_command("@janitor reopen").unwrap(),
+            PrCommand::Reopen
+        ));
+    }
+
+    #[test]
+    fn parse_ignore() {
+        assert!(matches!(
+            parse_pr_command("@janitor ignore").unwrap(),
+            PrCommand::Ignore
+        ));
+    }
+
+    #[test]
+    fn parse_explain() {
+        assert!(matches!(
+            parse_pr_command("@janitor explain").unwrap(),
+            PrCommand::Explain
+        ));
+    }
+
+    #[test]
+    fn parse_unknown_command() {
+        assert!(parse_pr_command("@janitor unknown").is_none());
+    }
+
+    #[test]
+    fn parse_no_janitor_mention() {
+        assert!(parse_pr_command("just a normal comment").is_none());
+    }
+
+    #[test]
+    fn parse_command_in_multiline_body() {
+        let body = "Some context here\n\n@janitor merge rebase\n\nmore text";
+        let cmd = parse_pr_command(body).unwrap();
+        assert!(
+            matches!(cmd, PrCommand::Merge { strategy } if matches!(strategy, MergePullRequestOptionDo::Rebase))
+        );
+    }
+
+    #[test]
+    fn parse_command_with_leading_whitespace() {
+        let cmd = parse_pr_command("  @janitor approve").unwrap();
+        assert!(matches!(cmd, PrCommand::Approve));
+    }
+
+    #[test]
+    fn parse_empty_body() {
+        assert!(parse_pr_command("").is_none());
+    }
+
+    #[test]
+    fn parse_janitor_no_command() {
+        assert!(parse_pr_command("@janitor").is_none());
+    }
+
+    #[test]
+    fn parse_issue_retry_workflow() {
+        let cmd = parse_issue_command("@janitor retry-workflow").unwrap();
+        assert!(matches!(cmd, IssueCommand::RetryWorkflow));
+    }
+
+    #[test]
+    fn parse_issue_ack() {
+        let cmd = parse_issue_command("@janitor ack").unwrap();
+        assert!(matches!(cmd, IssueCommand::Ack));
+    }
+
+    #[test]
+    fn parse_issue_unknown() {
+        assert!(parse_issue_command("@janitor merge").is_none());
+    }
+
+    #[test]
+    fn parse_issue_no_mention() {
+        assert!(parse_issue_command("some comment").is_none());
+    }
+
+    #[test]
+    fn format_explain_no_matches() {
+        let result = format_explain(&[]);
+        assert!(result.contains("No rules matched"));
+    }
+
+    #[test]
+    fn format_explain_single_rule() {
+        use crate::rules::MatchedRule;
+        let matched = vec![MatchedRule {
+            name: "auto-merge".to_string(),
+            dry_run: false,
+            actions: vec!["approve", "merge"],
+        }];
+        let result = format_explain(&matched);
+        assert!(result.contains("**auto-merge**"));
+        assert!(result.contains("approve, merge"));
+        assert!(!result.contains("dry-run"));
+    }
+
+    #[test]
+    fn format_explain_dry_run() {
+        use crate::rules::MatchedRule;
+        let matched = vec![MatchedRule {
+            name: "test-rule".to_string(),
+            dry_run: true,
+            actions: vec!["comment"],
+        }];
+        let result = format_explain(&matched);
+        assert!(result.contains("_(dry-run)_"));
+    }
+
+    #[test]
+    fn format_explain_multiple_rules() {
+        use crate::rules::MatchedRule;
+        let matched = vec![
+            MatchedRule {
+                name: "rule1".to_string(),
+                dry_run: false,
+                actions: vec!["approve"],
+            },
+            MatchedRule {
+                name: "rule2".to_string(),
+                dry_run: true,
+                actions: vec!["merge"],
+            },
+        ];
+        let result = format_explain(&matched);
+        assert!(result.contains("**rule1**"));
+        assert!(result.contains("**rule2**"));
+    }
+
+    #[test]
+    fn extract_metadata_basic() {
+        let text = r#"some text <!-- {"run_id": 123, "workflow": "build"} --> more"#;
+        let val = extract_metadata_json(text).unwrap();
+        assert_eq!(val["run_id"], 123);
+        assert_eq!(val["workflow"], "build");
+    }
+
+    #[test]
+    fn extract_metadata_no_comment() {
+        assert!(extract_metadata_json("no metadata here").is_none());
+    }
+
+    #[test]
+    fn extract_metadata_invalid_json() {
+        let text = "<!-- not json -->";
+        assert!(extract_metadata_json(text).is_none());
+    }
+
+    #[test]
+    fn extract_metadata_uses_last_comment() {
+        let text = r#"<!-- {"old": true} --> text <!-- {"new": true} -->"#;
+        let val = extract_metadata_json(text).unwrap();
+        assert_eq!(val["new"], true);
+    }
+}
+
 async fn revert_pr(
     client: &ForgejoClient,
     owner: &str,
@@ -318,8 +566,8 @@ async fn revert_pr(
         .ok_or_else(|| anyhow::anyhow!("PR #{pr} has no merge commit SHA"))?;
 
     let original_title = api_pr.title.as_deref().unwrap_or("unknown");
-    let timestamp = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
         .as_secs();
     let branch_name = format!("revert-pr-{pr}-{timestamp}");

@@ -1,5 +1,6 @@
 use forgejo_api::structs::*;
 use forgejo_api::{Auth, Forgejo};
+use std::collections::HashSet;
 use url::Url;
 
 pub(crate) const BOT_USERNAME: &str = "janitor";
@@ -446,7 +447,7 @@ impl ForgejoClient {
             .issue_list_labels(owner, repo, IssueListLabelsQuery { sort: None })
             .send()
             .await?;
-        let existing_names: std::collections::HashSet<String> =
+        let existing_names: HashSet<String> =
             existing.iter().filter_map(|l| l.name.clone()).collect();
         for (name, color) in labels {
             if !existing_names.contains(&name) {

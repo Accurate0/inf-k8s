@@ -1,0 +1,457 @@
+mod types;
+
+pub use types::*;
+
+use crate::event::BotEvent;
+use crate::forgejo::ForgejoClient;
+use chrono::{Datelike, Timelike};
+use std::future::Future;
+use std::pin::Pin;
+
+pub struct MatcherCache {
+    results: moka::sync::Cache<LeafMatcher, bool>,
+}
+
+impl MatcherCache {
+    pub fn new() -> Self {
+        Self {
+            results: moka::sync::Cache::builder().build(),
+        }
+    }
+}
+
+impl Matcher {
+    pub fn matches<'a>(
+        &'a self,
+        ev: &'a BotEvent<'a>,
+        client: &'a ForgejoClient,
+        cache: &'a MatcherCache,
+    ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+        Box::pin(async move {
+            match self {
+                Matcher::Combinator(c) => match c {
+                    Combinator::All(matchers) => {
+                        for m in matchers {
+                            if !m.matches(ev, client, cache).await {
+                                return false;
+                            }
+                        }
+                        true
+                    }
+                    Combinator::Any(matchers) => {
+                        for m in matchers {
+                            if m.matches(ev, client, cache).await {
+                                return true;
+                            }
+                        }
+                        false
+                    }
+                    Combinator::Not(matcher) => !matcher.matches(ev, client, cache).await,
+                },
+                Matcher::Leaf(leaf) => {
+                    if let Some(cached) = cache.results.get(leaf) {
+                        return cached;
+                    }
+                    let result = eval_leaf(leaf, ev, client).await;
+                    cache.results.insert(leaf.clone(), result);
+                    result
+                }
+            }
+        })
+    }
+}
+
+fn eval_leaf<'a>(
+    leaf: &'a LeafMatcher,
+    ev: &'a BotEvent<'a>,
+    client: &'a ForgejoClient,
+) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
+    Box::pin(async move {
+        match leaf {
+            LeafMatcher::Forgejo => matches!(ev, BotEvent::ForgejoPr(_)),
+            LeafMatcher::GitHub => matches!(ev, BotEvent::GitHubWorkflow(_)),
+            LeafMatcher::PrEvent => matches!(ev, BotEvent::ForgejoPr(_)),
+            LeafMatcher::WorkflowEvent => matches!(ev, BotEvent::GitHubWorkflow(_)),
+
+            LeafMatcher::Action { value } => match ev {
+                BotEvent::ForgejoPr(pr) => pr.action == *value,
+                _ => false,
+            },
+            LeafMatcher::Author { value } => match ev {
+                BotEvent::ForgejoPr(pr) => pr.author == *value,
+                _ => false,
+            },
+            LeafMatcher::TitleContains { value } => match ev {
+                BotEvent::ForgejoPr(pr) => pr.title.contains(value.as_str()),
+                _ => false,
+            },
+            LeafMatcher::HasLabel { value } => match ev {
+                BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
+                _ => false,
+            },
+            LeafMatcher::HasConflicts => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    client
+                        .is_pr_mergeable(&pr.owner, &pr.repo, pr.pr_number as i64)
+                        .await
+                        == Some(false)
+                }
+                _ => false,
+            },
+            LeafMatcher::IsOpen => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    client
+                        .is_pr_open(&pr.owner, &pr.repo, pr.pr_number as i64)
+                        .await
+                }
+                _ => false,
+            },
+            LeafMatcher::NotApprovedBySelf => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    !client
+                        .is_pr_approved_by_bot(&pr.owner, &pr.repo, pr.pr_number as i64)
+                        .await
+                }
+                _ => false,
+            },
+            LeafMatcher::HasChangedFiles => match ev {
+                BotEvent::ForgejoPr(pr) => !pr.changed_files.is_empty(),
+                _ => false,
+            },
+            LeafMatcher::ChangedFilesAllMatch { patterns } => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    !pr.changed_files.is_empty()
+                        && pr
+                            .changed_files
+                            .iter()
+                            .all(|f| patterns.iter().any(|p| p.matches(f)))
+                }
+                _ => false,
+            },
+            LeafMatcher::ChangedFilesNoneMatch { patterns } => match ev {
+                BotEvent::ForgejoPr(pr) => pr
+                    .changed_files
+                    .iter()
+                    .all(|f| !patterns.iter().any(|p| p.matches(f))),
+                _ => false,
+            },
+            LeafMatcher::TimeWindow {
+                timezone,
+                start,
+                end,
+                weekdays_only,
+            } => {
+                let tz: chrono_tz::Tz = match timezone.parse() {
+                    Ok(tz) => tz,
+                    Err(_) => {
+                        tracing::warn!(timezone, "invalid timezone, defaulting to false");
+                        return false;
+                    }
+                };
+                let now = chrono::Utc::now().with_timezone(&tz);
+                let hour = now.hour();
+                if *weekdays_only {
+                    let weekday = now.weekday();
+                    if matches!(weekday, chrono::Weekday::Sat | chrono::Weekday::Sun) {
+                        return false;
+                    }
+                }
+                hour >= *start && hour < *end
+            }
+            LeafMatcher::WorkflowConclusion { value } => match ev {
+                BotEvent::GitHubWorkflow(wf) => wf.conclusion == *value,
+                _ => false,
+            },
+            LeafMatcher::TargetBranch { value } => match ev {
+                BotEvent::ForgejoPr(pr) => pr.target_branch == *value,
+                BotEvent::GitHubWorkflow(wf) => wf.branch == *value,
+            },
+        }
+    })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_pattern_starts_with() {
+        let p = FilePattern::StartsWith {
+            starts_with: ".github/workflows/".to_string(),
+        };
+        assert!(p.matches(".github/workflows/build.yaml"));
+        assert!(p.matches(".github/workflows/test.yml"));
+        assert!(!p.matches("src/main.rs"));
+        assert!(!p.matches(".github/dependabot.yml"));
+    }
+
+    #[test]
+    fn file_pattern_contains() {
+        let p = FilePattern::Contains {
+            contains: "Dockerfile".to_string(),
+        };
+        assert!(p.matches("Dockerfile"));
+        assert!(p.matches("apps/Dockerfile"));
+        assert!(p.matches("Dockerfile.dev"));
+        assert!(!p.matches("docker-compose.yml"));
+    }
+
+    #[test]
+    fn file_pattern_ends_with() {
+        let p = FilePattern::EndsWith {
+            ends_with: ".yaml".to_string(),
+        };
+        assert!(p.matches("config.yaml"));
+        assert!(p.matches("path/to/file.yaml"));
+        assert!(!p.matches("config.yml"));
+        assert!(!p.matches("config.yaml.bak"));
+    }
+
+    #[test]
+    fn file_pattern_empty_path() {
+        let p = FilePattern::Contains {
+            contains: "foo".to_string(),
+        };
+        assert!(!p.matches(""));
+    }
+
+    #[test]
+    fn file_pattern_empty_pattern() {
+        let p = FilePattern::StartsWith {
+            starts_with: "".to_string(),
+        };
+        assert!(p.matches("anything"));
+        assert!(p.matches(""));
+    }
+
+    #[test]
+    fn deserialize_leaf_forgejo() {
+        let yaml = "type: forgejo";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        assert!(matches!(m, Matcher::Leaf(LeafMatcher::Forgejo)));
+    }
+
+    #[test]
+    fn deserialize_leaf_github() {
+        let yaml = "type: github";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        assert!(matches!(m, Matcher::Leaf(LeafMatcher::GitHub)));
+    }
+
+    #[test]
+    fn deserialize_leaf_action() {
+        let yaml = "type: action\nvalue: opened";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::Action { value }) => assert_eq!(value, "opened"),
+            _ => panic!("expected Action"),
+        }
+    }
+
+    #[test]
+    fn deserialize_leaf_author() {
+        let yaml = "type: author\nvalue: renovate";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::Author { value }) => assert_eq!(value, "renovate"),
+            _ => panic!("expected Author"),
+        }
+    }
+
+    #[test]
+    fn deserialize_leaf_has_label() {
+        let yaml = "type: has_label\nvalue: wip";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::HasLabel { value }) => assert_eq!(value, "wip"),
+            _ => panic!("expected HasLabel"),
+        }
+    }
+
+    #[test]
+    fn deserialize_leaf_time_window() {
+        let yaml = "type: time_window\ntimezone: Australia/Perth\nstart: 17\nend: 22";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::TimeWindow {
+                timezone,
+                start,
+                end,
+                weekdays_only,
+            }) => {
+                assert_eq!(timezone, "Australia/Perth");
+                assert_eq!(start, 17);
+                assert_eq!(end, 22);
+                assert!(!weekdays_only);
+            }
+            _ => panic!("expected TimeWindow"),
+        }
+    }
+
+    #[test]
+    fn deserialize_time_window_weekdays_only() {
+        let yaml = "type: time_window\ntimezone: UTC\nstart: 9\nend: 17\nweekdays_only: true";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::TimeWindow { weekdays_only, .. }) => {
+                assert!(weekdays_only);
+            }
+            _ => panic!("expected TimeWindow"),
+        }
+    }
+
+    #[test]
+    fn deserialize_combinator_all() {
+        let yaml = r#"
+all:
+  - type: forgejo
+  - type: pr_event
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Combinator(Combinator::All(matchers)) => assert_eq!(matchers.len(), 2),
+            _ => panic!("expected All combinator"),
+        }
+    }
+
+    #[test]
+    fn deserialize_combinator_any() {
+        let yaml = r#"
+any:
+  - type: forgejo
+  - type: github
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Combinator(Combinator::Any(matchers)) => assert_eq!(matchers.len(), 2),
+            _ => panic!("expected Any combinator"),
+        }
+    }
+
+    #[test]
+    fn deserialize_combinator_not() {
+        let yaml = r#"
+not:
+  type: has_label
+  value: wip
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Combinator(Combinator::Not(inner)) => {
+                assert!(matches!(
+                    *inner,
+                    Matcher::Leaf(LeafMatcher::HasLabel { .. })
+                ));
+            }
+            _ => panic!("expected Not combinator"),
+        }
+    }
+
+    #[test]
+    fn deserialize_nested_combinators() {
+        let yaml = r#"
+all:
+  - type: forgejo
+  - any:
+      - type: author
+        value: renovate
+      - type: author
+        value: dependabot
+  - not:
+      type: has_label
+      value: wip
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Combinator(Combinator::All(matchers)) => {
+                assert_eq!(matchers.len(), 3);
+                assert!(matches!(
+                    matchers[1],
+                    Matcher::Combinator(Combinator::Any(_))
+                ));
+                assert!(matches!(
+                    matchers[2],
+                    Matcher::Combinator(Combinator::Not(_))
+                ));
+            }
+            _ => panic!("expected All combinator"),
+        }
+    }
+
+    #[test]
+    fn deserialize_changed_files_all_match() {
+        let yaml = r#"
+type: changed_files_all_match
+patterns:
+  - starts_with: ".github/"
+  - contains: Dockerfile
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::ChangedFilesAllMatch { patterns }) => {
+                assert_eq!(patterns.len(), 2);
+            }
+            _ => panic!("expected ChangedFilesAllMatch"),
+        }
+    }
+
+    #[test]
+    fn deserialize_changed_files_none_match() {
+        let yaml = r#"
+type: changed_files_none_match
+patterns:
+  - contains: "secret"
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::ChangedFilesNoneMatch { patterns }) => {
+                assert_eq!(patterns.len(), 1);
+            }
+            _ => panic!("expected ChangedFilesNoneMatch"),
+        }
+    }
+
+    #[test]
+    fn deserialize_file_pattern_variants() {
+        let yaml_sw: FilePattern = yaml_serde::from_str("starts_with: foo/").unwrap();
+        assert!(matches!(yaml_sw, FilePattern::StartsWith { .. }));
+
+        let yaml_c: FilePattern = yaml_serde::from_str("contains: bar").unwrap();
+        assert!(matches!(yaml_c, FilePattern::Contains { .. }));
+
+        let yaml_ew: FilePattern = yaml_serde::from_str("ends_with: .rs").unwrap();
+        assert!(matches!(yaml_ew, FilePattern::EndsWith { .. }));
+    }
+
+    #[test]
+    fn deserialize_workflow_conclusion() {
+        let yaml = "type: workflow_conclusion\nvalue: failure";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::WorkflowConclusion { value }) => {
+                assert_eq!(value, "failure");
+            }
+            _ => panic!("expected WorkflowConclusion"),
+        }
+    }
+
+    #[test]
+    fn deserialize_target_branch() {
+        let yaml = "type: target_branch\nvalue: main";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::TargetBranch { value }) => assert_eq!(value, "main"),
+            _ => panic!("expected TargetBranch"),
+        }
+    }
+
+    #[test]
+    fn deserialize_title_contains() {
+        let yaml = "type: title_contains\nvalue: fix";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::TitleContains { value }) => assert_eq!(value, "fix"),
+            _ => panic!("expected TitleContains"),
+        }
+    }
+}

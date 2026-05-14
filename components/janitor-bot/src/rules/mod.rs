@@ -1,4 +1,5 @@
 pub mod actions;
+pub mod expr;
 pub mod matchers;
 pub mod schema;
 pub mod validate;
@@ -6,12 +7,30 @@ pub mod validate;
 use crate::event::{BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
 use crate::github::GitHubClient;
+use crate::rules::matchers::MatcherCache;
 pub use actions::Action;
 use moka::sync::Cache;
-use schema::RulesFile;
+use schema::{ActionsDef, RulesFile};
+use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+
+struct RuleEvaluation {
+    matched: bool,
+    vars: HashMap<String, bool>,
+}
+
+struct ActionGroup<'a> {
+    when: Option<&'a str>,
+    actions: Vec<&'a schema::ActionDef>,
+}
+
+pub struct MatchedRule {
+    pub name: String,
+    pub dry_run: bool,
+    pub actions: Vec<&'static str>,
+}
 
 pub struct RulesOrchestrator {
     rules: RulesFile,
@@ -30,18 +49,11 @@ impl RulesOrchestrator {
         }
     }
 
-    fn pr_lock(&self, owner: &str, repo: &str, pr: u64) -> Arc<Mutex<()>> {
-        self.pr_locks
-            .get_with((owner.to_owned(), repo.to_owned(), pr), || {
-                Arc::new(Mutex::new(()))
-            })
-    }
-
     pub async fn explain_pr(
         &self,
         client: &ForgejoClient,
         event: &mut PrEvent,
-    ) -> Vec<(String, bool, Vec<&'static str>)> {
+    ) -> Vec<MatchedRule> {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
 
@@ -54,17 +66,28 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
-        let mut out = Vec::new();
+        let mut matched_rules = Vec::new();
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {
                 continue;
             }
-            if rule.matches.matches(&bot_event, client).await {
-                let actions = rule.actions.iter().map(|a| a.to_action().kind()).collect();
-                out.push((rule.name.clone(), rule.enabled.is_dry_run(), actions));
+
+            let eval = Self::evaluate_rule(rule, &bot_event, client).await;
+            if eval.matched {
+                let groups = Self::resolve_action_groups(rule, &eval.vars).await;
+                let actions = groups
+                    .iter()
+                    .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
+                    .collect();
+
+                matched_rules.push(MatchedRule {
+                    name: rule.name.clone(),
+                    dry_run: rule.enabled.is_dry_run(),
+                    actions,
+                });
             }
         }
-        out
+        matched_rules
     }
 
     pub async fn evaluate_pr(&self, client: &ForgejoClient, event: &mut PrEvent) {
@@ -119,40 +142,129 @@ impl RulesOrchestrator {
             if !rule.enabled.is_active() {
                 continue;
             }
-            let match_start = std::time::Instant::now();
-            let matched = rule.matches.matches(event, client).await;
-            let match_ms = match_start.elapsed().as_millis();
-            if !matched {
-                tracing::debug!(rule = rule.name, match_ms, "rule did not match");
+
+            let eval_start = Instant::now();
+            let eval = Self::evaluate_rule(rule, event, client).await;
+            let eval_ms = eval_start.elapsed().as_millis();
+            if !eval.matched {
+                tracing::debug!(rule = rule.name, eval_ms, "rule did not match");
                 continue;
             }
+
             let dry_run = rule.enabled.is_dry_run();
-            tracing::info!(rule = rule.name, dry_run, match_ms, "rule matched");
-            let rule_start = std::time::Instant::now();
-            for action_def in &rule.actions {
-                let action = action_def.to_action();
-                if dry_run {
+            tracing::info!(rule = rule.name, dry_run, eval_ms, "rule matched");
+
+            let rule_start = Instant::now();
+            let groups = Self::resolve_action_groups(rule, &eval.vars).await;
+            for group in &groups {
+                if let Some(when) = group.when {
+                    tracing::info!(rule = rule.name, when, "executing action group");
+                }
+
+                for action_def in &group.actions {
+                    let action = action_def.to_action();
+                    if dry_run {
+                        tracing::info!(
+                            rule = rule.name,
+                            when = group.when,
+                            action = action.kind(),
+                            "[dry-run] would execute action"
+                        );
+                        continue;
+                    }
+
+                    let action_start = Instant::now();
+                    action.execute(client, event).await;
                     tracing::info!(
                         rule = rule.name,
+                        when = group.when,
                         action = action.kind(),
-                        "[dry-run] would execute action"
+                        elapsed_ms = action_start.elapsed().as_millis(),
+                        "action executed"
                     );
-                    continue;
                 }
-                let action_start = std::time::Instant::now();
-                action.execute(client, event).await;
-                tracing::info!(
-                    rule = rule.name,
-                    action = action.kind(),
-                    elapsed_ms = action_start.elapsed().as_millis(),
-                    "action executed"
-                );
             }
+
             tracing::info!(
                 rule = rule.name,
                 elapsed_ms = rule_start.elapsed().as_millis(),
                 "rule actions complete"
             );
         }
+    }
+
+    async fn evaluate_rule<'a>(
+        rule: &'a schema::RuleDef,
+        event: &BotEvent<'a>,
+        client: &ForgejoClient,
+    ) -> RuleEvaluation {
+        let cache = MatcherCache::new();
+        let matched = rule.matches.matches(event, client, &cache).await;
+
+        let mut vars = HashMap::new();
+        for defined_variable in &rule.variables {
+            let result = defined_variable
+                .matcher
+                .matches(event, client, &cache)
+                .await;
+
+            tracing::debug!(
+                rule = rule.name,
+                var = defined_variable.var,
+                result,
+                "variable evaluated"
+            );
+            vars.insert(defined_variable.var.clone(), result);
+        }
+
+        RuleEvaluation { matched, vars }
+    }
+
+    async fn resolve_action_groups<'a>(
+        rule: &'a schema::RuleDef,
+        vars: &HashMap<String, bool>,
+    ) -> Vec<ActionGroup<'a>> {
+        match &rule.actions {
+            ActionsDef::Flat(actions) => vec![ActionGroup {
+                when: None,
+                actions: actions.iter().collect(),
+            }],
+            ActionsDef::Conditional(groups) => {
+                let mut result = Vec::new();
+                for group in groups {
+                    let expr = expr::parse(&group.when).expect("pre-validated expression");
+                    match expr::eval(&expr, vars) {
+                        Ok(true) => {
+                            result.push(ActionGroup {
+                                when: Some(group.when.as_str()),
+                                actions: group.run.iter().collect(),
+                            });
+                        }
+                        Ok(false) => {
+                            tracing::debug!(
+                                rule = rule.name,
+                                when = group.when,
+                                "group condition not met, skipping"
+                            );
+                        }
+                        Err(e) => {
+                            tracing::error!(
+                                rule = rule.name,
+                                when = group.when,
+                                "expression eval error: {e}"
+                            );
+                        }
+                    }
+                }
+                result
+            }
+        }
+    }
+
+    fn pr_lock(&self, owner: &str, repo: &str, pr: u64) -> Arc<Mutex<()>> {
+        self.pr_locks
+            .get_with((owner.to_owned(), repo.to_owned(), pr), || {
+                Arc::new(Mutex::new(()))
+            })
     }
 }

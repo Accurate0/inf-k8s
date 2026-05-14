@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: manage-ci-image-updater
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: target_branch
+      value: main
+    - type: author
+      value: ci-image-updater
+    - type: is_open
+variables:
+  - var: in_window
+    type: time_window
+    timezone: Australia/Perth
+    start: 17
+    end: 22
+  - var: needs_approval
+    type: not_approved_by_self
+  - var: is_new
+    type: action
+    value: opened
+  - var: already_queued
+    type: has_label
+    value: janitor/queued
+actions:
+  - when: "in_window && needs_approval"
+    run:
+      - type: ensure_labels_exist
+        labels:
+          - name: image-update
+            color: "#0075ca"
+          - name: automated
+            color: "#e4e669"
+      - type: remove_labels_by_name
+        labels: [janitor/queued]
+      - type: add_labels_by_name
+        labels: [image-update, automated]
+      - type: approve
+        comment: "Auto-approved: PR from ci-image-updater"
+      - type: merge
+        strategy: squash
+        delete_branch: true
+  - when: "is_new && !in_window && !already_queued"
+    run:
+      - type: ensure_labels_exist
+        labels:
+          - name: janitor/queued
+            color: "#fbca04"
+      - type: add_labels_by_name
+        labels: [janitor/queued]

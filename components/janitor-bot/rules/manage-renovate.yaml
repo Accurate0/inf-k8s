@@ -1,0 +1,61 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: manage-renovate
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: target_branch
+      value: main
+    - type: author
+      value: renovate
+    - type: has_changed_files
+    - type: changed_files_all_match
+      patterns:
+        - starts_with: ".github/workflows/"
+        - contains: Dockerfile
+    - type: changed_files_none_match
+      patterns:
+        - contains: "applications/postgres-cluster/container/Dockerfile"
+    - not:
+        type: has_label
+        value: update-major
+    - type: is_open
+variables:
+  - var: in_window
+    type: time_window
+    timezone: Australia/Perth
+    start: 17
+    end: 22
+  - var: needs_approval
+    type: not_approved_by_self
+  - var: is_new
+    type: action
+    value: opened
+  - var: already_queued
+    type: has_label
+    value: janitor/queued
+actions:
+  - when: "in_window && needs_approval"
+    run:
+      - type: ensure_labels_exist
+        labels:
+          - name: automated
+            color: "#e4e669"
+      - type: remove_labels_by_name
+        labels: [janitor/queued]
+      - type: add_labels_by_name
+        labels: [automated]
+      - type: approve
+        comment: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
+      - type: merge
+        strategy: squash
+        delete_branch: true
+  - when: "is_new && !in_window && !already_queued"
+    run:
+      - type: ensure_labels_exist
+        labels:
+          - name: janitor/queued
+            color: "#fbca04"
+      - type: add_labels_by_name
+        labels: [janitor/queued]

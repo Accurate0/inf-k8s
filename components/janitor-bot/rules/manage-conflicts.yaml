@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: manage-conflicts
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: is_open
+variables:
+  - var: has_conflicts
+    type: has_conflicts
+  - var: has_label
+    type: has_label
+    value: conflicts
+actions:
+  - when: "has_conflicts && !has_label"
+    run:
+      - type: ensure_labels_exist
+        labels:
+          - name: conflicts
+            color: "#d73a4a"
+      - type: add_labels_by_name
+        labels: [conflicts]
+  - when: "!has_conflicts && has_label"
+    run:
+      - type: remove_labels_by_name
+        labels: [conflicts]

@@ -1,11 +1,7 @@
 # yaml-language-server: $schema=./rules.schema.json
 rules:
   - !include rules/label-renovate.yaml
-  - !include rules/auto-merge-ci-image-updater.yaml
-  - !include rules/queue-ci-image-updater.yaml
-  - !include rules/label-conflicts.yaml
-  - !include rules/unlabel-conflicts.yaml
-  - !include rules/auto-merge-renovate.yaml
-  - !include rules/queue-renovate.yaml
-  - !include rules/github-workflow-failure.yaml
-  - !include rules/github-workflow-resolved.yaml
+  - !include rules/manage-ci-image-updater.yaml
+  - !include rules/manage-conflicts.yaml
+  - !include rules/manage-renovate.yaml
+  - !include rules/manage-github-workflow.yaml

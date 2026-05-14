@@ -4,10 +4,7 @@
   "type": "object",
   "properties": {
     "actions": {
-      "type": "array",
-      "items": {
-        "$ref": "#/$defs/ActionDef"
-      }
+      "$ref": "#/$defs/ActionsDef"
     },
     "enabled": {
       "$ref": "#/$defs/RuleEnabled"
@@ -17,6 +14,12 @@
     },
     "name": {
       "type": "string"
+    },
+    "variables": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/VariableDef"
+      }
     }
   },
   "required": [
@@ -219,6 +222,22 @@
         }
       ]
     },
+    "ActionsDef": {
+      "anyOf": [
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConditionalActionGroup"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionDef"
+          }
+        }
+      ]
+    },
     "Combinator": {
       "oneOf": [
         {
@@ -263,6 +282,24 @@
             "not"
           ]
         }
+      ]
+    },
+    "ConditionalActionGroup": {
+      "type": "object",
+      "properties": {
+        "run": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionDef"
+          }
+        },
+        "when": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "when",
+        "run"
       ]
     },
     "EnabledMode": {
@@ -630,6 +667,25 @@
         {
           "$ref": "#/$defs/EnabledMode"
         }
+      ]
+    },
+    "VariableDef": {
+      "type": "object",
+      "properties": {
+        "var": {
+          "type": "string"
+        }
+      },
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Combinator"
+        },
+        {
+          "$ref": "#/$defs/LeafMatcher"
+        }
+      ],
+      "required": [
+        "var"
       ]
     }
   }
