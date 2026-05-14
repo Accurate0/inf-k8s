@@ -219,7 +219,7 @@ spec:
                 INITIAL_COMMIT: pubkey
                 CRUD_ACTIONS: pubkey, parentsigned
                 WIKI: never
-                MERGES: pubkey
+                MERGES: pubkey, approved
               oauth2_client:
                 ENABLE_AUTO_REGISTRATION: "true"
               openid:
