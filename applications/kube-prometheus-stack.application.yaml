@@ -104,7 +104,7 @@ spec:
             size: 100Gi
     - chart: kube-prometheus-stack
       repoURL: https://prometheus-community.github.io/helm-charts
-      targetRevision: 85.0.2
+      targetRevision: 85.0.3
       helm:
         valuesObject:
           prometheus:
