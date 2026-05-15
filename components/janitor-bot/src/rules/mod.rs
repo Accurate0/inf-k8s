@@ -11,6 +11,7 @@ use crate::rules::matchers::MatcherCache;
 pub use actions::Action;
 use moka::sync::Cache;
 use schema::{ActionsDef, RulesFile};
+use serde::Serialize;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -26,6 +27,7 @@ struct ActionGroup<'a> {
     actions: Vec<&'a schema::ActionDef>,
 }
 
+#[derive(Serialize)]
 pub struct MatchedRule {
     pub name: String,
     pub dry_run: bool,
@@ -66,6 +68,44 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
+        let mut matched_rules = Vec::new();
+        for rule in &self.rules.rules {
+            if !rule.enabled.is_active() {
+                continue;
+            }
+
+            let eval = Self::evaluate_rule(rule, &bot_event, client).await;
+            if eval.matched {
+                let groups = Self::resolve_action_groups(rule, &eval.vars).await;
+                let actions = groups
+                    .iter()
+                    .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
+                    .collect();
+
+                matched_rules.push(MatchedRule {
+                    name: rule.name.clone(),
+                    dry_run: rule.enabled.is_dry_run(),
+                    actions,
+                });
+            }
+        }
+        matched_rules
+    }
+
+    pub async fn explain_workflow(
+        &self,
+        client: &ForgejoClient,
+        github_client: &GitHubClient,
+        event: &mut WorkflowEvent,
+    ) -> Vec<MatchedRule> {
+        let _guard = self.workflow_lock.lock().await;
+
+        if event.conclusion == "failure" {
+            let result = github_client.fetch_failed_jobs(&event.jobs_url).await;
+            event.failed_jobs_logs = result.logs;
+        }
+
+        let bot_event = BotEvent::GitHubWorkflow(event);
         let mut matched_rules = Vec::new();
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {

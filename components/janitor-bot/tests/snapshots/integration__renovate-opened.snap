@@ -1,0 +1,96 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+matched_rules:
+  - actions:
+      - ensure_labels_exist
+      - add_labels_by_name
+    dry_run: false
+    name: label-renovate
+  - actions: []
+    dry_run: false
+    name: manage-conflicts
+  - actions:
+      - ensure_labels_exist
+      - add_labels_by_name
+    dry_run: false
+    name: manage-renovate
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/100/labels
+    body:
+      labels:
+        - renovate
+      updated_at: ~
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/labels
+    body:
+      color: "#fbca04"
+      description: ~
+      exclusive: ~
+      is_archived: ~
+      name: janitor/queued
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/100/labels
+    body:
+      labels:
+        - janitor/queued
+      updated_at: ~
+    service: forgejo

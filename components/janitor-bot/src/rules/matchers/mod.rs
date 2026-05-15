@@ -12,6 +12,12 @@ pub struct MatcherCache {
     results: moka::sync::Cache<LeafMatcher, bool>,
 }
 
+impl Default for MatcherCache {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl MatcherCache {
     pub fn new() -> Self {
         Self {

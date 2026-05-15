@@ -1,0 +1,43 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+matched_rules:
+  - actions:
+      - remove_labels_by_name
+    dry_run: false
+    name: manage-conflicts
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/103/reviews
+    service: forgejo

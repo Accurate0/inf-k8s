@@ -1,0 +1,13 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+matched_rules:
+  - actions:
+      - close_issue
+    dry_run: false
+    name: manage-github-workflow
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/issues?state=open&q=%5BGitHub+CI%5D+anurag%2Fk8s+CI+failed&type=issues
+    service: forgejo

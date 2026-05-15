@@ -4,3 +4,4 @@ pub mod forgejo;
 pub mod git;
 pub mod github;
 pub mod rules;
+pub mod server;

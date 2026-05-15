@@ -15,6 +15,10 @@ impl ForgejoClient {
     pub fn from_env() -> anyhow::Result<Self> {
         let base_url = std::env::var("FORGEJO_INSTANCE_URL")?;
         let token = std::env::var("FORGEJO_ACCESS_KEY")?;
+        Self::new(base_url, token)
+    }
+
+    pub fn new(base_url: String, token: String) -> anyhow::Result<Self> {
         let url = Url::parse(&base_url)?;
         let api = Forgejo::new(Auth::Token(&token), url)?;
         Ok(Self {

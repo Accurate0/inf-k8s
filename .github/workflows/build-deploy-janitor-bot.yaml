@@ -21,9 +21,22 @@ jobs:
         BINARY_NAME=janitor-bot
       use-rust-caching: true
 
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - uses: actions/cache@v5
+        with:
+          path: components/janitor-bot/target
+          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
+      - run: cargo test
+        working-directory: components/janitor-bot
+
   deploy:
     needs:
       - build
+      - test
     uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@903765c7413c2790ea6fa24aea7cba0e603a1f31 # main
     with:
       service-name: janitor-bot

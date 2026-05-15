@@ -12,15 +12,27 @@ pub struct FailedJobsResult {
 pub struct GitHubClient {
     client: reqwest::Client,
     token: String,
+    base_url: String,
 }
 
 impl GitHubClient {
     pub fn from_env() -> anyhow::Result<Self> {
         let token = std::env::var("GITHUB_TOKEN")?;
+        let base_url =
+            std::env::var("GITHUB_URL").unwrap_or_else(|_| "https://api.github.com".to_string());
         Ok(Self {
             client: reqwest::Client::new(),
             token,
+            base_url,
         })
+    }
+
+    pub fn new(token: String, base_url: String) -> Self {
+        Self {
+            client: reqwest::Client::new(),
+            token,
+            base_url,
+        }
     }
 
     async fn github_get(&self, url: &str) -> Result<reqwest::Response, reqwest::Error> {
@@ -57,7 +69,8 @@ impl GitHubClient {
 
     pub async fn rerun_workflow(&self, owner: &str, repo: &str, run_id: u64) -> anyhow::Result<()> {
         let url = format!(
-            "https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs"
+            "{}/repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs",
+            self.base_url
         );
         let resp = self
             .client

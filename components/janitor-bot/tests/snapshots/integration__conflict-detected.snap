@@ -1,0 +1,60 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+matched_rules:
+  - actions:
+      - ensure_labels_exist
+      - add_labels_by_name
+    dry_run: false
+    name: manage-conflicts
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/labels
+    body:
+      color: "#d73a4a"
+      description: ~
+      exclusive: ~
+      is_archived: ~
+      name: conflicts
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/102/labels
+    body:
+      labels:
+        - conflicts
+      updated_at: ~
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    service: forgejo

@@ -30,6 +30,11 @@ tempfile = "3.27.0"
 [build-dependencies]
 yaml-include = "0.8.1"
 
+[dev-dependencies]
+insta = { version = "1", features = ["yaml"] }
+rstest = "0.26"
+wiremock = "0.6"
+
 [[bin]]
 name = "janitor-bot"
 path = "src/main.rs"
@@ -37,3 +42,4 @@ path = "src/main.rs"
 [[bin]]
 name = "gen-schema"
 path = "src/bin/gen_schema.rs"
+
