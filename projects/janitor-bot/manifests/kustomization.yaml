@@ -11,4 +11,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/janitor-bot
-    newTag: d4833d359610038b2c8eb9bb7ab874976eb3026c
+    newTag: bb5d8e95ca5ca42738f840f0ef9971c419762213
