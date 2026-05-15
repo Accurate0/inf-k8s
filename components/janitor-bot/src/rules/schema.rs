@@ -49,6 +49,8 @@ pub struct RuleDef {
     pub name: String,
     #[serde(default)]
     pub enabled: RuleEnabled,
+    #[serde(default)]
+    pub priority: i32,
     pub matches: Matcher,
     #[serde(default)]
     pub variables: Vec<VariableDef>,

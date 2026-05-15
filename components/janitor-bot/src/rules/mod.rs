@@ -51,7 +51,8 @@ impl RulesOrchestrator {
         Self::from_rules(rules)
     }
 
-    pub fn from_rules(rules: RulesFile) -> Self {
+    pub fn from_rules(mut rules: RulesFile) -> Self {
+        rules.rules.sort_by_key(|r| std::cmp::Reverse(r.priority));
         Self {
             rules,
             pr_locks: Cache::builder()

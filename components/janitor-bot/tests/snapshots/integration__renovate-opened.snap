@@ -3,14 +3,14 @@ source: tests/integration.rs
 expression: snapshot
 ---
 matched_rules:
+  - actions: []
+    dry_run: false
+    name: manage-conflicts
   - actions:
       - ensure_labels_exist
       - add_labels_by_name
     dry_run: false
     name: label-renovate
-  - actions: []
-    dry_run: false
-    name: manage-conflicts
   - actions:
       - ensure_labels_exist
       - remove_labels_by_name
@@ -27,16 +27,16 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
-    service: forgejo
-  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100
@@ -46,6 +46,12 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100
@@ -65,12 +71,6 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100

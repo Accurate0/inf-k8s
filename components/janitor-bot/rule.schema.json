@@ -15,6 +15,11 @@
     "name": {
       "type": "string"
     },
+    "priority": {
+      "type": "integer",
+      "format": "int32",
+      "default": 0
+    },
     "variables": {
       "type": "array",
       "items": {

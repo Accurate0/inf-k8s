@@ -9,6 +9,9 @@ matches:
       value: main
     - type: author
       value: ci-image-updater
+    - not:
+        type: has_label
+        value: conflicts
     - type: is_open
 variables:
   - var: in_window

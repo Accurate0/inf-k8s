@@ -20,6 +20,9 @@ matches:
     - not:
         type: has_label
         value: update-major
+    - not:
+        type: has_label
+        value: conflicts
     - type: is_open
 variables:
   - var: in_window
