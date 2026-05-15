@@ -91,7 +91,7 @@ fn eval_leaf<'a>(
             },
             LeafMatcher::TitleContains { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.title.contains(value.as_str()),
-                _ => false,
+                BotEvent::GitHubWorkflow(wf) => wf.display_title.contains(value.as_str()),
             },
             LeafMatcher::HasLabel { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
