@@ -32,13 +32,14 @@ impl Matcher {
         ev: &'a BotEvent<'a>,
         client: &'a ForgejoClient,
         cache: &'a MatcherCache,
+        now: chrono::DateTime<chrono::Utc>,
     ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         Box::pin(async move {
             match self {
                 Matcher::Combinator(c) => match c {
                     Combinator::All(matchers) => {
                         for m in matchers {
-                            if !m.matches(ev, client, cache).await {
+                            if !m.matches(ev, client, cache, now).await {
                                 return false;
                             }
                         }
@@ -46,19 +47,19 @@ impl Matcher {
                     }
                     Combinator::Any(matchers) => {
                         for m in matchers {
-                            if m.matches(ev, client, cache).await {
+                            if m.matches(ev, client, cache, now).await {
                                 return true;
                             }
                         }
                         false
                     }
-                    Combinator::Not(matcher) => !matcher.matches(ev, client, cache).await,
+                    Combinator::Not(matcher) => !matcher.matches(ev, client, cache, now).await,
                 },
                 Matcher::Leaf(leaf) => {
                     if let Some(cached) = cache.results.get(leaf) {
                         return cached;
                     }
-                    let result = eval_leaf(leaf, ev, client).await;
+                    let result = eval_leaf(leaf, ev, client, now).await;
                     cache.results.insert(leaf.clone(), result);
                     result
                 }
@@ -71,6 +72,7 @@ fn eval_leaf<'a>(
     leaf: &'a LeafMatcher,
     ev: &'a BotEvent<'a>,
     client: &'a ForgejoClient,
+    now: chrono::DateTime<chrono::Utc>,
 ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
     Box::pin(async move {
         match leaf {
@@ -154,7 +156,7 @@ fn eval_leaf<'a>(
                         return false;
                     }
                 };
-                let now = chrono::Utc::now().with_timezone(&tz);
+                let now = now.with_timezone(&tz);
                 let hour = now.hour();
                 if *weekdays_only {
                     let weekday = now.weekday();

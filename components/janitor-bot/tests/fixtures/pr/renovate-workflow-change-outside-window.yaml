@@ -1,10 +1,10 @@
-now: "2026-01-07T10:00:00Z"
+now: "2026-01-07T06:00:00Z"
 type: pr
 payload:
   action: opened
   pull_request:
-    number: 100
-    title: Update dependency foo to v2
+    number: 101
+    title: Update GitHub Actions workflow
     labels: []
     base:
       ref: main
@@ -19,24 +19,20 @@ payload:
 mocks:
   - service: forgejo
     method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/files
+    path: /api/v1/repos/anurag/k8s/pulls/101/files
     status: 200
     body:
-      - filename: .github/workflows/test.yml
-        contents_url: ""
-        html_url: ""
-        raw_url: ""
-      - filename: applications/foo/Dockerfile
+      - filename: .github/workflows/build.yaml
         contents_url: ""
         html_url: ""
         raw_url: ""
   - service: forgejo
     method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
+    path: /api/v1/repos/anurag/k8s/pulls/101
     status: 200
     body:
-      number: 100
-      title: Update dependency foo to v2
+      number: 101
+      title: Update GitHub Actions workflow
       user:
         login: renovate
         avatar_url: ""
@@ -61,39 +57,35 @@ mocks:
       updated_at: "2020-01-01T00:00:00Z"
   - service: forgejo
     method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
     status: 200
     body: []
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/labels
     status: 200
-    body:
-      - id: 1
-        name: renovate
-        color: "#1a7f37"
-        url: ""
+    body: []
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/labels
     status: 201
     body:
-      id: 2
+      id: 1
       name: renovate
       color: "#1a7f37"
       url: ""
   - service: forgejo
     method: POST
-    path: /api/v1/repos/anurag/k8s/issues/100/labels
+    path: /api/v1/repos/anurag/k8s/issues/101/labels
     status: 200
     body: []
   - service: forgejo
     method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
     status: 200
     body: {}
   - service: forgejo
     method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/100/merge
+    path: /api/v1/repos/anurag/k8s/pulls/101/merge
     status: 200
     body: {}

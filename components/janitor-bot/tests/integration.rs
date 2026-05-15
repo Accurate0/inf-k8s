@@ -21,6 +21,7 @@ struct Fixture {
     payload: Value,
     #[serde(default)]
     mocks: Vec<MockDef>,
+    now: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -138,6 +139,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         .json(&json!({
             "type": fixture.r#type,
             "payload": fixture.payload,
+            "now": fixture.now,
         }))
         .send()
         .await

@@ -34,10 +34,13 @@ pub struct MatchedRule {
     pub actions: Vec<&'static str>,
 }
 
+pub type ClockFn = Arc<dyn Fn() -> chrono::DateTime<chrono::Utc> + Send + Sync>;
+
 pub struct RulesOrchestrator {
     rules: RulesFile,
     pr_locks: Cache<(String, String, u64), Arc<Mutex<()>>>,
     workflow_lock: Mutex<()>,
+    clock: ClockFn,
 }
 
 impl RulesOrchestrator {
@@ -48,7 +51,17 @@ impl RulesOrchestrator {
                 .time_to_idle(Duration::from_secs(10 * 60))
                 .build(),
             workflow_lock: Mutex::new(()),
+            clock: Arc::new(chrono::Utc::now),
         }
+    }
+
+    pub fn with_clock(mut self, clock: ClockFn) -> Self {
+        self.clock = clock;
+        self
+    }
+
+    fn now(&self) -> chrono::DateTime<chrono::Utc> {
+        (self.clock)()
     }
 
     pub async fn explain_pr(
@@ -74,7 +87,7 @@ impl RulesOrchestrator {
                 continue;
             }
 
-            let eval = Self::evaluate_rule(rule, &bot_event, client).await;
+            let eval = Self::evaluate_rule(rule, &bot_event, client, self.now()).await;
             if eval.matched {
                 let groups = Self::resolve_action_groups(rule, &eval.vars).await;
                 let actions = groups
@@ -112,7 +125,7 @@ impl RulesOrchestrator {
                 continue;
             }
 
-            let eval = Self::evaluate_rule(rule, &bot_event, client).await;
+            let eval = Self::evaluate_rule(rule, &bot_event, client, self.now()).await;
             if eval.matched {
                 let groups = Self::resolve_action_groups(rule, &eval.vars).await;
                 let actions = groups
@@ -184,7 +197,7 @@ impl RulesOrchestrator {
             }
 
             let eval_start = Instant::now();
-            let eval = Self::evaluate_rule(rule, event, client).await;
+            let eval = Self::evaluate_rule(rule, event, client, self.now()).await;
             let eval_ms = eval_start.elapsed().as_millis();
             if !eval.matched {
                 tracing::debug!(rule = rule.name, eval_ms, "rule did not match");
@@ -237,15 +250,16 @@ impl RulesOrchestrator {
         rule: &'a schema::RuleDef,
         event: &BotEvent<'a>,
         client: &ForgejoClient,
+        now: chrono::DateTime<chrono::Utc>,
     ) -> RuleEvaluation {
         let cache = MatcherCache::new();
-        let matched = rule.matches.matches(event, client, &cache).await;
+        let matched = rule.matches.matches(event, client, &cache, now).await;
 
         let mut vars = HashMap::new();
         for defined_variable in &rule.variables {
             let result = defined_variable
                 .matcher
-                .matches(event, client, &cache)
+                .matches(event, client, &cache, now)
                 .await;
 
             tracing::debug!(

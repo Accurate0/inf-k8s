@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::event;
 use crate::forgejo::ForgejoClient;
 use crate::github::{self, GitHubClient};
-use crate::rules::RulesOrchestrator;
+use crate::rules::{self, RulesOrchestrator};
 
 pub struct AppState {
     pub client: ForgejoClient,
@@ -17,12 +17,22 @@ pub struct AppState {
 struct EvaluateRequest {
     r#type: String,
     payload: serde_json::Value,
+    now: Option<chrono::DateTime<chrono::Utc>>,
 }
 
 async fn handle_evaluate(
     State(state): State<Arc<AppState>>,
     Json(request): Json<EvaluateRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    let override_orchestrator = request.now.map(|now| {
+        RulesOrchestrator::from_rules(rules::validate::load_and_validate_rules().unwrap())
+            .with_clock(std::sync::Arc::new(move || now))
+    });
+
+    let orchestrator = override_orchestrator
+        .as_ref()
+        .unwrap_or(&state.orchestrator);
+
     match request.r#type.as_str() {
         "pr" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
@@ -40,14 +50,8 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid PR payload"})),
                 );
             };
-            let matched = state
-                .orchestrator
-                .explain_pr(&state.client, &mut pr_event)
-                .await;
-            state
-                .orchestrator
-                .evaluate_pr(&state.client, &mut pr_event)
-                .await;
+            let matched = orchestrator.explain_pr(&state.client, &mut pr_event).await;
+            orchestrator.evaluate_pr(&state.client, &mut pr_event).await;
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -69,12 +73,10 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid workflow payload"})),
                 );
             };
-            let matched = state
-                .orchestrator
+            let matched = orchestrator
                 .explain_workflow(&state.client, &state.github_client, &mut wf_event)
                 .await;
-            state
-                .orchestrator
+            orchestrator
                 .evaluate_workflow(&state.client, &state.github_client, &mut wf_event)
                 .await;
             (

@@ -13,10 +13,7 @@ matched_rules:
     name: manage-conflicts
   - actions:
       - ensure_labels_exist
-      - remove_labels_by_name
       - add_labels_by_name
-      - approve
-      - merge
     dry_run: false
     name: manage-renovate
 external_requests:
@@ -93,39 +90,16 @@ external_requests:
   - method: POST
     path: /api/v1/repos/anurag/k8s/labels
     body:
-      color: "#e4e669"
+      color: "#fbca04"
       description: ~
       exclusive: ~
       is_archived: ~
-      name: automated
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
+      name: janitor/queued
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/101/labels
     body:
       labels:
-        - automated
+        - janitor/queued
       updated_at: ~
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
-    body:
-      body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
-      comments: ~
-      commit_id: ~
-      event: APPROVED
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/101/merge
-    body:
-      Do: squash
-      MergeCommitID: ~
-      MergeMessageField: ~
-      MergeTitleField: ~
-      delete_branch_after_merge: true
-      force_merge: ~
-      head_commit_id: ~
-      merge_when_checks_succeed: ~
     service: forgejo
