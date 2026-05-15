@@ -1,8 +1,43 @@
 use super::Action;
 use super::matchers::Matcher;
+use crate::event;
 use forgejo_api::structs::MergePullRequestOptionDo;
 use schemars::JsonSchema;
 use serde::Deserialize;
+use std::collections::HashMap;
+
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
+#[serde(untagged)]
+pub enum TemplateString {
+    Object {
+        content: String,
+        #[serde(default)]
+        template: bool,
+    },
+    Plain(String),
+}
+
+impl TemplateString {
+    pub fn render(&self, vars: &HashMap<&str, String>) -> String {
+        match self {
+            TemplateString::Plain(s) => s.clone(),
+            TemplateString::Object { content, template } => {
+                if *template {
+                    event::render_template(content, vars)
+                } else {
+                    content.clone()
+                }
+            }
+        }
+    }
+
+    pub fn as_str(&self) -> &str {
+        match self {
+            TemplateString::Plain(s) => s,
+            TemplateString::Object { content, .. } => content,
+        }
+    }
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RulesFile {
@@ -86,7 +121,7 @@ pub enum ActionDef {
     #[serde(rename = "approve")]
     Approve {
         #[serde(default)]
-        comment: Option<String>,
+        comment: Option<TemplateString>,
     },
     #[serde(rename = "merge")]
     Merge {
@@ -95,7 +130,7 @@ pub enum ActionDef {
         delete_branch: bool,
     },
     #[serde(rename = "comment")]
-    Comment { body: String },
+    Comment { body: TemplateString },
     #[serde(rename = "add_labels_by_name")]
     AddLabelsByName { labels: Vec<String> },
     #[serde(rename = "remove_labels_by_name")]
@@ -111,19 +146,19 @@ pub enum ActionDef {
         target: IssueTarget,
         #[serde(rename = "deduplicateByTitle", default)]
         deduplicate_by_title: bool,
-        title: String,
-        body: String,
+        title: TemplateString,
+        body: TemplateString,
         #[serde(default)]
-        comment_body: Option<String>,
+        on_duplicate_comment: Option<TemplateString>,
         #[serde(default)]
         labels: Vec<LabelColor>,
     },
     #[serde(rename = "close_issue")]
     CloseIssue {
         target: IssueTarget,
-        title: String,
+        title: TemplateString,
         #[serde(default)]
-        comment_body: Option<String>,
+        closing_comment: Option<TemplateString>,
     },
 }
 
@@ -188,7 +223,7 @@ impl ActionDef {
                 deduplicate_by_title,
                 title,
                 body,
-                comment_body,
+                on_duplicate_comment,
                 labels,
             } => Action::CreateIssue {
                 target_owner: target.owner.clone(),
@@ -196,7 +231,7 @@ impl ActionDef {
                 deduplicate_by_title: *deduplicate_by_title,
                 title: title.clone(),
                 body: body.clone(),
-                comment_body: comment_body.clone(),
+                on_duplicate_comment: on_duplicate_comment.clone(),
                 labels: labels
                     .iter()
                     .map(|l| (l.name.clone(), l.color.clone()))
@@ -205,12 +240,12 @@ impl ActionDef {
             ActionDef::CloseIssue {
                 target,
                 title,
-                comment_body,
+                closing_comment,
             } => Action::CloseIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
                 title: title.clone(),
-                comment_body: comment_body.clone(),
+                closing_comment: closing_comment.clone(),
             },
         }
     }
@@ -219,6 +254,67 @@ impl ActionDef {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn template_string_plain_no_rendering() {
+        let ts = TemplateString::Plain("hello {name}".to_string());
+        let mut vars = HashMap::new();
+        vars.insert("name", "world".to_string());
+        assert_eq!(ts.render(&vars), "hello {name}");
+    }
+
+    #[test]
+    fn template_string_object_template_false() {
+        let ts = TemplateString::Object {
+            content: "hello {name}".to_string(),
+            template: false,
+        };
+        let mut vars = HashMap::new();
+        vars.insert("name", "world".to_string());
+        assert_eq!(ts.render(&vars), "hello {name}");
+    }
+
+    #[test]
+    fn template_string_object_template_true() {
+        let ts = TemplateString::Object {
+            content: "hello {name}".to_string(),
+            template: true,
+        };
+        let mut vars = HashMap::new();
+        vars.insert("name", "world".to_string());
+        assert_eq!(ts.render(&vars), "hello world");
+    }
+
+    #[test]
+    fn deserialize_template_string_from_plain() {
+        let yaml = "\"just a string\"";
+        let ts: TemplateString = yaml_serde::from_str(yaml).unwrap();
+        assert!(matches!(ts, TemplateString::Plain(_)));
+        assert_eq!(ts.as_str(), "just a string");
+    }
+
+    #[test]
+    fn deserialize_template_string_from_object() {
+        let yaml = "content: \"hello {x}\"\ntemplate: true";
+        let ts: TemplateString = yaml_serde::from_str(yaml).unwrap();
+        match ts {
+            TemplateString::Object { content, template } => {
+                assert_eq!(content, "hello {x}");
+                assert!(template);
+            }
+            _ => panic!("expected Object"),
+        }
+    }
+
+    #[test]
+    fn deserialize_template_string_object_defaults_template_false() {
+        let yaml = "content: \"static\"";
+        let ts: TemplateString = yaml_serde::from_str(yaml).unwrap();
+        match ts {
+            TemplateString::Object { template, .. } => assert!(!template),
+            _ => panic!("expected Object"),
+        }
+    }
 
     #[test]
     fn deserialize_flat_actions() {
@@ -387,7 +483,7 @@ actions:
     #[test]
     fn to_action_approve_with_comment() {
         let def = ActionDef::Approve {
-            comment: Some("looks good".to_string()),
+            comment: Some(TemplateString::Plain("looks good".to_string())),
         };
         let action = def.to_action();
         assert_eq!(action.kind(), "approve");

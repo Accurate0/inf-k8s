@@ -34,11 +34,14 @@
           "type": "object",
           "properties": {
             "comment": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": null
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateString"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "type": {
               "type": "string",
@@ -73,7 +76,7 @@
           "type": "object",
           "properties": {
             "body": {
-              "type": "string"
+              "$ref": "#/$defs/TemplateString"
             },
             "type": {
               "type": "string",
@@ -156,14 +159,7 @@
           "type": "object",
           "properties": {
             "body": {
-              "type": "string"
-            },
-            "comment_body": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": null
+              "$ref": "#/$defs/TemplateString"
             },
             "deduplicateByTitle": {
               "type": "boolean",
@@ -175,11 +171,21 @@
                 "$ref": "#/$defs/LabelColor"
               }
             },
+            "on_duplicate_comment": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateString"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
             "target": {
               "$ref": "#/$defs/IssueTarget"
             },
             "title": {
-              "type": "string"
+              "$ref": "#/$defs/TemplateString"
             },
             "type": {
               "type": "string",
@@ -196,18 +202,21 @@
         {
           "type": "object",
           "properties": {
-            "comment_body": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "default": null
+            "closing_comment": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateString"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             },
             "target": {
               "$ref": "#/$defs/IssueTarget"
             },
             "title": {
-              "type": "string"
+              "$ref": "#/$defs/TemplateString"
             },
             "type": {
               "type": "string",
@@ -344,7 +353,6 @@
           ]
         },
         {
-          "description": "A glob pattern like `\"src/**/*.rs\"` or negated `\"!src/generated/**\"`.",
           "type": "string"
         }
       ]
@@ -670,6 +678,28 @@
         },
         {
           "$ref": "#/$defs/EnabledMode"
+        }
+      ]
+    },
+    "TemplateString": {
+      "anyOf": [
+        {
+          "type": "object",
+          "properties": {
+            "content": {
+              "type": "string"
+            },
+            "template": {
+              "type": "boolean",
+              "default": false
+            }
+          },
+          "required": [
+            "content"
+          ]
+        },
+        {
+          "type": "string"
         }
       ]
     },

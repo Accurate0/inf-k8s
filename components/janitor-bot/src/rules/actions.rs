@@ -1,19 +1,20 @@
 use crate::command::ACK_LABEL;
-use crate::event::{self, BotEvent};
+use crate::event::BotEvent;
 use crate::forgejo::ForgejoClient;
+use crate::rules::schema::TemplateString;
 use forgejo_api::structs::MergePullRequestOptionDo;
 
 #[allow(dead_code)]
 pub enum Action {
     Approve {
-        body: Option<String>,
+        body: Option<TemplateString>,
     },
     Merge {
         strategy: MergePullRequestOptionDo,
         delete_branch: bool,
     },
     Comment {
-        body: String,
+        body: TemplateString,
     },
     AddLabels {
         label_ids: Vec<i64>,
@@ -33,16 +34,16 @@ pub enum Action {
         target_owner: String,
         target_repo: String,
         deduplicate_by_title: bool,
-        title: String,
-        body: String,
-        comment_body: Option<String>,
+        title: TemplateString,
+        body: TemplateString,
+        on_duplicate_comment: Option<TemplateString>,
         labels: Vec<(String, String)>,
     },
     CloseIssue {
         target_owner: String,
         target_repo: String,
-        title: String,
-        comment_body: Option<String>,
+        title: TemplateString,
+        closing_comment: Option<TemplateString>,
     },
 }
 
@@ -67,8 +68,10 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+                let vars = event.template_vars();
+                let rendered = body.as_ref().map(|b| b.render(&vars));
                 client
-                    .approve_pr(&pr.owner, &pr.repo, pr.pr_number as i64, body.as_deref())
+                    .approve_pr(&pr.owner, &pr.repo, pr.pr_number as i64, rendered.as_deref())
                     .await
             }
             Action::Merge {
@@ -92,8 +95,10 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+                let vars = event.template_vars();
+                let rendered = body.render(&vars);
                 client
-                    .comment(&pr.owner, &pr.repo, pr.pr_number as i64, body)
+                    .comment(&pr.owner, &pr.repo, pr.pr_number as i64, &rendered)
                     .await
             }
             Action::AddLabels { label_ids } => {
@@ -140,12 +145,12 @@ impl Action {
                 deduplicate_by_title,
                 title,
                 body,
-                comment_body,
+                on_duplicate_comment,
                 labels,
             } => {
                 let vars = event.template_vars();
-                let rendered_title = event::render_template(title, &vars);
-                let rendered_body = event::render_template(body, &vars);
+                let rendered_title = title.render(&vars);
+                let rendered_body = body.render(&vars);
                 async {
                     let existing = if *deduplicate_by_title {
                         client
@@ -163,9 +168,9 @@ impl Action {
                             tracing::info!(issue = index, "skipping comment on acknowledged issue");
                             return Ok(());
                         }
-                        let text = comment_body
-                            .as_deref()
-                            .map(|t| event::render_template(t, &vars))
+                        let text = on_duplicate_comment
+                            .as_ref()
+                            .map(|t| t.render(&vars))
                             .unwrap_or(rendered_body);
                         client
                             .comment_on_issue(target_owner, target_repo, index, &text)
@@ -191,10 +196,10 @@ impl Action {
                 target_owner,
                 target_repo,
                 title,
-                comment_body,
+                closing_comment,
             } => {
                 let vars = event.template_vars();
-                let rendered_title = event::render_template(title, &vars);
+                let rendered_title = title.render(&vars);
                 async {
                     let Some(existing) = client
                         .find_open_issue_by_title(target_owner, target_repo, &rendered_title)
@@ -203,8 +208,8 @@ impl Action {
                         return Ok(());
                     };
                     let index = existing.number.unwrap();
-                    if let Some(tmpl) = comment_body {
-                        let text = event::render_template(tmpl, &vars);
+                    if let Some(tmpl) = closing_comment {
+                        let text = tmpl.render(&vars);
                         client
                             .comment_on_issue(target_owner, target_repo, index, &text)
                             .await?;

@@ -73,7 +73,6 @@ pub enum FilePattern {
     StartsWith { starts_with: String },
     Contains { contains: String },
     EndsWith { ends_with: String },
-    /// A glob pattern like `"src/**/*.rs"` or negated `"!src/generated/**"`.
     Glob(String),
 }
 
