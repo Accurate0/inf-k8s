@@ -1,6 +1,7 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: label-renovate
 enabled: true
+priority: 9
 matches:
   all:
     - type: forgejo
