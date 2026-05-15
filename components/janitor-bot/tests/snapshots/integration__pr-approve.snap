@@ -1,0 +1,23 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  command: Approve
+external_requests:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/100/reactions
+    body:
+      content: "+1"
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/1/reviews
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/1/reviews
+    body:
+      body: ~
+      comments: ~
+      commit_id: ~
+      event: APPROVED
+    service: forgejo

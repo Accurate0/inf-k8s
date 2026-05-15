@@ -2,7 +2,7 @@ use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::event;
+use crate::{command, event};
 use crate::forgejo::ForgejoClient;
 use crate::github::{self, GitHubClient};
 use crate::rules::RulesOrchestrator;
@@ -84,9 +84,65 @@ async fn handle_evaluate(
                 Json(serde_json::to_value(&matched).unwrap()),
             )
         }
+        "pr_comment" => {
+            let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
+                Ok(w) => w,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": e.to_string()})),
+                    );
+                }
+            };
+            let Some(cmd) = webhook.into_comment_event() else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "invalid comment payload"})),
+                );
+            };
+            let Some(parsed) = command::parse_pr_command(&cmd.body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "unknown command"})),
+                );
+            };
+            command::handle_pr_command(&state.client, &state.orchestrator, &cmd, parsed).await;
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"command": format!("{parsed:?}")})),
+            )
+        }
+        "issue_comment" => {
+            let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
+                Ok(w) => w,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": e.to_string()})),
+                    );
+                }
+            };
+            let Some(cmd) = webhook.into_issue_comment_event() else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "invalid issue comment payload"})),
+                );
+            };
+            let Some(parsed) = command::parse_issue_command(&cmd.comment_body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "unknown command"})),
+                );
+            };
+            command::handle_issue_command(&state.client, &state.github_client, &cmd, parsed).await;
+            (
+                StatusCode::OK,
+                Json(serde_json::json!({"command": format!("{parsed:?}")})),
+            )
+        }
         _ => (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "type must be 'pr' or 'workflow'"})),
+            Json(serde_json::json!({"error": "type must be 'pr', 'workflow', 'pr_comment', or 'issue_comment'"})),
         ),
     }
 }

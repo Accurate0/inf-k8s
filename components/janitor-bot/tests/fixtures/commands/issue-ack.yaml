@@ -1,0 +1,35 @@
+type: issue_comment
+payload:
+  action: created
+  issue:
+    number: 42
+    pull_request: null
+    body: "some issue body"
+    labels:
+      - id: 1
+        name: github-ci-failure
+  comment:
+    id: 500
+    body: "@janitor ack"
+  sender:
+    login: anurag
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/500/reactions
+    status: 200
+    body:
+      created_at: "2025-01-01T00:00:00Z"
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    body: []
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/labels
+    status: 201
+    body:
+      id: 99
+      name: "janitor/acknowledged"
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/42/labels
+    body: []

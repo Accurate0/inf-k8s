@@ -2,7 +2,7 @@
 source: tests/integration.rs
 expression: snapshot
 ---
-matched_rules:
+response:
   - actions:
       - ensure_labels_exist
       - create_issue

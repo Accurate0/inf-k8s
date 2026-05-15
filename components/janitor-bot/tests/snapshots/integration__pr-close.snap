@@ -1,0 +1,26 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  command: Close
+external_requests:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/300/reactions
+    body:
+      content: "+1"
+    service: forgejo
+  - method: PATCH
+    path: /api/v1/repos/anurag/k8s/issues/3
+    body:
+      assignee: ~
+      assignees: ~
+      body: ~
+      due_date: ~
+      milestone: ~
+      ref: ~
+      state: closed
+      title: ~
+      unset_due_date: ~
+      updated_at: ~
+    service: forgejo

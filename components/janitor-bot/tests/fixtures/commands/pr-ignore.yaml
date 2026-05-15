@@ -1,0 +1,30 @@
+type: pr_comment
+payload:
+  action: created
+  issue:
+    number: 7
+    pull_request: {}
+    body: null
+    labels: []
+  comment:
+    id: 400
+    body: "@janitor ignore"
+  sender:
+    login: anurag
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/400/reactions
+    status: 200
+    body:
+      created_at: "2025-01-01T00:00:00Z"
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    body:
+      - id: 10
+        name: "janitor/ignore"
+        url: ""
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/7/labels
+    body: []

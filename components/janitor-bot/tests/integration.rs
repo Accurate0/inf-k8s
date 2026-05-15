@@ -37,7 +37,7 @@ struct MockDef {
 
 #[derive(Serialize)]
 struct Snapshot {
-    matched_rules: Value,
+    response: Value,
     external_requests: Vec<CapturedRequest>,
 }
 
@@ -143,7 +143,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         .await
         .expect("request failed");
 
-    let matched_rules: Value = resp.json().await.expect("failed to parse response");
+    let response: Value = resp.json().await.expect("failed to parse response");
 
     server_handle.abort();
 
@@ -154,7 +154,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     external_requests.extend(capture_requests(&github_requests, "github"));
 
     let snapshot = Snapshot {
-        matched_rules,
+        response,
         external_requests,
     };
 

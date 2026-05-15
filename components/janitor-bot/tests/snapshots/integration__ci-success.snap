@@ -2,7 +2,7 @@
 source: tests/integration.rs
 expression: snapshot
 ---
-matched_rules:
+response:
   - actions:
       - close_issue
     dry_run: false

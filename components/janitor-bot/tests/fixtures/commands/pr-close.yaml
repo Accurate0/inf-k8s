@@ -1,0 +1,31 @@
+type: pr_comment
+payload:
+  action: created
+  issue:
+    number: 3
+    pull_request: {}
+    body: null
+    labels: []
+  comment:
+    id: 300
+    body: "@janitor close"
+  sender:
+    login: anurag
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/300/reactions
+    status: 200
+    body:
+      created_at: "2025-01-01T00:00:00Z"
+  - method: PATCH
+    path: /api/v1/repos/anurag/k8s/issues/3
+    status: 201
+    body:
+      closed_at: null
+      created_at: "2025-01-01T00:00:00Z"
+      due_date: null
+      updated_at: "2025-01-01T00:00:00Z"
+      html_url: ""
+      url: ""

@@ -2,7 +2,7 @@
 source: tests/integration.rs
 expression: snapshot
 ---
-matched_rules:
+response:
   - actions:
       - remove_labels_by_name
     dry_run: false
