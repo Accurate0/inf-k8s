@@ -32,9 +32,6 @@ variables:
     end: 22
   - var: needs_approval
     type: not_approved_by_self
-  - var: is_new
-    type: action
-    value: opened
   - var: already_queued
     type: has_label
     value: janitor/queued
@@ -54,7 +51,7 @@ actions:
       - type: merge
         strategy: squash
         delete_branch: true
-  - when: "is_new && !in_window && !already_queued"
+  - when: "!in_window && !already_queued"
     run:
       - type: ensure_labels_exist
         labels:
