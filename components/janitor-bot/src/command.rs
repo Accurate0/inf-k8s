@@ -97,6 +97,12 @@ pub async fn handle_pr_command(
         repo = cmd.repo,
         "running PR command"
     );
+    if let Err(e) = client
+        .react_to_comment(&cmd.owner, &cmd.repo, cmd.comment_id, "+1")
+        .await
+    {
+        tracing::warn!(pr, "failed to react to command comment: {e}");
+    }
     match command {
         PrCommand::Approve => {
             if !client
@@ -221,6 +227,12 @@ pub async fn handle_issue_command(
         repo = event.repo,
         "running issue command"
     );
+    if let Err(e) = client
+        .react_to_comment(&event.owner, &event.repo, event.comment_id, "+1")
+        .await
+    {
+        tracing::warn!(issue = event.issue_number, "failed to react to command comment: {e}");
+    }
     match command {
         IssueCommand::RetryWorkflow => {
             if !event.issue_labels.iter().any(|l| l == "github-ci-failure") {

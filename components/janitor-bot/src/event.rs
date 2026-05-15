@@ -45,6 +45,7 @@ pub struct WebhookEvent {
 
 #[derive(Debug, Deserialize)]
 pub struct Comment {
+    pub id: i64,
     pub body: String,
 }
 
@@ -63,6 +64,7 @@ pub struct CommentEvent {
     pub owner: String,
     pub repo: String,
     pub pr_number: u64,
+    pub comment_id: i64,
     pub author: String,
     pub body: String,
 }
@@ -72,6 +74,7 @@ pub struct IssueCommentEvent {
     pub owner: String,
     pub repo: String,
     pub issue_number: u64,
+    pub comment_id: i64,
     pub author: String,
     pub comment_body: String,
     pub issue_body: String,
@@ -89,6 +92,7 @@ impl WebhookEvent {
             owner: owner.to_owned(),
             repo: repo.to_owned(),
             issue_number: issue.number,
+            comment_id: comment.id,
             author: sender.login,
             comment_body: comment.body,
             issue_body: issue.body.unwrap_or_default(),
@@ -106,6 +110,7 @@ impl WebhookEvent {
             owner: owner.to_owned(),
             repo: repo.to_owned(),
             pr_number: issue.number,
+            comment_id: comment.id,
             author: sender.login,
             body: comment.body,
         })
@@ -490,6 +495,7 @@ mod tests {
                 labels: vec![],
             }),
             comment: Some(Comment {
+                id: 1,
                 body: "@janitor merge".to_string(),
             }),
             sender: Some(User {
@@ -522,6 +528,7 @@ mod tests {
                 }],
             }),
             comment: Some(Comment {
+                id: 2,
                 body: "@janitor ack".to_string(),
             }),
             sender: Some(User {

@@ -475,6 +475,28 @@ impl ForgejoClient {
         Ok(())
     }
 
+    pub async fn react_to_comment(
+        &self,
+        owner: &str,
+        repo: &str,
+        comment_id: i64,
+        reaction: &str,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        self.api
+            .issue_post_comment_reaction(
+                owner,
+                repo,
+                comment_id,
+                EditReactionOption {
+                    content: Some(reaction.to_owned()),
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(owner, repo, comment_id, reaction, "reacted to comment");
+        Ok(())
+    }
+
     pub async fn create_pull_request(
         &self,
         owner: &str,
