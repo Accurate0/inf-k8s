@@ -2,7 +2,6 @@ pub mod actions;
 pub mod expr;
 pub mod matchers;
 pub mod schema;
-pub mod validate;
 
 use crate::event::{BotEvent, PrEvent, WorkflowEvent};
 use crate::forgejo::ForgejoClient;
@@ -16,6 +15,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
+
+const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
 
 struct RuleEvaluation {
     matched: bool,
@@ -44,6 +45,12 @@ pub struct RulesOrchestrator {
 }
 
 impl RulesOrchestrator {
+    pub fn new() -> Self {
+        let rules: RulesFile =
+            yaml_serde::from_str(RULES_YAML).expect("rules.yaml deserialization failed");
+        Self::from_rules(rules)
+    }
+
     pub fn from_rules(rules: RulesFile) -> Self {
         Self {
             rules,

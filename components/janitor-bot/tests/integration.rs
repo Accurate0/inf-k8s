@@ -120,9 +120,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     let state = Arc::new(AppState {
         client: ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
         github_client: GitHubClient::new("test-token".into(), github_server.uri()),
-        orchestrator: rules::RulesOrchestrator::from_rules(
-            rules::validate::load_and_validate_rules().unwrap(),
-        ),
+        orchestrator: rules::RulesOrchestrator::new(),
     });
 
     let app = server::test_router(state);

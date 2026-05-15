@@ -159,14 +159,12 @@ async fn evaluate_open_prs(state: &AppState) {
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
-    let rules = rules::validate::load_and_validate_rules()?;
-
     let state = Arc::new(AppState {
         client: ForgejoClient::from_env()?,
         github_client: github::GitHubClient::from_env()?,
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
-        orchestrator: RulesOrchestrator::from_rules(rules),
+        orchestrator: RulesOrchestrator::new(),
     });
 
     let scheduler = JobScheduler::new().await?;

@@ -5,7 +5,7 @@ use std::sync::Arc;
 use crate::event;
 use crate::forgejo::ForgejoClient;
 use crate::github::{self, GitHubClient};
-use crate::rules::{self, RulesOrchestrator};
+use crate::rules::RulesOrchestrator;
 
 pub struct AppState {
     pub client: ForgejoClient,
@@ -25,7 +25,7 @@ async fn handle_evaluate(
     Json(request): Json<EvaluateRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
     let override_orchestrator = request.now.map(|now| {
-        RulesOrchestrator::from_rules(rules::validate::load_and_validate_rules().unwrap())
+        RulesOrchestrator::new()
             .with_clock(std::sync::Arc::new(move || now))
     });
 
