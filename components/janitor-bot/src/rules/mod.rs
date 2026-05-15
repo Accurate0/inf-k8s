@@ -87,7 +87,7 @@ impl RulesOrchestrator {
                 continue;
             }
 
-            let eval = Self::evaluate_rule(rule, &bot_event, client, self.now()).await;
+            let eval = self.evaluate_rule(rule, &bot_event, client).await;
             if eval.matched {
                 let groups = Self::resolve_action_groups(rule, &eval.vars).await;
                 let actions = groups
@@ -125,7 +125,7 @@ impl RulesOrchestrator {
                 continue;
             }
 
-            let eval = Self::evaluate_rule(rule, &bot_event, client, self.now()).await;
+            let eval = self.evaluate_rule(rule, &bot_event, client).await;
             if eval.matched {
                 let groups = Self::resolve_action_groups(rule, &eval.vars).await;
                 let actions = groups
@@ -197,7 +197,7 @@ impl RulesOrchestrator {
             }
 
             let eval_start = Instant::now();
-            let eval = Self::evaluate_rule(rule, event, client, self.now()).await;
+            let eval = self.evaluate_rule(rule, event, client).await;
             let eval_ms = eval_start.elapsed().as_millis();
             if !eval.matched {
                 tracing::debug!(rule = rule.name, eval_ms, "rule did not match");
@@ -247,12 +247,13 @@ impl RulesOrchestrator {
     }
 
     async fn evaluate_rule<'a>(
+        &self,
         rule: &'a schema::RuleDef,
         event: &BotEvent<'a>,
         client: &ForgejoClient,
-        now: chrono::DateTime<chrono::Utc>,
     ) -> RuleEvaluation {
         let cache = MatcherCache::new();
+        let now = self.now();
         let matched = rule.matches.matches(event, client, &cache, now).await;
 
         let mut vars = HashMap::new();

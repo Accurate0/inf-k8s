@@ -6,9 +6,9 @@ use insta::assert_yaml_snapshot;
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use yaml_serde;
 use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
+use yaml_serde;
 
 use janitor_bot::forgejo::ForgejoClient;
 use janitor_bot::github::GitHubClient;
