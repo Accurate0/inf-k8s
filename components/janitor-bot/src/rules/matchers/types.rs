@@ -73,6 +73,8 @@ pub enum FilePattern {
     StartsWith { starts_with: String },
     Contains { contains: String },
     EndsWith { ends_with: String },
+    /// A glob pattern like `"src/**/*.rs"` or negated `"!src/generated/**"`.
+    Glob(String),
 }
 
 impl FilePattern {
@@ -81,6 +83,22 @@ impl FilePattern {
             FilePattern::StartsWith { starts_with } => path.starts_with(starts_with.as_str()),
             FilePattern::Contains { contains } => path.contains(contains.as_str()),
             FilePattern::EndsWith { ends_with } => path.ends_with(ends_with.as_str()),
+            FilePattern::Glob(pattern) => {
+                let (negated, pat) = if let Some(rest) = pattern.strip_prefix('!') {
+                    (true, rest)
+                } else {
+                    (false, pattern.as_str())
+                };
+                let glob = globset::Glob::new(pat)
+                    .unwrap_or_else(|e| {
+                        tracing::warn!(pattern, "invalid glob pattern: {e}");
+                        // Fall back to a pattern that matches nothing
+                        globset::Glob::new("").unwrap()
+                    })
+                    .compile_matcher();
+                let matched = glob.is_match(path);
+                if negated { !matched } else { matched }
+            }
         }
     }
 }

@@ -328,6 +328,10 @@
           "required": [
             "ends_with"
           ]
+        },
+        {
+          "description": "A glob pattern like `\"src/**/*.rs\"` or negated `\"!src/generated/**\"`.",
+          "type": "string"
         }
       ]
     },

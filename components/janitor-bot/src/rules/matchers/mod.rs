@@ -432,6 +432,79 @@ patterns:
     }
 
     #[test]
+    fn file_pattern_glob_basic() {
+        let p = FilePattern::Glob("src/**/*.rs".to_string());
+        assert!(p.matches("src/main.rs"));
+        assert!(p.matches("src/rules/mod.rs"));
+        assert!(!p.matches("Cargo.toml"));
+        assert!(!p.matches("tests/integration.rs"));
+    }
+
+    #[test]
+    fn file_pattern_glob_negated() {
+        let p = FilePattern::Glob("!src/generated/**".to_string());
+        assert!(p.matches("src/main.rs"));
+        assert!(!p.matches("src/generated/types.rs"));
+        assert!(!p.matches("src/generated/deep/nested.rs"));
+    }
+
+    #[test]
+    fn file_pattern_glob_dockerfile() {
+        let p = FilePattern::Glob("**/Dockerfile*".to_string());
+        assert!(p.matches("Dockerfile"));
+        assert!(p.matches("apps/Dockerfile"));
+        assert!(p.matches("apps/Dockerfile.dev"));
+        assert!(!p.matches("docker-compose.yml"));
+    }
+
+    #[test]
+    fn file_pattern_glob_workflows() {
+        let p = FilePattern::Glob(".github/workflows/**".to_string());
+        assert!(p.matches(".github/workflows/build.yaml"));
+        assert!(p.matches(".github/workflows/test.yml"));
+        assert!(!p.matches(".github/dependabot.yml"));
+        assert!(!p.matches("src/main.rs"));
+    }
+
+    #[test]
+    fn deserialize_glob_pattern_from_string() {
+        let yaml = r#"
+type: changed_files_all_match
+patterns:
+  - "src/**/*.rs"
+  - "!src/generated/**"
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::ChangedFilesAllMatch { patterns }) => {
+                assert_eq!(patterns.len(), 2);
+                assert!(matches!(&patterns[0], FilePattern::Glob(s) if s == "src/**/*.rs"));
+                assert!(matches!(&patterns[1], FilePattern::Glob(s) if s == "!src/generated/**"));
+            }
+            _ => panic!("expected ChangedFilesAllMatch"),
+        }
+    }
+
+    #[test]
+    fn glob_and_legacy_patterns_mixed() {
+        let yaml = r#"
+type: changed_files_all_match
+patterns:
+  - starts_with: ".github/"
+  - "**/*.yaml"
+"#;
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::ChangedFilesAllMatch { patterns }) => {
+                assert_eq!(patterns.len(), 2);
+                assert!(matches!(&patterns[0], FilePattern::StartsWith { .. }));
+                assert!(matches!(&patterns[1], FilePattern::Glob(_)));
+            }
+            _ => panic!("expected ChangedFilesAllMatch"),
+        }
+    }
+
+    #[test]
     fn deserialize_workflow_conclusion() {
         let yaml = "type: workflow_conclusion\nvalue: failure";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
