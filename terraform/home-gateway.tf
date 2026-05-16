@@ -50,18 +50,18 @@ resource "aws_iam_access_key" "home-gateway-access-key" {
   user = aws_iam_user.home-gateway-user.name
 }
 
-resource "infisical_secret" "aws_key_id" {
-  name         = "AWS_ACCESS_KEY_ID"
-  value        = aws_iam_access_key.home-gateway-access-key.id
-  env_slug     = "prod"
-  workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
-  folder_path  = "/"
-}
-
-resource "infisical_secret" "aws_key_secret" {
-  name         = "AWS_SECRET_ACCESS_KEY"
-  value        = aws_iam_access_key.home-gateway-access-key.secret
-  env_slug     = "prod"
-  workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
-  folder_path  = "/"
-}
+# resource "infisical_secret" "aws_key_id" {
+#   name         = "AWS_ACCESS_KEY_ID"
+#   value        = aws_iam_access_key.home-gateway-access-key.id
+#   env_slug     = "prod"
+#   workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
+#   folder_path  = "/"
+# }
+#
+# resource "infisical_secret" "aws_key_secret" {
+#   name         = "AWS_SECRET_ACCESS_KEY"
+#   value        = aws_iam_access_key.home-gateway-access-key.secret
+#   env_slug     = "prod"
+#   workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
+#   folder_path  = "/"
+# }

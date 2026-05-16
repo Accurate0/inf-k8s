@@ -6,12 +6,12 @@ terraform_dir := justfile_directory() / "terraform"
 
 # Run terraform plan
 plan:
-    cd {{terraform_dir}} && terraform plan
+    cd {{terraform_dir}} && tofu plan
 
 # Run terraform apply
 apply:
-    cd {{terraform_dir}} && terraform apply
+    cd {{terraform_dir}} && tofu apply
 
 # Run terraform init
 init:
-    cd {{terraform_dir}} && terraform init
+    cd {{terraform_dir}} && tofu init
