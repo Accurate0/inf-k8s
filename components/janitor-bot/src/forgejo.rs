@@ -497,6 +497,121 @@ impl ForgejoClient {
         Ok(())
     }
 
+    pub async fn get_raw_file(
+        &self,
+        owner: &str,
+        repo: &str,
+        filepath: &str,
+        git_ref: &str,
+    ) -> anyhow::Result<String> {
+        let url = format!(
+            "{}/api/v1/repos/{}/{}/raw/{}?ref={}",
+            self.base_url, owner, repo, filepath, git_ref
+        );
+        let resp = reqwest::Client::new()
+            .get(&url)
+            .header("Authorization", format!("token {}", self.token))
+            .send()
+            .await?
+            .error_for_status()?
+            .text()
+            .await?;
+        Ok(resp)
+    }
+
+    pub async fn get_pr_head_ref(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+    ) -> anyhow::Result<String> {
+        let pr_data = self
+            .api
+            .repo_get_pull_request(owner, repo, pr)
+            .send()
+            .await?;
+        pr_data
+            .head
+            .and_then(|h| h.r#ref)
+            .ok_or_else(|| anyhow::anyhow!("PR head ref not found"))
+    }
+
+    pub async fn find_bot_comment_with_marker(
+        &self,
+        owner: &str,
+        repo: &str,
+        issue: i64,
+        marker: &str,
+    ) -> anyhow::Result<Option<i64>> {
+        let url = format!(
+            "{}/api/v1/repos/{}/{}/issues/{}/comments",
+            self.base_url, owner, repo, issue
+        );
+        let resp: Vec<serde_json::Value> = reqwest::Client::new()
+            .get(&url)
+            .header("Authorization", format!("token {}", self.token))
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        for comment in resp {
+            let body = comment["body"].as_str().unwrap_or("");
+            let user = comment["user"]["login"].as_str().unwrap_or("");
+            if user == BOT_USERNAME && body.contains(marker)
+                && let Some(id) = comment["id"].as_i64() {
+                    return Ok(Some(id));
+                }
+        }
+        Ok(None)
+    }
+
+    pub async fn update_comment(
+        &self,
+        owner: &str,
+        repo: &str,
+        comment_id: i64,
+        body: &str,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        self.api
+            .issue_edit_comment(
+                owner,
+                repo,
+                comment_id,
+                EditIssueCommentOption {
+                    body: body.to_owned(),
+                    updated_at: None,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(owner, repo, comment_id, "updated comment");
+        Ok(())
+    }
+
+    pub async fn comment_or_update(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+        marker: &str,
+        body: &str,
+    ) -> anyhow::Result<()> {
+        match self
+            .find_bot_comment_with_marker(owner, repo, pr, marker)
+            .await?
+        {
+            Some(comment_id) => {
+                self.update_comment(owner, repo, comment_id, body).await?;
+            }
+            None => {
+                self.comment(owner, repo, pr, body).await?;
+            }
+        }
+        Ok(())
+    }
+
     pub async fn create_pull_request(
         &self,
         owner: &str,

@@ -19,12 +19,6 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
-    service: forgejo
-  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/102/files
     service: forgejo
   - method: GET
@@ -51,10 +45,4 @@ external_requests:
       labels:
         - conflicts
       updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
     service: forgejo

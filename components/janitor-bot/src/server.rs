@@ -2,14 +2,13 @@ use axum::{Json, Router, extract::State, http::StatusCode, routing::post};
 use serde::Deserialize;
 use std::sync::Arc;
 
-use crate::{command, event};
-use crate::forgejo::ForgejoClient;
-use crate::github::{self, GitHubClient};
+use crate::clients::Clients;
+use crate::github;
 use crate::rules::RulesOrchestrator;
+use crate::{command, event};
 
 pub struct AppState {
-    pub client: ForgejoClient,
-    pub github_client: GitHubClient,
+    pub clients: Clients,
     pub orchestrator: RulesOrchestrator,
 }
 
@@ -24,10 +23,9 @@ async fn handle_evaluate(
     State(state): State<Arc<AppState>>,
     Json(request): Json<EvaluateRequest>,
 ) -> (StatusCode, Json<serde_json::Value>) {
-    let override_orchestrator = request.now.map(|now| {
-        RulesOrchestrator::new()
-            .with_clock(std::sync::Arc::new(move || now))
-    });
+    let override_orchestrator = request
+        .now
+        .map(|now| RulesOrchestrator::new().with_clock(std::sync::Arc::new(move || now)));
 
     let orchestrator = override_orchestrator
         .as_ref()
@@ -50,8 +48,10 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid PR payload"})),
                 );
             };
-            let matched = orchestrator.explain_pr(&state.client, &mut pr_event).await;
-            orchestrator.evaluate_pr(&state.client, &mut pr_event).await;
+            let matched = orchestrator.explain_pr(&state.clients, &mut pr_event).await;
+            orchestrator
+                .evaluate_pr(&state.clients, &mut pr_event)
+                .await;
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -74,10 +74,10 @@ async fn handle_evaluate(
                 );
             };
             let matched = orchestrator
-                .explain_workflow(&state.client, &state.github_client, &mut wf_event)
+                .explain_workflow(&state.clients, &mut wf_event)
                 .await;
             orchestrator
-                .evaluate_workflow(&state.client, &state.github_client, &mut wf_event)
+                .evaluate_workflow(&state.clients, &mut wf_event)
                 .await;
             (
                 StatusCode::OK,
@@ -106,11 +106,9 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "unknown command"})),
                 );
             };
-            command::handle_pr_command(&state.client, &state.orchestrator, &cmd, parsed).await;
-            (
-                StatusCode::OK,
-                Json(serde_json::json!({"command": format!("{parsed:?}")})),
-            )
+            let debug = format!("{parsed:?}");
+            command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed).await;
+            (StatusCode::OK, Json(serde_json::json!({"command": debug})))
         }
         "issue_comment" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
@@ -134,7 +132,7 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "unknown command"})),
                 );
             };
-            command::handle_issue_command(&state.client, &state.github_client, &cmd, parsed).await;
+            command::handle_issue_command(&state.clients, &cmd, parsed).await;
             (
                 StatusCode::OK,
                 Json(serde_json::json!({"command": format!("{parsed:?}")})),
@@ -142,7 +140,9 @@ async fn handle_evaluate(
         }
         _ => (
             StatusCode::BAD_REQUEST,
-            Json(serde_json::json!({"error": "type must be 'pr', 'workflow', 'pr_comment', or 'issue_comment'"})),
+            Json(
+                serde_json::json!({"error": "type must be 'pr', 'workflow', 'pr_comment', or 'issue_comment'"}),
+            ),
         ),
     }
 }

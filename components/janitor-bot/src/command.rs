@@ -1,12 +1,12 @@
+use crate::clients::Clients;
 use crate::event::{self, CommentEvent, IssueCommentEvent};
 use crate::forgejo::ForgejoClient;
 use crate::git;
-use crate::github::GitHubClient;
 use crate::rules::RulesOrchestrator;
 use forgejo_api::structs::MergePullRequestOptionDo;
 use std::time::{SystemTime, UNIX_EPOCH};
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum PrCommand {
     Approve,
     Merge { strategy: MergePullRequestOptionDo },
@@ -16,6 +16,7 @@ pub enum PrCommand {
     Reopen,
     Ignore,
     Explain,
+    RunAction { name: String },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -66,6 +67,13 @@ pub fn parse_pr_command(body: &str) -> Option<PrCommand> {
         "reopen" => Some(PrCommand::Reopen),
         "ignore" => Some(PrCommand::Ignore),
         "explain" => Some(PrCommand::Explain),
+        "run" => {
+            if words.next()? != "rule" {
+                return None;
+            }
+            let name = words.next()?.to_owned();
+            Some(PrCommand::RunAction { name })
+        }
         _ => None,
     }
 }
@@ -84,12 +92,13 @@ pub fn parse_issue_command(body: &str) -> Option<IssueCommand> {
 }
 
 pub async fn handle_pr_command(
-    client: &ForgejoClient,
+    clients: &Clients,
     orchestrator: &RulesOrchestrator,
     cmd: &CommentEvent,
     command: PrCommand,
 ) {
     let pr = cmd.pr_number as i64;
+    let client = &clients.forgejo;
     tracing::info!(
         ?command,
         pr,
@@ -183,10 +192,42 @@ pub async fn handle_pr_command(
                 tracing::warn!("explain: could not build PrEvent");
                 return;
             };
-            let matched = orchestrator.explain_pr(client, &mut pr_event).await;
+            let matched = orchestrator.explain_pr(clients, &mut pr_event).await;
             let body = format_explain(&matched);
             if let Err(e) = client.comment(&cmd.owner, &cmd.repo, pr, &body).await {
                 tracing::error!("explain: comment failed: {e}");
+            }
+        }
+        PrCommand::RunAction { name } => {
+            let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
+                Ok(p) => p,
+                Err(e) => {
+                    tracing::error!("run action: failed to fetch PR: {e}");
+                    return;
+                }
+            };
+            let Some(mut pr_event) =
+                event::PrEvent::from_api_pr(&api_pr, cmd.owner.clone(), cmd.repo.clone())
+            else {
+                tracing::warn!("run action: could not build PrEvent");
+                return;
+            };
+            if let Err(e) = orchestrator
+                .run_rule_by_name_unconditionally(clients, &mut pr_event, &name)
+                .await
+            {
+                tracing::error!("run action failed: {e}");
+                if let Err(e) = client
+                    .comment(
+                        &cmd.owner,
+                        &cmd.repo,
+                        pr,
+                        &format!("Failed to run action `{name}`: {e}"),
+                    )
+                    .await
+                {
+                    tracing::error!("failed to comment: {e}");
+                }
             }
         }
         PrCommand::Recheck => {
@@ -203,7 +244,7 @@ pub async fn handle_pr_command(
                 tracing::warn!("recheck: could not build PrEvent");
                 return;
             };
-            orchestrator.evaluate_pr(client, &mut pr_event).await;
+            orchestrator.evaluate_pr(clients, &mut pr_event).await;
         }
     }
 }
@@ -215,11 +256,11 @@ fn extract_metadata_json(text: &str) -> Option<serde_json::Value> {
 }
 
 pub async fn handle_issue_command(
-    client: &ForgejoClient,
-    github_client: &GitHubClient,
+    clients: &Clients,
     event: &IssueCommentEvent,
     command: IssueCommand,
 ) {
+    let client = &clients.forgejo;
     tracing::info!(
         ?command,
         issue = event.issue_number,
@@ -231,7 +272,10 @@ pub async fn handle_issue_command(
         .react_to_comment(&event.owner, &event.repo, event.comment_id, "+1")
         .await
     {
-        tracing::warn!(issue = event.issue_number, "failed to react to command comment: {e}");
+        tracing::warn!(
+            issue = event.issue_number,
+            "failed to react to command comment: {e}"
+        );
     }
     match command {
         IssueCommand::RetryWorkflow => {
@@ -274,7 +318,7 @@ pub async fn handle_issue_command(
                 return;
             };
             let (owner, repo) = full_repo.split_once('/').unwrap();
-            if let Err(e) = github_client.rerun_workflow(owner, repo, run_id).await {
+            if let Err(e) = clients.github.rerun_workflow(owner, repo, run_id).await {
                 tracing::error!(
                     issue = event.issue_number,
                     run_id,
@@ -421,6 +465,25 @@ mod tests {
             parse_pr_command("@janitor explain").unwrap(),
             PrCommand::Explain
         ));
+    }
+
+    #[test]
+    fn parse_run_rule() {
+        let cmd = parse_pr_command("@janitor run rule argocd-diff-renovate").unwrap();
+        match cmd {
+            PrCommand::RunAction { name } => assert_eq!(name, "argocd-diff-renovate"),
+            _ => panic!("expected RunAction"),
+        }
+    }
+
+    #[test]
+    fn parse_run_rule_missing_name() {
+        assert!(parse_pr_command("@janitor run rule").is_none());
+    }
+
+    #[test]
+    fn parse_run_invalid_subcommand() {
+        assert!(parse_pr_command("@janitor run something foo").is_none());
     }
 
     #[test]

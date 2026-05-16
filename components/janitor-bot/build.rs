@@ -45,7 +45,10 @@ fn main() {
     // Validate expressions at build time
     if let Some(rules) = yaml_value.get("rules").and_then(|r| r.as_array()) {
         for rule in rules {
-            let rule_name = rule.get("name").and_then(|n| n.as_str()).unwrap_or("<unknown>");
+            let rule_name = rule
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("<unknown>");
             let defined_vars: std::collections::HashSet<String> = rule
                 .get("variables")
                 .and_then(|v| v.as_array())

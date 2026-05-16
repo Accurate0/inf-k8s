@@ -1,3 +1,5 @@
+pub mod argocd;
+pub mod clients;
 pub mod command;
 pub mod event;
 pub mod forgejo;

@@ -5,8 +5,9 @@ use axum::{
     http::{HeaderMap, StatusCode},
     routing::{get, post},
 };
-use forgejo::ForgejoClient;
-use janitor_bot::{command, event, forgejo, github, rules};
+use janitor_bot::forgejo::ForgejoClient;
+use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient};
+use janitor_bot::{command, event, github, rules};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
@@ -15,8 +16,7 @@ const FORGEJO_OWNER: &str = "anurag";
 const WATCH_REPOS: &[&str] = &["k8s"];
 
 struct AppState {
-    client: ForgejoClient,
-    github_client: github::GitHubClient,
+    clients: Clients,
     forgejo_webhook_secret: String,
     github_webhook_secret: String,
     orchestrator: RulesOrchestrator,
@@ -57,8 +57,7 @@ async fn handle_forgejo_webhook(
             && let Some(parsed) = command::parse_issue_command(&cmd.comment_body)
         {
             tokio::spawn(async move {
-                command::handle_issue_command(&state.client, &state.github_client, &cmd, parsed)
-                    .await;
+                command::handle_issue_command(&state.clients, &cmd, parsed).await;
             });
         }
         return StatusCode::OK;
@@ -70,7 +69,7 @@ async fn handle_forgejo_webhook(
             && let Some(parsed) = command::parse_pr_command(&cmd.body)
         {
             tokio::spawn(async move {
-                command::handle_pr_command(&state.client, &state.orchestrator, &cmd, parsed).await;
+                command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed).await;
             });
         }
         return StatusCode::OK;
@@ -87,7 +86,7 @@ async fn handle_forgejo_webhook(
     tokio::spawn(async move {
         state
             .orchestrator
-            .evaluate_pr(&state.client, &mut pr_event)
+            .evaluate_pr(&state.clients, &mut pr_event)
             .await;
     });
 
@@ -122,7 +121,7 @@ async fn handle_github_webhook(
     tokio::spawn(async move {
         state
             .orchestrator
-            .evaluate_workflow(&state.client, &state.github_client, &mut wf_event)
+            .evaluate_workflow(&state.clients, &mut wf_event)
             .await;
     });
 
@@ -130,12 +129,15 @@ async fn handle_github_webhook(
 }
 
 async fn evaluate_open_prs(state: &AppState) {
-    let client = &state.client;
-
     for repo in WATCH_REPOS {
         tracing::info!(owner = FORGEJO_OWNER, repo, "polling open PRs");
 
-        let prs = match client.list_open_prs(FORGEJO_OWNER, repo).await {
+        let prs = match state
+            .clients
+            .forgejo
+            .list_open_prs(FORGEJO_OWNER, repo)
+            .await
+        {
             Ok(prs) => prs,
             Err(e) => {
                 tracing::error!(owner = FORGEJO_OWNER, repo, "failed to list open PRs: {e}");
@@ -150,7 +152,10 @@ async fn evaluate_open_prs(state: &AppState) {
                 continue;
             };
 
-            state.orchestrator.evaluate_pr(client, &mut pr_event).await;
+            state
+                .orchestrator
+                .evaluate_pr(&state.clients, &mut pr_event)
+                .await;
         }
     }
 }
@@ -160,8 +165,11 @@ async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
 
     let state = Arc::new(AppState {
-        client: ForgejoClient::from_env()?,
-        github_client: github::GitHubClient::from_env()?,
+        clients: Clients::new(
+            ForgejoClient::from_env()?,
+            GitHubClient::from_env()?,
+            ArgocdClient::from_env()?,
+        ),
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
         orchestrator: RulesOrchestrator::new(),

@@ -1,6 +1,6 @@
+use crate::clients::Clients;
 use crate::command::ACK_LABEL;
 use crate::event::BotEvent;
-use crate::forgejo::ForgejoClient;
 use crate::rules::schema::TemplateString;
 use forgejo_api::structs::MergePullRequestOptionDo;
 
@@ -45,6 +45,7 @@ pub enum Action {
         title: TemplateString,
         closing_comment: Option<TemplateString>,
     },
+    ArgoCdDiff,
 }
 
 impl Action {
@@ -59,10 +60,12 @@ impl Action {
             Action::EnsureLabelsExist { .. } => "ensure_labels_exist",
             Action::CreateIssue { .. } => "create_issue",
             Action::CloseIssue { .. } => "close_issue",
+            Action::ArgoCdDiff => "argocd_diff",
         }
     }
 
-    pub async fn execute(&self, client: &ForgejoClient, event: &BotEvent<'_>) {
+    pub async fn execute(&self, clients: &Clients, event: &BotEvent<'_>) {
+        let client = &clients.forgejo;
         let result = match self {
             Action::Approve { body } => {
                 let BotEvent::ForgejoPr(pr) = event else {
@@ -71,7 +74,12 @@ impl Action {
                 let vars = event.template_vars();
                 let rendered = body.as_ref().map(|b| b.render(&vars));
                 client
-                    .approve_pr(&pr.owner, &pr.repo, pr.pr_number as i64, rendered.as_deref())
+                    .approve_pr(
+                        &pr.owner,
+                        &pr.repo,
+                        pr.pr_number as i64,
+                        rendered.as_deref(),
+                    )
                     .await
             }
             Action::Merge {
@@ -218,6 +226,15 @@ impl Action {
                     Ok(())
                 }
                 .await
+            }
+            Action::ArgoCdDiff => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                if let Err(e) = clients.argocd.run_diff_and_comment(client, pr).await {
+                    tracing::error!("argocd_diff action failed: {e}");
+                }
+                return;
             }
         };
         if let Err(e) = result {

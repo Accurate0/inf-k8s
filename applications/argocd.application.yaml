@@ -70,6 +70,7 @@ spec:
             cm:
               admin.enabled: false
               accounts.anurag.enabled: false
+              accounts.janitor: apiKey
               dex.config: |
                 connectors:
                 - config:
@@ -90,6 +91,8 @@ spec:
                 p, github-actions, applications, sync, default/*, allow
                 p, github-actions, applications, get, default/*, allow
                 p, github-actions, projects, get, *, allow
+                p, janitor, applications, get, default/*, allow
+                p, janitor, projects, get, *, allow
             params:
               server.insecure: true
 

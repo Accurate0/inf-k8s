@@ -30,7 +30,7 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/101
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
+    path: /api/v1/repos/anurag/k8s/pulls/101
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101/reviews
@@ -43,6 +43,9 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/101
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101
@@ -74,9 +77,6 @@ external_requests:
       labels:
         - renovate
       updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101

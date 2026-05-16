@@ -162,6 +162,8 @@ pub enum ActionDef {
         #[serde(default)]
         closing_comment: Option<TemplateString>,
     },
+    #[serde(rename = "argocd_diff")]
+    ArgoCdDiff,
 }
 
 fn default_true() -> bool {
@@ -249,6 +251,7 @@ impl ActionDef {
                 title: title.clone(),
                 closing_comment: closing_comment.clone(),
             },
+            ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
         }
     }
 }

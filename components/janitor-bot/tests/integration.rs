@@ -10,6 +10,8 @@ use wiremock::matchers::{method, path};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 use yaml_serde;
 
+use janitor_bot::argocd::ArgocdClient;
+use janitor_bot::clients::Clients;
 use janitor_bot::forgejo::ForgejoClient;
 use janitor_bot::github::GitHubClient;
 use janitor_bot::rules;
@@ -118,8 +120,11 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     }
 
     let state = Arc::new(AppState {
-        client: ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
-        github_client: GitHubClient::new("test-token".into(), github_server.uri()),
+        clients: Clients::new(
+            ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
+            GitHubClient::new("test-token".into(), github_server.uri()),
+            ArgocdClient::new("http://localhost".into(), "test-token".into()),
+        ),
         orchestrator: rules::RulesOrchestrator::new(),
     });
 

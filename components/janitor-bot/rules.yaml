@@ -5,3 +5,4 @@ rules:
   - !include rules/manage-conflicts.yaml
   - !include rules/manage-renovate.yaml
   - !include rules/manage-github-workflow.yaml
+  - !include rules/argocd-diff-renovate.yaml

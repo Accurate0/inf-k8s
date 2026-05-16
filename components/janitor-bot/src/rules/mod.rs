@@ -3,9 +3,8 @@ pub mod expr;
 pub mod matchers;
 pub mod schema;
 
+use crate::clients::Clients;
 use crate::event::{BotEvent, PrEvent, WorkflowEvent};
-use crate::forgejo::ForgejoClient;
-use crate::github::GitHubClient;
 use crate::rules::matchers::MatcherCache;
 pub use actions::Action;
 use moka::sync::Cache;
@@ -17,11 +16,6 @@ use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
 
 const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
-
-struct RuleEvaluation {
-    matched: bool,
-    vars: HashMap<String, bool>,
-}
 
 struct ActionGroup<'a> {
     when: Option<&'a str>,
@@ -42,6 +36,12 @@ pub struct RulesOrchestrator {
     pr_locks: Cache<(String, String, u64), Arc<Mutex<()>>>,
     workflow_lock: Mutex<()>,
     clock: ClockFn,
+}
+
+impl Default for RulesOrchestrator {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl RulesOrchestrator {
@@ -72,16 +72,13 @@ impl RulesOrchestrator {
         (self.clock)()
     }
 
-    pub async fn explain_pr(
-        &self,
-        client: &ForgejoClient,
-        event: &mut PrEvent,
-    ) -> Vec<MatchedRule> {
+    pub async fn explain_pr(&self, clients: &Clients, event: &mut PrEvent) -> Vec<MatchedRule> {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
 
         let pr_id = event.pr_number as i64;
-        if let Ok(files) = client
+        if let Ok(files) = clients
+            .forgejo
             .get_pr_changed_files(&event.owner, &event.repo, pr_id)
             .await
         {
@@ -89,69 +86,26 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
-        let mut matched_rules = Vec::new();
-        for rule in &self.rules.rules {
-            if !rule.enabled.is_active() {
-                continue;
-            }
-
-            let eval = self.evaluate_rule(rule, &bot_event, client).await;
-            if eval.matched {
-                let groups = Self::resolve_action_groups(rule, &eval.vars).await;
-                let actions = groups
-                    .iter()
-                    .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
-                    .collect();
-
-                matched_rules.push(MatchedRule {
-                    name: rule.name.clone(),
-                    dry_run: rule.enabled.is_dry_run(),
-                    actions,
-                });
-            }
-        }
-        matched_rules
+        self.explain_rules(&bot_event, clients).await
     }
 
     pub async fn explain_workflow(
         &self,
-        client: &ForgejoClient,
-        github_client: &GitHubClient,
+        clients: &Clients,
         event: &mut WorkflowEvent,
     ) -> Vec<MatchedRule> {
         let _guard = self.workflow_lock.lock().await;
 
         if event.conclusion == "failure" {
-            let result = github_client.fetch_failed_jobs(&event.jobs_url).await;
+            let result = clients.github.fetch_failed_jobs(&event.jobs_url).await;
             event.failed_jobs_logs = result.logs;
         }
 
         let bot_event = BotEvent::GitHubWorkflow(event);
-        let mut matched_rules = Vec::new();
-        for rule in &self.rules.rules {
-            if !rule.enabled.is_active() {
-                continue;
-            }
-
-            let eval = self.evaluate_rule(rule, &bot_event, client).await;
-            if eval.matched {
-                let groups = Self::resolve_action_groups(rule, &eval.vars).await;
-                let actions = groups
-                    .iter()
-                    .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
-                    .collect();
-
-                matched_rules.push(MatchedRule {
-                    name: rule.name.clone(),
-                    dry_run: rule.enabled.is_dry_run(),
-                    actions,
-                });
-            }
-        }
-        matched_rules
+        self.explain_rules(&bot_event, clients).await
     }
 
-    pub async fn evaluate_pr(&self, client: &ForgejoClient, event: &mut PrEvent) {
+    pub async fn evaluate_pr(&self, clients: &Clients, event: &mut PrEvent) {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
 
@@ -169,7 +123,8 @@ impl RulesOrchestrator {
         }
 
         let pr_id = event.pr_number as i64;
-        match client
+        match clients
+            .forgejo
             .get_pr_changed_files(&event.owner, &event.repo, pr_id)
             .await
         {
@@ -178,97 +133,83 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
-        self.run_rules(client, &bot_event).await;
+        self.run_rules(clients, &bot_event).await;
     }
 
-    pub async fn evaluate_workflow(
-        &self,
-        client: &ForgejoClient,
-        github_client: &GitHubClient,
-        event: &mut WorkflowEvent,
-    ) {
+    pub async fn evaluate_workflow(&self, clients: &Clients, event: &mut WorkflowEvent) {
         let _guard = self.workflow_lock.lock().await;
 
         if event.conclusion == "failure" {
-            let result = github_client.fetch_failed_jobs(&event.jobs_url).await;
+            let result = clients.github.fetch_failed_jobs(&event.jobs_url).await;
             event.failed_jobs_logs = result.logs;
         }
 
         let bot_event = BotEvent::GitHubWorkflow(event);
-        self.run_rules(client, &bot_event).await;
+        self.run_rules(clients, &bot_event).await;
     }
 
-    async fn run_rules<'a>(&self, client: &ForgejoClient, event: &BotEvent<'a>) {
-        for rule in &self.rules.rules {
-            if !rule.enabled.is_active() {
-                continue;
-            }
-
-            let eval_start = Instant::now();
-            let eval = self.evaluate_rule(rule, event, client).await;
-            let eval_ms = eval_start.elapsed().as_millis();
-            if !eval.matched {
-                tracing::debug!(rule = rule.name, eval_ms, "rule did not match");
-                continue;
-            }
-
-            let dry_run = rule.enabled.is_dry_run();
-            tracing::info!(rule = rule.name, dry_run, eval_ms, "rule matched");
-
-            let rule_start = Instant::now();
-            let groups = Self::resolve_action_groups(rule, &eval.vars).await;
-            for group in &groups {
-                if let Some(when) = group.when {
-                    tracing::info!(rule = rule.name, when, "executing action group");
-                }
-
-                for action_def in &group.actions {
-                    let action = action_def.to_action();
-                    if dry_run {
-                        tracing::info!(
-                            rule = rule.name,
-                            when = group.when,
-                            action = action.kind(),
-                            "[dry-run] would execute action"
-                        );
-                        continue;
-                    }
-
-                    let action_start = Instant::now();
-                    action.execute(client, event).await;
-                    tracing::info!(
-                        rule = rule.name,
-                        when = group.when,
-                        action = action.kind(),
-                        elapsed_ms = action_start.elapsed().as_millis(),
-                        "action executed"
-                    );
-                }
-            }
-
-            tracing::info!(
-                rule = rule.name,
-                elapsed_ms = rule_start.elapsed().as_millis(),
-                "rule actions complete"
-            );
-        }
-    }
-
-    async fn evaluate_rule<'a>(
+    pub async fn run_rule_by_name_unconditionally(
         &self,
-        rule: &'a schema::RuleDef,
-        event: &BotEvent<'a>,
-        client: &ForgejoClient,
-    ) -> RuleEvaluation {
-        let cache = MatcherCache::new();
-        let now = self.now();
-        let matched = rule.matches.matches(event, client, &cache, now).await;
+        clients: &Clients,
+        event: &mut PrEvent,
+        action_name: &str,
+    ) -> anyhow::Result<()> {
+        let rule = self
+            .rules
+            .rules
+            .iter()
+            .find(|r| r.name == action_name)
+            .ok_or_else(|| anyhow::anyhow!("no rule named `{action_name}`"))?;
 
+        let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
+        let _guard = lock.lock().await;
+
+        let pr_id = event.pr_number as i64;
+        if let Ok(files) = clients
+            .forgejo
+            .get_pr_changed_files(&event.owner, &event.repo, pr_id)
+            .await
+        {
+            event.changed_files = files;
+        }
+
+        let bot_event = BotEvent::ForgejoPr(event);
+        let cache = MatcherCache::new();
+        let vars = self
+            .evaluate_variables(rule, &bot_event, clients, &cache)
+            .await;
+        self.execute_actions(rule, &vars, clients, &bot_event, false)
+            .await;
+
+        Ok(())
+    }
+
+    async fn match_rule<'a>(
+        &self,
+        rule: &schema::RuleDef,
+        event: &BotEvent<'a>,
+        clients: &Clients,
+        cache: &MatcherCache,
+    ) -> bool {
+        let now = self.now();
+        rule.matches
+            .matches(event, &clients.forgejo, cache, now)
+            .await
+    }
+
+    async fn evaluate_variables<'a>(
+        &self,
+        rule: &schema::RuleDef,
+        event: &BotEvent<'a>,
+        clients: &Clients,
+        cache: &MatcherCache,
+    ) -> HashMap<String, bool> {
+        let now = self.now();
         let mut vars = HashMap::new();
         for defined_variable in &rule.variables {
             let result = defined_variable
                 .matcher
-                .matches(event, client, &cache, now)
+                .matches(event, &clients.forgejo, cache, now)
                 .await;
 
             tracing::debug!(
@@ -279,8 +220,112 @@ impl RulesOrchestrator {
             );
             vars.insert(defined_variable.var.clone(), result);
         }
+        vars
+    }
 
-        RuleEvaluation { matched, vars }
+    async fn explain_rules<'a>(&self, event: &BotEvent<'a>, clients: &Clients) -> Vec<MatchedRule> {
+        let mut matched_rules = Vec::new();
+        for rule in &self.rules.rules {
+            if !rule.enabled.is_active() {
+                continue;
+            }
+
+            let cache = MatcherCache::new();
+            if !self.match_rule(rule, event, clients, &cache).await {
+                continue;
+            }
+
+            let vars = self.evaluate_variables(rule, event, clients, &cache).await;
+            let groups = Self::resolve_action_groups(rule, &vars).await;
+            let actions = groups
+                .iter()
+                .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
+                .collect();
+
+            matched_rules.push(MatchedRule {
+                name: rule.name.clone(),
+                dry_run: rule.enabled.is_dry_run(),
+                actions,
+            });
+        }
+        matched_rules
+    }
+
+    async fn run_rules<'a>(&self, clients: &Clients, event: &BotEvent<'a>) {
+        for rule in &self.rules.rules {
+            if !rule.enabled.is_active() {
+                continue;
+            }
+
+            let cache = MatcherCache::new();
+            let eval_start = Instant::now();
+            if !self.match_rule(rule, event, clients, &cache).await {
+                tracing::debug!(
+                    rule = rule.name,
+                    eval_ms = eval_start.elapsed().as_millis(),
+                    "rule did not match"
+                );
+                continue;
+            }
+
+            let dry_run = rule.enabled.is_dry_run();
+            tracing::info!(
+                rule = rule.name,
+                dry_run,
+                eval_ms = eval_start.elapsed().as_millis(),
+                "rule matched"
+            );
+
+            let vars = self.evaluate_variables(rule, event, clients, &cache).await;
+            self.execute_actions(rule, &vars, clients, event, dry_run)
+                .await;
+        }
+    }
+
+    async fn execute_actions<'a>(
+        &self,
+        rule: &schema::RuleDef,
+        vars: &HashMap<String, bool>,
+        clients: &Clients,
+        event: &BotEvent<'a>,
+        dry_run: bool,
+    ) {
+        let rule_start = Instant::now();
+        let groups = Self::resolve_action_groups(rule, vars).await;
+        for group in &groups {
+            if let Some(when) = group.when {
+                tracing::info!(rule = rule.name, when, "executing action group");
+            }
+
+            for action_def in &group.actions {
+                let action = action_def.to_action();
+                if dry_run {
+                    tracing::info!(
+                        rule = rule.name,
+                        when = group.when,
+                        action = action.kind(),
+                        "[dry-run] would execute action"
+                    );
+                    continue;
+                }
+
+                let action_start = Instant::now();
+                action.execute(clients, event).await;
+                tracing::info!(
+                    rule = rule.name,
+                    when = group.when,
+                    action = action.kind(),
+                    elapsed_ms = action_start.elapsed().as_millis(),
+                    "action executed"
+                );
+            }
+        }
+
+        tracing::info!(
+            rule = rule.name,
+            elapsed_ms = rule_start.elapsed().as_millis(),
+            "rule actions complete"
+        );
     }
 
     async fn resolve_action_groups<'a>(
