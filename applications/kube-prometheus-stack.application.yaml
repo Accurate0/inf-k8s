@@ -72,7 +72,7 @@ spec:
                 - secretName: monitoring-managed-secrets
     - chart: tempo
       repoURL: https://grafana-community.github.io/helm-charts
-      targetRevision: 2.1.0
+      targetRevision: 2.1.2
       helm:
         valuesObject:
           tempo:
