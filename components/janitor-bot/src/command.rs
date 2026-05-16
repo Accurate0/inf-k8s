@@ -643,9 +643,9 @@ async fn remove_janitor_labels(client: &ForgejoClient, owner: &str, repo: &str, 
         && let Err(e) = client
             .remove_labels_by_name(owner, repo, pr, janitor_labels)
             .await
-        {
-            tracing::warn!(pr, "failed to remove janitor labels: {e}");
-        }
+    {
+        tracing::warn!(pr, "failed to remove janitor labels: {e}");
+    }
 }
 
 async fn revert_pr(

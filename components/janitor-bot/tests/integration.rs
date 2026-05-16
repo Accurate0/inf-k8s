@@ -4,6 +4,7 @@ use std::slice;
 use std::sync::Arc;
 
 use insta::assert_yaml_snapshot;
+use insta::internals::Content;
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -108,6 +109,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
 
     let forgejo_server = MockServer::start().await;
     let github_server = MockServer::start().await;
+    let argocd_server = MockServer::start().await;
 
     let payload_str = serde_json::to_string(&fixture.payload)
         .unwrap()
@@ -115,18 +117,19 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     fixture.payload = serde_json::from_str(&payload_str).unwrap();
 
     for mock_def in &fixture.mocks {
-        if mock_def.service == "github" {
-            setup_mocks(&github_server, slice::from_ref(mock_def)).await;
-        } else {
-            setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await;
+        match mock_def.service.as_str() {
+            "github" => setup_mocks(&github_server, slice::from_ref(mock_def)).await,
+            "argocd" => setup_mocks(&argocd_server, slice::from_ref(mock_def)).await,
+            "forgejo" => setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await,
+            _ => unreachable!(),
         }
     }
 
     let state = Arc::new(AppState {
         clients: Clients::new(
             ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
-            GitHubClient::new("test-token".into(), github_server.uri()),
-            ArgocdClient::new("http://localhost".into(), "test-token".into()),
+            GitHubClient::new(github_server.uri(), "test-token".into()),
+            ArgocdClient::new(argocd_server.uri(), "test-token".into()),
         ),
         orchestrator: rules::RulesOrchestrator::new(),
     });
@@ -157,9 +160,11 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
 
     let forgejo_requests = forgejo_server.received_requests().await.unwrap_or_default();
     let github_requests = github_server.received_requests().await.unwrap_or_default();
+    let argocd_requests = argocd_server.received_requests().await.unwrap_or_default();
 
     let mut external_requests = capture_requests(&forgejo_requests, "forgejo");
     external_requests.extend(capture_requests(&github_requests, "github"));
+    external_requests.extend(capture_requests(&argocd_requests, "argocd"));
 
     let snapshot = Snapshot {
         response,
@@ -172,5 +177,21 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         .to_string_lossy()
         .to_string();
 
-    assert_yaml_snapshot!(snapshot_name, snapshot);
+    let argocd_host = argocd_server
+        .uri()
+        .strip_prefix("http://")
+        .unwrap_or(&argocd_server.uri())
+        .to_string();
+
+    let mut settings = insta::Settings::clone_current();
+    settings.add_dynamic_redaction(".external_requests[].body.body", move |value, _path| {
+        if let Some(s) = value.as_str() {
+            Content::from(s.replace(&argocd_host, "ARGOCD_SERVER"))
+        } else {
+            value.clone()
+        }
+    });
+    settings.bind(|| {
+        assert_yaml_snapshot!(snapshot_name, snapshot);
+    });
 }

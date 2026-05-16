@@ -26,22 +26,32 @@ impl ArgocdClient {
     }
 
     async fn diff(&self, app_name: &str, revision: &str, source_position: usize) -> String {
+        let plaintext = self.server.starts_with("http://");
+        let server = self
+            .server
+            .strip_prefix("https://")
+            .or_else(|| self.server.strip_prefix("http://"))
+            .unwrap_or(&self.server);
+        let mut args = vec![
+            "app".to_string(),
+            "diff".to_string(),
+            app_name.to_string(),
+            "--server".to_string(),
+            server.to_string(),
+            "--auth-token".to_string(),
+            self.token.clone(),
+            "--insecure".to_string(),
+            "--grpc-web".to_string(),
+            "--revisions".to_string(),
+            revision.to_string(),
+            "--source-positions".to_string(),
+            source_position.to_string(),
+        ];
+        if plaintext {
+            args.push("--plaintext".to_string());
+        }
         let result = Command::new("argocd")
-            .args([
-                "app",
-                "diff",
-                app_name,
-                "--server",
-                &self.server,
-                "--auth-token",
-                &self.token,
-                "--insecure",
-                "--grpc-web",
-                "--revisions",
-                revision,
-                "--source-positions",
-                &source_position.to_string(),
-            ])
+            .args(&args)
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .output()

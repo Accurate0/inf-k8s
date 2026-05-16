@@ -21,15 +21,19 @@ mocks:
     status: 200
     body:
       created_at: "2025-01-01T00:00:00Z"
+    service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
     body: []
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/labels
     status: 201
     body:
       id: 99
       name: "janitor/acknowledged"
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/42/labels
     body: []
+    service: forgejo

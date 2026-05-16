@@ -5,7 +5,6 @@ use sha2::Sha256;
 
 #[derive(Default)]
 pub struct FailedJobsResult {
-    /// Raw log output from failed steps (no markdown)
     pub logs: String,
 }
 
@@ -20,14 +19,10 @@ impl GitHubClient {
         let token = std::env::var("GITHUB_TOKEN")?;
         let base_url =
             std::env::var("GITHUB_URL").unwrap_or_else(|_| "https://api.github.com".to_string());
-        Ok(Self {
-            client: reqwest::Client::new(),
-            token,
-            base_url,
-        })
+        Ok(Self::new(base_url, token))
     }
 
-    pub fn new(token: String, base_url: String) -> Self {
+    pub fn new(base_url: String, token: String) -> Self {
         Self {
             client: reqwest::Client::new(),
             token,

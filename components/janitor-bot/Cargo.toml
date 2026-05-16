@@ -34,7 +34,7 @@ yaml-include = "0.8.1"
 yaml_serde = "0.10.4"
 
 [dev-dependencies]
-insta = { version = "1", features = ["yaml"] }
+insta = { version = "1", features = ["yaml", "redactions"] }
 rstest = "0.26"
 wiremock = "0.6"
 

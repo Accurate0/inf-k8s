@@ -19,9 +19,11 @@ mocks:
     status: 200
     body:
       created_at: "2025-01-01T00:00:00Z"
+    service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/5/reviews
     body: []
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/5/reviews
     body:
@@ -29,6 +31,8 @@ mocks:
       updated_at: "2025-01-01T00:00:00Z"
       html_url: ""
       pull_request_url: ""
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/5/merge
     body: {}
+    service: forgejo
