@@ -37,9 +37,9 @@ impl ArgocdClient {
                 &self.token,
                 "--insecure",
                 "--grpc-web",
-                "--revision",
+                "--revisions",
                 revision,
-                "--source-position",
+                "--source-positions",
                 &source_position.to_string(),
             ])
             .stdout(Stdio::piped())
@@ -80,6 +80,13 @@ impl ArgocdClient {
         let new_app: Application = yaml_serde::from_str(new_content)?;
         let old_app: Application = yaml_serde::from_str(old_content)?;
 
+        tracing::info!(
+            app = new_app.metadata.name,
+            new_sources = new_app.spec.sources.len(),
+            old_sources = old_app.spec.sources.len(),
+            "comparing sources"
+        );
+
         let mut diffs = Vec::new();
         for (i, (new_src, old_src)) in new_app
             .spec
@@ -90,6 +97,14 @@ impl ArgocdClient {
         {
             let new_rev = new_src.target_revision.as_deref().unwrap_or("");
             let old_rev = old_src.target_revision.as_deref().unwrap_or("");
+
+            tracing::info!(
+                source = i + 1,
+                chart = new_src.chart.as_deref().unwrap_or("?"),
+                old_rev,
+                new_rev,
+                "comparing source"
+            );
 
             if new_rev != old_rev {
                 diffs.push(SourceDiff {
@@ -152,6 +167,14 @@ impl ArgocdClient {
             return Ok(());
         }
 
+        if !client
+            .is_pr_open(&pr.owner, &pr.repo, pr.pr_number as i64)
+            .await
+        {
+            tracing::info!(pr = pr.pr_number, "PR is not open, skipping argocd diff");
+            return Ok(());
+        }
+
         let head_ref = client
             .get_pr_head_ref(&pr.owner, &pr.repo, pr.pr_number as i64)
             .await?;
@@ -182,7 +205,10 @@ impl ArgocdClient {
             };
 
             match self.find_changed_sources(&old_content, &new_content) {
-                Ok(diffs) => all_source_diffs.extend(diffs),
+                Ok(diffs) => {
+                    tracing::info!(file, count = diffs.len(), "found source diffs");
+                    all_source_diffs.extend(diffs);
+                }
                 Err(e) => {
                     tracing::warn!(file, "failed to parse application yaml: {e}");
                     continue;

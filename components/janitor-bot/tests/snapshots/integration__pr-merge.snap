@@ -21,6 +21,9 @@ external_requests:
       commit_id: ~
       event: APPROVED
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/5
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/5/merge
     body:

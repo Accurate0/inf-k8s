@@ -131,6 +131,7 @@ pub async fn handle_pr_command(
                 tracing::error!("approve-before-merge failed: {e}");
                 return;
             }
+            remove_janitor_labels(client, &cmd.owner, &cmd.repo, pr).await;
             if let Err(e) = client
                 .merge_pr(&cmd.owner, &cmd.repo, pr, strategy, true)
                 .await
@@ -619,6 +620,32 @@ mod tests {
         let text = r#"<!-- {"old": true} --> text <!-- {"new": true} -->"#;
         let val = extract_metadata_json(text).unwrap();
         assert_eq!(val["new"], true);
+    }
+}
+
+async fn remove_janitor_labels(client: &ForgejoClient, owner: &str, repo: &str, pr: i64) {
+    let api_pr = match client.get_pr(owner, repo, pr).await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(pr, "failed to fetch PR for label cleanup: {e}");
+            return;
+        }
+    };
+    let janitor_labels: Vec<String> = api_pr
+        .labels
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|l| l.name.as_ref())
+        .filter(|name| name.starts_with("janitor/"))
+        .cloned()
+        .collect();
+    if !janitor_labels.is_empty() {
+        if let Err(e) = client
+            .remove_labels_by_name(owner, repo, pr, janitor_labels)
+            .await
+        {
+            tracing::warn!(pr, "failed to remove janitor labels: {e}");
+        }
     }
 }
 
