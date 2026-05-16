@@ -56,6 +56,10 @@
         "bump"
       ],
       "addLabels": ["update-non-major"]
+    },
+    {
+      "matchDatasources": ["terraform-provider", "terraform-module"],
+      "registryUrls": ["https://registry.opentofu.org"]
     }
   ]
 }
