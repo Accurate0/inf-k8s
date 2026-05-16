@@ -148,7 +148,7 @@ impl ArgocdClient {
             .collect();
 
         if app_files.is_empty() {
-            tracing::debug!("no application.yaml files changed, skipping argocd diff");
+            tracing::warn!("no application.yaml files changed, skipping argocd diff");
             return Ok(());
         }
 
@@ -191,7 +191,7 @@ impl ArgocdClient {
         }
 
         if all_source_diffs.is_empty() {
-            tracing::debug!("no targetRevision changes found, skipping argocd diff");
+            tracing::warn!("no targetRevision changes found, skipping argocd diff");
             return Ok(());
         }
 

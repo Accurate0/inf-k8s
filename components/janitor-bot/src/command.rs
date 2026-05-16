@@ -16,7 +16,7 @@ pub enum PrCommand {
     Reopen,
     Ignore,
     Explain,
-    RunAction { name: String },
+    RunRule { name: String },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -72,7 +72,7 @@ pub fn parse_pr_command(body: &str) -> Option<PrCommand> {
                 return None;
             }
             let name = words.next()?.to_owned();
-            Some(PrCommand::RunAction { name })
+            Some(PrCommand::RunRule { name })
         }
         _ => None,
     }
@@ -198,7 +198,7 @@ pub async fn handle_pr_command(
                 tracing::error!("explain: comment failed: {e}");
             }
         }
-        PrCommand::RunAction { name } => {
+        PrCommand::RunRule { name } => {
             let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
                 Ok(p) => p,
                 Err(e) => {
@@ -471,7 +471,7 @@ mod tests {
     fn parse_run_rule() {
         let cmd = parse_pr_command("@janitor run rule argocd-diff-renovate").unwrap();
         match cmd {
-            PrCommand::RunAction { name } => assert_eq!(name, "argocd-diff-renovate"),
+            PrCommand::RunRule { name } => assert_eq!(name, "argocd-diff-renovate"),
             _ => panic!("expected RunAction"),
         }
     }
