@@ -4,6 +4,6 @@ module.exports = {
   autodiscover: true,
   autodiscoverTopics: ["managed-by-renovate"],
   dependencyDashboard: true,
-  gitAuthor: "Renovate <noreply@git.anurag.sh>",
+  gitAuthor: "renovate[bot] <noreply@git.anurag.sh>",
   extends: ["config:recommended"],
 };
