@@ -29,3 +29,19 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/103/labels/1
+    body:
+      updated_at: ~
+    service: forgejo
+  - method: POST
+    path: /evaluate/v1/boolean
+    body:
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt

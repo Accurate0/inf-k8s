@@ -198,6 +198,10 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.target_branch == *value,
                 BotEvent::GitHubWorkflow(wf) => wf.branch == *value,
             },
+            LeafMatcher::Repository { value } => match ev {
+                BotEvent::ForgejoPr(pr) => format!("{}/{}", pr.owner, pr.repo) == *value,
+                BotEvent::GitHubWorkflow(wf) => wf.repository == *value,
+            },
         }
     })
 }
@@ -557,6 +561,18 @@ patterns:
         match m {
             Matcher::Leaf(LeafMatcher::TitleContains { value }) => assert_eq!(value, "fix"),
             _ => panic!("expected TitleContains"),
+        }
+    }
+
+    #[test]
+    fn deserialize_repository() {
+        let yaml = "type: repository\nvalue: anurag/k8s";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::Leaf(LeafMatcher::Repository { value }) => {
+                assert_eq!(value, "anurag/k8s");
+            }
+            _ => panic!("expected Repository"),
         }
     }
 }

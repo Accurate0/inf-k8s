@@ -6,6 +6,8 @@ matches:
   all:
     - type: forgejo
     - type: pr_event
+    - type: repository
+      value: anurag/k8s
     - type: author
       value: renovate
     - type: target_branch

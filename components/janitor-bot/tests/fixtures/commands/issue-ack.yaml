@@ -24,6 +24,7 @@ mocks:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
+    status: 200
     body: []
     service: forgejo
   - method: POST
@@ -32,8 +33,10 @@ mocks:
     body:
       id: 99
       name: "janitor/acknowledged"
+      url: ""
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/42/labels
+    status: 200
     body: []
     service: forgejo

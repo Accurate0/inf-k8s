@@ -72,7 +72,7 @@ async fn setup_mocks(server: &MockServer, mocks: &[MockDef]) {
         for (key, value) in &mock_def.query {
             mock = mock.and(query_param(key.as_str(), value.as_str()));
         }
-        mock.respond_with(response).mount(server).await;
+        mock.respond_with(response).expect(1..).mount(server).await;
     }
 }
 
@@ -104,6 +104,7 @@ fn capture_requests(requests: &[Request], service: &str) -> Vec<CapturedRequest>
 
 #[rstest]
 #[tokio::test]
+#[serial_test::serial]
 async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: PathBuf) {
     let content = std::fs::read_to_string(&fixture_path).unwrap();
     let mut fixture: Fixture = yaml_serde::from_str(&content).unwrap();
@@ -111,6 +112,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     let forgejo_server = MockServer::start().await;
     let github_server = MockServer::start().await;
     let argocd_server = MockServer::start().await;
+    let flipt_server = MockServer::start().await;
 
     let payload_str = serde_json::to_string(&fixture.payload)
         .unwrap()
@@ -122,6 +124,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             "github" => setup_mocks(&github_server, slice::from_ref(mock_def)).await,
             "argocd" => setup_mocks(&argocd_server, slice::from_ref(mock_def)).await,
             "forgejo" => setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await,
+            "flipt" => setup_mocks(&flipt_server, slice::from_ref(mock_def)).await,
             _ => unreachable!(),
         }
     }
@@ -131,8 +134,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
             GitHubClient::new(github_server.uri(), "test-token".into()),
             ArgocdClient::new(argocd_server.uri(), "test-token".into()),
-            // TODO: add feature flag evaluation server
-            FeatureFlagClient::new(None).await,
+            FeatureFlagClient::new(Some(flipt_server.uri())).await,
         ),
         orchestrator: rules::RulesOrchestrator::new(),
     });
@@ -161,13 +163,20 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
 
     server_handle.abort();
 
+    forgejo_server.verify().await;
+    github_server.verify().await;
+    argocd_server.verify().await;
+    flipt_server.verify().await;
+
     let forgejo_requests = forgejo_server.received_requests().await.unwrap_or_default();
     let github_requests = github_server.received_requests().await.unwrap_or_default();
     let argocd_requests = argocd_server.received_requests().await.unwrap_or_default();
+    let flipt_requests = flipt_server.received_requests().await.unwrap_or_default();
 
     let mut external_requests = capture_requests(&forgejo_requests, "forgejo");
     external_requests.extend(capture_requests(&github_requests, "github"));
     external_requests.extend(capture_requests(&argocd_requests, "argocd"));
+    external_requests.extend(capture_requests(&flipt_requests, "flipt"));
 
     let snapshot = Snapshot {
         response,
@@ -198,3 +207,4 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         assert_yaml_snapshot!(snapshot_name, snapshot);
     });
 }
+

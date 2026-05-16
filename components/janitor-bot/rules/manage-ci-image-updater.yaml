@@ -5,6 +5,8 @@ matches:
   all:
     - type: forgejo
     - type: pr_event
+    - type: repository
+      value: anurag/k8s
     - type: feature_flag
       name: allow_automerging_rules
       default: true

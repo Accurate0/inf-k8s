@@ -24,6 +24,14 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/5
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/5/labels/10
+    body:
+      updated_at: ~
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/5/merge
     body:

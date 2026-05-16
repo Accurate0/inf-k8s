@@ -5,6 +5,8 @@ matches:
   all:
     - type: github
     - type: workflow_event
+    - type: repository
+      value: Accurate0/inf-k8s
     - type: target_branch
       value: main
 variables:

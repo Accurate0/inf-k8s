@@ -46,3 +46,14 @@ external_requests:
         - conflicts
       updated_at: ~
     service: forgejo
+  - method: POST
+    path: /evaluate/v1/boolean
+    body:
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt

@@ -6,6 +6,8 @@ matches:
   all:
     - type: forgejo
     - type: pr_event
+    - type: repository
+      value: anurag/k8s
     - type: is_open
 variables:
   - var: has_conflicts

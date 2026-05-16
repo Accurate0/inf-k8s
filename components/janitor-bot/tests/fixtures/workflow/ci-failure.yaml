@@ -4,7 +4,7 @@ payload:
     id: 9001
     name: CI
     conclusion: failure
-    html_url: https://github.com/anurag/k8s/actions/runs/9001
+    html_url: https://github.com/Accurate0/inf-k8s/actions/runs/9001
     head_branch: main
     head_sha: abc123def456
     head_commit:
@@ -16,16 +16,16 @@ payload:
       login: anurag
     run_number: 42
     run_attempt: 1
-    jobs_url: MOCK_GITHUB_URL/repos/anurag/k8s/actions/runs/9001/jobs
+    jobs_url: MOCK_GITHUB_URL/repos/Accurate0/inf-k8s/actions/runs/9001/jobs
     display_title: CI
     created_at: "2026-01-01T00:00:00Z"
     updated_at: "2026-01-01T00:05:00Z"
   repository:
-    full_name: anurag/k8s
+    full_name: Accurate0/inf-k8s
 mocks:
   - service: github
     method: GET
-    path: /repos/anurag/k8s/actions/runs/9001/jobs
+    path: /repos/Accurate0/inf-k8s/actions/runs/9001/jobs
     status: 200
     body:
       jobs:
@@ -33,7 +33,7 @@ mocks:
           conclusion: failure
   - service: github
     method: GET
-    path: /repos/anurag/k8s/actions/jobs/1001/logs
+    path: /repos/Accurate0/inf-k8s/actions/jobs/1001/logs
     status: 200
     body_text: "2026-01-01T00:04:00Z Step 1
 
@@ -67,5 +67,5 @@ mocks:
     status: 201
     body:
       number: 9001
-      title: "[GitHub CI] anurag/k8s CI failed"
+      title: "[GitHub CI] Accurate0/inf-k8s CI failed"
       body: created

@@ -4,7 +4,7 @@ payload:
     id: 9002
     name: CI
     conclusion: success
-    html_url: https://github.com/anurag/k8s/actions/runs/9002
+    html_url: https://github.com/Accurate0/inf-k8s/actions/runs/9002
     head_branch: main
     head_sha: def456abc789
     head_commit:
@@ -16,12 +16,12 @@ payload:
       login: anurag
     run_number: 43
     run_attempt: 1
-    jobs_url: MOCK_GITHUB_URL/repos/anurag/k8s/actions/runs/9002/jobs
+    jobs_url: MOCK_GITHUB_URL/repos/Accurate0/inf-k8s/actions/runs/9002/jobs
     display_title: CI
     created_at: "2026-01-01T00:10:00Z"
     updated_at: "2026-01-01T00:15:00Z"
   repository:
-    full_name: anurag/k8s
+    full_name: Accurate0/inf-k8s
 mocks:
   - service: forgejo
     method: GET
@@ -29,9 +29,15 @@ mocks:
     status: 200
     body:
       - number: 9001
-        title: "[GitHub CI] anurag/k8s CI failed"
+        title: "[GitHub CI] Accurate0/inf-k8s CI failed"
         labels: []
         body: existing issue
+        closed_at: null
+        created_at: null
+        updated_at: null
+        due_date: null
+        html_url: ""
+        url: ""
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/issues/9001/comments
@@ -39,11 +45,23 @@ mocks:
     body:
       id: 5001
       body: Resolved comment
+      created_at: null
+      updated_at: null
+      html_url: ""
+      issue_url: ""
+      pull_request_url: ""
   - service: forgejo
     method: PATCH
     path: /api/v1/repos/anurag/k8s/issues/9001
     status: 200
     body:
       number: 9001
-      title: "[GitHub CI] anurag/k8s CI failed"
+      title: "[GitHub CI] Accurate0/inf-k8s CI failed"
       state: closed
+      labels: []
+      closed_at: null
+      created_at: null
+      updated_at: null
+      due_date: null
+      html_url: ""
+      url: ""

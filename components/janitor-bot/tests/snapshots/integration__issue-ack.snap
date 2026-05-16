@@ -22,3 +22,10 @@ external_requests:
       is_archived: ~
       name: janitor/acknowledged
     service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/42/labels
+    body:
+      labels:
+        - janitor/acknowledged
+      updated_at: ~
+    service: forgejo

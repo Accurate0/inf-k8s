@@ -70,6 +70,8 @@ pub enum LeafMatcher {
     WorkflowConclusion { value: String },
     #[serde(rename = "target_branch")]
     TargetBranch { value: String },
+    #[serde(rename = "repository")]
+    Repository { value: String },
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]
