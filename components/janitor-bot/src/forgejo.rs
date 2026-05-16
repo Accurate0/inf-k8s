@@ -559,10 +559,12 @@ impl ForgejoClient {
         for comment in resp {
             let body = comment["body"].as_str().unwrap_or("");
             let user = comment["user"]["login"].as_str().unwrap_or("");
-            if user == BOT_USERNAME && body.contains(marker)
-                && let Some(id) = comment["id"].as_i64() {
-                    return Ok(Some(id));
-                }
+            if user == BOT_USERNAME
+                && body.contains(marker)
+                && let Some(id) = comment["id"].as_i64()
+            {
+                return Ok(Some(id));
+            }
         }
         Ok(None)
     }

@@ -1,0 +1,85 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions: []
+    dry_run: false
+    name: manage-conflicts
+  - actions:
+      - argocd_diff
+    dry_run: false
+    name: argocd-diff-renovate
+  - actions:
+      - ensure_labels_exist
+      - add_labels_by_name
+    dry_run: false
+    name: label-renovate
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/raw/applications/monitoring.application.yaml?ref=renovate/monitoring
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/raw/applications/monitoring.application.yaml?ref=main
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/issues/100/comments
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/100/comments
+    body:
+      body: "<!-- janitor-bot:argocd-diff -->\n## ArgoCD Diff\n\n### `monitoring` — `kube-prometheus-stack` (`85.1.1` → `86.0.0`)\n<details>\n<summary>Diff (source 1)</summary>\n\n```diff\nError running argocd diff (exit exit status: 20): rpc error: code = Unknown desc = Post \"https://http//localhost/application.ApplicationService/Get\": dial tcp: lookup http: no such host\n```\n</details>\n"
+      updated_at: ~
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/100/labels
+    body:
+      labels:
+        - renovate
+      updated_at: ~
+    service: forgejo

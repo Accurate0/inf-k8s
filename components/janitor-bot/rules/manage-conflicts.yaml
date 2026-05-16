@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: manage-conflicts
 enabled: true
-priority: 10
+priority: 11
 matches:
   all:
     - type: forgejo

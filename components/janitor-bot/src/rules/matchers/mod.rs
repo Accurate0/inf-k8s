@@ -136,6 +136,13 @@ fn eval_leaf<'a>(
                 }
                 _ => false,
             },
+            LeafMatcher::ChangedFilesAnyMatch { patterns } => match ev {
+                BotEvent::ForgejoPr(pr) => pr
+                    .changed_files
+                    .iter()
+                    .any(|f| patterns.iter().any(|p| p.matches(f))),
+                _ => false,
+            },
             LeafMatcher::ChangedFilesNoneMatch { patterns } => match ev {
                 BotEvent::ForgejoPr(pr) => pr
                     .changed_files

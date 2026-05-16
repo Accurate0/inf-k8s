@@ -49,22 +49,28 @@ impl ArgocdClient {
 
         match result {
             Ok(output) => {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let stderr = String::from_utf8_lossy(&output.stderr);
+                let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
 
                 if !stdout.is_empty() {
-                    let s = stdout.to_string();
-                    if s.len() > MAX_DIFF_LEN {
-                        format!("{}...\n\n(truncated, diff too large)", &s[..MAX_DIFF_LEN])
+                    if stdout.len() > MAX_DIFF_LEN {
+                        format!(
+                            "{}...\n\n(truncated, diff too large)",
+                            &stdout[..MAX_DIFF_LEN]
+                        )
                     } else {
-                        s
+                        stdout
                     }
                 } else if output.status.code() == Some(0) {
                     "No differences found.".to_string()
                 } else {
+                    let msg = serde_json::from_str::<serde_json::Value>(&stderr)
+                        .ok()
+                        .and_then(|v| v["msg"].as_str().map(String::from))
+                        .unwrap_or(stderr);
                     format!(
-                        "Error running argocd diff (exit {}):\n{}",
-                        output.status, stderr
+                        "Error running argocd diff (exit {}): {}",
+                        output.status, msg
                     )
                 }
             }
@@ -123,16 +129,16 @@ impl ArgocdClient {
     }
 
     fn format_comment(&self, source_diffs: &[SourceDiff], diff_outputs: &[String]) -> String {
-        let mut parts = vec![format!("{COMMENT_MARKER}\n## ArgoCD Diff\n")];
+        let mut s = format!("{COMMENT_MARKER}\n## ArgoCD Diff\n");
 
         for (sd, diff_output) in source_diffs.iter().zip(diff_outputs.iter()) {
-            parts.push(format!(
-                "### `{}` — `{}` (`{}` → `{}`)\n\n\
+            s.push_str(&format!(
+                "\n### `{}` — `{}` (`{}` → `{}`)\n\
                  <details>\n\
                  <summary>Diff (source {})</summary>\n\n\
                  ```diff\n\
                  {}\n\
-                 ```\n\n\
+                 ```\n\
                  </details>\n",
                 sd.app_name,
                 sd.chart_name,
@@ -143,7 +149,7 @@ impl ArgocdClient {
             ));
         }
 
-        parts.join("\n")
+        s
     }
 
     fn is_application_yaml(path: &str) -> bool {

@@ -12,9 +12,8 @@ matches:
       value: main
     - type: is_open
     - type: has_changed_files
-    - not:
-        type: changed_files_none_match
-        patterns:
-          - "applications/*.application.yaml"
+    - type: changed_files_any_match
+      patterns:
+        - "applications/*.application.yaml"
 actions:
   - type: argocd_diff

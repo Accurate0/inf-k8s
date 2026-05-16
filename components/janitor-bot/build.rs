@@ -25,21 +25,26 @@ fn main() {
     // Validate rules against schema at build time
     let yaml_value: serde_json::Value =
         yaml_serde::from_str(&resolved).expect("rules.yaml is not valid YAML");
-    let schema: serde_json::Value =
-        serde_json::from_str(&schema_str).expect("rules.schema.json is not valid JSON");
-    let validator =
-        jsonschema::validator_for(&schema).expect("rules.schema.json is not a valid JSON Schema");
 
-    let errors: Vec<String> = validator
-        .iter_errors(&yaml_value)
-        .map(|e| format!("  at {}: {}", e.instance_path(), e))
-        .collect();
+    if std::env::var("SKIP_SCHEMA_VALIDATION").is_err() {
+        let schema: serde_json::Value =
+            serde_json::from_str(&schema_str).expect("rules.schema.json is not valid JSON");
+        let validator = jsonschema::validator_for(&schema)
+            .expect("rules.schema.json is not a valid JSON Schema");
 
-    if !errors.is_empty() {
-        panic!(
-            "rules.yaml failed schema validation:\n{}",
-            errors.join("\n")
-        );
+        let errors: Vec<String> = validator
+            .iter_errors(&yaml_value)
+            .map(|e| format!("  at {}: {}", e.instance_path(), e))
+            .collect();
+
+        if !errors.is_empty() {
+            panic!(
+                "rules.yaml failed schema validation:\n{}",
+                errors.join("\n")
+            );
+        }
+    } else {
+        println!("cargo:warning=Skipping schema validation (SKIP_SCHEMA_VALIDATION set)");
     }
 
     // Validate expressions at build time

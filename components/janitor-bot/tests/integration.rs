@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
@@ -6,7 +7,7 @@ use insta::assert_yaml_snapshot;
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use wiremock::matchers::{method, path};
+use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 use yaml_serde;
 
@@ -30,6 +31,8 @@ struct Fixture {
 struct MockDef {
     method: String,
     path: String,
+    #[serde(default)]
+    query: HashMap<String, String>,
     status: Option<u16>,
     body: Option<Value>,
     body_text: Option<String>,
@@ -63,11 +66,11 @@ async fn setup_mocks(server: &MockServer, mocks: &[MockDef]) {
             ResponseTemplate::new(status)
         };
 
-        Mock::given(method(mock_def.method.as_str()))
-            .and(path(&mock_def.path))
-            .respond_with(response)
-            .mount(server)
-            .await;
+        let mut mock = Mock::given(method(mock_def.method.as_str())).and(path(&mock_def.path));
+        for (key, value) in &mock_def.query {
+            mock = mock.and(query_param(key.as_str(), value.as_str()));
+        }
+        mock.respond_with(response).mount(server).await;
     }
 }
 

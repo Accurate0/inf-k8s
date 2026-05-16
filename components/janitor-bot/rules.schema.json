@@ -541,6 +541,25 @@
             },
             "type": {
               "type": "string",
+              "const": "changed_files_any_match"
+            }
+          },
+          "required": [
+            "type",
+            "patterns"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "patterns": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/FilePattern"
+              }
+            },
+            "type": {
+              "type": "string",
               "const": "changed_files_none_match"
             }
           },
