@@ -41,3 +41,6 @@ spec:
           envFrom:
             - secretRef:
                 name: janitor-bot-managed-secrets
+          env:
+            - name: FLIPT_URL
+              value: http://flipt-v2.flipt-v2.svc.cluster.local:8080

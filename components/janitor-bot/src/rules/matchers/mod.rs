@@ -1,9 +1,11 @@
 mod types;
 
+use open_feature::EvaluationContext;
 pub use types::*;
 
+use crate::clients::Clients;
 use crate::event::BotEvent;
-use crate::forgejo::ForgejoClient;
+use crate::rules::schema;
 use chrono::{Datelike, Timelike};
 use std::future::Future;
 use std::pin::Pin;
@@ -30,7 +32,8 @@ impl Matcher {
     pub fn matches<'a>(
         &'a self,
         ev: &'a BotEvent<'a>,
-        client: &'a ForgejoClient,
+        rule: &'a schema::RuleDef,
+        clients: &'a Clients,
         cache: &'a MatcherCache,
         now: chrono::DateTime<chrono::Utc>,
     ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
@@ -39,7 +42,7 @@ impl Matcher {
                 Matcher::Combinator(c) => match c {
                     Combinator::All(matchers) => {
                         for m in matchers {
-                            if !m.matches(ev, client, cache, now).await {
+                            if !m.matches(ev, rule, clients, cache, now).await {
                                 return false;
                             }
                         }
@@ -47,19 +50,21 @@ impl Matcher {
                     }
                     Combinator::Any(matchers) => {
                         for m in matchers {
-                            if m.matches(ev, client, cache, now).await {
+                            if m.matches(ev, rule, clients, cache, now).await {
                                 return true;
                             }
                         }
                         false
                     }
-                    Combinator::Not(matcher) => !matcher.matches(ev, client, cache, now).await,
+                    Combinator::Not(matcher) => {
+                        !matcher.matches(ev, rule, clients, cache, now).await
+                    }
                 },
                 Matcher::Leaf(leaf) => {
                     if let Some(cached) = cache.results.get(leaf) {
                         return cached;
                     }
-                    let result = eval_leaf(leaf, ev, client, now).await;
+                    let result = eval_leaf(leaf, ev, rule, clients, now).await;
                     cache.results.insert(leaf.clone(), result);
                     result
                 }
@@ -71,7 +76,8 @@ impl Matcher {
 fn eval_leaf<'a>(
     leaf: &'a LeafMatcher,
     ev: &'a BotEvent<'a>,
-    client: &'a ForgejoClient,
+    rule: &'a schema::RuleDef,
+    clients: &'a Clients,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
     Box::pin(async move {
@@ -99,7 +105,8 @@ fn eval_leaf<'a>(
             },
             LeafMatcher::HasConflicts => match ev {
                 BotEvent::ForgejoPr(pr) => {
-                    client
+                    clients
+                        .forgejo
                         .is_pr_mergeable(&pr.owner, &pr.repo, pr.pr_number as i64)
                         .await
                         == Some(false)
@@ -108,7 +115,8 @@ fn eval_leaf<'a>(
             },
             LeafMatcher::IsOpen => match ev {
                 BotEvent::ForgejoPr(pr) => {
-                    client
+                    clients
+                        .forgejo
                         .is_pr_open(&pr.owner, &pr.repo, pr.pr_number as i64)
                         .await
                 }
@@ -116,7 +124,8 @@ fn eval_leaf<'a>(
             },
             LeafMatcher::NotApprovedBySelf => match ev {
                 BotEvent::ForgejoPr(pr) => {
-                    !client
+                    !clients
+                        .forgejo
                         .is_pr_approved_by_bot(&pr.owner, &pr.repo, pr.pr_number as i64)
                         .await
                 }
@@ -150,6 +159,14 @@ fn eval_leaf<'a>(
                     .all(|f| !patterns.iter().any(|p| p.matches(f))),
                 _ => false,
             },
+            LeafMatcher::FeatureFlag { name, default } => {
+                let evaluation_context =
+                    EvaluationContext::default().with_custom_field("rule_name", rule.name.clone());
+                clients
+                    .feature_flag
+                    .is_feature_enabled(name, *default, evaluation_context)
+                    .await
+            }
             LeafMatcher::TimeWindow {
                 timezone,
                 start,

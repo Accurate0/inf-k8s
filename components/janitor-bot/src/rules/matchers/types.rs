@@ -54,6 +54,9 @@ pub enum LeafMatcher {
     #[serde(rename = "not_approved_by_self")]
     NotApprovedBySelf,
 
+    #[serde(rename = "feature_flag")]
+    FeatureFlag { name: String, default: bool },
+
     #[serde(rename = "time_window")]
     TimeWindow {
         timezone: String,

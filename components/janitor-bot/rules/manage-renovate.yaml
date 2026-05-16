@@ -5,6 +5,9 @@ matches:
   all:
     - type: forgejo
     - type: pr_event
+    - type: feature_flag
+      name: allow_automerging_rules
+      default: true
     - type: target_branch
       value: main
     - type: author

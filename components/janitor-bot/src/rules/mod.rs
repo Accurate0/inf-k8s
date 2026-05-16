@@ -192,9 +192,7 @@ impl RulesOrchestrator {
         cache: &MatcherCache,
     ) -> bool {
         let now = self.now();
-        rule.matches
-            .matches(event, &clients.forgejo, cache, now)
-            .await
+        rule.matches.matches(event, rule, clients, cache, now).await
     }
 
     async fn evaluate_variables<'a>(
@@ -209,7 +207,7 @@ impl RulesOrchestrator {
         for defined_variable in &rule.variables {
             let result = defined_variable
                 .matcher
-                .matches(event, &clients.forgejo, cache, now)
+                .matches(event, rule, clients, cache, now)
                 .await;
 
             tracing::debug!(

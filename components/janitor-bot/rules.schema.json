@@ -607,6 +607,26 @@
         {
           "type": "object",
           "properties": {
+            "default": {
+              "type": "boolean"
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "feature_flag"
+            }
+          },
+          "required": [
+            "type",
+            "name",
+            "default"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "end": {
               "type": "integer",
               "format": "uint32",

@@ -5,9 +5,9 @@ use axum::{
     http::{HeaderMap, StatusCode},
     routing::{get, post},
 };
-use janitor_bot::forgejo::ForgejoClient;
 use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient};
 use janitor_bot::{command, event, github, rules};
+use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
@@ -169,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
             ForgejoClient::from_env()?,
             GitHubClient::from_env()?,
             ArgocdClient::from_env()?,
+            FeatureFlagClient::from_env().await,
         ),
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,

@@ -2,6 +2,7 @@ pub mod argocd;
 pub mod clients;
 pub mod command;
 pub mod event;
+pub mod feature_flag;
 pub mod forgejo;
 pub mod git;
 pub mod github;

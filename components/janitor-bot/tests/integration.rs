@@ -5,6 +5,7 @@ use std::sync::Arc;
 
 use insta::assert_yaml_snapshot;
 use insta::internals::Content;
+use janitor_bot::feature_flag::FeatureFlagClient;
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -130,6 +131,8 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
             GitHubClient::new(github_server.uri(), "test-token".into()),
             ArgocdClient::new(argocd_server.uri(), "test-token".into()),
+            // TODO: add feature flag evaluation server
+            FeatureFlagClient::new(None).await,
         ),
         orchestrator: rules::RulesOrchestrator::new(),
     });
