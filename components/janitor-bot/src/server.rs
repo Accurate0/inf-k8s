@@ -110,6 +110,33 @@ async fn handle_evaluate(
             command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed).await;
             (StatusCode::OK, Json(serde_json::json!({"command": debug})))
         }
+        "commit_status" => {
+            let body = match serde_json::to_vec(&request.payload) {
+                Ok(b) => b,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": e.to_string()})),
+                    );
+                }
+            };
+            let Some(cs_event) = github::parse_commit_status_event(&body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "invalid commit status payload"})),
+                );
+            };
+            let matched = orchestrator
+                .explain_commit_status(&state.clients, &cs_event)
+                .await;
+            orchestrator
+                .evaluate_commit_status(&state.clients, &cs_event)
+                .await;
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(&matched).unwrap()),
+            )
+        }
         "issue_comment" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
                 Ok(w) => w,

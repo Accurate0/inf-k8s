@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: mirror-commit-status
+enabled: true
+matches:
+  all:
+    - type: github
+    - type: commit_status_event
+    - type: repository
+      value: Accurate0/inf-k8s
+actions:
+  - type: set_commit_status
+    target:
+      owner: anurag
+      repo: k8s
+    sha:
+      content: "{sha}"
+      template: true
+    state:
+      content: "{state}"
+      template: true
+    context:
+      content: "{context}"
+      template: true
+    description:
+      content: "{description}"
+      template: true
+    target_url:
+      content: "{target_url}"
+      template: true

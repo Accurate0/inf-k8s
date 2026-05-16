@@ -271,6 +271,33 @@ fn extract_error_lines(raw_logs: &str) -> String {
     result
 }
 
+#[derive(Debug, Deserialize)]
+struct CommitStatusRepository {
+    full_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CommitStatusPayload {
+    sha: Option<String>,
+    state: Option<String>,
+    context: Option<String>,
+    description: Option<String>,
+    target_url: Option<String>,
+    repository: Option<CommitStatusRepository>,
+}
+
+pub fn parse_commit_status_event(body: &[u8]) -> Option<crate::event::CommitStatusEvent> {
+    let payload: CommitStatusPayload = serde_json::from_slice(body).ok()?;
+    Some(crate::event::CommitStatusEvent {
+        repository: payload.repository?.full_name?,
+        sha: payload.sha?,
+        state: payload.state?,
+        context: payload.context.unwrap_or_default(),
+        description: payload.description.unwrap_or_default(),
+        target_url: payload.target_url.unwrap_or_default(),
+    })
+}
+
 pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
     let payload: WorkflowRunPayload = serde_json::from_slice(body).ok()?;
     let run = payload.workflow_run?;

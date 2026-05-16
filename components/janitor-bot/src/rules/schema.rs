@@ -164,6 +164,15 @@ pub enum ActionDef {
     },
     #[serde(rename = "argocd_diff")]
     ArgoCdDiff,
+    #[serde(rename = "set_commit_status")]
+    SetCommitStatus {
+        target: IssueTarget,
+        sha: TemplateString,
+        state: TemplateString,
+        context: TemplateString,
+        description: TemplateString,
+        target_url: TemplateString,
+    },
 }
 
 fn default_true() -> bool {
@@ -252,6 +261,22 @@ impl ActionDef {
                 closing_comment: closing_comment.clone(),
             },
             ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
+            ActionDef::SetCommitStatus {
+                target,
+                sha,
+                state,
+                context,
+                description,
+                target_url,
+            } => Action::SetCommitStatus {
+                target_owner: target.owner.clone(),
+                target_repo: target.repo.clone(),
+                sha: sha.clone(),
+                state: state.clone(),
+                context: context.clone(),
+                description: description.clone(),
+                target_url: target_url.clone(),
+            },
         }
     }
 }

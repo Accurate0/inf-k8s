@@ -614,6 +614,42 @@ impl ForgejoClient {
         Ok(())
     }
 
+    pub async fn set_commit_status(
+        &self,
+        owner: &str,
+        repo: &str,
+        sha: &str,
+        state: &str,
+        context: &str,
+        description: &str,
+        target_url: &str,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        let commit_state = match state {
+            "success" => CommitStatusState::Success,
+            "failure" => CommitStatusState::Failure,
+            "error" => CommitStatusState::Error,
+            "pending" => CommitStatusState::Pending,
+            _ => CommitStatusState::Warning,
+        };
+        let parsed_url = url::Url::parse(target_url).ok();
+        self.api
+            .repo_create_status(
+                owner,
+                repo,
+                sha,
+                CreateStatusOption {
+                    state: Some(commit_state),
+                    context: Some(context.to_owned()),
+                    description: Some(description.to_owned()),
+                    target_url: parsed_url,
+                },
+            )
+            .send()
+            .await?;
+        tracing::info!(owner, repo, sha, state, context, "set commit status");
+        Ok(())
+    }
+
     pub async fn create_pull_request(
         &self,
         owner: &str,

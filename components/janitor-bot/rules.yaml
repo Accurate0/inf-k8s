@@ -6,3 +6,4 @@ rules:
   - !include rules/manage-renovate.yaml
   - !include rules/manage-github-workflow.yaml
   - !include rules/argocd-diff-renovate.yaml
+  - !include rules/mirror-commit-status.yaml

@@ -245,6 +245,42 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "context": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "description": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "sha": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "state": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "target": {
+              "$ref": "#/$defs/IssueTarget"
+            },
+            "target_url": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "type": {
+              "type": "string",
+              "const": "set_commit_status"
+            }
+          },
+          "required": [
+            "type",
+            "target",
+            "sha",
+            "state",
+            "context",
+            "description",
+            "target_url"
+          ]
         }
       ]
     },
@@ -448,6 +484,18 @@
             "type": {
               "type": "string",
               "const": "workflow_event"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
+              "const": "commit_status_event"
             }
           },
           "required": [

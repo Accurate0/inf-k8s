@@ -1,0 +1,18 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - set_commit_status
+    dry_run: false
+    name: mirror-commit-status
+external_requests:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def
+    body:
+      context: ci/build
+      description: Build succeeded
+      state: success
+      target_url: "https://github.com/Accurate0/inf-k8s/actions/runs/123"
+    service: forgejo

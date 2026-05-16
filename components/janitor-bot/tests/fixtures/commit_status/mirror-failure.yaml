@@ -1,0 +1,17 @@
+type: commit_status
+payload:
+  sha: "def4567890abc123"
+  state: "failure"
+  context: "ci/test"
+  description: "Tests failed"
+  target_url: "https://github.com/Accurate0/inf-k8s/actions/runs/456"
+  repository:
+    full_name: "Accurate0/inf-k8s"
+mocks:
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/def4567890abc123
+    status: 201
+    body:
+      id: 2
+      status: failure

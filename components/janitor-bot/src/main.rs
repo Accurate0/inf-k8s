@@ -107,6 +107,31 @@ async fn handle_github_webhook(
         return StatusCode::UNAUTHORIZED;
     }
 
+    let github_event = headers
+        .get("X-GitHub-Event")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("");
+
+    if github_event == "status" {
+        let Some(cs_event) = github::parse_commit_status_event(&body) else {
+            tracing::info!("received github status event but failed to parse");
+            return StatusCode::OK;
+        };
+        tracing::info!(
+            repository = cs_event.repository,
+            context = cs_event.context,
+            state = cs_event.state,
+            "received github commit status event"
+        );
+        tokio::spawn(async move {
+            state
+                .orchestrator
+                .evaluate_commit_status(&state.clients, &cs_event)
+                .await;
+        });
+        return StatusCode::OK;
+    }
+
     let Some(mut wf_event) = github::parse_workflow_event(&body) else {
         tracing::info!("received github webhook (not a workflow_run event, ignoring)");
         return StatusCode::OK;

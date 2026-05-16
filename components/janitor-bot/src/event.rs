@@ -131,6 +131,16 @@ pub struct PrEvent {
 }
 
 #[allow(dead_code)]
+pub struct CommitStatusEvent {
+    pub repository: String,
+    pub sha: String,
+    pub state: String,
+    pub context: String,
+    pub description: String,
+    pub target_url: String,
+}
+
+#[allow(dead_code)]
 pub struct WorkflowEvent {
     pub run_id: u64,
     pub workflow_name: String,
@@ -154,6 +164,7 @@ pub struct WorkflowEvent {
 pub enum BotEvent<'a> {
     ForgejoPr(&'a PrEvent),
     GitHubWorkflow(&'a WorkflowEvent),
+    GitHubCommitStatus(&'a CommitStatusEvent),
 }
 
 impl BotEvent<'_> {
@@ -168,6 +179,20 @@ impl BotEvent<'_> {
                 vars.insert("pr_number", pr.pr_number.to_string());
                 vars.insert("title", pr.title.clone());
                 vars.insert("target_branch", pr.target_branch.clone());
+            }
+            BotEvent::GitHubCommitStatus(cs) => {
+                vars.insert("repository", cs.repository.clone());
+                vars.insert("sha", cs.sha.clone());
+                vars.insert("state", cs.state.clone());
+                vars.insert("context", cs.context.clone());
+                vars.insert("description", cs.description.clone());
+                vars.insert("target_url", cs.target_url.clone());
+                let short_sha = if cs.sha.len() >= 7 {
+                    &cs.sha[..7]
+                } else {
+                    &cs.sha
+                };
+                vars.insert("short_sha", short_sha.to_string());
             }
             BotEvent::GitHubWorkflow(wf) => {
                 vars.insert("run_id", wf.run_id.to_string());

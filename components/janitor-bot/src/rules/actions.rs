@@ -46,6 +46,15 @@ pub enum Action {
         closing_comment: Option<TemplateString>,
     },
     ArgoCdDiff,
+    SetCommitStatus {
+        target_owner: String,
+        target_repo: String,
+        sha: TemplateString,
+        state: TemplateString,
+        context: TemplateString,
+        description: TemplateString,
+        target_url: TemplateString,
+    },
 }
 
 impl Action {
@@ -61,6 +70,7 @@ impl Action {
             Action::CreateIssue { .. } => "create_issue",
             Action::CloseIssue { .. } => "close_issue",
             Action::ArgoCdDiff => "argocd_diff",
+            Action::SetCommitStatus { .. } => "set_commit_status",
         }
     }
 
@@ -226,6 +236,28 @@ impl Action {
                     Ok(())
                 }
                 .await
+            }
+            Action::SetCommitStatus {
+                target_owner,
+                target_repo,
+                sha,
+                state,
+                context,
+                description,
+                target_url,
+            } => {
+                let vars = event.template_vars();
+                client
+                    .set_commit_status(
+                        target_owner,
+                        target_repo,
+                        &sha.render(&vars),
+                        &state.render(&vars),
+                        &context.render(&vars),
+                        &description.render(&vars),
+                        &target_url.render(&vars),
+                    )
+                    .await
             }
             Action::ArgoCdDiff => {
                 let BotEvent::ForgejoPr(pr) = event else {

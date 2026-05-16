@@ -1,0 +1,17 @@
+type: commit_status
+payload:
+  sha: "abc1234567890def"
+  state: "success"
+  context: "ci/build"
+  description: "Build succeeded"
+  target_url: "https://github.com/Accurate0/inf-k8s/actions/runs/123"
+  repository:
+    full_name: "Accurate0/inf-k8s"
+mocks:
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def
+    status: 201
+    body:
+      id: 1
+      status: success
