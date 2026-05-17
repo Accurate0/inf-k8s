@@ -213,4 +213,3 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         assert_yaml_snapshot!(snapshot_name, snapshot);
     });
 }
-

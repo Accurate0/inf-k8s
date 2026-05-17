@@ -69,8 +69,7 @@ async fn main() -> anyhow::Result<()> {
         ),
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
-        argocd_webhook_secret: std::env::var("ARGOCD_WEBHOOK_SECRET")
-            .unwrap_or_default(),
+        argocd_webhook_secret: std::env::var("ARGOCD_WEBHOOK_SECRET").unwrap_or_default(),
         orchestrator: RulesOrchestrator::new(),
     });
 

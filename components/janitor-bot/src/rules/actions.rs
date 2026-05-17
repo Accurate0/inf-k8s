@@ -1,6 +1,7 @@
 use crate::clients::Clients;
 use crate::command::ACK_LABEL;
 use crate::event::BotEvent;
+use crate::forgejo::CommitStatusParams;
 use crate::rules::schema::TemplateString;
 use forgejo_api::structs::MergePullRequestOptionDo;
 
@@ -248,15 +249,15 @@ impl Action {
             } => {
                 let vars = event.template_vars();
                 client
-                    .set_commit_status(
-                        target_owner,
-                        target_repo,
-                        &sha.render(&vars),
-                        &state.render(&vars),
-                        &context.render(&vars),
-                        &description.render(&vars),
-                        &target_url.render(&vars),
-                    )
+                    .set_commit_status(CommitStatusParams {
+                        owner: target_owner,
+                        repo: target_repo,
+                        sha: &sha.render(&vars),
+                        state: &state.render(&vars),
+                        context: &context.render(&vars),
+                        description: &description.render(&vars),
+                        target_url: &target_url.render(&vars),
+                    })
                     .await
             }
             Action::ArgoCdDiff => {

@@ -5,6 +5,16 @@ use url::Url;
 
 pub(crate) const BOT_USERNAME: &str = "janitor";
 
+pub struct CommitStatusParams<'a> {
+    pub owner: &'a str,
+    pub repo: &'a str,
+    pub sha: &'a str,
+    pub state: &'a str,
+    pub context: &'a str,
+    pub description: &'a str,
+    pub target_url: &'a str,
+}
+
 pub struct ForgejoClient {
     api: Forgejo,
     pub base_url: String,
@@ -640,37 +650,38 @@ impl ForgejoClient {
 
     pub async fn set_commit_status(
         &self,
-        owner: &str,
-        repo: &str,
-        sha: &str,
-        state: &str,
-        context: &str,
-        description: &str,
-        target_url: &str,
+        params: CommitStatusParams<'_>,
     ) -> Result<(), forgejo_api::ForgejoError> {
-        let commit_state = match state {
+        let commit_state = match params.state {
             "success" => CommitStatusState::Success,
             "failure" => CommitStatusState::Failure,
             "error" => CommitStatusState::Error,
             "pending" => CommitStatusState::Pending,
             _ => CommitStatusState::Warning,
         };
-        let parsed_url = url::Url::parse(target_url).ok();
+        let parsed_url = url::Url::parse(params.target_url).ok();
         self.api
             .repo_create_status(
-                owner,
-                repo,
-                sha,
+                params.owner,
+                params.repo,
+                params.sha,
                 CreateStatusOption {
                     state: Some(commit_state),
-                    context: Some(context.to_owned()),
-                    description: Some(description.to_owned()),
+                    context: Some(params.context.to_owned()),
+                    description: Some(params.description.to_owned()),
                     target_url: parsed_url,
                 },
             )
             .send()
             .await?;
-        tracing::info!(owner, repo, sha, state, context, "set commit status");
+        tracing::info!(
+            owner = params.owner,
+            repo = params.repo,
+            sha = params.sha,
+            state = params.state,
+            context = params.context,
+            "set commit status"
+        );
         Ok(())
     }
 

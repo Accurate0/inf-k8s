@@ -121,7 +121,9 @@ pub async fn handle_github_webhook(
 
     if github_event == "check_run" {
         let Some(cr_event) = github::parse_check_run_event(&body) else {
-            tracing::info!("received github check_run event but not actionable (not completed or failed to parse)");
+            tracing::info!(
+                "received github check_run event but not actionable (not completed or failed to parse)"
+            );
             return StatusCode::OK;
         };
         tracing::info!(
@@ -182,7 +184,10 @@ pub async fn handle_argocd_webhook(
     );
 
     if payload.sha.is_empty() {
-        tracing::info!(app_name = payload.app_name, "skipping argocd sync event with empty sha");
+        tracing::info!(
+            app_name = payload.app_name,
+            "skipping argocd sync event with empty sha"
+        );
         return StatusCode::OK;
     }
 

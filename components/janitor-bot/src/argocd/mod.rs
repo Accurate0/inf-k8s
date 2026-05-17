@@ -266,4 +266,84 @@ impl ArgocdClient {
 
         Ok(())
     }
+
+    pub async fn check_app_changed_in_commit(
+        &self,
+        forgejo: &ForgejoClient,
+        owner: &str,
+        repo: &str,
+        sync: &crate::event::ArgoSyncEvent,
+    ) -> bool {
+        let files = match forgejo
+            .get_commit_changed_files(owner, repo, &sync.sha)
+            .await
+        {
+            Ok(files) => files,
+            Err(e) => {
+                tracing::warn!(
+                    app = sync.app_name,
+                    sha = sync.sha,
+                    "failed to get commit changed files: {e}"
+                );
+                return false;
+            }
+        };
+
+        let candidates = [
+            format!("applications/{}.application.yaml", sync.app_name),
+            format!("projects/{}/application.yaml", sync.app_name),
+        ];
+
+        // Short-circuit: app file itself was changed
+        if candidates.iter().any(|c| files.iter().any(|f| f == c)) {
+            return true;
+        }
+
+        // Try fetching app yaml to check source paths
+        let app_content = {
+            let mut content = None;
+            for candidate in &candidates {
+                match forgejo
+                    .get_raw_file(owner, repo, candidate, &sync.sha)
+                    .await
+                {
+                    Ok(c) => {
+                        content = Some(c);
+                        break;
+                    }
+                    Err(_) => continue,
+                }
+            }
+            content
+        };
+
+        let Some(app_content) = app_content else {
+            tracing::warn!(
+                app = sync.app_name,
+                "could not fetch app yaml from any candidate path"
+            );
+            return false;
+        };
+
+        let app: types::Application = match yaml_serde::from_str(&app_content) {
+            Ok(app) => app,
+            Err(e) => {
+                tracing::warn!(app = sync.app_name, "failed to parse app yaml: {e}");
+                return false;
+            }
+        };
+
+        app.spec.sources.iter().any(|source| {
+            if let (Some(path), None) = (&source.path, &source.chart) {
+                let prefix = if path.ends_with('/') {
+                    path.clone()
+                } else {
+                    format!("{path}/")
+                };
+                files.iter().any(|f| f.starts_with(&prefix))
+            } else {
+                false
+            }
+        })
+    }
 }

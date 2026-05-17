@@ -235,11 +235,11 @@ impl BotEvent<'_> {
                     _ => "pending",
                 };
                 vars.insert("state", state.to_string());
+                vars.insert("context", format!("ArgoCD / sync / {}", sync.app_name));
                 vars.insert(
-                    "context",
-                    format!("ArgoCD / sync / {}", sync.app_name),
+                    "description",
+                    format!("{} - {}", sync.phase, sync.health_status),
                 );
-                vars.insert("description", format!("{} - {}", sync.phase, sync.health_status));
                 vars.insert("target_url", String::new());
                 let short_sha = if sync.sha.len() >= 7 {
                     &sync.sha[..7]
