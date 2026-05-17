@@ -3,6 +3,7 @@ mod types;
 use open_feature::EvaluationContext;
 pub use types::*;
 
+use crate::argocd::types::Application;
 use crate::clients::Clients;
 use crate::event::BotEvent;
 use crate::rules::schema;
@@ -95,6 +96,13 @@ fn eval_leaf<'a>(
             LeafMatcher::WorkflowEvent => matches!(ev, BotEvent::GitHubWorkflow(_)),
             LeafMatcher::CommitStatusEvent => matches!(ev, BotEvent::GitHubCommitStatus(_)),
             LeafMatcher::CheckRunEvent => matches!(ev, BotEvent::GitHubCheckRun(_)),
+            LeafMatcher::ArgoSyncEvent => matches!(ev, BotEvent::ArgoSync(_)),
+            LeafMatcher::AppChangedInCommit { owner, repo } => match ev {
+                BotEvent::ArgoSync(sync) => {
+                    check_app_changed_in_commit(clients, owner, repo, sync).await
+                }
+                _ => false,
+            },
 
             LeafMatcher::Action { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.action == *value,
@@ -109,6 +117,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubWorkflow(wf) => wf.display_title.contains(value.as_str()),
                 BotEvent::GitHubCommitStatus(cs) => cs.context.contains(value.as_str()),
                 BotEvent::GitHubCheckRun(cr) => cr.name.contains(value.as_str()),
+                BotEvent::ArgoSync(sync) => sync.app_name.contains(value.as_str()),
             },
             LeafMatcher::HasLabel { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
@@ -210,13 +219,93 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubWorkflow(wf) => wf.branch == *value,
                 BotEvent::GitHubCommitStatus(_) => false,
                 BotEvent::GitHubCheckRun(_) => false,
+                BotEvent::ArgoSync(_) => false,
             },
             LeafMatcher::Repository { value } => match ev {
                 BotEvent::ForgejoPr(pr) => format!("{}/{}", pr.owner, pr.repo) == *value,
                 BotEvent::GitHubWorkflow(wf) => wf.repository == *value,
                 BotEvent::GitHubCommitStatus(cs) => cs.repository == *value,
                 BotEvent::GitHubCheckRun(cr) => cr.repository == *value,
+                BotEvent::ArgoSync(_) => false,
             },
+        }
+    })
+}
+
+async fn check_app_changed_in_commit(
+    clients: &Clients,
+    owner: &str,
+    repo: &str,
+    sync: &crate::event::ArgoSyncEvent,
+) -> bool {
+    let files = match clients
+        .forgejo
+        .get_commit_changed_files(owner, repo, &sync.sha)
+        .await
+    {
+        Ok(files) => files,
+        Err(e) => {
+            tracing::warn!(
+                app = sync.app_name,
+                sha = sync.sha,
+                "failed to get commit changed files: {e}"
+            );
+            return false;
+        }
+    };
+
+    let candidates = [
+        format!("applications/{}.application.yaml", sync.app_name),
+        format!("projects/{}/application.yaml", sync.app_name),
+    ];
+
+    // Short-circuit: app file itself was changed
+    if candidates.iter().any(|c| files.iter().any(|f| f == c)) {
+        return true;
+    }
+
+    // Try fetching app yaml to check source paths
+    let app_content = {
+        let mut content = None;
+        for candidate in &candidates {
+            match clients
+                .forgejo
+                .get_raw_file(owner, repo, candidate, &sync.sha)
+                .await
+            {
+                Ok(c) => {
+                    content = Some(c);
+                    break;
+                }
+                Err(_) => continue,
+            }
+        }
+        content
+    };
+
+    let Some(app_content) = app_content else {
+        tracing::warn!(app = sync.app_name, "could not fetch app yaml from any candidate path");
+        return false;
+    };
+
+    let app: Application = match yaml_serde::from_str(&app_content) {
+        Ok(app) => app,
+        Err(e) => {
+            tracing::warn!(app = sync.app_name, "failed to parse app yaml: {e}");
+            return false;
+        }
+    };
+
+    app.spec.sources.iter().any(|source| {
+        if let (Some(path), None) = (&source.path, &source.chart) {
+            let prefix = if path.ends_with('/') {
+                path.clone()
+            } else {
+                format!("{path}/")
+            };
+            files.iter().any(|f| f.starts_with(&prefix))
+        } else {
+            false
         }
     })
 }

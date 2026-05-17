@@ -141,6 +141,16 @@ pub struct CommitStatusEvent {
 }
 
 #[allow(dead_code)]
+pub struct ArgoSyncEvent {
+    pub app_name: String,
+    pub sha: String,
+    pub sync_status: String,
+    pub health_status: String,
+    pub phase: String,
+    pub message: String,
+}
+
+#[allow(dead_code)]
 pub struct CheckRunEvent {
     pub repository: String,
     pub sha: String,
@@ -177,6 +187,7 @@ pub enum BotEvent<'a> {
     GitHubWorkflow(&'a WorkflowEvent),
     GitHubCommitStatus(&'a CommitStatusEvent),
     GitHubCheckRun(&'a CheckRunEvent),
+    ArgoSync(&'a ArgoSyncEvent),
 }
 
 impl BotEvent<'_> {
@@ -203,6 +214,37 @@ impl BotEvent<'_> {
                     &cs.sha[..7]
                 } else {
                     &cs.sha
+                };
+                vars.insert("short_sha", short_sha.to_string());
+            }
+            BotEvent::ArgoSync(sync) => {
+                vars.insert("app_name", sync.app_name.clone());
+                vars.insert("sha", sync.sha.clone());
+                vars.insert("sync_status", sync.sync_status.clone());
+                vars.insert("health_status", sync.health_status.clone());
+                vars.insert("phase", sync.phase.clone());
+                vars.insert("message", sync.message.clone());
+                let state = match sync.phase.as_str() {
+                    "Succeeded" => match sync.health_status.as_str() {
+                        "Healthy" => "success",
+                        "Degraded" => "failure",
+                        _ => "pending",
+                    },
+                    "Failed" | "Error" => "failure",
+                    "Running" => "pending",
+                    _ => "pending",
+                };
+                vars.insert("state", state.to_string());
+                vars.insert(
+                    "context",
+                    format!("ArgoCD / sync / {}", sync.app_name),
+                );
+                vars.insert("description", format!("{} - {}", sync.phase, sync.health_status));
+                vars.insert("target_url", String::new());
+                let short_sha = if sync.sha.len() >= 7 {
+                    &sync.sha[..7]
+                } else {
+                    &sync.sha
                 };
                 vars.insert("short_sha", short_sha.to_string());
             }

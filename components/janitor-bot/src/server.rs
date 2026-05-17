@@ -164,6 +164,36 @@ async fn handle_evaluate(
                 Json(serde_json::to_value(&matched).unwrap()),
             )
         }
+        "argocd_sync" => {
+            use crate::argocd::types::ArgoSyncPayload;
+            let payload: ArgoSyncPayload = match serde_json::from_value(request.payload) {
+                Ok(p) => p,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": e.to_string()})),
+                    );
+                }
+            };
+            let sync_event = event::ArgoSyncEvent {
+                app_name: payload.app_name,
+                sha: payload.sha,
+                sync_status: payload.sync_status,
+                health_status: payload.health_status,
+                phase: payload.phase,
+                message: payload.message,
+            };
+            let matched = orchestrator
+                .explain_argocd_sync(&state.clients, &sync_event)
+                .await;
+            orchestrator
+                .evaluate_argocd_sync(&state.clients, &sync_event)
+                .await;
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(&matched).unwrap()),
+            )
+        }
         "issue_comment" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
                 Ok(w) => w,

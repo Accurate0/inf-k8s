@@ -1,0 +1,28 @@
+type: argocd_sync
+payload:
+  app_name: janitor-bot
+  sha: "abc1234567890def"
+  sync_status: "Synced"
+  health_status: "Healthy"
+  phase: "Succeeded"
+  message: "successfully synced"
+mocks:
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def
+    status: 200
+    body:
+      sha: abc1234567890def
+      created: "2025-01-01T00:00:00Z"
+      html_url: ""
+      url: ""
+      files:
+        - filename: "applications/janitor-bot.application.yaml"
+        - filename: "components/janitor-bot/values.yaml"
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def
+    status: 201
+    body:
+      id: 1
+      status: success

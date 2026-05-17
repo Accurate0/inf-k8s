@@ -1,0 +1,24 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - set_commit_status
+    dry_run: false
+    name: argocd-sync-status
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/def4567890abc123?stat=false&verification=false&files=true
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/def4567890abc123?stat=false&verification=false&files=true
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/def4567890abc123
+    body:
+      context: ArgoCD / sync / janitor-bot
+      description: Failed - Degraded
+      state: failure
+      target_url: "https://argocd.inf-k8s.net/applications/argocd/janitor-bot"
+    service: forgejo

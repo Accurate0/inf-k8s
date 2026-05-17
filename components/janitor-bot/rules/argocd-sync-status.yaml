@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: argocd-sync-status
+enabled: true
+matches:
+  all:
+    - type: argocd_sync_event
+variables:
+  - var: app_changed
+    type: app_changed_in_commit
+    owner: anurag
+    repo: k8s
+actions:
+  - when: "app_changed"
+    run:
+      - type: set_commit_status
+        target:
+          owner: anurag
+          repo: k8s
+        sha:
+          content: "{sha}"
+          template: true
+        state:
+          content: "{state}"
+          template: true
+        context:
+          content: "ArgoCD / sync / {app_name}"
+          template: true
+        description:
+          content: "{description}"
+          template: true
+        target_url:
+          content: "https://argocd.inf-k8s.net/applications/argocd/{app_name}"
+          template: true

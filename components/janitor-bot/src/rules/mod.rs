@@ -4,7 +4,9 @@ pub mod matchers;
 pub mod schema;
 
 use crate::clients::Clients;
-use crate::event::{BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, WorkflowEvent};
+use crate::event::{
+    ArgoSyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, WorkflowEvent,
+};
 use crate::rules::matchers::MatcherCache;
 pub use actions::Action;
 use moka::sync::Cache;
@@ -161,6 +163,20 @@ impl RulesOrchestrator {
 
     pub async fn evaluate_check_run(&self, clients: &Clients, event: &CheckRunEvent) {
         let bot_event = BotEvent::GitHubCheckRun(event);
+        self.run_rules(clients, &bot_event).await;
+    }
+
+    pub async fn explain_argocd_sync(
+        &self,
+        clients: &Clients,
+        event: &ArgoSyncEvent,
+    ) -> Vec<MatchedRule> {
+        let bot_event = BotEvent::ArgoSync(event);
+        self.explain_rules(&bot_event, clients).await
+    }
+
+    pub async fn evaluate_argocd_sync(&self, clients: &Clients, event: &ArgoSyncEvent) {
+        let bot_event = BotEvent::ArgoSync(event);
         self.run_rules(clients, &bot_event).await;
     }
 

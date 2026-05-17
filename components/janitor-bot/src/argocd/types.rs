@@ -22,6 +22,21 @@ pub struct Source {
     #[serde(rename = "targetRevision")]
     pub target_revision: Option<String>,
     pub chart: Option<String>,
+    pub path: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ArgoSyncPayload {
+    pub app_name: String,
+    pub sha: String,
+    #[serde(default)]
+    pub sync_status: String,
+    #[serde(default)]
+    pub health_status: String,
+    #[serde(default)]
+    pub phase: String,
+    #[serde(default)]
+    pub message: String,
 }
 
 pub struct SourceDiff {

@@ -34,6 +34,11 @@ pub enum LeafMatcher {
     CommitStatusEvent,
     #[serde(rename = "check_run_event")]
     CheckRunEvent,
+    #[serde(rename = "argocd_sync_event")]
+    ArgoSyncEvent,
+
+    #[serde(rename = "app_changed_in_commit")]
+    AppChangedInCommit { owner: String, repo: String },
 
     #[serde(rename = "action")]
     Action { value: String },

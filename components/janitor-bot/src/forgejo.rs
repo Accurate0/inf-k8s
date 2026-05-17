@@ -267,6 +267,30 @@ impl ForgejoClient {
         }
     }
 
+    pub async fn get_commit_changed_files(
+        &self,
+        owner: &str,
+        repo: &str,
+        sha: &str,
+    ) -> Result<Vec<String>, forgejo_api::ForgejoError> {
+        let query = RepoGetSingleCommitQuery {
+            stat: Some(false),
+            verification: Some(false),
+            files: Some(true),
+        };
+        let commit = self
+            .api
+            .repo_get_single_commit(owner, repo, sha, query)
+            .send()
+            .await?;
+        Ok(commit
+            .files
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|f| f.filename)
+            .collect())
+    }
+
     pub async fn get_pr_changed_files(
         &self,
         owner: &str,
@@ -687,5 +711,29 @@ impl ForgejoClient {
             "created pull request"
         );
         Ok(pr)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn commit_deserialization_with_files() {
+        let json = r#"{"sha":"abc1234567890def","created":"2025-01-01T00:00:00Z","html_url":"","url":"","files":[{"filename":"applications/janitor-bot.application.yaml"},{"filename":"components/janitor-bot/values.yaml"}]}"#;
+        let commit: Commit = serde_json::from_str(json).expect("should deserialize");
+        let files: Vec<String> = commit
+            .files
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|f| f.filename)
+            .collect();
+        assert_eq!(
+            files,
+            vec![
+                "applications/janitor-bot.application.yaml",
+                "components/janitor-bot/values.yaml"
+            ]
+        );
     }
 }

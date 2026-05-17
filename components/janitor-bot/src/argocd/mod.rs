@@ -1,4 +1,4 @@
-mod types;
+pub mod types;
 
 use crate::event::PrEvent;
 use crate::forgejo::ForgejoClient;

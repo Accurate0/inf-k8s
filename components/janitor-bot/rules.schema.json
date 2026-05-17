@@ -500,6 +500,38 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "argocd_sync_event"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "owner": {
+              "type": "string"
+            },
+            "repo": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "app_changed_in_commit"
+            }
+          },
+          "required": [
+            "type",
+            "owner",
+            "repo"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "action"
             },
             "value": {
