@@ -98,6 +98,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/forgejo/webhook", post(routes::handle_forgejo_webhook))
         .route("/github/webhook", post(routes::handle_github_webhook))
         .route("/argocd/webhook", post(routes::handle_argocd_webhook))
+        .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
     let addr = "0.0.0.0:3000";
