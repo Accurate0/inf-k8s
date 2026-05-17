@@ -4,7 +4,7 @@ pub mod matchers;
 pub mod schema;
 
 use crate::clients::Clients;
-use crate::event::{BotEvent, CommitStatusEvent, PrEvent, WorkflowEvent};
+use crate::event::{BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, WorkflowEvent};
 use crate::rules::matchers::MatcherCache;
 pub use actions::Action;
 use moka::sync::Cache;
@@ -147,6 +147,11 @@ impl RulesOrchestrator {
 
     pub async fn evaluate_commit_status(&self, clients: &Clients, event: &CommitStatusEvent) {
         let bot_event = BotEvent::GitHubCommitStatus(event);
+        self.run_rules(clients, &bot_event).await;
+    }
+
+    pub async fn evaluate_check_run(&self, clients: &Clients, event: &CheckRunEvent) {
+        let bot_event = BotEvent::GitHubCheckRun(event);
         self.run_rules(clients, &bot_event).await;
     }
 

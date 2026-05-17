@@ -4,7 +4,9 @@ enabled: true
 matches:
   all:
     - type: github
-    - type: commit_status_event
+    - any:
+        - type: commit_status_event
+        - type: check_run_event
     - type: repository
       value: Accurate0/inf-k8s
 actions:

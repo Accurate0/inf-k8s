@@ -141,6 +141,17 @@ pub struct CommitStatusEvent {
 }
 
 #[allow(dead_code)]
+pub struct CheckRunEvent {
+    pub repository: String,
+    pub sha: String,
+    pub name: String,
+    pub status: String,
+    pub conclusion: String,
+    pub details_url: String,
+    pub app_name: String,
+}
+
+#[allow(dead_code)]
 pub struct WorkflowEvent {
     pub run_id: u64,
     pub workflow_name: String,
@@ -165,6 +176,7 @@ pub enum BotEvent<'a> {
     ForgejoPr(&'a PrEvent),
     GitHubWorkflow(&'a WorkflowEvent),
     GitHubCommitStatus(&'a CommitStatusEvent),
+    GitHubCheckRun(&'a CheckRunEvent),
 }
 
 impl BotEvent<'_> {
@@ -191,6 +203,40 @@ impl BotEvent<'_> {
                     &cs.sha[..7]
                 } else {
                     &cs.sha
+                };
+                vars.insert("short_sha", short_sha.to_string());
+            }
+            BotEvent::GitHubCheckRun(cr) => {
+                vars.insert("repository", cr.repository.clone());
+                vars.insert("sha", cr.sha.clone());
+                vars.insert("name", cr.name.clone());
+                vars.insert("status", cr.status.clone());
+                vars.insert("conclusion", cr.conclusion.clone());
+                vars.insert("details_url", cr.details_url.clone());
+                vars.insert("app_name", cr.app_name.clone());
+                // Map check_run conclusion to commit status state
+                let state = match cr.conclusion.as_str() {
+                    "success" => "success",
+                    "failure" | "timed_out" | "action_required" => "failure",
+                    "cancelled" | "skipped" | "stale" => "error",
+                    "neutral" => "success",
+                    _ if cr.status == "in_progress" || cr.status == "queued" => "pending",
+                    _ => "pending",
+                };
+                vars.insert("state", state.to_string());
+                // context and description for compatibility with set_commit_status action
+                let context = if cr.app_name.is_empty() {
+                    cr.name.clone()
+                } else {
+                    format!("{} / {}", cr.app_name, cr.name)
+                };
+                vars.insert("context", context);
+                vars.insert("description", cr.conclusion.clone());
+                vars.insert("target_url", cr.details_url.clone());
+                let short_sha = if cr.sha.len() >= 7 {
+                    &cr.sha[..7]
+                } else {
+                    &cr.sha
                 };
                 vars.insert("short_sha", short_sha.to_string());
             }

@@ -84,11 +84,17 @@ fn eval_leaf<'a>(
         match leaf {
             LeafMatcher::Forgejo => matches!(ev, BotEvent::ForgejoPr(_)),
             LeafMatcher::GitHub => {
-                matches!(ev, BotEvent::GitHubWorkflow(_) | BotEvent::GitHubCommitStatus(_))
+                matches!(
+                    ev,
+                    BotEvent::GitHubWorkflow(_)
+                        | BotEvent::GitHubCommitStatus(_)
+                        | BotEvent::GitHubCheckRun(_)
+                )
             }
             LeafMatcher::PrEvent => matches!(ev, BotEvent::ForgejoPr(_)),
             LeafMatcher::WorkflowEvent => matches!(ev, BotEvent::GitHubWorkflow(_)),
             LeafMatcher::CommitStatusEvent => matches!(ev, BotEvent::GitHubCommitStatus(_)),
+            LeafMatcher::CheckRunEvent => matches!(ev, BotEvent::GitHubCheckRun(_)),
 
             LeafMatcher::Action { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.action == *value,
@@ -102,6 +108,7 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.title.contains(value.as_str()),
                 BotEvent::GitHubWorkflow(wf) => wf.display_title.contains(value.as_str()),
                 BotEvent::GitHubCommitStatus(cs) => cs.context.contains(value.as_str()),
+                BotEvent::GitHubCheckRun(cr) => cr.name.contains(value.as_str()),
             },
             LeafMatcher::HasLabel { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
@@ -202,11 +209,13 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.target_branch == *value,
                 BotEvent::GitHubWorkflow(wf) => wf.branch == *value,
                 BotEvent::GitHubCommitStatus(_) => false,
+                BotEvent::GitHubCheckRun(_) => false,
             },
             LeafMatcher::Repository { value } => match ev {
                 BotEvent::ForgejoPr(pr) => format!("{}/{}", pr.owner, pr.repo) == *value,
                 BotEvent::GitHubWorkflow(wf) => wf.repository == *value,
                 BotEvent::GitHubCommitStatus(cs) => cs.repository == *value,
+                BotEvent::GitHubCheckRun(cr) => cr.repository == *value,
             },
         }
     })

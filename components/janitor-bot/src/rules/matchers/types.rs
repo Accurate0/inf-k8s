@@ -32,6 +32,8 @@ pub enum LeafMatcher {
     WorkflowEvent,
     #[serde(rename = "commit_status_event")]
     CommitStatusEvent,
+    #[serde(rename = "check_run_event")]
+    CheckRunEvent,
 
     #[serde(rename = "action")]
     Action { value: String },

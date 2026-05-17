@@ -286,6 +286,51 @@ struct CommitStatusPayload {
     repository: Option<CommitStatusRepository>,
 }
 
+#[derive(Debug, Deserialize)]
+struct CheckRunApp {
+    name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CheckRun {
+    name: Option<String>,
+    head_sha: Option<String>,
+    status: Option<String>,
+    conclusion: Option<String>,
+    details_url: Option<String>,
+    app: Option<CheckRunApp>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CheckRunRepository {
+    full_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CheckRunPayload {
+    action: Option<String>,
+    check_run: Option<CheckRun>,
+    repository: Option<CheckRunRepository>,
+}
+
+pub fn parse_check_run_event(body: &[u8]) -> Option<crate::event::CheckRunEvent> {
+    let payload: CheckRunPayload = serde_json::from_slice(body).ok()?;
+    let action = payload.action?;
+    if action != "completed" && action != "created" {
+        return None;
+    }
+    let cr = payload.check_run?;
+    Some(crate::event::CheckRunEvent {
+        repository: payload.repository?.full_name?,
+        sha: cr.head_sha?,
+        name: cr.name.unwrap_or_default(),
+        status: cr.status.unwrap_or_default(),
+        conclusion: cr.conclusion.unwrap_or_default(),
+        details_url: cr.details_url.unwrap_or_default(),
+        app_name: cr.app.and_then(|a| a.name).unwrap_or_default(),
+    })
+}
+
 pub fn parse_commit_status_event(body: &[u8]) -> Option<crate::event::CommitStatusEvent> {
     let payload: CommitStatusPayload = serde_json::from_slice(body).ok()?;
     Some(crate::event::CommitStatusEvent {
