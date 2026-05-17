@@ -177,8 +177,14 @@ pub async fn handle_argocd_webhook(
         app_name = payload.app_name,
         phase = payload.phase,
         health = payload.health_status,
+        sha = payload.sha,
         "received argocd sync event"
     );
+
+    if payload.sha.is_empty() {
+        tracing::info!(app_name = payload.app_name, "skipping argocd sync event with empty sha");
+        return StatusCode::OK;
+    }
 
     let sync_event = event::ArgoSyncEvent {
         app_name: payload.app_name,
