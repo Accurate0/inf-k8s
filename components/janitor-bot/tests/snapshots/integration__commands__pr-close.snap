@@ -10,6 +10,17 @@ external_requests:
     body:
       content: "+1"
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/3
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/3/labels/10
+    body:
+      updated_at: ~
+    service: forgejo
   - method: PATCH
     path: /api/v1/repos/anurag/k8s/issues/3
     body:

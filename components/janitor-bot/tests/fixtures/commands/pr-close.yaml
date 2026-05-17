@@ -20,6 +20,50 @@ mocks:
     body:
       created_at: "2025-01-01T00:00:00Z"
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/3
+    status: 200
+    body:
+      number: 3
+      title: "Some PR"
+      user:
+        login: anurag
+        avatar_url: ""
+        html_url: ""
+        created: "2020-01-01T00:00:00Z"
+        last_login: "2020-01-01T00:00:00Z"
+      labels:
+        - id: 10
+          name: janitor/queued
+          url: ""
+      base:
+        ref: main
+      mergeable: true
+      state: open
+      merged: false
+      diff_url: ""
+      html_url: ""
+      patch_url: ""
+      url: ""
+      requested_reviewers: []
+      closed_at: null
+      created_at: "2020-01-01T00:00:00Z"
+      due_date: null
+      merged_at: null
+      updated_at: "2020-01-01T00:00:00Z"
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    status: 200
+    body:
+      - id: 10
+        name: janitor/queued
+        url: ""
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/3/labels/10
+    status: 204
+    service: forgejo
   - method: PATCH
     path: /api/v1/repos/anurag/k8s/issues/3
     status: 201

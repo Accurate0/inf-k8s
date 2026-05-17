@@ -183,11 +183,17 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         external_requests,
     };
 
-    let snapshot_name = fixture_path
+    let parent_dir = fixture_path
+        .parent()
+        .and_then(|p| p.file_name())
+        .map(|d| d.to_string_lossy().to_string())
+        .unwrap_or_default();
+    let file_stem = fixture_path
         .file_stem()
         .unwrap()
         .to_string_lossy()
         .to_string();
+    let snapshot_name = format!("{parent_dir}__{file_stem}");
 
     let argocd_host = argocd_server
         .uri()

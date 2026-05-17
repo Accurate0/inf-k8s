@@ -1,0 +1,21 @@
+type: check_run
+payload:
+  action: created
+  check_run:
+    name: "build"
+    head_sha: "fed9876543210abc"
+    status: "queued"
+    conclusion: ""
+    details_url: "https://github.com/Accurate0/inf-k8s/actions/runs/101"
+    app:
+      name: "GitHub Actions"
+  repository:
+    full_name: "Accurate0/inf-k8s"
+mocks:
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/fed9876543210abc
+    status: 201
+    body:
+      id: 3
+      status: pending

@@ -137,6 +137,33 @@ async fn handle_evaluate(
                 Json(serde_json::to_value(&matched).unwrap()),
             )
         }
+        "check_run" => {
+            let body = match serde_json::to_vec(&request.payload) {
+                Ok(b) => b,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": e.to_string()})),
+                    );
+                }
+            };
+            let Some(cr_event) = github::parse_check_run_event(&body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "invalid check_run payload"})),
+                );
+            };
+            let matched = orchestrator
+                .explain_check_run(&state.clients, &cr_event)
+                .await;
+            orchestrator
+                .evaluate_check_run(&state.clients, &cr_event)
+                .await;
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(&matched).unwrap()),
+            )
+        }
         "issue_comment" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
                 Ok(w) => w,

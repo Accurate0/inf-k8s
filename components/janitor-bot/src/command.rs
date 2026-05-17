@@ -167,6 +167,7 @@ pub async fn handle_pr_command(
             }
         }
         PrCommand::Close => {
+            remove_janitor_labels(client, &cmd.owner, &cmd.repo, pr).await;
             if let Err(e) = client
                 .set_pr_state(&cmd.owner, &cmd.repo, pr, "closed")
                 .await

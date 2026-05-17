@@ -150,6 +150,15 @@ impl RulesOrchestrator {
         self.run_rules(clients, &bot_event).await;
     }
 
+    pub async fn explain_check_run(
+        &self,
+        clients: &Clients,
+        event: &CheckRunEvent,
+    ) -> Vec<MatchedRule> {
+        let bot_event = BotEvent::GitHubCheckRun(event);
+        self.explain_rules(&bot_event, clients).await
+    }
+
     pub async fn evaluate_check_run(&self, clients: &Clients, event: &CheckRunEvent) {
         let bot_event = BotEvent::GitHubCheckRun(event);
         self.run_rules(clients, &bot_event).await;
