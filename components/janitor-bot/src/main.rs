@@ -5,6 +5,7 @@ use axum::{
     http::{HeaderMap, StatusCode},
     routing::{get, post},
 };
+use chrono_tz::Australia;
 use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient};
 use janitor_bot::{command, event, github, rules};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
@@ -205,7 +206,7 @@ async fn main() -> anyhow::Result<()> {
 
     let poll_state = Arc::clone(&state);
     let job = JobBuilder::new()
-        .with_timezone(chrono_tz::Australia::Perth)
+        .with_timezone(Australia::Perth)
         .with_cron_job_type()
         .with_schedule("every 10 minutes")?
         .with_run_async(Box::new(move |uuid, mut _lock| {
