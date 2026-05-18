@@ -271,15 +271,11 @@ impl BotEvent<'_> {
                 };
                 vars.insert("state", state.to_string());
                 // context and description for compatibility with set_commit_status action
-                let context = [
-                    cr.app_name.as_str(),
-                    cr.workflow_name.as_str(),
-                    cr.name.as_str(),
-                ]
-                .into_iter()
-                .filter(|s| !s.is_empty())
-                .collect::<Vec<_>>()
-                .join(" / ");
+                let context = ["GHA", cr.workflow_name.as_str(), cr.name.as_str()]
+                    .into_iter()
+                    .filter(|s| !s.is_empty())
+                    .collect::<Vec<_>>()
+                    .join(" / ");
                 vars.insert("context", context);
                 vars.insert("description", cr.conclusion.clone());
                 vars.insert("target_url", cr.details_url.clone());
