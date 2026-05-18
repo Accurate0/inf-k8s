@@ -5,7 +5,15 @@ use serde::Deserialize;
 #[serde(untagged)]
 pub enum Matcher {
     Combinator(Combinator),
+    LeafExpr(LeafExprMatcher),
     Leaf(LeafMatcher),
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct LeafExprMatcher {
+    #[serde(flatten)]
+    pub matcher: LeafMatcher,
+    pub expr: String,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -83,6 +91,9 @@ pub enum LeafMatcher {
     TargetBranch { value: String },
     #[serde(rename = "repository")]
     Repository { value: String },
+
+    #[serde(rename = "workflow_run_attempt")]
+    WorkflowRunAttempt,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]

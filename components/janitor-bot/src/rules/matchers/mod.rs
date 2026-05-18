@@ -5,7 +5,7 @@ pub use types::*;
 
 use crate::clients::Clients;
 use crate::event::BotEvent;
-use crate::rules::schema;
+use crate::rules::{expr, schema};
 use chrono::{Datelike, Timelike};
 use std::future::Future;
 use std::pin::Pin;
@@ -60,6 +60,24 @@ impl Matcher {
                         !matcher.matches(ev, rule, clients, cache, now).await
                     }
                 },
+                Matcher::LeafExpr(leaf_expr) => {
+                    let value = eval_leaf_value(&leaf_expr.matcher, ev, rule, clients, now).await;
+                    let mut vars = std::collections::HashMap::new();
+                    vars.insert("value".to_string(), value);
+                    match expr::parse(&leaf_expr.expr) {
+                        Ok(parsed) => match expr::eval(&parsed, &vars) {
+                            Ok(v) => v.as_bool().unwrap_or(false),
+                            Err(e) => {
+                                tracing::error!(expr = leaf_expr.expr, "expr eval error: {e}");
+                                false
+                            }
+                        },
+                        Err(e) => {
+                            tracing::error!(expr = leaf_expr.expr, "expr parse error: {e}");
+                            false
+                        }
+                    }
+                }
                 Matcher::Leaf(leaf) => {
                     if let Some(cached) = cache.results.get(leaf) {
                         return cached;
@@ -71,6 +89,42 @@ impl Matcher {
             }
         })
     }
+
+    pub fn eval_value<'a>(
+        &'a self,
+        ev: &'a BotEvent<'a>,
+        rule: &'a schema::RuleDef,
+        clients: &'a Clients,
+        cache: &'a MatcherCache,
+        now: chrono::DateTime<chrono::Utc>,
+    ) -> Pin<Box<dyn Future<Output = expr::Value> + Send + 'a>> {
+        Box::pin(async move {
+            match self {
+                Matcher::Leaf(leaf) | Matcher::LeafExpr(LeafExprMatcher { matcher: leaf, .. }) => {
+                    eval_leaf_value(leaf, ev, rule, clients, now).await
+                }
+                _ => expr::Value::Bool(self.matches(ev, rule, clients, cache, now).await),
+            }
+        })
+    }
+}
+
+fn eval_leaf_value<'a>(
+    leaf: &'a LeafMatcher,
+    ev: &'a BotEvent<'a>,
+    rule: &'a schema::RuleDef,
+    clients: &'a Clients,
+    now: chrono::DateTime<chrono::Utc>,
+) -> Pin<Box<dyn Future<Output = expr::Value> + Send + 'a>> {
+    Box::pin(async move {
+        match leaf {
+            LeafMatcher::WorkflowRunAttempt => match ev {
+                BotEvent::GitHubWorkflow(wf) => expr::Value::I64(wf.run_attempt as i64),
+                _ => expr::Value::I64(0),
+            },
+            other => expr::Value::Bool(eval_leaf(other, ev, rule, clients, now).await),
+        }
+    })
 }
 
 fn eval_leaf<'a>(
@@ -231,6 +285,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubCheckRun(cr) => cr.repository == *value,
                 BotEvent::ArgoSync(_) => false,
             },
+            LeafMatcher::WorkflowRunAttempt => matches!(ev, BotEvent::GitHubWorkflow(_)),
         }
     })
 }
@@ -609,6 +664,39 @@ patterns:
                 assert_eq!(value, "anurag/k8s");
             }
             _ => panic!("expected Repository"),
+        }
+    }
+
+    #[test]
+    fn deserialize_leaf_expr() {
+        let yaml = "type: workflow_run_attempt\nexpr: \"value < 3\"";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::LeafExpr(le) => {
+                assert!(matches!(le.matcher, LeafMatcher::WorkflowRunAttempt));
+                assert_eq!(le.expr, "value < 3");
+            }
+            _ => panic!("expected LeafExpr, got {m:?}"),
+        }
+    }
+
+    #[test]
+    fn deserialize_leaf_without_expr_stays_leaf() {
+        let yaml = "type: workflow_run_attempt";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        assert!(matches!(m, Matcher::Leaf(LeafMatcher::WorkflowRunAttempt)));
+    }
+
+    #[test]
+    fn deserialize_leaf_expr_with_other_fields() {
+        let yaml = "type: workflow_conclusion\nvalue: failure\nexpr: \"value == true\"";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        match m {
+            Matcher::LeafExpr(le) => {
+                assert!(matches!(le.matcher, LeafMatcher::WorkflowConclusion { .. }));
+                assert_eq!(le.expr, "value == true");
+            }
+            _ => panic!("expected LeafExpr"),
         }
     }
 }

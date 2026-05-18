@@ -245,22 +245,22 @@ impl RulesOrchestrator {
         event: &BotEvent<'a>,
         clients: &Clients,
         cache: &MatcherCache,
-    ) -> HashMap<String, bool> {
+    ) -> HashMap<String, expr::Value> {
         let now = self.now();
         let mut vars = HashMap::new();
         for defined_variable in &rule.variables {
-            let result = defined_variable
+            let value = defined_variable
                 .matcher
-                .matches(event, rule, clients, cache, now)
+                .eval_value(event, rule, clients, cache, now)
                 .await;
 
             tracing::debug!(
                 rule = rule.name,
                 var = defined_variable.var,
-                result,
+                value = %value,
                 "variable evaluated"
             );
-            vars.insert(defined_variable.var.clone(), result);
+            vars.insert(defined_variable.var.clone(), value);
         }
         vars
     }
@@ -353,7 +353,7 @@ impl RulesOrchestrator {
     async fn execute_actions<'a>(
         &self,
         rule: &schema::RuleDef,
-        vars: &HashMap<String, bool>,
+        vars: &HashMap<String, expr::Value>,
         clients: &Clients,
         event: &BotEvent<'a>,
         dry_run: bool,
@@ -400,7 +400,7 @@ impl RulesOrchestrator {
 
     async fn resolve_action_groups<'a>(
         rule: &'a schema::RuleDef,
-        vars: &HashMap<String, bool>,
+        vars: &HashMap<String, expr::Value>,
     ) -> Vec<ActionGroup<'a>> {
         match &rule.actions {
             ActionsDef::Flat(actions) => vec![ActionGroup {
@@ -410,21 +410,30 @@ impl RulesOrchestrator {
             ActionsDef::Conditional(groups) => {
                 let mut result = Vec::new();
                 for group in groups {
-                    let expr = expr::parse(&group.when).expect("pre-validated expression");
-                    match expr::eval(&expr, vars) {
-                        Ok(true) => {
-                            result.push(ActionGroup {
-                                when: Some(group.when.as_str()),
-                                actions: group.run.iter().collect(),
-                            });
-                        }
-                        Ok(false) => {
-                            tracing::debug!(
-                                rule = rule.name,
-                                when = group.when,
-                                "group condition not met, skipping"
-                            );
-                        }
+                    let parsed = expr::parse(&group.when).expect("pre-validated expression");
+                    match expr::eval(&parsed, vars) {
+                        Ok(v) => match v.as_bool() {
+                            Ok(true) => {
+                                result.push(ActionGroup {
+                                    when: Some(group.when.as_str()),
+                                    actions: group.run.iter().collect(),
+                                });
+                            }
+                            Ok(false) => {
+                                tracing::debug!(
+                                    rule = rule.name,
+                                    when = group.when,
+                                    "group condition not met, skipping"
+                                );
+                            }
+                            Err(e) => {
+                                tracing::error!(
+                                    rule = rule.name,
+                                    when = group.when,
+                                    "expression result is not bool: {e}"
+                                );
+                            }
+                        },
                         Err(e) => {
                             tracing::error!(
                                 rule = rule.name,

@@ -1,0 +1,63 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - ensure_labels_exist
+      - create_issue
+    dry_run: false
+    name: manage-github-workflow
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/labels
+    body:
+      color: "#d73a4a"
+      description: ~
+      exclusive: ~
+      is_archived: ~
+      name: github-ci-failure
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/labels
+    body:
+      color: "#e4e669"
+      description: ~
+      exclusive: ~
+      is_archived: ~
+      name: automated
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/issues?state=open&q=%5BGitHub+CI%5D+Accurate0%2Finf-k8s+CI+failed&type=issues
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues
+    body:
+      assignee: ~
+      assignees: ~
+      body: "## Workflow Failed\n\n| Detail | Value |\n|--------|-------|\n| Workflow | **CI** |\n| Result | `failure` |\n| Branch | `main` |\n| Run | [#50 (attempt 3)](https://github.com/Accurate0/inf-k8s/actions/runs/9003) |\n| Commit | [`def456a`](https://github.com/Accurate0/inf-k8s/commit/def456abc789) — chore(deps): update dependency renovate |\n| Author | renovate[bot] |\n\n### Logs\n\n```\n\nBuilding...\n\npersistent failure\n\nDone\n```\n\n<!-- {\"branch\":\"main\",\"commit_sha\":\"def456abc789\",\"conclusion\":\"failure\",\"created_at\":\"2026-01-01T00:00:00Z\",\"html_url\":\"https://github.com/Accurate0/inf-k8s/actions/runs/9003\",\"logs_url\":\"https://github.com/Accurate0/inf-k8s/actions/runs/9003/logs\",\"run_id\":9003,\"updated_at\":\"2026-01-01T00:05:00Z\",\"workflow\":\"CI\"} -->\n"
+      closed: ~
+      due_date: ~
+      labels: []
+      milestone: ~
+      ref: ~
+      title: "[GitHub CI] Accurate0/inf-k8s CI failed"
+    service: forgejo
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/actions/runs/9003/jobs
+    service: github
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/actions/jobs/3001/logs
+    service: github
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/actions/runs/9003/jobs
+    service: github
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/actions/jobs/3001/logs
+    service: github
