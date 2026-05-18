@@ -24,11 +24,11 @@ actions:
           content: "{state}"
           template: true
         context:
-          content: "ArgoCD / sync / {app_name}"
+          content: "ArgoCD / sync / {argocd_sync.app_name}"
           template: true
         description:
           content: "{description}"
           template: true
         target_url:
-          content: "https://argocd.inf-k8s.net/applications/argocd/{app_name}"
+          content: "https://argocd.inf-k8s.net/applications/argocd/{argocd_sync.app_name}"
           template: true

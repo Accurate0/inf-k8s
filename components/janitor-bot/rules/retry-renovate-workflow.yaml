@@ -24,5 +24,5 @@ actions:
       content: "{repository}"
       template: true
     id:
-      content: "{run_id}"
+      content: "{github_workflow.run_id}"
       template: true

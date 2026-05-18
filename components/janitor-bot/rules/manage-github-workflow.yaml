@@ -34,7 +34,7 @@ actions:
           repo: k8s
         deduplicateByTitle: true
         title:
-          content: "[GitHub CI] {repository} {workflow_name} failed"
+          content: "[GitHub CI] {repository} {github_workflow.workflow_name} failed"
           template: true
         labels:
           - name: github-ci-failure
@@ -48,20 +48,20 @@ actions:
 
             | Detail | Value |
             |--------|-------|
-            | Workflow | **{workflow_name}** |
+            | Workflow | **{github_workflow.workflow_name}** |
             | Result | `failure` |
-            | Branch | `{branch}` |
-            | Run | [#{run_number} (attempt {run_attempt})]({run_url}) |
-            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{head_sha}) — {commit_message} |
-            | Author | {commit_author} |
+            | Branch | `{github_workflow.branch}` |
+            | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
+            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
+            | Author | {github_workflow.commit_author} |
 
             ### Logs
 
             ```
-            {failed_jobs_logs}
+            {github_workflow.failed_jobs_logs}
             ```
 
-            <!-- {metadata_json} -->
+            <!-- {github_workflow.metadata_json} -->
         on_duplicate_comment:
           template: true
           content: |
@@ -70,14 +70,14 @@ actions:
             | Detail | Value |
             |--------|-------|
             | Result | `failure` |
-            | Run | [#{run_number} (attempt {run_attempt})]({run_url}) |
-            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{head_sha}) — {commit_message} |
+            | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
+            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
 
             ```
-            {failed_jobs_logs}
+            {github_workflow.failed_jobs_logs}
             ```
 
-            <!-- {metadata_json} -->
+            <!-- {github_workflow.metadata_json} -->
   - when: "is_success"
     run:
       - type: close_issue
@@ -85,7 +85,7 @@ actions:
           owner: anurag
           repo: k8s
         title:
-          content: "[GitHub CI] {repository} {workflow_name} failed"
+          content: "[GitHub CI] {repository} {github_workflow.workflow_name} failed"
           template: true
         closing_comment:
           template: true
@@ -95,5 +95,5 @@ actions:
             | Detail | Value |
             |--------|-------|
             | Result | `success` |
-            | Run | [#{run_number} (attempt {run_attempt})]({run_url}) |
-            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{head_sha}) — {commit_message} |
+            | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
+            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |

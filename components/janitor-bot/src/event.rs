@@ -195,13 +195,14 @@ impl BotEvent<'_> {
         let mut vars = HashMap::new();
         match self {
             BotEvent::ForgejoPr(pr) => {
-                vars.insert("action", pr.action.clone());
-                vars.insert("author", pr.author.clone());
-                vars.insert("owner", pr.owner.clone());
-                vars.insert("repo", pr.repo.clone());
-                vars.insert("pr_number", pr.pr_number.to_string());
-                vars.insert("title", pr.title.clone());
-                vars.insert("target_branch", pr.target_branch.clone());
+                vars.insert("repository", format!("{}/{}", pr.owner, pr.repo));
+                vars.insert("forgejo_pr.action", pr.action.clone());
+                vars.insert("forgejo_pr.author", pr.author.clone());
+                vars.insert("forgejo_pr.owner", pr.owner.clone());
+                vars.insert("forgejo_pr.repo", pr.repo.clone());
+                vars.insert("forgejo_pr.pr_number", pr.pr_number.to_string());
+                vars.insert("forgejo_pr.title", pr.title.clone());
+                vars.insert("forgejo_pr.target_branch", pr.target_branch.clone());
             }
             BotEvent::GitHubCommitStatus(cs) => {
                 vars.insert("repository", cs.repository.clone());
@@ -218,12 +219,12 @@ impl BotEvent<'_> {
                 vars.insert("short_sha", short_sha.to_string());
             }
             BotEvent::ArgoSync(sync) => {
-                vars.insert("app_name", sync.app_name.clone());
+                vars.insert("argocd_sync.app_name", sync.app_name.clone());
                 vars.insert("sha", sync.sha.clone());
-                vars.insert("sync_status", sync.sync_status.clone());
-                vars.insert("health_status", sync.health_status.clone());
-                vars.insert("phase", sync.phase.clone());
-                vars.insert("message", sync.message.clone());
+                vars.insert("argocd_sync.sync_status", sync.sync_status.clone());
+                vars.insert("argocd_sync.health_status", sync.health_status.clone());
+                vars.insert("argocd_sync.phase", sync.phase.clone());
+                vars.insert("argocd_sync.message", sync.message.clone());
                 let state = match sync.phase.as_str() {
                     "Succeeded" => match sync.health_status.as_str() {
                         "Healthy" => "success",
@@ -251,11 +252,11 @@ impl BotEvent<'_> {
             BotEvent::GitHubCheckRun(cr) => {
                 vars.insert("repository", cr.repository.clone());
                 vars.insert("sha", cr.sha.clone());
-                vars.insert("name", cr.name.clone());
-                vars.insert("status", cr.status.clone());
-                vars.insert("conclusion", cr.conclusion.clone());
-                vars.insert("details_url", cr.details_url.clone());
-                vars.insert("app_name", cr.app_name.clone());
+                vars.insert("github_check_run.name", cr.name.clone());
+                vars.insert("github_check_run.status", cr.status.clone());
+                vars.insert("github_check_run.conclusion", cr.conclusion.clone());
+                vars.insert("github_check_run.details_url", cr.details_url.clone());
+                vars.insert("github_check_run.app_name", cr.app_name.clone());
                 // Map check_run conclusion to commit status state
                 let state = match cr.conclusion.as_str() {
                     "success" => "success",
@@ -283,24 +284,31 @@ impl BotEvent<'_> {
                 vars.insert("short_sha", short_sha.to_string());
             }
             BotEvent::GitHubWorkflow(wf) => {
-                vars.insert("run_id", wf.run_id.to_string());
-                vars.insert("workflow_name", wf.workflow_name.clone());
-                vars.insert("conclusion", wf.conclusion.clone());
-                vars.insert("run_url", wf.run_url.clone());
                 vars.insert("repository", wf.repository.clone());
-                vars.insert("branch", wf.branch.clone());
-                vars.insert("head_sha", wf.head_sha.clone());
-                vars.insert("commit_message", wf.commit_message.clone());
-                vars.insert("commit_author", wf.commit_author.clone());
-                vars.insert("actor", wf.actor.clone());
-                vars.insert("run_number", wf.run_number.to_string());
-                vars.insert("run_attempt", wf.run_attempt.to_string());
-                vars.insert("display_title", wf.display_title.clone());
-                vars.insert("failed_jobs_logs", wf.failed_jobs_logs.clone());
-                vars.insert("created_at", wf.created_at.clone());
-                vars.insert("updated_at", wf.updated_at.clone());
+                vars.insert("sha", wf.head_sha.clone());
+                let short_sha = if wf.head_sha.len() >= 7 {
+                    &wf.head_sha[..7]
+                } else {
+                    &wf.head_sha
+                };
+                vars.insert("short_sha", short_sha.to_string());
+                vars.insert("github_workflow.run_id", wf.run_id.to_string());
+                vars.insert("github_workflow.workflow_name", wf.workflow_name.clone());
+                vars.insert("github_workflow.conclusion", wf.conclusion.clone());
+                vars.insert("github_workflow.run_url", wf.run_url.clone());
+                vars.insert("github_workflow.branch", wf.branch.clone());
+                vars.insert("github_workflow.head_sha", wf.head_sha.clone());
+                vars.insert("github_workflow.commit_message", wf.commit_message.clone());
+                vars.insert("github_workflow.commit_author", wf.commit_author.clone());
+                vars.insert("github_workflow.actor", wf.actor.clone());
+                vars.insert("github_workflow.run_number", wf.run_number.to_string());
+                vars.insert("github_workflow.run_attempt", wf.run_attempt.to_string());
+                vars.insert("github_workflow.display_title", wf.display_title.clone());
+                vars.insert("github_workflow.failed_jobs_logs", wf.failed_jobs_logs.clone());
+                vars.insert("github_workflow.created_at", wf.created_at.clone());
+                vars.insert("github_workflow.updated_at", wf.updated_at.clone());
                 let logs_url = format!("{}/logs", wf.run_url);
-                vars.insert("logs_url", logs_url.clone());
+                vars.insert("github_workflow.logs_url", logs_url.clone());
                 let metadata_json = serde_json::json!({
                     "run_id": wf.run_id,
                     "workflow": wf.workflow_name,
@@ -312,13 +320,7 @@ impl BotEvent<'_> {
                     "html_url": wf.run_url,
                     "logs_url": logs_url,
                 });
-                vars.insert("metadata_json", metadata_json.to_string());
-                let short_sha = if wf.head_sha.len() >= 7 {
-                    &wf.head_sha[..7]
-                } else {
-                    &wf.head_sha
-                };
-                vars.insert("short_sha", short_sha.to_string());
+                vars.insert("github_workflow.metadata_json", metadata_json.to_string());
             }
         }
         vars
@@ -473,13 +475,14 @@ mod tests {
         let pr = make_pr_event();
         let event = BotEvent::ForgejoPr(&pr);
         let vars = event.template_vars();
-        assert_eq!(vars["action"], "opened");
-        assert_eq!(vars["author"], "renovate");
-        assert_eq!(vars["owner"], "anurag");
-        assert_eq!(vars["repo"], "k8s");
-        assert_eq!(vars["pr_number"], "42");
-        assert_eq!(vars["title"], "bump stuff");
-        assert_eq!(vars["target_branch"], "main");
+        assert_eq!(vars["repository"], "anurag/k8s");
+        assert_eq!(vars["forgejo_pr.action"], "opened");
+        assert_eq!(vars["forgejo_pr.author"], "renovate");
+        assert_eq!(vars["forgejo_pr.owner"], "anurag");
+        assert_eq!(vars["forgejo_pr.repo"], "k8s");
+        assert_eq!(vars["forgejo_pr.pr_number"], "42");
+        assert_eq!(vars["forgejo_pr.title"], "bump stuff");
+        assert_eq!(vars["forgejo_pr.target_branch"], "main");
     }
 
     #[test]
@@ -487,17 +490,19 @@ mod tests {
         let wf = make_workflow_event();
         let event = BotEvent::GitHubWorkflow(&wf);
         let vars = event.template_vars();
-        assert_eq!(vars["run_id"], "123");
-        assert_eq!(vars["workflow_name"], "build");
-        assert_eq!(vars["conclusion"], "failure");
-        assert_eq!(vars["branch"], "main");
-        assert_eq!(vars["run_number"], "5");
-        assert_eq!(vars["run_attempt"], "1");
+        assert_eq!(vars["repository"], "org/repo");
+        assert_eq!(vars["sha"], "abcdef1234567890");
         assert_eq!(vars["short_sha"], "abcdef1");
-        assert_eq!(vars["commit_message"], "fix stuff");
-        assert_eq!(vars["commit_author"], "dev");
-        assert!(vars.contains_key("metadata_json"));
-        assert!(vars.contains_key("logs_url"));
+        assert_eq!(vars["github_workflow.run_id"], "123");
+        assert_eq!(vars["github_workflow.workflow_name"], "build");
+        assert_eq!(vars["github_workflow.conclusion"], "failure");
+        assert_eq!(vars["github_workflow.branch"], "main");
+        assert_eq!(vars["github_workflow.run_number"], "5");
+        assert_eq!(vars["github_workflow.run_attempt"], "1");
+        assert_eq!(vars["github_workflow.commit_message"], "fix stuff");
+        assert_eq!(vars["github_workflow.commit_author"], "dev");
+        assert!(vars.contains_key("github_workflow.metadata_json"));
+        assert!(vars.contains_key("github_workflow.logs_url"));
     }
 
     #[test]
@@ -522,7 +527,7 @@ mod tests {
         let wf = make_workflow_event();
         let event = BotEvent::GitHubWorkflow(&wf);
         let vars = event.template_vars();
-        let parsed: serde_json::Value = serde_json::from_str(&vars["metadata_json"]).unwrap();
+        let parsed: serde_json::Value = serde_json::from_str(&vars["github_workflow.metadata_json"]).unwrap();
         assert_eq!(parsed["run_id"], 123);
         assert_eq!(parsed["workflow"], "build");
         assert_eq!(parsed["conclusion"], "failure");
