@@ -3,19 +3,53 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - actions: []
+  - action_groups:
+      - actions:
+          - ensure_labels_exist
+          - add_labels_by_name
+        ran: false
+        when: has_conflicts && !has_label
+      - actions:
+          - remove_labels_by_name
+        ran: false
+        when: "!has_conflicts && has_label"
     dry_run: false
     name: manage-conflicts
-  - actions:
-      - ensure_labels_exist
-      - add_labels_by_name
+    variables:
+      - name: has_conflicts
+        value: "false"
+      - name: has_label
+        value: "false"
+  - action_groups:
+      - actions:
+          - ensure_labels_exist
+          - add_labels_by_name
+        ran: true
     dry_run: false
     name: label-renovate
-  - actions:
-      - ensure_labels_exist
-      - add_labels_by_name
+  - action_groups:
+      - actions:
+          - ensure_labels_exist
+          - remove_labels_by_name
+          - add_labels_by_name
+          - approve
+          - merge
+        ran: false
+        when: in_window && needs_approval
+      - actions:
+          - ensure_labels_exist
+          - add_labels_by_name
+        ran: true
+        when: "!in_window && !already_queued"
     dry_run: false
     name: manage-renovate
+    variables:
+      - name: already_queued
+        value: "false"
+      - name: in_window
+        value: "false"
+      - name: needs_approval
+        value: "true"
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files

@@ -141,12 +141,14 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                     match chars.next() {
                         Some(ch) if ch == quote => break,
                         Some(ch) => s.push(ch),
-                        None => return Err(format!("unterminated string literal")),
+                        None => return Err("unterminated string literal".to_string()),
                     }
                 }
                 tokens.push(Token::Str(s));
             }
-            _ if c.is_ascii_digit() || (c == '-' && matches!(chars.clone().nth(1), Some(d) if d.is_ascii_digit())) => {
+            _ if c.is_ascii_digit()
+                || (c == '-' && matches!(chars.clone().nth(1), Some(d) if d.is_ascii_digit())) =>
+            {
                 let mut num = String::new();
                 if c == '-' {
                     num.push('-');
@@ -415,7 +417,10 @@ mod tests {
     use super::*;
 
     fn vars(pairs: &[(&str, Value)]) -> HashMap<String, Value> {
-        pairs.iter().map(|(k, v)| (k.to_string(), v.clone())).collect()
+        pairs
+            .iter()
+            .map(|(k, v)| (k.to_string(), v.clone()))
+            .collect()
     }
 
     fn bool_vars(pairs: &[(&str, bool)]) -> HashMap<String, Value> {
@@ -519,17 +524,41 @@ mod tests {
 
     #[test]
     fn complex_real_world_expression() {
-        let v = bool_vars(&[("in_window", true), ("needs_approval", true), ("already_queued", false)]);
-        assert!(eval_bool("in_window && needs_approval && !already_queued", &v));
-        let v = bool_vars(&[("in_window", true), ("needs_approval", true), ("already_queued", true)]);
-        assert!(!eval_bool("in_window && needs_approval && !already_queued", &v));
-        let v = bool_vars(&[("in_window", false), ("needs_approval", true), ("already_queued", false)]);
-        assert!(!eval_bool("in_window && needs_approval && !already_queued", &v));
+        let v = bool_vars(&[
+            ("in_window", true),
+            ("needs_approval", true),
+            ("already_queued", false),
+        ]);
+        assert!(eval_bool(
+            "in_window && needs_approval && !already_queued",
+            &v
+        ));
+        let v = bool_vars(&[
+            ("in_window", true),
+            ("needs_approval", true),
+            ("already_queued", true),
+        ]);
+        assert!(!eval_bool(
+            "in_window && needs_approval && !already_queued",
+            &v
+        ));
+        let v = bool_vars(&[
+            ("in_window", false),
+            ("needs_approval", true),
+            ("already_queued", false),
+        ]);
+        assert!(!eval_bool(
+            "in_window && needs_approval && !already_queued",
+            &v
+        ));
     }
 
     #[test]
     fn whitespace_variations() {
-        assert!(eval_bool("  a   &&   b  ", &bool_vars(&[("a", true), ("b", true)])));
+        assert!(eval_bool(
+            "  a   &&   b  ",
+            &bool_vars(&[("a", true), ("b", true)])
+        ));
     }
 
     #[test]
@@ -569,7 +598,10 @@ mod tests {
 
     #[test]
     fn underscore_in_identifiers() {
-        assert!(eval_bool("my_var_1 && another_var_2", &bool_vars(&[("my_var_1", true), ("another_var_2", true)])));
+        assert!(eval_bool(
+            "my_var_1 && another_var_2",
+            &bool_vars(&[("my_var_1", true), ("another_var_2", true)])
+        ));
     }
 
     #[test]
@@ -643,9 +675,15 @@ mod tests {
 
     #[test]
     fn comparison_with_boolean_logic() {
-        let v = vars(&[("retry_count", Value::I64(2)), ("is_failure", Value::Bool(true))]);
+        let v = vars(&[
+            ("retry_count", Value::I64(2)),
+            ("is_failure", Value::Bool(true)),
+        ]);
         assert!(eval_bool("is_failure && retry_count < 3", &v));
-        let v = vars(&[("retry_count", Value::I64(3)), ("is_failure", Value::Bool(true))]);
+        let v = vars(&[
+            ("retry_count", Value::I64(3)),
+            ("is_failure", Value::Bool(true)),
+        ]);
         assert!(!eval_bool("is_failure && retry_count < 3", &v));
     }
 

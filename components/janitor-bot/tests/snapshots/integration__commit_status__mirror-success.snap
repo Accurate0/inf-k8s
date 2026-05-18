@@ -3,8 +3,10 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - actions:
-      - set_commit_status
+  - action_groups:
+      - actions:
+          - set_commit_status
+        ran: true
     dry_run: false
     name: mirror-commit-status
 external_requests:

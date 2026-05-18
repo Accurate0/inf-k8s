@@ -24,11 +24,27 @@ struct ActionGroup<'a> {
     actions: Vec<&'a schema::ActionDef>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Default)]
 pub struct MatchedRule {
     pub name: String,
     pub dry_run: bool,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub variables: Vec<ExplainVar>,
+    pub action_groups: Vec<ExplainGroup>,
+}
+
+#[derive(Serialize)]
+pub struct ExplainVar {
+    pub name: String,
+    pub value: String,
+}
+
+#[derive(Serialize)]
+pub struct ExplainGroup {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub when: Option<String>,
     pub actions: Vec<&'static str>,
+    pub ran: bool,
 }
 
 pub type ClockFn = Arc<dyn Fn() -> chrono::DateTime<chrono::Utc> + Send + Sync>;
@@ -283,20 +299,26 @@ impl RulesOrchestrator {
             }
 
             let vars = self.evaluate_variables(rule, event, clients, &cache).await;
-            let groups = Self::resolve_action_groups(rule, &vars).await;
-            let actions: Vec<&'static str> = groups
-                .iter()
-                .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
-                .collect();
+            let action_groups = Self::explain_action_groups(rule, &vars);
 
-            if !actions.is_empty() {
+            if action_groups.iter().any(|g| g.ran && !g.actions.is_empty()) {
                 executed_rules.insert(rule.name.clone());
             }
+
+            let mut variables: Vec<ExplainVar> = vars
+                .iter()
+                .map(|(name, value)| ExplainVar {
+                    name: name.clone(),
+                    value: value.to_string(),
+                })
+                .collect();
+            variables.sort_by(|a, b| a.name.cmp(&b.name));
 
             matched_rules.push(MatchedRule {
                 name: rule.name.clone(),
                 dry_run: rule.enabled.is_dry_run(),
-                actions,
+                variables,
+                action_groups,
             });
         }
         matched_rules
@@ -310,10 +332,7 @@ impl RulesOrchestrator {
             }
 
             if !self.dependencies_met(rule, &executed_rules) {
-                tracing::debug!(
-                    rule = rule.name,
-                    "skipping: dependencies not met"
-                );
+                tracing::debug!(rule = rule.name, "skipping: dependencies not met");
                 continue;
             }
 
@@ -448,6 +467,32 @@ impl RulesOrchestrator {
         }
     }
 
+    fn explain_action_groups(
+        rule: &schema::RuleDef,
+        vars: &HashMap<String, expr::Value>,
+    ) -> Vec<ExplainGroup> {
+        match &rule.actions {
+            ActionsDef::Flat(actions) => vec![ExplainGroup {
+                when: None,
+                actions: actions.iter().map(|a| a.to_action().kind()).collect(),
+                ran: true,
+            }],
+            ActionsDef::Conditional(groups) => groups
+                .iter()
+                .map(|group| {
+                    let parsed = expr::parse(&group.when).expect("pre-validated expression");
+                    let ran =
+                        matches!(expr::eval(&parsed, vars).map(|v| v.as_bool()), Ok(Ok(true)));
+                    ExplainGroup {
+                        when: Some(group.when.clone()),
+                        actions: group.run.iter().map(|a| a.to_action().kind()).collect(),
+                        ran,
+                    }
+                })
+                .collect(),
+        }
+    }
+
     fn topo_sort(mut rules: Vec<schema::RuleDef>) -> Vec<schema::RuleDef> {
         rules.sort_by_key(|r| std::cmp::Reverse(r.priority));
 
@@ -470,9 +515,7 @@ impl RulesOrchestrator {
             }
         }
 
-        let mut queue: VecDeque<usize> = (0..n)
-            .filter(|&i| in_degree[i] == 0)
-            .collect();
+        let mut queue: VecDeque<usize> = (0..n).filter(|&i| in_degree[i] == 0).collect();
 
         let mut order = Vec::with_capacity(n);
         while let Some(idx) = queue.pop_front() {

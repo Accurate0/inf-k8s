@@ -270,7 +270,11 @@ impl Action {
                     })
                     .await
             }
-            Action::RetryWorkflow { target, repository, id } => {
+            Action::RetryWorkflow {
+                target,
+                repository,
+                id,
+            } => {
                 let vars = event.template_vars();
                 let repo_str = repository.render(&vars);
                 let id_str = id.render(&vars);

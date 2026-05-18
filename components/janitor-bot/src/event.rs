@@ -304,7 +304,10 @@ impl BotEvent<'_> {
                 vars.insert("github_workflow.run_number", wf.run_number.to_string());
                 vars.insert("github_workflow.run_attempt", wf.run_attempt.to_string());
                 vars.insert("github_workflow.display_title", wf.display_title.clone());
-                vars.insert("github_workflow.failed_jobs_logs", wf.failed_jobs_logs.clone());
+                vars.insert(
+                    "github_workflow.failed_jobs_logs",
+                    wf.failed_jobs_logs.clone(),
+                );
                 vars.insert("github_workflow.created_at", wf.created_at.clone());
                 vars.insert("github_workflow.updated_at", wf.updated_at.clone());
                 let logs_url = format!("{}/logs", wf.run_url);
@@ -527,7 +530,8 @@ mod tests {
         let wf = make_workflow_event();
         let event = BotEvent::GitHubWorkflow(&wf);
         let vars = event.template_vars();
-        let parsed: serde_json::Value = serde_json::from_str(&vars["github_workflow.metadata_json"]).unwrap();
+        let parsed: serde_json::Value =
+            serde_json::from_str(&vars["github_workflow.metadata_json"]).unwrap();
         assert_eq!(parsed["run_id"], 123);
         assert_eq!(parsed["workflow"], "build");
         assert_eq!(parsed["conclusion"], "failure");

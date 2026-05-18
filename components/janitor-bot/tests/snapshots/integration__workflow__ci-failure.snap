@@ -3,11 +3,23 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - actions:
-      - ensure_labels_exist
-      - create_issue
+  - action_groups:
+      - actions:
+          - ensure_labels_exist
+          - create_issue
+        ran: true
+        when: is_failure
+      - actions:
+          - close_issue
+        ran: false
+        when: is_success
     dry_run: false
     name: manage-github-workflow
+    variables:
+      - name: is_failure
+        value: "true"
+      - name: is_success
+        value: "false"
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels

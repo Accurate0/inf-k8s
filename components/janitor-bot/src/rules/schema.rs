@@ -284,7 +284,11 @@ impl ActionDef {
                 closing_comment: closing_comment.clone(),
             },
             ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
-            ActionDef::RetryWorkflow { target, repository, id } => Action::RetryWorkflow {
+            ActionDef::RetryWorkflow {
+                target,
+                repository,
+                id,
+            } => Action::RetryWorkflow {
                 target: target.into(),
                 repository: repository.clone(),
                 id: id.clone(),
