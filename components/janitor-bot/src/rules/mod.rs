@@ -168,16 +168,27 @@ impl RulesOrchestrator {
         self.run_rules(clients, &bot_event).await;
     }
 
+    async fn enrich_check_run(clients: &Clients, event: &mut CheckRunEvent) {
+        if let (Some(run_id), Some((owner, repo))) =
+            (event.run_id, event.repository.split_once('/'))
+            && let Some(name) = clients.github.workflow_run_name(owner, repo, run_id).await
+        {
+            event.workflow_name = name;
+        }
+    }
+
     pub async fn explain_check_run(
         &self,
         clients: &Clients,
-        event: &CheckRunEvent,
+        event: &mut CheckRunEvent,
     ) -> Vec<MatchedRule> {
+        Self::enrich_check_run(clients, event).await;
         let bot_event = BotEvent::GitHubCheckRun(event);
         self.explain_rules(&bot_event, clients).await
     }
 
-    pub async fn evaluate_check_run(&self, clients: &Clients, event: &CheckRunEvent) {
+    pub async fn evaluate_check_run(&self, clients: &Clients, event: &mut CheckRunEvent) {
+        Self::enrich_check_run(clients, event).await;
         let bot_event = BotEvent::GitHubCheckRun(event);
         self.run_rules(clients, &bot_event).await;
     }

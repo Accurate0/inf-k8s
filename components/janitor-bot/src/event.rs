@@ -159,6 +159,8 @@ pub struct CheckRunEvent {
     pub conclusion: String,
     pub details_url: String,
     pub app_name: String,
+    pub run_id: Option<u64>,
+    pub workflow_name: String,
 }
 
 #[allow(dead_code)]
@@ -257,6 +259,7 @@ impl BotEvent<'_> {
                 vars.insert("github_check_run.conclusion", cr.conclusion.clone());
                 vars.insert("github_check_run.details_url", cr.details_url.clone());
                 vars.insert("github_check_run.app_name", cr.app_name.clone());
+                vars.insert("github_check_run.workflow_name", cr.workflow_name.clone());
                 // Map check_run conclusion to commit status state
                 let state = match cr.conclusion.as_str() {
                     "success" => "success",
@@ -268,11 +271,15 @@ impl BotEvent<'_> {
                 };
                 vars.insert("state", state.to_string());
                 // context and description for compatibility with set_commit_status action
-                let context = if cr.app_name.is_empty() {
-                    cr.name.clone()
-                } else {
-                    format!("{} / {}", cr.app_name, cr.name)
-                };
+                let context = [
+                    cr.app_name.as_str(),
+                    cr.workflow_name.as_str(),
+                    cr.name.as_str(),
+                ]
+                .into_iter()
+                .filter(|s| !s.is_empty())
+                .collect::<Vec<_>>()
+                .join(" / ");
                 vars.insert("context", context);
                 vars.insert("description", cr.conclusion.clone());
                 vars.insert("target_url", cr.details_url.clone());

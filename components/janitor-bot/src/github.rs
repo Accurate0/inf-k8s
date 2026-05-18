@@ -85,6 +85,27 @@ impl GitHubClient {
         Ok(())
     }
 
+    pub async fn workflow_run_name(&self, owner: &str, repo: &str, run_id: u64) -> Option<String> {
+        let url = format!(
+            "{}/repos/{owner}/{repo}/actions/runs/{run_id}",
+            self.base_url
+        );
+        match self.github_get(&url).await {
+            Ok(resp) => {
+                let resp = resp.error_for_status().ok()?;
+                #[derive(Deserialize)]
+                struct WorkflowRun {
+                    name: Option<String>,
+                }
+                resp.json::<WorkflowRun>().await.ok()?.name
+            }
+            Err(e) => {
+                tracing::warn!(owner, repo, run_id, "failed to fetch workflow run: {e}");
+                None
+            }
+        }
+    }
+
     pub async fn fetch_failed_jobs(&self, jobs_url: &str) -> FailedJobsResult {
         let empty = FailedJobsResult::default();
         if jobs_url.is_empty() {
@@ -313,6 +334,15 @@ struct CheckRunPayload {
     repository: Option<CheckRunRepository>,
 }
 
+fn extract_run_id(url: &str) -> Option<u64> {
+    url.split("/actions/runs/")
+        .nth(1)?
+        .split('/')
+        .next()?
+        .parse()
+        .ok()
+}
+
 pub fn parse_check_run_event(body: &[u8]) -> Option<crate::event::CheckRunEvent> {
     let payload: CheckRunPayload = serde_json::from_slice(body).ok()?;
     let action = payload.action?;
@@ -320,14 +350,18 @@ pub fn parse_check_run_event(body: &[u8]) -> Option<crate::event::CheckRunEvent>
         return None;
     }
     let cr = payload.check_run?;
+    let details_url = cr.details_url.unwrap_or_default();
+    let run_id = extract_run_id(&details_url);
     Some(crate::event::CheckRunEvent {
         repository: payload.repository?.full_name?,
         sha: cr.head_sha?,
         name: cr.name.unwrap_or_default(),
         status: cr.status.unwrap_or_default(),
         conclusion: cr.conclusion.unwrap_or_default(),
-        details_url: cr.details_url.unwrap_or_default(),
+        details_url,
         app_name: cr.app.and_then(|a| a.name).unwrap_or_default(),
+        run_id,
+        workflow_name: String::new(),
     })
 }
 

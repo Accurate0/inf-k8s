@@ -18,3 +18,9 @@ external_requests:
       state: pending
       target_url: "https://github.com/Accurate0/inf-k8s/actions/runs/101"
     service: forgejo
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/actions/runs/101
+    service: github
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/actions/runs/101
+    service: github

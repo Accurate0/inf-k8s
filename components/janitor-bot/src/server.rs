@@ -147,17 +147,17 @@ async fn handle_evaluate(
                     );
                 }
             };
-            let Some(cr_event) = github::parse_check_run_event(&body) else {
+            let Some(mut cr_event) = github::parse_check_run_event(&body) else {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(serde_json::json!({"error": "invalid check_run payload"})),
                 );
             };
             let matched = orchestrator
-                .explain_check_run(&state.clients, &cr_event)
+                .explain_check_run(&state.clients, &mut cr_event)
                 .await;
             orchestrator
-                .evaluate_check_run(&state.clients, &cr_event)
+                .evaluate_check_run(&state.clients, &mut cr_event)
                 .await;
             (
                 StatusCode::OK,

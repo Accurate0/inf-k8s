@@ -120,7 +120,7 @@ pub async fn handle_github_webhook(
     }
 
     if github_event == "check_run" {
-        let Some(cr_event) = github::parse_check_run_event(&body) else {
+        let Some(mut cr_event) = github::parse_check_run_event(&body) else {
             tracing::info!(
                 "received github check_run event but not actionable (not completed or failed to parse)"
             );
@@ -135,7 +135,7 @@ pub async fn handle_github_webhook(
         tokio::spawn(async move {
             state
                 .orchestrator
-                .evaluate_check_run(&state.clients, &cr_event)
+                .evaluate_check_run(&state.clients, &mut cr_event)
                 .await;
         });
         return StatusCode::OK;
