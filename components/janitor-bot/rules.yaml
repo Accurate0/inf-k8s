@@ -5,6 +5,7 @@ rules:
   - !include rules/manage-conflicts.yaml
   - !include rules/manage-renovate.yaml
   - !include rules/manage-github-workflow.yaml
+  - !include rules/retry-renovate-workflow.yaml
   - !include rules/argocd-diff-renovate.yaml
   - !include rules/mirror-commit-status.yaml
   - !include rules/argocd-sync-status.yaml

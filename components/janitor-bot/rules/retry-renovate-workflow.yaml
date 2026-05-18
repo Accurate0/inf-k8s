@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: retry-renovate-workflow
+enabled: true
+depends_on:
+  - manage-github-workflow
+matches:
+  all:
+    - type: github
+    - type: workflow_event
+    - type: repository
+      value: Accurate0/inf-k8s
+    - type: target_branch
+      value: main
+    - type: workflow_conclusion
+      value: failure
+    - type: title_contains
+      value: renovate
+actions:
+  - type: retry_workflow
+    target: github
+    repository:
+      content: "{repository}"
+      template: true
+    id:
+      content: "{run_id}"
+      template: true

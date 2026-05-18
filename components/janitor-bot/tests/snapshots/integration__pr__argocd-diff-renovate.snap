@@ -64,7 +64,7 @@ external_requests:
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/100/comments
     body:
-      body: "<!-- janitor-bot:argocd-diff -->\n## ArgoCD Diff\n\n### `monitoring` — `kube-prometheus-stack` (`85.1.1` → `86.0.0`)\n<details>\n<summary>Diff (source 1)</summary>\n\n```diff\nError running argocd diff (exit exit status: 20): rpc error: code = Unknown desc = POST http://ARGOCD_SERVER/application.ApplicationService/Get failed with status code 404\n```\n</details>\n"
+      body: "<!-- janitor-bot:argocd-diff -->\n## ArgoCD Diff\n\n### `monitoring` — `kube-prometheus-stack` (`85.1.1` → `86.0.0`)\n<details>\n<summary>Diff (source 1)</summary>\n\n```diff\n[argocd diff error redacted]\n```\n</details>\n"
       updated_at: ~
     service: forgejo
   - method: GET
@@ -84,7 +84,7 @@ external_requests:
       updated_at: ~
     service: forgejo
   - method: POST
-    path: /application.ApplicationService/Get
+    path: /cluster.SettingsService/Get
     service: argocd
   - method: POST
     path: /evaluate/v1/boolean

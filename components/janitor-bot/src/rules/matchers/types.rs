@@ -25,6 +25,8 @@ pub enum LeafMatcher {
     Forgejo,
     #[serde(rename = "github")]
     GitHub,
+    #[serde(rename = "argocd")]
+    Argocd,
 
     #[serde(rename = "pr_event")]
     PrEvent,
@@ -34,8 +36,8 @@ pub enum LeafMatcher {
     CommitStatusEvent,
     #[serde(rename = "check_run_event")]
     CheckRunEvent,
-    #[serde(rename = "argocd_sync_event")]
-    ArgoSyncEvent,
+    #[serde(rename = "sync_event")]
+    SyncEvent,
 
     #[serde(rename = "app_changed_in_commit")]
     AppChangedInCommit { owner: String, repo: String },

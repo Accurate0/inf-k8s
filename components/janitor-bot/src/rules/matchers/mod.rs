@@ -95,7 +95,8 @@ fn eval_leaf<'a>(
             LeafMatcher::WorkflowEvent => matches!(ev, BotEvent::GitHubWorkflow(_)),
             LeafMatcher::CommitStatusEvent => matches!(ev, BotEvent::GitHubCommitStatus(_)),
             LeafMatcher::CheckRunEvent => matches!(ev, BotEvent::GitHubCheckRun(_)),
-            LeafMatcher::ArgoSyncEvent => matches!(ev, BotEvent::ArgoSync(_)),
+            LeafMatcher::Argocd => matches!(ev, BotEvent::ArgoSync(_)),
+            LeafMatcher::SyncEvent => matches!(ev, BotEvent::ArgoSync(_)),
             LeafMatcher::AppChangedInCommit { owner, repo } => match ev {
                 BotEvent::ArgoSync(sync) => {
                     clients
@@ -558,6 +559,13 @@ patterns:
             }
             _ => panic!("expected ChangedFilesAllMatch"),
         }
+    }
+
+    #[test]
+    fn deserialize_leaf_argocd() {
+        let yaml = "type: argocd";
+        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
+        assert!(matches!(m, Matcher::Leaf(LeafMatcher::Argocd)));
     }
 
     #[test]

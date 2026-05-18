@@ -1457,6 +1457,7 @@ dependencies = [
  "moka",
  "open-feature",
  "open-feature-flipt",
+ "regex",
  "reqwest 0.13.3",
  "rstest",
  "schemars",

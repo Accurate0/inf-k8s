@@ -6,6 +6,13 @@
     "actions": {
       "$ref": "#/$defs/ActionsDef"
     },
+    "depends_on": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
+    },
     "enabled": {
       "$ref": "#/$defs/RuleEnabled"
     },
@@ -249,6 +256,30 @@
         {
           "type": "object",
           "properties": {
+            "id": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "repository": {
+              "$ref": "#/$defs/TemplateString"
+            },
+            "target": {
+              "$ref": "#/$defs/RetryWorkflowTargetDef"
+            },
+            "type": {
+              "type": "string",
+              "const": "retry_workflow"
+            }
+          },
+          "required": [
+            "type",
+            "target",
+            "repository",
+            "id"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "context": {
               "$ref": "#/$defs/TemplateString"
             },
@@ -471,6 +502,18 @@
           "properties": {
             "type": {
               "type": "string",
+              "const": "argocd"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "type": {
+              "type": "string",
               "const": "pr_event"
             }
           },
@@ -519,7 +562,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "argocd_sync_event"
+              "const": "sync_event"
             }
           },
           "required": [
@@ -833,6 +876,12 @@
         "merge",
         "squash",
         "rebase"
+      ]
+    },
+    "RetryWorkflowTargetDef": {
+      "type": "string",
+      "enum": [
+        "github"
       ]
     },
     "RuleEnabled": {

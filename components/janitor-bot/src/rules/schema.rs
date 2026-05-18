@@ -1,4 +1,5 @@
 use super::Action;
+use super::actions::RetryWorkflowTarget;
 use super::matchers::Matcher;
 use crate::event;
 use forgejo_api::structs::MergePullRequestOptionDo;
@@ -51,6 +52,8 @@ pub struct RuleDef {
     pub enabled: RuleEnabled,
     #[serde(default)]
     pub priority: i32,
+    #[serde(default)]
+    pub depends_on: Vec<String>,
     pub matches: Matcher,
     #[serde(default)]
     pub variables: Vec<VariableDef>,
@@ -164,6 +167,12 @@ pub enum ActionDef {
     },
     #[serde(rename = "argocd_diff")]
     ArgoCdDiff,
+    #[serde(rename = "retry_workflow")]
+    RetryWorkflow {
+        target: RetryWorkflowTargetDef,
+        repository: TemplateString,
+        id: TemplateString,
+    },
     #[serde(rename = "set_commit_status")]
     SetCommitStatus {
         target: IssueTarget,
@@ -177,6 +186,20 @@ pub enum ActionDef {
 
 fn default_true() -> bool {
     true
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum RetryWorkflowTargetDef {
+    Github,
+}
+
+impl From<&RetryWorkflowTargetDef> for RetryWorkflowTarget {
+    fn from(def: &RetryWorkflowTargetDef) -> Self {
+        match def {
+            RetryWorkflowTargetDef::Github => RetryWorkflowTarget::GitHub,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, Copy)]
@@ -261,6 +284,11 @@ impl ActionDef {
                 closing_comment: closing_comment.clone(),
             },
             ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
+            ActionDef::RetryWorkflow { target, repository, id } => Action::RetryWorkflow {
+                target: target.into(),
+                repository: repository.clone(),
+                id: id.clone(),
+            },
             ActionDef::SetCommitStatus {
                 target,
                 sha,

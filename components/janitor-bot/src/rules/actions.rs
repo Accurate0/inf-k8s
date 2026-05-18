@@ -5,6 +5,10 @@ use crate::forgejo::CommitStatusParams;
 use crate::rules::schema::TemplateString;
 use forgejo_api::structs::MergePullRequestOptionDo;
 
+pub enum RetryWorkflowTarget {
+    GitHub,
+}
+
 #[allow(dead_code)]
 pub enum Action {
     Approve {
@@ -47,6 +51,11 @@ pub enum Action {
         closing_comment: Option<TemplateString>,
     },
     ArgoCdDiff,
+    RetryWorkflow {
+        target: RetryWorkflowTarget,
+        repository: TemplateString,
+        id: TemplateString,
+    },
     SetCommitStatus {
         target_owner: String,
         target_repo: String,
@@ -71,6 +80,7 @@ impl Action {
             Action::CreateIssue { .. } => "create_issue",
             Action::CloseIssue { .. } => "close_issue",
             Action::ArgoCdDiff => "argocd_diff",
+            Action::RetryWorkflow { .. } => "retry_workflow",
             Action::SetCommitStatus { .. } => "set_commit_status",
         }
     }
@@ -259,6 +269,27 @@ impl Action {
                         target_url: &target_url.render(&vars),
                     })
                     .await
+            }
+            Action::RetryWorkflow { target, repository, id } => {
+                let vars = event.template_vars();
+                let repo_str = repository.render(&vars);
+                let id_str = id.render(&vars);
+                let Some((owner, repo)) = repo_str.split_once('/') else {
+                    tracing::error!(repository = repo_str, "invalid repository format");
+                    return;
+                };
+                let Ok(id) = id_str.parse::<u64>() else {
+                    tracing::error!(id = id_str, "invalid id");
+                    return;
+                };
+                match target {
+                    RetryWorkflowTarget::GitHub => {
+                        if let Err(e) = clients.github.rerun_workflow(owner, repo, id).await {
+                            tracing::error!(id, "retry_workflow failed: {e}");
+                        }
+                    }
+                }
+                return;
             }
             Action::ArgoCdDiff => {
                 let BotEvent::ForgejoPr(pr) = event else {

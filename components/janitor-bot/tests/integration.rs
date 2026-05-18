@@ -204,7 +204,13 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     let mut settings = insta::Settings::clone_current();
     settings.add_dynamic_redaction(".external_requests[].body.body", move |value, _path| {
         if let Some(s) = value.as_str() {
-            Content::from(s.replace(&argocd_host, "ARGOCD_SERVER"))
+            let replaced = s.replace(&argocd_host, "ARGOCD_SERVER");
+            // Redact argocd error messages which vary depending on environment
+            let replaced = regex::Regex::new(r"(?s)```diff\nError running argocd diff.*?```")
+                .unwrap()
+                .replace_all(&replaced, "```diff\n[argocd diff error redacted]\n```")
+                .into_owned();
+            Content::from(replaced)
         } else {
             value.clone()
         }

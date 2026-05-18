@@ -12,7 +12,7 @@ pub use actions::Action;
 use moka::sync::Cache;
 use schema::{ActionsDef, RulesFile};
 use serde::Serialize;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::Mutex;
@@ -54,7 +54,7 @@ impl RulesOrchestrator {
     }
 
     pub fn from_rules(mut rules: RulesFile) -> Self {
-        rules.rules.sort_by_key(|r| std::cmp::Reverse(r.priority));
+        rules.rules = Self::topo_sort(rules.rules);
         Self {
             rules,
             pr_locks: Cache::builder()
@@ -267,8 +267,13 @@ impl RulesOrchestrator {
 
     async fn explain_rules<'a>(&self, event: &BotEvent<'a>, clients: &Clients) -> Vec<MatchedRule> {
         let mut matched_rules = Vec::new();
+        let mut executed_rules: HashSet<String> = HashSet::new();
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {
+                continue;
+            }
+
+            if !self.dependencies_met(rule, &executed_rules) {
                 continue;
             }
 
@@ -279,10 +284,14 @@ impl RulesOrchestrator {
 
             let vars = self.evaluate_variables(rule, event, clients, &cache).await;
             let groups = Self::resolve_action_groups(rule, &vars).await;
-            let actions = groups
+            let actions: Vec<&'static str> = groups
                 .iter()
                 .flat_map(|g| g.actions.iter().map(|a| a.to_action().kind()))
                 .collect();
+
+            if !actions.is_empty() {
+                executed_rules.insert(rule.name.clone());
+            }
 
             matched_rules.push(MatchedRule {
                 name: rule.name.clone(),
@@ -294,8 +303,17 @@ impl RulesOrchestrator {
     }
 
     async fn run_rules<'a>(&self, clients: &Clients, event: &BotEvent<'a>) {
+        let mut executed_rules: HashSet<String> = HashSet::new();
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {
+                continue;
+            }
+
+            if !self.dependencies_met(rule, &executed_rules) {
+                tracing::debug!(
+                    rule = rule.name,
+                    "skipping: dependencies not met"
+                );
                 continue;
             }
 
@@ -319,9 +337,17 @@ impl RulesOrchestrator {
             );
 
             let vars = self.evaluate_variables(rule, event, clients, &cache).await;
-            self.execute_actions(rule, &vars, clients, event, dry_run)
+            let had_actions = self
+                .execute_actions(rule, &vars, clients, event, dry_run)
                 .await;
+            if had_actions {
+                executed_rules.insert(rule.name.clone());
+            }
         }
+    }
+
+    fn dependencies_met(&self, rule: &schema::RuleDef, executed: &HashSet<String>) -> bool {
+        rule.depends_on.iter().all(|dep| executed.contains(dep))
     }
 
     async fn execute_actions<'a>(
@@ -331,9 +357,10 @@ impl RulesOrchestrator {
         clients: &Clients,
         event: &BotEvent<'a>,
         dry_run: bool,
-    ) {
+    ) -> bool {
         let rule_start = Instant::now();
         let groups = Self::resolve_action_groups(rule, vars).await;
+        let had_actions = groups.iter().any(|g| !g.actions.is_empty());
         for group in &groups {
             if let Some(when) = group.when {
                 tracing::info!(rule = rule.name, when, "executing action group");
@@ -368,6 +395,7 @@ impl RulesOrchestrator {
             elapsed_ms = rule_start.elapsed().as_millis(),
             "rule actions complete"
         );
+        had_actions
     }
 
     async fn resolve_action_groups<'a>(
@@ -411,10 +439,190 @@ impl RulesOrchestrator {
         }
     }
 
+    fn topo_sort(mut rules: Vec<schema::RuleDef>) -> Vec<schema::RuleDef> {
+        rules.sort_by_key(|r| std::cmp::Reverse(r.priority));
+
+        let name_to_idx: HashMap<String, usize> = rules
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (r.name.clone(), i))
+            .collect();
+
+        let n = rules.len();
+        let mut in_degree = vec![0usize; n];
+        let mut dependents: Vec<Vec<usize>> = vec![vec![]; n];
+
+        for (i, rule) in rules.iter().enumerate() {
+            for dep in &rule.depends_on {
+                if let Some(&dep_idx) = name_to_idx.get(dep) {
+                    dependents[dep_idx].push(i);
+                    in_degree[i] += 1;
+                }
+            }
+        }
+
+        let mut queue: VecDeque<usize> = (0..n)
+            .filter(|&i| in_degree[i] == 0)
+            .collect();
+
+        let mut order = Vec::with_capacity(n);
+        while let Some(idx) = queue.pop_front() {
+            order.push(idx);
+            for &dep_idx in &dependents[idx] {
+                in_degree[dep_idx] -= 1;
+                if in_degree[dep_idx] == 0 {
+                    queue.push_back(dep_idx);
+                }
+            }
+        }
+
+        let mut sorted: Vec<Option<schema::RuleDef>> = rules.into_iter().map(Some).collect();
+        order
+            .into_iter()
+            .map(|i| sorted[i].take().unwrap())
+            .collect()
+    }
+
     fn pr_lock(&self, owner: &str, repo: &str, pr: u64) -> Arc<Mutex<()>> {
         self.pr_locks
             .get_with((owner.to_owned(), repo.to_owned(), pr), || {
                 Arc::new(Mutex::new(()))
             })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn make_rule(name: &str, priority: i32, depends_on: Vec<&str>) -> schema::RuleDef {
+        let deps: Vec<String> = depends_on.into_iter().map(String::from).collect();
+        let yaml = format!(
+            "name: {name}\nenabled: true\npriority: {priority}\nmatches:\n  type: forgejo\nactions: []"
+        );
+        let mut rule: schema::RuleDef = yaml_serde::from_str(&yaml).unwrap();
+        rule.depends_on = deps;
+        rule
+    }
+
+    fn sorted_names(rules: Vec<schema::RuleDef>) -> Vec<String> {
+        RulesOrchestrator::topo_sort(rules)
+            .into_iter()
+            .map(|r| r.name)
+            .collect()
+    }
+
+    #[test]
+    fn topo_sort_no_dependencies_sorts_by_priority() {
+        let rules = vec![
+            make_rule("low", 0, vec![]),
+            make_rule("high", 10, vec![]),
+            make_rule("mid", 5, vec![]),
+        ];
+        assert_eq!(sorted_names(rules), vec!["high", "mid", "low"]);
+    }
+
+    #[test]
+    fn topo_sort_dependency_before_dependent() {
+        let rules = vec![
+            make_rule("child", 10, vec!["parent"]),
+            make_rule("parent", 0, vec![]),
+        ];
+        assert_eq!(sorted_names(rules), vec!["parent", "child"]);
+    }
+
+    #[test]
+    fn topo_sort_chain() {
+        let rules = vec![
+            make_rule("c", 10, vec!["b"]),
+            make_rule("a", 0, vec![]),
+            make_rule("b", 5, vec!["a"]),
+        ];
+        assert_eq!(sorted_names(rules), vec!["a", "b", "c"]);
+    }
+
+    #[test]
+    fn topo_sort_independent_rules_keep_priority_order() {
+        let rules = vec![
+            make_rule("dep", 0, vec![]),
+            make_rule("child", 5, vec!["dep"]),
+            make_rule("unrelated-high", 20, vec![]),
+            make_rule("unrelated-low", 1, vec![]),
+        ];
+        let names = sorted_names(rules);
+        // dep must come before child
+        let dep_pos = names.iter().position(|n| n == "dep").unwrap();
+        let child_pos = names.iter().position(|n| n == "child").unwrap();
+        assert!(dep_pos < child_pos);
+        // unrelated-high before unrelated-low (priority)
+        let high_pos = names.iter().position(|n| n == "unrelated-high").unwrap();
+        let low_pos = names.iter().position(|n| n == "unrelated-low").unwrap();
+        assert!(high_pos < low_pos);
+    }
+
+    #[test]
+    fn topo_sort_multiple_dependencies() {
+        let rules = vec![
+            make_rule("child", 10, vec!["a", "b"]),
+            make_rule("a", 5, vec![]),
+            make_rule("b", 0, vec![]),
+        ];
+        let names = sorted_names(rules);
+        let child_pos = names.iter().position(|n| n == "child").unwrap();
+        let a_pos = names.iter().position(|n| n == "a").unwrap();
+        let b_pos = names.iter().position(|n| n == "b").unwrap();
+        assert!(a_pos < child_pos);
+        assert!(b_pos < child_pos);
+    }
+
+    #[test]
+    fn topo_sort_diamond() {
+        // a -> b, a -> c, b -> d, c -> d
+        let rules = vec![
+            make_rule("d", 0, vec!["b", "c"]),
+            make_rule("b", 5, vec!["a"]),
+            make_rule("c", 5, vec!["a"]),
+            make_rule("a", 10, vec![]),
+        ];
+        let names = sorted_names(rules);
+        let a_pos = names.iter().position(|n| n == "a").unwrap();
+        let b_pos = names.iter().position(|n| n == "b").unwrap();
+        let c_pos = names.iter().position(|n| n == "c").unwrap();
+        let d_pos = names.iter().position(|n| n == "d").unwrap();
+        assert!(a_pos < b_pos);
+        assert!(a_pos < c_pos);
+        assert!(b_pos < d_pos);
+        assert!(c_pos < d_pos);
+    }
+
+    #[test]
+    fn topo_sort_single_rule() {
+        let rules = vec![make_rule("only", 0, vec![])];
+        assert_eq!(sorted_names(rules), vec!["only"]);
+    }
+
+    #[test]
+    fn topo_sort_empty() {
+        let rules: Vec<schema::RuleDef> = vec![];
+        assert!(sorted_names(rules).is_empty());
+    }
+
+    #[test]
+    fn topo_sort_current_rules() {
+        let rules: RulesFile =
+            yaml_serde::from_str(RULES_YAML).expect("rules.yaml deserialization failed");
+        let sorted = RulesOrchestrator::topo_sort(rules.rules);
+        let names: Vec<&str> = sorted.iter().map(|r| r.name.as_str()).collect();
+        insta::assert_yaml_snapshot!(names);
+    }
+
+    #[test]
+    fn topo_sort_dependency_overrides_priority() {
+        // child has higher priority but must come after parent
+        let rules = vec![
+            make_rule("child", 100, vec!["parent"]),
+            make_rule("parent", 0, vec![]),
+        ];
+        assert_eq!(sorted_names(rules), vec!["parent", "child"]);
     }
 }

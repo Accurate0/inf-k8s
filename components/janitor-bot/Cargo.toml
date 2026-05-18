@@ -38,6 +38,7 @@ yaml_serde = "0.10.4"
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml", "redactions"] }
+regex = "1.12.3"
 rstest = "0.26"
 serial_test = "3.4.0"
 wiremock = "0.6"

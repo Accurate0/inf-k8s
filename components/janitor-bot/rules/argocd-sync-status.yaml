@@ -3,7 +3,8 @@ name: argocd-sync-status
 enabled: true
 matches:
   all:
-    - type: argocd_sync_event
+    - type: argocd
+    - type: sync_event
 variables:
   - var: app_changed
     type: app_changed_in_commit

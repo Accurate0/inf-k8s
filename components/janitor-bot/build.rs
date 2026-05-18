@@ -47,6 +47,35 @@ fn main() {
         println!("cargo:warning=Skipping schema validation (SKIP_SCHEMA_VALIDATION set)");
     }
 
+    // Validate rule dependencies at build time
+    if let Some(rules) = yaml_value.get("rules").and_then(|r| r.as_array()) {
+        let rule_names: std::collections::HashSet<String> = rules
+            .iter()
+            .filter_map(|r| r.get("name").and_then(|n| n.as_str()).map(String::from))
+            .collect();
+
+        for rule in rules {
+            let rule_name = rule
+                .get("name")
+                .and_then(|n| n.as_str())
+                .unwrap_or("<unknown>");
+            if let Some(deps) = rule.get("depends_on").and_then(|d| d.as_array()) {
+                for dep in deps {
+                    if let Some(dep_name) = dep.as_str() {
+                        if !rule_names.contains(dep_name) {
+                            panic!(
+                                "rule '{rule_name}': depends_on references unknown rule '{dep_name}'"
+                            );
+                        }
+                        if dep_name == rule_name {
+                            panic!("rule '{rule_name}': depends_on cannot reference itself");
+                        }
+                    }
+                }
+            }
+        }
+    }
+
     // Validate expressions at build time
     if let Some(rules) = yaml_value.get("rules").and_then(|r| r.as_array()) {
         for rule in rules {
