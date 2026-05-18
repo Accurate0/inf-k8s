@@ -6,5 +6,6 @@ pub mod feature_flag;
 pub mod forgejo;
 pub mod git;
 pub mod github;
+pub mod marker;
 pub mod rules;
 pub mod server;

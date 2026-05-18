@@ -2,11 +2,13 @@ pub mod types;
 
 use crate::event::PrEvent;
 use crate::forgejo::ForgejoClient;
+use crate::marker::Marker;
 use std::process::Stdio;
+use std::sync::LazyLock;
 use tokio::process::Command;
 use types::{Application, SourceDiff};
 
-const COMMENT_MARKER: &str = "<!-- janitor-bot:argocd-diff -->";
+static COMMENT_MARKER: LazyLock<Marker> = LazyLock::new(|| Marker::feature("argocd-diff"));
 const MAX_DIFF_LEN: usize = 60_000;
 
 pub struct ArgocdClient {
@@ -139,7 +141,7 @@ impl ArgocdClient {
     }
 
     fn format_comment(&self, source_diffs: &[SourceDiff], diff_outputs: &[String]) -> String {
-        let mut s = format!("{COMMENT_MARKER}\n## ArgoCD Diff\n");
+        let mut s = format!("{}\n## ArgoCD Diff\n", *COMMENT_MARKER);
 
         for (sd, diff_output) in source_diffs.iter().zip(diff_outputs.iter()) {
             s.push_str(&format!(
@@ -259,7 +261,7 @@ impl ArgocdClient {
                 &pr.owner,
                 &pr.repo,
                 pr.pr_number as i64,
-                COMMENT_MARKER,
+                &COMMENT_MARKER,
                 &comment,
             )
             .await?;

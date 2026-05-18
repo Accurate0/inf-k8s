@@ -1,3 +1,4 @@
+use crate::marker::Marker;
 use forgejo_api::structs::*;
 use forgejo_api::{Auth, Forgejo};
 use std::collections::HashSet;
@@ -570,13 +571,30 @@ impl ForgejoClient {
             .ok_or_else(|| anyhow::anyhow!("PR head ref not found"))
     }
 
+    /// Returns whether the bot has already left a comment carrying `marker` on
+    /// this issue/PR — the stateless "have I already acted?" check.
+    pub async fn has_acted(
+        &self,
+        owner: &str,
+        repo: &str,
+        issue: i64,
+        marker: &Marker,
+    ) -> anyhow::Result<bool> {
+        Ok(self
+            .find_bot_comment_with_marker(owner, repo, issue, marker)
+            .await?
+            .is_some())
+    }
+
+    /// Finds the id of the bot's comment carrying `marker`, if any.
     pub async fn find_bot_comment_with_marker(
         &self,
         owner: &str,
         repo: &str,
         issue: i64,
-        marker: &str,
+        marker: &Marker,
     ) -> anyhow::Result<Option<i64>> {
+        let marker = marker.to_string();
         let url = format!(
             "{}/api/v1/repos/{}/{}/issues/{}/comments",
             self.base_url, owner, repo, issue
@@ -594,7 +612,7 @@ impl ForgejoClient {
             let body = comment["body"].as_str().unwrap_or("");
             let user = comment["user"]["login"].as_str().unwrap_or("");
             if user == BOT_USERNAME
-                && body.contains(marker)
+                && body.contains(&marker)
                 && let Some(id) = comment["id"].as_i64()
             {
                 return Ok(Some(id));
@@ -631,7 +649,7 @@ impl ForgejoClient {
         owner: &str,
         repo: &str,
         pr: i64,
-        marker: &str,
+        marker: &Marker,
         body: &str,
     ) -> anyhow::Result<()> {
         match self
