@@ -84,9 +84,6 @@ external_requests:
       updated_at: ~
     service: forgejo
   - method: POST
-    path: /cluster.SettingsService/Get
-    service: argocd
-  - method: POST
     path: /evaluate/v1/boolean
     body:
       context:
