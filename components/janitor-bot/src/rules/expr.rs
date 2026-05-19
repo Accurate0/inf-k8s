@@ -72,6 +72,7 @@ enum Token {
 fn tokenize(input: &str) -> Result<Vec<Token>, String> {
     let mut tokens = Vec::new();
     let mut chars = input.chars().peekable();
+
     while let Some(&c) = chars.peek() {
         match c {
             ' ' | '\t' | '\n' | '\r' => {
@@ -144,6 +145,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                         None => return Err("unterminated string literal".to_string()),
                     }
                 }
+
                 tokens.push(Token::Str(s));
             }
             _ if c.is_ascii_digit()
@@ -154,6 +156,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                     num.push('-');
                     chars.next();
                 }
+
                 while let Some(&ch) = chars.peek() {
                     if ch.is_ascii_digit() || ch == '.' {
                         num.push(ch);
@@ -162,6 +165,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                         break;
                     }
                 }
+
                 if num.contains('.') {
                     let f: f64 = num.parse().map_err(|e| format!("invalid float: {e}"))?;
                     tokens.push(Token::Float(f));
@@ -180,6 +184,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
                         break;
                     }
                 }
+
                 match ident.as_str() {
                     "true" => tokens.push(Token::True),
                     "false" => tokens.push(Token::False),
@@ -189,6 +194,7 @@ fn tokenize(input: &str) -> Result<Vec<Token>, String> {
             _ => return Err(format!("unexpected character: '{c}'")),
         }
     }
+
     Ok(tokens)
 }
 
@@ -218,21 +224,25 @@ impl Parser {
 
     fn parse_or(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_and()?;
+
         while self.peek() == Some(&Token::Or) {
             self.next();
             let right = self.parse_and()?;
             left = Expr::Or(Box::new(left), Box::new(right));
         }
+
         Ok(left)
     }
 
     fn parse_and(&mut self) -> Result<Expr, String> {
         let mut left = self.parse_comparison()?;
+
         while self.peek() == Some(&Token::And) {
             self.next();
             let right = self.parse_comparison()?;
             left = Expr::And(Box::new(left), Box::new(right));
         }
+
         Ok(left)
     }
 
@@ -247,6 +257,7 @@ impl Parser {
             Some(Token::Ge) => CmpOp::Ge,
             _ => return Ok(left),
         };
+
         self.next();
         let right = self.parse_unary()?;
         Ok(Expr::Cmp(Box::new(left), op, Box::new(right)))
@@ -258,6 +269,7 @@ impl Parser {
             let expr = self.parse_unary()?;
             return Ok(Expr::Not(Box::new(expr)));
         }
+
         self.parse_atom()
     }
 
@@ -287,11 +299,14 @@ pub fn parse(input: &str) -> Result<Expr, String> {
     if tokens.is_empty() {
         return Ok(Expr::Lit(Value::Bool(true)));
     }
+
     let mut parser = Parser::new(tokens);
     let expr = parser.parse_expr()?;
+
     if parser.pos != parser.tokens.len() {
         return Err(format!("unexpected token at position {}", parser.pos));
     }
+
     Ok(expr)
 }
 
@@ -371,6 +386,7 @@ pub fn eval(expr: &Expr, vars: &HashMap<String, Value>) -> Result<Value, String>
             if !lhs {
                 return Ok(Value::Bool(false));
             }
+
             let rhs = eval(b, vars)?.as_bool()?;
             Ok(Value::Bool(rhs))
         }
@@ -379,6 +395,7 @@ pub fn eval(expr: &Expr, vars: &HashMap<String, Value>) -> Result<Value, String>
             if lhs {
                 return Ok(Value::Bool(true));
             }
+
             let rhs = eval(b, vars)?.as_bool()?;
             Ok(Value::Bool(rhs))
         }
@@ -393,6 +410,7 @@ pub fn eval(expr: &Expr, vars: &HashMap<String, Value>) -> Result<Value, String>
 pub fn referenced_vars(expr: &Expr) -> Vec<String> {
     let mut vars = Vec::new();
     collect_vars(expr, &mut vars);
+
     vars
 }
 

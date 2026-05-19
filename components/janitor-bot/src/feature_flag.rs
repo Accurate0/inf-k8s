@@ -14,6 +14,7 @@ pub struct FeatureFlagClient {
 impl FeatureFlagClient {
     pub async fn from_env() -> Self {
         let url = std::env::var("FLIPT_URL");
+
         Self::new(url.ok()).await
     }
 
@@ -40,6 +41,7 @@ impl FeatureFlagClient {
         };
 
         let client = client.create_client();
+
         let evaluation_context = EvaluationContext::default().with_custom_field(
             "environment",
             if cfg!(debug_assertions) {

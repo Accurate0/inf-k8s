@@ -32,6 +32,7 @@ impl ForgejoClient {
     pub fn new(base_url: String, token: String) -> anyhow::Result<Self> {
         let url = Url::parse(&base_url)?;
         let api = Forgejo::new(Auth::Token(&token), url)?;
+
         Ok(Self {
             api,
             base_url,
@@ -56,6 +57,7 @@ impl ForgejoClient {
                 return false;
             }
         };
+
         reviews.iter().any(|r| {
             r.user.as_ref().and_then(|u| u.login.as_deref()) == Some(BOT_USERNAME)
                 && r.state.as_deref() == Some("APPROVED")
@@ -241,6 +243,7 @@ impl ForgejoClient {
             else {
                 continue;
             };
+
             let id_str = id.to_string();
             if let Err(e) = self
                 .api
@@ -368,6 +371,7 @@ impl ForgejoClient {
                 .collect();
             Some(ids)
         };
+
         let issue = self
             .api
             .issue_create_issue(
@@ -488,6 +492,7 @@ impl ForgejoClient {
             .await?;
         let existing_names: HashSet<String> =
             existing.iter().filter_map(|l| l.name.clone()).collect();
+
         for (name, color) in labels {
             if !existing_names.contains(&name) {
                 self.api
@@ -678,6 +683,7 @@ impl ForgejoClient {
             _ => CommitStatusState::Warning,
         };
         let parsed_url = url::Url::parse(params.target_url).ok();
+
         self.api
             .repo_create_status(
                 params.owner,
@@ -750,6 +756,7 @@ mod tests {
     #[test]
     fn commit_deserialization_with_files() {
         let json = r#"{"sha":"abc1234567890def","created":"2025-01-01T00:00:00Z","html_url":"","url":"","files":[{"filename":"applications/janitor-bot.application.yaml"},{"filename":"components/janitor-bot/values.yaml"}]}"#;
+
         let commit: Commit = serde_json::from_str(json).expect("should deserialize");
         let files: Vec<String> = commit
             .files
@@ -757,6 +764,7 @@ mod tests {
             .into_iter()
             .filter_map(|f| f.filename)
             .collect();
+
         assert_eq!(
             files,
             vec![

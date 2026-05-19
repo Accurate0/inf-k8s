@@ -32,6 +32,7 @@ fn format_explain(matched: &[crate::rules::MatchedRule]) -> String {
     if matched.is_empty() {
         return "## janitor explain\n\nNo rules matched this PR.".to_owned();
     }
+
     let mut out = String::from("## janitor explain\n");
     for rule in matched {
         let dry = if rule.dry_run { " _(dry-run)_" } else { "" };
@@ -63,6 +64,7 @@ fn format_explain(matched: &[crate::rules::MatchedRule]) -> String {
         }
 
         let width = lines.iter().map(|(code, _)| code.len()).max().unwrap_or(0);
+
         for (code, comment) in lines {
             if comment.is_empty() {
                 out.push_str(&code);
@@ -131,6 +133,7 @@ pub async fn handle_pr_command(
 ) {
     let pr = cmd.pr_number as i64;
     let client = &clients.forgejo;
+
     tracing::info!(
         ?command,
         pr,
@@ -144,6 +147,7 @@ pub async fn handle_pr_command(
     {
         tracing::warn!(pr, "failed to react to command comment: {e}");
     }
+
     match command {
         PrCommand::Approve => {
             if !client
@@ -164,6 +168,7 @@ pub async fn handle_pr_command(
                 return;
             }
             remove_janitor_labels(client, &cmd.owner, &cmd.repo, pr).await;
+
             if let Err(e) = client
                 .merge_pr(&cmd.owner, &cmd.repo, pr, strategy, true)
                 .await
@@ -191,6 +196,7 @@ pub async fn handle_pr_command(
                 tracing::error!("ensure ignore label failed: {e}");
                 return;
             }
+
             if let Err(e) = client
                 .add_labels_by_name(&cmd.owner, &cmd.repo, pr, vec![IGNORE_LABEL.to_owned()])
                 .await
@@ -200,6 +206,7 @@ pub async fn handle_pr_command(
         }
         PrCommand::Close => {
             remove_janitor_labels(client, &cmd.owner, &cmd.repo, pr).await;
+
             if let Err(e) = client
                 .set_pr_state(&cmd.owner, &cmd.repo, pr, "closed")
                 .await
@@ -226,8 +233,10 @@ pub async fn handle_pr_command(
                 tracing::warn!("explain: could not build PrEvent");
                 return;
             };
+
             let matched = orchestrator.explain_pr(clients, &mut pr_event).await;
             let body = format_explain(&matched);
+
             if let Err(e) = client.comment(&cmd.owner, &cmd.repo, pr, &body).await {
                 tracing::error!("explain: comment failed: {e}");
             }
@@ -246,6 +255,7 @@ pub async fn handle_pr_command(
                 tracing::warn!("run action: could not build PrEvent");
                 return;
             };
+
             if let Err(e) = orchestrator
                 .run_rule_by_name_unconditionally(clients, &mut pr_event, &name)
                 .await
@@ -278,6 +288,7 @@ pub async fn handle_pr_command(
                 tracing::warn!("recheck: could not build PrEvent");
                 return;
             };
+
             orchestrator.evaluate_pr(clients, &mut pr_event).await;
         }
     }
@@ -295,6 +306,7 @@ pub async fn handle_issue_command(
     command: IssueCommand,
 ) {
     let client = &clients.forgejo;
+
     tracing::info!(
         ?command,
         issue = event.issue_number,
@@ -311,6 +323,7 @@ pub async fn handle_issue_command(
             "failed to react to command comment: {e}"
         );
     }
+
     match command {
         IssueCommand::RetryWorkflow => {
             if !event.issue_labels.iter().any(|l| l == "github-ci-failure") {
@@ -327,6 +340,7 @@ pub async fn handle_issue_command(
                 );
                 return;
             };
+
             let Some(run_id) = metadata["run_id"].as_u64() else {
                 tracing::warn!(
                     issue = event.issue_number,
@@ -334,6 +348,7 @@ pub async fn handle_issue_command(
                 );
                 return;
             };
+
             let repo = metadata["html_url"].as_str().and_then(|url| {
                 // https://github.com/{owner}/{repo}/actions/runs/{id}
                 let path = url.strip_prefix("https://github.com/")?;
@@ -351,7 +366,9 @@ pub async fn handle_issue_command(
                 );
                 return;
             };
+
             let (owner, repo) = full_repo.split_once('/').unwrap();
+
             if let Err(e) = clients.github.rerun_workflow(owner, repo, run_id).await {
                 tracing::error!(
                     issue = event.issue_number,
@@ -373,6 +390,7 @@ pub async fn handle_issue_command(
         }
         IssueCommand::Ack => {
             let issue = event.issue_number as i64;
+
             if let Err(e) = client
                 .ensure_labels(
                     &event.owner,
@@ -384,6 +402,7 @@ pub async fn handle_issue_command(
                 tracing::error!("ensure ack label failed: {e}");
                 return;
             }
+
             if let Err(e) = client
                 .add_labels_by_name(&event.owner, &event.repo, issue, vec![ACK_LABEL.to_owned()])
                 .await
@@ -713,6 +732,7 @@ async fn remove_janitor_labels(client: &ForgejoClient, owner: &str, repo: &str, 
             return;
         }
     };
+
     let janitor_labels: Vec<String> = api_pr
         .labels
         .unwrap_or_default()
@@ -749,6 +769,7 @@ async fn revert_pr(
         .ok_or_else(|| anyhow::anyhow!("PR #{pr} has no merge commit SHA"))?;
 
     let original_title = api_pr.title.as_deref().unwrap_or("unknown");
+
     let timestamp = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()

@@ -92,6 +92,7 @@ impl WebhookEvent {
         let sender = self.sender?;
         let repository = self.repository?;
         let (owner, repo) = repository.full_name.split_once('/')?;
+
         Some(IssueCommentEvent {
             owner: owner.to_owned(),
             repo: repo.to_owned(),
@@ -110,6 +111,7 @@ impl WebhookEvent {
         let sender = self.sender?;
         let repository = self.repository?;
         let (owner, repo) = repository.full_name.split_once('/')?;
+
         Some(CommentEvent {
             owner: owner.to_owned(),
             repo: repo.to_owned(),
@@ -201,6 +203,7 @@ pub enum BotEvent<'a> {
 impl BotEvent<'_> {
     pub fn template_vars(&self) -> HashMap<&'static str, String> {
         let mut vars = HashMap::new();
+
         match self {
             BotEvent::ForgejoPr(pr) => {
                 vars.insert("repository", format!("{}/{}", pr.owner, pr.repo));
@@ -215,6 +218,7 @@ impl BotEvent<'_> {
                     vars.insert("forgejo_pr.merge_commit_sha", sha.clone());
                 }
             }
+
             BotEvent::GitHubCommitStatus(cs) => {
                 vars.insert("repository", cs.repository.clone());
                 vars.insert("sha", cs.sha.clone());
@@ -222,6 +226,7 @@ impl BotEvent<'_> {
                 vars.insert("context", cs.context.clone());
                 vars.insert("description", cs.description.clone());
                 vars.insert("target_url", cs.target_url.clone());
+
                 let short_sha = if cs.sha.len() >= 7 {
                     &cs.sha[..7]
                 } else {
@@ -229,6 +234,7 @@ impl BotEvent<'_> {
                 };
                 vars.insert("short_sha", short_sha.to_string());
             }
+
             BotEvent::ArgoSync(sync) => {
                 vars.insert("argocd_sync.app_name", sync.app_name.clone());
                 vars.insert("sha", sync.sha.clone());
@@ -236,6 +242,7 @@ impl BotEvent<'_> {
                 vars.insert("argocd_sync.health_status", sync.health_status.clone());
                 vars.insert("argocd_sync.phase", sync.phase.clone());
                 vars.insert("argocd_sync.message", sync.message.clone());
+
                 let state = match sync.phase.as_str() {
                     "Succeeded" => match sync.health_status.as_str() {
                         "Healthy" => "success",
@@ -260,6 +267,7 @@ impl BotEvent<'_> {
                 };
                 vars.insert("short_sha", short_sha.to_string());
             }
+
             BotEvent::GitHubCheckRun(cr) => {
                 vars.insert("repository", cr.repository.clone());
                 vars.insert("sha", cr.sha.clone());
@@ -269,6 +277,7 @@ impl BotEvent<'_> {
                 vars.insert("github_check_run.details_url", cr.details_url.clone());
                 vars.insert("github_check_run.app_name", cr.app_name.clone());
                 vars.insert("github_check_run.workflow_name", cr.workflow_name.clone());
+
                 // Map check_run conclusion to commit status state
                 let state = match cr.conclusion.as_str() {
                     "success" => "success",
@@ -279,6 +288,7 @@ impl BotEvent<'_> {
                     _ => "pending",
                 };
                 vars.insert("state", state.to_string());
+
                 // context and description for compatibility with set_commit_status action
                 let context = [
                     cr.app_name.as_str(),
@@ -292,6 +302,7 @@ impl BotEvent<'_> {
                 vars.insert("context", context);
                 vars.insert("description", cr.conclusion.clone());
                 vars.insert("target_url", cr.details_url.clone());
+
                 let short_sha = if cr.sha.len() >= 7 {
                     &cr.sha[..7]
                 } else {
@@ -299,6 +310,7 @@ impl BotEvent<'_> {
                 };
                 vars.insert("short_sha", short_sha.to_string());
             }
+
             BotEvent::GitHubWorkflow(wf) => {
                 vars.insert("repository", wf.repository.clone());
                 vars.insert("sha", wf.head_sha.clone());
@@ -326,8 +338,10 @@ impl BotEvent<'_> {
                 );
                 vars.insert("github_workflow.created_at", wf.created_at.clone());
                 vars.insert("github_workflow.updated_at", wf.updated_at.clone());
+
                 let logs_url = format!("{}/logs", wf.run_url);
                 vars.insert("github_workflow.logs_url", logs_url.clone());
+
                 let metadata_json = serde_json::json!({
                     "run_id": wf.run_id,
                     "workflow": wf.workflow_name,
@@ -342,6 +356,7 @@ impl BotEvent<'_> {
                 vars.insert("github_workflow.metadata_json", metadata_json.to_string());
             }
         }
+
         vars
     }
 }
@@ -351,6 +366,7 @@ pub fn render_template(template: &str, vars: &HashMap<&str, String>) -> String {
     for (key, value) in vars {
         result = result.replace(&format!("{{{key}}}"), value);
     }
+
     result
 }
 
@@ -397,6 +413,7 @@ impl WebhookEvent {
         let (owner, repo) = repository.full_name.split_once('/')?;
         let owner = owner.to_owned();
         let repo = repo.to_owned();
+
         Some(PrEvent {
             action: self.action,
             author: sender.login,

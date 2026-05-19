@@ -38,6 +38,7 @@ impl ArgocdClient {
     pub fn from_env() -> anyhow::Result<Self> {
         let server = std::env::var("ARGOCD_SERVER")?;
         let token = std::env::var("ARGOCD_AUTH_TOKEN")?;
+
         Ok(Self::new(server, token))
     }
 
@@ -269,6 +270,7 @@ impl ArgocdClient {
             let output = self
                 .diff(&sd.app_name, &sd.new_revision, sd.source_position)
                 .await;
+
             diff_outputs.push(output);
         }
 
@@ -304,6 +306,7 @@ impl ArgocdClient {
                     sha = sync.sha,
                     "failed to get commit changed files: {e}"
                 );
+
                 return false;
             }
         };
@@ -341,6 +344,7 @@ impl ArgocdClient {
                 app = sync.app_name,
                 "could not fetch app yaml from any candidate path"
             );
+
             return false;
         };
 
@@ -348,6 +352,7 @@ impl ArgocdClient {
             Ok(app) => app,
             Err(e) => {
                 tracing::warn!(app = sync.app_name, "failed to parse app yaml: {e}");
+
                 return false;
             }
         };
@@ -402,6 +407,7 @@ impl ArgocdClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
+
             anyhow::bail!("argocd list applications failed: {status} — {body}");
         }
 
@@ -421,6 +427,7 @@ impl ArgocdClient {
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
+
             anyhow::bail!("argocd sync failed for {app_name}: {status} — {body}");
         }
 
@@ -439,6 +446,7 @@ impl ArgocdClient {
             Ok(apps) => apps,
             Err(e) => {
                 tracing::error!("failed to list argocd applications: {e}");
+
                 return;
             }
         };
@@ -456,6 +464,7 @@ impl ArgocdClient {
                 })
                 .filter_map(|s| s.path.clone())
                 .collect();
+
             if Self::app_affected(&app.metadata.name, &source_paths, changed_files) {
                 to_sync.insert(app.metadata.name.clone());
             }

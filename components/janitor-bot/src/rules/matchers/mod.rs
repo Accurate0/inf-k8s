@@ -46,6 +46,7 @@ impl Matcher {
                                 return false;
                             }
                         }
+
                         true
                     }
                     Combinator::Any(matchers) => {
@@ -54,6 +55,7 @@ impl Matcher {
                                 return true;
                             }
                         }
+
                         false
                     }
                     Combinator::Not(matcher) => {
@@ -64,6 +66,7 @@ impl Matcher {
                     let value = eval_leaf_value(&leaf_expr.matcher, ev, rule, clients, now).await;
                     let mut vars = std::collections::HashMap::new();
                     vars.insert("value".to_string(), value);
+
                     match expr::parse(&leaf_expr.expr) {
                         Ok(parsed) => match expr::eval(&parsed, &vars) {
                             Ok(v) => v.as_bool().unwrap_or(false),
@@ -82,8 +85,10 @@ impl Matcher {
                     if let Some(cached) = cache.results.get(leaf) {
                         return cached;
                     }
+
                     let result = eval_leaf(leaf, ev, rule, clients, now).await;
                     cache.results.insert(leaf.clone(), result);
+
                     result
                 }
             }
@@ -260,17 +265,20 @@ fn eval_leaf<'a>(
                     Ok(tz) => tz,
                     Err(_) => {
                         tracing::warn!(timezone, "invalid timezone, defaulting to false");
+
                         return false;
                     }
                 };
                 let now = now.with_timezone(&tz);
                 let hour = now.hour();
+
                 if *weekdays_only {
                     let weekday = now.weekday();
                     if matches!(weekday, chrono::Weekday::Sat | chrono::Weekday::Sun) {
                         return false;
                     }
                 }
+
                 hour >= *start && hour < *end
             }
             LeafMatcher::WorkflowConclusion { value } => match ev {

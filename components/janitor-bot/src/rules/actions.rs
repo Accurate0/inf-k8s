@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use crate::clients::Clients;
 use crate::command::ACK_LABEL;
 use crate::event::BotEvent;
@@ -101,6 +103,7 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 let vars = event.template_vars();
                 let rendered = body.as_ref().map(|b| b.render(&vars));
                 client
@@ -119,6 +122,7 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 client
                     .merge_pr(
                         &pr.owner,
@@ -133,6 +137,7 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 let vars = event.template_vars();
                 let rendered = body.render(&vars);
                 client
@@ -143,6 +148,7 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 client
                     .add_labels(&pr.owner, &pr.repo, pr.pr_number as i64, label_ids.clone())
                     .await
@@ -151,6 +157,7 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 client
                     .add_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
                     .await
@@ -159,6 +166,7 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 client
                     .remove_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
                     .await
@@ -175,6 +183,7 @@ impl Action {
                         _ => return,
                     },
                 };
+
                 client.ensure_labels(owner, repo, labels.clone()).await
             }
             Action::CreateIssue {
@@ -189,6 +198,7 @@ impl Action {
                 let vars = event.template_vars();
                 let rendered_title = title.render(&vars);
                 let rendered_body = body.render(&vars);
+
                 async {
                     let existing = if *deduplicate_by_title {
                         client
@@ -197,15 +207,18 @@ impl Action {
                     } else {
                         None
                     };
+
                     if let Some(existing) = existing {
                         let index = existing.number.unwrap();
                         let is_acked = existing.labels.as_ref().is_some_and(|ls| {
                             ls.iter().any(|l| l.name.as_deref() == Some(ACK_LABEL))
                         });
+
                         if is_acked {
                             tracing::info!(issue = index, "skipping comment on acknowledged issue");
                             return Ok(());
                         }
+
                         let text = on_duplicate_comment
                             .as_ref()
                             .map(|t| t.render(&vars))
@@ -226,6 +239,7 @@ impl Action {
                             )
                             .await?;
                     }
+
                     Ok(())
                 }
                 .await
@@ -238,6 +252,7 @@ impl Action {
             } => {
                 let vars = event.template_vars();
                 let rendered_title = title.render(&vars);
+
                 async {
                     let Some(existing) = client
                         .find_open_issue_by_title(target_owner, target_repo, &rendered_title)
@@ -245,6 +260,7 @@ impl Action {
                     else {
                         return Ok(());
                     };
+
                     let index = existing.number.unwrap();
                     if let Some(tmpl) = closing_comment {
                         let text = tmpl.render(&vars);
@@ -252,7 +268,9 @@ impl Action {
                             .comment_on_issue(target_owner, target_repo, index, &text)
                             .await?;
                     }
+
                     client.close_issue(target_owner, target_repo, index).await?;
+
                     Ok(())
                 }
                 .await
@@ -291,10 +309,12 @@ impl Action {
                     tracing::error!(repository = repo_str, "invalid repository format");
                     return;
                 };
+
                 let Ok(id) = id_str.parse::<u64>() else {
                     tracing::error!(id = id_str, "invalid id");
                     return;
                 };
+
                 match target {
                     RetryWorkflowTarget::GitHub => {
                         if let Err(e) = clients.github.rerun_workflow(owner, repo, id).await {
@@ -302,6 +322,7 @@ impl Action {
                         }
                     }
                 }
+
                 return;
             }
             Action::WaitForGithubSync {
@@ -312,9 +333,8 @@ impl Action {
             } => {
                 let vars = event.template_vars();
                 let sha = sha.render(&vars);
-                let poll_interval = std::time::Duration::from_secs(10);
-                let deadline =
-                    std::time::Instant::now() + std::time::Duration::from_secs(*timeout_secs);
+                let poll_interval = Duration::from_secs(10);
+                let deadline = Instant::now() + Duration::from_secs(*timeout_secs);
                 loop {
                     if clients
                         .github
@@ -329,7 +349,8 @@ impl Action {
                         );
                         break;
                     }
-                    if std::time::Instant::now() + poll_interval >= deadline {
+
+                    if Instant::now() + poll_interval >= deadline {
                         tracing::warn!(
                             owner = target_owner,
                             repo = target_repo,
@@ -339,6 +360,7 @@ impl Action {
                         );
                         break;
                     }
+
                     tokio::time::sleep(poll_interval).await;
                 }
                 return;
@@ -347,10 +369,12 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 if !pr.merged {
                     tracing::info!(pr = pr.pr_number, "PR not merged, skipping argocd sync");
                     return;
                 }
+
                 clients.argocd.sync_changed_apps(&pr.changed_files).await;
                 return;
             }
@@ -358,12 +382,15 @@ impl Action {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
+
                 if let Err(e) = clients.argocd.run_diff_and_comment(client, pr).await {
                     tracing::error!("argocd_diff action failed: {e}");
                 }
+
                 return;
             }
         };
+
         if let Err(e) = result {
             tracing::error!("action failed: {e}");
         }

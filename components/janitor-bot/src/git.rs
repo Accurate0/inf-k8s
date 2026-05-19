@@ -58,6 +58,7 @@ pub fn revert_and_push(
     let mut push_opts = git2::PushOptions::new();
     push_opts.remote_callbacks(push_callbacks);
     let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
+
     remote.push(&[&refspec], Some(&mut push_opts))?;
 
     Ok(())

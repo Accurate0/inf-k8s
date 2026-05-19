@@ -19,6 +19,7 @@ impl GitHubClient {
         let token = std::env::var("GITHUB_TOKEN")?;
         let base_url =
             std::env::var("GITHUB_URL").unwrap_or_else(|_| "https://api.github.com".to_string());
+
         Ok(Self::new(base_url, token))
     }
 
@@ -76,12 +77,15 @@ impl GitHubClient {
             .header("X-GitHub-Api-Version", "2022-11-28")
             .send()
             .await?;
+
         if !resp.status().is_success() {
             let status = resp.status();
             let body = resp.text().await.unwrap_or_default();
             anyhow::bail!("rerun failed: {status} — {body}");
         }
+
         tracing::info!(owner, repo, run_id, "rerun workflow triggered");
+
         Ok(())
     }
 
@@ -120,6 +124,7 @@ impl GitHubClient {
 
     pub async fn fetch_failed_jobs(&self, jobs_url: &str) -> FailedJobsResult {
         let empty = FailedJobsResult::default();
+
         if jobs_url.is_empty() {
             return empty;
         }
@@ -162,6 +167,7 @@ impl GitHubClient {
         }
 
         let logs = logs.trim_end_matches('\n').to_string();
+
         FailedJobsResult { logs }
     }
 }
@@ -176,7 +182,9 @@ pub fn verify_signature(secret: &str, signature: &str, body: &[u8]) -> bool {
     let Ok(mut mac) = Hmac::<Sha256>::new_from_slice(secret.as_bytes()) else {
         return false;
     };
+
     mac.update(body);
+
     mac.verify_slice(&decoded).is_ok()
 }
 
@@ -358,12 +366,15 @@ fn extract_run_id(url: &str) -> Option<u64> {
 pub fn parse_check_run_event(body: &[u8]) -> Option<crate::event::CheckRunEvent> {
     let payload: CheckRunPayload = serde_json::from_slice(body).ok()?;
     let action = payload.action?;
+
     if action != "completed" && action != "created" {
         return None;
     }
+
     let cr = payload.check_run?;
     let details_url = cr.details_url.unwrap_or_default();
     let run_id = extract_run_id(&details_url);
+
     Some(crate::event::CheckRunEvent {
         repository: payload.repository?.full_name?,
         sha: cr.head_sha?,
@@ -397,6 +408,7 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         message: None,
         author: None,
     });
+
     Some(WorkflowEvent {
         run_id: run.id?,
         workflow_name: run.name?,

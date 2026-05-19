@@ -32,6 +32,7 @@ async fn handle_evaluate(
         .unwrap_or(&state.orchestrator);
 
     match request.r#type.as_str() {
+
         "pr" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
                 Ok(w) => w,
@@ -48,10 +49,12 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid PR payload"})),
                 );
             };
+
             let matched = orchestrator.explain_pr(&state.clients, &mut pr_event).await;
             orchestrator
                 .evaluate_pr(&state.clients, &mut pr_event)
                 .await;
+
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -73,12 +76,14 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid workflow payload"})),
                 );
             };
+
             let matched = orchestrator
                 .explain_workflow(&state.clients, &mut wf_event)
                 .await;
             orchestrator
                 .evaluate_workflow(&state.clients, &mut wf_event)
                 .await;
+
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -100,14 +105,17 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid comment payload"})),
                 );
             };
+
             let Some(parsed) = command::parse_pr_command(&cmd.body) else {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(serde_json::json!({"error": "unknown command"})),
                 );
             };
+
             let debug = format!("{parsed:?}");
             command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed).await;
+
             (StatusCode::OK, Json(serde_json::json!({"command": debug})))
         }
         "commit_status" => {
@@ -126,12 +134,14 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid commit status payload"})),
                 );
             };
+
             let matched = orchestrator
                 .explain_commit_status(&state.clients, &cs_event)
                 .await;
             orchestrator
                 .evaluate_commit_status(&state.clients, &cs_event)
                 .await;
+
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -153,12 +163,14 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid check_run payload"})),
                 );
             };
+
             let matched = orchestrator
                 .explain_check_run(&state.clients, &mut cr_event)
                 .await;
             orchestrator
                 .evaluate_check_run(&state.clients, &mut cr_event)
                 .await;
+
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -183,12 +195,14 @@ async fn handle_evaluate(
                 phase: payload.phase,
                 message: payload.message,
             };
+
             let matched = orchestrator
                 .explain_argocd_sync(&state.clients, &sync_event)
                 .await;
             orchestrator
                 .evaluate_argocd_sync(&state.clients, &sync_event)
                 .await;
+
             (
                 StatusCode::OK,
                 Json(serde_json::to_value(&matched).unwrap()),
@@ -210,13 +224,16 @@ async fn handle_evaluate(
                     Json(serde_json::json!({"error": "invalid issue comment payload"})),
                 );
             };
+
             let Some(parsed) = command::parse_issue_command(&cmd.comment_body) else {
                 return (
                     StatusCode::BAD_REQUEST,
                     Json(serde_json::json!({"error": "unknown command"})),
                 );
             };
+
             command::handle_issue_command(&state.clients, &cmd, parsed).await;
+
             (
                 StatusCode::OK,
                 Json(serde_json::json!({"command": format!("{parsed:?}")})),

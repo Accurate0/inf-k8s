@@ -71,6 +71,7 @@ impl RulesOrchestrator {
 
     pub fn from_rules(mut rules: RulesFile) -> Self {
         rules.rules = Self::topo_sort(rules.rules);
+
         Self {
             rules,
             pr_locks: Cache::builder()
@@ -137,6 +138,7 @@ impl RulesOrchestrator {
                 "skipping rules: {} label present",
                 crate::command::IGNORE_LABEL
             );
+
             return;
         }
 
@@ -245,6 +247,7 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
+
         let cache = MatcherCache::new();
         let vars = self
             .evaluate_variables(rule, &bot_event, clients, &cache)
@@ -275,6 +278,7 @@ impl RulesOrchestrator {
     ) -> HashMap<String, expr::Value> {
         let now = self.now();
         let mut vars = HashMap::new();
+
         for defined_variable in &rule.variables {
             let value = defined_variable
                 .matcher
@@ -289,12 +293,14 @@ impl RulesOrchestrator {
             );
             vars.insert(defined_variable.var.clone(), value);
         }
+
         vars
     }
 
     async fn explain_rules<'a>(&self, event: &BotEvent<'a>, clients: &Clients) -> Vec<MatchedRule> {
         let mut matched_rules = Vec::new();
         let mut executed_rules: HashSet<String> = HashSet::new();
+
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {
                 continue;
@@ -310,6 +316,7 @@ impl RulesOrchestrator {
             }
 
             let vars = self.evaluate_variables(rule, event, clients, &cache).await;
+
             let action_groups = Self::explain_action_groups(rule, &vars);
 
             if action_groups.iter().any(|g| g.ran && !g.actions.is_empty()) {
@@ -332,11 +339,13 @@ impl RulesOrchestrator {
                 action_groups,
             });
         }
+
         matched_rules
     }
 
     async fn run_rules<'a>(&self, clients: &Clients, event: &BotEvent<'a>) {
         let mut executed_rules: HashSet<String> = HashSet::new();
+
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {
                 continue;
@@ -355,6 +364,7 @@ impl RulesOrchestrator {
                     eval_ms = eval_start.elapsed().as_millis(),
                     "rule did not match"
                 );
+
                 continue;
             }
 
@@ -370,6 +380,7 @@ impl RulesOrchestrator {
             let had_actions = self
                 .execute_actions(rule, &vars, clients, event, dry_run)
                 .await;
+
             if had_actions {
                 executed_rules.insert(rule.name.clone());
             }
@@ -389,8 +400,10 @@ impl RulesOrchestrator {
         dry_run: bool,
     ) -> bool {
         let rule_start = Instant::now();
+
         let groups = Self::resolve_action_groups(rule, vars).await;
         let had_actions = groups.iter().any(|g| !g.actions.is_empty());
+
         for group in &groups {
             if let Some(when) = group.when {
                 tracing::info!(rule = rule.name, when, "executing action group");
@@ -405,6 +418,7 @@ impl RulesOrchestrator {
                         action = action.kind(),
                         "[dry-run] would execute action"
                     );
+
                     continue;
                 }
 
@@ -425,6 +439,7 @@ impl RulesOrchestrator {
             elapsed_ms = rule_start.elapsed().as_millis(),
             "rule actions complete"
         );
+
         had_actions
     }
 
@@ -439,6 +454,7 @@ impl RulesOrchestrator {
             }],
             ActionsDef::Conditional(groups) => {
                 let mut result = Vec::new();
+
                 for group in groups {
                     let parsed = expr::parse(&group.when).expect("pre-validated expression");
                     match expr::eval(&parsed, vars) {
@@ -473,6 +489,7 @@ impl RulesOrchestrator {
                         }
                     }
                 }
+
                 result
             }
         }
@@ -514,6 +531,7 @@ impl RulesOrchestrator {
             .collect();
 
         let n = rules.len();
+
         let mut in_degree = vec![0usize; n];
         let mut dependents: Vec<Vec<usize>> = vec![vec![]; n];
 

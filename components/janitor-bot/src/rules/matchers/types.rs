@@ -126,6 +126,7 @@ impl FilePattern {
                         globset::Glob::new("").unwrap()
                     })
                     .compile_matcher();
+
                 let matched = glob.is_match(path);
                 if negated { !matched } else { matched }
             }

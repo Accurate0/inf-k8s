@@ -18,6 +18,7 @@ pub async fn handle_forgejo_webhook(
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
+
     if auth != state.forgejo_webhook_secret {
         return StatusCode::UNAUTHORIZED;
     }
@@ -104,12 +105,14 @@ pub async fn handle_github_webhook(
             tracing::info!("received github status event but failed to parse");
             return StatusCode::OK;
         };
+
         tracing::info!(
             repository = cs_event.repository,
             context = cs_event.context,
             state = cs_event.state,
             "received github commit status event"
         );
+
         tokio::spawn(async move {
             state
                 .orchestrator
@@ -126,12 +129,14 @@ pub async fn handle_github_webhook(
             );
             return StatusCode::OK;
         };
+
         tracing::info!(
             repository = cr_event.repository,
             name = cr_event.name,
             conclusion = cr_event.conclusion,
             "received github check_run event"
         );
+
         tokio::spawn(async move {
             state
                 .orchestrator
@@ -171,6 +176,7 @@ pub async fn handle_argocd_webhook(
         .get("Authorization")
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
+
     if auth != state.argocd_webhook_secret {
         return StatusCode::UNAUTHORIZED;
     }
