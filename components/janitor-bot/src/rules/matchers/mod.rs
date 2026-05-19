@@ -173,7 +173,9 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.title.contains(value.as_str()),
                 BotEvent::GitHubWorkflow(wf) => wf.display_title.contains(value.as_str()),
                 BotEvent::GitHubCommitStatus(cs) => cs.context.contains(value.as_str()),
-                BotEvent::GitHubCheckRun(cr) => cr.name.contains(value.as_str()),
+                BotEvent::GitHubCheckRun(cr) => {
+                    format!("{} {}", cr.workflow_name, cr.name).contains(value.as_str())
+                }
                 BotEvent::ArgoSync(sync) => sync.app_name.contains(value.as_str()),
             },
             LeafMatcher::HasLabel { value } => match ev {
