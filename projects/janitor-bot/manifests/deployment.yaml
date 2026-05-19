@@ -44,3 +44,5 @@ spec:
           env:
             - name: FLIPT_URL
               value: http://flipt-v2.flipt-v2.svc.cluster.local:8080
+            - name: ARGOCD_SERVER
+              value: http://argocd-server.argocd.svc.cluster.local:80

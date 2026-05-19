@@ -23,6 +23,8 @@ pub struct ArgocdClient {
 impl ArgocdClient {
     pub fn new(server: String, token: String) -> Self {
         let http = reqwest::Client::builder()
+            .danger_accept_invalid_certs(true)
+            .timeout(std::time::Duration::from_secs(120))
             .build()
             .expect("failed to build argocd http client");
 
