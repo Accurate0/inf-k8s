@@ -65,6 +65,13 @@ pub enum Action {
         description: TemplateString,
         target_url: TemplateString,
     },
+    WaitForGithubSync {
+        target_owner: String,
+        target_repo: String,
+        sha: TemplateString,
+        timeout_secs: u64,
+    },
+    ArgocdSyncChangedApps,
 }
 
 impl Action {
@@ -82,6 +89,8 @@ impl Action {
             Action::ArgoCdDiff => "argocd_diff",
             Action::RetryWorkflow { .. } => "retry_workflow",
             Action::SetCommitStatus { .. } => "set_commit_status",
+            Action::WaitForGithubSync { .. } => "wait_for_github_sync",
+            Action::ArgocdSyncChangedApps => "argocd_sync_changed_apps",
         }
     }
 
@@ -293,6 +302,56 @@ impl Action {
                         }
                     }
                 }
+                return;
+            }
+            Action::WaitForGithubSync {
+                target_owner,
+                target_repo,
+                sha,
+                timeout_secs,
+            } => {
+                let vars = event.template_vars();
+                let sha = sha.render(&vars);
+                let poll_interval = std::time::Duration::from_secs(10);
+                let deadline =
+                    std::time::Instant::now() + std::time::Duration::from_secs(*timeout_secs);
+                loop {
+                    if clients
+                        .github
+                        .commit_exists(target_owner, target_repo, &sha)
+                        .await
+                    {
+                        tracing::info!(
+                            owner = target_owner,
+                            repo = target_repo,
+                            sha,
+                            "github sync confirmed"
+                        );
+                        break;
+                    }
+                    if std::time::Instant::now() + poll_interval >= deadline {
+                        tracing::warn!(
+                            owner = target_owner,
+                            repo = target_repo,
+                            sha,
+                            timeout_secs,
+                            "timed out waiting for github sync"
+                        );
+                        break;
+                    }
+                    tokio::time::sleep(poll_interval).await;
+                }
+                return;
+            }
+            Action::ArgocdSyncChangedApps => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+                if !pr.merged {
+                    tracing::info!(pr = pr.pr_number, "PR not merged, skipping argocd sync");
+                    return;
+                }
+                clients.argocd.sync_changed_apps(&pr.changed_files).await;
                 return;
             }
             Action::ArgoCdDiff => {

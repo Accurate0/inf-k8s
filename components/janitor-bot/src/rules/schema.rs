@@ -182,10 +182,23 @@ pub enum ActionDef {
         description: TemplateString,
         target_url: TemplateString,
     },
+    #[serde(rename = "wait_for_github_sync")]
+    WaitForGithubSync {
+        target: IssueTarget,
+        sha: TemplateString,
+        #[serde(default = "default_sync_timeout_secs")]
+        timeout_secs: u64,
+    },
+    #[serde(rename = "argocd_sync_changed_apps")]
+    ArgocdSyncChangedApps,
 }
 
 fn default_true() -> bool {
     true
+}
+
+fn default_sync_timeout_secs() -> u64 {
+    30
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, Copy)]
@@ -309,6 +322,17 @@ impl ActionDef {
                 description: description.clone(),
                 target_url: target_url.clone(),
             },
+            ActionDef::WaitForGithubSync {
+                target,
+                sha,
+                timeout_secs,
+            } => Action::WaitForGithubSync {
+                target_owner: target.owner.clone(),
+                target_repo: target.repo.clone(),
+                sha: sha.clone(),
+                timeout_secs: *timeout_secs,
+            },
+            ActionDef::ArgocdSyncChangedApps => Action::ArgocdSyncChangedApps,
         }
     }
 }

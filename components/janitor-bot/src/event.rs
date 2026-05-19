@@ -14,6 +14,10 @@ pub struct PullRequest {
     #[serde(default)]
     pub labels: Vec<Label>,
     pub base: Option<PrBase>,
+    #[serde(default)]
+    pub merged: bool,
+    #[serde(default)]
+    pub merge_commit_sha: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -128,6 +132,8 @@ pub struct PrEvent {
     pub target_branch: String,
     pub labels: Vec<Label>,
     pub changed_files: Vec<String>,
+    pub merged: bool,
+    pub merge_commit_sha: Option<String>,
 }
 
 #[allow(dead_code)]
@@ -205,6 +211,9 @@ impl BotEvent<'_> {
                 vars.insert("forgejo_pr.pr_number", pr.pr_number.to_string());
                 vars.insert("forgejo_pr.title", pr.title.clone());
                 vars.insert("forgejo_pr.target_branch", pr.target_branch.clone());
+                if let Some(sha) = &pr.merge_commit_sha {
+                    vars.insert("forgejo_pr.merge_commit_sha", sha.clone());
+                }
             }
             BotEvent::GitHubCommitStatus(cs) => {
                 vars.insert("repository", cs.repository.clone());
@@ -374,6 +383,8 @@ impl PrEvent {
                 })
                 .unwrap_or_default(),
             changed_files: Vec::new(),
+            merged: pr.merged.unwrap_or(false),
+            merge_commit_sha: pr.merge_commit_sha.clone(),
         })
     }
 }
@@ -396,6 +407,8 @@ impl WebhookEvent {
             target_branch: pr.base.and_then(|b| b.r#ref).unwrap_or_default(),
             labels: pr.labels,
             changed_files: Vec::new(),
+            merged: pr.merged,
+            merge_commit_sha: pr.merge_commit_sha,
         })
     }
 }
@@ -455,6 +468,8 @@ mod tests {
             target_branch: "main".to_string(),
             labels: vec![],
             changed_files: vec![],
+            merged: false,
+            merge_commit_sha: None,
         }
     }
 
@@ -555,6 +570,8 @@ mod tests {
                 base: Some(PrBase {
                     r#ref: Some("main".to_string()),
                 }),
+                merged: false,
+                merge_commit_sha: None,
             }),
             issue: None,
             comment: None,
@@ -601,6 +618,8 @@ mod tests {
                 title: "t".to_string(),
                 labels: vec![],
                 base: None,
+                merged: false,
+                merge_commit_sha: None,
             }),
             issue: None,
             comment: None,
@@ -683,6 +702,8 @@ mod tests {
                 title: "t".to_string(),
                 labels: vec![],
                 base: None,
+                merged: false,
+                merge_commit_sha: None,
             }),
             issue: None,
             comment: None,

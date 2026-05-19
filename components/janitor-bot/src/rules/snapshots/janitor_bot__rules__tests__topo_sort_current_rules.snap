@@ -10,4 +10,5 @@ expression: names
 - manage-github-workflow
 - mirror-commit-status
 - argocd-sync-status
+- argocd-sync-merged-pr
 - retry-renovate-workflow

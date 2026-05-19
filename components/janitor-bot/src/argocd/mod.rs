@@ -3,28 +3,40 @@ pub mod types;
 use crate::event::PrEvent;
 use crate::forgejo::ForgejoClient;
 use crate::marker::Marker;
-use std::process::Stdio;
 use std::sync::LazyLock;
+use std::{collections::BTreeSet, process::Stdio};
 use tokio::process::Command;
-use types::{Application, SourceDiff};
+use types::{Application, ApplicationList, SourceDiff};
 
 static COMMENT_MARKER: LazyLock<Marker> = LazyLock::new(|| Marker::feature("argocd-diff"));
 const MAX_DIFF_LEN: usize = 60_000;
+/// Identifier of the manifest repo; ArgoCD source paths are only meaningful
+/// when the source points at this repo.
+const MANIFEST_REPO: &str = "Accurate0/inf-k8s";
 
 pub struct ArgocdClient {
     server: String,
     token: String,
+    http: reqwest::Client,
 }
 
 impl ArgocdClient {
     pub fn new(server: String, token: String) -> Self {
-        Self { server, token }
+        let http = reqwest::Client::builder()
+            .build()
+            .expect("failed to build argocd http client");
+
+        Self {
+            server,
+            token,
+            http,
+        }
     }
 
     pub fn from_env() -> anyhow::Result<Self> {
         let server = std::env::var("ARGOCD_SERVER")?;
         let token = std::env::var("ARGOCD_AUTH_TOKEN")?;
-        Ok(Self { server, token })
+        Ok(Self::new(server, token))
     }
 
     async fn diff(&self, app_name: &str, revision: &str, source_position: usize) -> String {
@@ -34,6 +46,7 @@ impl ArgocdClient {
             .strip_prefix("https://")
             .or_else(|| self.server.strip_prefix("http://"))
             .unwrap_or(&self.server);
+
         let mut args = vec![
             "app".to_string(),
             "diff".to_string(),
@@ -49,9 +62,11 @@ impl ArgocdClient {
             "--source-positions".to_string(),
             source_position.to_string(),
         ];
+
         if plaintext {
             args.push("--plaintext".to_string());
         }
+
         let result = Command::new("argocd")
             .args(&args)
             .stdout(Stdio::piped())
@@ -347,5 +362,185 @@ impl ArgocdClient {
                 false
             }
         })
+    }
+
+    fn app_affected(app_name: &str, source_paths: &[String], changed_files: &[String]) -> bool {
+        // The app's own definition file changed (chart bumps, source edits).
+        let def_files = [
+            format!("applications/{app_name}.application.yaml"),
+            format!("projects/{app_name}/application.yaml"),
+        ];
+
+        if changed_files
+            .iter()
+            .any(|f| def_files.iter().any(|d| d == f))
+        {
+            return true;
+        }
+
+        source_paths.iter().any(|p| {
+            let p = p.trim_matches('/');
+            !p.is_empty()
+                && changed_files
+                    .iter()
+                    .any(|f| f == p || f.starts_with(&format!("{p}/")))
+        })
+    }
+
+    /// Fetches every application registered with ArgoCD.
+    async fn list_applications(&self) -> anyhow::Result<Vec<Application>> {
+        let url = format!("{}/api/v1/applications", self.api_base());
+        let resp = self
+            .http
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("argocd list applications failed: {status} — {body}");
+        }
+
+        Ok(resp.json::<ApplicationList>().await?.items)
+    }
+
+    pub async fn sync_application(&self, app_name: &str) -> anyhow::Result<()> {
+        let url = format!("{}/api/v1/applications/{app_name}/sync", self.api_base());
+        let resp = self
+            .http
+            .post(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .json(&serde_json::json!({}))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("argocd sync failed for {app_name}: {status} — {body}");
+        }
+
+        tracing::info!(app = app_name, "argocd sync triggered");
+
+        Ok(())
+    }
+
+    pub async fn sync_changed_apps(&self, changed_files: &[String]) {
+        if changed_files.is_empty() {
+            tracing::info!("no changed files, nothing to sync");
+            return;
+        }
+
+        let apps = match self.list_applications().await {
+            Ok(apps) => apps,
+            Err(e) => {
+                tracing::error!("failed to list argocd applications: {e}");
+                return;
+            }
+        };
+
+        let mut to_sync = BTreeSet::new();
+        for app in &apps {
+            let source_paths: Vec<String> = app
+                .spec
+                .all_sources()
+                .filter(|s| {
+                    s.chart.is_none()
+                        && s.repo_url
+                            .as_deref()
+                            .is_some_and(|u| u.contains(MANIFEST_REPO))
+                })
+                .filter_map(|s| s.path.clone())
+                .collect();
+            if Self::app_affected(&app.metadata.name, &source_paths, changed_files) {
+                to_sync.insert(app.metadata.name.clone());
+            }
+        }
+
+        if to_sync.is_empty() {
+            tracing::info!("no argocd applications affected by changed files, nothing to sync");
+            return;
+        }
+
+        for app in to_sync {
+            if let Err(e) = self.sync_application(&app).await {
+                tracing::error!(app, "argocd sync failed: {e}");
+            }
+        }
+    }
+
+    fn api_base(&self) -> String {
+        if self.server.starts_with("http://") || self.server.starts_with("https://") {
+            self.server.trim_end_matches('/').to_string()
+        } else {
+            format!("https://{}", self.server.trim_end_matches('/'))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn affected(app: &str, paths: &[&str], files: &[&str]) -> bool {
+        ArgocdClient::app_affected(
+            app,
+            &paths.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+            &files.iter().map(|s| s.to_string()).collect::<Vec<_>>(),
+        )
+    }
+
+    #[test]
+    fn matches_file_under_source_path() {
+        assert!(affected(
+            "janitor-bot",
+            &["projects/janitor-bot/manifests"],
+            &["projects/janitor-bot/manifests/deployment.yaml"],
+        ));
+    }
+
+    #[test]
+    fn matches_when_source_path_differs_from_app_name() {
+        // applications/envoy is the source path of the `envoy-gateway` app.
+        assert!(affected(
+            "envoy-gateway",
+            &["applications/envoy", "gateway-helm"],
+            &["applications/envoy/securitypolicy.yaml"],
+        ));
+    }
+
+    #[test]
+    fn matches_own_definition_file() {
+        assert!(affected(
+            "envoy-gateway",
+            &["applications/envoy"],
+            &["applications/envoy-gateway.application.yaml"],
+        ));
+        assert!(affected(
+            "janitor-bot",
+            &["projects/janitor-bot/manifests"],
+            &["projects/janitor-bot/application.yaml"],
+        ));
+    }
+
+    #[test]
+    fn does_not_match_unrelated_files() {
+        assert!(!affected(
+            "janitor-bot",
+            &["projects/janitor-bot/manifests"],
+            &["terraform/main.tf", "applications/longhorn/foo.yaml"],
+        ));
+    }
+
+    #[test]
+    fn does_not_match_sibling_path_prefix() {
+        // `applications/envoy` must not match `applications/envoy-gateway/...`.
+        assert!(!affected(
+            "envoy-gateway",
+            &["applications/envoy"],
+            &["applications/envoy-other/deployment.yaml"],
+        ));
     }
 }

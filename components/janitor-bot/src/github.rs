@@ -85,6 +85,18 @@ impl GitHubClient {
         Ok(())
     }
 
+    /// Returns whether `sha` is available as a commit on `owner/repo`.
+    pub async fn commit_exists(&self, owner: &str, repo: &str, sha: &str) -> bool {
+        let url = format!("{}/repos/{owner}/{repo}/commits/{sha}", self.base_url);
+        match self.github_get(&url).await {
+            Ok(resp) => resp.status().is_success(),
+            Err(e) => {
+                tracing::warn!(owner, repo, sha, "failed to check commit: {e}");
+                false
+            }
+        }
+    }
+
     pub async fn workflow_run_name(&self, owner: &str, repo: &str, run_id: u64) -> Option<String> {
         let url = format!(
             "{}/repos/{owner}/{repo}/actions/runs/{run_id}",

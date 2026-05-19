@@ -201,6 +201,10 @@ fn eval_leaf<'a>(
                 }
                 _ => false,
             },
+            LeafMatcher::IsMerged => match ev {
+                BotEvent::ForgejoPr(pr) => pr.merged,
+                _ => false,
+            },
             LeafMatcher::NotApprovedBySelf => match ev {
                 BotEvent::ForgejoPr(pr) => {
                     !clients

@@ -15,6 +15,15 @@ pub struct Metadata {
 pub struct AppSpec {
     #[serde(default)]
     pub sources: Vec<Source>,
+    #[serde(default)]
+    pub source: Option<Source>,
+}
+
+impl AppSpec {
+    /// All sources, whether declared via the singular `source` or plural `sources`.
+    pub fn all_sources(&self) -> impl Iterator<Item = &Source> {
+        self.sources.iter().chain(self.source.iter())
+    }
 }
 
 #[derive(Deserialize)]
@@ -23,6 +32,14 @@ pub struct Source {
     pub target_revision: Option<String>,
     pub chart: Option<String>,
     pub path: Option<String>,
+    #[serde(rename = "repoURL")]
+    pub repo_url: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct ApplicationList {
+    #[serde(default)]
+    pub items: Vec<Application>,
 }
 
 #[derive(Deserialize)]

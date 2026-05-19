@@ -68,6 +68,8 @@ pub enum LeafMatcher {
     ChangedFilesNoneMatch { patterns: Vec<FilePattern> },
     #[serde(rename = "is_open")]
     IsOpen,
+    #[serde(rename = "is_merged")]
+    IsMerged,
     #[serde(rename = "has_conflicts")]
     HasConflicts,
     #[serde(rename = "not_approved_by_self")]

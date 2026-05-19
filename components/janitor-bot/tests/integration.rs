@@ -165,14 +165,17 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
 
     forgejo_server.verify().await;
     github_server.verify().await;
+    argocd_server.verify().await;
     flipt_server.verify().await;
 
     let forgejo_requests = forgejo_server.received_requests().await.unwrap_or_default();
     let github_requests = github_server.received_requests().await.unwrap_or_default();
+    let argocd_requests = argocd_server.received_requests().await.unwrap_or_default();
     let flipt_requests = flipt_server.received_requests().await.unwrap_or_default();
 
     let mut external_requests = capture_requests(&forgejo_requests, "forgejo");
     external_requests.extend(capture_requests(&github_requests, "github"));
+    external_requests.extend(capture_requests(&argocd_requests, "argocd"));
     external_requests.extend(capture_requests(&flipt_requests, "flipt"));
 
     let snapshot = Snapshot {

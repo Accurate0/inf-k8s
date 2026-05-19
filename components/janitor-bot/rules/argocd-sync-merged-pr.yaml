@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: argocd-sync-merged-pr
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: action
+      value: closed
+    - type: is_merged
+    - type: repository
+      value: anurag/k8s
+    - type: target_branch
+      value: main
+actions:
+  - type: wait_for_github_sync
+    target:
+      owner: Accurate0
+      repo: inf-k8s
+    sha:
+      content: "{forgejo_pr.merge_commit_sha}"
+      template: true
+    timeout_secs: 120
+  - type: argocd_sync_changed_apps

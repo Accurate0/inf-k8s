@@ -9,3 +9,4 @@ rules:
   - !include rules/argocd-diff-renovate.yaml
   - !include rules/mirror-commit-status.yaml
   - !include rules/argocd-sync-status.yaml
+  - !include rules/argocd-sync-merged-pr.yaml
