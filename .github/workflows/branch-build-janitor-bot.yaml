@@ -1,0 +1,48 @@
+name: Branch build janitor-bot
+on:
+  pull_request:
+    paths:
+      - components/janitor-bot/**
+      - .github/workflows/branch-build-janitor-bot.yaml
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - components/janitor-bot/**
+      - .github/workflows/branch-build-janitor-bot.yaml
+
+jobs:
+  build:
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@4d04d5d9486b7bd6fa91e7baf45bbb4f8b9deedd # v4
+
+      - name: Docker build
+        uses: docker/build-push-action@bcafcacb16a39f128d818304e6c9c0c18556b85f # v7
+        with:
+          context: ./components/janitor-bot
+          push: false
+          build-args: |
+            BINARY_NAME=janitor-bot
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+      - name: Install argocd CLI
+        run: |
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          chmod +x /usr/local/bin/argocd
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: components/janitor-bot/target
+          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
+      - run: cargo test
+        working-directory: components/janitor-bot

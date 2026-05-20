@@ -1,0 +1,21 @@
+type: check_run
+payload:
+  action: completed
+  check_run:
+    name: "Build"
+    head_sha: "branch1234567890abcd"
+    status: "completed"
+    conclusion: "success"
+    details_url: "https://github.com/Accurate0/inf-k8s/actions/runs/9001"
+    app:
+      name: "GitHub Actions"
+  repository:
+    full_name: "Accurate0/inf-k8s"
+mocks:
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/branch1234567890abcd
+    status: 201
+    body:
+      id: 4
+      status: success
