@@ -76,6 +76,15 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
     service: forgejo
   - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
     service: forgejo
   - method: GET
@@ -127,6 +136,15 @@ external_requests:
       labels:
         - janitor/queued
       updated_at: ~
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: POST
     path: /evaluate/v1/boolean

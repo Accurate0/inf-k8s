@@ -1,5 +1,6 @@
 mod types;
 
+use forgejo_api::structs::CommitStatusState;
 use open_feature::EvaluationContext;
 pub use types::*;
 
@@ -7,11 +8,14 @@ use crate::clients::Clients;
 use crate::event::BotEvent;
 use crate::rules::{expr, schema};
 use chrono::{Datelike, Timelike};
+use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::Arc;
 
 pub struct MatcherCache {
     results: moka::sync::Cache<LeafMatcher, bool>,
+    values: moka::sync::Cache<String, Arc<dyn Any + Send + Sync>>,
 }
 
 impl Default for MatcherCache {
@@ -24,7 +28,25 @@ impl MatcherCache {
     pub fn new() -> Self {
         Self {
             results: moka::sync::Cache::builder().build(),
+            values: moka::sync::Cache::builder().build(),
         }
+    }
+
+    pub async fn get_or_compute<T, F, Fut>(&self, key: &str, compute: F) -> T
+    where
+        T: Clone + Send + Sync + 'static,
+        F: FnOnce() -> Fut,
+        Fut: Future<Output = T>,
+    {
+        if let Some(v) = self.values.get(key)
+            && let Some(t) = v.downcast_ref::<T>()
+        {
+            return t.clone();
+        }
+        let computed = compute().await;
+        self.values
+            .insert(key.to_owned(), Arc::new(computed.clone()));
+        computed
     }
 }
 
@@ -63,7 +85,8 @@ impl Matcher {
                     }
                 },
                 Matcher::LeafExpr(leaf_expr) => {
-                    let value = eval_leaf_value(&leaf_expr.matcher, ev, rule, clients, now).await;
+                    let value =
+                        eval_leaf_value(&leaf_expr.matcher, ev, rule, clients, cache, now).await;
                     let mut vars = std::collections::HashMap::new();
                     vars.insert("value".to_string(), value);
 
@@ -86,7 +109,7 @@ impl Matcher {
                         return cached;
                     }
 
-                    let result = eval_leaf(leaf, ev, rule, clients, now).await;
+                    let result = eval_leaf(leaf, ev, rule, clients, cache, now).await;
                     cache.results.insert(leaf.clone(), result);
 
                     result
@@ -106,7 +129,7 @@ impl Matcher {
         Box::pin(async move {
             match self {
                 Matcher::Leaf(leaf) | Matcher::LeafExpr(LeafExprMatcher { matcher: leaf, .. }) => {
-                    eval_leaf_value(leaf, ev, rule, clients, now).await
+                    eval_leaf_value(leaf, ev, rule, clients, cache, now).await
                 }
                 _ => expr::Value::Bool(self.matches(ev, rule, clients, cache, now).await),
             }
@@ -119,6 +142,7 @@ fn eval_leaf_value<'a>(
     ev: &'a BotEvent<'a>,
     rule: &'a schema::RuleDef,
     clients: &'a Clients,
+    cache: &'a MatcherCache,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Pin<Box<dyn Future<Output = expr::Value> + Send + 'a>> {
     Box::pin(async move {
@@ -127,9 +151,25 @@ fn eval_leaf_value<'a>(
                 BotEvent::GitHubWorkflow(wf) => expr::Value::I64(wf.run_attempt as i64),
                 _ => expr::Value::I64(0),
             },
-            other => expr::Value::Bool(eval_leaf(other, ev, rule, clients, now).await),
+            other => expr::Value::Bool(eval_leaf(other, ev, rule, clients, cache, now).await),
         }
     })
+}
+
+async fn combined_status_cached(
+    clients: &Clients,
+    cache: &MatcherCache,
+    pr: &crate::event::PrEvent,
+) -> Option<crate::forgejo::PrCombinedStatus> {
+    let key = format!("combined_status:{}/{}:{}", pr.owner, pr.repo, pr.pr_number);
+
+    cache
+        .get_or_compute(&key, || {
+            clients
+                .forgejo
+                .get_pr_combined_status(&pr.owner, &pr.repo, pr.pr_number as i64)
+        })
+        .await
 }
 
 fn eval_leaf<'a>(
@@ -137,6 +177,7 @@ fn eval_leaf<'a>(
     ev: &'a BotEvent<'a>,
     rule: &'a schema::RuleDef,
     clients: &'a Clients,
+    cache: &'a MatcherCache,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
     Box::pin(async move {
@@ -300,6 +341,18 @@ fn eval_leaf<'a>(
                 BotEvent::ArgoSync(_) => false,
             },
             LeafMatcher::WorkflowRunAttempt => matches!(ev, BotEvent::GitHubWorkflow(_)),
+            LeafMatcher::HasStatusChecks => match ev {
+                BotEvent::ForgejoPr(pr) => combined_status_cached(clients, cache, pr)
+                    .await
+                    .is_some_and(|s| s.total_count > 0),
+                _ => false,
+            },
+            LeafMatcher::AllStatusChecksPassed => match ev {
+                BotEvent::ForgejoPr(pr) => combined_status_cached(clients, cache, pr)
+                    .await
+                    .is_some_and(|s| matches!(s.state, CommitStatusState::Success)),
+                _ => false,
+            },
         }
     })
 }

@@ -6,6 +6,12 @@ use url::Url;
 
 pub(crate) const BOT_USERNAME: &str = "janitor";
 
+#[derive(Debug, Clone)]
+pub struct PrCombinedStatus {
+    pub state: CommitStatusState,
+    pub total_count: i64,
+}
+
 pub struct CommitStatusParams<'a> {
     pub owner: &'a str,
     pub repo: &'a str,
@@ -557,6 +563,33 @@ impl ForgejoClient {
             .text()
             .await?;
         Ok(resp)
+    }
+
+    pub async fn get_pr_combined_status(
+        &self,
+        owner: &str,
+        repo: &str,
+        pr: i64,
+    ) -> Option<PrCombinedStatus> {
+        let pr_data = self
+            .api
+            .repo_get_pull_request(owner, repo, pr)
+            .send()
+            .await
+            .ok()?;
+
+        let sha = pr_data.head.and_then(|h| h.sha)?;
+        let (_, combined) = self
+            .api
+            .repo_get_combined_status_by_ref(owner, repo, &sha)
+            .send()
+            .await
+            .ok()?;
+
+        Some(PrCombinedStatus {
+            state: combined.state?,
+            total_count: combined.total_count.unwrap_or(0),
+        })
     }
 
     pub async fn get_pr_head_ref(

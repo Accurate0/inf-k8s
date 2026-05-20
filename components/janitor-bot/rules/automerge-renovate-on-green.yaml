@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: automerge-renovate-on-green
+enabled: true
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: repository
+      value: anurag/k8s
+    - type: feature_flag
+      name: allow_automerging_rules
+      default: true
+    - type: target_branch
+      value: main
+    - type: author
+      value: renovate
+    - not:
+        type: has_label
+        value: update-major
+    - not:
+        type: has_label
+        value: conflicts
+    - type: is_open
+    - type: not_approved_by_self
+    - type: has_status_checks
+    - type: all_status_checks_passed
+actions:
+  - type: approve
+  - type: merge
+    strategy: squash
+    delete_branch: true

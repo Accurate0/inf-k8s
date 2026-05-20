@@ -96,6 +96,11 @@ pub enum LeafMatcher {
 
     #[serde(rename = "workflow_run_attempt")]
     WorkflowRunAttempt,
+
+    #[serde(rename = "has_status_checks")]
+    HasStatusChecks,
+    #[serde(rename = "all_status_checks_passed")]
+    AllStatusChecksPassed,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]

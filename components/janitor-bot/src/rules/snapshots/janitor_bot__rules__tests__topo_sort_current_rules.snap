@@ -7,6 +7,7 @@ expression: names
 - label-renovate
 - manage-ci-image-updater
 - manage-renovate
+- automerge-renovate-on-green
 - manage-github-workflow
 - mirror-commit-status
 - argocd-sync-status

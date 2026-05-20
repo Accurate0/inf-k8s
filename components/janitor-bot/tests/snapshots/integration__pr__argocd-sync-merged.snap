@@ -21,7 +21,13 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/184
     service: forgejo
   - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/184
+    service: forgejo
+  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/184/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/184
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/184
