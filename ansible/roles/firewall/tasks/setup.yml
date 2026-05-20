@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Install ufw
+  ansible.builtin.apt:
+    update_cache: true
+    package:
+      - ufw
+
+- name: Set default incoming policy
+  community.general.ufw:
+    default: "{{ firewall_default_incoming }}"
+    direction: incoming
+
+- name: Set default outgoing policy
+  community.general.ufw:
+    default: "{{ firewall_default_outgoing }}"
+    direction: outgoing
+
+- name: Enable UFW
+  community.general.ufw:
+    state: enabled
+    logging: low

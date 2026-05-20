@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: HTTP
+  community.general.ufw:
+    rule: "{{ 'allow' if firewall_allow_http else 'deny' }}"
+    port: http
+    direction: in
+
+- name: HTTPS
+  community.general.ufw:
+    rule: "{{ 'allow' if firewall_allow_https else 'deny' }}"
+    port: https
+    direction: in

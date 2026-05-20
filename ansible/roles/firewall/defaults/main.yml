@@ -1,7 +1,18 @@
 # SPDX-License-Identifier: MIT-0
 ---
-# defaults file for firewall
-firewall_allow_http: true
+# Default policies
+firewall_default_incoming: allow
+firewall_default_outgoing: allow
+
+# Feature toggles — each gates the corresponding tasks/<name>.yml
+firewall_ratelimit_ssh: true
 firewall_allow_tailscale: true
+firewall_allow_cni: true
 firewall_binarylane_k8s_vpc: false
 firewall_allow_local_lan: false
+
+# web.yml emits an explicit allow/deny rule for each — keeps them present
+# in the ruleset regardless of the toggle, since the web role is usually
+# the thing you want to actively close on non-edge hosts.
+firewall_allow_http: true
+firewall_allow_https: true

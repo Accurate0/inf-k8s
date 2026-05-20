@@ -2,19 +2,14 @@
   hosts: all
   become: true
   gather_facts: false
-  # become_user: janitor
 
   roles:
-    - role: user-management
+    - role: base
       become: true
       become_method: sudo
       become_user: root
-    - role: required-packages
-    - role: ssh-config
-    - role: ip-forward
     - role: tailscale
       vars:
-        tailscale_install: true
         tailscale_join_network: false
 
 - name: Setup K3S
@@ -28,7 +23,6 @@
   roles:
     - role: tailscale
       vars:
-        tailscale_install: false
         tailscale_join_network: true
         tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_K8S_AUTH_KEY') }}"
     - role: firewall
@@ -37,7 +31,6 @@
         firewall_binarylane_k8s_vpc: true
         firewall_allow_local_lan: true
       when: "inventory_hostname == 'oracle'"
-    - role: fix-multipathd
     - role: k3s
       vars:
         k3s_role: "{{ 'agent' if 'agent' in group_names else 'server' }}"
@@ -53,6 +46,6 @@
     - role: firewall
     - role: tailscale
       vars:
-        tailscale_install: false
+        tailscale_join_network: true
         tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_K8S_AUTH_KEY') }}"
-    - role: proxy
+    - role: edge-proxy

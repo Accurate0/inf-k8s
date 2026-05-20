@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Copy and Execute the script
+  ansible.builtin.shell:
+    cmd: curl -sfL https://get.k3s.io | sh -s - {{ k3s_role }}
+  environment:
+    INSTALL_K3S_CHANNEL: "{{ k3s_channel }}"
+    INSTALL_K3S_VERSION: "{{ k3s_version }}"
+  tags:
+    - skip_ansible_lint
+  ignore_errors: true

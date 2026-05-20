@@ -4,4 +4,4 @@
   serial: 1
 
   roles:
-    - role: proxy
+    - role: edge-proxy

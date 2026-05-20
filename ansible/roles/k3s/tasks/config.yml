@@ -1,0 +1,18 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Ensure /etc/rancher/k3s dir exists
+  ansible.builtin.file:
+    path: "/etc/rancher/k3s"
+    mode: "0744"
+    state: directory
+
+- name: Template and copy config
+  ansible.builtin.template:
+    src: k3s-{{ k3s_role }}.yaml
+    dest: /etc/rancher/k3s/config.yaml
+    owner: root
+    mode: "0644"
+  become: true
+  become_method: sudo
+  become_user: root
+  notify: Restart K3S

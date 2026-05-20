@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Disable PasswordAuthentication
+  block:
+    - name: Disable PasswordAuthentication
+      ansible.builtin.lineinfile:
+        dest: /etc/ssh/sshd_config
+        regexp: ^PasswordAuthentication
+        line: PasswordAuthentication no
+      notify: Restart SSH

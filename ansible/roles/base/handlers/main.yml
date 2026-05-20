@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Restart SSH
+  ansible.builtin.service:
+    name: ssh
+    state: restarted
+
+- name: Reload sysctl
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-ip-forward.conf
+  changed_when: false

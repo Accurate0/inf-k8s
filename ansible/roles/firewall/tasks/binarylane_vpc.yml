@@ -1,9 +1,11 @@
+# SPDX-License-Identifier: MIT-0
+---
 - name: Allow from K8S VPC for Binarylane
   community.general.ufw:
-    rule: "{{ 'allow' if firewall_binarylane_k8s_vpc == true else 'deny' }}"
+    rule: allow
     from: "{{ binarylane_vpc_cidr }}"
 
 - name: Allow to K8S VPC for Binarylane
   community.general.ufw:
-    rule: "{{ 'allow' if firewall_binarylane_k8s_vpc == true else 'deny' }}"
+    rule: allow
     to: "{{ binarylane_vpc_cidr }}"

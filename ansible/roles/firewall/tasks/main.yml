@@ -1,85 +1,21 @@
 # SPDX-License-Identifier: MIT-0
 ---
-# tasks file for firewall
-- name: Setup UFW
+- name: Configure firewall
   become: true
   become_user: root
   block:
-    - name: Install ufw
-      ansible.builtin.apt:
-        package:
-          - ufw
-
-    - name: Enable UFW
-      community.general.ufw:
-        state: enabled
-        policy: allow
-        logging: low
-
-    - name: Ratelimit SSH
-      community.general.ufw:
-        rule: limit
-        port: ssh
-        proto: tcp
-
-    - name: Tailscale
-      ansible.builtin.include_tasks:
-        file: tailscale.yml
-
-    - name: Binarylane vpc
-      ansible.builtin.include_tasks:
-        file: binarylane_vpc.yml
-
-    - name: CNI
-      ansible.builtin.include_tasks:
-        file: cni.yml
-
-    - name: Allow LAN traffic (from)
-      community.general.ufw:
-        rule: allow
-        from: "{{ item }}"
-      loop: "{{ local_lans }}"
+    - ansible.builtin.import_tasks: setup.yml
+    - ansible.builtin.import_tasks: ssh.yml
+      when: firewall_ratelimit_ssh
+    - ansible.builtin.import_tasks: tailscale.yml
+      when: firewall_allow_tailscale
+    - ansible.builtin.import_tasks: cni.yml
+      when: firewall_allow_cni
+    - ansible.builtin.import_tasks: binarylane_vpc.yml
+      when: firewall_binarylane_k8s_vpc
+    - ansible.builtin.import_tasks: lan.yml
       when: firewall_allow_local_lan
-
-    - name: Allow LAN traffic (to)
-      community.general.ufw:
-        rule: allow
-        to: "{{ item }}"
-      loop: "{{ local_lans }}"
-      when: firewall_allow_local_lan
-
-    - name: Allow tailscale port (wg)
-      community.general.ufw:
-        rule: allow
-        from_port: 41641
-        protocol: udp
-
-    - name: Allow tailscale port (STUN)
-      community.general.ufw:
-        rule: allow
-        from_port: 3478
-        protocol: udp
-
-    - name: Allow tailscale port (DERP)
-      community.general.ufw:
-        rule: allow
-        from_port: 443
-        protocol: tcp
-
-    - name: Allow tailscale port (HTTP)
-      community.general.ufw:
-        rule: allow
-        from_port: 80
-        protocol: tcp
-
-    - name: Allow all outgoing
-      community.general.ufw:
-        rule: allow
-        direction: out
-
-    - name: Allow HTTPS
-      ansible.builtin.include_tasks:
-        file: https.yml
+    - ansible.builtin.import_tasks: web.yml
 
     - name: Reload ufw
       community.general.ufw:

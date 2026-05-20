@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: MIT-0
+---
 - name: Allow all in cni0
   community.general.ufw:
     rule: allow

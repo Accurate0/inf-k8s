@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Ratelimit SSH
+  community.general.ufw:
+    rule: limit
+    port: ssh
+    proto: tcp

@@ -1,0 +1,13 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Install required packages
+  become: true
+  become_user: root
+  block:
+    - name: Install Packages
+      ansible.builtin.apt:
+        update_cache: true
+        package:
+          - nfs-common
+          - htop
+          - zfsutils-linux
