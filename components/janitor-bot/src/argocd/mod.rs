@@ -22,6 +22,13 @@ const NOISE_PATTERNS: &[&str] = &[
     "checksum/",
 ];
 
+struct DiffFilterResult {
+    diff: String,
+    total_sections: usize,
+    meaningful_sections: usize,
+    filtered_sections: usize,
+}
+
 pub struct ArgocdClient {
     server: String,
     token: String,
@@ -122,11 +129,12 @@ impl ArgocdClient {
     /// old/new lines and `NcN` or `N,NcN,N` range markers between hunks.
     /// We drop changed lines matching noise patterns and remove sections that
     /// become empty after filtering.
-    fn filter_diff_noise(diff: &str) -> String {
+    fn filter_diff_noise(diff: &str) -> DiffFilterResult {
         use std::fmt::Write;
 
         fn is_noise(line: &str) -> bool {
-            let content = line.strip_prefix("< ")
+            let content = line
+                .strip_prefix("< ")
                 .or_else(|| line.strip_prefix("> "))
                 .unwrap_or(line)
                 .trim();
@@ -137,14 +145,18 @@ impl ArgocdClient {
         let mut section_header: Option<&str> = None;
         let mut section_lines: Vec<&str> = Vec::new();
         let mut has_meaningful = false;
+        let mut total_sections: usize = 0;
+        let mut meaningful_sections: usize = 0;
 
         let flush = |result: &mut String,
                      header: Option<&str>,
                      lines: &[&str],
-                     meaningful: bool| {
+                     meaningful: bool,
+                     meaningful_sections: &mut usize| {
             if !meaningful || header.is_none() {
                 return;
             }
+            *meaningful_sections += 1;
             let _ = writeln!(result, "{}", header.unwrap());
             for l in lines {
                 let _ = writeln!(result, "{}", l);
@@ -153,7 +165,14 @@ impl ArgocdClient {
 
         for line in diff.lines() {
             if line.starts_with("=====") {
-                flush(&mut result, section_header, &section_lines, has_meaningful);
+                flush(
+                    &mut result,
+                    section_header,
+                    &section_lines,
+                    has_meaningful,
+                    &mut meaningful_sections,
+                );
+                total_sections += 1;
                 section_header = Some(line);
                 section_lines.clear();
                 has_meaningful = false;
@@ -171,13 +190,27 @@ impl ArgocdClient {
                 let _ = writeln!(result, "{}", line);
             }
         }
-        flush(&mut result, section_header, &section_lines, has_meaningful);
+        flush(
+            &mut result,
+            section_header,
+            &section_lines,
+            has_meaningful,
+            &mut meaningful_sections,
+        );
 
+        let filtered = total_sections - meaningful_sections;
         let trimmed = result.trim().to_string();
-        if trimmed.is_empty() {
+        let diff = if trimmed.is_empty() {
             "No meaningful differences after filtering label/annotation noise.".to_string()
         } else {
             trimmed
+        };
+
+        DiffFilterResult {
+            diff,
+            total_sections,
+            meaningful_sections,
+            filtered_sections: filtered,
         }
     }
 
@@ -231,10 +264,21 @@ impl ArgocdClient {
         Ok(diffs)
     }
 
-    fn format_comment(&self, source_diffs: &[SourceDiff], diff_outputs: &[String]) -> String {
-        let mut s = format!("{}\n## ArgoCD Diff\n", *COMMENT_MARKER);
+    fn format_comment(
+        &self,
+        source_diffs: &[SourceDiff],
+        diff_results: &[DiffFilterResult],
+    ) -> String {
+        let mut s = format!("{COMMENT_MARKER}\n## ArgoCD Diff\n");
 
-        for (sd, diff_output) in source_diffs.iter().zip(diff_outputs.iter()) {
+        for (sd, dr) in source_diffs.iter().zip(diff_results.iter()) {
+            if dr.total_sections > 0 {
+                s.push_str(&format!(
+                    "\n> **{}** resources changed — **{}** meaningful, **{}** noise-only (filtered)\n",
+                    dr.total_sections, dr.meaningful_sections, dr.filtered_sections,
+                ));
+            }
+
             s.push_str(&format!(
                 "\n### `{}` — `{}` (`{}` → `{}`)\n\
                  <details>\n\
@@ -248,7 +292,7 @@ impl ArgocdClient {
                 sd.old_revision,
                 sd.new_revision,
                 sd.source_position,
-                diff_output,
+                dr.diff,
             ));
         }
 
@@ -642,10 +686,14 @@ mod tests {
 ---
 >     helm.sh/chart: argo-cd-9.5.15";
 
+        let r = ArgocdClient::filter_diff_noise(diff);
         assert_eq!(
-            ArgocdClient::filter_diff_noise(diff),
+            r.diff,
             "No meaningful differences after filtering label/annotation noise."
         );
+        assert_eq!(r.total_sections, 2);
+        assert_eq!(r.meaningful_sections, 0);
+        assert_eq!(r.filtered_sections, 2);
     }
 
     #[test]
@@ -661,9 +709,12 @@ mod tests {
 ---
 >     image: quay.io/argoproj/argocd:v2.14.0";
 
-        let filtered = ArgocdClient::filter_diff_noise(diff);
-        assert!(filtered.contains("image: quay.io/argoproj/argocd:v2.14.0"));
-        assert!(!filtered.contains("helm.sh/chart"));
+        let r = ArgocdClient::filter_diff_noise(diff);
+        assert!(r.diff.contains("image: quay.io/argoproj/argocd:v2.14.0"));
+        assert!(!r.diff.contains("helm.sh/chart"));
+        assert_eq!(r.total_sections, 1);
+        assert_eq!(r.meaningful_sections, 1);
+        assert_eq!(r.filtered_sections, 0);
     }
 
     #[test]
@@ -681,10 +732,13 @@ mod tests {
 >         checksum/cm: 9831362e2f4b29e8ad863842e6e86b70b95857c57b70dc4ab0baad101a77da72
 >         checksum/cmd-params: 589039711463031a7133fd3224e9b5b4d0bce2e03ed45d6738f3bba91dbff02b";
 
+        let r = ArgocdClient::filter_diff_noise(diff);
         assert_eq!(
-            ArgocdClient::filter_diff_noise(diff),
+            r.diff,
             "No meaningful differences after filtering label/annotation noise."
         );
+        assert_eq!(r.total_sections, 1);
+        assert_eq!(r.filtered_sections, 1);
     }
 
     #[test]
@@ -705,21 +759,21 @@ mod tests {
 ---
 >     replicas: 2";
 
-        let filtered = ArgocdClient::filter_diff_noise(diff);
-        // ConfigMap section dropped entirely
-        assert!(!filtered.contains("ConfigMap"));
-        // Deployment section kept with real change
-        assert!(filtered.contains("Deployment"));
-        assert!(filtered.contains("replicas: 2"));
-        assert!(!filtered.contains("helm.sh/chart"));
+        let r = ArgocdClient::filter_diff_noise(diff);
+        assert!(!r.diff.contains("ConfigMap"));
+        assert!(r.diff.contains("Deployment"));
+        assert!(r.diff.contains("replicas: 2"));
+        assert!(!r.diff.contains("helm.sh/chart"));
+        assert_eq!(r.total_sections, 2);
+        assert_eq!(r.meaningful_sections, 1);
+        assert_eq!(r.filtered_sections, 1);
     }
 
     #[test]
     fn filter_no_diff() {
-        assert_eq!(
-            ArgocdClient::filter_diff_noise("No differences found."),
-            "No differences found."
-        );
+        let r = ArgocdClient::filter_diff_noise("No differences found.");
+        assert_eq!(r.diff, "No differences found.");
+        assert_eq!(r.total_sections, 0);
     }
 
     #[test]
@@ -731,8 +785,11 @@ mod tests {
 ---
 >     replicas: 3";
 
-        let filtered = ArgocdClient::filter_diff_noise(diff);
-        assert!(filtered.contains("replicas: 3"));
-        assert!(filtered.contains("Deployment default/myapp"));
+        let r = ArgocdClient::filter_diff_noise(diff);
+        assert!(r.diff.contains("replicas: 3"));
+        assert!(r.diff.contains("Deployment default/myapp"));
+        assert_eq!(r.total_sections, 1);
+        assert_eq!(r.meaningful_sections, 1);
+        assert_eq!(r.filtered_sections, 0);
     }
 }
