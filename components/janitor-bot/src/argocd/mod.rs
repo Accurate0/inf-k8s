@@ -14,6 +14,14 @@ const MAX_DIFF_LEN: usize = 60_000;
 /// when the source points at this repo.
 const MANIFEST_REPO: &str = "Accurate0/inf-k8s";
 
+/// Patterns in changed lines that are considered noise (Helm chart version bumps).
+const NOISE_PATTERNS: &[&str] = &[
+    "helm.sh/chart:",
+    "app.kubernetes.io/version:",
+    "chart:",
+    "checksum/",
+];
+
 pub struct ArgocdClient {
     server: String,
     token: String,
@@ -105,6 +113,71 @@ impl ArgocdClient {
                 }
             }
             Err(e) => format!("Failed to run argocd CLI: {e}"),
+        }
+    }
+
+    /// Filter noise from argocd diff output.
+    ///
+    /// The format uses `===== resource =====` section headers, with `<`/`>` for
+    /// old/new lines and `NcN` or `N,NcN,N` range markers between hunks.
+    /// We drop changed lines matching noise patterns and remove sections that
+    /// become empty after filtering.
+    fn filter_diff_noise(diff: &str) -> String {
+        use std::fmt::Write;
+
+        fn is_noise(line: &str) -> bool {
+            let content = line.strip_prefix("< ")
+                .or_else(|| line.strip_prefix("> "))
+                .unwrap_or(line)
+                .trim();
+            NOISE_PATTERNS.iter().any(|p| content.contains(p))
+        }
+
+        let mut result = String::new();
+        let mut section_header: Option<&str> = None;
+        let mut section_lines: Vec<&str> = Vec::new();
+        let mut has_meaningful = false;
+
+        let flush = |result: &mut String,
+                     header: Option<&str>,
+                     lines: &[&str],
+                     meaningful: bool| {
+            if !meaningful || header.is_none() {
+                return;
+            }
+            let _ = writeln!(result, "{}", header.unwrap());
+            for l in lines {
+                let _ = writeln!(result, "{}", l);
+            }
+        };
+
+        for line in diff.lines() {
+            if line.starts_with("=====") {
+                flush(&mut result, section_header, &section_lines, has_meaningful);
+                section_header = Some(line);
+                section_lines.clear();
+                has_meaningful = false;
+            } else if section_header.is_some() {
+                let is_change = line.starts_with("< ") || line.starts_with("> ");
+                if is_change && is_noise(line) {
+                    // skip noise line
+                } else {
+                    section_lines.push(line);
+                    if is_change {
+                        has_meaningful = true;
+                    }
+                }
+            } else {
+                let _ = writeln!(result, "{}", line);
+            }
+        }
+        flush(&mut result, section_header, &section_lines, has_meaningful);
+
+        let trimmed = result.trim().to_string();
+        if trimmed.is_empty() {
+            "No meaningful differences after filtering label/annotation noise.".to_string()
+        } else {
+            trimmed
         }
     }
 
@@ -270,8 +343,7 @@ impl ArgocdClient {
             let output = self
                 .diff(&sd.app_name, &sd.new_revision, sd.source_position)
                 .await;
-
-            diff_outputs.push(output);
+            diff_outputs.push(Self::filter_diff_noise(&output));
         }
 
         let comment = self.format_comment(&all_source_diffs, &diff_outputs);
@@ -553,5 +625,114 @@ mod tests {
             &["applications/envoy"],
             &["applications/envoy-other/deployment.yaml"],
         ));
+    }
+
+
+    #[test]
+    fn filter_all_noise_sections() {
+        let diff = "\
+===== /ConfigMap argocd/argocd-cm ======
+137c137
+<     helm.sh/chart: argo-cd-9.5.14
+---
+>     helm.sh/chart: argo-cd-9.5.15
+===== /ConfigMap argocd/argocd-rbac-cm ======
+27c27
+<     helm.sh/chart: argo-cd-9.5.14
+---
+>     helm.sh/chart: argo-cd-9.5.15";
+
+        assert_eq!(
+            ArgocdClient::filter_diff_noise(diff),
+            "No meaningful differences after filtering label/annotation noise."
+        );
+    }
+
+    #[test]
+    fn filter_keeps_meaningful_changes() {
+        let diff = "\
+===== apps/Deployment argocd/argocd-server ======
+17c17
+<     helm.sh/chart: argo-cd-9.5.14
+---
+>     helm.sh/chart: argo-cd-9.5.15
+50c50
+<     image: quay.io/argoproj/argocd:v2.13.0
+---
+>     image: quay.io/argoproj/argocd:v2.14.0";
+
+        let filtered = ArgocdClient::filter_diff_noise(diff);
+        assert!(filtered.contains("image: quay.io/argoproj/argocd:v2.14.0"));
+        assert!(!filtered.contains("helm.sh/chart"));
+    }
+
+    #[test]
+    fn filter_drops_checksum_noise() {
+        let diff = "\
+===== apps/Deployment argocd/argocd-dex-server ======
+17c17
+<     helm.sh/chart: argo-cd-9.5.14
+---
+>     helm.sh/chart: argo-cd-9.5.15
+412,413c412,413
+<         checksum/cm: d17e2338110a6b3f72df675b2d7b5bbfd46e9232822ca757ea7cd9018fb93707
+<         checksum/cmd-params: a4bb04222c567f88501aaaf65a1a2bde08e4e423ecc0c2f0829e9d92a894b761
+---
+>         checksum/cm: 9831362e2f4b29e8ad863842e6e86b70b95857c57b70dc4ab0baad101a77da72
+>         checksum/cmd-params: 589039711463031a7133fd3224e9b5b4d0bce2e03ed45d6738f3bba91dbff02b";
+
+        assert_eq!(
+            ArgocdClient::filter_diff_noise(diff),
+            "No meaningful differences after filtering label/annotation noise."
+        );
+    }
+
+    #[test]
+    fn filter_mixed_noise_and_real() {
+        let diff = "\
+===== /ConfigMap argocd/argocd-cm ======
+137c137
+<     helm.sh/chart: argo-cd-9.5.14
+---
+>     helm.sh/chart: argo-cd-9.5.15
+===== apps/Deployment argocd/argocd-server ======
+17c17
+<     helm.sh/chart: argo-cd-9.5.14
+---
+>     helm.sh/chart: argo-cd-9.5.15
+50c50
+<     replicas: 1
+---
+>     replicas: 2";
+
+        let filtered = ArgocdClient::filter_diff_noise(diff);
+        // ConfigMap section dropped entirely
+        assert!(!filtered.contains("ConfigMap"));
+        // Deployment section kept with real change
+        assert!(filtered.contains("Deployment"));
+        assert!(filtered.contains("replicas: 2"));
+        assert!(!filtered.contains("helm.sh/chart"));
+    }
+
+    #[test]
+    fn filter_no_diff() {
+        assert_eq!(
+            ArgocdClient::filter_diff_noise("No differences found."),
+            "No differences found."
+        );
+    }
+
+    #[test]
+    fn filter_passthrough_no_noise() {
+        let diff = "\
+===== apps/Deployment default/myapp ======
+10c10
+<     replicas: 1
+---
+>     replicas: 3";
+
+        let filtered = ArgocdClient::filter_diff_noise(diff);
+        assert!(filtered.contains("replicas: 3"));
+        assert!(filtered.contains("Deployment default/myapp"));
     }
 }
