@@ -13,6 +13,8 @@ const MAX_DIFF_LEN: usize = 60_000;
 /// Identifier of the manifest repo; ArgoCD source paths are only meaningful
 /// when the source points at this repo.
 const MANIFEST_REPO: &str = "Accurate0/inf-k8s";
+const REFRESH_CHECKBOX_CHECKED: &str = "- [x] Re-run diff on next poll";
+const REFRESH_CHECKBOX_UNCHECKED: &str = "- [ ] Re-run diff on next poll";
 
 /// Patterns in changed lines that are considered noise (Helm chart version bumps).
 const NOISE_PATTERNS: &[&str] = &[
@@ -269,7 +271,7 @@ impl ArgocdClient {
         source_diffs: &[SourceDiff],
         diff_results: &[DiffFilterResult],
     ) -> String {
-        let mut s = format!("{COMMENT_MARKER}\n## ArgoCD Diff\n");
+        let mut s = format!("{}\n## ArgoCD Diff\n", *COMMENT_MARKER);
 
         for (sd, dr) in source_diffs.iter().zip(diff_results.iter()) {
             if dr.total_sections > 0 {
@@ -296,6 +298,7 @@ impl ArgocdClient {
             ));
         }
 
+        s.push_str(&format!("\n{REFRESH_CHECKBOX_UNCHECKED}\n"));
         s
     }
 
@@ -326,6 +329,27 @@ impl ArgocdClient {
         {
             tracing::info!(pr = pr.pr_number, "PR is not open, skipping argocd diff");
             return Ok(());
+        }
+
+        // Skip if a diff comment already exists, unless the refresh checkbox is ticked.
+        if let Some(existing) = client
+            .find_bot_comment_with_marker_and_body(
+                &pr.owner,
+                &pr.repo,
+                pr.pr_number as i64,
+                &COMMENT_MARKER.to_string(),
+            )
+            .await?
+        {
+            if existing.body.contains(REFRESH_CHECKBOX_CHECKED) {
+                tracing::info!(pr = pr.pr_number, "refresh checkbox ticked, re-running diff");
+            } else {
+                tracing::info!(
+                    pr = pr.pr_number,
+                    "argocd diff comment already exists, skipping"
+                );
+                return Ok(());
+            }
         }
 
         let head_ref = client

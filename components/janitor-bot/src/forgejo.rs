@@ -12,6 +12,11 @@ pub struct PrCombinedStatus {
     pub total_count: i64,
 }
 
+pub struct BotComment {
+    pub id: i64,
+    pub body: String,
+}
+
 pub struct CommitStatusParams<'a> {
     pub owner: &'a str,
     pub repo: &'a str,
@@ -619,20 +624,18 @@ impl ForgejoClient {
         marker: &Marker,
     ) -> anyhow::Result<bool> {
         Ok(self
-            .find_bot_comment_with_marker(owner, repo, issue, marker)
+            .find_bot_comment_with_marker(owner, repo, issue, &marker.to_string())
             .await?
             .is_some())
     }
 
-    /// Finds the id of the bot's comment carrying `marker`, if any.
-    pub async fn find_bot_comment_with_marker(
+    async fn fetch_bot_comments_with_marker(
         &self,
         owner: &str,
         repo: &str,
         issue: i64,
-        marker: &Marker,
-    ) -> anyhow::Result<Option<i64>> {
-        let marker = marker.to_string();
+        marker: &str,
+    ) -> anyhow::Result<Option<BotComment>> {
         let url = format!(
             "{}/api/v1/repos/{}/{}/issues/{}/comments",
             self.base_url, owner, repo, issue
@@ -653,10 +656,37 @@ impl ForgejoClient {
                 && body.contains(&marker)
                 && let Some(id) = comment["id"].as_i64()
             {
-                return Ok(Some(id));
+                return Ok(Some(BotComment {
+                    id,
+                    body: body.to_string(),
+                }));
             }
         }
         Ok(None)
+    }
+
+    pub async fn find_bot_comment_with_marker(
+        &self,
+        owner: &str,
+        repo: &str,
+        issue: i64,
+        marker: &str,
+    ) -> anyhow::Result<Option<i64>> {
+        Ok(self
+            .fetch_bot_comments_with_marker(owner, repo, issue, marker)
+            .await?
+            .map(|c| c.id))
+    }
+
+    pub async fn find_bot_comment_with_marker_and_body(
+        &self,
+        owner: &str,
+        repo: &str,
+        issue: i64,
+        marker: &str,
+    ) -> anyhow::Result<Option<BotComment>> {
+        self.fetch_bot_comments_with_marker(owner, repo, issue, marker)
+            .await
     }
 
     pub async fn update_comment(
@@ -691,7 +721,7 @@ impl ForgejoClient {
         body: &str,
     ) -> anyhow::Result<()> {
         match self
-            .find_bot_comment_with_marker(owner, repo, pr, marker)
+            .find_bot_comment_with_marker(owner, repo, pr, &marker.to_string())
             .await?
         {
             Some(comment_id) => {
