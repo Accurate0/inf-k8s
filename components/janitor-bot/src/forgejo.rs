@@ -224,6 +224,11 @@ impl ForgejoClient {
         Ok(prs)
     }
 
+    pub async fn health_check(&self) -> Result<(), forgejo_api::ForgejoError> {
+        self.api.user_get_current().send().await?;
+        Ok(())
+    }
+
     pub async fn is_pr_mergeable(&self, owner: &str, repo: &str, pr: i64) -> Option<bool> {
         match self.api.repo_get_pull_request(owner, repo, pr).send().await {
             Ok(pr) => pr.mergeable,

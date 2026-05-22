@@ -622,6 +622,24 @@ impl ArgocdClient {
         }
     }
 
+    pub async fn health_check(&self) -> anyhow::Result<()> {
+        let url = format!("{}/api/v1/applications?limit=1", self.api_base());
+        let resp = self
+            .http
+            .get(&url)
+            .header("Authorization", format!("Bearer {}", self.token))
+            .send()
+            .await?;
+
+        if !resp.status().is_success() {
+            let status = resp.status();
+            let body = resp.text().await.unwrap_or_default();
+            anyhow::bail!("argocd health check failed: {status} — {body}");
+        }
+
+        Ok(())
+    }
+
     fn api_base(&self) -> String {
         if self.server.starts_with("http://") || self.server.starts_with("https://") {
             self.server.trim_end_matches('/').to_string()

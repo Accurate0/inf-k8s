@@ -9,6 +9,7 @@ use crate::event::{
 };
 use crate::rules::matchers::MatcherCache;
 pub use actions::Action;
+use chrono::Utc;
 use moka::sync::Cache;
 use schema::{ActionsDef, RulesFile};
 use serde::Serialize;
@@ -24,7 +25,7 @@ struct ActionGroup<'a> {
     actions: Vec<&'a schema::ActionDef>,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Clone)]
 pub struct MatchedRule {
     pub name: String,
     pub dry_run: bool,
@@ -33,18 +34,37 @@ pub struct MatchedRule {
     pub action_groups: Vec<ExplainGroup>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ExplainVar {
     pub name: String,
     pub value: String,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 pub struct ExplainGroup {
     #[serde(skip_serializing_if = "Option::is_none")]
     pub when: Option<String>,
     pub actions: Vec<&'static str>,
     pub ran: bool,
+}
+
+const EVAL_LOG_CAPACITY: usize = 200;
+
+#[derive(Serialize, Clone)]
+pub struct EvalLogEntry {
+    pub timestamp: chrono::DateTime<chrono::Utc>,
+    pub event_kind: String,
+    pub event_key: String,
+    pub matched_rules: Vec<MatchedRule>,
+    pub elapsed_ms: u128,
+}
+
+#[derive(Serialize)]
+pub struct RuleSummary {
+    pub name: String,
+    pub enabled: String,
+    pub priority: i32,
+    pub depends_on: Vec<String>,
 }
 
 pub type ClockFn = Arc<dyn Fn() -> chrono::DateTime<chrono::Utc> + Send + Sync>;
@@ -54,6 +74,7 @@ pub struct RulesOrchestrator {
     pr_locks: Cache<(String, String, u64), Arc<Mutex<()>>>,
     workflow_lock: Mutex<()>,
     clock: ClockFn,
+    eval_log: Mutex<VecDeque<EvalLogEntry>>,
 }
 
 impl Default for RulesOrchestrator {
@@ -79,6 +100,7 @@ impl RulesOrchestrator {
                 .build(),
             workflow_lock: Mutex::new(()),
             clock: Arc::new(chrono::Utc::now),
+            eval_log: Mutex::new(VecDeque::with_capacity(EVAL_LOG_CAPACITY)),
         }
     }
 
@@ -89,6 +111,37 @@ impl RulesOrchestrator {
 
     fn now(&self) -> chrono::DateTime<chrono::Utc> {
         (self.clock)()
+    }
+
+    async fn record_eval(&self, entry: EvalLogEntry) {
+        let mut log = self.eval_log.lock().await;
+        if log.len() >= EVAL_LOG_CAPACITY {
+            log.pop_front();
+        }
+        log.push_back(entry);
+    }
+
+    pub async fn get_eval_log(&self) -> Vec<EvalLogEntry> {
+        self.eval_log.lock().await.iter().cloned().collect()
+    }
+
+    pub fn rules_summary(&self) -> Vec<RuleSummary> {
+        self.rules
+            .rules
+            .iter()
+            .map(|r| RuleSummary {
+                name: r.name.clone(),
+                enabled: if r.enabled.is_dry_run() {
+                    "dry_run".to_string()
+                } else if r.enabled.is_active() {
+                    "true".to_string()
+                } else {
+                    "false".to_string()
+                },
+                priority: r.priority,
+                depends_on: r.depends_on.clone(),
+            })
+            .collect()
     }
 
     pub async fn explain_pr(&self, clients: &Clients, event: &mut PrEvent) -> Vec<MatchedRule> {
@@ -344,7 +397,9 @@ impl RulesOrchestrator {
     }
 
     async fn run_rules<'a>(&self, clients: &Clients, event: &BotEvent<'a>) {
+        let overall_start = Instant::now();
         let mut executed_rules: HashSet<String> = HashSet::new();
+        let mut matched_rules_log = Vec::new();
 
         for rule in &self.rules.rules {
             if !rule.enabled.is_active() {
@@ -377,14 +432,42 @@ impl RulesOrchestrator {
             );
 
             let vars = self.evaluate_variables(rule, event, clients, &cache).await;
+
+            let action_groups = Self::explain_action_groups(rule, &vars);
+
             let had_actions = self
                 .execute_actions(rule, &vars, clients, event, dry_run)
                 .await;
+
+            let mut variables: Vec<ExplainVar> = vars
+                .iter()
+                .map(|(name, value)| ExplainVar {
+                    name: name.clone(),
+                    value: value.to_string(),
+                })
+                .collect();
+            variables.sort_by(|a, b| a.name.cmp(&b.name));
+
+            matched_rules_log.push(MatchedRule {
+                name: rule.name.clone(),
+                dry_run,
+                variables,
+                action_groups,
+            });
 
             if had_actions {
                 executed_rules.insert(rule.name.clone());
             }
         }
+
+        self.record_eval(EvalLogEntry {
+            timestamp: Utc::now(),
+            event_kind: event.event_kind().to_string(),
+            event_key: event.event_key(),
+            matched_rules: matched_rules_log,
+            elapsed_ms: overall_start.elapsed().as_millis(),
+        })
+        .await;
     }
 
     fn dependencies_met(&self, rule: &schema::RuleDef, executed: &HashSet<String>) -> bool {

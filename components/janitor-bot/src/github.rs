@@ -42,6 +42,13 @@ impl GitHubClient {
             .await
     }
 
+    pub async fn health_check(&self) -> anyhow::Result<()> {
+        self.github_get(&format!("{}/user", self.base_url))
+            .await?
+            .error_for_status()?;
+        Ok(())
+    }
+
     async fn fetch_job_logs(&self, jobs_url: &str, job_id: u64) -> Option<String> {
         // jobs_url: https://api.github.com/repos/{owner}/{repo}/actions/runs/{run_id}/jobs
         // logs_url: https://api.github.com/repos/{owner}/{repo}/actions/jobs/{job_id}/logs

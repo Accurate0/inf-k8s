@@ -98,7 +98,11 @@ async fn main() -> anyhow::Result<()> {
         .route("/github/webhook", post(routes::handle_github_webhook))
         .route("/argocd/webhook", post(routes::handle_argocd_webhook))
         .route("/admin/cron", post(routes::handle_admin_cron))
-        .route("/admin/evaluate/{pr_number}", post(routes::handle_admin_evaluate_pr))
+        .route("/admin/evaluate/{owner}/{repo}/{pr_number}", post(routes::handle_admin_evaluate_pr))
+        .route("/admin/dry-run/{owner}/{repo}/{pr_number}", post(routes::handle_admin_dry_run))
+        .route("/admin/logs", get(routes::handle_admin_logs))
+        .route("/admin/rules", get(routes::handle_admin_rules))
+        .route("/admin/health/deep", get(routes::handle_admin_health_deep))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 

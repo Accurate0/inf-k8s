@@ -3,6 +3,7 @@ use axum::{
     extract::{Json, Path, State},
     http::{HeaderMap, StatusCode},
 };
+use serde::Serialize;
 use std::sync::Arc;
 
 use crate::AppState;
@@ -177,13 +178,9 @@ pub async fn handle_admin_cron(State(state): State<Arc<AppState>>) -> StatusCode
 
 pub async fn handle_admin_evaluate_pr(
     State(state): State<Arc<AppState>>,
-    Path(pr_number): Path<i64>,
+    Path((owner, repo, pr_number)): Path<(String, String, i64)>,
 ) -> StatusCode {
-    tracing::info!(pr_number, "admin: triggering evaluation for PR");
-
-    // Default to the first watched repo
-    let repo = super::WATCH_REPOS[0].to_string();
-    let owner = super::FORGEJO_OWNER.to_owned();
+    tracing::info!(owner, repo, pr_number, "admin: triggering evaluation for PR");
 
     tokio::spawn(async move {
         let pr = match state.clients.forgejo.get_pr(&owner, &repo, pr_number).await {
@@ -208,6 +205,122 @@ pub async fn handle_admin_evaluate_pr(
     });
 
     StatusCode::OK
+}
+
+pub async fn handle_admin_dry_run(
+    State(state): State<Arc<AppState>>,
+    Path((owner, repo, pr_number)): Path<(String, String, i64)>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    tracing::info!(owner, repo, pr_number, "admin: dry-run for PR");
+
+    let pr = match state.clients.forgejo.get_pr(&owner, &repo, pr_number).await {
+        Ok(pr) => pr,
+        Err(e) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                Json(serde_json::json!({"error": format!("failed to fetch PR: {e}")})),
+            );
+        }
+    };
+
+    let Some(mut pr_event) = janitor_bot::event::PrEvent::from_api_pr(&pr, owner, repo) else {
+        return (
+            StatusCode::BAD_REQUEST,
+            Json(serde_json::json!({"error": "failed to convert PR to event"})),
+        );
+    };
+
+    let matched = state
+        .orchestrator
+        .explain_pr(&state.clients, &mut pr_event)
+        .await;
+
+    (
+        StatusCode::OK,
+        Json(serde_json::to_value(&matched).unwrap()),
+    )
+}
+
+pub async fn handle_admin_logs(
+    State(state): State<Arc<AppState>>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let log = state.orchestrator.get_eval_log().await;
+    (StatusCode::OK, Json(serde_json::to_value(&log).unwrap()))
+}
+
+pub async fn handle_admin_rules(
+    State(state): State<Arc<AppState>>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let rules = state.orchestrator.rules_summary();
+    (StatusCode::OK, Json(serde_json::to_value(&rules).unwrap()))
+}
+
+#[derive(Serialize)]
+struct ServiceHealth {
+    service: &'static str,
+    healthy: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<String>,
+}
+
+pub async fn handle_admin_health_deep(
+    State(state): State<Arc<AppState>>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    let forgejo = match state.clients.forgejo.health_check().await {
+        Ok(()) => ServiceHealth {
+            service: "forgejo",
+            healthy: true,
+            error: None,
+        },
+        Err(e) => ServiceHealth {
+            service: "forgejo",
+            healthy: false,
+            error: Some(e.to_string()),
+        },
+    };
+
+    let github = match state.clients.github.health_check().await {
+        Ok(()) => ServiceHealth {
+            service: "github",
+            healthy: true,
+            error: None,
+        },
+        Err(e) => ServiceHealth {
+            service: "github",
+            healthy: false,
+            error: Some(e.to_string()),
+        },
+    };
+
+    let argocd = match state.clients.argocd.health_check().await {
+        Ok(()) => ServiceHealth {
+            service: "argocd",
+            healthy: true,
+            error: None,
+        },
+        Err(e) => ServiceHealth {
+            service: "argocd",
+            healthy: false,
+            error: Some(e.to_string()),
+        },
+    };
+
+    let services = vec![&forgejo, &github, &argocd];
+    let all_healthy = services.iter().all(|s| s.healthy);
+
+    let status = if all_healthy {
+        StatusCode::OK
+    } else {
+        StatusCode::SERVICE_UNAVAILABLE
+    };
+
+    (
+        status,
+        Json(serde_json::json!({
+            "healthy": all_healthy,
+            "services": [forgejo, github, argocd],
+        })),
+    )
 }
 
 pub async fn handle_argocd_webhook(

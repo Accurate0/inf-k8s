@@ -201,6 +201,32 @@ pub enum BotEvent<'a> {
 }
 
 impl BotEvent<'_> {
+    pub fn event_kind(&self) -> &'static str {
+        match self {
+            BotEvent::ForgejoPr(_) => "pr",
+            BotEvent::GitHubWorkflow(_) => "workflow",
+            BotEvent::GitHubCommitStatus(_) => "commit_status",
+            BotEvent::GitHubCheckRun(_) => "check_run",
+            BotEvent::ArgoSync(_) => "argocd_sync",
+        }
+    }
+
+    pub fn event_key(&self) -> String {
+        match self {
+            BotEvent::ForgejoPr(pr) => format!("{}/{} #{}", pr.owner, pr.repo, pr.pr_number),
+            BotEvent::GitHubWorkflow(wf) => {
+                format!("{} ({})", wf.workflow_name, wf.conclusion)
+            }
+            BotEvent::GitHubCommitStatus(cs) => {
+                format!("{} {} ({})", cs.repository, cs.context, cs.state)
+            }
+            BotEvent::GitHubCheckRun(cr) => {
+                format!("{} {} ({})", cr.repository, cr.name, cr.conclusion)
+            }
+            BotEvent::ArgoSync(s) => format!("{} ({})", s.app_name, s.phase),
+        }
+    }
+
     pub fn template_vars(&self) -> HashMap<&'static str, String> {
         let mut vars = HashMap::new();
 
