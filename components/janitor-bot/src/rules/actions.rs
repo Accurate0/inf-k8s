@@ -344,7 +344,7 @@ impl Action {
             } => {
                 let vars = event.template_vars();
                 let sha = sha.render(&vars);
-                let poll_interval = Duration::from_secs(10);
+                let poll_interval = Duration::from_secs(5);
                 let deadline = Instant::now() + Duration::from_secs(*timeout_secs);
                 loop {
                     if clients

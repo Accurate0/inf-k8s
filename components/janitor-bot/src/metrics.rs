@@ -1,6 +1,6 @@
 use metrics::{counter, histogram};
 use metrics_exporter_prometheus::PrometheusBuilder;
-use std::sync::OnceLock;
+use std::{sync::OnceLock, time::Duration};
 
 static RECORDER_HANDLE: OnceLock<metrics_exporter_prometheus::PrometheusHandle> = OnceLock::new();
 
@@ -21,7 +21,7 @@ pub fn render() -> String {
         .render()
 }
 
-pub fn record_evaluation(event_kind: &str, rules_matched: usize, elapsed: std::time::Duration) {
+pub fn record_evaluation(event_kind: &str, rules_matched: usize, elapsed: Duration) {
     counter!("janitor_evaluations_total", "event_kind" => event_kind.to_owned()).increment(1);
     counter!("janitor_rules_matched_total", "event_kind" => event_kind.to_owned())
         .increment(rules_matched as u64);
@@ -44,7 +44,7 @@ pub fn record_webhook(source: &str) {
     counter!("janitor_webhooks_total", "source" => source.to_owned()).increment(1);
 }
 
-pub fn record_cron_run(elapsed: std::time::Duration, prs_evaluated: usize) {
+pub fn record_cron_run(elapsed: Duration, prs_evaluated: usize) {
     counter!("janitor_cron_runs_total").increment(1);
     histogram!("janitor_cron_duration_seconds").record(elapsed.as_secs_f64());
     counter!("janitor_cron_prs_evaluated_total").increment(prs_evaluated as u64);

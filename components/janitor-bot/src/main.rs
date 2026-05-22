@@ -6,7 +6,7 @@ use axum::{
     routing::{get, post},
 };
 use chrono_tz::Australia;
-use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient};
+use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient, metrics};
 use janitor_bot::{event, rules};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
 use rules::RulesOrchestrator;
@@ -60,13 +60,13 @@ async fn evaluate_open_prs(state: &AppState) {
         }
     }
 
-    janitor_bot::metrics::record_cron_run(cron_start.elapsed(), total_prs);
+    metrics::record_cron_run(cron_start.elapsed(), total_prs);
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
-    janitor_bot::metrics::init();
+    metrics::init();
 
     let state = Arc::new(AppState {
         clients: Clients::new(

@@ -3,6 +3,7 @@ mod types;
 
 use forgejo_api::structs::{CommitStatusState, StateType};
 use open_feature::EvaluationContext;
+use regex::Regex;
 pub use types::*;
 
 pub use cache::ResourceCache;
@@ -17,10 +18,11 @@ use crate::rules::{expr, schema};
 use chrono::{Datelike, Timelike};
 use std::future::Future;
 use std::pin::Pin;
+use std::sync::LazyLock;
 
 pub fn parse_pr_metadata(body: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
-    static RE: std::sync::LazyLock<regex::Regex> =
-        std::sync::LazyLock::new(|| regex::Regex::new(r"<!-- metadata:(\{.*?\}) -->").unwrap());
+    static RE: LazyLock<Regex> =
+        LazyLock::new(|| Regex::new(r"<!-- metadata:(\{.*?\}) -->").unwrap());
 
     let caps = RE.captures(body)?;
     serde_json::from_str(caps.get(1)?.as_str()).ok()
