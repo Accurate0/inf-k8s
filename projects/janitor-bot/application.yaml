@@ -29,16 +29,6 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - janitor-bot.inf-k8s.net
-              ratelimit:
-                rules:
-                  - clientSelectors:
-                      - headers:
-                          - name: CF-Connecting-IP
-                            invert: false
-                            type: Distinct
-                    limit:
-                      requests: 5
-                      unit: Second
               rules:
                 - backendRefs:
                     - group: ""
@@ -56,6 +46,16 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - janitor-bot.anurag.sh
+              ratelimit:
+                rules:
+                  - clientSelectors:
+                      - headers:
+                          - name: CF-Connecting-IP
+                            invert: false
+                            type: Distinct
+                    limit:
+                      requests: 5
+                      unit: Second
               rules:
                 - backendRefs:
                     - group: ""
