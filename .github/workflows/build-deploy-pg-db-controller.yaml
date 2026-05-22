@@ -13,7 +13,7 @@ jobs:
     permissions:
       packages: write
 
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@903765c7413c2790ea6fa24aea7cba0e603a1f31 # main
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
     with:
       directory: ./components/pg-db-controller
       image-name: pg-db-controller
@@ -24,7 +24,7 @@ jobs:
   deploy:
     needs:
       - build
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@903765c7413c2790ea6fa24aea7cba0e603a1f31 # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
     with:
       service-name: pg-db-controller
       images: ghcr.io/accurate0/pg-db-controller
