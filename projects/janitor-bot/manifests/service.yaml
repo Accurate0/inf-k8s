@@ -4,6 +4,8 @@ kind: Service
 metadata:
   name: api
   namespace: janitor-bot
+  labels:
+    app: janitor-bot
 spec:
   selector:
     app: janitor-bot
