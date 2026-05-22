@@ -324,6 +324,47 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "author": {
+              "type": "string"
+            },
+            "comment": {
+              "anyOf": [
+                {
+                  "$ref": "#/$defs/TemplateString"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "criteria": {
+              "$ref": "#/$defs/CloseOtherPrsCriteria"
+            },
+            "delete_branch": {
+              "type": "boolean",
+              "default": false
+            },
+            "match_metadata_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "close_other_prs"
+            }
+          },
+          "required": [
+            "type",
+            "author",
+            "criteria",
+            "match_metadata_fields"
+          ]
         }
       ]
     },
@@ -341,6 +382,12 @@
             "$ref": "#/$defs/ActionDef"
           }
         }
+      ]
+    },
+    "CloseOtherPrsCriteria": {
+      "type": "string",
+      "enum": [
+        "older"
       ]
     },
     "Combinator": {
@@ -923,6 +970,25 @@
           "required": [
             "type"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "match_metadata_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "is_latest_by_metadata"
+            }
+          },
+          "required": [
+            "type",
+            "match_metadata_fields"
+          ]
         }
       ],
       "required": [
@@ -1362,6 +1428,25 @@
           },
           "required": [
             "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "match_metadata_fields": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "is_latest_by_metadata"
+            }
+          },
+          "required": [
+            "type",
+            "match_metadata_fields"
           ]
         }
       ]

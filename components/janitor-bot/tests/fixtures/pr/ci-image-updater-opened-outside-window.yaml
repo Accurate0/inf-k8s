@@ -43,6 +43,7 @@ mocks:
     body:
       number: 104
       title: "[skip ci] Update janitor-bot images to abc123"
+      body: "<!-- metadata:{\"service\":\"janitor-bot\",\"tag\":\"abc123\"} -->"
       user:
         login: ci-image-updater
         avatar_url: ""
@@ -68,6 +69,13 @@ mocks:
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/pulls/104/reviews
+    status: 200
+    body: []
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls
+    query:
+      state: open
     status: 200
     body: []
   - service: forgejo

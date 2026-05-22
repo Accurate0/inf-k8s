@@ -31,12 +31,12 @@ response:
           - add_labels_by_name
           - approve
           - merge
-        ran: false
+        ran: true
         when: in_window && needs_approval && is_latest
       - actions:
           - ensure_labels_exist
           - add_labels_by_name
-        ran: true
+        ran: false
         when: "!in_window && !already_queued && is_latest"
     dry_run: false
     name: manage-ci-image-updater
@@ -44,78 +44,116 @@ response:
       - name: already_queued
         value: "false"
       - name: in_window
-        value: "false"
+        value: "true"
       - name: is_latest
         value: "true"
       - name: needs_approval
         value: "true"
 external_requests:
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104/files
+    path: /api/v1/repos/anurag/k8s/pulls/102/files
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
+    path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
+    path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
+    path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104/reviews
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls?state=open
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
+    path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
+    path: /api/v1/repos/anurag/k8s/pulls/102/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
   - method: POST
-    path: /api/v1/repos/anurag/k8s/labels
+    path: /api/v1/repos/anurag/k8s/issues/99/comments
     body:
-      color: "#fbca04"
-      description: ~
-      exclusive: ~
-      is_archived: ~
-      name: janitor/queued
+      body: "Superseded by #102"
+      updated_at: ~
+    service: forgejo
+  - method: PATCH
+    path: /api/v1/repos/anurag/k8s/issues/99
+    body:
+      assignee: ~
+      assignees: ~
+      body: ~
+      due_date: ~
+      milestone: ~
+      ref: ~
+      state: closed
+      title: ~
+      unset_due_date: ~
+      updated_at: ~
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-abc123
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
   - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/104/labels
+    path: /api/v1/repos/anurag/k8s/issues/102/labels
     body:
       labels:
-        - janitor/queued
+        - image-update
+        - automated
       updated_at: ~
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    body:
+      body: "Auto-approved: PR from ci-image-updater"
+      comments: ~
+      commit_id: ~
+      event: APPROVED
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/102/merge
+    body:
+      Do: squash
+      MergeCommitID: ~
+      MergeMessageField: ~
+      MergeTitleField: ~
+      delete_branch_after_merge: true
+      force_merge: ~
+      head_commit_id: ~
+      merge_when_checks_succeed: ~
     service: forgejo
   - method: POST
     path: /evaluate/v1/boolean

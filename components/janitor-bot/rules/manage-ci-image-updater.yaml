@@ -29,8 +29,21 @@ variables:
   - var: already_queued
     type: has_label
     value: janitor/queued
+  - var: is_latest
+    type: is_latest_by_metadata
+    match_metadata_fields: [service]
 actions:
-  - when: "in_window && needs_approval"
+  - when: "is_latest"
+    run:
+      - type: close_other_prs
+        author: ci-image-updater
+        criteria: older
+        match_metadata_fields: [service]
+        delete_branch: true
+        comment:
+          content: "Superseded by #{forgejo_pr.pr_number}"
+          template: true
+  - when: "in_window && needs_approval && is_latest"
     run:
       - type: ensure_labels_exist
         labels:
@@ -47,7 +60,7 @@ actions:
       - type: merge
         strategy: squash
         delete_branch: true
-  - when: "!in_window && !already_queued"
+  - when: "!in_window && !already_queued && is_latest"
     run:
       - type: ensure_labels_exist
         labels:

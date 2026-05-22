@@ -101,6 +101,11 @@ pub enum LeafMatcher {
     HasStatusChecks,
     #[serde(rename = "all_status_checks_passed")]
     AllStatusChecksPassed,
+
+    #[serde(rename = "is_latest_by_metadata")]
+    IsLatestByMetadata {
+        match_metadata_fields: Vec<String>,
+    },
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]

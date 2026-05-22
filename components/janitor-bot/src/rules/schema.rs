@@ -191,6 +191,22 @@ pub enum ActionDef {
     },
     #[serde(rename = "argocd_sync_changed_apps")]
     ArgocdSyncChangedApps,
+    #[serde(rename = "close_other_prs")]
+    CloseOtherPrs {
+        author: String,
+        criteria: CloseOtherPrsCriteria,
+        match_metadata_fields: Vec<String>,
+        #[serde(default)]
+        delete_branch: bool,
+        #[serde(default)]
+        comment: Option<TemplateString>,
+    },
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
+#[serde(rename_all = "snake_case")]
+pub enum CloseOtherPrsCriteria {
+    Older,
 }
 
 fn default_true() -> bool {
@@ -333,6 +349,19 @@ impl ActionDef {
                 timeout_secs: *timeout_secs,
             },
             ActionDef::ArgocdSyncChangedApps => Action::ArgocdSyncChangedApps,
+            ActionDef::CloseOtherPrs {
+                author,
+                criteria,
+                match_metadata_fields,
+                delete_branch,
+                comment,
+            } => Action::CloseOtherPrs {
+                author: author.clone(),
+                criteria: criteria.clone(),
+                match_metadata_fields: match_metadata_fields.clone(),
+                delete_branch: *delete_branch,
+                comment: comment.clone(),
+            },
         }
     }
 }

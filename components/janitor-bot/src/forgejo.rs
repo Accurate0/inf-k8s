@@ -429,6 +429,20 @@ impl ForgejoClient {
         Ok(())
     }
 
+    pub async fn delete_branch(
+        &self,
+        owner: &str,
+        repo: &str,
+        branch: &str,
+    ) -> Result<(), forgejo_api::ForgejoError> {
+        self.api
+            .repo_delete_branch(owner, repo, branch)
+            .send()
+            .await?;
+        tracing::info!(owner, repo, branch, "branch deleted");
+        Ok(())
+    }
+
     pub async fn set_pr_state(
         &self,
         owner: &str,
@@ -653,7 +667,7 @@ impl ForgejoClient {
             let body = comment["body"].as_str().unwrap_or("");
             let user = comment["user"]["login"].as_str().unwrap_or("");
             if user == BOT_USERNAME
-                && body.contains(&marker)
+                && body.contains(marker)
                 && let Some(id) = comment["id"].as_i64()
             {
                 return Ok(Some(BotComment {
@@ -835,5 +849,25 @@ mod tests {
                 "components/janitor-bot/values.yaml"
             ]
         );
+    }
+
+    #[test]
+    fn comment_deserialization() {
+        let json = r#"{"id":1,"body":"test","created_at":"2026-01-07T10:00:00Z","updated_at":"2026-01-07T10:00:00Z","html_url":"","issue_url":"","pull_request_url":"","url":""}"#;
+        serde_json::from_str::<Comment>(json).expect("Comment should deserialize");
+    }
+
+    #[test]
+    fn issue_deserialization_minimal() {
+        let json = r#"{"closed_at":null,"created_at":null,"due_date":null,"updated_at":null,"html_url":"","url":""}"#;
+        serde_json::from_str::<Issue>(json).expect("Issue should deserialize");
+    }
+
+    #[test]
+    fn pullrequest_list_deserialization() {
+        let json = r#"[{"number":99,"body":"<!-- metadata:{\"service\":\"foo\"} -->","user":{"login":"ci-image-updater","avatar_url":"","html_url":"","created":"2020-01-01T00:00:00Z","last_login":"2020-01-01T00:00:00Z"},"head":{"label":"","ref":"branch","sha":""},"created_at":"2026-01-07T08:00:00Z","closed_at":null,"due_date":null,"merged_at":null,"updated_at":null,"requested_reviewers":[],"diff_url":"","html_url":"","patch_url":"","url":""}]"#;
+        let prs: Vec<PullRequest> = serde_json::from_str(json).expect("PR list should deserialize");
+        assert_eq!(prs[0].body.as_deref(), Some("<!-- metadata:{\"service\":\"foo\"} -->"));
+        assert!(prs[0].created_at.is_some());
     }
 }

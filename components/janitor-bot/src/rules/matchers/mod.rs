@@ -13,6 +13,14 @@ use std::future::Future;
 use std::pin::Pin;
 use std::sync::Arc;
 
+pub fn parse_pr_metadata(body: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
+    static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
+        regex::Regex::new(r"<!-- metadata:(\{.*?\}) -->").unwrap()
+    });
+    let caps = RE.captures(body)?;
+    serde_json::from_str(caps.get(1)?.as_str()).ok()
+}
+
 pub struct MatcherCache {
     results: moka::sync::Cache<LeafMatcher, bool>,
     values: moka::sync::Cache<String, Arc<dyn Any + Send + Sync>>,
@@ -353,8 +361,109 @@ fn eval_leaf<'a>(
                     .is_some_and(|s| matches!(s.state, CommitStatusState::Success)),
                 _ => false,
             },
+            LeafMatcher::IsLatestByMetadata {
+                match_metadata_fields,
+            } => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    is_latest_by_metadata(clients, cache, pr, match_metadata_fields).await
+                }
+                _ => false,
+            },
         }
     })
+}
+
+async fn is_latest_by_metadata(
+    clients: &Clients,
+    cache: &MatcherCache,
+    pr: &crate::event::PrEvent,
+    fields: &[String],
+) -> bool {
+    let client = &clients.forgejo;
+
+    // Fetch current PR details
+    let current = match client.get_pr(&pr.owner, &pr.repo, pr.pr_number as i64).await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(pr = pr.pr_number, "failed to fetch PR for metadata check: {e}");
+            return true; // default to latest if we can't check
+        }
+    };
+
+    let current_body = current.body.as_deref().unwrap_or("");
+    let Some(current_meta) = parse_pr_metadata(current_body) else {
+        tracing::debug!(pr = pr.pr_number, "no metadata in current PR");
+        return true; // no metadata = assume latest
+    };
+
+    let current_field_values: Vec<_> = fields
+        .iter()
+        .filter_map(|f| current_meta.get(f).and_then(|v| v.as_str()).map(|s| (f.as_str(), s.to_owned())))
+        .collect();
+
+    if current_field_values.len() != fields.len() {
+        tracing::debug!(pr = pr.pr_number, "missing metadata fields");
+        return true;
+    }
+
+    let current_created = current.created_at;
+
+    // List all open PRs (cached)
+    let key = format!("open_prs:{}/{}", pr.owner, pr.repo);
+    let open_prs: Option<Vec<forgejo_api::structs::PullRequest>> = cache
+        .get_or_compute(&key, || async {
+            match client.list_open_prs(&pr.owner, &pr.repo).await {
+                Ok(prs) => Some(prs),
+                Err(e) => {
+                    tracing::warn!("failed to list open PRs: {e}");
+                    None
+                }
+            }
+        })
+        .await;
+
+    let Some(open_prs) = open_prs else {
+        return true;
+    };
+
+    for other in &open_prs {
+        let other_number = other.number.unwrap_or(0) as u64;
+        if other_number == pr.pr_number {
+            continue;
+        }
+
+        let other_author = other
+            .user
+            .as_ref()
+            .and_then(|u| u.login.as_deref())
+            .unwrap_or("");
+        if other_author != pr.author {
+            continue;
+        }
+
+        let other_body = other.body.as_deref().unwrap_or("");
+        let Some(other_meta) = parse_pr_metadata(other_body) else {
+            continue;
+        };
+
+        let all_fields_match = current_field_values.iter().all(|(field, value)| {
+            other_meta
+                .get(*field)
+                .and_then(|v| v.as_str())
+                .is_some_and(|s| s == value)
+        });
+
+        if !all_fields_match {
+            continue;
+        }
+
+        // If any other PR with matching metadata is newer, current is not the latest
+        if other.created_at > current_created {
+            return false;
+        }
+    }
+
+    true
 }
 
 #[cfg(test)]
