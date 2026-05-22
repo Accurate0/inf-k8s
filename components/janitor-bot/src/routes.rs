@@ -184,7 +184,12 @@ pub async fn handle_admin_evaluate_pr(
     State(state): State<Arc<AppState>>,
     Path((owner, repo, pr_number)): Path<(String, String, i64)>,
 ) -> StatusCode {
-    tracing::info!(owner, repo, pr_number, "admin: triggering evaluation for PR");
+    tracing::info!(
+        owner,
+        repo,
+        pr_number,
+        "admin: triggering evaluation for PR"
+    );
 
     tokio::spawn(async move {
         let pr = match state.clients.forgejo.get_pr(&owner, &repo, pr_number).await {
@@ -195,9 +200,7 @@ pub async fn handle_admin_evaluate_pr(
             }
         };
 
-        let Some(mut pr_event) =
-            janitor_bot::event::PrEvent::from_api_pr(&pr, owner, repo)
-        else {
+        let Some(mut pr_event) = janitor_bot::event::PrEvent::from_api_pr(&pr, owner, repo) else {
             tracing::error!(pr_number, "admin: failed to convert PR to event");
             return;
         };
@@ -245,11 +248,18 @@ pub async fn handle_admin_dry_run(
     )
 }
 
-pub async fn handle_admin_metrics() -> (StatusCode, [(axum::http::header::HeaderName, &'static str); 1], String) {
+pub async fn handle_admin_metrics() -> (
+    StatusCode,
+    [(axum::http::header::HeaderName, &'static str); 1],
+    String,
+) {
     let body = janitor_bot::metrics::render();
     (
         StatusCode::OK,
-        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        [(
+            axum::http::header::CONTENT_TYPE,
+            "text/plain; version=0.0.4; charset=utf-8",
+        )],
         body,
     )
 }

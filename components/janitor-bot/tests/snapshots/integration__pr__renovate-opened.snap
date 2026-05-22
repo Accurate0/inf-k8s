@@ -39,40 +39,19 @@ response:
         value: "true"
 external_requests:
   - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls?state=open
+    service: forgejo
+  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/commits/abc0000000000000000000000000000000000000/status
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
@@ -83,18 +62,6 @@ external_requests:
       labels:
         - renovate
       updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/commits/abc0000000000000000000000000000000000000/status
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels

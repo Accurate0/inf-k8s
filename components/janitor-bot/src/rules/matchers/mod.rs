@@ -1,61 +1,29 @@
+pub(crate) mod cache;
 mod types;
 
-use forgejo_api::structs::CommitStatusState;
+use forgejo_api::structs::{CommitStatusState, StateType};
 use open_feature::EvaluationContext;
 pub use types::*;
+
+pub use cache::ResourceCache;
+use cache::{
+    combined_status_cached, get_changed_files_cached, get_pr_cached, get_reviews_cached,
+    is_latest_by_metadata,
+};
 
 use crate::clients::Clients;
 use crate::event::BotEvent;
 use crate::rules::{expr, schema};
 use chrono::{Datelike, Timelike};
-use std::any::Any;
 use std::future::Future;
 use std::pin::Pin;
-use std::sync::Arc;
 
 pub fn parse_pr_metadata(body: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
-    static RE: std::sync::LazyLock<regex::Regex> = std::sync::LazyLock::new(|| {
-        regex::Regex::new(r"<!-- metadata:(\{.*?\}) -->").unwrap()
-    });
+    static RE: std::sync::LazyLock<regex::Regex> =
+        std::sync::LazyLock::new(|| regex::Regex::new(r"<!-- metadata:(\{.*?\}) -->").unwrap());
+
     let caps = RE.captures(body)?;
     serde_json::from_str(caps.get(1)?.as_str()).ok()
-}
-
-pub struct MatcherCache {
-    results: moka::sync::Cache<LeafMatcher, bool>,
-    values: moka::sync::Cache<String, Arc<dyn Any + Send + Sync>>,
-}
-
-impl Default for MatcherCache {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl MatcherCache {
-    pub fn new() -> Self {
-        Self {
-            results: moka::sync::Cache::builder().build(),
-            values: moka::sync::Cache::builder().build(),
-        }
-    }
-
-    pub async fn get_or_compute<T, F, Fut>(&self, key: &str, compute: F) -> T
-    where
-        T: Clone + Send + Sync + 'static,
-        F: FnOnce() -> Fut,
-        Fut: Future<Output = T>,
-    {
-        if let Some(v) = self.values.get(key)
-            && let Some(t) = v.downcast_ref::<T>()
-        {
-            return t.clone();
-        }
-        let computed = compute().await;
-        self.values
-            .insert(key.to_owned(), Arc::new(computed.clone()));
-        computed
-    }
 }
 
 impl Matcher {
@@ -64,7 +32,7 @@ impl Matcher {
         ev: &'a BotEvent<'a>,
         rule: &'a schema::RuleDef,
         clients: &'a Clients,
-        cache: &'a MatcherCache,
+        cache: &'a ResourceCache,
         now: chrono::DateTime<chrono::Utc>,
     ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
         Box::pin(async move {
@@ -76,7 +44,6 @@ impl Matcher {
                                 return false;
                             }
                         }
-
                         true
                     }
                     Combinator::Any(matchers) => {
@@ -85,16 +52,17 @@ impl Matcher {
                                 return true;
                             }
                         }
-
                         false
                     }
                     Combinator::Not(matcher) => {
                         !matcher.matches(ev, rule, clients, cache, now).await
                     }
                 },
+
                 Matcher::LeafExpr(leaf_expr) => {
                     let value =
                         eval_leaf_value(&leaf_expr.matcher, ev, rule, clients, cache, now).await;
+
                     let mut vars = std::collections::HashMap::new();
                     vars.insert("value".to_string(), value);
 
@@ -112,14 +80,14 @@ impl Matcher {
                         }
                     }
                 }
+
                 Matcher::Leaf(leaf) => {
-                    if let Some(cached) = cache.results.get(leaf) {
+                    if let Some(cached) = cache.matcher_results.get(leaf) {
                         return cached;
                     }
 
                     let result = eval_leaf(leaf, ev, rule, clients, cache, now).await;
-                    cache.results.insert(leaf.clone(), result);
-
+                    cache.matcher_results.insert(leaf.clone(), result);
                     result
                 }
             }
@@ -131,7 +99,7 @@ impl Matcher {
         ev: &'a BotEvent<'a>,
         rule: &'a schema::RuleDef,
         clients: &'a Clients,
-        cache: &'a MatcherCache,
+        cache: &'a ResourceCache,
         now: chrono::DateTime<chrono::Utc>,
     ) -> Pin<Box<dyn Future<Output = expr::Value> + Send + 'a>> {
         Box::pin(async move {
@@ -150,7 +118,7 @@ fn eval_leaf_value<'a>(
     ev: &'a BotEvent<'a>,
     rule: &'a schema::RuleDef,
     clients: &'a Clients,
-    cache: &'a MatcherCache,
+    cache: &'a ResourceCache,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Pin<Box<dyn Future<Output = expr::Value> + Send + 'a>> {
     Box::pin(async move {
@@ -164,28 +132,12 @@ fn eval_leaf_value<'a>(
     })
 }
 
-async fn combined_status_cached(
-    clients: &Clients,
-    cache: &MatcherCache,
-    pr: &crate::event::PrEvent,
-) -> Option<crate::forgejo::PrCombinedStatus> {
-    let key = format!("combined_status:{}/{}:{}", pr.owner, pr.repo, pr.pr_number);
-
-    cache
-        .get_or_compute(&key, || {
-            clients
-                .forgejo
-                .get_pr_combined_status(&pr.owner, &pr.repo, pr.pr_number as i64)
-        })
-        .await
-}
-
 fn eval_leaf<'a>(
     leaf: &'a LeafMatcher,
     ev: &'a BotEvent<'a>,
     rule: &'a schema::RuleDef,
     clients: &'a Clients,
-    cache: &'a MatcherCache,
+    cache: &'a ResourceCache,
     now: chrono::DateTime<chrono::Utc>,
 ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
     Box::pin(async move {
@@ -205,6 +157,7 @@ fn eval_leaf<'a>(
             LeafMatcher::CheckRunEvent => matches!(ev, BotEvent::GitHubCheckRun(_)),
             LeafMatcher::Argocd => matches!(ev, BotEvent::ArgoSync(_)),
             LeafMatcher::SyncEvent => matches!(ev, BotEvent::ArgoSync(_)),
+
             LeafMatcher::AppChangedInCommit { owner, repo } => match ev {
                 BotEvent::ArgoSync(sync) => {
                     clients
@@ -236,22 +189,19 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
                 _ => false,
             },
+
             LeafMatcher::HasConflicts => match ev {
-                BotEvent::ForgejoPr(pr) => {
-                    clients
-                        .forgejo
-                        .is_pr_mergeable(&pr.owner, &pr.repo, pr.pr_number as i64)
-                        .await
-                        == Some(false)
-                }
+                BotEvent::ForgejoPr(pr) => get_pr_cached(clients, cache, pr)
+                    .await
+                    .and_then(|p| p.mergeable)
+                    .is_some_and(|m| !m),
                 _ => false,
             },
             LeafMatcher::IsOpen => match ev {
                 BotEvent::ForgejoPr(pr) => {
-                    clients
-                        .forgejo
-                        .is_pr_open(&pr.owner, &pr.repo, pr.pr_number as i64)
-                        .await
+                    get_pr_cached(clients, cache, pr).await.is_some_and(|p| {
+                        matches!(p.state, Some(StateType::Open)) && !p.merged.unwrap_or(false)
+                    })
                 }
                 _ => false,
             },
@@ -260,42 +210,38 @@ fn eval_leaf<'a>(
                 _ => false,
             },
             LeafMatcher::NotApprovedBySelf => match ev {
-                BotEvent::ForgejoPr(pr) => {
-                    !clients
-                        .forgejo
-                        .is_pr_approved_by_bot(&pr.owner, &pr.repo, pr.pr_number as i64)
-                        .await
-                }
+                BotEvent::ForgejoPr(pr) => !get_reviews_cached(clients, cache, pr).await,
                 _ => false,
             },
+
             LeafMatcher::HasChangedFiles => match ev {
-                BotEvent::ForgejoPr(pr) => !pr.changed_files.is_empty(),
+                BotEvent::ForgejoPr(pr) => !get_changed_files_cached(clients, cache, pr)
+                    .await
+                    .is_empty(),
                 _ => false,
             },
             LeafMatcher::ChangedFilesAllMatch { patterns } => match ev {
                 BotEvent::ForgejoPr(pr) => {
-                    !pr.changed_files.is_empty()
-                        && pr
-                            .changed_files
-                            .iter()
-                            .all(|f| patterns.iter().any(|p| p.matches(f)))
+                    let files = get_changed_files_cached(clients, cache, pr).await;
+                    !files.is_empty() && files.iter().all(|f| patterns.iter().any(|p| p.matches(f)))
                 }
                 _ => false,
             },
             LeafMatcher::ChangedFilesAnyMatch { patterns } => match ev {
-                BotEvent::ForgejoPr(pr) => pr
-                    .changed_files
-                    .iter()
-                    .any(|f| patterns.iter().any(|p| p.matches(f))),
+                BotEvent::ForgejoPr(pr) => {
+                    let files = get_changed_files_cached(clients, cache, pr).await;
+                    files.iter().any(|f| patterns.iter().any(|p| p.matches(f)))
+                }
                 _ => false,
             },
             LeafMatcher::ChangedFilesNoneMatch { patterns } => match ev {
-                BotEvent::ForgejoPr(pr) => pr
-                    .changed_files
-                    .iter()
-                    .all(|f| !patterns.iter().any(|p| p.matches(f))),
+                BotEvent::ForgejoPr(pr) => {
+                    let files = get_changed_files_cached(clients, cache, pr).await;
+                    files.iter().all(|f| !patterns.iter().any(|p| p.matches(f)))
+                }
                 _ => false,
             },
+
             LeafMatcher::FeatureFlag { name, default } => {
                 let evaluation_context =
                     EvaluationContext::default().with_custom_field("rule_name", rule.name.clone());
@@ -304,6 +250,7 @@ fn eval_leaf<'a>(
                     .is_feature_enabled(name, *default, evaluation_context)
                     .await
             }
+
             LeafMatcher::TimeWindow {
                 timezone,
                 start,
@@ -314,10 +261,10 @@ fn eval_leaf<'a>(
                     Ok(tz) => tz,
                     Err(_) => {
                         tracing::warn!(timezone, "invalid timezone, defaulting to false");
-
                         return false;
                     }
                 };
+
                 let now = now.with_timezone(&tz);
                 let hour = now.hour();
 
@@ -330,6 +277,7 @@ fn eval_leaf<'a>(
 
                 hour >= *start && hour < *end
             }
+
             LeafMatcher::WorkflowConclusion { value } => match ev {
                 BotEvent::GitHubWorkflow(wf) => wf.conclusion == *value,
                 _ => false,
@@ -348,7 +296,9 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubCheckRun(cr) => cr.repository == *value,
                 BotEvent::ArgoSync(_) => false,
             },
+
             LeafMatcher::WorkflowRunAttempt => matches!(ev, BotEvent::GitHubWorkflow(_)),
+
             LeafMatcher::HasStatusChecks => match ev {
                 BotEvent::ForgejoPr(pr) => combined_status_cached(clients, cache, pr)
                     .await
@@ -361,6 +311,7 @@ fn eval_leaf<'a>(
                     .is_some_and(|s| matches!(s.state, CommitStatusState::Success)),
                 _ => false,
             },
+
             LeafMatcher::IsLatestByMetadata {
                 match_metadata_fields,
             } => match ev {
@@ -371,99 +322,6 @@ fn eval_leaf<'a>(
             },
         }
     })
-}
-
-async fn is_latest_by_metadata(
-    clients: &Clients,
-    cache: &MatcherCache,
-    pr: &crate::event::PrEvent,
-    fields: &[String],
-) -> bool {
-    let client = &clients.forgejo;
-
-    // Fetch current PR details
-    let current = match client.get_pr(&pr.owner, &pr.repo, pr.pr_number as i64).await {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::warn!(pr = pr.pr_number, "failed to fetch PR for metadata check: {e}");
-            return true; // default to latest if we can't check
-        }
-    };
-
-    let current_body = current.body.as_deref().unwrap_or("");
-    let Some(current_meta) = parse_pr_metadata(current_body) else {
-        tracing::debug!(pr = pr.pr_number, "no metadata in current PR");
-        return true; // no metadata = assume latest
-    };
-
-    let current_field_values: Vec<_> = fields
-        .iter()
-        .filter_map(|f| current_meta.get(f).and_then(|v| v.as_str()).map(|s| (f.as_str(), s.to_owned())))
-        .collect();
-
-    if current_field_values.len() != fields.len() {
-        tracing::debug!(pr = pr.pr_number, "missing metadata fields");
-        return true;
-    }
-
-    let current_created = current.created_at;
-
-    // List all open PRs (cached)
-    let key = format!("open_prs:{}/{}", pr.owner, pr.repo);
-    let open_prs: Option<Vec<forgejo_api::structs::PullRequest>> = cache
-        .get_or_compute(&key, || async {
-            match client.list_open_prs(&pr.owner, &pr.repo).await {
-                Ok(prs) => Some(prs),
-                Err(e) => {
-                    tracing::warn!("failed to list open PRs: {e}");
-                    None
-                }
-            }
-        })
-        .await;
-
-    let Some(open_prs) = open_prs else {
-        return true;
-    };
-
-    for other in &open_prs {
-        let other_number = other.number.unwrap_or(0) as u64;
-        if other_number == pr.pr_number {
-            continue;
-        }
-
-        let other_author = other
-            .user
-            .as_ref()
-            .and_then(|u| u.login.as_deref())
-            .unwrap_or("");
-        if other_author != pr.author {
-            continue;
-        }
-
-        let other_body = other.body.as_deref().unwrap_or("");
-        let Some(other_meta) = parse_pr_metadata(other_body) else {
-            continue;
-        };
-
-        let all_fields_match = current_field_values.iter().all(|(field, value)| {
-            other_meta
-                .get(*field)
-                .and_then(|v| v.as_str())
-                .is_some_and(|s| s == value)
-        });
-
-        if !all_fields_match {
-            continue;
-        }
-
-        // If any other PR with matching metadata is newer, current is not the latest
-        if other.created_at > current_created {
-            return false;
-        }
-    }
-
-    true
 }
 
 #[cfg(test)]

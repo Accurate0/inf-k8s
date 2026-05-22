@@ -106,8 +106,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/github/webhook", post(routes::handle_github_webhook))
         .route("/argocd/webhook", post(routes::handle_argocd_webhook))
         .route("/admin/cron", post(routes::handle_admin_cron))
-        .route("/admin/evaluate/{owner}/{repo}/{pr_number}", post(routes::handle_admin_evaluate_pr))
-        .route("/admin/dry-run/{owner}/{repo}/{pr_number}", post(routes::handle_admin_dry_run))
+        .route(
+            "/admin/evaluate/{owner}/{repo}/{pr_number}",
+            post(routes::handle_admin_evaluate_pr),
+        )
+        .route(
+            "/admin/dry-run/{owner}/{repo}/{pr_number}",
+            post(routes::handle_admin_dry_run),
+        )
         .route("/admin/metrics", get(routes::handle_admin_metrics))
         .route("/admin/logs", get(routes::handle_admin_logs))
         .route("/admin/rules", get(routes::handle_admin_rules))

@@ -311,9 +311,9 @@ impl ArgocdClient {
         &self,
         client: &ForgejoClient,
         pr: &PrEvent,
+        changed_files: &[String],
     ) -> anyhow::Result<()> {
-        let app_files: Vec<&String> = pr
-            .changed_files
+        let app_files: Vec<&String> = changed_files
             .iter()
             .filter(|f| Self::is_application_yaml(f))
             .collect();
@@ -342,7 +342,10 @@ impl ArgocdClient {
             .await?
         {
             if existing.body.contains(REFRESH_CHECKBOX_CHECKED) {
-                tracing::info!(pr = pr.pr_number, "refresh checkbox ticked, re-running diff");
+                tracing::info!(
+                    pr = pr.pr_number,
+                    "refresh checkbox ticked, re-running diff"
+                );
             } else {
                 tracing::info!(
                     pr = pr.pr_number,
@@ -712,7 +715,6 @@ mod tests {
             &["applications/envoy-other/deployment.yaml"],
         ));
     }
-
 
     #[test]
     fn filter_all_noise_sections() {

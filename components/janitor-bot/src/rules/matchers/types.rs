@@ -1,5 +1,15 @@
 use schemars::JsonSchema;
 use serde::Deserialize;
+use std::collections::HashSet;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Resource {
+    PullRequest,
+    PullRequestChangedFiles,
+    Reviews,
+    CombinedStatus,
+    OpenPrs,
+}
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(untagged)]
@@ -103,9 +113,7 @@ pub enum LeafMatcher {
     AllStatusChecksPassed,
 
     #[serde(rename = "is_latest_by_metadata")]
-    IsLatestByMetadata {
-        match_metadata_fields: Vec<String>,
-    },
+    IsLatestByMetadata { match_metadata_fields: Vec<String> },
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]
@@ -115,6 +123,44 @@ pub enum FilePattern {
     Contains { contains: String },
     EndsWith { ends_with: String },
     Glob(String),
+}
+
+impl Matcher {
+    pub fn requires(&self) -> HashSet<Resource> {
+        match self {
+            Matcher::Leaf(leaf) | Matcher::LeafExpr(LeafExprMatcher { matcher: leaf, .. }) => {
+                leaf.requires()
+            }
+            Matcher::Combinator(c) => match c {
+                Combinator::All(ms) | Combinator::Any(ms) => {
+                    ms.iter().flat_map(|m| m.requires()).collect()
+                }
+                Combinator::Not(m) => m.requires(),
+            },
+        }
+    }
+}
+
+impl LeafMatcher {
+    pub fn requires(&self) -> HashSet<Resource> {
+        match self {
+            LeafMatcher::IsOpen | LeafMatcher::HasConflicts => [Resource::PullRequest].into(),
+            LeafMatcher::NotApprovedBySelf => [Resource::Reviews].into(),
+            LeafMatcher::HasStatusChecks | LeafMatcher::AllStatusChecksPassed => {
+                [Resource::PullRequest, Resource::CombinedStatus].into()
+            }
+            LeafMatcher::IsLatestByMetadata { .. } => {
+                [Resource::PullRequest, Resource::OpenPrs].into()
+            }
+            LeafMatcher::HasChangedFiles
+            | LeafMatcher::ChangedFilesAllMatch { .. }
+            | LeafMatcher::ChangedFilesAnyMatch { .. }
+            | LeafMatcher::ChangedFilesNoneMatch { .. } => {
+                [Resource::PullRequestChangedFiles].into()
+            }
+            _ => HashSet::new(),
+        }
+    }
 }
 
 impl FilePattern {

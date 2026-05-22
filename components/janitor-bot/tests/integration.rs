@@ -105,11 +105,7 @@ fn capture_requests(requests: &[Request], service: &str) -> Vec<CapturedRequest>
 #[rstest]
 #[tokio::test]
 #[serial_test::serial]
-async fn evaluate_fixture(
-    #[files("tests/fixtures/**/*.yaml")]
-    #[exclude("tests/fixtures/pr/renovate-automerge-on-green.yaml")]
-    fixture_path: PathBuf,
-) {
+async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: PathBuf) {
     let content = std::fs::read_to_string(&fixture_path).unwrap();
     let mut fixture: Fixture = yaml_serde::from_str(&content).unwrap();
 

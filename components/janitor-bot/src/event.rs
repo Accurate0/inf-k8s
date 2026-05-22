@@ -133,7 +133,6 @@ pub struct PrEvent {
     pub title: String,
     pub target_branch: String,
     pub labels: Vec<Label>,
-    pub changed_files: Vec<String>,
     pub merged: bool,
     pub merge_commit_sha: Option<String>,
 }
@@ -424,7 +423,6 @@ impl PrEvent {
                         .collect()
                 })
                 .unwrap_or_default(),
-            changed_files: Vec::new(),
             merged: pr.merged.unwrap_or(false),
             merge_commit_sha: pr.merge_commit_sha.clone(),
         })
@@ -449,7 +447,6 @@ impl WebhookEvent {
             title: pr.title,
             target_branch: pr.base.and_then(|b| b.r#ref).unwrap_or_default(),
             labels: pr.labels,
-            changed_files: Vec::new(),
             merged: pr.merged,
             merge_commit_sha: pr.merge_commit_sha,
         })
@@ -510,7 +507,6 @@ mod tests {
             title: "bump stuff".to_string(),
             target_branch: "main".to_string(),
             labels: vec![],
-            changed_files: vec![],
             merged: false,
             merge_commit_sha: None,
         }

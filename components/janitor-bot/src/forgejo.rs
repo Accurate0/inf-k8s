@@ -616,6 +616,25 @@ impl ForgejoClient {
         })
     }
 
+    pub async fn get_combined_status_by_ref(
+        &self,
+        owner: &str,
+        repo: &str,
+        sha: &str,
+    ) -> Option<PrCombinedStatus> {
+        let (_, combined) = self
+            .api
+            .repo_get_combined_status_by_ref(owner, repo, sha)
+            .send()
+            .await
+            .ok()?;
+
+        Some(PrCombinedStatus {
+            state: combined.state?,
+            total_count: combined.total_count.unwrap_or(0),
+        })
+    }
+
     pub async fn get_pr_head_ref(
         &self,
         owner: &str,
@@ -872,7 +891,10 @@ mod tests {
     fn pullrequest_list_deserialization() {
         let json = r#"[{"number":99,"body":"<!-- metadata:{\"service\":\"foo\"} -->","user":{"login":"ci-image-updater","avatar_url":"","html_url":"","created":"2020-01-01T00:00:00Z","last_login":"2020-01-01T00:00:00Z"},"head":{"label":"","ref":"branch","sha":""},"created_at":"2026-01-07T08:00:00Z","closed_at":null,"due_date":null,"merged_at":null,"updated_at":null,"requested_reviewers":[],"diff_url":"","html_url":"","patch_url":"","url":""}]"#;
         let prs: Vec<PullRequest> = serde_json::from_str(json).expect("PR list should deserialize");
-        assert_eq!(prs[0].body.as_deref(), Some("<!-- metadata:{\"service\":\"foo\"} -->"));
+        assert_eq!(
+            prs[0].body.as_deref(),
+            Some("<!-- metadata:{\"service\":\"foo\"} -->")
+        );
         assert!(prs[0].created_at.is_some());
     }
 }

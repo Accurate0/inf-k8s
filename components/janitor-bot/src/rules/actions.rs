@@ -4,6 +4,8 @@ use crate::clients::Clients;
 use crate::command::ACK_LABEL;
 use crate::event::BotEvent;
 use crate::forgejo::CommitStatusParams;
+use crate::rules::matchers::ResourceCache;
+use crate::rules::matchers::cache::get_changed_files_cached;
 use crate::rules::matchers::parse_pr_metadata;
 use crate::rules::schema::{CloseOtherPrsCriteria, TemplateString};
 use forgejo_api::structs::MergePullRequestOptionDo;
@@ -105,7 +107,7 @@ impl Action {
         }
     }
 
-    pub async fn execute(&self, clients: &Clients, event: &BotEvent<'_>) {
+    pub async fn execute(&self, clients: &Clients, event: &BotEvent<'_>, cache: &ResourceCache) {
         let client = &clients.forgejo;
         let result = match self {
             Action::Approve { body } => {
@@ -384,7 +386,8 @@ impl Action {
                     return;
                 }
 
-                clients.argocd.sync_changed_apps(&pr.changed_files).await;
+                let files = get_changed_files_cached(clients, cache, pr).await;
+                clients.argocd.sync_changed_apps(&files).await;
                 return;
             }
             Action::CloseOtherPrs {
@@ -407,7 +410,10 @@ impl Action {
                         .await?;
                     let current_body = current.body.as_deref().unwrap_or("");
                     let Some(current_meta) = parse_pr_metadata(current_body) else {
-                        tracing::debug!(pr = pr.pr_number, "no metadata in current PR, skipping close_other_prs");
+                        tracing::debug!(
+                            pr = pr.pr_number,
+                            "no metadata in current PR, skipping close_other_prs"
+                        );
                         return Ok(());
                     };
 
@@ -422,7 +428,10 @@ impl Action {
                         .collect();
 
                     if current_field_values.len() != match_metadata_fields.len() {
-                        tracing::debug!(pr = pr.pr_number, "missing metadata fields, skipping close_other_prs");
+                        tracing::debug!(
+                            pr = pr.pr_number,
+                            "missing metadata fields, skipping close_other_prs"
+                        );
                         return Ok(());
                     }
 
@@ -451,13 +460,12 @@ impl Action {
                             continue;
                         };
 
-                        let all_fields_match =
-                            current_field_values.iter().all(|(field, value)| {
-                                other_meta
-                                    .get(*field)
-                                    .and_then(|v| v.as_str())
-                                    .is_some_and(|s| s == value)
-                            });
+                        let all_fields_match = current_field_values.iter().all(|(field, value)| {
+                            other_meta
+                                .get(*field)
+                                .and_then(|v| v.as_str())
+                                .is_some_and(|s| s == value)
+                        });
 
                         if !all_fields_match {
                             continue;
@@ -499,12 +507,7 @@ impl Action {
                         if let Some(tmpl) = comment {
                             let rendered = tmpl.render(&vars);
                             client
-                                .comment_on_issue(
-                                    &pr.owner,
-                                    &pr.repo,
-                                    other_number,
-                                    &rendered,
-                                )
+                                .comment_on_issue(&pr.owner, &pr.repo, other_number, &rendered)
                                 .await?;
                         }
 
@@ -513,12 +516,9 @@ impl Action {
                             .await?;
 
                         if *delete_branch
-                            && let Some(branch) = other
-                                .head
-                                .as_ref()
-                                .and_then(|h| h.r#ref.as_deref())
-                            && let Err(e) =
-                                client.delete_branch(&pr.owner, &pr.repo, branch).await
+                            && let Some(branch) =
+                                other.head.as_ref().and_then(|h| h.r#ref.as_deref())
+                            && let Err(e) = client.delete_branch(&pr.owner, &pr.repo, branch).await
                         {
                             tracing::warn!(
                                 branch,
@@ -543,7 +543,12 @@ impl Action {
                     return;
                 };
 
-                if let Err(e) = clients.argocd.run_diff_and_comment(client, pr).await {
+                let files = get_changed_files_cached(clients, cache, pr).await;
+                if let Err(e) = clients
+                    .argocd
+                    .run_diff_and_comment(client, pr, &files)
+                    .await
+                {
                     tracing::error!("argocd_diff action failed: {e}");
                 }
 

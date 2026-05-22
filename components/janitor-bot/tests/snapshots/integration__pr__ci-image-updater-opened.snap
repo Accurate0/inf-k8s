@@ -34,18 +34,6 @@ response:
         value: "true"
 external_requests:
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
   - method: GET
@@ -56,12 +44,6 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/104/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/104
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/104

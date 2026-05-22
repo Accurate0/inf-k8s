@@ -32,7 +32,6 @@ async fn handle_evaluate(
         .unwrap_or(&state.orchestrator);
 
     match request.r#type.as_str() {
-
         "pr" => {
             let webhook: event::WebhookEvent = match serde_json::from_value(request.payload) {
                 Ok(w) => w,
@@ -50,9 +49,8 @@ async fn handle_evaluate(
                 );
             };
 
-            let matched = orchestrator.explain_pr(&state.clients, &mut pr_event).await;
-            orchestrator
-                .evaluate_pr(&state.clients, &mut pr_event)
+            let matched = orchestrator
+                .explain_and_evaluate_pr(&state.clients, &mut pr_event)
                 .await;
 
             (

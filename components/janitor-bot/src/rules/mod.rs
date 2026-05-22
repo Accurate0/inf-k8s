@@ -7,7 +7,7 @@ use crate::clients::Clients;
 use crate::event::{
     ArgoSyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, WorkflowEvent,
 };
-use crate::rules::matchers::MatcherCache;
+use crate::rules::matchers::ResourceCache;
 pub use actions::Action;
 use chrono::Utc;
 use moka::sync::Cache;
@@ -148,17 +148,44 @@ impl RulesOrchestrator {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
 
-        let pr_id = event.pr_number as i64;
-        if let Ok(files) = clients
-            .forgejo
-            .get_pr_changed_files(&event.owner, &event.repo, pr_id)
-            .await
+        let bot_event = BotEvent::ForgejoPr(event);
+        self.explain_rules(&bot_event, clients).await
+    }
+
+    pub async fn explain_and_evaluate_pr(
+        &self,
+        clients: &Clients,
+        event: &mut PrEvent,
+    ) -> Vec<MatchedRule> {
+        let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
+        let _guard = lock.lock().await;
+
+        if event
+            .labels
+            .iter()
+            .any(|l| l.name == crate::command::IGNORE_LABEL)
         {
-            event.changed_files = files;
+            tracing::info!(
+                pr = event.pr_number,
+                "skipping rules: {} label present",
+                crate::command::IGNORE_LABEL
+            );
+
+            return Vec::new();
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
-        self.explain_rules(&bot_event, clients).await
+
+        let cache = ResourceCache::new();
+        let resources = self.collect_resources();
+        cache.prefetch(clients, &bot_event, &resources).await;
+
+        let matched = self
+            .explain_rules_with_cache(&bot_event, clients, &cache)
+            .await;
+        self.run_rules_with_cache(clients, &bot_event, &cache).await;
+
+        matched
     }
 
     pub async fn explain_workflow(
@@ -193,16 +220,6 @@ impl RulesOrchestrator {
             );
 
             return;
-        }
-
-        let pr_id = event.pr_number as i64;
-        match clients
-            .forgejo
-            .get_pr_changed_files(&event.owner, &event.repo, pr_id)
-            .await
-        {
-            Ok(files) => event.changed_files = files,
-            Err(e) => tracing::warn!(pr = event.pr_number, "failed to fetch changed files: {e}"),
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
@@ -290,22 +307,16 @@ impl RulesOrchestrator {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
 
-        let pr_id = event.pr_number as i64;
-        if let Ok(files) = clients
-            .forgejo
-            .get_pr_changed_files(&event.owner, &event.repo, pr_id)
-            .await
-        {
-            event.changed_files = files;
-        }
-
         let bot_event = BotEvent::ForgejoPr(event);
 
-        let cache = MatcherCache::new();
+        let cache = ResourceCache::new();
+        let resources = self.collect_resources();
+        cache.prefetch(clients, &bot_event, &resources).await;
+
         let vars = self
             .evaluate_variables(rule, &bot_event, clients, &cache)
             .await;
-        self.execute_actions(rule, &vars, clients, &bot_event, false)
+        self.execute_actions(rule, &vars, clients, &bot_event, &cache, false)
             .await;
 
         Ok(())
@@ -316,7 +327,7 @@ impl RulesOrchestrator {
         rule: &schema::RuleDef,
         event: &BotEvent<'a>,
         clients: &Clients,
-        cache: &MatcherCache,
+        cache: &ResourceCache,
     ) -> bool {
         let now = self.now();
         rule.matches.matches(event, rule, clients, cache, now).await
@@ -327,7 +338,7 @@ impl RulesOrchestrator {
         rule: &schema::RuleDef,
         event: &BotEvent<'a>,
         clients: &Clients,
-        cache: &MatcherCache,
+        cache: &ResourceCache,
     ) -> HashMap<String, expr::Value> {
         let now = self.now();
         let mut vars = HashMap::new();
@@ -351,6 +362,19 @@ impl RulesOrchestrator {
     }
 
     async fn explain_rules<'a>(&self, event: &BotEvent<'a>, clients: &Clients) -> Vec<MatchedRule> {
+        let cache = ResourceCache::new();
+        let resources = self.collect_resources();
+        cache.prefetch(clients, event, &resources).await;
+
+        self.explain_rules_with_cache(event, clients, &cache).await
+    }
+
+    async fn explain_rules_with_cache<'a>(
+        &self,
+        event: &BotEvent<'a>,
+        clients: &Clients,
+        cache: &ResourceCache,
+    ) -> Vec<MatchedRule> {
         let mut matched_rules = Vec::new();
         let mut executed_rules: HashSet<String> = HashSet::new();
 
@@ -362,13 +386,11 @@ impl RulesOrchestrator {
             if !self.dependencies_met(rule, &executed_rules) {
                 continue;
             }
-
-            let cache = MatcherCache::new();
-            if !self.match_rule(rule, event, clients, &cache).await {
+            if !self.match_rule(rule, event, clients, cache).await {
                 continue;
             }
 
-            let vars = self.evaluate_variables(rule, event, clients, &cache).await;
+            let vars = self.evaluate_variables(rule, event, clients, cache).await;
 
             let action_groups = Self::explain_action_groups(rule, &vars);
 
@@ -396,7 +418,34 @@ impl RulesOrchestrator {
         matched_rules
     }
 
+    fn collect_resources(&self) -> HashSet<matchers::Resource> {
+        let mut resources = HashSet::new();
+        for rule in &self.rules.rules {
+            if !rule.enabled.is_active() {
+                continue;
+            }
+            resources.extend(rule.matches.requires());
+            for var in &rule.variables {
+                resources.extend(var.matcher.requires());
+            }
+        }
+        resources
+    }
+
     async fn run_rules<'a>(&self, clients: &Clients, event: &BotEvent<'a>) {
+        let cache = ResourceCache::new();
+        let resources = self.collect_resources();
+        cache.prefetch(clients, event, &resources).await;
+
+        self.run_rules_with_cache(clients, event, &cache).await;
+    }
+
+    async fn run_rules_with_cache<'a>(
+        &self,
+        clients: &Clients,
+        event: &BotEvent<'a>,
+        cache: &ResourceCache,
+    ) {
         let overall_start = Instant::now();
         let mut executed_rules: HashSet<String> = HashSet::new();
         let mut matched_rules_log = Vec::new();
@@ -410,10 +459,8 @@ impl RulesOrchestrator {
                 tracing::debug!(rule = rule.name, "skipping: dependencies not met");
                 continue;
             }
-
-            let cache = MatcherCache::new();
             let eval_start = Instant::now();
-            if !self.match_rule(rule, event, clients, &cache).await {
+            if !self.match_rule(rule, event, clients, cache).await {
                 tracing::debug!(
                     rule = rule.name,
                     eval_ms = eval_start.elapsed().as_millis(),
@@ -431,12 +478,12 @@ impl RulesOrchestrator {
                 "rule matched"
             );
 
-            let vars = self.evaluate_variables(rule, event, clients, &cache).await;
+            let vars = self.evaluate_variables(rule, event, clients, cache).await;
 
             let action_groups = Self::explain_action_groups(rule, &vars);
 
             let had_actions = self
-                .execute_actions(rule, &vars, clients, event, dry_run)
+                .execute_actions(rule, &vars, clients, event, cache, dry_run)
                 .await;
 
             let mut variables: Vec<ExplainVar> = vars
@@ -485,6 +532,7 @@ impl RulesOrchestrator {
         vars: &HashMap<String, expr::Value>,
         clients: &Clients,
         event: &BotEvent<'a>,
+        cache: &ResourceCache,
         dry_run: bool,
     ) -> bool {
         let rule_start = Instant::now();
@@ -511,7 +559,7 @@ impl RulesOrchestrator {
                 }
 
                 let action_start = Instant::now();
-                action.execute(clients, event).await;
+                action.execute(clients, event, cache).await;
                 let action_elapsed = action_start.elapsed();
                 crate::metrics::record_action(&rule.name, action.kind(), true);
                 tracing::info!(
