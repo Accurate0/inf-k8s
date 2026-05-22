@@ -52,6 +52,9 @@ mocks:
       labels: []
       base:
         ref: main
+      head:
+        ref: renovate/actions-1.x
+        sha: def0000000000000000000000000000000000000
       mergeable: true
       state: open
       merged: false
@@ -70,6 +73,17 @@ mocks:
     path: /api/v1/repos/anurag/k8s/pulls/101/reviews
     status: 200
     body: []
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
+    status: 200
+    body:
+      state: ""
+      total_count: 0
+      statuses: []
+      commit_url: ""
+      url: ""
+      sha: def0000000000000000000000000000000000000
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/labels

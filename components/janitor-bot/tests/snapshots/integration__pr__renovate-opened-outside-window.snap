@@ -35,7 +35,7 @@ response:
           - approve
           - merge
         ran: false
-        when: in_window && needs_approval
+        when: in_window && needs_approval && (!has_checks || checks_passed)
       - actions:
           - ensure_labels_exist
           - add_labels_by_name
@@ -45,6 +45,10 @@ response:
     name: manage-renovate
     variables:
       - name: already_queued
+        value: "false"
+      - name: checks_passed
+        value: "false"
+      - name: has_checks
         value: "false"
       - name: in_window
         value: "false"
@@ -74,6 +78,12 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/commits/abc0000000000000000000000000000000000000/status
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
@@ -108,6 +118,12 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/100
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/commits/abc0000000000000000000000000000000000000/status
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels

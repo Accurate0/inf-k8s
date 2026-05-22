@@ -40,8 +40,12 @@ variables:
   - var: already_queued
     type: has_label
     value: janitor/queued
+  - var: has_checks
+    type: has_status_checks
+  - var: checks_passed
+    type: all_status_checks_passed
 actions:
-  - when: "in_window && needs_approval"
+  - when: "in_window && needs_approval && (!has_checks || checks_passed)"
     run:
       - type: ensure_labels_exist
         labels:
