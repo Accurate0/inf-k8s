@@ -1,6 +1,6 @@
 use axum::{
     body::Bytes,
-    extract::{Json, State},
+    extract::{Json, Path, State},
     http::{HeaderMap, StatusCode},
 };
 use std::sync::Arc;
@@ -161,6 +161,49 @@ pub async fn handle_github_webhook(
         state
             .orchestrator
             .evaluate_workflow(&state.clients, &mut wf_event)
+            .await;
+    });
+
+    StatusCode::OK
+}
+
+pub async fn handle_admin_cron(State(state): State<Arc<AppState>>) -> StatusCode {
+    tracing::info!("admin: triggering cron evaluation");
+    tokio::spawn(async move {
+        super::evaluate_open_prs(&state).await;
+    });
+    StatusCode::OK
+}
+
+pub async fn handle_admin_evaluate_pr(
+    State(state): State<Arc<AppState>>,
+    Path(pr_number): Path<i64>,
+) -> StatusCode {
+    tracing::info!(pr_number, "admin: triggering evaluation for PR");
+
+    // Default to the first watched repo
+    let repo = super::WATCH_REPOS[0].to_string();
+    let owner = super::FORGEJO_OWNER.to_owned();
+
+    tokio::spawn(async move {
+        let pr = match state.clients.forgejo.get_pr(&owner, &repo, pr_number).await {
+            Ok(pr) => pr,
+            Err(e) => {
+                tracing::error!(pr_number, "admin: failed to fetch PR: {e}");
+                return;
+            }
+        };
+
+        let Some(mut pr_event) =
+            janitor_bot::event::PrEvent::from_api_pr(&pr, owner, repo)
+        else {
+            tracing::error!(pr_number, "admin: failed to convert PR to event");
+            return;
+        };
+
+        state
+            .orchestrator
+            .evaluate_pr(&state.clients, &mut pr_event)
             .await;
     });
 

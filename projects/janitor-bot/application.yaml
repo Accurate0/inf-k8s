@@ -50,6 +50,23 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
+            - name: janitor-bot-admin-route
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - janitor-bot.inf-k8s.net
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: api
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /admin
   destination:
     server: https://kubernetes.default.svc
     namespace: janitor-bot
