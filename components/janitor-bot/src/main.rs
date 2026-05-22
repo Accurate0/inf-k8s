@@ -25,6 +25,9 @@ struct AppState {
 }
 
 async fn evaluate_open_prs(state: &AppState) {
+    let cron_start = std::time::Instant::now();
+    let mut total_prs = 0usize;
+
     for repo in WATCH_REPOS {
         tracing::info!(owner = FORGEJO_OWNER, repo, "polling open PRs");
 
@@ -41,6 +44,8 @@ async fn evaluate_open_prs(state: &AppState) {
             }
         };
 
+        total_prs += prs.len();
+
         for pr in &prs {
             let Some(mut pr_event) =
                 event::PrEvent::from_api_pr(pr, FORGEJO_OWNER.to_owned(), repo.to_string())
@@ -54,11 +59,14 @@ async fn evaluate_open_prs(state: &AppState) {
                 .await;
         }
     }
+
+    janitor_bot::metrics::record_cron_run(cron_start.elapsed(), total_prs);
 }
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     tracing_subscriber::fmt::init();
+    janitor_bot::metrics::init();
 
     let state = Arc::new(AppState {
         clients: Clients::new(
@@ -100,6 +108,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/cron", post(routes::handle_admin_cron))
         .route("/admin/evaluate/{owner}/{repo}/{pr_number}", post(routes::handle_admin_evaluate_pr))
         .route("/admin/dry-run/{owner}/{repo}/{pr_number}", post(routes::handle_admin_dry_run))
+        .route("/admin/metrics", get(routes::handle_admin_metrics))
         .route("/admin/logs", get(routes::handle_admin_logs))
         .route("/admin/rules", get(routes::handle_admin_rules))
         .route("/admin/health/deep", get(routes::handle_admin_health_deep))

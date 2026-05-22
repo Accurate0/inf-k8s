@@ -460,14 +460,19 @@ impl RulesOrchestrator {
             }
         }
 
+        let elapsed = overall_start.elapsed();
+        let rules_matched = matched_rules_log.len();
+
         self.record_eval(EvalLogEntry {
             timestamp: Utc::now(),
             event_kind: event.event_kind().to_string(),
             event_key: event.event_key(),
             matched_rules: matched_rules_log,
-            elapsed_ms: overall_start.elapsed().as_millis(),
+            elapsed_ms: elapsed.as_millis(),
         })
         .await;
+
+        crate::metrics::record_evaluation(event.event_kind(), rules_matched, elapsed);
     }
 
     fn dependencies_met(&self, rule: &schema::RuleDef, executed: &HashSet<String>) -> bool {
@@ -507,11 +512,13 @@ impl RulesOrchestrator {
 
                 let action_start = Instant::now();
                 action.execute(clients, event).await;
+                let action_elapsed = action_start.elapsed();
+                crate::metrics::record_action(&rule.name, action.kind(), true);
                 tracing::info!(
                     rule = rule.name,
                     when = group.when,
                     action = action.kind(),
-                    elapsed_ms = action_start.elapsed().as_millis(),
+                    elapsed_ms = action_elapsed.as_millis(),
                     "action executed"
                 );
             }

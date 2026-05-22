@@ -33,6 +33,8 @@ pub async fn handle_forgejo_webhook(
         .and_then(|v| v.to_str().ok())
         .unwrap_or("");
 
+    janitor_bot::metrics::record_webhook("forgejo");
+
     tracing::info!(
         action = event.action,
         forgejo_event,
@@ -95,6 +97,8 @@ pub async fn handle_github_webhook(
     if !github::verify_signature(&state.github_webhook_secret, signature, &body) {
         return StatusCode::UNAUTHORIZED;
     }
+
+    janitor_bot::metrics::record_webhook("github");
 
     let github_event = headers
         .get("X-GitHub-Event")
@@ -241,6 +245,15 @@ pub async fn handle_admin_dry_run(
     )
 }
 
+pub async fn handle_admin_metrics() -> (StatusCode, [(axum::http::header::HeaderName, &'static str); 1], String) {
+    let body = janitor_bot::metrics::render();
+    (
+        StatusCode::OK,
+        [(axum::http::header::CONTENT_TYPE, "text/plain; version=0.0.4; charset=utf-8")],
+        body,
+    )
+}
+
 pub async fn handle_admin_logs(
     State(state): State<Arc<AppState>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
@@ -305,7 +318,7 @@ pub async fn handle_admin_health_deep(
         },
     };
 
-    let services = vec![&forgejo, &github, &argocd];
+    let services = [&forgejo, &github, &argocd];
     let all_healthy = services.iter().all(|s| s.healthy);
 
     let status = if all_healthy {
@@ -336,6 +349,8 @@ pub async fn handle_argocd_webhook(
     if auth != state.argocd_webhook_secret {
         return StatusCode::UNAUTHORIZED;
     }
+
+    janitor_bot::metrics::record_webhook("argocd");
 
     tracing::info!(
         app_name = payload.app_name,

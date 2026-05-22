@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: janitor-bot
+  namespace: janitor-bot
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: janitor-bot
+  namespaceSelector:
+    matchNames:
+      - janitor-bot
+  endpoints:
+    - port: http
+      path: /admin/metrics
+      interval: 30s
+      scrapeTimeout: 10s

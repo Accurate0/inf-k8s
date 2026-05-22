@@ -30,6 +30,8 @@ open-feature = "=0.2"
 open-feature-flipt = { git = "https://github.com/open-feature/rust-sdk-contrib.git" }
 tower-http = { version = "0.6.10", features = ["trace"] }
 regex = "1.12"
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.17", default-features = false }
 
 [build-dependencies]
 jsonschema = { version = "0.46", default-features = false }
