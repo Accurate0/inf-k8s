@@ -98,6 +98,14 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/99/labels/10
+    body:
+      updated_at: ~
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/99/comments
     body:
@@ -126,6 +134,11 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/102/labels/10
+    body:
+      updated_at: ~
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/102/labels

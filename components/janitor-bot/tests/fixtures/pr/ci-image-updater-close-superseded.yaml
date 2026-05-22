@@ -88,7 +88,11 @@ mocks:
           html_url: ""
           created: "2020-01-01T00:00:00Z"
           last_login: "2020-01-01T00:00:00Z"
-        labels: []
+        labels:
+          - id: 10
+            name: janitor/queued
+            color: "#fbca04"
+            url: ""
         base:
           ref: main
         head:
@@ -166,6 +170,12 @@ mocks:
         due_date: null
         merged_at: null
         updated_at: "2026-01-07T09:00:00Z"
+  # remove janitor/* labels from superseded PR (GET labels to find IDs, then DELETE)
+  - service: forgejo
+    method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/99/labels/10
+    status: 204
+    body: {}
   # comment on superseded PR
   - service: forgejo
     method: POST
@@ -210,6 +220,10 @@ mocks:
       - id: 2
         name: automated
         color: "#e4e669"
+        url: ""
+      - id: 10
+        name: janitor/queued
+        color: "#fbca04"
         url: ""
   # add labels
   - service: forgejo

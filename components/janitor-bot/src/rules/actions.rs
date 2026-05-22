@@ -472,6 +472,30 @@ impl Action {
                             continue;
                         }
 
+                        // Remove janitor/* labels before closing
+                        let janitor_labels: Vec<String> = other
+                            .labels
+                            .as_deref()
+                            .unwrap_or_default()
+                            .iter()
+                            .filter_map(|l| {
+                                l.name
+                                    .as_deref()
+                                    .filter(|n| n.starts_with("janitor/"))
+                                    .map(|n| n.to_owned())
+                            })
+                            .collect();
+                        if !janitor_labels.is_empty() {
+                            client
+                                .remove_labels_by_name(
+                                    &pr.owner,
+                                    &pr.repo,
+                                    other_number,
+                                    janitor_labels,
+                                )
+                                .await?;
+                        }
+
                         if let Some(tmpl) = comment {
                             let rendered = tmpl.render(&vars);
                             client
