@@ -5,7 +5,6 @@ resources:
   - namespace.yaml
   - secret.yaml
   - service.yaml
-  - securitypolicy.yaml
 commonAnnotations:
   inf-k8s.net/app: janitor-bot
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

@@ -7,23 +7,6 @@ response:
       - actions:
           - ensure_labels_exist
           - add_labels_by_name
-        ran: false
-        when: has_conflicts && !has_label
-      - actions:
-          - remove_labels_by_name
-        ran: false
-        when: "!has_conflicts && has_label"
-    dry_run: false
-    name: manage-conflicts
-    variables:
-      - name: has_conflicts
-        value: "false"
-      - name: has_label
-        value: "false"
-  - action_groups:
-      - actions:
-          - ensure_labels_exist
-          - add_labels_by_name
         ran: true
     dry_run: false
     name: label-renovate
@@ -65,12 +48,6 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/101
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101
-    service: forgejo
-  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101/reviews
     service: forgejo
   - method: GET
@@ -87,12 +64,6 @@ external_requests:
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101

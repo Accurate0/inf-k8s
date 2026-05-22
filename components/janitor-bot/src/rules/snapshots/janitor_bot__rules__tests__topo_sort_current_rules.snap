@@ -2,7 +2,6 @@
 source: src/rules/mod.rs
 expression: names
 ---
-- manage-conflicts
 - argocd-diff-renovate
 - label-renovate
 - manage-ci-image-updater

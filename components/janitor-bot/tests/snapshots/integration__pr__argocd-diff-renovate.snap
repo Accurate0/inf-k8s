@@ -5,23 +5,6 @@ expression: snapshot
 response:
   - action_groups:
       - actions:
-          - ensure_labels_exist
-          - add_labels_by_name
-        ran: false
-        when: has_conflicts && !has_label
-      - actions:
-          - remove_labels_by_name
-        ran: false
-        when: "!has_conflicts && has_label"
-    dry_run: false
-    name: manage-conflicts
-    variables:
-      - name: has_conflicts
-        value: "false"
-      - name: has_label
-        value: "false"
-  - action_groups:
-      - actions:
           - argocd_diff
         ran: true
     dry_run: false
@@ -44,22 +27,10 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/100
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100
@@ -105,7 +76,7 @@ external_requests:
       updated_at: ~
     service: forgejo
   - method: POST
-    path: /application.ApplicationService/Get
+    path: /cluster.SettingsService/Get
     service: argocd
   - method: POST
     path: /evaluate/v1/boolean

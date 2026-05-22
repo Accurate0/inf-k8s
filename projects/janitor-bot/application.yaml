@@ -50,12 +50,12 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
-            - name: janitor-bot-admin-route
+            - name: janitor-bot-public-route
               gateway:
-                name: internal-gateway
+                name: shared-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - janitor-bot.inf-k8s.net
+                - janitor-bot.anurag.sh
               rules:
                 - backendRefs:
                     - group: ""
@@ -65,8 +65,8 @@ spec:
                       weight: 1
                   matches:
                     - path:
-                        type: PathPrefix
-                        value: /admin
+                        type: Exact
+                        value: /github/webhook
   destination:
     server: https://kubernetes.default.svc
     namespace: janitor-bot
