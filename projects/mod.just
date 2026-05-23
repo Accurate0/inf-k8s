@@ -9,7 +9,7 @@ apply project:
 
 # Apply all ArgoCD project application manifests
 apply-all:
-    kubectl apply -f */application.yaml
+    for f in */application.yaml; do kubectl apply -f "$f"; done
 
 # Delete an ArgoCD project application
 delete project:
