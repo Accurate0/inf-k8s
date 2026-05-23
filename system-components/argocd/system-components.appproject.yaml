@@ -30,6 +30,8 @@ spec:
   destinations:
     - namespace: "*"
       server: "*"
+  orphanedResources:
+    warn: false
   clusterResourceWhitelist:
     - group: "*"
       kind: "*"
