@@ -38,23 +38,54 @@ response:
       - name: needs_approval
         value: "true"
 external_requests:
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls?state=open
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
-    service: forgejo
+  - method: POST
+    path: /evaluate/v1/boolean
+    body:
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt
   - method: GET
     path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/101
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/101/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls?state=open
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/101/labels
+    body:
+      labels:
+        - automated
+      updated_at: ~
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/101/labels
+    body:
+      labels:
+        - renovate
+      updated_at: ~
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/labels
@@ -66,16 +97,6 @@ external_requests:
       name: renovate
     service: forgejo
   - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/101/labels
-    body:
-      labels:
-        - renovate
-      updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: POST
     path: /api/v1/repos/anurag/k8s/labels
     body:
       color: "#e4e669"
@@ -83,24 +104,6 @@ external_requests:
       exclusive: ~
       is_archived: ~
       name: automated
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/101/labels
-    body:
-      labels:
-        - automated
-      updated_at: ~
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
-    body:
-      body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
-      comments: ~
-      commit_id: ~
-      event: APPROVED
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/101/merge
@@ -115,13 +118,10 @@ external_requests:
       merge_when_checks_succeed: ~
     service: forgejo
   - method: POST
-    path: /evaluate/v1/boolean
+    path: /api/v1/repos/anurag/k8s/pulls/101/reviews
     body:
-      context:
-        environment: development
-        rule_name: manage-ci-image-updater
-      entityId: ""
-      flagKey: allow_automerging_rules
-      namespaceKey: janitor-bot
-      reference: ~
-    service: flipt
+      body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
+      comments: ~
+      commit_id: ~
+      event: APPROVED
+    service: forgejo
