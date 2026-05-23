@@ -11,7 +11,7 @@ use rand::{
     rngs::{StdRng, SysRng},
     Rng, SeedableRng,
 };
-use sqlx::{postgres::PgPoolOptions, PgPool};
+use sqlx::{postgres::PgPoolOptions, AssertSqlSafe, PgPool};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 #[derive(thiserror::Error, Debug)]
@@ -99,19 +99,19 @@ async fn reconcile(obj: Arc<PostgresDatabase>, ctx: Arc<ControllerContext>) -> R
         let password = BASE64_URL_SAFE.encode(password_bytes);
         tracing::info!("altering role with new password");
 
-        sqlx::query(&format!(
+        sqlx::query(AssertSqlSafe(format!(
             "ALTER ROLE {role_name} WITH PASSWORD '{password}'"
-        ))
+        )))
         .execute(&ctx.db)
         .await?;
 
-        sqlx::query(&format!(
+        sqlx::query(AssertSqlSafe(format!(
             "ALTER DATABASE {database_to_create} OWNER TO {role_name}"
-        ))
+        )))
         .execute(&ctx.db)
         .await?;
 
-        sqlx::query(&format!("ALTER ROLE {role_name} WITH LOGIN"))
+        sqlx::query(AssertSqlSafe(format!("ALTER ROLE {role_name} WITH LOGIN")))
             .execute(&ctx.db)
             .await?;
 
@@ -162,7 +162,7 @@ async fn reconcile(obj: Arc<PostgresDatabase>, ctx: Arc<ControllerContext>) -> R
         tracing::info!("secret created: {}", obj.spec.secret_name);
     } else {
         tracing::info!("creating new database");
-        sqlx::query(&format!("CREATE DATABASE {database_to_create}"))
+        sqlx::query(AssertSqlSafe(format!("CREATE DATABASE {database_to_create}")))
             .execute(&ctx.db)
             .await?;
 
@@ -175,19 +175,19 @@ async fn reconcile(obj: Arc<PostgresDatabase>, ctx: Arc<ControllerContext>) -> R
         let password = BASE64_URL_SAFE.encode(password_bytes);
         tracing::info!("creating role");
 
-        sqlx::query(&format!(
+        sqlx::query(AssertSqlSafe(format!(
             "CREATE ROLE {role_name} WITH PASSWORD '{password}'"
-        ))
+        )))
         .execute(&ctx.db)
         .await?;
 
-        sqlx::query(&format!(
+        sqlx::query(AssertSqlSafe(format!(
             "ALTER DATABASE {database_to_create} OWNER TO {role_name}"
-        ))
+        )))
         .execute(&ctx.db)
         .await?;
 
-        sqlx::query(&format!("ALTER ROLE {role_name} WITH LOGIN"))
+        sqlx::query(AssertSqlSafe(format!("ALTER ROLE {role_name} WITH LOGIN")))
             .execute(&ctx.db)
             .await?;
 
