@@ -12,7 +12,7 @@ spec:
     automated:
       prune: true
       selfHeal: true
-  project: default
+  project: projects
   sources:
     - chart: k8s-infisical-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets

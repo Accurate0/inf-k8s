@@ -90,19 +90,19 @@ spec:
             rbac:
               policy.csv: |
                 g, ArgoCD Admins, role:admin
-                p, github-actions, applications, sync, default/*, allow
-                p, github-actions, applications, get, default/*, allow
                 p, github-actions, applications, sync, system-components/*, allow
                 p, github-actions, applications, get, system-components/*, allow
                 p, github-actions, applications, sync, platform-services/*, allow
                 p, github-actions, applications, get, platform-services/*, allow
+                p, github-actions, applications, sync, projects/*, allow
+                p, github-actions, applications, get, projects/*, allow
                 p, github-actions, projects, get, *, allow
-                p, janitor, applications, get, default/*, allow
-                p, janitor, applications, sync, default/*, allow
                 p, janitor, applications, get, system-components/*, allow
                 p, janitor, applications, sync, system-components/*, allow
                 p, janitor, applications, get, platform-services/*, allow
                 p, janitor, applications, sync, platform-services/*, allow
+                p, janitor, applications, get, projects/*, allow
+                p, janitor, applications, sync, projects/*, allow
                 p, janitor, projects, get, *, allow
             params:
               server.insecure: true

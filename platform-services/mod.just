@@ -9,7 +9,7 @@ apply service:
 
 # Apply all platform service application manifests
 apply-all:
-    kubectl apply -f */application.yaml
+    for f in */application.yaml; do kubectl apply -f "$f"; done
 
 # Delete a platform service application
 delete service:
