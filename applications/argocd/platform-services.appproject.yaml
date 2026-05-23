@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/appproject_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: AppProject
+metadata:
+  name: platform-services
+  namespace: argocd
+spec:
+  description: Platform services
+  sourceRepos:
+    - https://github.com/Accurate0/inf-k8s.git
+    - https://git.anurag.sh/anurag/k8s.git
+    - oci://ghcr.io/accurate0/charts/k8s-http-routes
+    - oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
+  destinations:
+    - namespace: "*"
+      server: "*"
+  clusterResourceWhitelist:
+    - group: "*"
+      kind: "*"
+  namespaceResourceWhitelist:
+    - group: "*"
+      kind: "*"
