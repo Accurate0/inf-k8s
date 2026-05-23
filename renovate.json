@@ -2,10 +2,9 @@
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "argocd": {
     "managerFilePatterns": [
-      "/system-components/.*\\.application\\.yaml/",
-      "/services/.*\\.application\\.yaml/",
-      "/platform-services/ingress-home/application.yaml/",
-      "/platform-services/pg-db-controller/application.yaml/"
+      "/system-components/.*\\.application\\.yaml$/",
+      "/projects/.*/application\\.yaml$/",
+      "/platform-services/.*/application\\.yaml$/"
     ]
   },
   "ignorePaths": ["system-components/redis.application.yaml"],
@@ -14,9 +13,8 @@
       "customType": "regex",
       "managerFilePatterns": [
         "/system-components/.*\\.application\\.yaml$/",
-        "/services/.*\\.application\\.yaml$/",
-        "/platform-services/ingress-home/application\\.yaml$/",
-        "/platform-services/pg-db-controller/application\\.yaml$/"
+        "/projects/.*/application\\.yaml$/",
+        "/platform-services/.*/application\\.yaml$/"
       ],
       "matchStrings": [
         "repoURL:\\s*oci://(?<depName>[^\\s]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[^\\s]+)"
