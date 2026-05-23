@@ -366,6 +366,8 @@ spec:
                   initContainers:
                     - name: dind
                       image: docker:29-dind
+                      args:
+                        - --mtu=1280
                       securityContext:
                         privileged: true
                       restartPolicy: Always
