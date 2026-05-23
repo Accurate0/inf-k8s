@@ -44,4 +44,3 @@ resource "cloudflare_dns_record" "external-ipv6" {
   type    = "AAAA"
   ttl     = 1
 }
-

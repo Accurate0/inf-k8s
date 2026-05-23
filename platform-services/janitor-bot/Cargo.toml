@@ -53,4 +53,3 @@ path = "src/main.rs"
 [[bin]]
 name = "gen-schema"
 path = "src/bin/gen_schema.rs"
-

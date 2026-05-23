@@ -1,0 +1,51 @@
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-merge-conflict
+      - id: check-added-large-files
+      - id: check-symlinks
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+      - id: mixed-line-ending
+
+  # - repo: https://github.com/adrienverge/yamllint
+  #   rev: v1.38.0
+  #   hooks:
+  #     - id: yamllint
+
+  # - repo: https://github.com/ansible/ansible-lint
+  #   rev: v26.4.0
+  #   hooks:
+  #     - id: ansible-lint
+
+  - repo: https://github.com/gruntwork-io/pre-commit
+    rev: v0.1.30
+    hooks:
+      - id: helmlint
+
+  - repo: https://github.com/tofuutils/pre-commit-opentofu
+    rev: v2.3.0
+    hooks:
+      - id: tofu_fmt
+      - id: tofu_validate
+
+  - repo: https://github.com/shellcheck-py/shellcheck-py
+    rev: v0.11.0.1
+    hooks:
+      - id: shellcheck
+
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.12
+    hooks:
+      - id: actionlint
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1
+    hooks:
+      - id: typos
+
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
