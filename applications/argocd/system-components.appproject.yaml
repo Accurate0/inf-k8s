@@ -9,6 +9,23 @@ spec:
   sourceRepos:
     - https://github.com/Accurate0/inf-k8s.git
     - https://git.anurag.sh/anurag/k8s.git
+    - https://git.deuxfleurs.fr/Deuxfleurs/garage.git
+    - https://argoproj.github.io/argo-helm
+    - https://charts.goauthentik.io
+    - https://charts.jetstack.io
+    - https://charts.longhorn.io/
+    - https://cloudnative-pg.github.io/charts
+    - https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts
+    - https://grafana-community.github.io/helm-charts
+    - https://helm.flipt.io
+    - https://kubernetes-sigs.github.io/descheduler/
+    - https://mend.github.io/renovate-ce-ee
+    - https://prometheus-community.github.io/helm-charts
+    - docker.io/envoyproxy
+    - oci://code.forgejo.org/forgejo-helm/forgejo
+    - oci://ghcr.io/accurate0/charts/k8s-http-routes
+    - oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
+    - oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
   destinations:
     - namespace: "*"
       server: "*"
