@@ -28,11 +28,10 @@ jobs:
       - name: Package and Publish
         env:
           FORGEJO_TOKEN: ${{ secrets.PACKAGES_WRITE }}
-          OWNER: ${{ github.repository_owner }}
-          FORGEJO_URL: ${{ github.server_url }}
+          OWNER: anurag
         run: |
           helm repo add --username "${OWNER}" --password "${FORGEJO_TOKEN}" \
-            forgejo "${FORGEJO_URL}/api/packages/${OWNER}/helm"
+            forgejo "https://git.anurag.sh/api/packages/anurag/helm"
           helm package charts/k8s-http-routes
           helm package charts/k8s-infisical-secrets
           for pkg in ./*.tgz; do
