@@ -29,11 +29,10 @@ jobs:
         env:
           FORGEJO_TOKEN: ${{ secrets.PACKAGES_WRITE }}
           OWNER: anurag
+          FORGEJO_HELM_URL: https://git.anurag.sh/api/packages/anurag/helm
         run: |
-          helm repo add --username "${OWNER}" --password "${FORGEJO_TOKEN}" \
-            forgejo "https://git.anurag.sh/api/packages/anurag/helm"
           helm package charts/k8s-http-routes
           helm package charts/k8s-infisical-secrets
           for pkg in ./*.tgz; do
-            helm cm-push --username "${OWNER}" --password "${FORGEJO_TOKEN}" "${pkg}" forgejo
+            helm cm-push --username "${OWNER}" --password "${FORGEJO_TOKEN}" "${pkg}" "${FORGEJO_HELM_URL}"
           done
