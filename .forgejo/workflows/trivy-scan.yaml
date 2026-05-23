@@ -1,0 +1,35 @@
+name: Trivy scan
+on:
+  workflow_dispatch:
+  pull_request:
+  schedule:
+    - cron: "0 6 * * 1"
+
+jobs:
+  scan:
+    name: Trivy
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+
+      - name: Trivy config scan (IaC, charts, manifests)
+        run: |
+          trivy config \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignorefile .trivyignore \
+            .
+
+      - name: Trivy filesystem scan (vuln + secret)
+        run: |
+          trivy fs \
+            --scanners vuln,secret \
+            --severity HIGH,CRITICAL \
+            --exit-code 1 \
+            --ignorefile .trivyignore \
+            .

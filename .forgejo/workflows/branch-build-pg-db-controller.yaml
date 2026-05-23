@@ -16,6 +16,14 @@ jobs:
       - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
           context: ./platform-services/pg-db-controller
-          push: false
+          load: true
+          tags: scan:${{ github.sha }}
           build-args: |
             BINARY_NAME=pg-db-controller
+      - name: Install trivy
+        run: |
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh \
+            | sh -s -- -b /usr/local/bin
+      - name: Trivy image scan
+        run: |
+          trivy image --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed scan:${{ github.sha }}
