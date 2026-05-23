@@ -307,7 +307,7 @@ spec:
                 adminGroup: "admin"
                 restrictedGroup: "restricted"
     - chart: app-template
-      repoURL: oci://ghcr.io/bjw-s-labs/helm-charts
+      repoURL: oci://ghcr.io/bjw-s-labs/helm/app-template
       targetRevision: 5.0.1
       helm:
         releaseName: forgejo-runner
