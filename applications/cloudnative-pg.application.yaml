@@ -11,7 +11,7 @@ spec:
       - RespectIgnoreDifferences=true
       - CreateNamespace=true
       - ServerSideApply=true
-  project: default
+  project: system-components
   sources:
     - chart: cloudnative-pg
       repoURL: https://cloudnative-pg.github.io/charts

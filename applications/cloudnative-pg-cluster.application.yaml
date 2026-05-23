@@ -22,7 +22,7 @@ spec:
       - RespectIgnoreDifferences=true
       - CreateNamespace=true
       - ServerSideApply=true
-  project: default
+  project: system-components
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/postgres-cluster

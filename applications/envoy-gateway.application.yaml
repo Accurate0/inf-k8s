@@ -5,7 +5,7 @@ metadata:
   name: envoy-gateway
   namespace: argocd
 spec:
-  project: default
+  project: system-components
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: applications/envoy

@@ -23,7 +23,7 @@ spec:
     automated:
       prune: true
       selfHeal: true
-  project: default
+  project: system-components
   sources:
     - repoURL: https://git.deuxfleurs.fr/Deuxfleurs/garage.git
       path: script/helm/garage

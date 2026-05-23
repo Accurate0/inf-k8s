@@ -11,7 +11,7 @@ spec:
       - RespectIgnoreDifferences=true
       - CreateNamespace=true
       - ServerSideApply=true
-  project: default
+  project: system-components
   sources:
     - chart: descheduler
       repoURL: https://kubernetes-sigs.github.io/descheduler/

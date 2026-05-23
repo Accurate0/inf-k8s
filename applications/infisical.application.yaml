@@ -17,7 +17,7 @@ spec:
     automated:
       prune: true
       selfHeal: true
-  project: default
+  project: system-components
   sources:
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
