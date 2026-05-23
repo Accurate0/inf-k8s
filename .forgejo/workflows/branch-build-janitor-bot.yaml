@@ -35,5 +35,9 @@ jobs:
         with:
           path: platform-services/janitor-bot/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
+      - name: Install rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - run: cargo test
         working-directory: platform-services/janitor-bot
