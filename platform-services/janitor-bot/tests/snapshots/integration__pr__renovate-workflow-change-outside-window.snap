@@ -38,31 +38,11 @@ response:
       - name: needs_approval
         value: "true"
 external_requests:
-  - method: POST
-    path: /evaluate/v1/boolean
-    body:
-      context:
-        environment: development
-        rule_name: manage-ci-image-updater
-      entityId: ""
-      flagKey: allow_automerging_rules
-      namespaceKey: janitor-bot
-      reference: ~
-    service: flipt
   - method: GET
-    path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
+    path: /api/v1/repos/anurag/k8s/pulls/101/files
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/101/files
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/101/reviews
@@ -70,19 +50,11 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/101/labels
-    body:
-      labels:
-        - janitor/queued
-      updated_at: ~
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
     service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/101/labels
-    body:
-      labels:
-        - renovate
-      updated_at: ~
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/labels
@@ -94,6 +66,16 @@ external_requests:
       name: renovate
     service: forgejo
   - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/101/labels
+    body:
+      labels:
+        - renovate
+      updated_at: ~
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: POST
     path: /api/v1/repos/anurag/k8s/labels
     body:
       color: "#fbca04"
@@ -102,3 +84,21 @@ external_requests:
       is_archived: ~
       name: janitor/queued
     service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/101/labels
+    body:
+      labels:
+        - janitor/queued
+      updated_at: ~
+    service: forgejo
+  - method: POST
+    path: /evaluate/v1/boolean
+    body:
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt

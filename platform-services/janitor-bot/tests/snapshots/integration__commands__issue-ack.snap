@@ -5,20 +5,13 @@ expression: snapshot
 response:
   command: Ack
 external_requests:
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/42/labels
-    body:
-      labels:
-        - janitor/acknowledged
-      updated_at: ~
-    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/comments/500/reactions
     body:
       content: "+1"
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/labels
@@ -28,4 +21,11 @@ external_requests:
       exclusive: ~
       is_archived: ~
       name: janitor/acknowledged
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/42/labels
+    body:
+      labels:
+        - janitor/acknowledged
+      updated_at: ~
     service: forgejo

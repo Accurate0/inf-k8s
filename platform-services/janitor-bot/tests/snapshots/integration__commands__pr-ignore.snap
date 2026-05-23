@@ -5,6 +5,11 @@ expression: snapshot
 response:
   command: Ignore
 external_requests:
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/400/reactions
+    body:
+      content: "+1"
+    service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
@@ -14,9 +19,4 @@ external_requests:
       labels:
         - janitor/ignore
       updated_at: ~
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/comments/400/reactions
-    body:
-      content: "+1"
     service: forgejo

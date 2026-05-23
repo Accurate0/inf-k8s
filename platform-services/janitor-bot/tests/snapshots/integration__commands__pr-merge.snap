@@ -5,24 +5,32 @@ expression: snapshot
 response:
   command: "Merge { strategy: Squash }"
 external_requests:
-  - method: DELETE
-    path: /api/v1/repos/anurag/k8s/issues/5/labels/10
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/200/reactions
     body:
-      updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/5
+      content: "+1"
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/5/reviews
     service: forgejo
   - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/comments/200/reactions
+    path: /api/v1/repos/anurag/k8s/pulls/5/reviews
     body:
-      content: "+1"
+      body: ~
+      comments: ~
+      commit_id: ~
+      event: APPROVED
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/5
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/5/labels/10
+    body:
+      updated_at: ~
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/5/merge
@@ -35,12 +43,4 @@ external_requests:
       force_merge: ~
       head_commit_id: ~
       merge_when_checks_succeed: ~
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/5/reviews
-    body:
-      body: ~
-      comments: ~
-      commit_id: ~
-      event: APPROVED
     service: forgejo

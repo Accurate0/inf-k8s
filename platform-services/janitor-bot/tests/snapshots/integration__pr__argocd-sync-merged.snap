@@ -12,6 +12,21 @@ response:
     name: argocd-sync-merged-pr
 external_requests:
   - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/184/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/184
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/184/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls?state=open
+    service: forgejo
+  - method: GET
+    path: /repos/Accurate0/inf-k8s/commits/9597a0c8769d476162f146d20c26a1801df5e98c
+    service: github
+  - method: GET
     path: /api/v1/applications
     service: argocd
   - method: POST
@@ -29,18 +44,3 @@ external_requests:
       namespaceKey: janitor-bot
       reference: ~
     service: flipt
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/184
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/184/files
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/184/reviews
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls?state=open
-    service: forgejo
-  - method: GET
-    path: /repos/Accurate0/inf-k8s/commits/9597a0c8769d476162f146d20c26a1801df5e98c
-    service: github

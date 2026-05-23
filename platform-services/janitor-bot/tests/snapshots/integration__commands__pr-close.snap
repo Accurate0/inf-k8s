@@ -5,16 +5,21 @@ expression: snapshot
 response:
   command: Close
 external_requests:
-  - method: DELETE
-    path: /api/v1/repos/anurag/k8s/issues/3/labels/10
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/comments/300/reactions
     body:
-      updated_at: ~
+      content: "+1"
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/3
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/3
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/3/labels/10
+    body:
+      updated_at: ~
     service: forgejo
   - method: PATCH
     path: /api/v1/repos/anurag/k8s/issues/3
@@ -29,9 +34,4 @@ external_requests:
       title: ~
       unset_due_date: ~
       updated_at: ~
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/comments/300/reactions
-    body:
-      content: "+1"
     service: forgejo

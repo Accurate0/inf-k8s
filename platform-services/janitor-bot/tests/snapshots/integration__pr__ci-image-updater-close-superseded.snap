@@ -33,47 +33,11 @@ response:
       - name: needs_approval
         value: "true"
 external_requests:
-  - method: POST
-    path: /evaluate/v1/boolean
-    body:
-      context:
-        environment: development
-        rule_name: manage-ci-image-updater
-      entityId: ""
-      flagKey: allow_automerging_rules
-      namespaceKey: janitor-bot
-      reference: ~
-    service: flipt
-  - method: DELETE
-    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-abc123
-    service: forgejo
-  - method: DELETE
-    path: /api/v1/repos/anurag/k8s/issues/102/labels/10
-    body:
-      updated_at: ~
-    service: forgejo
-  - method: DELETE
-    path: /api/v1/repos/anurag/k8s/issues/99/labels/10
-    body:
-      updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/102
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls/102
-    service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/102/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/102/reviews
@@ -82,7 +46,24 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls?state=open
     service: forgejo
   - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    service: forgejo
+  - method: GET
     path: /api/v1/repos/anurag/k8s/pulls?state=open
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/99/labels/10
+    body:
+      updated_at: ~
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/99/comments
+    body:
+      body: "Superseded by #102"
+      updated_at: ~
     service: forgejo
   - method: PATCH
     path: /api/v1/repos/anurag/k8s/issues/99
@@ -98,6 +79,20 @@ external_requests:
       unset_due_date: ~
       updated_at: ~
     service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-abc123
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/102/labels/10
+    body:
+      updated_at: ~
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/102/labels
     body:
@@ -107,10 +102,12 @@ external_requests:
       updated_at: ~
     service: forgejo
   - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/99/comments
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
     body:
-      body: "Superseded by #102"
-      updated_at: ~
+      body: "Auto-approved: PR from ci-image-updater"
+      comments: ~
+      commit_id: ~
+      event: APPROVED
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/102/merge
@@ -125,10 +122,13 @@ external_requests:
       merge_when_checks_succeed: ~
     service: forgejo
   - method: POST
-    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    path: /evaluate/v1/boolean
     body:
-      body: "Auto-approved: PR from ci-image-updater"
-      comments: ~
-      commit_id: ~
-      event: APPROVED
-    service: forgejo
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt

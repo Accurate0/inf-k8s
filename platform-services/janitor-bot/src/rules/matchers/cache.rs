@@ -64,31 +64,18 @@ impl ResourceCache {
         let need_open_prs = resources.contains(&Resource::OpenPrs);
         let need_changed_files = resources.contains(&Resource::PullRequestChangedFiles);
 
-        let changed_files_fut = async {
-            if need_changed_files {
-                get_changed_files_cached(clients, self, pr).await;
-            }
-        };
-
-        let pr_fut = async {
-            if need_pr {
-                get_pr_cached(clients, self, pr).await;
-            }
-        };
-
-        let reviews_fut = async {
-            if need_reviews {
-                get_reviews_cached(clients, self, pr).await;
-            }
-        };
-
-        let open_prs_fut = async {
-            if need_open_prs {
-                fetch_open_prs(clients, self, pr).await;
-            }
-        };
-
-        tokio::join!(changed_files_fut, pr_fut, reviews_fut, open_prs_fut);
+        if need_changed_files {
+            get_changed_files_cached(clients, self, pr).await;
+        }
+        if need_pr {
+            get_pr_cached(clients, self, pr).await;
+        }
+        if need_reviews {
+            get_reviews_cached(clients, self, pr).await;
+        }
+        if need_open_prs {
+            fetch_open_prs(clients, self, pr).await;
+        }
 
         if resources.contains(&Resource::CombinedStatus) {
             combined_status_cached(clients, self, pr).await;

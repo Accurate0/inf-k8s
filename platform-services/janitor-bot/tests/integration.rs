@@ -177,14 +177,6 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     external_requests.extend(capture_requests(&github_requests, "github"));
     external_requests.extend(capture_requests(&argocd_requests, "argocd"));
     external_requests.extend(capture_requests(&flipt_requests, "flipt"));
-    external_requests.sort_by(|a, b| {
-        (&a.service, &a.method, &a.path, a.body.as_ref().map(|v| v.to_string())).cmp(&(
-            &b.service,
-            &b.method,
-            &b.path,
-            b.body.as_ref().map(|v| v.to_string()),
-        ))
-    });
 
     let snapshot = Snapshot {
         response,
