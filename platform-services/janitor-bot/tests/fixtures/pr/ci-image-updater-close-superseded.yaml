@@ -1,0 +1,245 @@
+now: "2026-01-07T10:00:00Z"
+type: pr
+payload:
+  action: opened
+  pull_request:
+    number: 102
+    title: "[skip ci] Update janitor-bot images to def456"
+    labels: []
+    base:
+      ref: main
+    diff_url: ""
+    html_url: ""
+    patch_url: ""
+    url: ""
+  sender:
+    login: ci-image-updater
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - service: flipt
+    method: POST
+    path: /evaluate/v1/boolean
+    status: 200
+    body:
+      enabled: true
+      reason: MATCH_EVALUATION_REASON
+      request_id: test
+      request_duration_millis: 0.1
+      timestamp: "2026-01-07T10:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/files
+    status: 200
+    body:
+      - filename: platform-services/janitor-bot/deployment.yaml
+        contents_url: ""
+        html_url: ""
+        raw_url: ""
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102
+    status: 200
+    body:
+      number: 102
+      title: "[skip ci] Update janitor-bot images to def456"
+      body: '<!-- metadata:{"service":"janitor-bot","tag":"def456"} -->'
+      user:
+        login: ci-image-updater
+        avatar_url: ""
+        html_url: ""
+        created: "2020-01-01T00:00:00Z"
+        last_login: "2020-01-01T00:00:00Z"
+      labels: []
+      base:
+        ref: main
+      mergeable: true
+      state: open
+      merged: false
+      diff_url: ""
+      html_url: ""
+      patch_url: ""
+      url: ""
+      requested_reviewers: []
+      closed_at: null
+      created_at: "2026-01-07T09:00:00Z"
+      due_date: null
+      merged_at: null
+      updated_at: "2026-01-07T09:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    status: 200
+    body: []
+  # list_open_prs: returns older PR #99 (same service), PR #101 (different service)
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls
+    query:
+      state: open
+    status: 200
+    body:
+      - number: 99
+        title: "[skip ci] Update janitor-bot images to abc123"
+        body: '<!-- metadata:{"service":"janitor-bot","tag":"abc123"} -->'
+        user:
+          login: ci-image-updater
+          avatar_url: ""
+          html_url: ""
+          created: "2020-01-01T00:00:00Z"
+          last_login: "2020-01-01T00:00:00Z"
+        labels:
+          - id: 10
+            name: janitor/queued
+            color: "#fbca04"
+            url: ""
+        base:
+          ref: main
+        head:
+          label: ""
+          ref: ci-image-updater-janitor-bot-abc123
+          sha: ""
+        mergeable: true
+        state: open
+        merged: false
+        diff_url: ""
+        html_url: ""
+        patch_url: ""
+        url: ""
+        requested_reviewers: []
+        closed_at: null
+        created_at: "2026-01-07T08:00:00Z"
+        due_date: null
+        merged_at: null
+        updated_at: "2026-01-07T08:00:00Z"
+      - number: 101
+        title: "[skip ci] Update postgres images to xyz789"
+        body: '<!-- metadata:{"service":"postgres","tag":"xyz789"} -->'
+        user:
+          login: ci-image-updater
+          avatar_url: ""
+          html_url: ""
+          created: "2020-01-01T00:00:00Z"
+          last_login: "2020-01-01T00:00:00Z"
+        labels: []
+        base:
+          ref: main
+        head:
+          label: ""
+          ref: ci-image-updater-postgres-xyz789
+          sha: ""
+        mergeable: true
+        state: open
+        merged: false
+        diff_url: ""
+        html_url: ""
+        patch_url: ""
+        url: ""
+        requested_reviewers: []
+        closed_at: null
+        created_at: "2026-01-07T08:30:00Z"
+        due_date: null
+        merged_at: null
+        updated_at: "2026-01-07T08:30:00Z"
+      - number: 102
+        title: "[skip ci] Update janitor-bot images to def456"
+        body: '<!-- metadata:{"service":"janitor-bot","tag":"def456"} -->'
+        user:
+          login: ci-image-updater
+          avatar_url: ""
+          html_url: ""
+          created: "2020-01-01T00:00:00Z"
+          last_login: "2020-01-01T00:00:00Z"
+        labels: []
+        base:
+          ref: main
+        head:
+          label: ""
+          ref: ci-image-updater-janitor-bot-def456
+          sha: ""
+        mergeable: true
+        state: open
+        merged: false
+        diff_url: ""
+        html_url: ""
+        patch_url: ""
+        url: ""
+        requested_reviewers: []
+        closed_at: null
+        created_at: "2026-01-07T09:00:00Z"
+        due_date: null
+        merged_at: null
+        updated_at: "2026-01-07T09:00:00Z"
+  # remove janitor/* labels from superseded PR (GET labels to find IDs, then DELETE)
+  - service: forgejo
+    method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/99/labels/10
+    status: 204
+    body: {}
+  # comment on superseded PR
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/issues/99/comments
+    status: 201
+    body:
+      id: 1
+      body: "Superseded by #102"
+      created_at: "2026-01-07T10:00:00Z"
+      updated_at: "2026-01-07T10:00:00Z"
+      html_url: ""
+      issue_url: ""
+      pull_request_url: ""
+  # close superseded PR
+  - service: forgejo
+    method: PATCH
+    path: /api/v1/repos/anurag/k8s/issues/99
+    status: 201
+    body:
+      closed_at: null
+      created_at: null
+      due_date: null
+      updated_at: null
+      html_url: ""
+      url: ""
+  # delete branch of superseded PR
+  - service: forgejo
+    method: DELETE
+    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-abc123
+    status: 204
+    body: {}
+  # ensure_labels_exist + remove_labels_by_name both use GET /labels
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    status: 200
+    body:
+      - id: 1
+        name: image-update
+        color: "#0075ca"
+        url: ""
+      - id: 2
+        name: automated
+        color: "#e4e669"
+        url: ""
+      - id: 10
+        name: janitor/queued
+        color: "#fbca04"
+        url: ""
+  # add labels
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/issues/102/labels
+    status: 200
+    body: []
+  # approve
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/102/reviews
+    status: 200
+    body: {}
+  # merge
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/102/merge
+    status: 200
+    body: {}

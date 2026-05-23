@@ -1,0 +1,28 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - action_groups:
+      - actions:
+          - set_commit_status
+        ran: false
+        when: app_changed
+    dry_run: false
+    name: argocd-sync-status
+    variables:
+      - name: app_changed
+        value: "false"
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def?stat=false&verification=false&files=true
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/raw/system-components/monitoring.application.yaml?ref=abc1234567890def
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def?stat=false&verification=false&files=true
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/raw/system-components/monitoring.application.yaml?ref=abc1234567890def
+    service: forgejo

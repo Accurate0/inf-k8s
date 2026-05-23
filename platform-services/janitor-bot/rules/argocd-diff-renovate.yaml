@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: argocd-diff-renovate
+enabled: true
+priority: 10
+matches:
+  all:
+    - type: forgejo
+    - type: pr_event
+    - type: repository
+      value: anurag/k8s
+    - type: author
+      value: renovate
+    - type: target_branch
+      value: main
+    - type: is_open
+    - type: has_changed_files
+    - type: changed_files_any_match
+      patterns:
+        - "system-components/*.application.yaml"
+actions:
+  - type: argocd_diff

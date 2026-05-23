@@ -2,13 +2,13 @@ name: Branch build postgres container image
 on:
   pull_request:
     paths:
-      - applications/postgres-cluster/container/Dockerfile
+      - system-components/postgres-cluster/container/Dockerfile
       - .github/workflows/branch-build-postgres-container-image.yaml
   push:
     branches-ignore:
       - main
     paths:
-      - applications/postgres-cluster/container/Dockerfile
+      - system-components/postgres-cluster/container/Dockerfile
       - .github/workflows/branch-build-postgres-container-image.yaml
 
 jobs:
@@ -25,5 +25,5 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: applications/postgres-cluster/container
+          context: system-components/postgres-cluster/container
           push: false

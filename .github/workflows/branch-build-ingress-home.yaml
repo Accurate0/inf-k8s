@@ -2,13 +2,13 @@ name: Branch build ingress-home
 on:
   pull_request:
     paths:
-      - components/ingress-home/**
+      - platform-services/ingress-home/**
       - .github/workflows/branch-build-ingress-home.yaml
   push:
     branches-ignore:
       - main
     paths:
-      - components/ingress-home/**
+      - platform-services/ingress-home/**
       - .github/workflows/branch-build-ingress-home.yaml
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./components/ingress-home
+          context: ./platform-services/ingress-home
           push: false
           build-args: |
             BINARY_NAME=ingress-home

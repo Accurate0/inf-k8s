@@ -2,13 +2,13 @@ name: Branch build pg-db-controller
 on:
   pull_request:
     paths:
-      - components/pg-db-controller/**
+      - platform-services/pg-db-controller/**
       - .github/workflows/branch-build-pg-db-controller.yaml
   push:
     branches-ignore:
       - main
     paths:
-      - components/pg-db-controller/**
+      - platform-services/pg-db-controller/**
       - .github/workflows/branch-build-pg-db-controller.yaml
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./components/pg-db-controller
+          context: ./platform-services/pg-db-controller
           push: false
           build-args: |
             BINARY_NAME=pg-db-controller

@@ -2,13 +2,13 @@ name: Branch build k8s-schemas
 on:
   pull_request:
     paths:
-      - components/k8s-schemas/**
+      - platform-services/k8s-schemas/**
       - .github/workflows/branch-build-k8s-schemas.yaml
   push:
     branches-ignore:
       - main
     paths:
-      - components/k8s-schemas/**
+      - platform-services/k8s-schemas/**
       - .github/workflows/branch-build-k8s-schemas.yaml
 
 jobs:
@@ -25,5 +25,5 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: components/k8s-schemas
+          context: platform-services/k8s-schemas
           push: false

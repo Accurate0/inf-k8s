@@ -1,0 +1,313 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: forgejo
+  namespace: argocd
+spec:
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: forgejo
+      jqPathExpressions:
+        - ".status"
+        - ".spec.parentRefs"
+        - ".spec.rules[].backendRefs[].group"
+        - ".spec.rules[].backendRefs[].weight"
+        - ".spec.rules[].matches[].path"
+    - group: gateway.networking.k8s.io
+      kind: TCPRoute
+      name: forgejo-ssh
+      jqPathExpressions:
+        - ".status"
+        - ".spec.parentRefs"
+        - ".spec.rules[].backendRefs[].group"
+        - ".spec.rules[].backendRefs[].weight"
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        shared-gateway-access: "true"
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: system-components
+  sources:
+    - chart: k8s-infisical-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
+      targetRevision: 0.10.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: forgejo
+            projectSlug: forgejo-lmh-v
+            resyncInterval: 900
+          secrets:
+            - name: forgejo-ssh-signing-secrets
+              secretPath: /ssh-signing
+              managedSecrets:
+                - secretName: forgejo-ssh-signing-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ed25519: "{{ .SSH_SIGNING_KEY.Value }}"
+                      ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC.Value }}"
+            - name: forgejo-ssh-host-secrets
+              secretPath: /ssh
+              managedSecrets:
+                - secretName: forgejo-ssh-host-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ssh_host_ed25519_key: "{{ .SSH_HOST_KEY.Value }}"
+            - name: forgejo-gpg-secrets
+              secretPath: /gpg
+              managedSecrets:
+                - secretName: forgejo-gpg-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      privateKey: "{{ .GPG_PRIVATE_KEY.Value }}"
+            - name: forgejo-oauth-secrets
+              secretPath: /oauth
+              managedSecrets:
+                - secretName: forgejo-oauth-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      key: "{{ .AUTHENTIK_CLIENT_ID.Value }}"
+                      secret: "{{ .AUTHENTIK_CLIENT_SECRET.Value }}"
+            - name: forgejo-secrets
+              secretPath: /
+              managedSecrets:
+                - secretName: forgejo-managed-secrets
+    - chart: forgejo
+      repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
+      targetRevision: 17.1.0
+      helm:
+        valuesObject:
+          extraVolumes:
+            - name: forgejo-themes
+              configMap:
+                name: forgejo-themes
+            - name: forgejo-ssh-host
+              secret:
+                secretName: forgejo-ssh-host-managed-secrets
+            - name: forgejo-ssh-signing
+              secret:
+                secretName: forgejo-ssh-signing-managed-secrets
+                defaultMode: 0o444
+
+          extraContainerVolumeMounts:
+            - name: forgejo-themes
+              readOnly: true
+              mountPath: "/data/gitea/public/assets/css"
+            - name: forgejo-ssh-host
+              mountPath: "/data/gitea/ssh/ssh_host_ed25519_key"
+              subPath: ssh_host_ed25519_key
+            - name: forgejo-ssh-signing
+              mountPath: /data/signing
+              readOnly: true
+
+          extraInitVolumeMounts:
+            - name: forgejo-ssh-signing
+              mountPath: /data/signing
+              readOnly: true
+
+          image:
+            rootless: true
+
+          replicaCount: 1
+          topologySpreadConstraints:
+            - topologyKey: inf-k8s.net/location
+              whenUnsatisfiable: ScheduleAnyway
+              maxSkew: 1
+              nodeTaintsPolicy: Honor
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/instance: forgejo
+
+          httpRoute:
+            enabled: true
+            parentRefs:
+              - name: shared-gateway
+                namespace: envoy-gateway-system
+            hostnames:
+              - git.anurag.sh
+            matches:
+              path:
+                type: PathPrefix
+                value: "/"
+              timeouts:
+                request: 90s
+                backendRequest: 90s
+          tcpRoute:
+            enabled: true
+            parentRefs:
+              - name: shared-gateway
+                namespace: envoy-gateway-system
+                sectionName: git-ssh
+          persistence:
+            enabled: true
+            storageClass: longhorn-replicated
+            accessModes:
+              - ReadWriteOnce
+          signing:
+            enabled: false
+          gitea:
+            readinessProbe:
+              enabled: true
+              httpGet:
+                path: /api/healthz
+                port: http
+              initialDelaySeconds: 5
+              timeoutSeconds: 1
+              periodSeconds: 120
+              successThreshold: 1
+              failureThreshold: 3
+            livenessProbe:
+              enabled: true
+              tcpSocket:
+                port: http
+              initialDelaySeconds: 200
+              timeoutSeconds: 1
+              periodSeconds: 120
+              successThreshold: 1
+              failureThreshold: 10
+            admin:
+              username: ""
+              existingSecret: ""
+            config:
+              APP_NAME: "git"
+              APP_SLOGAN: ""
+              ui:
+                THEMES: forgejo-auto,forgejo-light,forgejo-dark,anthracite,anthracite-dark,anthracite-light
+                DEFAULT_THEME: anthracite
+              admin:
+                EXTERNAL_USER_DISABLE_FEATURES: "manage_password, deletion"
+              indexer:
+                REPO_INDEXER_ENABLED: true
+              storage:
+                STORAGE_TYPE: minio
+                MINIO_BUCKET: forgejo-storage
+                MINIO_USE_SSL: "true"
+              database:
+                DB_TYPE: postgres
+              queue:
+                TYPE: redis
+                CONN_STR: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+              session:
+                COOKIE_NAME: "git_session"
+                PROVIDER: redis
+                PROVIDER_CONFIG: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+                SESSION_LIFE_TIME: "1209600"
+              cache:
+                ENABLED: true
+                ADAPTER: redis
+                HOST: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+              repository:
+                DISABLE_DOWNLOAD_SOURCE_ARCHIVES: "true"
+              repository.signing:
+                FORMAT: ssh
+                SIGNING_KEY: /data/signing/ed25519.pub
+                SIGNING_NAME: git.anurag.sh Instance
+                SIGNING_EMAIL: noreply@git.anurag.sh
+                INITIAL_COMMIT: pubkey
+                CRUD_ACTIONS: pubkey, parentsigned
+                WIKI: never
+                MERGES: pubkey, approved
+              oauth2_client:
+                ENABLE_AUTO_REGISTRATION: "true"
+              openid:
+                ENABLE_OPENID_SIGNUP: "false"
+              security:
+                INSTALL_LOCK: "true"
+              server:
+                SSH_SERVER_HOST_KEYS: ssh/ssh_host_ed25519_key
+              service:
+                DISABLE_REGISTRATION: "true"
+                ALLOW_ONLY_EXTERNAL_REGISTRATION: "true"
+                ENABLE_INTERNAL_SIGNIN: "false"
+                DEFAULT_KEEP_EMAIL_PRIVATE: "true"
+                ENABLE_BASIC_AUTHENTICATION: "false"
+              service.explore:
+                REQUIRE_SIGNIN_VIEW: "true"
+                DISABLE_USERS_PAGE: "false"
+                DISABLE_ORGANIZATIONS_PAGE: "false"
+                DISABLE_CODE_PAGE: "false"
+              api:
+                ENABLE_SWAGGER: "false"
+              webhook:
+                ALLOWED_HOST_LIST: "api.janitor-bot.svc.cluster.local,external"
+              other:
+                SHOW_FOOTER_VERSION: "false"
+                SHOW_FOOTER_TEMPLATE_LOAD_TIME: "false"
+                SHOW_FOOTER_POWERED_BY: "false"
+                ENABLE_SITEMAP: "false"
+                ENABLE_FEED: "false"
+            additionalConfigFromEnvs:
+              - name: FORGEJO__STORAGE__MINIO_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-managed-secrets
+                    key: MINIO_ENDPOINT
+              - name: FORGEJO__STORAGE__MINIO_ACCESS_KEY_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-managed-secrets
+                    key: MINIO_ACCESS_KEY_ID
+              - name: FORGEJO__STORAGE__MINIO_SECRET_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-managed-secrets
+                    key: MINIO_SECRET_ACCESS_KEY
+
+              - name: FORGEJO__DATABASE__NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-database-secret
+                    key: PGDATABASE
+              - name: FORGEJO__DATABASE__USER
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-database-secret
+                    key: PGUSER
+              - name: FORGEJO__DATABASE__HOST
+                value: cloudnative-pg-cluster-pooler-rw.cnpg-system
+              - name: FORGEJO__DATABASE__PASSWD
+                valueFrom:
+                  secretKeyRef:
+                    name: forgejo-database-secret
+                    key: PGPASSWORD
+            metrics:
+              enabled: true
+              serviceMonitor:
+                enabled: true
+            oauth:
+              - name: "authentik"
+                provider: "openidConnect"
+                existingSecret: forgejo-oauth-managed-secrets
+                autoDiscoverUrl: "https://authentik.anurag.sh/application/o/forgejo/.well-known/openid-configuration"
+                scopes: "email profile forgejo"
+                requiredClaimName: forgejo
+                groupClaimName: "forgejo"
+                adminGroup: "admin"
+                restrictedGroup: "restricted"
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: system-components/forgejo
+      kustomize:
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: forgejo
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}

@@ -1,0 +1,48 @@
+type: argocd_sync
+payload:
+  app_name: janitor-bot
+  sha: "abc1234567890def"
+  sync_status: "Synced"
+  health_status: "Healthy"
+  phase: "Succeeded"
+  message: "successfully synced"
+mocks:
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def
+    status: 200
+    body:
+      sha: abc1234567890def
+      created: "2025-01-01T00:00:00Z"
+      html_url: ""
+      url: ""
+      files:
+        - filename: "projects/janitor-bot/manifests/deployment.yaml"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/raw/system-components/janitor-bot.application.yaml
+    status: 404
+    body_text: "not found"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/raw/projects/janitor-bot/application.yaml
+    status: 200
+    body_text: |
+      apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: janitor-bot
+      spec:
+        sources:
+          - repoURL: https://github.com/Accurate0/inf-k8s.git
+            path: projects/janitor-bot/manifests
+          - chart: k8s-http-routes
+            repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+            targetRevision: 2.1.0
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def
+    status: 201
+    body:
+      id: 1
+      status: success

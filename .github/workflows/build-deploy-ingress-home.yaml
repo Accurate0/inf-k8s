@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - components/ingress-home/**
+      - platform-services/ingress-home/**
       - .github/workflows/build-deploy-ingress-home.yaml
   workflow_dispatch:
 
@@ -14,7 +14,7 @@ jobs:
       packages: write
     uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
     with:
-      directory: ./components/ingress-home
+      directory: ./platform-services/ingress-home
       image-name: ingress-home
       docker-build-args: |
         BINARY_NAME=ingress-home
@@ -27,7 +27,7 @@ jobs:
     with:
       service-name: ingress-home
       images: ghcr.io/accurate0/ingress-home
-      manifests-path: projects/ingress-home/manifests
+      manifests-path: platform-services/ingress-home/manifests
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

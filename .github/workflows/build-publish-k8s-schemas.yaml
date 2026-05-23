@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - components/k8s-schemas/**
+      - platform-services/k8s-schemas/**
       - .github/workflows/build-publish-k8s-schemas.yaml
   workflow_dispatch:
 
@@ -42,7 +42,7 @@ jobs:
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
-          context: components/k8s-schemas
+          context: platform-services/k8s-schemas
           push: true
           tags: |
             ghcr.io/accurate0/k8s-schemas:latest
@@ -62,7 +62,7 @@ jobs:
     with:
       service-name: k8s-schemas
       images: ghcr.io/accurate0/k8s-schemas
-      manifests-path: projects/k8s-schemas/manifests
+      manifests-path: platform-services/k8s-schemas/manifests
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

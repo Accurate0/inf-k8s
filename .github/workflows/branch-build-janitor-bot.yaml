@@ -2,13 +2,13 @@ name: Branch build janitor-bot
 on:
   pull_request:
     paths:
-      - components/janitor-bot/**
+      - platform-services/janitor-bot/**
       - .github/workflows/branch-build-janitor-bot.yaml
   push:
     branches-ignore:
       - main
     paths:
-      - components/janitor-bot/**
+      - platform-services/janitor-bot/**
       - .github/workflows/branch-build-janitor-bot.yaml
 
 jobs:
@@ -25,7 +25,7 @@ jobs:
       - name: Docker build
         uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
         with:
-          context: ./components/janitor-bot
+          context: ./platform-services/janitor-bot
           push: false
           build-args: |
             BINARY_NAME=janitor-bot
@@ -42,7 +42,7 @@ jobs:
           chmod +x /usr/local/bin/argocd
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
-          path: components/janitor-bot/target
+          path: platform-services/janitor-bot/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
       - run: cargo test
-        working-directory: components/janitor-bot
+        working-directory: platform-services/janitor-bot

@@ -14,7 +14,7 @@ jobs:
       - name: Self-hosted Renovate
         uses: renovatebot/github-action@693b9ef15eec82123529a37c782242f091365961 # v46.1.14
         with:
-          configurationFile: components/renovate/config.js
+          configurationFile: platform-services/renovate/config.js
           token: ${{ secrets.FORGEJO_RENOVATE_TOKEN }}
         env:
           LOG_LEVEL: info

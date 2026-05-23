@@ -1,0 +1,27 @@
+type: argocd_sync
+payload:
+  app_name: janitor-bot
+  sha: "def4567890abc123"
+  sync_status: "Synced"
+  health_status: "Degraded"
+  phase: "Failed"
+  message: "sync failed"
+mocks:
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/def4567890abc123
+    status: 200
+    body:
+      sha: def4567890abc123
+      created: "2025-01-01T00:00:00Z"
+      html_url: ""
+      url: ""
+      files:
+        - filename: "system-components/janitor-bot.application.yaml"
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/def4567890abc123
+    status: 201
+    body:
+      id: 2
+      status: failure

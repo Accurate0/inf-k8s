@@ -2,7 +2,8 @@
 
 set shell := ["bash", "-euo", "pipefail", "-c"]
 
-mod apps     'applications/mod.just'
+mod system   'system-components/mod.just'
+mod platform 'platform-services/mod.just'
 mod projects 'projects/mod.just'
 mod ansible  'ansible/mod.just'
 mod tf       'terraform/mod.just'

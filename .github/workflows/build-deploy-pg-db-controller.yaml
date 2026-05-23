@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - components/pg-db-controller/**
+      - platform-services/pg-db-controller/**
       - .github/workflows/build-deploy-pg-db-controller.yaml
   workflow_dispatch:
 
@@ -15,7 +15,7 @@ jobs:
 
     uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
     with:
-      directory: ./components/pg-db-controller
+      directory: ./platform-services/pg-db-controller
       image-name: pg-db-controller
       docker-build-args: |
         BINARY_NAME=pg-db-controller
@@ -28,7 +28,7 @@ jobs:
     with:
       service-name: pg-db-controller
       images: ghcr.io/accurate0/pg-db-controller
-      manifests-path: projects/pg-db-controller/manifests
+      manifests-path: platform-services/pg-db-controller/manifests
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

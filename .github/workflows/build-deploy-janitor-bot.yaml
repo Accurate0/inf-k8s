@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - components/janitor-bot/**
+      - platform-services/janitor-bot/**
       - .github/workflows/build-deploy-janitor-bot.yaml
   workflow_dispatch:
 
@@ -15,7 +15,7 @@ jobs:
 
     uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
     with:
-      directory: ./components/janitor-bot
+      directory: ./platform-services/janitor-bot
       image-name: janitor-bot
       docker-build-args: |
         BINARY_NAME=janitor-bot
@@ -32,10 +32,10 @@ jobs:
           chmod +x /usr/local/bin/argocd
       - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
         with:
-          path: components/janitor-bot/target
+          path: platform-services/janitor-bot/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
       - run: cargo test
-        working-directory: components/janitor-bot
+        working-directory: platform-services/janitor-bot
 
   deploy:
     needs:
@@ -45,7 +45,7 @@ jobs:
     with:
       service-name: janitor-bot
       images: ghcr.io/accurate0/janitor-bot
-      manifests-path: projects/janitor-bot/manifests
+      manifests-path: platform-services/janitor-bot/manifests
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

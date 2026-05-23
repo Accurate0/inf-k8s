@@ -1,0 +1,90 @@
+now: "2026-01-07T10:00:00Z"
+type: pr
+payload:
+  action: opened
+  pull_request:
+    number: 104
+    title: "[skip ci] Update janitor-bot images to abc123"
+    labels: []
+    base:
+      ref: main
+    diff_url: ""
+    html_url: ""
+    patch_url: ""
+    url: ""
+  sender:
+    login: ci-image-updater
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - service: flipt
+    method: POST
+    path: /evaluate/v1/boolean
+    status: 200
+    body:
+      enabled: true
+      reason: MATCH_EVALUATION_REASON
+      request_id: test
+      request_duration_millis: 0.1
+      timestamp: "2026-01-07T10:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/104/files
+    status: 200
+    body:
+      - filename: platform-services/janitor-bot/deployment.yaml
+        contents_url: ""
+        html_url: ""
+        raw_url: ""
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/104
+    status: 200
+    body:
+      number: 104
+      title: "[skip ci] Update janitor-bot images to abc123"
+      body: "<!-- metadata:{\"service\":\"janitor-bot\",\"tag\":\"abc123\"} -->"
+      user:
+        login: ci-image-updater
+        avatar_url: ""
+        html_url: ""
+        created: "2020-01-01T00:00:00Z"
+        last_login: "2020-01-01T00:00:00Z"
+      labels: []
+      base:
+        ref: main
+      mergeable: true
+      state: open
+      merged: false
+      diff_url: ""
+      html_url: ""
+      patch_url: ""
+      url: ""
+      requested_reviewers: []
+      closed_at: null
+      created_at: "2020-01-01T00:00:00Z"
+      due_date: null
+      merged_at: null
+      updated_at: "2020-01-01T00:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/104/reviews
+    status: 200
+    body: []
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls
+    query:
+      state: open
+    status: 200
+    body: []
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/104/reviews
+    status: 200
+    body: {}
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/104/merge
+    status: 200
+    body: {}
