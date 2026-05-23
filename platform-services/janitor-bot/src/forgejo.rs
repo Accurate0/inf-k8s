@@ -856,7 +856,7 @@ mod tests {
 
     #[test]
     fn commit_deserialization_with_files() {
-        let json = r#"{"sha":"abc1234567890def","created":"2025-01-01T00:00:00Z","html_url":"","url":"","files":[{"filename":"system-components/janitor-bot.application.yaml"},{"filename":"platform-services/janitor-bot/values.yaml"}]}"#;
+        let json = r#"{"sha":"abc1234567890def","created":"2025-01-01T00:00:00Z","html_url":"","url":"","files":[{"filename":"platform-services/janitor-bot/application.yaml"},{"filename":"platform-services/janitor-bot/values.yaml"}]}"#;
 
         let commit: Commit = serde_json::from_str(json).expect("should deserialize");
         let files: Vec<String> = commit
@@ -869,7 +869,7 @@ mod tests {
         assert_eq!(
             files,
             vec![
-                "system-components/janitor-bot.application.yaml",
+                "platform-services/janitor-bot/application.yaml",
                 "platform-services/janitor-bot/values.yaml"
             ]
         );

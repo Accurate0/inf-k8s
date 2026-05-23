@@ -456,6 +456,7 @@ impl ArgocdClient {
 
         let candidates = [
             format!("system-components/{}.application.yaml", sync.app_name),
+            format!("platform-services/{}/application.yaml", sync.app_name),
             format!("projects/{}/application.yaml", sync.app_name),
         ];
 
@@ -518,6 +519,7 @@ impl ArgocdClient {
         // The app's own definition file changed (chart bumps, source edits).
         let def_files = [
             format!("system-components/{app_name}.application.yaml"),
+            format!("platform-services/{app_name}/application.yaml"),
             format!("projects/{app_name}/application.yaml"),
         ];
 
@@ -668,8 +670,8 @@ mod tests {
     fn matches_file_under_source_path() {
         assert!(affected(
             "janitor-bot",
-            &["projects/janitor-bot/manifests"],
-            &["projects/janitor-bot/manifests/deployment.yaml"],
+            &["platform-services/janitor-bot/manifests"],
+            &["platform-services/janitor-bot/manifests/deployment.yaml"],
         ));
     }
 
@@ -692,8 +694,8 @@ mod tests {
         ));
         assert!(affected(
             "janitor-bot",
-            &["projects/janitor-bot/manifests"],
-            &["projects/janitor-bot/application.yaml"],
+            &["platform-services/janitor-bot/manifests"],
+            &["platform-services/janitor-bot/application.yaml"],
         ));
     }
 
@@ -701,7 +703,7 @@ mod tests {
     fn does_not_match_unrelated_files() {
         assert!(!affected(
             "janitor-bot",
-            &["projects/janitor-bot/manifests"],
+            &["platform-services/janitor-bot/manifests"],
             &["terraform/main.tf", "system-components/longhorn/foo.yaml"],
         ));
     }

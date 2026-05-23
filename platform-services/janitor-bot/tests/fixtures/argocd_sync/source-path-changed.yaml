@@ -17,7 +17,7 @@ mocks:
       html_url: ""
       url: ""
       files:
-        - filename: "projects/janitor-bot/manifests/deployment.yaml"
+        - filename: "platform-services/janitor-bot/manifests/deployment.yaml"
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/raw/system-components/janitor-bot.application.yaml
@@ -25,7 +25,7 @@ mocks:
     body_text: "not found"
   - service: forgejo
     method: GET
-    path: /api/v1/repos/anurag/k8s/raw/projects/janitor-bot/application.yaml
+    path: /api/v1/repos/anurag/k8s/raw/platform-services/janitor-bot/application.yaml
     status: 200
     body_text: |
       apiVersion: argoproj.io/v1alpha1
@@ -35,7 +35,7 @@ mocks:
       spec:
         sources:
           - repoURL: https://github.com/Accurate0/inf-k8s.git
-            path: projects/janitor-bot/manifests
+            path: platform-services/janitor-bot/manifests
           - chart: k8s-http-routes
             repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
             targetRevision: 2.1.0

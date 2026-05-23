@@ -28,7 +28,7 @@ mocks:
     path: /api/v1/repos/anurag/k8s/pulls/184/files
     status: 200
     body:
-      - filename: projects/janitor-bot/manifests/deployment.yaml
+      - filename: platform-services/janitor-bot/manifests/deployment.yaml
         contents_url: ""
         html_url: ""
         raw_url: ""
@@ -90,7 +90,7 @@ mocks:
           spec:
             sources:
               - repoURL: https://github.com/Accurate0/inf-k8s.git
-                path: projects/janitor-bot/manifests
+                path: platform-services/janitor-bot/manifests
         - metadata:
             name: longhorn
           spec:
