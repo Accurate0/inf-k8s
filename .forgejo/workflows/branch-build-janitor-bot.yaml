@@ -5,12 +5,6 @@ on:
     paths:
       - platform-services/janitor-bot/**
       - .forgejo/workflows/branch-build-janitor-bot.yaml
-  push:
-    branches-ignore:
-      - main
-    paths:
-      - platform-services/janitor-bot/**
-      - .forgejo/workflows/branch-build-janitor-bot.yaml
 
 jobs:
   build:

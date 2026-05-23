@@ -5,12 +5,6 @@ on:
     paths:
       - platform-services/ingress-home/**
       - .forgejo/workflows/branch-build-ingress-home.yaml
-  push:
-    branches-ignore:
-      - main
-    paths:
-      - platform-services/ingress-home/**
-      - .forgejo/workflows/branch-build-ingress-home.yaml
 
 jobs:
   build:
