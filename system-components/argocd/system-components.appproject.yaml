@@ -24,6 +24,7 @@ spec:
     - docker.io/envoyproxy
     - oci://code.forgejo.org/forgejo-helm/forgejo
     - oci://ghcr.io/accurate0/charts/k8s-http-routes
+    - oci://ghcr.io/bjw-s-labs/helm-charts
     - oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
     - oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
   destinations:
