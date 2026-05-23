@@ -1,0 +1,26 @@
+name: Branch build ingress-home
+on:
+  pull_request:
+    paths:
+      - platform-services/ingress-home/**
+      - .forgejo/workflows/branch-build-ingress-home.yaml
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - platform-services/ingress-home/**
+      - .forgejo/workflows/branch-build-ingress-home.yaml
+
+jobs:
+  build:
+    name: Build
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./platform-services/ingress-home
+          push: false
+          build-args: |
+            BINARY_NAME=ingress-home

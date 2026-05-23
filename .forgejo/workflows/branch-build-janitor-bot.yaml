@@ -1,0 +1,38 @@
+name: Branch build janitor-bot
+on:
+  pull_request:
+    paths:
+      - platform-services/janitor-bot/**
+      - .forgejo/workflows/branch-build-janitor-bot.yaml
+  push:
+    branches-ignore:
+      - main
+    paths:
+      - platform-services/janitor-bot/**
+      - .forgejo/workflows/branch-build-janitor-bot.yaml
+
+jobs:
+  build:
+    name: Build
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: ./platform-services/janitor-bot
+          push: false
+          build-args: |
+            BINARY_NAME=janitor-bot
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/cache@v4
+        with:
+          path: platform-services/janitor-bot/target
+          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
+      - run: cargo test
+        working-directory: platform-services/janitor-bot
