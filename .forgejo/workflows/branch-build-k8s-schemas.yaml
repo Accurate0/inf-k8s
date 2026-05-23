@@ -1,5 +1,6 @@
 name: Branch build k8s-schemas
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - platform-services/k8s-schemas/**

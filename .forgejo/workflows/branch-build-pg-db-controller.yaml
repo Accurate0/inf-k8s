@@ -1,5 +1,6 @@
 name: Branch build pg-db-controller
 on:
+  workflow_dispatch:
   pull_request:
     paths:
       - platform-services/pg-db-controller/**
