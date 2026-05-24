@@ -18,6 +18,28 @@ spec:
     - name: http
       port: 8923
       targetPort: anubis-http
+    - name: metrics
+      port: 9090
+      targetPort: anubis-metrics
+---
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: forgejo-anubis
+  namespace: forgejo
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: forgejo
+      app.kubernetes.io/instance: forgejo-anubis
+      app.kubernetes.io/component: anubis
+  endpoints:
+    - port: metrics
+      interval: 15s
+      scrapeTimeout: 10s
 ---
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1

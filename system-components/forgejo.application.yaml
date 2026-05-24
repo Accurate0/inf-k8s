@@ -120,9 +120,13 @@ spec:
               ports:
                 - name: anubis-http
                   containerPort: 8923
+                - name: anubis-metrics
+                  containerPort: 9090
               env:
                 - name: BIND
                   value: ":8923"
+                - name: METRICS_BIND
+                  value: ":9090"
                 - name: TARGET
                   value: "http://localhost:3000"
                 - name: DIFFICULTY
@@ -277,6 +281,8 @@ spec:
               security:
                 INSTALL_LOCK: "true"
               server:
+                DOMAIN: git.anurag.sh
+                ROOT_URL: https://git.anurag.sh/
                 SSH_SERVER_HOST_KEYS: ssh/ssh_host_ed25519_key
               service:
                 DISABLE_REGISTRATION: "true"
