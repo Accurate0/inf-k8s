@@ -1,0 +1,10 @@
+{{- if and .Values.policy.enabled .Values.policy.inline }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: anubis-policy
+  namespace: {{ .Values.namespace }}
+data:
+  {{ .Values.policy.fileName }}: |
+{{ .Values.policy.inline | indent 4 }}
+{{- end }}

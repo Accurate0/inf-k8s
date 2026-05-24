@@ -1,0 +1,83 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: anubis
+  namespace: {{ .Values.namespace }}
+  labels:
+    app: anubis
+spec:
+  replicas: {{ .Values.replicas }}
+  selector:
+    matchLabels:
+      app: anubis
+  template:
+    metadata:
+      labels:
+        app: anubis
+    spec:
+      containers:
+        - name: anubis
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}@{{ .Values.image.digest }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+            - name: metrics
+              containerPort: 9090
+          env:
+            - name: BIND
+              value: ":8080"
+            - name: METRICS_BIND
+              value: ":9090"
+            - name: TARGET
+              value: "{{ .Values.target.scheme }}://{{ required "target.name is required" .Values.target.name }}.{{ .Values.namespace }}.svc.cluster.local:{{ .Values.target.port }}"
+            - name: ED25519_PRIVATE_KEY_HEX
+              valueFrom:
+                secretKeyRef:
+                  name: {{ if .Values.secret.generate }}anubis-key{{ else }}{{ required "secret.secretName or secret.generate is required" .Values.secret.secretName }}{{ end }}
+                  key: ED25519_PRIVATE_KEY_HEX
+            {{- if .Values.policy.enabled }}
+            - name: POLICY_FNAME
+              value: "{{ .Values.policy.mountPath }}/{{ .Values.policy.fileName }}"
+            {{- end }}
+            {{- range $k, $v := .Values.env }}
+            - name: {{ $k }}
+              value: {{ $v | quote }}
+            {{- end }}
+            {{- with .Values.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- if or .Values.policy.enabled .Values.extraVolumeMounts }}
+          volumeMounts:
+            {{- if .Values.policy.enabled }}
+            - name: policy
+              mountPath: {{ .Values.policy.mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- with .Values.extraVolumeMounts }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            runAsUser: 1000
+            runAsGroup: 1000
+            runAsNonRoot: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+            seccompProfile:
+              type: RuntimeDefault
+      {{- if or .Values.policy.enabled .Values.extraVolumes }}
+      volumes:
+        {{- if .Values.policy.enabled }}
+        - name: policy
+          configMap:
+            name: {{ if .Values.policy.inline }}anubis-policy{{ else }}{{ required "policy.inline or policy.configMapName is required when policy.enabled" .Values.policy.configMapName }}{{ end }}
+        {{- end }}
+        {{- with .Values.extraVolumes }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- end }}

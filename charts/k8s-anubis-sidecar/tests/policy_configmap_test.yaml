@@ -1,0 +1,40 @@
+suite: policy-configmap
+templates:
+  - policy-configmap.yaml
+tests:
+  - it: does not render when policy disabled
+    set:
+      target.name: api
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: does not render when only configMapName is provided
+    set:
+      target.name: api
+      policy.enabled: true
+      policy.configMapName: external
+    asserts:
+      - hasDocuments:
+          count: 0
+
+  - it: renders a configmap with inline policy content
+    set:
+      target.name: api
+      namespace: prod
+      policy.enabled: true
+      policy.inline: "bots: []"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - equal:
+          path: metadata.name
+          value: anubis-policy
+      - equal:
+          path: metadata.namespace
+          value: prod
+      - matchRegex:
+          path: data["botPolicy.yaml"]
+          pattern: "bots:"
