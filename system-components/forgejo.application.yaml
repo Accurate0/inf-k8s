@@ -120,13 +120,9 @@ spec:
               ports:
                 - name: anubis-http
                   containerPort: 8923
-                - name: anubis-metrics
-                  containerPort: 9090
               env:
                 - name: BIND
                   value: ":8923"
-                - name: METRICS_BIND
-                  value: ":9090"
                 - name: TARGET
                   value: "http://localhost:3000"
                 - name: DIFFICULTY

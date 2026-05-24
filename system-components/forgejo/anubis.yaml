@@ -18,9 +18,6 @@ spec:
     - name: http
       port: 8923
       targetPort: anubis-http
-    - name: metrics
-      port: 9090
-      targetPort: anubis-metrics
 ---
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
