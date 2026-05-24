@@ -13,6 +13,6 @@ configMapGenerator:
       - themes/theme-anthracite-light.css
   - name: forgejo-anubis-policy
     files:
-      - botPolicy.yaml=anubis-policy.yaml
+      - botPolicies.yaml=anubis-policy.yaml
 generatorOptions:
   disableNameSuffixHash: true

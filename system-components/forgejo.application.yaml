@@ -115,7 +115,7 @@ spec:
 
           extraContainers:
             - name: anubis
-              image: ghcr.io/techarohq/anubis:v1.13.0@sha256:7fd4c947f830f0ccad85dda41d33e711f27ca043109633eea60190a573c34919
+              image: ghcr.io/techarohq/anubis:v1.25.0@sha256:5cf4c0d6c7ea01a356c6685a779971bdd28d6a5a4a6719201f73a9c4ae108db0
               imagePullPolicy: IfNotPresent
               ports:
                 - name: anubis-http
@@ -138,7 +138,7 @@ spec:
                 - name: OG_EXPIRY_TIME
                   value: "24h"
                 - name: POLICY_FNAME
-                  value: /data/cfg/botPolicy.yaml
+                  value: /data/cfg/botPolicies.yaml
                 - name: ED25519_PRIVATE_KEY_HEX
                   valueFrom:
                     secretKeyRef:
@@ -146,8 +146,8 @@ spec:
                       key: ED25519_PRIVATE_KEY_HEX
               volumeMounts:
                 - name: anubis-policy
-                  mountPath: /data/cfg/botPolicy.yaml
-                  subPath: botPolicy.yaml
+                  mountPath: /data/cfg/botPolicies.yaml
+                  subPath: botPolicies.yaml
                   readOnly: true
               resources:
                 requests:
