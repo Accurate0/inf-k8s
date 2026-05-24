@@ -30,7 +30,9 @@ metadata:
   namespace: forgejo
 spec:
   parentRefs:
-    - name: shared-gateway
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: shared-gateway
       namespace: envoy-gateway-system
   hostnames:
     - git.anurag.sh
@@ -43,5 +45,8 @@ spec:
         request: 90s
         backendRequest: 90s
       backendRefs:
-        - name: forgejo-anubis
+        - group: ""
+          kind: Service
+          name: forgejo-anubis
           port: 8923
+          weight: 1

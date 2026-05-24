@@ -146,7 +146,8 @@ spec:
                       key: ED25519_PRIVATE_KEY_HEX
               volumeMounts:
                 - name: anubis-policy
-                  mountPath: /data/cfg
+                  mountPath: /data/cfg/botPolicy.yaml
+                  subPath: botPolicy.yaml
                   readOnly: true
               resources:
                 requests:
