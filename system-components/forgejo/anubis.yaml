@@ -7,7 +7,7 @@ metadata:
   namespace: forgejo
   labels:
     app.kubernetes.io/name: forgejo
-    app.kubernetes.io/instance: forgejo
+    app.kubernetes.io/instance: forgejo-anubis
     app.kubernetes.io/component: anubis
 spec:
   type: ClusterIP
