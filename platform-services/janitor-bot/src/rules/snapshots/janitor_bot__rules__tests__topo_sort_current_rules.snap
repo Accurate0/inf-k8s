@@ -8,7 +8,7 @@ expression: names
 - manage-renovate
 - automerge-renovate-on-green
 - manage-github-workflow
+- retry-renovate-workflow
 - mirror-commit-status
 - argocd-sync-status
 - argocd-sync-merged-pr
-- retry-renovate-workflow

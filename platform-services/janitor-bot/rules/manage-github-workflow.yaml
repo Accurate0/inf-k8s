@@ -16,8 +16,11 @@ variables:
   - var: is_success
     type: workflow_conclusion
     value: success
+  - var: is_renovate
+    type: title_contains
+    value: renovate
 actions:
-  - when: "is_failure"
+  - when: "is_failure && !is_renovate"
     run:
       - type: ensure_labels_exist
         target:

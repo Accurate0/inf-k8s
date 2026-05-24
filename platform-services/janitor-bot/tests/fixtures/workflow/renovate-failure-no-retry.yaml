@@ -36,30 +36,3 @@ mocks:
     path: /repos/Accurate0/inf-k8s/actions/jobs/3001/logs
     status: 200
     body_text: "2026-01-01T00:04:00Z Step 1\n\n      2026-01-01T00:04:01Z Building...\n\n      2026-01-01T00:04:02Z ##[error]persistent failure\n\n      2026-01-01T00:04:03Z Done"
-  - service: forgejo
-    method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    status: 200
-    body: []
-  - service: forgejo
-    method: POST
-    path: /api/v1/repos/anurag/k8s/labels
-    status: 201
-    body:
-      id: 201
-      name: github-ci-failure
-      color: "#d73a4a"
-      url: ""
-  - service: forgejo
-    method: GET
-    path: /api/v1/repos/anurag/k8s/issues
-    status: 200
-    body: []
-  - service: forgejo
-    method: POST
-    path: /api/v1/repos/anurag/k8s/issues
-    status: 201
-    body:
-      number: 9003
-      title: "[GitHub CI] Accurate0/inf-k8s CI failed"
-      body: created

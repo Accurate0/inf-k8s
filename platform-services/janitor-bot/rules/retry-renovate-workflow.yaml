@@ -1,8 +1,6 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: retry-renovate-workflow
 enabled: true
-depends_on:
-  - manage-github-workflow
 matches:
   all:
     - type: github

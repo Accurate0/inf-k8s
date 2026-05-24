@@ -8,7 +8,7 @@ response:
           - ensure_labels_exist
           - create_issue
         ran: false
-        when: is_failure
+        when: is_failure && !is_renovate
       - actions:
           - close_issue
         ran: true
@@ -17,6 +17,8 @@ response:
     name: manage-github-workflow
     variables:
       - name: is_failure
+        value: "false"
+      - name: is_renovate
         value: "false"
       - name: is_success
         value: "true"

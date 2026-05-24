@@ -8,7 +8,7 @@ response:
           - ensure_labels_exist
           - create_issue
         ran: true
-        when: is_failure
+        when: is_failure && !is_renovate
       - actions:
           - close_issue
         ran: false
@@ -18,6 +18,8 @@ response:
     variables:
       - name: is_failure
         value: "true"
+      - name: is_renovate
+        value: "false"
       - name: is_success
         value: "false"
 external_requests:
