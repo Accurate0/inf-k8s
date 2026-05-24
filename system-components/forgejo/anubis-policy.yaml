@@ -1,5 +1,3 @@
-# Default Anubis bot policy. Tweak rules as needed; see
-# https://anubis.techaro.lol/docs/admin/policies for the schema.
 bots:
   - name: well-known
     path_regex: ^/\.well-known/.*$
