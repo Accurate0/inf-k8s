@@ -18,4 +18,5 @@ bots:
     user_agent_regex: Mozilla
     action: CHALLENGE
   - name: catchall
-    action: ALLOW
+    user_agent_regex: .*
+    action: CHALLENGE
