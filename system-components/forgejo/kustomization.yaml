@@ -4,11 +4,15 @@ kind: Kustomization
 resources:
   - ./backend.policy.yaml
   - ./database.yaml
+  - ./anubis.yaml
 configMapGenerator:
   - name: forgejo-themes
     files:
       - themes/theme-anthracite.css
       - themes/theme-anthracite-dark.css
       - themes/theme-anthracite-light.css
+  - name: forgejo-anubis-policy
+    files:
+      - botPolicy.yaml=anubis-policy.yaml
 generatorOptions:
   disableNameSuffixHash: true

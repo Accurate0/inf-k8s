@@ -7,15 +7,6 @@ metadata:
 spec:
   ignoreDifferences:
     - group: gateway.networking.k8s.io
-      kind: HTTPRoute
-      name: forgejo
-      jqPathExpressions:
-        - ".status"
-        - ".spec.parentRefs"
-        - ".spec.rules[].backendRefs[].group"
-        - ".spec.rules[].backendRefs[].weight"
-        - ".spec.rules[].matches[].path"
-    - group: gateway.networking.k8s.io
       kind: TCPRoute
       name: forgejo-ssh
       jqPathExpressions:
@@ -94,6 +85,14 @@ spec:
                     data:
                       uuid: "{{ .UUID.Value }}"
                       token: "{{ .TOKEN.Value }}"
+            - name: forgejo-anubis-secrets
+              secretPath: /anubis
+              managedSecrets:
+                - secretName: forgejo-anubis-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX.Value }}"
     - chart: forgejo
       repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
       targetRevision: 17.1.0
@@ -110,6 +109,61 @@ spec:
               secret:
                 secretName: forgejo-ssh-signing-managed-secrets
                 defaultMode: 0o444
+            - name: anubis-policy
+              configMap:
+                name: forgejo-anubis-policy
+
+          extraContainers:
+            - name: anubis
+              image: ghcr.io/techarohq/anubis:v1.13.0@sha256:7fd4c947f830f0ccad85dda41d33e711f27ca043109633eea60190a573c34919
+              imagePullPolicy: IfNotPresent
+              ports:
+                - name: anubis-http
+                  containerPort: 8923
+                - name: anubis-metrics
+                  containerPort: 9090
+              env:
+                - name: BIND
+                  value: ":8923"
+                - name: METRICS_BIND
+                  value: ":9090"
+                - name: TARGET
+                  value: "http://localhost:3000"
+                - name: DIFFICULTY
+                  value: "4"
+                - name: SERVE_ROBOTS_TXT
+                  value: "true"
+                - name: OG_PASSTHROUGH
+                  value: "true"
+                - name: OG_EXPIRY_TIME
+                  value: "24h"
+                - name: POLICY_FNAME
+                  value: /data/cfg/botPolicy.yaml
+                - name: ED25519_PRIVATE_KEY_HEX
+                  valueFrom:
+                    secretKeyRef:
+                      name: forgejo-anubis-managed-secrets
+                      key: ED25519_PRIVATE_KEY_HEX
+              volumeMounts:
+                - name: anubis-policy
+                  mountPath: /data/cfg
+                  readOnly: true
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              securityContext:
+                runAsUser: 1000
+                runAsGroup: 1000
+                runAsNonRoot: true
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: ["ALL"]
+                seccompProfile:
+                  type: RuntimeDefault
 
           extraContainerVolumeMounts:
             - name: forgejo-themes
@@ -140,20 +194,10 @@ spec:
                 matchLabels:
                   app.kubernetes.io/instance: forgejo
 
+          # HTTPRoute is owned by the kustomize source so it can target the
+          # anubis sidecar service instead of forgejo-http directly.
           httpRoute:
-            enabled: true
-            parentRefs:
-              - name: shared-gateway
-                namespace: envoy-gateway-system
-            hostnames:
-              - git.anurag.sh
-            matches:
-              path:
-                type: PathPrefix
-                value: "/"
-              timeouts:
-                request: 90s
-                backendRequest: 90s
+            enabled: false
           tcpRoute:
             enabled: true
             parentRefs:
