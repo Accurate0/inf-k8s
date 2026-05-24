@@ -5,8 +5,8 @@ resources:
   - namespace.yaml
   - service.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/anurag.sh"
-  inf-k8s.net/app: "anurag-sh"
+  inf-k8s.net/app: anurag-sh
+  inf-k8s.net/repository: https://github.com/Accurate0/anurag.sh
 images:
   - name: ghcr.io/accurate0/anurag-sh
-    newTag: 9f4283aa2c8e8bbba3a3fc1857dbf2a0bbc276cd
+    newTag: 314dd28f39ef35bf8a03b333b1f9f758eb356ed7
