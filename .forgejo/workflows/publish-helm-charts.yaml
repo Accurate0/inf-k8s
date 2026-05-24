@@ -33,7 +33,6 @@ jobs:
         run: |
           helm package charts/k8s-http-routes
           helm package charts/k8s-infisical-secrets
-          helm package charts/k8s-anubis-sidecar
           for pkg in ./*.tgz; do
             helm cm-push --username "${OWNER}" --password "${FORGEJO_TOKEN}" "${pkg}" "${FORGEJO_HELM_URL}"
           done

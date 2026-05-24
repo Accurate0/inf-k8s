@@ -36,7 +36,6 @@ jobs:
         run: |
           helm package charts/k8s-infisical-secrets
           helm package charts/k8s-http-routes
-          helm package charts/k8s-anubis-sidecar
 
       - name: Push charts to GHCR
         run: |
@@ -49,12 +48,13 @@ jobs:
             fi
             chart_name=$(helm show chart "${pkg}" | yq .name)
             chart_version=$(helm show chart "${pkg}" | yq .version)
-            if helm show chart "oci://${chart_registry}/${chart_name}" --version "${chart_version}" > /dev/null 2>&1; then
+            if helm show chart oci://${chart_registry}/${chart_name} --version ${chart_version} > /dev/null 2>&1; then
               echo "Chart oci://${chart_name}:${chart_version} already exists in repository - skipping..."
               echo "push_status=skipped" >> "$GITHUB_OUTPUT"
               continue
             fi
 
             helm_push_output=$(helm push "${pkg}" "oci://${chart_registry}" 2>&1)
+            digest=$(echo "$helm_push_output" | grep -o 'sha256:[a-z0-9]*')
             echo "$helm_push_output"
           done

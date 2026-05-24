@@ -1,6 +1,0 @@
-apiVersion: v2
-name: k8s-anubis-sidecar
-description: Deploys Anubis in front of a target service
-type: application
-version: 0.1.0
-appVersion: "v1.13.0"
