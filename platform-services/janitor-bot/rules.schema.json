@@ -689,9 +689,12 @@
         {
           "type": "object",
           "properties": {
+            "mode": {
+              "$ref": "#/$defs/StringMatchMode"
+            },
             "type": {
               "type": "string",
-              "const": "title_contains"
+              "const": "title_matches"
             },
             "value": {
               "type": "string"
@@ -1148,9 +1151,12 @@
         {
           "type": "object",
           "properties": {
+            "mode": {
+              "$ref": "#/$defs/StringMatchMode"
+            },
             "type": {
               "type": "string",
-              "const": "title_contains"
+              "const": "title_matches"
             },
             "value": {
               "type": "string"
@@ -1526,6 +1532,17 @@
         {
           "$ref": "#/$defs/EnabledMode"
         }
+      ]
+    },
+    "StringMatchMode": {
+      "type": "string",
+      "enum": [
+        "contains",
+        "contains_ignore_case",
+        "equals",
+        "equals_ignore_case",
+        "starts_with",
+        "ends_with"
       ]
     },
     "TemplateString": {

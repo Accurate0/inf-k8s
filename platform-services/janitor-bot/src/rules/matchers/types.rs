@@ -64,8 +64,12 @@ pub enum LeafMatcher {
     Action { value: String },
     #[serde(rename = "author")]
     Author { value: String },
-    #[serde(rename = "title_contains")]
-    TitleContains { value: String },
+    #[serde(rename = "title_matches")]
+    TitleMatches {
+        value: String,
+        #[serde(default)]
+        mode: StringMatchMode,
+    },
     #[serde(rename = "has_label")]
     HasLabel { value: String },
     #[serde(rename = "has_changed_files")]
@@ -114,6 +118,33 @@ pub enum LeafMatcher {
 
     #[serde(rename = "is_latest_by_metadata")]
     IsLatestByMetadata { match_metadata_fields: Vec<String> },
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Default, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum StringMatchMode {
+    #[default]
+    Contains,
+    ContainsIgnoreCase,
+    Equals,
+    EqualsIgnoreCase,
+    StartsWith,
+    EndsWith,
+}
+
+impl StringMatchMode {
+    pub fn matches(&self, haystack: &str, needle: &str) -> bool {
+        match self {
+            Self::Contains => haystack.contains(needle),
+            Self::ContainsIgnoreCase => {
+                haystack.to_lowercase().contains(&needle.to_lowercase())
+            }
+            Self::Equals => haystack == needle,
+            Self::EqualsIgnoreCase => haystack.eq_ignore_ascii_case(needle),
+            Self::StartsWith => haystack.starts_with(needle),
+            Self::EndsWith => haystack.ends_with(needle),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]

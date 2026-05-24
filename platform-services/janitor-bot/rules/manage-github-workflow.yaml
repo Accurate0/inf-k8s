@@ -17,8 +17,9 @@ variables:
     type: workflow_conclusion
     value: success
   - var: is_renovate
-    type: title_contains
+    type: title_matches
     value: renovate
+    mode: contains_ignore_case
 actions:
   - when: "is_failure && !is_renovate"
     run:

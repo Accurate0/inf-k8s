@@ -178,14 +178,14 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.author == *value,
                 _ => false,
             },
-            LeafMatcher::TitleContains { value } => match ev {
-                BotEvent::ForgejoPr(pr) => pr.title.contains(value.as_str()),
-                BotEvent::GitHubWorkflow(wf) => wf.display_title.contains(value.as_str()),
-                BotEvent::GitHubCommitStatus(cs) => cs.context.contains(value.as_str()),
+            LeafMatcher::TitleMatches { value, mode } => match ev {
+                BotEvent::ForgejoPr(pr) => mode.matches(&pr.title, value),
+                BotEvent::GitHubWorkflow(wf) => mode.matches(&wf.display_title, value),
+                BotEvent::GitHubCommitStatus(cs) => mode.matches(&cs.context, value),
                 BotEvent::GitHubCheckRun(cr) => {
-                    format!("{} {}", cr.workflow_name, cr.name).contains(value.as_str())
+                    mode.matches(&format!("{} {}", cr.workflow_name, cr.name), value)
                 }
-                BotEvent::ArgoSync(sync) => sync.app_name.contains(value.as_str()),
+                BotEvent::ArgoSync(sync) => mode.matches(&sync.app_name, value),
             },
             LeafMatcher::HasLabel { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
@@ -682,12 +682,15 @@ patterns:
     }
 
     #[test]
-    fn deserialize_title_contains() {
-        let yaml = "type: title_contains\nvalue: fix";
+    fn deserialize_title_matches() {
+        let yaml = "type: title_matches\nvalue: fix";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
-            Matcher::Leaf(LeafMatcher::TitleContains { value }) => assert_eq!(value, "fix"),
-            _ => panic!("expected TitleContains"),
+            Matcher::Leaf(LeafMatcher::TitleMatches { value, mode }) => {
+                assert_eq!(value, "fix");
+                assert_eq!(mode, StringMatchMode::Contains);
+            }
+            _ => panic!("expected TitleMatches"),
         }
     }
 

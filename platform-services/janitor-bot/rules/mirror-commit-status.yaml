@@ -10,7 +10,7 @@ matches:
     - type: repository
       value: Accurate0/inf-k8s
     - not:
-        type: title_contains
+        type: title_matches
         value: renovate
 actions:
   - type: set_commit_status

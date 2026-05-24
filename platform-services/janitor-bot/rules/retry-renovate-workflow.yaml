@@ -11,7 +11,7 @@ matches:
       value: main
     - type: workflow_conclusion
       value: failure
-    - type: title_contains
+    - type: title_matches
       value: renovate
     - type: workflow_run_attempt
       expr: "value < 3"
