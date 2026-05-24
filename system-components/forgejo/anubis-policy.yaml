@@ -14,9 +14,6 @@ bots:
   - name: git-protocol
     path_regex: \.git/(info/refs|git-upload-pack|git-receive-pack)$
     action: ALLOW
-  - name: generic-browser
-    user_agent_regex: Mozilla
-    action: CHALLENGE
   - name: catchall
     user_agent_regex: .*
     action: CHALLENGE
