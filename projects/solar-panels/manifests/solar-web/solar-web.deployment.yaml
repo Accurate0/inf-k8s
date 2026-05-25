@@ -14,22 +14,10 @@ spec:
       labels:
         app: solar-web
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: solar-web
           image: ghcr.io/accurate0/solar-web
           imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: true
-            capabilities:
-              drop:
-                - ALL
           resources:
             requests:
               cpu: 15m
