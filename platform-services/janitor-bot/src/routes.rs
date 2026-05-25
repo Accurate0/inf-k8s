@@ -457,10 +457,7 @@ pub async fn handle_admin_argocd_resync(
 ) -> (StatusCode, Json<serde_json::Value>) {
     tracing::info!(app, "admin: triggering argocd resync");
     match state.clients.argocd.sync_application(&app).await {
-        Ok(()) => (
-            StatusCode::OK,
-            Json(serde_json::json!({"synced": app})),
-        ),
+        Ok(()) => (StatusCode::OK, Json(serde_json::json!({"synced": app}))),
         Err(e) => (
             StatusCode::BAD_GATEWAY,
             Json(serde_json::json!({"error": e.to_string()})),

@@ -42,7 +42,8 @@ enum Command {
     MergeQueued,
 
     /// Dispatch a @janitor command against a PR or issue
-    Command {
+    #[command(name = "command")]
+    Dispatch {
         #[arg(value_enum)]
         kind: CommandKind,
         owner: String,
@@ -104,7 +105,7 @@ async fn main() -> Result<()> {
             None,
         ),
         Command::MergeQueued => (Method::POST, "/admin/merge-queued".into(), None),
-        Command::Command {
+        Command::Dispatch {
             kind,
             owner,
             repo,
@@ -127,11 +128,9 @@ async fn main() -> Result<()> {
                 })),
             )
         }
-        Command::ArgocdResync { app } => (
-            Method::POST,
-            format!("/admin/argocd-resync/{app}"),
-            None,
-        ),
+        Command::ArgocdResync { app } => {
+            (Method::POST, format!("/admin/argocd-resync/{app}"), None)
+        }
         Command::Metrics => (Method::GET, "/admin/metrics".into(), None),
         Command::Logs => (Method::GET, "/admin/logs".into(), None),
         Command::Rules => (Method::GET, "/admin/rules".into(), None),
@@ -144,7 +143,10 @@ async fn main() -> Result<()> {
         req = req.json(&b);
     }
 
-    let resp = req.send().await.with_context(|| format!("request to {url}"))?;
+    let resp = req
+        .send()
+        .await
+        .with_context(|| format!("request to {url}"))?;
     let status = resp.status();
     let text = resp.text().await.unwrap_or_default();
 
