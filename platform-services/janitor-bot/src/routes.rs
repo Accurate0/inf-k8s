@@ -248,6 +248,107 @@ pub async fn handle_admin_dry_run(
     )
 }
 
+pub async fn handle_admin_merge_queued(
+    State(state): State<Arc<AppState>>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    tracing::info!("admin: merging all queued PRs");
+
+    const QUEUED_LABEL: &str = "janitor/queued";
+
+    let mut merged: Vec<serde_json::Value> = Vec::new();
+    let mut failed: Vec<serde_json::Value> = Vec::new();
+
+    for repo in super::WATCH_REPOS {
+        let prs = match state
+            .clients
+            .forgejo
+            .list_open_prs(super::FORGEJO_OWNER, repo)
+            .await
+        {
+            Ok(prs) => prs,
+            Err(e) => {
+                failed.push(
+                    serde_json::json!({"repo": repo, "error": format!("list_open_prs: {e}")}),
+                );
+                continue;
+            }
+        };
+
+        for pr in prs {
+            let Some(pr_number) = pr.number else {
+                continue;
+            };
+
+            let has_queued = pr
+                .labels
+                .as_ref()
+                .map(|ls| ls.iter().any(|l| l.name.as_deref() == Some(QUEUED_LABEL)))
+                .unwrap_or(false);
+            if !has_queued {
+                continue;
+            }
+
+            if !state
+                .clients
+                .forgejo
+                .is_pr_approved_by_bot(super::FORGEJO_OWNER, repo, pr_number)
+                .await
+                && let Err(e) = state
+                    .clients
+                    .forgejo
+                    .approve_pr(
+                        super::FORGEJO_OWNER,
+                        repo,
+                        pr_number,
+                        Some("Auto-approved via /admin/merge-queued"),
+                    )
+                    .await
+            {
+                failed.push(
+                    serde_json::json!({"repo": repo, "pr": pr_number, "error": format!("approve: {e}")}),
+                );
+                continue;
+            }
+
+            if let Err(e) = state
+                .clients
+                .forgejo
+                .merge_pr(
+                    super::FORGEJO_OWNER,
+                    repo,
+                    pr_number,
+                    forgejo_api::structs::MergePullRequestOptionDo::Squash,
+                    true,
+                )
+                .await
+            {
+                failed.push(
+                    serde_json::json!({"repo": repo, "pr": pr_number, "error": format!("merge: {e}")}),
+                );
+                continue;
+            }
+
+            let _ = state
+                .clients
+                .forgejo
+                .remove_labels_by_name(
+                    super::FORGEJO_OWNER,
+                    repo,
+                    pr_number,
+                    vec![QUEUED_LABEL.to_string()],
+                )
+                .await;
+
+            merged.push(serde_json::json!({"repo": repo, "pr": pr_number}));
+        }
+    }
+
+    (
+        StatusCode::OK,
+        Json(serde_json::json!({"merged": merged, "failed": failed})),
+    )
+}
+
 pub async fn handle_admin_metrics() -> (
     StatusCode,
     [(axum::http::header::HeaderName, &'static str); 1],

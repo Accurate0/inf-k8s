@@ -107,6 +107,10 @@ async fn main() -> anyhow::Result<()> {
         .route("/argocd/webhook", post(routes::handle_argocd_webhook))
         .route("/admin/cron", post(routes::handle_admin_cron))
         .route(
+            "/admin/merge-queued",
+            post(routes::handle_admin_merge_queued),
+        )
+        .route(
             "/admin/evaluate/{owner}/{repo}/{pr_number}",
             post(routes::handle_admin_evaluate_pr),
         )

@@ -136,9 +136,7 @@ impl StringMatchMode {
     pub fn matches(&self, haystack: &str, needle: &str) -> bool {
         match self {
             Self::Contains => haystack.contains(needle),
-            Self::ContainsIgnoreCase => {
-                haystack.to_lowercase().contains(&needle.to_lowercase())
-            }
+            Self::ContainsIgnoreCase => haystack.to_lowercase().contains(&needle.to_lowercase()),
             Self::Equals => haystack == needle,
             Self::EqualsIgnoreCase => haystack.eq_ignore_ascii_case(needle),
             Self::StartsWith => haystack.starts_with(needle),
