@@ -24,10 +24,26 @@ spec:
               app: maccas-api
           whenUnsatisfiable: ScheduleAnyway
 
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: maccas-migration
           image: ghcr.io/accurate0/maccas-migration
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
           envFrom:
             - secretRef:
                 name: maccas-migration-managed-secrets
@@ -35,6 +51,12 @@ spec:
         - name: maccas-api
           image: ghcr.io/accurate0/maccas-api
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               memory: 80Mi

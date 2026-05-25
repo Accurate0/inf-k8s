@@ -9,9 +9,6 @@ resources:
   - api/api.service.yaml
   - namespace.yaml
   - web/web.service.yaml
-# - sensordata/sensordata.deployment.yaml
-# - sensordata/sensordata.service.yaml
-# - sensordata/pvc.yaml
 commonAnnotations:
   inf-k8s.net/repository: "https://github.com/Accurate0/maccas-api"
   inf-k8s.net/app: "maccas-api"

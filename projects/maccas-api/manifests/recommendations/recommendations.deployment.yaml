@@ -16,10 +16,26 @@ spec:
       labels:
         app: maccas-recommendations
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       initContainers:
         - name: maccas-migration
           image: ghcr.io/accurate0/maccas-migration
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
           envFrom:
             - secretRef:
                 name: maccas-migration-managed-secrets
@@ -27,6 +43,12 @@ spec:
         - name: maccas-recommendations
           image: ghcr.io/accurate0/maccas-recommendations
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               memory: 800Mi
@@ -60,6 +82,16 @@ spec:
         - name: maccas-clustering
           image: ghcr.io/accurate0/maccas-clustering
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 192Mi
           livenessProbe:
             failureThreshold: 3
             httpGet:

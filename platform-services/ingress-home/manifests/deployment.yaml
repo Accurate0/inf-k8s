@@ -15,10 +15,22 @@ spec:
         app: ingress-home
     spec:
       serviceAccountName: ingress-home
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: ingress-home
           image: ghcr.io/accurate0/ingress-home
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               cpu: 15m

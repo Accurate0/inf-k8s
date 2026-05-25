@@ -1,0 +1,15 @@
+misconfigurations:
+  # pg-db-controller intentionally manages secrets cluster-wide.
+  - id: AVD-KSV-0041
+    paths:
+      - "platform-services/pg-db-controller/**"
+
+  # HEALTHCHECK is enforced via Kubernetes liveness/readiness probes, not Dockerfile.
+  - id: AVD-DS-0026
+
+  # Image tags/digests are pinned in kustomization.yaml (overlay), not the base manifest.
+  - id: AVD-KSV-0013
+
+  # CPU/memory limits intentionally unset (requests-only sizing).
+  - id: AVD-KSV-0011
+  - id: AVD-KSV-0018

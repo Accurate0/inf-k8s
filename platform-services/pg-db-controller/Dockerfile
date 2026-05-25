@@ -3,7 +3,7 @@ ARG BINARY_NAME
 FROM rust:1.95.0-slim-bookworm AS builder
 ARG BINARY_NAME
 
-RUN apt-get update -y && apt-get install -y pkg-config libssl-dev
+RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev
 
 WORKDIR /app/${BINARY_NAME}-build
 
@@ -18,7 +18,7 @@ RUN \
 FROM debian:bookworm-slim AS final
 ARG BINARY_NAME
 
-RUN apt-get update -y && apt-get install -y libssl-dev ca-certificates
+RUN apt-get update -y && apt-get install -y --no-install-recommends libssl-dev ca-certificates
 RUN update-ca-certificates
 RUN adduser \
     --disabled-password \
@@ -31,7 +31,7 @@ RUN adduser \
 
 COPY --from=builder /app/${BINARY_NAME} /usr/local/bin/${BINARY_NAME}
 RUN chown appuser /usr/local/bin/${BINARY_NAME}
-RUN apt-get update && apt-get install -y curl
+RUN apt-get update && apt-get install -y --no-install-recommends curl
 
 USER appuser
 

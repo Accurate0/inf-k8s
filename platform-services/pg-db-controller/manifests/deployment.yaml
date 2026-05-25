@@ -15,10 +15,22 @@ spec:
         app: pg-db-controller
     spec:
       serviceAccountName: pg-db-controller
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: pg-db-controller
           image: ghcr.io/accurate0/pg-db-controller
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
           resources:
             requests:
               cpu: 15m

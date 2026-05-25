@@ -14,4 +14,6 @@ COPY reorganize-schemas.py /reorganize-schemas.py
 COPY build-index.py /build-index.py
 RUN chmod +x /entrypoint.sh /reorganize-schemas.py /build-index.py
 
+USER 10001
+
 ENTRYPOINT ["/entrypoint.sh"]

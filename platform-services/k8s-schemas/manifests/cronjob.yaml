@@ -16,10 +16,28 @@ spec:
         spec:
           serviceAccountName: k8s-schemas
           restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          volumes:
+            - name: tmp
+              emptyDir: {}
           containers:
             - name: k8s-schemas
               image: ghcr.io/accurate0/k8s-schemas
               imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
               env:
                 - name: K8S_VERSION
                   value: v1.35.2
