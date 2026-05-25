@@ -24,22 +24,10 @@ spec:
               app: maccas-web
           whenUnsatisfiable: ScheduleAnyway
 
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: maccas-web
           image: ghcr.io/accurate0/maccas-web
           imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            capabilities:
-              drop:
-                - ALL
           resources:
             requests:
               memory: 200Mi

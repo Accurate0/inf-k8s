@@ -18,18 +18,26 @@ misconfigurations:
   - id: AVD-KSV-0001
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0003
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0004
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0012
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0014
     paths:
@@ -40,24 +48,36 @@ misconfigurations:
   - id: AVD-KSV-0020
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0021
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0030
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0104
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0106
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
   - id: AVD-KSV-0118
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
+      - "projects/home-gateway/manifests/selfbot/**"
+      - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"

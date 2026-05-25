@@ -16,22 +16,10 @@ spec:
       labels:
         app: selfbot
     spec:
-      securityContext:
-        runAsNonRoot: true
-        runAsUser: 10001
-        runAsGroup: 10001
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: selfbot
           image: ghcr.io/accurate0/home-selfbot
           imagePullPolicy: Always
-          securityContext:
-            allowPrivilegeEscalation: false
-            readOnlyRootFilesystem: false
-            capabilities:
-              drop:
-                - ALL
           resources:
             requests:
               cpu: 15m
