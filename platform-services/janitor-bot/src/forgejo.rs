@@ -335,6 +335,15 @@ impl ForgejoClient {
         Ok(files.into_iter().filter_map(|f| f.filename).collect())
     }
 
+    pub async fn get_issue(
+        &self,
+        owner: &str,
+        repo: &str,
+        issue: i64,
+    ) -> Result<Issue, forgejo_api::ForgejoError> {
+        self.api.issue_get_issue(owner, repo, issue).send().await
+    }
+
     pub async fn find_open_issue_by_title(
         &self,
         owner: &str,

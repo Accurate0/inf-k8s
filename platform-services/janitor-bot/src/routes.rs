@@ -355,6 +355,119 @@ pub async fn handle_admin_merge_queued(
     )
 }
 
+#[derive(serde::Deserialize)]
+pub struct AdminCommandRequest {
+    pub owner: String,
+    pub repo: String,
+    pub number: i64,
+    pub kind: AdminCommandKind,
+    pub body: String,
+}
+
+#[derive(serde::Deserialize, Debug, Clone, Copy)]
+#[serde(rename_all = "lowercase")]
+pub enum AdminCommandKind {
+    Pr,
+    Issue,
+}
+
+pub async fn handle_admin_command(
+    State(state): State<Arc<AppState>>,
+    Json(req): Json<AdminCommandRequest>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    tracing::info!(
+        owner = req.owner,
+        repo = req.repo,
+        number = req.number,
+        kind = ?req.kind,
+        "admin: dispatching command"
+    );
+
+    match req.kind {
+        AdminCommandKind::Pr => {
+            let Some(parsed) = command::parse_pr_command(&req.body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "unknown PR command"})),
+                );
+            };
+
+            let cmd = event::CommentEvent {
+                owner: req.owner,
+                repo: req.repo,
+                pr_number: req.number as u64,
+                comment_id: 0,
+                author: super::FORGEJO_OWNER.to_string(),
+                body: req.body.clone(),
+            };
+
+            let debug = format!("{parsed:?}");
+            command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed).await;
+            (StatusCode::OK, Json(serde_json::json!({"command": debug})))
+        }
+        AdminCommandKind::Issue => {
+            let Some(parsed) = command::parse_issue_command(&req.body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "unknown issue command"})),
+                );
+            };
+
+            let issue = match state
+                .clients
+                .forgejo
+                .get_issue(&req.owner, &req.repo, req.number)
+                .await
+            {
+                Ok(i) => i,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": format!("failed to fetch issue: {e}")})),
+                    );
+                }
+            };
+
+            let cmd = event::IssueCommentEvent {
+                owner: req.owner,
+                repo: req.repo,
+                issue_number: req.number as u64,
+                comment_id: 0,
+                author: super::FORGEJO_OWNER.to_string(),
+                comment_body: req.body.clone(),
+                issue_body: issue.body.unwrap_or_default(),
+                issue_labels: issue
+                    .labels
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter_map(|l| l.name)
+                    .collect(),
+            };
+
+            let debug = format!("{parsed:?}");
+            command::handle_issue_command(&state.clients, &cmd, parsed).await;
+            (StatusCode::OK, Json(serde_json::json!({"command": debug})))
+        }
+    }
+}
+
+pub async fn handle_admin_argocd_resync(
+    State(state): State<Arc<AppState>>,
+    Path(app): Path<String>,
+) -> (StatusCode, Json<serde_json::Value>) {
+    tracing::info!(app, "admin: triggering argocd resync");
+    match state.clients.argocd.sync_application(&app).await {
+        Ok(()) => (
+            StatusCode::OK,
+            Json(serde_json::json!({"synced": app})),
+        ),
+        Err(e) => (
+            StatusCode::BAD_GATEWAY,
+            Json(serde_json::json!({"error": e.to_string()})),
+        ),
+    }
+}
+
 pub async fn handle_admin_metrics() -> (
     StatusCode,
     [(axum::http::header::HeaderName, &'static str); 1],

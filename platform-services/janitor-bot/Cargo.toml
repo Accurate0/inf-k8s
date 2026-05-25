@@ -32,6 +32,7 @@ tower-http = { version = "0.6.11", features = ["trace"] }
 regex = "1.12"
 metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
+clap = { version = "4", features = ["derive", "env"] }
 
 [build-dependencies]
 jsonschema = { version = "0.46", default-features = false }
@@ -53,3 +54,7 @@ path = "src/main.rs"
 [[bin]]
 name = "gen-schema"
 path = "src/bin/gen_schema.rs"
+
+[[bin]]
+name = "janitor"
+path = "src/bin/janitor_cli.rs"

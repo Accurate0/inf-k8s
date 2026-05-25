@@ -110,6 +110,11 @@ async fn main() -> anyhow::Result<()> {
             "/admin/merge-queued",
             post(routes::handle_admin_merge_queued),
         )
+        .route("/admin/command", post(routes::handle_admin_command))
+        .route(
+            "/admin/argocd-resync/{app}",
+            post(routes::handle_admin_argocd_resync),
+        )
         .route(
             "/admin/evaluate/{owner}/{repo}/{pr_number}",
             post(routes::handle_admin_evaluate_pr),
