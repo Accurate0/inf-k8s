@@ -5,6 +5,8 @@ use axum::{
 };
 use serde::Serialize;
 use std::sync::Arc;
+use std::time::Duration;
+use tokio::time::sleep;
 
 use crate::AppState;
 use janitor_bot::argocd::types::ArgoSyncPayload;
@@ -340,6 +342,10 @@ pub async fn handle_admin_merge_queued(
                 .await;
 
             merged.push(serde_json::json!({"repo": repo, "pr": pr_number}));
+
+            // Forgejo needs a moment to recompute mergeability for the next queued PR
+            // after a merge changes the target branch head.
+            sleep(Duration::from_secs(5)).await;
         }
     }
 
