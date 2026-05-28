@@ -57,9 +57,9 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
-    - chart: k8s-infisical-secrets
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
-      targetRevision: 0.10.0
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.1.1
       helm:
         valuesObject:
           defaults:

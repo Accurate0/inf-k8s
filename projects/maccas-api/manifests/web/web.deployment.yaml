@@ -4,8 +4,6 @@ kind: Deployment
 metadata:
   name: maccas-web
   namespace: maccas-api
-  annotations:
-    secrets.infisical.com/auto-reload: "true"
 spec:
   selector:
     matchLabels:

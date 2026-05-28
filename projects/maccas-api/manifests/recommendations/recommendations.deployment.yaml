@@ -4,8 +4,6 @@ kind: Deployment
 metadata:
   name: maccas-recommendations
   namespace: maccas-api
-  annotations:
-    secrets.infisical.com/auto-reload: "true"
 spec:
   selector:
     matchLabels:
