@@ -28,9 +28,9 @@ spec:
       selfHeal: true
   project: system-components
   sources:
-    - chart: k8s-infisical-secrets
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
-      targetRevision: 0.10.0
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.1.0
       helm:
         valuesObject:
           defaults:
@@ -45,8 +45,8 @@ spec:
                   template:
                     includeAllSecrets: false
                     data:
-                      ed25519: "{{ .SSH_SIGNING_KEY.Value }}"
-                      ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC.Value }}"
+                      ed25519: "{{ .SSH_SIGNING_KEY }}"
+                      ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC }}"
             - name: forgejo-ssh-host-secrets
               secretPath: /ssh
               managedSecrets:
@@ -54,7 +54,7 @@ spec:
                   template:
                     includeAllSecrets: false
                     data:
-                      ssh_host_ed25519_key: "{{ .SSH_HOST_KEY.Value }}"
+                      ssh_host_ed25519_key: "{{ .SSH_HOST_KEY }}"
             - name: forgejo-gpg-secrets
               secretPath: /gpg
               managedSecrets:
@@ -62,7 +62,7 @@ spec:
                   template:
                     includeAllSecrets: false
                     data:
-                      privateKey: "{{ .GPG_PRIVATE_KEY.Value }}"
+                      privateKey: "{{ .GPG_PRIVATE_KEY }}"
             - name: forgejo-oauth-secrets
               secretPath: /oauth
               managedSecrets:
@@ -70,8 +70,8 @@ spec:
                   template:
                     includeAllSecrets: false
                     data:
-                      key: "{{ .AUTHENTIK_CLIENT_ID.Value }}"
-                      secret: "{{ .AUTHENTIK_CLIENT_SECRET.Value }}"
+                      key: "{{ .AUTHENTIK_CLIENT_ID }}"
+                      secret: "{{ .AUTHENTIK_CLIENT_SECRET }}"
             - name: forgejo-secrets
               secretPath: /
               managedSecrets:
@@ -83,8 +83,8 @@ spec:
                   template:
                     includeAllSecrets: false
                     data:
-                      uuid: "{{ .UUID.Value }}"
-                      token: "{{ .TOKEN.Value }}"
+                      uuid: "{{ .UUID }}"
+                      token: "{{ .TOKEN }}"
             - name: forgejo-anubis-secrets
               secretPath: /anubis
               managedSecrets:
@@ -92,7 +92,7 @@ spec:
                   template:
                     includeAllSecrets: false
                     data:
-                      ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX.Value }}"
+                      ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"
     - chart: forgejo
       repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
       targetRevision: 17.1.0
