@@ -35,6 +35,7 @@ jobs:
       - name: Package helm charts
         run: |
           helm package charts/k8s-infisical-secrets
+          helm package charts/k8s-secrets
           helm package charts/k8s-http-routes
 
       - name: Push charts to GHCR

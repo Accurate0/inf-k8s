@@ -1,0 +1,17 @@
+defaults:
+  namespace: test
+  resyncInterval: 900
+
+secrets:
+  - name: test-secret
+    namespace: test
+    managedSecrets:
+      - secretName: test-managed
+  - name: test-22-secret
+    resyncInterval: 1600
+    managedSecrets:
+      - secretName: test2-managed
+        template:
+          includeAllSecrets: false
+          data:
+            FOO: "{{ .FOO }}"

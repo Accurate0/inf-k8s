@@ -30,6 +30,7 @@
       "matchPackageNames": [
         "ghcr.io/accurate0/charts/k8s-http-routes/k8s-http-routes",
         "ghcr.io/accurate0/charts/k8s-infisical-secrets/k8s-infisical-secrets",
+        "ghcr.io/accurate0/charts/k8s-secrets/k8s-secrets",
         "ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator/dragonfly-operator",
         "ghcr.io/bjw-s-labs/helm/app-template/app-template",
         "code.forgejo.org/forgejo-helm/forgejo/forgejo"
