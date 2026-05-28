@@ -11,6 +11,7 @@ spec:
     - https://git.anurag.sh/anurag/k8s.git
     - oci://ghcr.io/accurate0/charts/k8s-http-routes
     - oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
+    - oci://ghcr.io/accurate0/charts/k8s-secrets
   destinations:
     - namespace: "*"
       server: "*"
