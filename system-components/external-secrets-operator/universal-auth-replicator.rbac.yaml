@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: universal-auth-replicator
+  namespace: infisical
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: universal-auth-replicator
+  namespace: infisical
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames: ["universal-auth-credentials"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: universal-auth-replicator
+  namespace: infisical
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: universal-auth-replicator
+subjects:
+  - kind: ServiceAccount
+    name: universal-auth-replicator
+    namespace: infisical
