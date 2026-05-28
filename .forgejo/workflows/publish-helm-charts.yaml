@@ -32,7 +32,6 @@ jobs:
           FORGEJO_HELM_URL: https://git.anurag.sh/api/packages/anurag/helm
         run: |
           helm package charts/k8s-http-routes
-          helm package charts/k8s-infisical-secrets
           helm package charts/k8s-secrets
           for pkg in ./*.tgz; do
             helm cm-push --username "${OWNER}" --password "${FORGEJO_TOKEN}" "${pkg}" "${FORGEJO_HELM_URL}"

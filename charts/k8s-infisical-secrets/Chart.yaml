@@ -1,6 +1,0 @@
-apiVersion: v2
-name: k8s-infisical-secrets
-description: Standardized infisical secret resources
-type: application
-version: 0.10.0
-appVersion: "0.1.0"

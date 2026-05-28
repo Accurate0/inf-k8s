@@ -25,7 +25,6 @@ spec:
     - oci://code.forgejo.org/forgejo-helm/forgejo
     - oci://ghcr.io/accurate0/charts/k8s-http-routes
     - oci://ghcr.io/bjw-s-labs/helm/app-template
-    - oci://ghcr.io/accurate0/charts/k8s-infisical-secrets
     - oci://ghcr.io/accurate0/charts/k8s-secrets
     - oci://ghcr.io/external-secrets/charts/external-secrets
     - oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
