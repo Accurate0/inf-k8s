@@ -6,6 +6,9 @@ metadata:
   namespace: argocd
 spec:
   syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        inf-k8s.net/infisical-secrets: "true"
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true

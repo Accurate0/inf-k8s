@@ -4,6 +4,7 @@ resources:
   - deployment.yaml
   - namespace.yaml
   - secret.yaml
+  - secretstore.yaml
   - service.yaml
   - servicemonitor.yaml
 commonAnnotations:

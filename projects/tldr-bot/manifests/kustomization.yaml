@@ -4,6 +4,7 @@ resources:
   - deployment.yaml
   - namespace.yaml
   - secret.yaml
+  - secretstore.yaml
 commonAnnotations:
   inf-k8s.net/repository: "https://github.com/Accurate0/tldr-bot"
   inf-k8s.net/app: "tldr-bot"

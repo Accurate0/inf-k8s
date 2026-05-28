@@ -7,6 +7,7 @@ resources:
   - solar-web/solar-web.service.yaml
   - namespace.yaml
   - secret.yaml
+  - secretstore.yaml
   - database.yaml
 commonAnnotations:
   inf-k8s.net/repository: "https://github.com/Accurate0/solar-panels"

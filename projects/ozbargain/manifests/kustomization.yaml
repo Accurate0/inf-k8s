@@ -4,6 +4,7 @@ resources:
   - discord-bot.deployment.yaml
   - finder.deployment.yaml
   - secret.yaml
+  - secretstore.yaml
   - trigger.deployment.yaml
 commonAnnotations:
   inf-k8s.net/repository: "https://github.com/Accurate0/ozb"
