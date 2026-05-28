@@ -11,8 +11,6 @@ spec:
   replicas: 1
   template:
     metadata:
-      annotations:
-        secrets.infisical.com/auto-reload: "true"
       labels:
         app: janitor-bot
     spec:

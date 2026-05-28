@@ -4,8 +4,6 @@ kind: Deployment
 metadata:
   name: selfbot
   namespace: home-gateway
-  annotations:
-    secrets.infisical.com/auto-reload: "true"
 spec:
   selector:
     matchLabels:

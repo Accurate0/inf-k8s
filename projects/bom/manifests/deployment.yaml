@@ -4,8 +4,6 @@ kind: Deployment
 metadata:
   name: bom
   namespace: bom
-  annotations:
-    secrets.infisical.com/auto-reload: "true"
 spec:
   selector:
     matchLabels:

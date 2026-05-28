@@ -4,8 +4,6 @@ kind: Deployment
 metadata:
   name: tldr-bot
   namespace: tldr-bot
-  annotations:
-    secrets.infisical.com/auto-reload: "true"
 spec:
   selector:
     matchLabels:

@@ -4,8 +4,6 @@ kind: Deployment
 metadata:
   name: ozb-trigger
   namespace: ozbargain
-  annotations:
-    secrets.infisical.com/auto-reload: "true"
 spec:
   selector:
     matchLabels:
