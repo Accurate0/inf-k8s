@@ -57,7 +57,11 @@ fn build_provider(endpoint: String) -> SdkTracerProvider {
     SdkTracerProvider::builder()
         .with_span_processor(
             BatchSpanProcessor::builder(span_exporter)
-                .with_batch_config(BatchConfigBuilder::default().with_max_queue_size(20480).build())
+                .with_batch_config(
+                    BatchConfigBuilder::default()
+                        .with_max_queue_size(20480)
+                        .build(),
+                )
                 .build(),
         )
         .with_resource(resource)

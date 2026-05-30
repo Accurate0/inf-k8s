@@ -3,11 +3,11 @@ use axum::{
     extract::{Json, Path, State},
     http::{HeaderMap, StatusCode},
 };
+use opentelemetry::trace::TraceContextExt;
 use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
-use opentelemetry::trace::TraceContextExt;
 use tracing::{Instrument, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -23,12 +23,18 @@ use janitor_bot::{command, event, github};
 /// the active-span leak that lets unrelated incoming requests reparent under
 /// the webhook trace.
 fn background_span(name: &'static str) -> Span {
-    let span = tracing::info_span!(parent: None, "background", task = name);
-    let parent_ctx = Span::current().context();
-    let parent_span = parent_ctx.span();
-    let sc = parent_span.span_context();
-    if sc.is_valid() {
-        span.add_link(sc.clone());
+    let span = tracing::info_span!(parent: None, "background", task = name, otel.name = format!("background: {name}"));
+
+    let request_ctx = Span::current().context();
+    let request_span = request_ctx.span();
+    let request_sc = request_span.span_context();
+    if request_sc.is_valid() {
+        span.add_link(request_sc.clone());
+
+        let bg_sc = span.context().span().span_context().clone();
+        if bg_sc.is_valid() {
+            Span::current().add_link(bg_sc);
+        }
     }
     span
 }
@@ -74,7 +80,7 @@ pub async fn handle_forgejo_webhook(
                 async move {
                     command::handle_issue_command(&state.clients, &cmd, parsed).await;
                 }
-                .instrument(background_span("webhook")),
+                .instrument(background_span("issue_command")),
             );
         }
         return StatusCode::OK;
@@ -90,7 +96,7 @@ pub async fn handle_forgejo_webhook(
                     command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed)
                         .await;
                 }
-                .instrument(background_span("webhook")),
+                .instrument(background_span("pr_command")),
             );
         }
         return StatusCode::OK;
@@ -111,7 +117,7 @@ pub async fn handle_forgejo_webhook(
                 .evaluate_pr(&state.clients, &mut pr_event)
                 .await;
         }
-        .instrument(background_span("webhook")),
+        .instrument(background_span("forgejo_pr_event")),
     );
 
     StatusCode::OK
@@ -158,7 +164,7 @@ pub async fn handle_github_webhook(
                     .evaluate_commit_status(&state.clients, &cs_event)
                     .await;
             }
-            .instrument(background_span("webhook")),
+            .instrument(background_span("github_status")),
         );
         return StatusCode::OK;
     }
@@ -185,7 +191,7 @@ pub async fn handle_github_webhook(
                     .evaluate_check_run(&state.clients, &mut cr_event)
                     .await;
             }
-            .instrument(background_span("webhook")),
+            .instrument(background_span("github_status")),
         );
         return StatusCode::OK;
     }
@@ -208,7 +214,7 @@ pub async fn handle_github_webhook(
                 .evaluate_workflow(&state.clients, &mut wf_event)
                 .await;
         }
-        .instrument(background_span("webhook")),
+        .instrument(background_span("github_workflow")),
     );
 
     StatusCode::OK
@@ -220,7 +226,7 @@ pub async fn handle_admin_cron(State(state): State<Arc<AppState>>) -> StatusCode
         async move {
             super::evaluate_open_prs(&state).await;
         }
-        .instrument(background_span("webhook")),
+        .instrument(background_span("cron_open_prs")),
     );
     StatusCode::OK
 }
@@ -257,7 +263,7 @@ pub async fn handle_admin_evaluate_pr(
                 .evaluate_pr(&state.clients, &mut pr_event)
                 .await;
         }
-        .instrument(background_span("webhook")),
+        .instrument(background_span("admin_evaluate_pr")),
     );
 
     StatusCode::OK
@@ -658,7 +664,7 @@ pub async fn handle_argocd_webhook(
                 .evaluate_argocd_sync(&state.clients, &sync_event)
                 .await;
         }
-        .instrument(background_span("webhook")),
+        .instrument(background_span("argocd_sync")),
     );
 
     StatusCode::OK

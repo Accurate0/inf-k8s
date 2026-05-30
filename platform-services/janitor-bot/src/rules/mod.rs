@@ -16,8 +16,8 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use tracing::Instrument;
 use tokio::sync::Mutex;
+use tracing::Instrument;
 
 const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
 
