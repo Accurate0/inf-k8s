@@ -28,8 +28,8 @@ spec:
           imagePullPolicy: Always
           resources:
             requests:
-              memory: 200Mi
-              cpu: 100m
+              memory: 312Mi
+              cpu: 10m
           livenessProbe:
             failureThreshold: 3
             httpGet:

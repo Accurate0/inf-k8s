@@ -33,7 +33,7 @@ spec:
                 - ALL
           resources:
             requests:
-              cpu: 15m
+              cpu: 10m
               memory: 16Mi
           ports:
             - containerPort: 3000

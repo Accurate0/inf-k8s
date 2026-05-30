@@ -32,8 +32,8 @@ spec:
                 - ALL
           resources:
             requests:
-              cpu: 15m
-              memory: 16Mi
+              cpu: 10m
+              memory: 32Mi
           envFrom:
             - secretRef:
                 name: tldr-bot-managed-secrets

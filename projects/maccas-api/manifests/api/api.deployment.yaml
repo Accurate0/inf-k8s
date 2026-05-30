@@ -57,8 +57,8 @@ spec:
                 - ALL
           resources:
             requests:
-              memory: 80Mi
-              cpu: 100m
+              memory: 144Mi
+              cpu: 10m
           livenessProbe:
             failureThreshold: 3
             httpGet:

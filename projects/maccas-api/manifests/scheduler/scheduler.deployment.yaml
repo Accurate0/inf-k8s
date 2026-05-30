@@ -39,7 +39,7 @@ spec:
                 - ALL
           resources:
             requests:
-              memory: 40Mi
+              memory: 32Mi
               cpu: 10m
           # TODO: healthcheck
           # livenessProbe:

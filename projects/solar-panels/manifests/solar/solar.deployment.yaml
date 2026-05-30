@@ -32,7 +32,7 @@ spec:
                 - ALL
           resources:
             requests:
-              cpu: 15m
+              cpu: 10m
               memory: 32Mi
           livenessProbe:
             failureThreshold: 3
