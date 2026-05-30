@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::{collections::HashSet, path::Path};
 use yaml_include::Transformer;
 
 #[allow(dead_code)]
@@ -49,7 +49,7 @@ fn main() {
 
     // Validate rule dependencies at build time
     if let Some(rules) = yaml_value.get("rules").and_then(|r| r.as_array()) {
-        let rule_names: std::collections::HashSet<String> = rules
+        let rule_names: HashSet<String> = rules
             .iter()
             .filter_map(|r| r.get("name").and_then(|n| n.as_str()).map(String::from))
             .collect();
@@ -83,7 +83,7 @@ fn main() {
                 .get("name")
                 .and_then(|n| n.as_str())
                 .unwrap_or("<unknown>");
-            let defined_vars: std::collections::HashSet<String> = rule
+            let defined_vars: HashSet<String> = rule
                 .get("variables")
                 .and_then(|v| v.as_array())
                 .map(|vars| {
