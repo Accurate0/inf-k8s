@@ -393,6 +393,7 @@ impl RulesOrchestrator {
 
             let rule_span = tracing::info_span!(
                 "rule.explain",
+                otel.name = format!("rule.explain: {}", rule.name),
                 rule = rule.name,
                 event = event.event_kind(),
             );
@@ -485,6 +486,7 @@ impl RulesOrchestrator {
 
             let rule_span = tracing::info_span!(
                 "rule.evaluate",
+                otel.name = format!("rule.evaluate: {}", rule.name),
                 rule = rule.name,
                 event = event.event_kind(),
                 event_key = event.event_key(),
@@ -593,6 +595,7 @@ impl RulesOrchestrator {
                 let action_start = Instant::now();
                 let action_span = tracing::info_span!(
                     "action.execute",
+                    otel.name = format!("action: {}", action.kind()),
                     rule = rule.name,
                     action = action.kind(),
                     when = group.when,

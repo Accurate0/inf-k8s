@@ -134,6 +134,7 @@ impl Matcher {
 
                     let span = tracing::debug_span!(
                         "matcher.leaf",
+                        otel.name = format!("matcher: {}", leaf_kind(leaf)),
                         matcher = leaf_kind(leaf),
                         rule = rule.name,
                     );
