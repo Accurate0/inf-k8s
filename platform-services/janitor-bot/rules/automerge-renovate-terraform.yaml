@@ -27,8 +27,8 @@ matches:
     - type: not_approved_by_self
     - type: status_checks
       names:
-        - "Trivy scan / Trivy"
-        - "Terraform plan / tofu plan"
+        - "Trivy scan / Trivy (pull_request)"
+        - "Terraform plan / tofu plan (pull_request)"
       state: success
 actions:
   - type: approve

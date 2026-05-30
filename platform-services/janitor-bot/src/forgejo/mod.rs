@@ -1,41 +1,18 @@
+pub mod types;
+
 use crate::marker::Marker;
 use forgejo_api::structs::*;
 use forgejo_api::{Auth, Forgejo};
 use std::collections::HashSet;
+use types::RawCombinedStatus;
+pub use types::*;
 use url::Url;
 
 pub(crate) const BOT_USERNAME: &str = "janitor";
 
-#[derive(Debug, Clone)]
-pub struct PrCombinedStatus {
-    pub state: CommitStatusState,
-    pub total_count: i64,
-    pub statuses: Vec<PrStatusEntry>,
-}
-
-#[derive(Debug, Clone)]
-pub struct PrStatusEntry {
-    pub context: String,
-    pub state: CommitStatusState,
-}
-
-pub struct BotComment {
-    pub id: i64,
-    pub body: String,
-}
-
-pub struct CommitStatusParams<'a> {
-    pub owner: &'a str,
-    pub repo: &'a str,
-    pub sha: &'a str,
-    pub state: &'a str,
-    pub context: &'a str,
-    pub description: &'a str,
-    pub target_url: &'a str,
-}
-
 pub struct ForgejoClient {
     api: Forgejo,
+    http: reqwest::Client,
     pub base_url: String,
     pub token: String,
 }
@@ -50,9 +27,13 @@ impl ForgejoClient {
     pub fn new(base_url: String, token: String) -> anyhow::Result<Self> {
         let url = Url::parse(&base_url)?;
         let api = Forgejo::new(Auth::Token(&token), url)?;
+        let http = reqwest::Client::builder()
+            .user_agent(concat!("janitor-bot/", env!("CARGO_PKG_VERSION")))
+            .build()?;
 
         Ok(Self {
             api,
+            http,
             base_url,
             token,
         })
@@ -618,7 +599,9 @@ impl ForgejoClient {
             "{}/api/v1/repos/{}/{}/raw/{}?ref={}",
             self.base_url, owner, repo, filepath, git_ref
         );
-        let resp = reqwest::Client::new()
+
+        let resp = self
+            .http
             .get(&url)
             .header("Authorization", format!("token {}", self.token))
             .send()
@@ -626,6 +609,7 @@ impl ForgejoClient {
             .error_for_status()?
             .text()
             .await?;
+
         Ok(resp)
     }
 
@@ -676,22 +660,34 @@ impl ForgejoClient {
         repo: &str,
         sha: &str,
     ) -> Option<PrCombinedStatus> {
-        let (_, combined) = match self
-            .api
-            .repo_get_combined_status_by_ref(owner, repo, sha)
+        let url = format!(
+            "{}/api/v1/repos/{}/{}/commits/{}/status",
+            self.base_url, owner, repo, sha
+        );
+
+        let raw: RawCombinedStatus = match self
+            .http
+            .get(&url)
+            .header("Authorization", format!("token {}", self.token))
             .send()
             .await
+            .and_then(|r| r.error_for_status())
         {
-            Ok(v) => v,
+            Ok(r) => match r.json().await {
+                Ok(v) => v,
+                Err(e) => {
+                    tracing::warn!(owner, repo, sha, "combined status decode failed: {e}");
+                    return None;
+                }
+            },
             Err(e) => {
                 tracing::warn!(owner, repo, sha, "combined status fetch failed: {e}");
                 return None;
             }
         };
 
-        let statuses: Vec<PrStatusEntry> = combined
+        let statuses: Vec<PrStatusEntry> = raw
             .statuses
-            .unwrap_or_default()
             .into_iter()
             .filter_map(|s| {
                 Some(PrStatusEntry {
@@ -700,18 +696,20 @@ impl ForgejoClient {
                 })
             })
             .collect();
+
         tracing::debug!(
             owner,
             repo,
             sha,
-            state = ?combined.state,
-            total_count = combined.total_count,
+            state = ?raw.state,
+            total_count = raw.total_count,
             statuses_len = statuses.len(),
             "combined status fetched"
         );
+
         Some(PrCombinedStatus {
-            state: combined.state.unwrap_or(CommitStatusState::Pending),
-            total_count: combined.total_count.unwrap_or(0),
+            state: raw.state.unwrap_or(CommitStatusState::Pending),
+            total_count: raw.total_count.unwrap_or(0),
             statuses,
         })
     }
@@ -761,7 +759,9 @@ impl ForgejoClient {
             "{}/api/v1/repos/{}/{}/issues/{}/comments",
             self.base_url, owner, repo, issue
         );
-        let resp: Vec<serde_json::Value> = reqwest::Client::new()
+
+        let resp: Vec<serde_json::Value> = self
+            .http
             .get(&url)
             .header("Authorization", format!("token {}", self.token))
             .send()
