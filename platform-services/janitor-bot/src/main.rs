@@ -129,8 +129,9 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/rules", get(routes::handle_admin_rules))
         .route("/admin/health/deep", get(routes::handle_admin_health_deep))
         .layer(OtelInResponseLayer)
-        .layer(OtelAxumLayer::default())
-        .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(OtelAxumLayer::default().filter(|path| {
+            !matches!(path, "/health" | "/admin/metrics")
+        }))
         .with_state(state);
 
     let addr = "0.0.0.0:3000";

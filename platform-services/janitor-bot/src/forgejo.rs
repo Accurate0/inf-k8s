@@ -663,27 +663,33 @@ impl ForgejoClient {
             })
             .collect();
         Some(PrCombinedStatus {
-            state: combined.state?,
+            state: combined.state.unwrap_or(CommitStatusState::Pending),
             total_count: combined.total_count.unwrap_or(0),
             statuses,
         })
     }
 
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(owner, repo, sha))]
     pub async fn get_combined_status_by_ref(
         &self,
         owner: &str,
         repo: &str,
         sha: &str,
     ) -> Option<PrCombinedStatus> {
-        let (_, combined) = self
+        let (_, combined) = match self
             .api
             .repo_get_combined_status_by_ref(owner, repo, sha)
             .send()
             .await
-            .ok()?;
+        {
+            Ok(v) => v,
+            Err(e) => {
+                tracing::warn!(owner, repo, sha, "combined status fetch failed: {e}");
+                return None;
+            }
+        };
 
-        let statuses = combined
+        let statuses: Vec<PrStatusEntry> = combined
             .statuses
             .unwrap_or_default()
             .into_iter()
@@ -694,8 +700,17 @@ impl ForgejoClient {
                 })
             })
             .collect();
+        tracing::debug!(
+            owner,
+            repo,
+            sha,
+            state = ?combined.state,
+            total_count = combined.total_count,
+            statuses_len = statuses.len(),
+            "combined status fetched"
+        );
         Some(PrCombinedStatus {
-            state: combined.state?,
+            state: combined.state.unwrap_or(CommitStatusState::Pending),
             total_count: combined.total_count.unwrap_or(0),
             statuses,
         })

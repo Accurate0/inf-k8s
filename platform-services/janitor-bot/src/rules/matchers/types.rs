@@ -200,6 +200,42 @@ impl Matcher {
 }
 
 impl LeafMatcher {
+    pub fn kind(&self) -> &'static str {
+        match self {
+            LeafMatcher::Forgejo => "forgejo",
+            LeafMatcher::GitHub => "github",
+            LeafMatcher::Argocd => "argocd",
+            LeafMatcher::PrEvent => "pr_event",
+            LeafMatcher::WorkflowEvent => "workflow_event",
+            LeafMatcher::CommitStatusEvent => "commit_status_event",
+            LeafMatcher::CheckRunEvent => "check_run_event",
+            LeafMatcher::SyncEvent => "sync_event",
+            LeafMatcher::AppChangedInCommit { .. } => "app_changed_in_commit",
+            LeafMatcher::Action { .. } => "action",
+            LeafMatcher::Author { .. } => "author",
+            LeafMatcher::TitleMatches { .. } => "title_matches",
+            LeafMatcher::HasLabel { .. } => "has_label",
+            LeafMatcher::HasChangedFiles => "has_changed_files",
+            LeafMatcher::ChangedFilesAllMatch { .. } => "changed_files_all_match",
+            LeafMatcher::ChangedFilesAnyMatch { .. } => "changed_files_any_match",
+            LeafMatcher::ChangedFilesNoneMatch { .. } => "changed_files_none_match",
+            LeafMatcher::IsOpen => "is_open",
+            LeafMatcher::IsMerged => "is_merged",
+            LeafMatcher::HasConflicts => "has_conflicts",
+            LeafMatcher::NotApprovedBySelf => "not_approved_by_self",
+            LeafMatcher::FeatureFlag { .. } => "feature_flag",
+            LeafMatcher::TimeWindow { .. } => "time_window",
+            LeafMatcher::WorkflowConclusion { .. } => "workflow_conclusion",
+            LeafMatcher::TargetBranch { .. } => "target_branch",
+            LeafMatcher::Repository { .. } => "repository",
+            LeafMatcher::WorkflowRunAttempt => "workflow_run_attempt",
+            LeafMatcher::HasStatusChecks => "has_status_checks",
+            LeafMatcher::AllStatusChecksPassed => "all_status_checks_passed",
+            LeafMatcher::StatusChecks { .. } => "status_checks",
+            LeafMatcher::IsLatestByMetadata { .. } => "is_latest_by_metadata",
+        }
+    }
+
     pub fn requires(&self) -> HashSet<Resource> {
         match self {
             LeafMatcher::IsOpen | LeafMatcher::HasConflicts => [Resource::PullRequest].into(),
