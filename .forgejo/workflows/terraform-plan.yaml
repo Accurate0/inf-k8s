@@ -46,6 +46,7 @@ jobs:
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Post plan as PR comment
+        if: github.event_name == 'pull_request'
         env:
           FORGEJO_TOKEN: ${{ secrets.JANITOR_TOKEN }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
