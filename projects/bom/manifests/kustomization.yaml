@@ -8,8 +8,8 @@ resources:
   - service.yaml
   - database.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/bom"
-  inf-k8s.net/app: "bom"
+  inf-k8s.net/app: bom
+  inf-k8s.net/repository: https://github.com/Accurate0/bom
 images:
   - name: ghcr.io/accurate0/bom
-    newTag: 03afdf34e91a6748600b247ac7ffe361071a684d
+    newTag: 4d9ba819b7de66142e6e4bc75e4a0fcf3dabbe19
