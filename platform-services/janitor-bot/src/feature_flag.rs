@@ -12,14 +12,12 @@ pub struct FeatureFlagClient {
 }
 
 impl FeatureFlagClient {
-    #[tracing::instrument(skip_all)]
     pub async fn from_env() -> Self {
         let url = std::env::var("FLIPT_URL");
 
         Self::new(url.ok()).await
     }
 
-    #[tracing::instrument(skip_all)]
     pub async fn new(url: Option<String>) -> Self {
         let mut client = OpenFeature::singleton_mut().await;
 

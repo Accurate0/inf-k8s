@@ -7,11 +7,31 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use opentelemetry::trace::TraceContextExt;
 use tracing::{Instrument, Span};
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 
 use crate::AppState;
 use janitor_bot::argocd::types::ArgoSyncPayload;
 use janitor_bot::{command, event, github};
+
+/// Root span for background work spawned from a webhook handler.
+///
+/// Detached from the current request span (`parent: None`) so the request span
+/// can close as soon as the HTTP handler returns. We add a span link back to
+/// the originating request so the two traces remain navigable in Tempo without
+/// the active-span leak that lets unrelated incoming requests reparent under
+/// the webhook trace.
+fn background_span(name: &'static str) -> Span {
+    let span = tracing::info_span!(parent: None, "background", task = name);
+    let parent_ctx = Span::current().context();
+    let parent_span = parent_ctx.span();
+    let sc = parent_span.span_context();
+    if sc.is_valid() {
+        span.add_link(sc.clone());
+    }
+    span
+}
 
 pub async fn handle_forgejo_webhook(
     State(state): State<Arc<AppState>>,
@@ -54,7 +74,7 @@ pub async fn handle_forgejo_webhook(
                 async move {
                     command::handle_issue_command(&state.clients, &cmd, parsed).await;
                 }
-                .instrument(Span::current()),
+                .instrument(background_span("webhook")),
             );
         }
         return StatusCode::OK;
@@ -70,7 +90,7 @@ pub async fn handle_forgejo_webhook(
                     command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed)
                         .await;
                 }
-                .instrument(Span::current()),
+                .instrument(background_span("webhook")),
             );
         }
         return StatusCode::OK;
@@ -91,7 +111,7 @@ pub async fn handle_forgejo_webhook(
                 .evaluate_pr(&state.clients, &mut pr_event)
                 .await;
         }
-        .instrument(Span::current()),
+        .instrument(background_span("webhook")),
     );
 
     StatusCode::OK
@@ -138,7 +158,7 @@ pub async fn handle_github_webhook(
                     .evaluate_commit_status(&state.clients, &cs_event)
                     .await;
             }
-            .instrument(Span::current()),
+            .instrument(background_span("webhook")),
         );
         return StatusCode::OK;
     }
@@ -165,7 +185,7 @@ pub async fn handle_github_webhook(
                     .evaluate_check_run(&state.clients, &mut cr_event)
                     .await;
             }
-            .instrument(Span::current()),
+            .instrument(background_span("webhook")),
         );
         return StatusCode::OK;
     }
@@ -188,7 +208,7 @@ pub async fn handle_github_webhook(
                 .evaluate_workflow(&state.clients, &mut wf_event)
                 .await;
         }
-        .instrument(Span::current()),
+        .instrument(background_span("webhook")),
     );
 
     StatusCode::OK
@@ -200,7 +220,7 @@ pub async fn handle_admin_cron(State(state): State<Arc<AppState>>) -> StatusCode
         async move {
             super::evaluate_open_prs(&state).await;
         }
-        .instrument(Span::current()),
+        .instrument(background_span("webhook")),
     );
     StatusCode::OK
 }
@@ -237,7 +257,7 @@ pub async fn handle_admin_evaluate_pr(
                 .evaluate_pr(&state.clients, &mut pr_event)
                 .await;
         }
-        .instrument(Span::current()),
+        .instrument(background_span("webhook")),
     );
 
     StatusCode::OK
@@ -638,7 +658,7 @@ pub async fn handle_argocd_webhook(
                 .evaluate_argocd_sync(&state.clients, &sync_event)
                 .await;
         }
-        .instrument(Span::current()),
+        .instrument(background_span("webhook")),
     );
 
     StatusCode::OK
