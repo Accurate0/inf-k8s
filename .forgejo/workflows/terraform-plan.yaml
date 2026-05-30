@@ -31,11 +31,14 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install OpenTofu
+        env:
+          OPENTOFU_VERSION: "1.11.6"
         run: |
           curl -sfL https://get.opentofu.org/install-opentofu.sh \
             -o install-opentofu.sh
           chmod +x install-opentofu.sh
           ./install-opentofu.sh --install-method standalone \
+            --opentofu-version "$OPENTOFU_VERSION" \
             --install-path /usr/local/bin --symlink-path -
           rm install-opentofu.sh
 
