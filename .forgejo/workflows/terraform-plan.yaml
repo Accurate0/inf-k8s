@@ -31,9 +31,13 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 
       - name: Install OpenTofu
-        uses: opentofu/setup-opentofu@592200bd4b9bbf4772ace78f887668b1aee8f716 # v1.0.5
-        with:
-          tofu_wrapper: false
+        run: |
+          curl -sfL https://get.opentofu.org/install-opentofu.sh \
+            -o install-opentofu.sh
+          chmod +x install-opentofu.sh
+          ./install-opentofu.sh --install-method standalone \
+            --install-path /usr/local/bin --symlink-path -
+          rm install-opentofu.sh
 
       - name: tofu init
         run: tofu init -input=false
