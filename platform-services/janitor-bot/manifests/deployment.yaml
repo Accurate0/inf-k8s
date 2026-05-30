@@ -62,3 +62,5 @@ spec:
               value: http://flipt-v2.flipt-v2.svc.cluster.local:8080
             - name: ARGOCD_SERVER
               value: http://argocd-server.argocd.svc.cluster.local:80
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces

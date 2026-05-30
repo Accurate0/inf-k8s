@@ -5,9 +5,10 @@ use axum::{
     http::StatusCode,
     routing::{get, post},
 };
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use chrono_tz::Australia;
 use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient, metrics};
-use janitor_bot::{event, rules};
+use janitor_bot::{event, rules, tracing_setup};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
@@ -65,7 +66,7 @@ async fn evaluate_open_prs(state: &AppState) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    tracing_subscriber::fmt::init();
+    let tracer_provider = tracing_setup::init();
     metrics::init();
 
     let state = Arc::new(AppState {
@@ -127,6 +128,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/logs", get(routes::handle_admin_logs))
         .route("/admin/rules", get(routes::handle_admin_rules))
         .route("/admin/health/deep", get(routes::handle_admin_health_deep))
+        .layer(OtelInResponseLayer)
+        .layer(OtelAxumLayer::default())
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .with_state(state);
 
@@ -135,6 +138,10 @@ async fn main() -> anyhow::Result<()> {
     let listener = tokio::net::TcpListener::bind(addr).await?;
 
     axum::serve(listener, app).await?;
+
+    if let Some(provider) = tracer_provider {
+        let _ = provider.shutdown();
+    }
 
     Ok(())
 }

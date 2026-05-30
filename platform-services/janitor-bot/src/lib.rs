@@ -10,3 +10,4 @@ pub mod marker;
 pub mod metrics;
 pub mod rules;
 pub mod server;
+pub mod tracing_setup;

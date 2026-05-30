@@ -19,6 +19,43 @@ use chrono::{Datelike, Timelike};
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::LazyLock;
+use tracing::Instrument;
+
+fn leaf_kind(leaf: &LeafMatcher) -> &'static str {
+    match leaf {
+        LeafMatcher::Forgejo => "forgejo",
+        LeafMatcher::GitHub => "github",
+        LeafMatcher::Argocd => "argocd",
+        LeafMatcher::PrEvent => "pr_event",
+        LeafMatcher::WorkflowEvent => "workflow_event",
+        LeafMatcher::CommitStatusEvent => "commit_status_event",
+        LeafMatcher::CheckRunEvent => "check_run_event",
+        LeafMatcher::SyncEvent => "sync_event",
+        LeafMatcher::AppChangedInCommit { .. } => "app_changed_in_commit",
+        LeafMatcher::Action { .. } => "action",
+        LeafMatcher::Author { .. } => "author",
+        LeafMatcher::TitleMatches { .. } => "title_matches",
+        LeafMatcher::HasLabel { .. } => "has_label",
+        LeafMatcher::HasChangedFiles => "has_changed_files",
+        LeafMatcher::ChangedFilesAllMatch { .. } => "changed_files_all_match",
+        LeafMatcher::ChangedFilesAnyMatch { .. } => "changed_files_any_match",
+        LeafMatcher::ChangedFilesNoneMatch { .. } => "changed_files_none_match",
+        LeafMatcher::IsOpen => "is_open",
+        LeafMatcher::IsMerged => "is_merged",
+        LeafMatcher::HasConflicts => "has_conflicts",
+        LeafMatcher::NotApprovedBySelf => "not_approved_by_self",
+        LeafMatcher::FeatureFlag { .. } => "feature_flag",
+        LeafMatcher::TimeWindow { .. } => "time_window",
+        LeafMatcher::WorkflowConclusion { .. } => "workflow_conclusion",
+        LeafMatcher::TargetBranch { .. } => "target_branch",
+        LeafMatcher::Repository { .. } => "repository",
+        LeafMatcher::WorkflowRunAttempt => "workflow_run_attempt",
+        LeafMatcher::HasStatusChecks => "has_status_checks",
+        LeafMatcher::AllStatusChecksPassed => "all_status_checks_passed",
+        LeafMatcher::StatusChecks { .. } => "status_checks",
+        LeafMatcher::IsLatestByMetadata { .. } => "is_latest_by_metadata",
+    }
+}
 
 pub fn parse_pr_metadata(body: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
     static RE: LazyLock<Regex> =
@@ -85,10 +122,30 @@ impl Matcher {
 
                 Matcher::Leaf(leaf) => {
                     if let Some(cached) = cache.matcher_results.get(leaf) {
+                        tracing::debug!(
+                            matcher = leaf_kind(leaf),
+                            rule = rule.name,
+                            result = cached,
+                            cached = true,
+                            "leaf matcher (cached)"
+                        );
                         return cached;
                     }
 
-                    let result = eval_leaf(leaf, ev, rule, clients, cache, now).await;
+                    let span = tracing::debug_span!(
+                        "matcher.leaf",
+                        matcher = leaf_kind(leaf),
+                        rule = rule.name,
+                    );
+                    let result = eval_leaf(leaf, ev, rule, clients, cache, now)
+                        .instrument(span)
+                        .await;
+                    tracing::debug!(
+                        matcher = leaf_kind(leaf),
+                        rule = rule.name,
+                        result,
+                        "leaf matcher evaluated"
+                    );
                     cache.matcher_results.insert(leaf.clone(), result);
                     result
                 }

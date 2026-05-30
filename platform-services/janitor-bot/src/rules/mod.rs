@@ -16,6 +16,7 @@ use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
+use tracing::Instrument;
 use tokio::sync::Mutex;
 
 const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
@@ -144,6 +145,7 @@ impl RulesOrchestrator {
             .collect()
     }
 
+    #[tracing::instrument(skip_all, fields(owner = %event.owner, repo = %event.repo, pr = event.pr_number))]
     pub async fn explain_pr(&self, clients: &Clients, event: &mut PrEvent) -> Vec<MatchedRule> {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
@@ -204,6 +206,7 @@ impl RulesOrchestrator {
         self.explain_rules(&bot_event, clients).await
     }
 
+    #[tracing::instrument(skip_all, fields(owner = %event.owner, repo = %event.repo, pr = event.pr_number, action = %event.action))]
     pub async fn evaluate_pr(&self, clients: &Clients, event: &mut PrEvent) {
         let lock = self.pr_lock(&event.owner, &event.repo, event.pr_number);
         let _guard = lock.lock().await;
@@ -384,11 +387,31 @@ impl RulesOrchestrator {
             }
 
             if !self.dependencies_met(rule, &executed_rules) {
+                tracing::debug!(rule = rule.name, "explain: skipping (deps not met)");
                 continue;
             }
+
+            let rule_span = tracing::info_span!(
+                "rule.explain",
+                rule = rule.name,
+                event = event.event_kind(),
+            );
+            let _enter = rule_span.enter();
+
+            let eval_start = Instant::now();
             if !self.match_rule(rule, event, clients, cache).await {
+                tracing::debug!(
+                    rule = rule.name,
+                    eval_ms = eval_start.elapsed().as_millis(),
+                    "explain: rule did not match"
+                );
                 continue;
             }
+            tracing::debug!(
+                rule = rule.name,
+                eval_ms = eval_start.elapsed().as_millis(),
+                "explain: rule matched"
+            );
 
             let vars = self.evaluate_variables(rule, event, clients, cache).await;
 
@@ -459,6 +482,15 @@ impl RulesOrchestrator {
                 tracing::debug!(rule = rule.name, "skipping: dependencies not met");
                 continue;
             }
+
+            let rule_span = tracing::info_span!(
+                "rule.evaluate",
+                rule = rule.name,
+                event = event.event_kind(),
+                event_key = event.event_key(),
+            );
+            let _enter = rule_span.enter();
+
             let eval_start = Instant::now();
             if !self.match_rule(rule, event, clients, cache).await {
                 tracing::debug!(
@@ -559,7 +591,16 @@ impl RulesOrchestrator {
                 }
 
                 let action_start = Instant::now();
-                action.execute(clients, event, cache).await;
+                let action_span = tracing::info_span!(
+                    "action.execute",
+                    rule = rule.name,
+                    action = action.kind(),
+                    when = group.when,
+                );
+                action
+                    .execute(clients, event, cache)
+                    .instrument(action_span)
+                    .await;
                 let action_elapsed = action_start.elapsed();
                 crate::metrics::record_action(&rule.name, action.kind(), true);
                 tracing::info!(
