@@ -54,26 +54,17 @@ jobs:
 
       - name: Post plan as PR comment
         if: github.event_name == 'pull_request'
+        working-directory: ${{ github.workspace }}
         env:
           FORGEJO_TOKEN: ${{ secrets.JANITOR_TOKEN }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          REPO: ${{ github.repository }}
           SERVER_URL: ${{ github.server_url }}
-        run: |
-          max=60000
-          plan=$(cat plan.txt)
-          if [ ${#plan} -gt $max ]; then
-            plan="${plan:0:$max}"$'\n\n... (truncated)'
-          fi
-          body=$(jq -Rs --arg plan "$plan" \
-            '{body: ("### tofu plan\n\n```terraform\n" + $plan + "\n```")}' \
-            <<< "")
-          curl -sSf \
-            -X POST \
-            -H "Authorization: token $FORGEJO_TOKEN" \
-            -H "Content-Type: application/json" \
-            -d "$body" \
-            "$SERVER_URL/api/v1/repos/$REPO/issues/$PR_NUMBER/comments"
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PLAN_FILE: ${{ github.workspace }}/terraform/plan.txt
+          RUN_ID: ${{ github.run_id }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
+        run: .forgejo/scripts/post-tf-plan-comment.sh
 
       - name: Fail if plan errored
         if: steps.plan.outputs.exitcode != '0'
