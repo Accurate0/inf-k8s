@@ -7,6 +7,10 @@ name: Terraform plan
       - "terraform/**"
       - ".forgejo/workflows/terraform-plan.yaml"
 
+concurrency:
+  group: terraform-plan
+  cancel-in-progress: false
+
 jobs:
   plan:
     name: tofu plan
@@ -61,6 +65,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PLAN_FILE: ${{ github.workspace }}/terraform/plan.txt
+          PLAN_EXIT_CODE: ${{ steps.plan.outputs.exitcode }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
