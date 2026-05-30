@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../rule.schema.json
-name: automerge-renovate-on-green
-enabled: false
+name: automerge-renovate-terraform
+enabled: true
 matches:
   all:
     - type: forgejo
@@ -14,6 +14,9 @@ matches:
       value: main
     - type: author
       value: renovate
+    - type: changed_files_all_match
+      patterns:
+        - "terraform/**"
     - not:
         type: has_label
         value: update-major
@@ -22,8 +25,11 @@ matches:
         value: conflicts
     - type: is_open
     - type: not_approved_by_self
-    - type: has_status_checks
-    - type: all_status_checks_passed
+    - type: status_checks
+      names:
+        - "Trivy scan / Trivy"
+        - "Terraform plan / tofu plan"
+      state: success
 actions:
   - type: approve
   - type: merge

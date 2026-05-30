@@ -47,7 +47,7 @@ spec:
                         value: /
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.2.0
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           defaults:

@@ -313,6 +313,18 @@ fn eval_leaf<'a>(
                     .is_some_and(|s| matches!(s.state, CommitStatusState::Success)),
                 _ => false,
             },
+            LeafMatcher::StatusChecks { names, state } => match ev {
+                BotEvent::ForgejoPr(pr) => combined_status_cached(clients, cache, pr)
+                    .await
+                    .is_some_and(|s| {
+                        names.iter().all(|n| {
+                            s.statuses
+                                .iter()
+                                .any(|st| st.context == *n && state.matches(&st.state))
+                        })
+                    }),
+                _ => false,
+            },
 
             LeafMatcher::IsLatestByMetadata {
                 match_metadata_fields,

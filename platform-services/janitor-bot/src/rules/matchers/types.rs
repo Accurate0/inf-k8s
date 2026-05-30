@@ -115,9 +115,38 @@ pub enum LeafMatcher {
     HasStatusChecks,
     #[serde(rename = "all_status_checks_passed")]
     AllStatusChecksPassed,
+    #[serde(rename = "status_checks")]
+    StatusChecks {
+        names: Vec<String>,
+        state: StatusCheckState,
+    },
 
     #[serde(rename = "is_latest_by_metadata")]
     IsLatestByMetadata { match_metadata_fields: Vec<String> },
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum StatusCheckState {
+    Pending,
+    Success,
+    Error,
+    Failure,
+    Warning,
+}
+
+impl StatusCheckState {
+    pub fn matches(&self, other: &forgejo_api::structs::CommitStatusState) -> bool {
+        use forgejo_api::structs::CommitStatusState as F;
+        matches!(
+            (self, other),
+            (Self::Pending, F::Pending)
+                | (Self::Success, F::Success)
+                | (Self::Error, F::Error)
+                | (Self::Failure, F::Failure)
+                | (Self::Warning, F::Warning)
+        )
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Default, Clone, Copy, PartialEq, Eq, Hash)]
@@ -175,7 +204,9 @@ impl LeafMatcher {
         match self {
             LeafMatcher::IsOpen | LeafMatcher::HasConflicts => [Resource::PullRequest].into(),
             LeafMatcher::NotApprovedBySelf => [Resource::Reviews].into(),
-            LeafMatcher::HasStatusChecks | LeafMatcher::AllStatusChecksPassed => {
+            LeafMatcher::HasStatusChecks
+            | LeafMatcher::AllStatusChecksPassed
+            | LeafMatcher::StatusChecks { .. } => {
                 [Resource::PullRequest, Resource::CombinedStatus].into()
             }
             LeafMatcher::IsLatestByMetadata { .. } => {

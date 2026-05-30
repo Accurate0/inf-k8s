@@ -1,0 +1,59 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - action_groups:
+      - actions:
+          - approve
+          - merge
+        ran: true
+    dry_run: false
+    name: automerge-renovate-terraform
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/200/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/200
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/200/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls?state=open
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/200/reviews
+    body:
+      body: ~
+      comments: ~
+      commit_id: ~
+      event: APPROVED
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/200/merge
+    body:
+      Do: squash
+      MergeCommitID: ~
+      MergeMessageField: ~
+      MergeTitleField: ~
+      delete_branch_after_merge: true
+      force_merge: ~
+      head_commit_id: ~
+      merge_when_checks_succeed: ~
+    service: forgejo
+  - method: POST
+    path: /evaluate/v1/boolean
+    body:
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt

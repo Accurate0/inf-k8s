@@ -1003,6 +1003,29 @@
         {
           "type": "object",
           "properties": {
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "state": {
+              "$ref": "#/$defs/StatusCheckState"
+            },
+            "type": {
+              "type": "string",
+              "const": "status_checks"
+            }
+          },
+          "required": [
+            "type",
+            "names",
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "match_metadata_fields": {
               "type": "array",
               "items": {
@@ -1465,6 +1488,29 @@
         {
           "type": "object",
           "properties": {
+            "names": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "state": {
+              "$ref": "#/$defs/StatusCheckState"
+            },
+            "type": {
+              "type": "string",
+              "const": "status_checks"
+            }
+          },
+          "required": [
+            "type",
+            "names",
+            "state"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "match_metadata_fields": {
               "type": "array",
               "items": {
@@ -1518,6 +1564,16 @@
         {
           "$ref": "#/$defs/EnabledMode"
         }
+      ]
+    },
+    "StatusCheckState": {
+      "type": "string",
+      "enum": [
+        "pending",
+        "success",
+        "error",
+        "failure",
+        "warning"
       ]
     },
     "StringMatchMode": {

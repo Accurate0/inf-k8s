@@ -10,6 +10,13 @@ pub(crate) const BOT_USERNAME: &str = "janitor";
 pub struct PrCombinedStatus {
     pub state: CommitStatusState,
     pub total_count: i64,
+    pub statuses: Vec<PrStatusEntry>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PrStatusEntry {
+    pub context: String,
+    pub state: CommitStatusState,
 }
 
 pub struct BotComment {
@@ -619,9 +626,21 @@ impl ForgejoClient {
             .await
             .ok()?;
 
+        let statuses = combined
+            .statuses
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|s| {
+                Some(PrStatusEntry {
+                    context: s.context?,
+                    state: s.status?,
+                })
+            })
+            .collect();
         Some(PrCombinedStatus {
             state: combined.state?,
             total_count: combined.total_count.unwrap_or(0),
+            statuses,
         })
     }
 
@@ -638,9 +657,21 @@ impl ForgejoClient {
             .await
             .ok()?;
 
+        let statuses = combined
+            .statuses
+            .unwrap_or_default()
+            .into_iter()
+            .filter_map(|s| {
+                Some(PrStatusEntry {
+                    context: s.context?,
+                    state: s.status?,
+                })
+            })
+            .collect();
         Some(PrCombinedStatus {
             state: combined.state?,
             total_count: combined.total_count.unwrap_or(0),
+            statuses,
         })
     }
 
