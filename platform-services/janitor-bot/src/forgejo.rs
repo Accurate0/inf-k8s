@@ -62,6 +62,7 @@ impl ForgejoClient {
         format!("{}/{}/{}.git", self.base_url, owner, repo)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn is_pr_approved_by_bot(&self, owner: &str, repo: &str, pr: i64) -> bool {
         let reviews = match self
             .api
@@ -83,6 +84,7 @@ impl ForgejoClient {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn approve_pr(
         &self,
         owner: &str,
@@ -108,6 +110,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn merge_pr(
         &self,
         owner: &str,
@@ -138,6 +141,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn comment(
         &self,
         owner: &str,
@@ -161,6 +165,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn add_labels(
         &self,
         owner: &str,
@@ -186,6 +191,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn add_labels_by_name(
         &self,
         owner: &str,
@@ -211,6 +217,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn list_open_prs(
         &self,
         owner: &str,
@@ -231,11 +238,13 @@ impl ForgejoClient {
         Ok(prs)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn health_check(&self) -> Result<(), forgejo_api::ForgejoError> {
         self.api.user_get_current().send().await?;
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn is_pr_mergeable(&self, owner: &str, repo: &str, pr: i64) -> Option<bool> {
         match self.api.repo_get_pull_request(owner, repo, pr).send().await {
             Ok(pr) => pr.mergeable,
@@ -246,6 +255,7 @@ impl ForgejoClient {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn remove_labels_by_name(
         &self,
         owner: &str,
@@ -288,6 +298,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_pr(
         &self,
         owner: &str,
@@ -297,6 +308,7 @@ impl ForgejoClient {
         self.api.repo_get_pull_request(owner, repo, pr).send().await
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn is_pr_open(&self, owner: &str, repo: &str, pr: i64) -> bool {
         match self.api.repo_get_pull_request(owner, repo, pr).send().await {
             Ok(pr) => matches!(pr.state, Some(StateType::Open)) && !pr.merged.unwrap_or(false),
@@ -304,6 +316,7 @@ impl ForgejoClient {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_commit_changed_files(
         &self,
         owner: &str,
@@ -328,6 +341,7 @@ impl ForgejoClient {
             .collect())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_pr_changed_files(
         &self,
         owner: &str,
@@ -342,6 +356,7 @@ impl ForgejoClient {
         Ok(files.into_iter().filter_map(|f| f.filename).collect())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_issue(
         &self,
         owner: &str,
@@ -351,6 +366,7 @@ impl ForgejoClient {
         self.api.issue_get_issue(owner, repo, issue).send().await
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn find_open_issue_by_title(
         &self,
         owner: &str,
@@ -376,6 +392,7 @@ impl ForgejoClient {
             .find(|i| i.title.as_deref() == Some(title)))
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn create_issue_with_labels(
         &self,
         owner: &str,
@@ -427,6 +444,7 @@ impl ForgejoClient {
         Ok(issue)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn comment_on_issue(
         &self,
         owner: &str,
@@ -450,6 +468,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn delete_branch(
         &self,
         owner: &str,
@@ -464,6 +483,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn set_pr_state(
         &self,
         owner: &str,
@@ -495,6 +515,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn close_issue(
         &self,
         owner: &str,
@@ -525,6 +546,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn ensure_labels(
         &self,
         owner: &str,
@@ -561,6 +583,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn react_to_comment(
         &self,
         owner: &str,
@@ -583,6 +606,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_raw_file(
         &self,
         owner: &str,
@@ -605,6 +629,7 @@ impl ForgejoClient {
         Ok(resp)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_pr_combined_status(
         &self,
         owner: &str,
@@ -644,6 +669,7 @@ impl ForgejoClient {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_combined_status_by_ref(
         &self,
         owner: &str,
@@ -675,6 +701,7 @@ impl ForgejoClient {
         })
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn get_pr_head_ref(
         &self,
         owner: &str,
@@ -694,6 +721,7 @@ impl ForgejoClient {
 
     /// Returns whether the bot has already left a comment carrying `marker` on
     /// this issue/PR — the stateless "have I already acted?" check.
+    #[tracing::instrument(skip_all)]
     pub async fn has_acted(
         &self,
         owner: &str,
@@ -743,6 +771,7 @@ impl ForgejoClient {
         Ok(None)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn find_bot_comment_with_marker(
         &self,
         owner: &str,
@@ -756,6 +785,7 @@ impl ForgejoClient {
             .map(|c| c.id))
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn find_bot_comment_with_marker_and_body(
         &self,
         owner: &str,
@@ -767,6 +797,7 @@ impl ForgejoClient {
             .await
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn update_comment(
         &self,
         owner: &str,
@@ -790,6 +821,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn comment_or_update(
         &self,
         owner: &str,
@@ -812,6 +844,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn set_commit_status(
         &self,
         params: CommitStatusParams<'_>,
@@ -850,6 +883,7 @@ impl ForgejoClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn create_pull_request(
         &self,
         owner: &str,

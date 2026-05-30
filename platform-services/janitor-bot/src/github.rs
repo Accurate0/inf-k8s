@@ -42,6 +42,7 @@ impl GitHubClient {
             .await
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn health_check(&self) -> anyhow::Result<()> {
         self.github_get(&format!("{}/user", self.base_url))
             .await?
@@ -70,6 +71,7 @@ impl GitHubClient {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn rerun_workflow(&self, owner: &str, repo: &str, run_id: u64) -> anyhow::Result<()> {
         let url = format!(
             "{}/repos/{owner}/{repo}/actions/runs/{run_id}/rerun-failed-jobs",
@@ -97,6 +99,7 @@ impl GitHubClient {
     }
 
     /// Returns whether `sha` is available as a commit on `owner/repo`.
+    #[tracing::instrument(skip_all)]
     pub async fn commit_exists(&self, owner: &str, repo: &str, sha: &str) -> bool {
         let url = format!("{}/repos/{owner}/{repo}/commits/{sha}", self.base_url);
         match self.github_get(&url).await {
@@ -108,6 +111,7 @@ impl GitHubClient {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn workflow_run_name(&self, owner: &str, repo: &str, run_id: u64) -> Option<String> {
         let url = format!(
             "{}/repos/{owner}/{repo}/actions/runs/{run_id}",
@@ -129,6 +133,7 @@ impl GitHubClient {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn fetch_failed_jobs(&self, jobs_url: &str) -> FailedJobsResult {
         let empty = FailedJobsResult::default();
 

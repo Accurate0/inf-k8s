@@ -7,6 +7,7 @@ use serde::Serialize;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::time::sleep;
+use tracing::{Instrument, Span};
 
 use crate::AppState;
 use janitor_bot::argocd::types::ArgoSyncPayload;
@@ -49,9 +50,12 @@ pub async fn handle_forgejo_webhook(
             && cmd.author == super::FORGEJO_OWNER
             && let Some(parsed) = command::parse_issue_command(&cmd.comment_body)
         {
-            tokio::spawn(async move {
-                command::handle_issue_command(&state.clients, &cmd, parsed).await;
-            });
+            tokio::spawn(
+                async move {
+                    command::handle_issue_command(&state.clients, &cmd, parsed).await;
+                }
+                .instrument(Span::current()),
+            );
         }
         return StatusCode::OK;
     }
@@ -61,9 +65,13 @@ pub async fn handle_forgejo_webhook(
             && cmd.author == super::FORGEJO_OWNER
             && let Some(parsed) = command::parse_pr_command(&cmd.body)
         {
-            tokio::spawn(async move {
-                command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed).await;
-            });
+            tokio::spawn(
+                async move {
+                    command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed)
+                        .await;
+                }
+                .instrument(Span::current()),
+            );
         }
         return StatusCode::OK;
     }
@@ -76,12 +84,15 @@ pub async fn handle_forgejo_webhook(
         return StatusCode::OK;
     };
 
-    tokio::spawn(async move {
-        state
-            .orchestrator
-            .evaluate_pr(&state.clients, &mut pr_event)
-            .await;
-    });
+    tokio::spawn(
+        async move {
+            state
+                .orchestrator
+                .evaluate_pr(&state.clients, &mut pr_event)
+                .await;
+        }
+        .instrument(Span::current()),
+    );
 
     StatusCode::OK
 }
@@ -120,12 +131,15 @@ pub async fn handle_github_webhook(
             "received github commit status event"
         );
 
-        tokio::spawn(async move {
-            state
-                .orchestrator
-                .evaluate_commit_status(&state.clients, &cs_event)
-                .await;
-        });
+        tokio::spawn(
+            async move {
+                state
+                    .orchestrator
+                    .evaluate_commit_status(&state.clients, &cs_event)
+                    .await;
+            }
+            .instrument(Span::current()),
+        );
         return StatusCode::OK;
     }
 
@@ -144,12 +158,15 @@ pub async fn handle_github_webhook(
             "received github check_run event"
         );
 
-        tokio::spawn(async move {
-            state
-                .orchestrator
-                .evaluate_check_run(&state.clients, &mut cr_event)
-                .await;
-        });
+        tokio::spawn(
+            async move {
+                state
+                    .orchestrator
+                    .evaluate_check_run(&state.clients, &mut cr_event)
+                    .await;
+            }
+            .instrument(Span::current()),
+        );
         return StatusCode::OK;
     }
 
@@ -164,21 +181,27 @@ pub async fn handle_github_webhook(
         "received github workflow event"
     );
 
-    tokio::spawn(async move {
-        state
-            .orchestrator
-            .evaluate_workflow(&state.clients, &mut wf_event)
-            .await;
-    });
+    tokio::spawn(
+        async move {
+            state
+                .orchestrator
+                .evaluate_workflow(&state.clients, &mut wf_event)
+                .await;
+        }
+        .instrument(Span::current()),
+    );
 
     StatusCode::OK
 }
 
 pub async fn handle_admin_cron(State(state): State<Arc<AppState>>) -> StatusCode {
     tracing::info!("admin: triggering cron evaluation");
-    tokio::spawn(async move {
-        super::evaluate_open_prs(&state).await;
-    });
+    tokio::spawn(
+        async move {
+            super::evaluate_open_prs(&state).await;
+        }
+        .instrument(Span::current()),
+    );
     StatusCode::OK
 }
 
@@ -193,25 +216,29 @@ pub async fn handle_admin_evaluate_pr(
         "admin: triggering evaluation for PR"
     );
 
-    tokio::spawn(async move {
-        let pr = match state.clients.forgejo.get_pr(&owner, &repo, pr_number).await {
-            Ok(pr) => pr,
-            Err(e) => {
-                tracing::error!(pr_number, "admin: failed to fetch PR: {e}");
+    tokio::spawn(
+        async move {
+            let pr = match state.clients.forgejo.get_pr(&owner, &repo, pr_number).await {
+                Ok(pr) => pr,
+                Err(e) => {
+                    tracing::error!(pr_number, "admin: failed to fetch PR: {e}");
+                    return;
+                }
+            };
+
+            let Some(mut pr_event) = janitor_bot::event::PrEvent::from_api_pr(&pr, owner, repo)
+            else {
+                tracing::error!(pr_number, "admin: failed to convert PR to event");
                 return;
-            }
-        };
+            };
 
-        let Some(mut pr_event) = janitor_bot::event::PrEvent::from_api_pr(&pr, owner, repo) else {
-            tracing::error!(pr_number, "admin: failed to convert PR to event");
-            return;
-        };
-
-        state
-            .orchestrator
-            .evaluate_pr(&state.clients, &mut pr_event)
-            .await;
-    });
+            state
+                .orchestrator
+                .evaluate_pr(&state.clients, &mut pr_event)
+                .await;
+        }
+        .instrument(Span::current()),
+    );
 
     StatusCode::OK
 }
@@ -604,12 +631,15 @@ pub async fn handle_argocd_webhook(
         message: payload.message,
     };
 
-    tokio::spawn(async move {
-        state
-            .orchestrator
-            .evaluate_argocd_sync(&state.clients, &sync_event)
-            .await;
-    });
+    tokio::spawn(
+        async move {
+            state
+                .orchestrator
+                .evaluate_argocd_sync(&state.clients, &sync_event)
+                .await;
+        }
+        .instrument(Span::current()),
+    );
 
     StatusCode::OK
 }

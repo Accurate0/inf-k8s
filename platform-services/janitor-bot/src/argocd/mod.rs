@@ -307,6 +307,7 @@ impl ArgocdClient {
             || (path.ends_with("/application.yaml") && !path.contains("/manifests/"))
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn run_diff_and_comment(
         &self,
         client: &ForgejoClient,
@@ -431,6 +432,7 @@ impl ArgocdClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn check_app_changed_in_commit(
         &self,
         forgejo: &ForgejoClient,
@@ -559,6 +561,7 @@ impl ArgocdClient {
         Ok(resp.json::<ApplicationList>().await?.items)
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn sync_application(&self, app_name: &str) -> anyhow::Result<()> {
         let url = format!("{}/api/v1/applications/{app_name}/sync", self.api_base());
         let resp = self
@@ -581,6 +584,7 @@ impl ArgocdClient {
         Ok(())
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn sync_changed_apps(&self, changed_files: &[String]) {
         if changed_files.is_empty() {
             tracing::info!("no changed files, nothing to sync");
@@ -627,6 +631,7 @@ impl ArgocdClient {
         }
     }
 
+    #[tracing::instrument(skip_all)]
     pub async fn health_check(&self) -> anyhow::Result<()> {
         let url = format!("{}/api/v1/applications?limit=1", self.api_base());
         let resp = self
