@@ -371,15 +371,38 @@ fn eval_leaf<'a>(
                 _ => false,
             },
             LeafMatcher::StatusChecks { names, state } => match ev {
-                BotEvent::ForgejoPr(pr) => combined_status_cached(clients, cache, pr)
-                    .await
-                    .is_some_and(|s| {
-                        names.iter().all(|n| {
-                            s.statuses
-                                .iter()
-                                .any(|st| st.context == *n && state.matches(&st.state))
-                        })
-                    }),
+                BotEvent::ForgejoPr(pr) => match combined_status_cached(clients, cache, pr).await {
+                    Some(s) => {
+                        let present: Vec<String> = s
+                            .statuses
+                            .iter()
+                            .map(|st| format!("{}={:?}", st.context, st.state))
+                            .collect();
+
+                        let unmet: Vec<&String> = names
+                            .iter()
+                            .filter(|n| {
+                                !s.statuses
+                                    .iter()
+                                    .any(|st| st.context == **n && state.matches(&st.state))
+                            })
+                            .collect();
+
+                        tracing::debug!(
+                            required = ?names,
+                            required_state = ?state,
+                            present = ?present,
+                            unmet = ?unmet,
+                            "status_checks matcher evaluated"
+                        );
+
+                        unmet.is_empty()
+                    }
+                    None => {
+                        tracing::debug!("status_checks: no combined status available");
+                        false
+                    }
+                },
                 _ => false,
             },
 
