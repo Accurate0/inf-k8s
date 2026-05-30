@@ -12,7 +12,9 @@ use janitor_bot::{event, rules, tracing_setup};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
+use tokio::net::TcpListener;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
+use tracing::Instrument;
 
 const FORGEJO_OWNER: &str = "anurag";
 const WATCH_REPOS: &[&str] = &["k8s"];
@@ -54,9 +56,17 @@ async fn evaluate_open_prs(state: &AppState) {
                 continue;
             };
 
+            let span = tracing::info_span!(
+                "cron.evaluate",
+                otel.name = "cron.evaluate: forgejo_pr",
+                owner = pr_event.owner,
+                repo = pr_event.repo,
+                pr_number = pr_event.pr_number,
+            );
             state
                 .orchestrator
                 .evaluate_pr(&state.clients, &mut pr_event)
+                .instrument(span)
                 .await;
         }
     }
@@ -90,10 +100,15 @@ async fn main() -> anyhow::Result<()> {
         .with_cron_job_type()
         .with_schedule("every 10 minutes")?
         .with_run_async(Box::new(move |uuid, mut _lock| {
-            tracing::info!("running PR poll: {uuid}");
             let state = Arc::clone(&poll_state);
             Box::pin(async move {
-                evaluate_open_prs(&state).await;
+                let span = tracing::info_span!(parent: None, "cron.evaluate_open_prs", job = %uuid);
+                async move {
+                    tracing::info!("running PR poll: {uuid}");
+                    evaluate_open_prs(&state).await;
+                }
+                .instrument(span)
+                .await;
             })
         }))
         .build()?;
@@ -134,9 +149,10 @@ async fn main() -> anyhow::Result<()> {
         )
         .with_state(state);
 
-    let addr = "0.0.0.0:3000";
+    let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{port}");
     tracing::info!("listening on {addr}");
-    let listener = tokio::net::TcpListener::bind(addr).await?;
+    let listener = TcpListener::bind(&addr).await?;
 
     axum::serve(listener, app).await?;
 

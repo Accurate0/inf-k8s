@@ -1,12 +1,12 @@
+pub mod types;
+
 use crate::event::WorkflowEvent;
 use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
+use types::{CheckRunPayload, CommitStatusPayload, HeadCommit, JobsResponse, WorkflowRunPayload};
 
-#[derive(Default)]
-pub struct FailedJobsResult {
-    pub logs: String,
-}
+pub use types::FailedJobsResult;
 
 pub struct GitHubClient {
     client: reqwest::Client,
@@ -200,64 +200,6 @@ pub fn verify_signature(secret: &str, signature: &str, body: &[u8]) -> bool {
     mac.verify_slice(&decoded).is_ok()
 }
 
-#[derive(Debug, Deserialize)]
-struct CommitAuthor {
-    name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct HeadCommit {
-    #[allow(dead_code)]
-    id: Option<String>,
-    message: Option<String>,
-    author: Option<CommitAuthor>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Actor {
-    login: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct WorkflowRun {
-    id: Option<u64>,
-    name: Option<String>,
-    conclusion: Option<String>,
-    html_url: Option<String>,
-    head_branch: Option<String>,
-    head_sha: Option<String>,
-    head_commit: Option<HeadCommit>,
-    actor: Option<Actor>,
-    run_number: Option<u64>,
-    run_attempt: Option<u64>,
-    jobs_url: Option<String>,
-    display_title: Option<String>,
-    created_at: Option<String>,
-    updated_at: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct WorkflowRepository {
-    full_name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct WorkflowRunPayload {
-    workflow_run: Option<WorkflowRun>,
-    repository: Option<WorkflowRepository>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Job {
-    id: Option<u64>,
-    conclusion: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct JobsResponse {
-    jobs: Vec<Job>,
-}
-
 /// Extract error lines from raw GitHub Actions job logs.
 ///
 /// Looks for `##[error]` annotations and includes surrounding context lines.
@@ -322,48 +264,6 @@ fn extract_error_lines(raw_logs: &str) -> String {
     }
 
     result
-}
-
-#[derive(Debug, Deserialize)]
-struct CommitStatusRepository {
-    full_name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CommitStatusPayload {
-    sha: Option<String>,
-    state: Option<String>,
-    context: Option<String>,
-    description: Option<String>,
-    target_url: Option<String>,
-    repository: Option<CommitStatusRepository>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckRunApp {
-    name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckRun {
-    name: Option<String>,
-    head_sha: Option<String>,
-    status: Option<String>,
-    conclusion: Option<String>,
-    details_url: Option<String>,
-    app: Option<CheckRunApp>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckRunRepository {
-    full_name: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckRunPayload {
-    action: Option<String>,
-    check_run: Option<CheckRun>,
-    repository: Option<CheckRunRepository>,
 }
 
 fn extract_run_id(url: &str) -> Option<u64> {
