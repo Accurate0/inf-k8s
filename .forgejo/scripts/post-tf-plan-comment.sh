@@ -29,10 +29,8 @@ if [ -z "$summary_line" ]; then
 fi
 
 if [ "$PLAN_EXIT_CODE" = "0" ]; then
-  status_emoji="✅"
   status_text="Success"
 else
-  status_emoji="❌"
   status_text="Failed"
 fi
 
@@ -48,7 +46,6 @@ short_sha="${COMMIT_SHA:0:7}"
 body=$(jq -Rs \
   --arg marker "$MARKER" \
   --arg meta "<!-- metadata:${metadata} -->" \
-  --arg status_emoji "$status_emoji" \
   --arg status_text "$status_text" \
   --arg summary "$summary_line" \
   --arg short_sha "$short_sha" \
@@ -58,7 +55,7 @@ body=$(jq -Rs \
   '{body: (
     $marker + "\n" +
     $meta + "\n" +
-    "## Terraform Plan " + $status_emoji + "\n\n" +
+    "## Terraform Plan\n\n" +
     "> " + $status_text + " for `" + $short_sha + "` — [run log](" + $run_url + ")\n\n" +
     "> " + $summary + "\n\n" +
     "<details>\n<summary>Plan output" + $truncated + "</summary>\n\n" +
