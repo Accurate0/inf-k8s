@@ -1,0 +1,71 @@
+---
+name: Terraform plan
+"on":
+  pull_request:
+    paths:
+      - "terraform/**"
+      - ".forgejo/workflows/terraform-plan.yaml"
+
+jobs:
+  plan:
+    name: tofu plan
+    runs-on: docker
+    defaults:
+      run:
+        working-directory: terraform
+    env:
+      BINARYLANE_API_TOKEN: ${{ secrets.BINARYLANE_API_TOKEN }}
+      ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
+      ARM_CLIENT_SECRET: ${{ secrets.ARM_CLIENT_SECRET }}
+      ARM_TENANT_ID: ${{ secrets.ARM_TENANT_ID }}
+      ARM_SUBSCRIPTION_ID: ${{ secrets.ARM_SUBSCRIPTION_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
+      TF_VAR_infisical_client_id: ${{ secrets.TF_VAR_INFISICAL_CLIENT_ID }}
+      TF_VAR_infisical_client_secret: ${{ secrets.TF_VAR_INFISICAL_CLIENT_SECRET }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
+
+      - name: Install OpenTofu
+        uses: opentofu/setup-opentofu@592200bd4b9bbf4772ace78f887668b1aee8f716 # v1.0.5
+        with:
+          tofu_wrapper: false
+
+      - name: tofu init
+        run: tofu init -input=false
+
+      - name: tofu plan
+        id: plan
+        run: |
+          set +e
+          tofu plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Post plan as PR comment
+        env:
+          FORGEJO_TOKEN: ${{ secrets.JANITOR_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          SERVER_URL: ${{ github.server_url }}
+        run: |
+          max=60000
+          plan=$(cat plan.txt)
+          if [ ${#plan} -gt $max ]; then
+            plan="${plan:0:$max}"$'\n\n... (truncated)'
+          fi
+          body=$(jq -Rs --arg plan "$plan" \
+            '{body: ("### tofu plan\n\n```terraform\n" + $plan + "\n```")}' \
+            <<< "")
+          curl -sSf \
+            -X POST \
+            -H "Authorization: token $FORGEJO_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d "$body" \
+            "$SERVER_URL/api/v1/repos/$REPO/issues/$PR_NUMBER/comments"
+
+      - name: Fail if plan errored
+        if: steps.plan.outputs.exitcode != '0'
+        run: exit 1
