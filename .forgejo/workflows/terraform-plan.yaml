@@ -24,9 +24,9 @@ jobs:
       AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       AWS_REGION: ${{ vars.AWS_REGION }}
-      GITHUB_TOKEN: ${{ secrets.TF_GITHUB_TOKEN }}
       TF_VAR_infisical_client_id: ${{ secrets.TF_VAR_INFISICAL_CLIENT_ID }}
       TF_VAR_infisical_client_secret: ${{ secrets.TF_VAR_INFISICAL_CLIENT_SECRET }}
+      TF_VAR_tf_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6
 

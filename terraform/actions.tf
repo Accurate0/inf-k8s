@@ -41,11 +41,11 @@ module "janitor-bot-github-webhook-secret" {
 resource "github_repository_webhook" "janitor-bot" {
   for_each   = local.janitor_bot_webhook_repos
   repository = each.value
-  events     = ["workflow_run"]
+  events     = ["workflow_run", "check_run", "check_suite", "status"]
   active     = true
 
   configuration {
-    url          = "https://janitor-bot.inf-k8s.net/github/webhook"
+    url          = "https://janitor-bot.anurag.sh/github/webhook"
     content_type = "json"
     insecure_ssl = false
     secret       = module.janitor-bot-github-webhook-secret.secret_value

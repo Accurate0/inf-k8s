@@ -23,15 +23,23 @@ jobs:
       - name: Fetch multi-platform package version SHAs
         id: multi-arch-digests
         run: |
-          image=$(docker manifest inspect ghcr.io/accurate0/ingress-home | jq -r '.manifests.[] | .digest' | paste -s -d ' ' -)
-          pg_db_controller=$(docker manifest inspect ghcr.io/accurate0/pg-db-controller | jq -r '.manifests.[] | .digest' | paste -s -d ' ' -)
-          echo "multi-arch-digests=$image,$pg_db_controller" >> $GITHUB_OUTPUT
+          images=(ingress-home pg-db-controller janitor-bot k8s-schemas)
+          all_digests=()
+          for img in "${images[@]}"; do
+            digests=$(docker manifest inspect "ghcr.io/accurate0/${img}" \
+              | jq -r '.manifests[]?.digest' | paste -s -d ',' -)
+            if [ -n "$digests" ]; then
+              all_digests+=("$digests")
+            fi
+          done
+          joined=$(IFS=,; echo "${all_digests[*]}")
+          echo "multi-arch-digests=$joined" >> "$GITHUB_OUTPUT"
 
       - uses: snok/container-retention-policy@d3bdcf5ce9b05f685154e4a16c39233b245e3d53 # v3.1.0
         with:
           account: user
           token: ${{ secrets.GITHUB_TOKEN }}
-          image-names: "ingress-home pg-db-controller"
+          image-names: "ingress-home pg-db-controller janitor-bot k8s-schemas"
           image-tags: "!latest"
           keep-n-most-recent: 10
           cut-off: 3d

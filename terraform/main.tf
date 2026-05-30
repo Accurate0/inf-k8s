@@ -50,6 +50,22 @@ provider "azurerm" {
   features {}
 }
 
+variable "tf_github_token" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+variable "github_token" {
+  type      = string
+  default   = ""
+  sensitive = true
+}
+
+provider "github" {
+  token = try(coalesce(var.tf_github_token, var.github_token), null)
+}
+
 variable "infisical_client_id" {
   type     = string
   nullable = false
