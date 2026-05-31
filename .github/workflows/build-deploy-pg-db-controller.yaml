@@ -5,6 +5,8 @@ on:
       - main
     paths:
       - platform-services/pg-db-controller/**
+      - '!platform-services/pg-db-controller/manifests/**'
+      - '!platform-services/pg-db-controller/application.yaml'
       - .github/workflows/build-deploy-pg-db-controller.yaml
   workflow_dispatch:
 

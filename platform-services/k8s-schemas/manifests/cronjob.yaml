@@ -25,8 +25,6 @@ spec:
           volumes:
             - name: tmp
               emptyDir: {}
-            - name: crds-catalog
-              emptyDir: {}
           containers:
             - name: k8s-schemas
               image: ghcr.io/accurate0/k8s-schemas
@@ -40,8 +38,6 @@ spec:
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
-                - name: crds-catalog
-                  mountPath: /opt/CRDs-catalog
               env:
                 - name: K8S_VERSION
                   value: v1.35.2

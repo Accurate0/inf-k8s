@@ -5,6 +5,8 @@ on:
       - main
     paths:
       - platform-services/janitor-bot/**
+      - '!platform-services/janitor-bot/manifests/**'
+      - '!platform-services/janitor-bot/application.yaml'
       - .github/workflows/build-deploy-janitor-bot.yaml
   workflow_dispatch:
 

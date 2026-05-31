@@ -7,8 +7,6 @@ RUN apk add --no-cache bash git kubectl aws-cli curl python3 py3-yaml py3-pip \
 
 ENV PATH="/opt/venv/bin:$PATH"
 
-RUN git clone --depth 1 https://github.com/datreeio/CRDs-catalog.git /opt/CRDs-catalog
-
 COPY entrypoint.sh /entrypoint.sh
 COPY reorganize-schemas.py /reorganize-schemas.py
 COPY build-index.py /build-index.py

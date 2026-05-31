@@ -5,6 +5,8 @@ on:
       - main
     paths:
       - platform-services/ingress-home/**
+      - '!platform-services/ingress-home/manifests/**'
+      - '!platform-services/ingress-home/application.yaml'
       - .github/workflows/build-deploy-ingress-home.yaml
   workflow_dispatch:
 

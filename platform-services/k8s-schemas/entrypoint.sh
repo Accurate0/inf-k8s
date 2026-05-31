@@ -5,8 +5,11 @@ export HOME=/tmp
 
 : "${K8S_VERSION:?K8S_VERSION must be set (e.g. release-1.30, master, v1.30.0)}"
 
+CATALOG_DIR="/tmp/CRDs-catalog"
+git clone --depth 1 https://github.com/datreeio/CRDs-catalog.git "$CATALOG_DIR"
+
 # Run CRD extractor script
-bash /opt/CRDs-catalog/Utilities/crd-extractor.sh
+bash "$CATALOG_DIR/Utilities/crd-extractor.sh"
 
 OUTPUT_DIR="${HOME}/.datree/crdSchemas"
 
