@@ -594,7 +594,7 @@ spec:
                   subPath: tmp
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/forgejo
-      kustomize:
+      kustomize: {}
 
   destination:
     server: https://kubernetes.default.svc
