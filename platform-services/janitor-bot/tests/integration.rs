@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
-use yaml_serde;
 
 use janitor_bot::argocd::ArgocdClient;
 use janitor_bot::clients::Clients;

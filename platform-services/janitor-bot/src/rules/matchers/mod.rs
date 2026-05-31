@@ -487,7 +487,8 @@ mod tests {
 
     #[test]
     fn deserialize_time_of_day_weekdays_only() {
-        let yaml = "type: time_of_day\ntz: UTC\nafter: \"09:00\"\nbefore: \"17:00\"\nweekdays_only: true";
+        let yaml =
+            "type: time_of_day\ntz: UTC\nafter: \"09:00\"\nbefore: \"17:00\"\nweekdays_only: true";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
             Matcher::Leaf(LeafMatcher::TimeOfDay { weekdays_only, .. }) => {

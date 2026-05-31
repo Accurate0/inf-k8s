@@ -664,10 +664,10 @@ mod tests {
 
     #[test]
     fn float_comparisons() {
-        let v = vars(&[("x", Value::F64(3.14))]);
+        let v = vars(&[("x", Value::F64(3.25))]);
         assert!(eval_bool("x < 4.0", &v));
         assert!(eval_bool("x > 3.0", &v));
-        assert!(eval_bool("x == 3.14", &v));
+        assert!(eval_bool("x == 3.25", &v));
     }
 
     #[test]

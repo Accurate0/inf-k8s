@@ -306,6 +306,17 @@ pub async fn handle_admin_dry_run(
 pub async fn handle_admin_merge_queued(
     State(state): State<Arc<AppState>>,
 ) -> (StatusCode, Json<serde_json::Value>) {
+    tracing::info!("admin: spawning background merge of all queued PRs");
+
+    tokio::spawn(run_admin_merge_queued(state));
+
+    (
+        StatusCode::ACCEPTED,
+        Json(serde_json::json!({"status": "started"})),
+    )
+}
+
+async fn run_admin_merge_queued(state: Arc<AppState>) {
     tracing::info!("admin: merging all queued PRs");
 
     const QUEUED_LABEL: &str = "janitor/queued";
@@ -402,10 +413,13 @@ pub async fn handle_admin_merge_queued(
         }
     }
 
-    (
-        StatusCode::OK,
-        Json(serde_json::json!({"merged": merged, "failed": failed})),
-    )
+    tracing::info!(
+        merged = merged.len(),
+        failed = failed.len(),
+        ?merged,
+        ?failed,
+        "admin: merge-queued background run complete"
+    );
 }
 
 #[derive(serde::Deserialize)]

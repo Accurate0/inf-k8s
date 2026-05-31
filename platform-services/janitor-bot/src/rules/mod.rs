@@ -377,7 +377,7 @@ impl RulesOrchestrator {
         let mut executed_rules: HashSet<String> = HashSet::new();
 
         for rule in &self.rules.rules {
-            if !!rule.disabled.is_disabled() {
+            if rule.disabled.is_disabled() {
                 continue;
             }
 
@@ -428,7 +428,7 @@ impl RulesOrchestrator {
     fn collect_resources(&self) -> HashSet<matchers::Resource> {
         let mut resources = HashSet::new();
         for rule in &self.rules.rules {
-            if !!rule.disabled.is_disabled() {
+            if rule.disabled.is_disabled() {
                 continue;
             }
             resources.extend(rule.when.requires());
@@ -460,7 +460,7 @@ impl RulesOrchestrator {
         let mut matched_rules_log = Vec::new();
 
         for rule in &self.rules.rules {
-            if !!rule.disabled.is_disabled() {
+            if rule.disabled.is_disabled() {
                 continue;
             }
 

@@ -396,6 +396,95 @@ pub async fn handle_issue_command(
     }
 }
 
+async fn remove_janitor_labels(client: &ForgejoClient, owner: &str, repo: &str, pr: i64) {
+    let api_pr = match client.get_pr(owner, repo, pr).await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::warn!(pr, "failed to fetch PR for label cleanup: {e}");
+            return;
+        }
+    };
+
+    let janitor_labels: Vec<String> = api_pr
+        .labels
+        .unwrap_or_default()
+        .iter()
+        .filter_map(|l| l.name.as_ref())
+        .filter(|name| name.starts_with("janitor/"))
+        .cloned()
+        .collect();
+    if !janitor_labels.is_empty()
+        && let Err(e) = client
+            .remove_labels_by_name(owner, repo, pr, janitor_labels)
+            .await
+    {
+        tracing::warn!(pr, "failed to remove janitor labels: {e}");
+    }
+}
+
+async fn revert_pr(
+    client: &ForgejoClient,
+    owner: &str,
+    repo: &str,
+    pr: i64,
+) -> Result<i64, anyhow::Error> {
+    let api_pr = client.get_pr(owner, repo, pr).await?;
+
+    if !api_pr.merged.unwrap_or(false) {
+        anyhow::bail!("PR #{pr} is not merged");
+    }
+
+    let merge_sha = api_pr
+        .merge_commit_sha
+        .clone()
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| anyhow::anyhow!("PR #{pr} has no merge commit SHA"))?;
+
+    let original_title = api_pr.title.as_deref().unwrap_or("unknown");
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let branch_name = format!("revert-pr-{pr}-{timestamp}");
+    let target_branch = api_pr
+        .base
+        .as_ref()
+        .and_then(|b| b.r#ref.clone())
+        .unwrap_or_else(|| "main".to_owned());
+
+    let clone_url = client.clone_url(owner, repo);
+    let token = client.token.clone();
+    let commit_msg = format!("Revert \"{original_title}\" (#{pr})");
+    let branch = branch_name.clone();
+    let target = target_branch.clone();
+
+    tokio::task::spawn_blocking(move || {
+        git::revert_and_push(
+            &clone_url,
+            &token,
+            &merge_sha,
+            &commit_msg,
+            &branch,
+            &target,
+        )
+    })
+    .await??;
+
+    let revert = client
+        .create_pull_request(
+            owner,
+            repo,
+            &format!("Revert \"{original_title}\""),
+            &format!("Reverts #{pr}"),
+            &branch_name,
+            &target_branch,
+        )
+        .await?;
+
+    Ok(revert.number.unwrap_or(0))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -611,7 +700,6 @@ mod tests {
             name: "test-rule".to_string(),
             dry_run: true,
             actions: vec![explain("comment", true)],
-            ..Default::default()
         }];
         let result = format_explain(&matched);
         assert!(result.contains("_(dry-run)_"));
@@ -623,14 +711,13 @@ mod tests {
         let matched = vec![
             MatchedRule {
                 name: "rule1".to_string(),
+                dry_run: false,
                 actions: vec![explain("approve", true)],
-                ..Default::default()
             },
             MatchedRule {
                 name: "rule2".to_string(),
                 dry_run: true,
                 actions: vec![explain("merge", true)],
-                ..Default::default()
             },
         ];
         let result = format_explain(&matched);
@@ -676,93 +763,4 @@ mod tests {
         let val = extract_metadata_json(text).unwrap();
         assert_eq!(val["new"], true);
     }
-}
-
-async fn remove_janitor_labels(client: &ForgejoClient, owner: &str, repo: &str, pr: i64) {
-    let api_pr = match client.get_pr(owner, repo, pr).await {
-        Ok(p) => p,
-        Err(e) => {
-            tracing::warn!(pr, "failed to fetch PR for label cleanup: {e}");
-            return;
-        }
-    };
-
-    let janitor_labels: Vec<String> = api_pr
-        .labels
-        .unwrap_or_default()
-        .iter()
-        .filter_map(|l| l.name.as_ref())
-        .filter(|name| name.starts_with("janitor/"))
-        .cloned()
-        .collect();
-    if !janitor_labels.is_empty()
-        && let Err(e) = client
-            .remove_labels_by_name(owner, repo, pr, janitor_labels)
-            .await
-    {
-        tracing::warn!(pr, "failed to remove janitor labels: {e}");
-    }
-}
-
-async fn revert_pr(
-    client: &ForgejoClient,
-    owner: &str,
-    repo: &str,
-    pr: i64,
-) -> Result<i64, anyhow::Error> {
-    let api_pr = client.get_pr(owner, repo, pr).await?;
-
-    if !api_pr.merged.unwrap_or(false) {
-        anyhow::bail!("PR #{pr} is not merged");
-    }
-
-    let merge_sha = api_pr
-        .merge_commit_sha
-        .clone()
-        .filter(|s| !s.is_empty())
-        .ok_or_else(|| anyhow::anyhow!("PR #{pr} has no merge commit SHA"))?;
-
-    let original_title = api_pr.title.as_deref().unwrap_or("unknown");
-
-    let timestamp = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs();
-    let branch_name = format!("revert-pr-{pr}-{timestamp}");
-    let target_branch = api_pr
-        .base
-        .as_ref()
-        .and_then(|b| b.r#ref.clone())
-        .unwrap_or_else(|| "main".to_owned());
-
-    let clone_url = client.clone_url(owner, repo);
-    let token = client.token.clone();
-    let commit_msg = format!("Revert \"{original_title}\" (#{pr})");
-    let branch = branch_name.clone();
-    let target = target_branch.clone();
-
-    tokio::task::spawn_blocking(move || {
-        git::revert_and_push(
-            &clone_url,
-            &token,
-            &merge_sha,
-            &commit_msg,
-            &branch,
-            &target,
-        )
-    })
-    .await??;
-
-    let revert = client
-        .create_pull_request(
-            owner,
-            repo,
-            &format!("Revert \"{original_title}\""),
-            &format!("Reverts #{pr}"),
-            &branch_name,
-            &target_branch,
-        )
-        .await?;
-
-    Ok(revert.number.unwrap_or(0))
 }

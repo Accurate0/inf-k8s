@@ -164,17 +164,13 @@ impl Action {
                 async {
                     let to_ensure: Vec<(String, String)> = labels
                         .iter()
-                        .filter_map(|l| {
-                            l.color()
-                                .map(|c| (l.name().to_string(), c.to_string()))
-                        })
+                        .filter_map(|l| l.color().map(|c| (l.name().to_string(), c.to_string())))
                         .collect();
                     if !to_ensure.is_empty() {
                         client.ensure_labels(owner, repo, to_ensure).await?;
                     }
 
-                    let names: Vec<String> =
-                        labels.iter().map(|l| l.name().to_string()).collect();
+                    let names: Vec<String> = labels.iter().map(|l| l.name().to_string()).collect();
                     client
                         .add_labels_by_name(owner, repo, pr.pr_number as i64, names)
                         .await
@@ -234,8 +230,7 @@ impl Action {
                         let to_ensure: Vec<(String, String)> = labels
                             .iter()
                             .filter_map(|l| {
-                                l.color()
-                                    .map(|c| (l.name().to_string(), c.to_string()))
+                                l.color().map(|c| (l.name().to_string(), c.to_string()))
                             })
                             .collect();
                         if !to_ensure.is_empty() {

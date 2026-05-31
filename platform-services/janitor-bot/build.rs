@@ -102,12 +102,7 @@ fn main() {
                 .collect();
 
             for root in scan_roots {
-                collect_and_check_refs(
-                    root,
-                    rule_name,
-                    &local_checks,
-                    &global_checks,
-                );
+                collect_and_check_refs(root, rule_name, &local_checks, &global_checks);
             }
         }
     }
