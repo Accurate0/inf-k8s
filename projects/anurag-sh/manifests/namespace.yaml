@@ -4,4 +4,5 @@ kind: Namespace
 metadata:
   name: anurag-sh
   labels:
-    shared-gateway-access: "true"
+    gateway.inf-k8s.net/anurag-sh: "true"
+    gateway.inf-k8s.net/anurag-id-au: "true"

@@ -48,7 +48,7 @@ spec:
           routes:
             - name: maccas-web-route
               gateway:
-                name: shared-gateway
+                name: public-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - maccas.one
@@ -75,7 +75,7 @@ spec:
                         value: /
             - name: graphql-maccas-route
               gateway:
-                name: shared-gateway
+                name: public-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - graphql.maccas.one

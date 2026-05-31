@@ -42,7 +42,7 @@ spec:
                         value: /
             - name: janitor-bot-public-route
               gateway:
-                name: shared-gateway
+                name: public-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - janitor-bot.anurag.sh

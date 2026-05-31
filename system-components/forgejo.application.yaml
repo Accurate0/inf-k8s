@@ -18,7 +18,7 @@ spec:
     managedNamespaceMetadata:
       labels:
         inf-k8s.net/infisical-secrets: "true"
-        shared-gateway-access: "true"
+        gateway.inf-k8s.net/anurag-sh: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
@@ -203,7 +203,7 @@ spec:
           tcpRoute:
             enabled: true
             parentRefs:
-              - name: shared-gateway
+              - name: public-gateway
                 namespace: envoy-gateway-system
                 sectionName: git-ssh
           persistence:

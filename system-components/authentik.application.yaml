@@ -10,7 +10,7 @@ spec:
       labels:
         inf-k8s.net/infisical-secrets: "true"
         internal-gateway-access: "true"
-        shared-gateway-access: "true"
+        gateway.inf-k8s.net/anurag-sh: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
@@ -29,7 +29,7 @@ spec:
           routes:
             - name: authentik-external
               gateway:
-                name: shared-gateway
+                name: public-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - authentik.anurag.sh

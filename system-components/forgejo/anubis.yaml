@@ -52,7 +52,7 @@ spec:
   parentRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: shared-gateway
+      name: public-gateway
       namespace: envoy-gateway-system
   hostnames:
     - git.anurag.sh

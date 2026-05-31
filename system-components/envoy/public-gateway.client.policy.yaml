@@ -2,12 +2,12 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: ClientTrafficPolicy
 metadata:
-  name: shared-gateway-client-policy
+  name: public-gateway-client-policy
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
-      name: shared-gateway
+      name: public-gateway
   proxyProtocol:
     optional: false
   clientIPDetection:
@@ -18,6 +18,13 @@ spec:
     probes: 9
     idleTime: "7200s"
     interval: "75s"
+  tls:
+    minVersion: "1.2"
+  connection:
+    connectionLimit:
+      value: 50000
+  http2:
+    maxConcurrentStreams: 100
   headers:
     disableRateLimitHeaders: true
     earlyRequestHeaders:

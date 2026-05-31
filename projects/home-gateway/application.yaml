@@ -22,7 +22,7 @@ spec:
           routes:
             - name: api-route
               gateway:
-                name: shared-gateway
+                name: public-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - home.anurag.sh

@@ -22,7 +22,7 @@ spec:
           routes:
             - name: solar-panels-route
               gateway:
-                name: shared-gateway
+                name: public-gateway
                 namespace: envoy-gateway-system
               hostnames:
                 - solar-panels.anurag.sh

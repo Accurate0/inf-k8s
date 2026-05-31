@@ -5,4 +5,4 @@ metadata:
   name: maccas-api
   labels:
     inf-k8s.net/infisical-secrets: "true"
-    shared-gateway-access: "true"
+    gateway.inf-k8s.net/maccas-one: "true"

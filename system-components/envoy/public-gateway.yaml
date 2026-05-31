@@ -2,11 +2,13 @@
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
 metadata:
-  name: shared-gateway
+  name: public-gateway
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
 spec:
   gatewayClassName: envoy-gateway
+  # NOTE: ports must be unique across the internal-gateway too — mergeGateways
+  # (see config.yaml) collapses both Gateways into one Envoy. internal uses 2222.
   listeners:
     - name: git-ssh
       protocol: TCP
@@ -28,7 +30,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              gateway.inf-k8s.net/anurag-id-au: "true"
       port: 8443
       tls:
         mode: Terminate
@@ -44,7 +46,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              gateway.inf-k8s.net/anurag-sh: "true"
       port: 8443
       tls:
         mode: Terminate
@@ -60,7 +62,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              gateway.inf-k8s.net/anurag-sh: "true"
       port: 8443
       tls:
         mode: Terminate
@@ -69,36 +71,6 @@ spec:
             kind: Secret
             name: anurag-sh-tls
 
-    - name: wildcard-perthtransport-xyz-https
-      protocol: HTTPS
-      hostname: "*.perthtransport.xyz"
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              shared-gateway-access: "true"
-      port: 8443
-      tls:
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: wildcard-perth-transport-map-tls
-    - name: perthtransport-xyz-https
-      protocol: HTTPS
-      hostname: perthtransport.xyz
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              shared-gateway-access: "true"
-      port: 8443
-      tls:
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: perth-transport-map-tls
     - name: wildcard-maccas-one-https
       protocol: HTTPS
       hostname: "*.maccas.one"
@@ -107,7 +79,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              gateway.inf-k8s.net/maccas-one: "true"
       port: 8443
       tls:
         certificateRefs:
@@ -122,7 +94,7 @@ spec:
           from: Selector
           selector:
             matchLabels:
-              shared-gateway-access: "true"
+              gateway.inf-k8s.net/maccas-one: "true"
       port: 8443
       tls:
         certificateRefs:

@@ -2,7 +2,7 @@ bouncerServiceName: envoy-proxy-bouncer
 routes:
   - name: "some-route"
     gateway:
-      name: shared-gateway
+      name: public-gateway
       namespace: envoy-gateway-system
     hostnames:
       - example.com
@@ -27,7 +27,7 @@ routes:
 
   - name: "some-route-2"
     gateway:
-      name: shared-gateway
+      name: public-gateway
       namespace: envoy-gateway-system
     hostnames:
       - example.com
