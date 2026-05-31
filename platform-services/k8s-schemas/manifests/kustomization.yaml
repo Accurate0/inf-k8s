@@ -11,4 +11,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/k8s-schemas
-    newTag: 1a3d6685da0e518696a891fddff4d64d993a5be4
+    newTag: a6abaef1369a04f60bbade955d70291db0432e1d
