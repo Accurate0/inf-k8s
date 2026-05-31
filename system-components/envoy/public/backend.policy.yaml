@@ -9,6 +9,9 @@ spec:
       kind: Gateway
       name: public-gateway
   mergeType: "StrategicMerge"
+  compression:
+    - type: Gzip
+    - type: Brotli
   tcpKeepalive:
     probes: 9
     idleTime: "7200s"
