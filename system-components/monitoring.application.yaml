@@ -15,6 +15,9 @@ spec:
       - RespectIgnoreDifferences=true
       - CreateNamespace=true
       - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
   project: system-components
   sources:
     - chart: k8s-http-routes
