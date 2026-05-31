@@ -1,0 +1,36 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: projects-apps
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+      - RespectIgnoreDifferences=true
+    automated:
+      prune: false
+      selfHeal: true
+  project: projects
+  source:
+    repoURL: https://github.com/Accurate0/inf-k8s.git
+    path: projects
+    directory:
+      recurse: true
+      include: "*/application.yaml"
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jsonPointers:
+        # Allow manually disabling auto sync for apps, useful for debugging.
+        - /spec/syncPolicy/automated
+        # These are automatically updated on a regular basis. Not ignoring last applied configuration since it's used for computing diffs after normalization.
+        - /metadata/annotations/argocd.argoproj.io~1refresh
+        # The child Application manifests carry an `operation:` block (a manual
+        # sync-on-apply trigger). Applying it declaratively would loop forever
+        # (controller clears it -> parent re-applies it). Ignore + don't write it.
+        - /operation
