@@ -18,6 +18,9 @@ spec:
                   nodeSelector:
                     inf-k8s.net/proxy: "true"
   telemetry:
+    metrics:
+      prometheus: {}
+      enableVirtualHostStats: true
     tracing:
       samplingRate: 100
       provider:

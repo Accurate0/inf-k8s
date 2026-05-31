@@ -27,6 +27,7 @@ spec:
     maxConcurrentStreams: 100
   headers:
     disableRateLimitHeaders: true
+    enableEnvoyHeaders: false
     earlyRequestHeaders:
       set:
         - name: "x-real-ip"
@@ -35,3 +36,9 @@ spec:
       set:
         - name: "x-request-id"
           value: "%REQ(x-request-id)%"
+        - name: "X-Content-Type-Options"
+          value: "nosniff"
+        - name: "Referrer-Policy"
+          value: "strict-origin-when-cross-origin"
+        - name: "Permissions-Policy"
+          value: "interest-cohort=()"
