@@ -3,19 +3,11 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - argocd_diff
+  - actions:
+      - action: argocd_diff
         ran: true
     dry_run: false
     name: argocd-diff-renovate
-  - action_groups:
-      - actions:
-          - ensure_labels_exist
-          - add_labels_by_name
-        ran: true
-    dry_run: false
-    name: label-renovate
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
@@ -51,16 +43,6 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/issues/100/comments
     body:
       body: "<!-- janitor-bot:argocd-diff -->\n## ArgoCD Diff\n\n### `monitoring` — `kube-prometheus-stack` (`85.1.1` → `86.0.0`)\n<details>\n<summary>Diff (source 1)</summary>\n\n```diff\n[argocd diff error redacted]\n```\n</details>\n\n- [ ] Re-run diff on next poll\n"
-      updated_at: ~
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
-    service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/100/labels
-    body:
-      labels:
-        - renovate
       updated_at: ~
     service: forgejo
   - method: POST

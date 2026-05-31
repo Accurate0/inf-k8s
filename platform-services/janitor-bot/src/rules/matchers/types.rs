@@ -2,6 +2,40 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::HashSet;
 
+#[derive(Debug, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum EventKind {
+    Pr,
+    Workflow,
+    CommitStatus,
+    CheckRun,
+    Sync,
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq, Hash)]
+#[serde(rename_all = "snake_case")]
+pub enum EventSource {
+    Forgejo,
+    Github,
+    Argocd,
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]
+#[serde(untagged)]
+pub enum EventSourceSpec {
+    One(EventSource),
+    Many(Vec<EventSource>),
+}
+
+impl EventSourceSpec {
+    pub fn matches(&self, source: EventSource) -> bool {
+        match self {
+            EventSourceSpec::One(s) => *s == source,
+            EventSourceSpec::Many(ss) => ss.contains(&source),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Resource {
     PullRequest,
@@ -11,22 +45,29 @@ pub enum Resource {
     OpenPrs,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
 #[serde(untagged)]
 pub enum Matcher {
     Combinator(Combinator),
     LeafExpr(LeafExprMatcher),
+    Ref(MatcherRef),
     Leaf(LeafMatcher),
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
+pub struct MatcherRef {
+    #[serde(rename = "ref")]
+    pub name: String,
+}
+
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
 pub struct LeafExprMatcher {
     #[serde(flatten)]
     pub matcher: LeafMatcher,
     pub expr: String,
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
 pub enum Combinator {
     #[serde(rename = "all")]
     All(Vec<Matcher>),
@@ -39,23 +80,11 @@ pub enum Combinator {
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]
 #[serde(tag = "type")]
 pub enum LeafMatcher {
-    #[serde(rename = "forgejo")]
-    Forgejo,
-    #[serde(rename = "github")]
-    GitHub,
-    #[serde(rename = "argocd")]
-    Argocd,
-
-    #[serde(rename = "pr_event")]
-    PrEvent,
-    #[serde(rename = "workflow_event")]
-    WorkflowEvent,
-    #[serde(rename = "commit_status_event")]
-    CommitStatusEvent,
-    #[serde(rename = "check_run_event")]
-    CheckRunEvent,
-    #[serde(rename = "sync_event")]
-    SyncEvent,
+    #[serde(rename = "event")]
+    Event {
+        kind: EventKind,
+        source: EventSourceSpec,
+    },
 
     #[serde(rename = "app_changed_in_commit")]
     AppChangedInCommit { owner: String, repo: String },
@@ -86,17 +115,17 @@ pub enum LeafMatcher {
     IsMerged,
     #[serde(rename = "has_conflicts")]
     HasConflicts,
-    #[serde(rename = "not_approved_by_self")]
-    NotApprovedBySelf,
+    #[serde(rename = "bot.has_approved")]
+    BotHasApproved,
 
     #[serde(rename = "feature_flag")]
     FeatureFlag { name: String, default: bool },
 
-    #[serde(rename = "time_window")]
-    TimeWindow {
-        timezone: String,
-        start: u32,
-        end: u32,
+    #[serde(rename = "time_of_day")]
+    TimeOfDay {
+        tz: String,
+        after: String,
+        before: String,
         #[serde(default)]
         weekdays_only: bool,
     },
@@ -175,13 +204,8 @@ impl StringMatchMode {
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]
-#[serde(untagged)]
-pub enum FilePattern {
-    StartsWith { starts_with: String },
-    Contains { contains: String },
-    EndsWith { ends_with: String },
-    Glob(String),
-}
+#[serde(transparent)]
+pub struct FilePattern(pub String);
 
 impl Matcher {
     pub fn requires(&self) -> HashSet<Resource> {
@@ -195,6 +219,7 @@ impl Matcher {
                 }
                 Combinator::Not(m) => m.requires(),
             },
+            Matcher::Ref(r) => panic!("unresolved matcher ref `{}`", r.name),
         }
     }
 }
@@ -202,14 +227,7 @@ impl Matcher {
 impl LeafMatcher {
     pub fn kind(&self) -> &'static str {
         match self {
-            LeafMatcher::Forgejo => "forgejo",
-            LeafMatcher::GitHub => "github",
-            LeafMatcher::Argocd => "argocd",
-            LeafMatcher::PrEvent => "pr_event",
-            LeafMatcher::WorkflowEvent => "workflow_event",
-            LeafMatcher::CommitStatusEvent => "commit_status_event",
-            LeafMatcher::CheckRunEvent => "check_run_event",
-            LeafMatcher::SyncEvent => "sync_event",
+            LeafMatcher::Event { .. } => "event",
             LeafMatcher::AppChangedInCommit { .. } => "app_changed_in_commit",
             LeafMatcher::Action { .. } => "action",
             LeafMatcher::Author { .. } => "author",
@@ -222,9 +240,9 @@ impl LeafMatcher {
             LeafMatcher::IsOpen => "is_open",
             LeafMatcher::IsMerged => "is_merged",
             LeafMatcher::HasConflicts => "has_conflicts",
-            LeafMatcher::NotApprovedBySelf => "not_approved_by_self",
+            LeafMatcher::BotHasApproved => "bot.has_approved",
             LeafMatcher::FeatureFlag { .. } => "feature_flag",
-            LeafMatcher::TimeWindow { .. } => "time_window",
+            LeafMatcher::TimeOfDay { .. } => "time_of_day",
             LeafMatcher::WorkflowConclusion { .. } => "workflow_conclusion",
             LeafMatcher::TargetBranch { .. } => "target_branch",
             LeafMatcher::Repository { .. } => "repository",
@@ -239,7 +257,7 @@ impl LeafMatcher {
     pub fn requires(&self) -> HashSet<Resource> {
         match self {
             LeafMatcher::IsOpen | LeafMatcher::HasConflicts => [Resource::PullRequest].into(),
-            LeafMatcher::NotApprovedBySelf => [Resource::Reviews].into(),
+            LeafMatcher::BotHasApproved => [Resource::Reviews].into(),
             LeafMatcher::HasStatusChecks
             | LeafMatcher::AllStatusChecksPassed
             | LeafMatcher::StatusChecks { .. } => {
@@ -261,27 +279,18 @@ impl LeafMatcher {
 
 impl FilePattern {
     pub fn matches(&self, path: &str) -> bool {
-        match self {
-            FilePattern::StartsWith { starts_with } => path.starts_with(starts_with.as_str()),
-            FilePattern::Contains { contains } => path.contains(contains.as_str()),
-            FilePattern::EndsWith { ends_with } => path.ends_with(ends_with.as_str()),
-            FilePattern::Glob(pattern) => {
-                let (negated, pat) = if let Some(rest) = pattern.strip_prefix('!') {
-                    (true, rest)
-                } else {
-                    (false, pattern.as_str())
-                };
-                let glob = globset::Glob::new(pat)
-                    .unwrap_or_else(|e| {
-                        tracing::warn!(pattern, "invalid glob pattern: {e}");
-                        // Fall back to a pattern that matches nothing
-                        globset::Glob::new("").unwrap()
-                    })
-                    .compile_matcher();
-
-                let matched = glob.is_match(path);
-                if negated { !matched } else { matched }
-            }
-        }
+        let pattern = &self.0;
+        let (negated, pat) = match pattern.strip_prefix('!') {
+            Some(rest) => (true, rest),
+            None => (false, pattern.as_str()),
+        };
+        let glob = globset::Glob::new(pat)
+            .unwrap_or_else(|e| {
+                tracing::warn!(pattern, "invalid glob pattern: {e}");
+                globset::Glob::new("").unwrap()
+            })
+            .compile_matcher();
+        let matched = glob.is_match(path);
+        if negated { !matched } else { matched }
     }
 }

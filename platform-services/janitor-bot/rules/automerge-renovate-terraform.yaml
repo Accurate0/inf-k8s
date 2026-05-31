@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: automerge-renovate-terraform
-enabled: true
-matches:
+when:
   all:
-    - type: forgejo
-    - type: pr_event
+    - type: event
+      kind: pr
+      source: forgejo
     - type: repository
       value: anurag/k8s
     - type: feature_flag
@@ -24,14 +24,16 @@ matches:
         type: has_label
         value: conflicts
     - type: is_open
-    - type: not_approved_by_self
+    - not:
+        type: bot.has_approved
     - type: status_checks
       names:
         - "Trivy scan / Trivy (pull_request)"
         - "Terraform plan / tofu plan (pull_request)"
       state: success
 actions:
-  - type: approve
-  - type: merge
-    strategy: squash
-    delete_branch: true
+  - run:
+      - type: approve
+      - type: merge
+        strategy: squash
+        delete_branch: true

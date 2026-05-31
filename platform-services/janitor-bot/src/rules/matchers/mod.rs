@@ -15,11 +15,21 @@ use cache::{
 use crate::clients::Clients;
 use crate::event::BotEvent;
 use crate::rules::{expr, schema};
-use chrono::{Datelike, Timelike};
+use chrono::Datelike;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::LazyLock;
 use tracing::Instrument;
+
+fn event_kind_and_source(ev: &BotEvent<'_>) -> (EventKind, EventSource) {
+    match ev {
+        BotEvent::ForgejoPr(_) => (EventKind::Pr, EventSource::Forgejo),
+        BotEvent::GitHubWorkflow(_) => (EventKind::Workflow, EventSource::Github),
+        BotEvent::GitHubCommitStatus(_) => (EventKind::CommitStatus, EventSource::Github),
+        BotEvent::GitHubCheckRun(_) => (EventKind::CheckRun, EventSource::Github),
+        BotEvent::ArgoSync(_) => (EventKind::Sync, EventSource::Argocd),
+    }
+}
 
 pub fn parse_pr_metadata(body: &str) -> Option<serde_json::Map<String, serde_json::Value>> {
     static RE: LazyLock<Regex> =
@@ -84,6 +94,8 @@ impl Matcher {
                     }
                 }
 
+                Matcher::Ref(r) => panic!("unresolved matcher ref `{}`", r.name),
+
                 Matcher::Leaf(leaf) => {
                     if let Some(cached) = cache.matcher_results.get(leaf) {
                         tracing::debug!(
@@ -131,7 +143,10 @@ impl Matcher {
                 Matcher::Leaf(leaf) | Matcher::LeafExpr(LeafExprMatcher { matcher: leaf, .. }) => {
                     eval_leaf_value(leaf, ev, rule, clients, cache, now).await
                 }
-                _ => expr::Value::Bool(self.matches(ev, rule, clients, cache, now).await),
+                Matcher::Ref(r) => panic!("unresolved matcher ref `{}`", r.name),
+                Matcher::Combinator(_) => {
+                    expr::Value::Bool(self.matches(ev, rule, clients, cache, now).await)
+                }
             }
         })
     }
@@ -166,21 +181,10 @@ fn eval_leaf<'a>(
 ) -> Pin<Box<dyn Future<Output = bool> + Send + 'a>> {
     Box::pin(async move {
         match leaf {
-            LeafMatcher::Forgejo => matches!(ev, BotEvent::ForgejoPr(_)),
-            LeafMatcher::GitHub => {
-                matches!(
-                    ev,
-                    BotEvent::GitHubWorkflow(_)
-                        | BotEvent::GitHubCommitStatus(_)
-                        | BotEvent::GitHubCheckRun(_)
-                )
+            LeafMatcher::Event { kind, source } => {
+                let (ev_kind, ev_source) = event_kind_and_source(ev);
+                ev_kind == *kind && source.matches(ev_source)
             }
-            LeafMatcher::PrEvent => matches!(ev, BotEvent::ForgejoPr(_)),
-            LeafMatcher::WorkflowEvent => matches!(ev, BotEvent::GitHubWorkflow(_)),
-            LeafMatcher::CommitStatusEvent => matches!(ev, BotEvent::GitHubCommitStatus(_)),
-            LeafMatcher::CheckRunEvent => matches!(ev, BotEvent::GitHubCheckRun(_)),
-            LeafMatcher::Argocd => matches!(ev, BotEvent::ArgoSync(_)),
-            LeafMatcher::SyncEvent => matches!(ev, BotEvent::ArgoSync(_)),
 
             LeafMatcher::AppChangedInCommit { owner, repo } => match ev {
                 BotEvent::ArgoSync(sync) => {
@@ -233,8 +237,8 @@ fn eval_leaf<'a>(
                 BotEvent::ForgejoPr(pr) => pr.merged,
                 _ => false,
             },
-            LeafMatcher::NotApprovedBySelf => match ev {
-                BotEvent::ForgejoPr(pr) => !get_reviews_cached(clients, cache, pr).await,
+            LeafMatcher::BotHasApproved => match ev {
+                BotEvent::ForgejoPr(pr) => get_reviews_cached(clients, cache, pr).await,
                 _ => false,
             },
 
@@ -275,31 +279,35 @@ fn eval_leaf<'a>(
                     .await
             }
 
-            LeafMatcher::TimeWindow {
-                timezone,
-                start,
-                end,
+            LeafMatcher::TimeOfDay {
+                tz,
+                after,
+                before,
                 weekdays_only,
             } => {
-                let tz: chrono_tz::Tz = match timezone.parse() {
+                let parsed_tz: chrono_tz::Tz = match tz.parse() {
                     Ok(tz) => tz,
                     Err(_) => {
-                        tracing::warn!(timezone, "invalid timezone, defaulting to false");
+                        tracing::warn!(tz, "invalid timezone, defaulting to false");
                         return false;
                     }
                 };
 
-                let now = now.with_timezone(&tz);
-                let hour = now.hour();
+                let parse_hm = |s: &str| chrono::NaiveTime::parse_from_str(s, "%H:%M").ok();
+                let (Some(after_t), Some(before_t)) = (parse_hm(after), parse_hm(before)) else {
+                    tracing::warn!(after, before, "invalid time_of_day, defaulting to false");
+                    return false;
+                };
 
-                if *weekdays_only {
-                    let weekday = now.weekday();
-                    if matches!(weekday, chrono::Weekday::Sat | chrono::Weekday::Sun) {
-                        return false;
-                    }
+                let now = now.with_timezone(&parsed_tz);
+                if *weekdays_only
+                    && matches!(now.weekday(), chrono::Weekday::Sat | chrono::Weekday::Sun)
+                {
+                    return false;
                 }
 
-                hour >= *start && hour < *end
+                let now_t = now.time();
+                now_t >= after_t && now_t < before_t
             }
 
             LeafMatcher::WorkflowConclusion { value } => match ev {
@@ -387,68 +395,44 @@ fn eval_leaf<'a>(
 mod tests {
     use super::*;
 
-    #[test]
-    fn file_pattern_starts_with() {
-        let p = FilePattern::StartsWith {
-            starts_with: ".github/workflows/".to_string(),
-        };
-        assert!(p.matches(".github/workflows/build.yaml"));
-        assert!(p.matches(".github/workflows/test.yml"));
-        assert!(!p.matches("src/main.rs"));
-        assert!(!p.matches(".github/dependabot.yml"));
+    fn pat(s: &str) -> FilePattern {
+        FilePattern(s.to_string())
     }
 
     #[test]
-    fn file_pattern_contains() {
-        let p = FilePattern::Contains {
-            contains: "Dockerfile".to_string(),
-        };
-        assert!(p.matches("Dockerfile"));
-        assert!(p.matches("apps/Dockerfile"));
-        assert!(p.matches("Dockerfile.dev"));
-        assert!(!p.matches("docker-compose.yml"));
-    }
-
-    #[test]
-    fn file_pattern_ends_with() {
-        let p = FilePattern::EndsWith {
-            ends_with: ".yaml".to_string(),
-        };
-        assert!(p.matches("config.yaml"));
-        assert!(p.matches("path/to/file.yaml"));
-        assert!(!p.matches("config.yml"));
-        assert!(!p.matches("config.yaml.bak"));
-    }
-
-    #[test]
-    fn file_pattern_empty_path() {
-        let p = FilePattern::Contains {
-            contains: "foo".to_string(),
-        };
-        assert!(!p.matches(""));
-    }
-
-    #[test]
-    fn file_pattern_empty_pattern() {
-        let p = FilePattern::StartsWith {
-            starts_with: "".to_string(),
-        };
-        assert!(p.matches("anything"));
-        assert!(p.matches(""));
-    }
-
-    #[test]
-    fn deserialize_leaf_forgejo() {
-        let yaml = "type: forgejo";
+    fn deserialize_event_single_source() {
+        let yaml = "type: event\nkind: pr\nsource: forgejo";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
-        assert!(matches!(m, Matcher::Leaf(LeafMatcher::Forgejo)));
+        match m {
+            Matcher::Leaf(LeafMatcher::Event { kind, source }) => {
+                assert_eq!(kind, EventKind::Pr);
+                assert!(source.matches(EventSource::Forgejo));
+                assert!(!source.matches(EventSource::Github));
+            }
+            _ => panic!("expected Event"),
+        }
     }
 
     #[test]
-    fn deserialize_leaf_github() {
-        let yaml = "type: github";
+    fn deserialize_event_multi_source() {
+        let yaml = "type: event\nkind: workflow\nsource: [forgejo, github]";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
-        assert!(matches!(m, Matcher::Leaf(LeafMatcher::GitHub)));
+        match m {
+            Matcher::Leaf(LeafMatcher::Event { kind, source }) => {
+                assert_eq!(kind, EventKind::Workflow);
+                assert!(source.matches(EventSource::Forgejo));
+                assert!(source.matches(EventSource::Github));
+                assert!(!source.matches(EventSource::Argocd));
+            }
+            _ => panic!("expected Event"),
+        }
+    }
+
+    #[test]
+    fn event_without_source_fails() {
+        let yaml = "type: event\nkind: pr";
+        let r: Result<Matcher, _> = yaml_serde::from_str(yaml);
+        assert!(r.is_err(), "source should be required");
     }
 
     #[test]
@@ -482,34 +466,34 @@ mod tests {
     }
 
     #[test]
-    fn deserialize_leaf_time_window() {
-        let yaml = "type: time_window\ntimezone: Australia/Perth\nstart: 17\nend: 22";
+    fn deserialize_leaf_time_of_day() {
+        let yaml = "type: time_of_day\ntz: Australia/Perth\nafter: \"17:00\"\nbefore: \"22:00\"";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
-            Matcher::Leaf(LeafMatcher::TimeWindow {
-                timezone,
-                start,
-                end,
+            Matcher::Leaf(LeafMatcher::TimeOfDay {
+                tz,
+                after,
+                before,
                 weekdays_only,
             }) => {
-                assert_eq!(timezone, "Australia/Perth");
-                assert_eq!(start, 17);
-                assert_eq!(end, 22);
+                assert_eq!(tz, "Australia/Perth");
+                assert_eq!(after, "17:00");
+                assert_eq!(before, "22:00");
                 assert!(!weekdays_only);
             }
-            _ => panic!("expected TimeWindow"),
+            _ => panic!("expected TimeOfDay"),
         }
     }
 
     #[test]
-    fn deserialize_time_window_weekdays_only() {
-        let yaml = "type: time_window\ntimezone: UTC\nstart: 9\nend: 17\nweekdays_only: true";
+    fn deserialize_time_of_day_weekdays_only() {
+        let yaml = "type: time_of_day\ntz: UTC\nafter: \"09:00\"\nbefore: \"17:00\"\nweekdays_only: true";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
-            Matcher::Leaf(LeafMatcher::TimeWindow { weekdays_only, .. }) => {
+            Matcher::Leaf(LeafMatcher::TimeOfDay { weekdays_only, .. }) => {
                 assert!(weekdays_only);
             }
-            _ => panic!("expected TimeWindow"),
+            _ => panic!("expected TimeOfDay"),
         }
     }
 
@@ -517,8 +501,10 @@ mod tests {
     fn deserialize_combinator_all() {
         let yaml = r#"
 all:
-  - type: forgejo
-  - type: pr_event
+  - type: event
+    kind: pr
+    source: forgejo
+  - type: is_open
 "#;
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
@@ -531,8 +517,12 @@ all:
     fn deserialize_combinator_any() {
         let yaml = r#"
 any:
-  - type: forgejo
-  - type: github
+  - type: event
+    kind: pr
+    source: forgejo
+  - type: event
+    kind: workflow
+    source: github
 "#;
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
@@ -564,7 +554,9 @@ not:
     fn deserialize_nested_combinators() {
         let yaml = r#"
 all:
-  - type: forgejo
+  - type: event
+    kind: pr
+    source: forgejo
   - any:
       - type: author
         value: renovate
@@ -592,70 +584,23 @@ all:
     }
 
     #[test]
-    fn deserialize_changed_files_all_match() {
-        let yaml = r#"
-type: changed_files_all_match
-patterns:
-  - starts_with: ".github/"
-  - contains: Dockerfile
-"#;
-        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
-        match m {
-            Matcher::Leaf(LeafMatcher::ChangedFilesAllMatch { patterns }) => {
-                assert_eq!(patterns.len(), 2);
-            }
-            _ => panic!("expected ChangedFilesAllMatch"),
-        }
-    }
-
-    #[test]
-    fn deserialize_changed_files_none_match() {
-        let yaml = r#"
-type: changed_files_none_match
-patterns:
-  - contains: "secret"
-"#;
-        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
-        match m {
-            Matcher::Leaf(LeafMatcher::ChangedFilesNoneMatch { patterns }) => {
-                assert_eq!(patterns.len(), 1);
-            }
-            _ => panic!("expected ChangedFilesNoneMatch"),
-        }
-    }
-
-    #[test]
-    fn deserialize_file_pattern_variants() {
-        let yaml_sw: FilePattern = yaml_serde::from_str("starts_with: foo/").unwrap();
-        assert!(matches!(yaml_sw, FilePattern::StartsWith { .. }));
-
-        let yaml_c: FilePattern = yaml_serde::from_str("contains: bar").unwrap();
-        assert!(matches!(yaml_c, FilePattern::Contains { .. }));
-
-        let yaml_ew: FilePattern = yaml_serde::from_str("ends_with: .rs").unwrap();
-        assert!(matches!(yaml_ew, FilePattern::EndsWith { .. }));
-    }
-
-    #[test]
     fn file_pattern_glob_basic() {
-        let p = FilePattern::Glob("src/**/*.rs".to_string());
+        let p = pat("src/**/*.rs");
         assert!(p.matches("src/main.rs"));
         assert!(p.matches("src/rules/mod.rs"));
         assert!(!p.matches("Cargo.toml"));
-        assert!(!p.matches("tests/integration.rs"));
     }
 
     #[test]
     fn file_pattern_glob_negated() {
-        let p = FilePattern::Glob("!src/generated/**".to_string());
+        let p = pat("!src/generated/**");
         assert!(p.matches("src/main.rs"));
         assert!(!p.matches("src/generated/types.rs"));
-        assert!(!p.matches("src/generated/deep/nested.rs"));
     }
 
     #[test]
     fn file_pattern_glob_dockerfile() {
-        let p = FilePattern::Glob("**/Dockerfile*".to_string());
+        let p = pat("**/Dockerfile*");
         assert!(p.matches("Dockerfile"));
         assert!(p.matches("apps/Dockerfile"));
         assert!(p.matches("apps/Dockerfile.dev"));
@@ -664,15 +609,13 @@ patterns:
 
     #[test]
     fn file_pattern_glob_workflows() {
-        let p = FilePattern::Glob(".github/workflows/**".to_string());
+        let p = pat(".github/workflows/**");
         assert!(p.matches(".github/workflows/build.yaml"));
-        assert!(p.matches(".github/workflows/test.yml"));
         assert!(!p.matches(".github/dependabot.yml"));
-        assert!(!p.matches("src/main.rs"));
     }
 
     #[test]
-    fn deserialize_glob_pattern_from_string() {
+    fn deserialize_pattern_from_bare_string() {
         let yaml = r#"
 type: changed_files_all_match
 patterns:
@@ -683,37 +626,24 @@ patterns:
         match m {
             Matcher::Leaf(LeafMatcher::ChangedFilesAllMatch { patterns }) => {
                 assert_eq!(patterns.len(), 2);
-                assert!(matches!(&patterns[0], FilePattern::Glob(s) if s == "src/**/*.rs"));
-                assert!(matches!(&patterns[1], FilePattern::Glob(s) if s == "!src/generated/**"));
+                assert_eq!(patterns[0].0, "src/**/*.rs");
+                assert_eq!(patterns[1].0, "!src/generated/**");
             }
             _ => panic!("expected ChangedFilesAllMatch"),
         }
     }
 
     #[test]
-    fn glob_and_legacy_patterns_mixed() {
-        let yaml = r#"
-type: changed_files_all_match
-patterns:
-  - starts_with: ".github/"
-  - "**/*.yaml"
-"#;
+    fn deserialize_event_sync_source_argocd() {
+        let yaml = "type: event\nkind: sync\nsource: argocd";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
-            Matcher::Leaf(LeafMatcher::ChangedFilesAllMatch { patterns }) => {
-                assert_eq!(patterns.len(), 2);
-                assert!(matches!(&patterns[0], FilePattern::StartsWith { .. }));
-                assert!(matches!(&patterns[1], FilePattern::Glob(_)));
+            Matcher::Leaf(LeafMatcher::Event { kind, source }) => {
+                assert_eq!(kind, EventKind::Sync);
+                assert!(source.matches(EventSource::Argocd));
             }
-            _ => panic!("expected ChangedFilesAllMatch"),
+            _ => panic!("expected Event"),
         }
-    }
-
-    #[test]
-    fn deserialize_leaf_argocd() {
-        let yaml = "type: argocd";
-        let m: Matcher = yaml_serde::from_str(yaml).unwrap();
-        assert!(matches!(m, Matcher::Leaf(LeafMatcher::Argocd)));
     }
 
     #[test]

@@ -8,40 +8,31 @@ use serde::Deserialize;
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize, JsonSchema, Clone)]
-#[serde(untagged)]
-pub enum TemplateString {
-    Object {
-        content: String,
-        #[serde(default)]
-        template: bool,
-    },
-    Plain(String),
-}
+#[serde(transparent)]
+pub struct TemplateString(pub String);
 
 impl TemplateString {
     pub fn render(&self, vars: &HashMap<&str, String>) -> String {
-        match self {
-            TemplateString::Plain(s) => s.clone(),
-            TemplateString::Object { content, template } => {
-                if *template {
-                    event::render_template(content, vars)
-                } else {
-                    content.clone()
-                }
-            }
-        }
+        event::render_template(&self.0, vars)
     }
 
     pub fn as_str(&self) -> &str {
-        match self {
-            TemplateString::Plain(s) => s,
-            TemplateString::Object { content, .. } => content,
-        }
+        &self.0
+    }
+}
+
+impl From<String> for TemplateString {
+    fn from(s: String) -> Self {
+        Self(s)
     }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RulesFile {
+    #[serde(default)]
+    pub checks: std::collections::HashMap<String, Matcher>,
+    #[serde(default)]
+    pub label_colors: std::collections::HashMap<String, String>,
     pub rules: Vec<RuleDef>,
 }
 
@@ -49,69 +40,70 @@ pub struct RulesFile {
 pub struct RuleDef {
     pub name: String,
     #[serde(default)]
-    pub enabled: RuleEnabled,
+    pub disabled: Disabled,
+    #[serde(default)]
+    pub dry_run: bool,
     #[serde(default)]
     pub priority: i32,
     #[serde(default)]
     pub depends_on: Vec<String>,
-    pub matches: Matcher,
     #[serde(default)]
-    pub variables: Vec<VariableDef>,
-    pub actions: ActionsDef,
+    pub checks: std::collections::HashMap<String, Matcher>,
+    pub when: Matcher,
+    #[serde(default)]
+    pub actions: Vec<ActionGroup>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
-pub struct VariableDef {
-    pub var: String,
-    #[serde(flatten)]
-    pub matcher: Matcher,
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(untagged)]
-pub enum ActionsDef {
-    Conditional(Vec<ConditionalActionGroup>),
-    Flat(Vec<ActionDef>),
-}
-
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct ConditionalActionGroup {
-    pub when: String,
+pub struct ActionGroup {
+    #[serde(default)]
+    pub when: Option<Matcher>,
     pub run: Vec<ActionDef>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
 #[serde(untagged)]
-pub enum RuleEnabled {
+pub enum Disabled {
     Bool(bool),
-    Mode(EnabledMode),
+    Reason(String),
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
-#[serde(rename_all = "snake_case")]
-pub enum EnabledMode {
-    DryRun,
-}
-
-impl Default for RuleEnabled {
+impl Default for Disabled {
     fn default() -> Self {
         Self::Bool(false)
     }
 }
 
-impl RuleEnabled {
-    pub fn is_active(&self) -> bool {
-        matches!(self, Self::Bool(true) | Self::Mode(_))
-    }
-    pub fn is_dry_run(&self) -> bool {
-        matches!(self, Self::Mode(EnabledMode::DryRun))
+impl Disabled {
+    pub fn is_disabled(&self) -> bool {
+        match self {
+            Self::Bool(b) => *b,
+            Self::Reason(_) => true,
+        }
     }
 }
 
-#[derive(Debug, Deserialize, JsonSchema)]
-pub struct LabelColor {
-    pub name: String,
-    pub color: String,
+#[derive(Debug, Deserialize, JsonSchema, Clone)]
+#[serde(untagged)]
+pub enum LabelSpec {
+    Name(String),
+    WithColor { name: String, color: String },
+}
+
+impl LabelSpec {
+    pub fn name(&self) -> &str {
+        match self {
+            LabelSpec::Name(n) => n,
+            LabelSpec::WithColor { name, .. } => name,
+        }
+    }
+
+    pub fn color(&self) -> Option<&str> {
+        match self {
+            LabelSpec::Name(_) => None,
+            LabelSpec::WithColor { color, .. } => Some(color),
+        }
+    }
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]
@@ -135,17 +127,15 @@ pub enum ActionDef {
         delete_branch: bool,
     },
     #[serde(rename = "comment")]
-    Comment { body: TemplateString },
-    #[serde(rename = "add_labels_by_name")]
-    AddLabelsByName { labels: Vec<String> },
-    #[serde(rename = "remove_labels_by_name")]
-    RemoveLabelsByName { labels: Vec<String> },
-    #[serde(rename = "ensure_labels_exist")]
-    EnsureLabelsExist {
-        labels: Vec<LabelColor>,
+    Comment { comment: TemplateString },
+    #[serde(rename = "add_labels")]
+    AddLabels {
+        labels: Vec<LabelSpec>,
         #[serde(default)]
         target: Option<IssueTarget>,
     },
+    #[serde(rename = "remove_labels")]
+    RemoveLabels { labels: Vec<String> },
     #[serde(rename = "create_issue")]
     CreateIssue {
         target: IssueTarget,
@@ -156,14 +146,14 @@ pub enum ActionDef {
         #[serde(default)]
         on_duplicate_comment: Option<TemplateString>,
         #[serde(default)]
-        labels: Vec<LabelColor>,
+        labels: Vec<LabelSpec>,
     },
     #[serde(rename = "close_issue")]
     CloseIssue {
         target: IssueTarget,
         title: TemplateString,
         #[serde(default)]
-        closing_comment: Option<TemplateString>,
+        comment: Option<TemplateString>,
     },
     #[serde(rename = "argocd_diff")]
     ArgoCdDiff,
@@ -249,17 +239,11 @@ impl From<MergeStrategy> for MergePullRequestOptionDo {
     }
 }
 
-impl Default for ActionsDef {
-    fn default() -> Self {
-        Self::Flat(Vec::new())
-    }
-}
-
 impl ActionDef {
     pub fn to_action(&self) -> Action {
         match self {
             ActionDef::Approve { comment } => Action::Approve {
-                body: comment.clone(),
+                comment: comment.clone(),
             },
             ActionDef::Merge {
                 strategy,
@@ -268,20 +252,16 @@ impl ActionDef {
                 strategy: (*strategy).into(),
                 delete_branch: *delete_branch,
             },
-            ActionDef::Comment { body } => Action::Comment { body: body.clone() },
-            ActionDef::AddLabelsByName { labels } => Action::AddLabelsByName {
-                labels: labels.clone(),
+            ActionDef::Comment { comment } => Action::Comment {
+                comment: comment.clone(),
             },
-            ActionDef::RemoveLabelsByName { labels } => Action::RemoveLabelsByName {
+            ActionDef::AddLabels { labels, target } => Action::AddLabels {
                 labels: labels.clone(),
-            },
-            ActionDef::EnsureLabelsExist { labels, target } => Action::EnsureLabelsExist {
-                labels: labels
-                    .iter()
-                    .map(|l| (l.name.clone(), l.color.clone()))
-                    .collect(),
                 target_owner: target.as_ref().map(|t| t.owner.clone()),
                 target_repo: target.as_ref().map(|t| t.repo.clone()),
+            },
+            ActionDef::RemoveLabels { labels } => Action::RemoveLabels {
+                labels: labels.clone(),
             },
             ActionDef::CreateIssue {
                 target,
@@ -297,20 +277,17 @@ impl ActionDef {
                 title: title.clone(),
                 body: body.clone(),
                 on_duplicate_comment: on_duplicate_comment.clone(),
-                labels: labels
-                    .iter()
-                    .map(|l| (l.name.clone(), l.color.clone()))
-                    .collect(),
+                labels: labels.clone(),
             },
             ActionDef::CloseIssue {
                 target,
                 title,
-                closing_comment,
+                comment,
             } => Action::CloseIssue {
                 target_owner: target.owner.clone(),
                 target_repo: target.repo.clone(),
                 title: title.clone(),
-                closing_comment: closing_comment.clone(),
+                comment: comment.clone(),
             },
             ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
             ActionDef::RetryWorkflow {
@@ -371,30 +348,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn template_string_plain_no_rendering() {
-        let ts = TemplateString::Plain("hello {name}".to_string());
-        let mut vars = HashMap::new();
-        vars.insert("name", "world".to_string());
-        assert_eq!(ts.render(&vars), "hello {name}");
+    fn template_string_plain_passthrough() {
+        let ts = TemplateString("hello".to_string());
+        let vars = HashMap::new();
+        assert_eq!(ts.render(&vars), "hello");
     }
 
     #[test]
-    fn template_string_object_template_false() {
-        let ts = TemplateString::Object {
-            content: "hello {name}".to_string(),
-            template: false,
-        };
-        let mut vars = HashMap::new();
-        vars.insert("name", "world".to_string());
-        assert_eq!(ts.render(&vars), "hello {name}");
-    }
-
-    #[test]
-    fn template_string_object_template_true() {
-        let ts = TemplateString::Object {
-            content: "hello {name}".to_string(),
-            template: true,
-        };
+    fn template_string_renders_placeholders() {
+        let ts = TemplateString("hello {name}".to_string());
         let mut vars = HashMap::new();
         vars.insert("name", "world".to_string());
         assert_eq!(ts.render(&vars), "hello world");
@@ -402,318 +364,148 @@ mod tests {
 
     #[test]
     fn deserialize_template_string_from_plain() {
-        let yaml = "\"just a string\"";
-        let ts: TemplateString = yaml_serde::from_str(yaml).unwrap();
-        assert!(matches!(ts, TemplateString::Plain(_)));
+        let ts: TemplateString = yaml_serde::from_str("\"just a string\"").unwrap();
         assert_eq!(ts.as_str(), "just a string");
     }
 
     #[test]
-    fn deserialize_template_string_from_object() {
-        let yaml = "content: \"hello {x}\"\ntemplate: true";
-        let ts: TemplateString = yaml_serde::from_str(yaml).unwrap();
-        match ts {
-            TemplateString::Object { content, template } => {
-                assert_eq!(content, "hello {x}");
-                assert!(template);
-            }
-            _ => panic!("expected Object"),
-        }
-    }
-
-    #[test]
-    fn deserialize_template_string_object_defaults_template_false() {
-        let yaml = "content: \"static\"";
-        let ts: TemplateString = yaml_serde::from_str(yaml).unwrap();
-        match ts {
-            TemplateString::Object { template, .. } => assert!(!template),
-            _ => panic!("expected Object"),
-        }
-    }
-
-    #[test]
-    fn deserialize_flat_actions() {
+    fn deserialize_unconditional_group() {
         let yaml = r#"
 name: test-rule
-enabled: true
-matches:
-  type: forgejo
+when:
+  type: event
+  kind: pr
+  source: forgejo
 actions:
-  - type: approve
-  - type: merge
-    strategy: squash
-"#;
-        let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
-        assert_eq!(rule.name, "test-rule");
-        assert!(rule.variables.is_empty());
-        assert!(matches!(rule.actions, ActionsDef::Flat(ref a) if a.len() == 2));
-    }
-
-    #[test]
-    fn deserialize_conditional_actions() {
-        let yaml = r#"
-name: test-rule
-enabled: true
-matches:
-  type: forgejo
-variables:
-  - var: in_window
-    type: time_window
-    timezone: Australia/Perth
-    start: 17
-    end: 22
-actions:
-  - when: "in_window"
-    run:
+  - run:
       - type: approve
       - type: merge
         strategy: squash
-  - when: "!in_window"
+"#;
+        let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
+        assert_eq!(rule.name, "test-rule");
+        assert_eq!(rule.actions.len(), 1);
+        assert!(rule.actions[0].when.is_none());
+        assert_eq!(rule.actions[0].run.len(), 2);
+    }
+
+    #[test]
+    fn deserialize_group_with_when_matcher() {
+        let yaml = r#"
+name: test-rule
+when:
+  type: event
+  kind: pr
+  source: forgejo
+actions:
+  - when:
+      type: time_of_day
+      tz: UTC
+      after: "09:00"
+      before: "17:00"
     run:
-      - type: add_labels_by_name
+      - type: approve
+  - run:
+      - type: add_labels
         labels: [queued]
 "#;
         let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
-        assert_eq!(rule.variables.len(), 1);
-        assert_eq!(rule.variables[0].var, "in_window");
-        match &rule.actions {
-            ActionsDef::Conditional(groups) => {
-                assert_eq!(groups.len(), 2);
-                assert_eq!(groups[0].when, "in_window");
-                assert_eq!(groups[0].run.len(), 2);
-                assert_eq!(groups[1].when, "!in_window");
-                assert_eq!(groups[1].run.len(), 1);
+        assert_eq!(rule.actions.len(), 2);
+        assert!(rule.actions[0].when.is_some());
+        assert!(rule.actions[1].when.is_none());
+    }
+
+    #[test]
+    fn deserialize_label_spec_name_only() {
+        let yaml = r#"
+type: add_labels
+labels: [bug, urgent]
+"#;
+        let def: ActionDef = yaml_serde::from_str(yaml).unwrap();
+        match def {
+            ActionDef::AddLabels { labels, .. } => {
+                assert_eq!(labels.len(), 2);
+                assert!(matches!(labels[0], LabelSpec::Name(ref n) if n == "bug"));
             }
-            ActionsDef::Flat(_) => panic!("expected conditional actions"),
+            _ => panic!("expected add_labels"),
         }
     }
 
     #[test]
-    fn deserialize_no_variables_defaults_empty() {
+    fn deserialize_label_spec_with_color() {
+        let yaml = r##"
+type: add_labels
+labels:
+  - name: bug
+    color: "#d73a4a"
+  - urgent
+"##;
+        let def: ActionDef = yaml_serde::from_str(yaml).unwrap();
+        match def {
+            ActionDef::AddLabels { labels, .. } => {
+                assert_eq!(labels.len(), 2);
+                assert!(matches!(labels[0], LabelSpec::WithColor { .. }));
+                assert_eq!(labels[0].name(), "bug");
+                assert_eq!(labels[0].color(), Some("#d73a4a"));
+                assert_eq!(labels[1].name(), "urgent");
+                assert_eq!(labels[1].color(), None);
+            }
+            _ => panic!("expected add_labels"),
+        }
+    }
+
+    #[test]
+    fn disabled_default_is_enabled() {
+        assert!(!Disabled::default().is_disabled());
+    }
+
+    #[test]
+    fn disabled_true_disables() {
+        assert!(Disabled::Bool(true).is_disabled());
+    }
+
+    #[test]
+    fn disabled_with_reason_disables() {
+        assert!(Disabled::Reason("broken".into()).is_disabled());
+    }
+
+    #[test]
+    fn deserialize_dry_run_field() {
         let yaml = r#"
 name: test
-enabled: true
-matches:
-  type: forgejo
-actions:
-  - type: comment
-    body: hello
-"#;
-        let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
-        assert!(rule.variables.is_empty());
-    }
-
-    #[test]
-    fn rule_enabled_default_is_false() {
-        let enabled = RuleEnabled::default();
-        assert!(!enabled.is_active());
-        assert!(!enabled.is_dry_run());
-    }
-
-    #[test]
-    fn rule_enabled_true() {
-        let enabled = RuleEnabled::Bool(true);
-        assert!(enabled.is_active());
-        assert!(!enabled.is_dry_run());
-    }
-
-    #[test]
-    fn rule_enabled_dry_run() {
-        let enabled = RuleEnabled::Mode(EnabledMode::DryRun);
-        assert!(enabled.is_active());
-        assert!(enabled.is_dry_run());
-    }
-
-    #[test]
-    fn deserialize_dry_run_mode() {
-        let yaml = r#"
-name: test
-enabled: dry_run
-matches:
-  type: forgejo
+dry_run: true
+when:
+  type: event
+  kind: pr
+  source: forgejo
 actions: []
 "#;
         let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
-        assert!(rule.enabled.is_active());
-        assert!(rule.enabled.is_dry_run());
+        assert!(rule.dry_run);
+        assert!(!rule.disabled.is_disabled());
+    }
+
+    #[test]
+    fn deserialize_disabled_reason() {
+        let yaml = r#"
+name: test
+disabled: "broken since 2026-04"
+when:
+  type: event
+  kind: pr
+  source: forgejo
+actions: []
+"#;
+        let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
+        assert!(rule.disabled.is_disabled());
     }
 
     #[test]
     fn merge_strategy_conversion() {
         assert!(matches!(
-            MergePullRequestOptionDo::from(MergeStrategy::Merge),
-            MergePullRequestOptionDo::Merge
-        ));
-        assert!(matches!(
             MergePullRequestOptionDo::from(MergeStrategy::Squash),
             MergePullRequestOptionDo::Squash
         ));
-        assert!(matches!(
-            MergePullRequestOptionDo::from(MergeStrategy::Rebase),
-            MergePullRequestOptionDo::Rebase
-        ));
-    }
-
-    #[test]
-    fn deserialize_all_action_types() {
-        let yaml = r##"
-name: all-actions
-enabled: true
-matches:
-  type: forgejo
-actions:
-  - type: approve
-    comment: "lgtm"
-  - type: merge
-    strategy: rebase
-  - type: comment
-    body: "hello"
-  - type: add_labels_by_name
-    labels: [bug, feature]
-  - type: remove_labels_by_name
-    labels: [wip]
-  - type: ensure_labels_exist
-    labels:
-      - name: automated
-        color: "#e4e669"
-  - type: create_issue
-    target:
-      owner: test
-      repo: repo
-    title: "test issue"
-    body: "test body"
-  - type: close_issue
-    target:
-      owner: test
-      repo: repo
-    title: "test issue"
-"##;
-        let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
-        match rule.actions {
-            ActionsDef::Flat(actions) => assert_eq!(actions.len(), 8),
-            _ => panic!("expected flat actions"),
-        }
-    }
-
-    #[test]
-    fn to_action_approve_with_comment() {
-        let def = ActionDef::Approve {
-            comment: Some(TemplateString::Plain("looks good".to_string())),
-        };
-        let action = def.to_action();
-        assert_eq!(action.kind(), "approve");
-    }
-
-    #[test]
-    fn to_action_approve_without_comment() {
-        let def = ActionDef::Approve { comment: None };
-        let action = def.to_action();
-        assert_eq!(action.kind(), "approve");
-    }
-
-    #[test]
-    fn to_action_merge() {
-        let def = ActionDef::Merge {
-            strategy: MergeStrategy::Squash,
-            delete_branch: true,
-        };
-        let action = def.to_action();
-        assert_eq!(action.kind(), "merge");
-    }
-
-    #[test]
-    fn merge_delete_branch_defaults_true() {
-        let yaml = r#"
-type: merge
-strategy: squash
-"#;
-        let def: ActionDef = yaml_serde::from_str(yaml).unwrap();
-        match def {
-            ActionDef::Merge { delete_branch, .. } => assert!(delete_branch),
-            _ => panic!("expected merge"),
-        }
-    }
-
-    #[test]
-    fn deserialize_combinator_matchers() {
-        let yaml = r#"
-name: test
-enabled: true
-matches:
-  all:
-    - type: forgejo
-    - type: pr_event
-    - not:
-        type: has_label
-        value: wip
-actions: []
-"#;
-        let rule: RuleDef = yaml_serde::from_str(yaml).unwrap();
-        assert!(matches!(rule.matches, Matcher::Combinator(_)));
-    }
-
-    #[test]
-    fn deserialize_variable_with_leaf_matcher() {
-        let yaml = r#"
-var: is_open
-type: is_open
-"#;
-        let def: VariableDef = yaml_serde::from_str(yaml).unwrap();
-        assert_eq!(def.var, "is_open");
-    }
-
-    #[test]
-    fn deserialize_variable_with_has_label() {
-        let yaml = r#"
-var: is_queued
-type: has_label
-value: janitor/queued
-"#;
-        let def: VariableDef = yaml_serde::from_str(yaml).unwrap();
-        assert_eq!(def.var, "is_queued");
-    }
-
-    #[test]
-    fn deserialize_ensure_labels_with_target() {
-        let yaml = r##"
-type: ensure_labels_exist
-target:
-  owner: myorg
-  repo: myrepo
-labels:
-  - name: bug
-    color: "#d73a4a"
-"##;
-        let def: ActionDef = yaml_serde::from_str(yaml).unwrap();
-        match def {
-            ActionDef::EnsureLabelsExist { target, labels } => {
-                assert!(target.is_some());
-                assert_eq!(target.unwrap().owner, "myorg");
-                assert_eq!(labels.len(), 1);
-            }
-            _ => panic!("expected ensure_labels_exist"),
-        }
-    }
-
-    #[test]
-    fn deserialize_create_issue_with_dedup() {
-        let yaml = r#"
-type: create_issue
-target:
-  owner: test
-  repo: repo
-deduplicateByTitle: true
-title: "test"
-body: "body"
-"#;
-        let def: ActionDef = yaml_serde::from_str(yaml).unwrap();
-        match def {
-            ActionDef::CreateIssue {
-                deduplicate_by_title,
-                ..
-            } => assert!(deduplicate_by_title),
-            _ => panic!("expected create_issue"),
-        }
     }
 
     #[test]
@@ -721,20 +513,24 @@ body: "body"
         let yaml = r#"
 rules:
   - name: rule1
-    enabled: true
-    matches:
-      type: forgejo
+    when:
+      type: event
+      kind: pr
+      source: forgejo
     actions:
-      - type: approve
+      - run:
+          - type: approve
   - name: rule2
-    enabled: false
-    matches:
-      type: github
+    disabled: true
+    when:
+      type: event
+      kind: workflow
+      source: github
     actions: []
 "#;
         let file: RulesFile = yaml_serde::from_str(yaml).unwrap();
         assert_eq!(file.rules.len(), 2);
-        assert!(file.rules[0].enabled.is_active());
-        assert!(!file.rules[1].enabled.is_active());
+        assert!(!file.rules[0].disabled.is_disabled());
+        assert!(file.rules[1].disabled.is_disabled());
     }
 }

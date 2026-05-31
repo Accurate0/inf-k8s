@@ -1,6 +1,16 @@
 # yaml-language-server: $schema=./rules.schema.json
+checks:
+  perth_evening:
+    type: time_of_day
+    tz: Australia/Perth
+    after: "17:00"
+    before: "22:00"
+label_colors:
+  automated: "#e4e669"
+  image-update: "#0075ca"
+  janitor/queued: "#fbca04"
+  github-ci-failure: "#d73a4a"
 rules:
-  - !include rules/label-renovate.yaml
   - !include rules/manage-ci-image-updater.yaml
   - !include rules/manage-renovate.yaml
   - !include rules/automerge-renovate-terraform.yaml

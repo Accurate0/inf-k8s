@@ -1,10 +1,6 @@
 use std::{collections::HashSet, path::Path};
 use yaml_include::Transformer;
 
-#[allow(dead_code)]
-#[path = "src/rules/expr.rs"]
-mod expr;
-
 fn main() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
     let rules_path = manifest_dir.join("rules.yaml");
@@ -76,43 +72,42 @@ fn main() {
         }
     }
 
-    // Validate expressions at build time
+    // Validate matcher check refs at build time. Walk every node looking
+    // for `{ref: name}` and check it resolves against the enclosing rule's
+    // `checks:` or the top-level `checks:`.
+    let global_checks: HashSet<String> = yaml_value
+        .get("checks")
+        .and_then(|f| f.as_object())
+        .map(|m| m.keys().cloned().collect())
+        .unwrap_or_default();
+
     if let Some(rules) = yaml_value.get("rules").and_then(|r| r.as_array()) {
         for rule in rules {
             let rule_name = rule
                 .get("name")
                 .and_then(|n| n.as_str())
                 .unwrap_or("<unknown>");
-            let defined_vars: HashSet<String> = rule
-                .get("variables")
-                .and_then(|v| v.as_array())
-                .map(|vars| {
-                    vars.iter()
-                        .filter_map(|v| v.get("var").and_then(|s| s.as_str()).map(String::from))
-                        .collect()
-                })
+            let local_checks: HashSet<String> = rule
+                .get("checks")
+                .and_then(|f| f.as_object())
+                .map(|m| m.keys().cloned().collect())
                 .unwrap_or_default();
 
-            let groups = match rule.get("actions").and_then(|a| a.as_array()) {
-                Some(actions) => actions
-                    .iter()
-                    .filter_map(|a| a.get("when").and_then(|w| w.as_str()))
-                    .collect::<Vec<_>>(),
-                None => continue,
-            };
+            // The rule's `checks:` map itself can contain refs to other
+            // checks (local or global); validate those too, but skip the
+            // top-level keys of the `checks:` map (they are definitions).
+            let scan_roots: Vec<&serde_json::Value> = ["when", "actions", "checks"]
+                .iter()
+                .filter_map(|k| rule.get(*k))
+                .collect();
 
-            for when in groups {
-                let parsed = match expr::parse(when) {
-                    Ok(p) => p,
-                    Err(e) => panic!("rule '{rule_name}': invalid expression '{when}': {e}"),
-                };
-                for var in expr::referenced_vars(&parsed) {
-                    if !defined_vars.contains(&var) {
-                        panic!(
-                            "rule '{rule_name}': expression '{when}' references undefined variable '{var}'"
-                        );
-                    }
-                }
+            for root in scan_roots {
+                collect_and_check_refs(
+                    root,
+                    rule_name,
+                    &local_checks,
+                    &global_checks,
+                );
             }
         }
     }
@@ -120,4 +115,39 @@ fn main() {
     println!("cargo:rerun-if-changed=rules.yaml");
     println!("cargo:rerun-if-changed=rules.schema.json");
     println!("cargo:rerun-if-changed=rules/");
+}
+
+fn collect_and_check_refs(
+    node: &serde_json::Value,
+    rule_name: &str,
+    locals: &HashSet<String>,
+    globals: &HashSet<String>,
+) {
+    match node {
+        serde_json::Value::Object(map) => {
+            if let Some(ref_name) = map.get("ref").and_then(|v| v.as_str())
+                && map.len() == 1
+            {
+                let ok = match ref_name.strip_prefix("global.") {
+                    Some(g) => globals.contains(g),
+                    None => locals.contains(ref_name),
+                };
+                if !ok {
+                    panic!(
+                        "rule '{rule_name}': matcher ref `{ref_name}` does not resolve to any defined check"
+                    );
+                }
+                return;
+            }
+            for v in map.values() {
+                collect_and_check_refs(v, rule_name, locals, globals);
+            }
+        }
+        serde_json::Value::Array(arr) => {
+            for v in arr {
+                collect_and_check_refs(v, rule_name, locals, globals);
+            }
+        }
+        _ => {}
+    }
 }

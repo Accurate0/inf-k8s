@@ -48,6 +48,7 @@ impl ResourceCache {
         computed
     }
 
+    #[tracing::instrument(skip_all, name = "cache.prefetch", fields(resources = ?resources))]
     pub async fn prefetch(
         &self,
         clients: &Clients,

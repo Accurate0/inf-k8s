@@ -3,6 +3,19 @@
   "title": "RulesFile",
   "type": "object",
   "properties": {
+    "checks": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Matcher"
+      }
+    },
+    "label_colors": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      },
+      "default": {}
+    },
     "rules": {
       "type": "array",
       "items": {
@@ -20,13 +33,9 @@
           "type": "object",
           "properties": {
             "comment": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/TemplateString"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "type": {
@@ -61,8 +70,8 @@
         {
           "type": "object",
           "properties": {
-            "body": {
-              "$ref": "#/$defs/TemplateString"
+            "comment": {
+              "type": "string"
             },
             "type": {
               "type": "string",
@@ -71,7 +80,7 @@
           },
           "required": [
             "type",
-            "body"
+            "comment"
           ]
         },
         {
@@ -80,45 +89,7 @@
             "labels": {
               "type": "array",
               "items": {
-                "type": "string"
-              }
-            },
-            "type": {
-              "type": "string",
-              "const": "add_labels_by_name"
-            }
-          },
-          "required": [
-            "type",
-            "labels"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "labels": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              }
-            },
-            "type": {
-              "type": "string",
-              "const": "remove_labels_by_name"
-            }
-          },
-          "required": [
-            "type",
-            "labels"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "labels": {
-              "type": "array",
-              "items": {
-                "$ref": "#/$defs/LabelColor"
+                "$ref": "#/$defs/LabelSpec"
               }
             },
             "target": {
@@ -133,7 +104,26 @@
             },
             "type": {
               "type": "string",
-              "const": "ensure_labels_exist"
+              "const": "add_labels"
+            }
+          },
+          "required": [
+            "type",
+            "labels"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "labels": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "remove_labels"
             }
           },
           "required": [
@@ -145,7 +135,7 @@
           "type": "object",
           "properties": {
             "body": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "deduplicateByTitle": {
               "type": "boolean",
@@ -154,24 +144,20 @@
             "labels": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/LabelColor"
+                "$ref": "#/$defs/LabelSpec"
               }
             },
             "on_duplicate_comment": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/TemplateString"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "target": {
               "$ref": "#/$defs/IssueTarget"
             },
             "title": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "type": {
               "type": "string",
@@ -188,21 +174,17 @@
         {
           "type": "object",
           "properties": {
-            "closing_comment": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/TemplateString"
-                },
-                {
-                  "type": "null"
-                }
+            "comment": {
+              "type": [
+                "string",
+                "null"
               ]
             },
             "target": {
               "$ref": "#/$defs/IssueTarget"
             },
             "title": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "type": {
               "type": "string",
@@ -231,10 +213,10 @@
           "type": "object",
           "properties": {
             "id": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "repository": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "target": {
               "$ref": "#/$defs/RetryWorkflowTargetDef"
@@ -255,22 +237,22 @@
           "type": "object",
           "properties": {
             "context": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "description": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "sha": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "state": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "target": {
               "$ref": "#/$defs/IssueTarget"
             },
             "target_url": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "type": {
               "type": "string",
@@ -291,7 +273,7 @@
           "type": "object",
           "properties": {
             "sha": {
-              "$ref": "#/$defs/TemplateString"
+              "type": "string"
             },
             "target": {
               "$ref": "#/$defs/IssueTarget"
@@ -332,13 +314,9 @@
               "type": "string"
             },
             "comment": {
-              "anyOf": [
-                {
-                  "$ref": "#/$defs/TemplateString"
-                },
-                {
-                  "type": "null"
-                }
+              "type": [
+                "string",
+                "null"
               ]
             },
             "criteria": {
@@ -368,20 +346,28 @@
         }
       ]
     },
-    "ActionsDef": {
-      "anyOf": [
-        {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ConditionalActionGroup"
-          }
-        },
-        {
+    "ActionGroup": {
+      "type": "object",
+      "properties": {
+        "run": {
           "type": "array",
           "items": {
             "$ref": "#/$defs/ActionDef"
           }
+        },
+        "when": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/Matcher"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
+      },
+      "required": [
+        "run"
       ]
     },
     "CloseOtherPrsCriteria": {
@@ -436,67 +422,44 @@
         }
       ]
     },
-    "ConditionalActionGroup": {
-      "type": "object",
-      "properties": {
-        "run": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/ActionDef"
-          }
-        },
-        "when": {
-          "type": "string"
-        }
-      },
-      "required": [
-        "when",
-        "run"
-      ]
-    },
-    "EnabledMode": {
-      "type": "string",
-      "enum": [
-        "dry_run"
-      ]
-    },
-    "FilePattern": {
+    "Disabled": {
       "anyOf": [
         {
-          "type": "object",
-          "properties": {
-            "starts_with": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "starts_with"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "contains": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "contains"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "ends_with": {
-              "type": "string"
-            }
-          },
-          "required": [
-            "ends_with"
-          ]
+          "type": "boolean"
         },
         {
           "type": "string"
+        }
+      ]
+    },
+    "EventKind": {
+      "type": "string",
+      "enum": [
+        "pr",
+        "workflow",
+        "commit_status",
+        "check_run",
+        "sync"
+      ]
+    },
+    "EventSource": {
+      "type": "string",
+      "enum": [
+        "forgejo",
+        "github",
+        "argocd"
+      ]
+    },
+    "EventSourceSpec": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EventSource"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/EventSource"
+          }
         }
       ]
     },
@@ -515,19 +478,26 @@
         "repo"
       ]
     },
-    "LabelColor": {
-      "type": "object",
-      "properties": {
-        "color": {
+    "LabelSpec": {
+      "anyOf": [
+        {
           "type": "string"
         },
-        "name": {
-          "type": "string"
+        {
+          "type": "object",
+          "properties": {
+            "color": {
+              "type": "string"
+            },
+            "name": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "name",
+            "color"
+          ]
         }
-      },
-      "required": [
-        "name",
-        "color"
       ]
     },
     "LeafExprMatcher": {
@@ -541,97 +511,21 @@
         {
           "type": "object",
           "properties": {
+            "kind": {
+              "$ref": "#/$defs/EventKind"
+            },
+            "source": {
+              "$ref": "#/$defs/EventSourceSpec"
+            },
             "type": {
               "type": "string",
-              "const": "forgejo"
+              "const": "event"
             }
           },
           "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "github"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "argocd"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "pr_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "workflow_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "commit_status_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "check_run_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "sync_event"
-            }
-          },
-          "required": [
-            "type"
+            "type",
+            "kind",
+            "source"
           ]
         },
         {
@@ -739,7 +633,7 @@
             "patterns": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/FilePattern"
+                "type": "string"
               }
             },
             "type": {
@@ -758,7 +652,7 @@
             "patterns": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/FilePattern"
+                "type": "string"
               }
             },
             "type": {
@@ -777,7 +671,7 @@
             "patterns": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/FilePattern"
+                "type": "string"
               }
             },
             "type": {
@@ -831,7 +725,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "not_approved_by_self"
+              "const": "bot.has_approved"
             }
           },
           "required": [
@@ -861,22 +755,18 @@
         {
           "type": "object",
           "properties": {
-            "end": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
+            "after": {
+              "type": "string"
             },
-            "start": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "timezone": {
+            "before": {
               "type": "string"
             },
             "type": {
               "type": "string",
-              "const": "time_window"
+              "const": "time_of_day"
+            },
+            "tz": {
+              "type": "string"
             },
             "weekdays_only": {
               "type": "boolean",
@@ -885,9 +775,9 @@
           },
           "required": [
             "type",
-            "timezone",
-            "start",
-            "end"
+            "tz",
+            "after",
+            "before"
           ]
         },
         {
@@ -1026,97 +916,21 @@
         {
           "type": "object",
           "properties": {
+            "kind": {
+              "$ref": "#/$defs/EventKind"
+            },
+            "source": {
+              "$ref": "#/$defs/EventSourceSpec"
+            },
             "type": {
               "type": "string",
-              "const": "forgejo"
+              "const": "event"
             }
           },
           "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "github"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "argocd"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "pr_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "workflow_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "commit_status_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "check_run_event"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "type": {
-              "type": "string",
-              "const": "sync_event"
-            }
-          },
-          "required": [
-            "type"
+            "type",
+            "kind",
+            "source"
           ]
         },
         {
@@ -1224,7 +1038,7 @@
             "patterns": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/FilePattern"
+                "type": "string"
               }
             },
             "type": {
@@ -1243,7 +1057,7 @@
             "patterns": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/FilePattern"
+                "type": "string"
               }
             },
             "type": {
@@ -1262,7 +1076,7 @@
             "patterns": {
               "type": "array",
               "items": {
-                "$ref": "#/$defs/FilePattern"
+                "type": "string"
               }
             },
             "type": {
@@ -1316,7 +1130,7 @@
           "properties": {
             "type": {
               "type": "string",
-              "const": "not_approved_by_self"
+              "const": "bot.has_approved"
             }
           },
           "required": [
@@ -1346,22 +1160,18 @@
         {
           "type": "object",
           "properties": {
-            "end": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
+            "after": {
+              "type": "string"
             },
-            "start": {
-              "type": "integer",
-              "format": "uint32",
-              "minimum": 0
-            },
-            "timezone": {
+            "before": {
               "type": "string"
             },
             "type": {
               "type": "string",
-              "const": "time_window"
+              "const": "time_of_day"
+            },
+            "tz": {
+              "type": "string"
             },
             "weekdays_only": {
               "type": "boolean",
@@ -1370,9 +1180,9 @@
           },
           "required": [
             "type",
-            "timezone",
-            "start",
-            "end"
+            "tz",
+            "after",
+            "before"
           ]
         },
         {
@@ -1512,8 +1322,22 @@
           "$ref": "#/$defs/LeafExprMatcher"
         },
         {
+          "$ref": "#/$defs/MatcherRef"
+        },
+        {
           "$ref": "#/$defs/LeafMatcher"
         }
+      ]
+    },
+    "MatcherRef": {
+      "type": "object",
+      "properties": {
+        "ref": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref"
       ]
     },
     "MergeStrategy": {
@@ -1534,7 +1358,16 @@
       "type": "object",
       "properties": {
         "actions": {
-          "$ref": "#/$defs/ActionsDef"
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ActionGroup"
+          }
+        },
+        "checks": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/Matcher"
+          }
         },
         "depends_on": {
           "type": "array",
@@ -1543,11 +1376,12 @@
             "type": "string"
           }
         },
-        "enabled": {
-          "$ref": "#/$defs/RuleEnabled"
+        "disabled": {
+          "$ref": "#/$defs/Disabled"
         },
-        "matches": {
-          "$ref": "#/$defs/Matcher"
+        "dry_run": {
+          "type": "boolean",
+          "default": false
         },
         "name": {
           "type": "string"
@@ -1557,27 +1391,13 @@
           "format": "int32",
           "default": 0
         },
-        "variables": {
-          "type": "array",
-          "items": {
-            "$ref": "#/$defs/VariableDef"
-          }
+        "when": {
+          "$ref": "#/$defs/Matcher"
         }
       },
       "required": [
         "name",
-        "matches",
-        "actions"
-      ]
-    },
-    "RuleEnabled": {
-      "anyOf": [
-        {
-          "type": "boolean"
-        },
-        {
-          "$ref": "#/$defs/EnabledMode"
-        }
+        "when"
       ]
     },
     "StatusCheckState": {
@@ -1599,50 +1419,6 @@
         "equals_ignore_case",
         "starts_with",
         "ends_with"
-      ]
-    },
-    "TemplateString": {
-      "anyOf": [
-        {
-          "type": "object",
-          "properties": {
-            "content": {
-              "type": "string"
-            },
-            "template": {
-              "type": "boolean",
-              "default": false
-            }
-          },
-          "required": [
-            "content"
-          ]
-        },
-        {
-          "type": "string"
-        }
-      ]
-    },
-    "VariableDef": {
-      "type": "object",
-      "properties": {
-        "var": {
-          "type": "string"
-        }
-      },
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Combinator"
-        },
-        {
-          "$ref": "#/$defs/LeafExprMatcher"
-        },
-        {
-          "$ref": "#/$defs/LeafMatcher"
-        }
-      ],
-      "required": [
-        "var"
       ]
     }
   }

@@ -3,10 +3,10 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - approve
-          - merge
+  - actions:
+      - action: approve
+        ran: true
+      - action: merge
         ran: true
     dry_run: false
     name: automerge-renovate-terraform

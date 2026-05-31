@@ -1,11 +1,11 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: argocd-diff-renovate
-enabled: true
 priority: 10
-matches:
+when:
   all:
-    - type: forgejo
-    - type: pr_event
+    - type: event
+      kind: pr
+      source: forgejo
     - type: repository
       value: anurag/k8s
     - type: author
@@ -18,4 +18,5 @@ matches:
       patterns:
         - "system-components/*.application.yaml"
 actions:
-  - type: argocd_diff
+  - run:
+      - type: argocd_diff

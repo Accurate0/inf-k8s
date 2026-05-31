@@ -3,7 +3,6 @@ source: src/rules/mod.rs
 expression: names
 ---
 - argocd-diff-renovate
-- label-renovate
 - manage-ci-image-updater
 - manage-renovate
 - automerge-renovate-terraform

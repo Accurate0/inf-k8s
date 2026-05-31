@@ -3,16 +3,11 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - set_commit_status
+  - actions:
+      - action: set_commit_status
         ran: true
-        when: app_changed
     dry_run: false
     name: argocd-sync-status
-    variables:
-      - name: app_changed
-        value: "true"
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def?stat=false&verification=false&files=true

@@ -3,40 +3,19 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - ensure_labels_exist
-          - add_labels_by_name
+  - actions:
+      - action: remove_labels
         ran: true
-    dry_run: false
-    name: label-renovate
-  - action_groups:
-      - actions:
-          - ensure_labels_exist
-          - remove_labels_by_name
-          - add_labels_by_name
-          - approve
-          - merge
+      - action: add_labels
         ran: true
-        when: in_window && needs_approval && (!has_checks || checks_passed)
-      - actions:
-          - ensure_labels_exist
-          - add_labels_by_name
+      - action: approve
+        ran: true
+      - action: merge
+        ran: true
+      - action: add_labels
         ran: false
-        when: "!in_window && !already_queued"
     dry_run: false
     name: manage-renovate
-    variables:
-      - name: already_queued
-        value: "false"
-      - name: checks_passed
-        value: "false"
-      - name: has_checks
-        value: "false"
-      - name: in_window
-        value: "true"
-      - name: needs_approval
-        value: "true"
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
@@ -56,13 +35,6 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
-  - method: POST
-    path: /api/v1/repos/anurag/k8s/issues/100/labels
-    body:
-      labels:
-        - renovate
-      updated_at: ~
-    service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
@@ -74,9 +46,6 @@ external_requests:
       exclusive: ~
       is_archived: ~
       name: automated
-    service: forgejo
-  - method: GET
-    path: /api/v1/repos/anurag/k8s/labels
     service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/issues/100/labels

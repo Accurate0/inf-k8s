@@ -7,11 +7,12 @@ use crate::clients::Clients;
 use crate::event::{
     ArgoSyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, WorkflowEvent,
 };
-use crate::rules::matchers::ResourceCache;
+use crate::metrics;
+use crate::rules::matchers::{Combinator, Matcher, ResourceCache};
 pub use actions::Action;
 use chrono::Utc;
 use moka::sync::Cache;
-use schema::{ActionsDef, RulesFile};
+use schema::{ActionDef, LabelSpec, RulesFile};
 use serde::Serialize;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::sync::Arc;
@@ -21,31 +22,54 @@ use tracing::Instrument;
 
 const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
 
-struct ActionGroup<'a> {
-    when: Option<&'a str>,
-    actions: Vec<&'a schema::ActionDef>,
+fn resolve_in_matcher(
+    m: &mut Matcher,
+    locals: &HashMap<String, Matcher>,
+    globals: &HashMap<String, Matcher>,
+    visiting: &mut HashSet<String>,
+) -> Result<(), String> {
+    match m {
+        Matcher::Ref(r) => {
+            let name = r.name.clone();
+            if !visiting.insert(name.clone()) {
+                return Err(format!("cycle detected resolving check `{name}`"));
+            }
+            let check = match name.strip_prefix("global.") {
+                Some(global_name) => globals
+                    .get(global_name)
+                    .ok_or_else(|| format!("unknown global check `{global_name}`"))?,
+                None => locals
+                    .get(&name)
+                    .ok_or_else(|| format!("unknown check `{name}`"))?,
+            };
+            let mut resolved = check.clone();
+            resolve_in_matcher(&mut resolved, locals, globals, visiting)?;
+            visiting.remove(&name);
+            *m = resolved;
+        }
+        Matcher::Combinator(c) => match c {
+            Combinator::All(ms) | Combinator::Any(ms) => {
+                for child in ms {
+                    resolve_in_matcher(child, locals, globals, visiting)?;
+                }
+            }
+            Combinator::Not(inner) => resolve_in_matcher(inner, locals, globals, visiting)?,
+        },
+        Matcher::Leaf(_) | Matcher::LeafExpr(_) => {}
+    }
+    Ok(())
 }
 
 #[derive(Serialize, Default, Clone)]
 pub struct MatchedRule {
     pub name: String,
     pub dry_run: bool,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub variables: Vec<ExplainVar>,
-    pub action_groups: Vec<ExplainGroup>,
+    pub actions: Vec<ExplainAction>,
 }
 
 #[derive(Serialize, Clone)]
-pub struct ExplainVar {
-    pub name: String,
-    pub value: String,
-}
-
-#[derive(Serialize, Clone)]
-pub struct ExplainGroup {
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub when: Option<String>,
-    pub actions: Vec<&'static str>,
+pub struct ExplainAction {
+    pub action: &'static str,
     pub ran: bool,
 }
 
@@ -92,6 +116,8 @@ impl RulesOrchestrator {
     }
 
     pub fn from_rules(mut rules: RulesFile) -> Self {
+        Self::resolve_checks(&mut rules).expect("check resolution failed");
+        Self::apply_label_colors(&mut rules);
         rules.rules = Self::topo_sort(rules.rules);
 
         Self {
@@ -132,9 +158,9 @@ impl RulesOrchestrator {
             .iter()
             .map(|r| RuleSummary {
                 name: r.name.clone(),
-                enabled: if r.enabled.is_dry_run() {
+                enabled: if r.dry_run {
                     "dry_run".to_string()
-                } else if r.enabled.is_active() {
+                } else if !r.disabled.is_disabled() {
                     "true".to_string()
                 } else {
                     "false".to_string()
@@ -316,10 +342,7 @@ impl RulesOrchestrator {
         let resources = self.collect_resources();
         cache.prefetch(clients, &bot_event, &resources).await;
 
-        let vars = self
-            .evaluate_variables(rule, &bot_event, clients, &cache)
-            .await;
-        self.execute_actions(rule, &vars, clients, &bot_event, &cache, false)
+        self.execute_actions(rule, clients, &bot_event, &cache, false)
             .await;
 
         Ok(())
@@ -333,35 +356,7 @@ impl RulesOrchestrator {
         cache: &ResourceCache,
     ) -> bool {
         let now = self.now();
-        rule.matches.matches(event, rule, clients, cache, now).await
-    }
-
-    async fn evaluate_variables<'a>(
-        &self,
-        rule: &schema::RuleDef,
-        event: &BotEvent<'a>,
-        clients: &Clients,
-        cache: &ResourceCache,
-    ) -> HashMap<String, expr::Value> {
-        let now = self.now();
-        let mut vars = HashMap::new();
-
-        for defined_variable in &rule.variables {
-            let value = defined_variable
-                .matcher
-                .eval_value(event, rule, clients, cache, now)
-                .await;
-
-            tracing::debug!(
-                rule = rule.name,
-                var = defined_variable.var,
-                value = %value,
-                "variable evaluated"
-            );
-            vars.insert(defined_variable.var.clone(), value);
-        }
-
-        vars
+        rule.when.matches(event, rule, clients, cache, now).await
     }
 
     async fn explain_rules<'a>(&self, event: &BotEvent<'a>, clients: &Clients) -> Vec<MatchedRule> {
@@ -382,7 +377,7 @@ impl RulesOrchestrator {
         let mut executed_rules: HashSet<String> = HashSet::new();
 
         for rule in &self.rules.rules {
-            if !rule.enabled.is_active() {
+            if !!rule.disabled.is_disabled() {
                 continue;
             }
 
@@ -414,28 +409,16 @@ impl RulesOrchestrator {
                 "explain: rule matched"
             );
 
-            let vars = self.evaluate_variables(rule, event, clients, cache).await;
+            let actions = self.explain_action_runs(rule, event, clients, cache).await;
 
-            let action_groups = Self::explain_action_groups(rule, &vars);
-
-            if action_groups.iter().any(|g| g.ran && !g.actions.is_empty()) {
+            if actions.iter().any(|a| a.ran) {
                 executed_rules.insert(rule.name.clone());
             }
 
-            let mut variables: Vec<ExplainVar> = vars
-                .iter()
-                .map(|(name, value)| ExplainVar {
-                    name: name.clone(),
-                    value: value.to_string(),
-                })
-                .collect();
-            variables.sort_by(|a, b| a.name.cmp(&b.name));
-
             matched_rules.push(MatchedRule {
                 name: rule.name.clone(),
-                dry_run: rule.enabled.is_dry_run(),
-                variables,
-                action_groups,
+                dry_run: rule.dry_run,
+                actions,
             });
         }
 
@@ -445,12 +428,14 @@ impl RulesOrchestrator {
     fn collect_resources(&self) -> HashSet<matchers::Resource> {
         let mut resources = HashSet::new();
         for rule in &self.rules.rules {
-            if !rule.enabled.is_active() {
+            if !!rule.disabled.is_disabled() {
                 continue;
             }
-            resources.extend(rule.matches.requires());
-            for var in &rule.variables {
-                resources.extend(var.matcher.requires());
+            resources.extend(rule.when.requires());
+            for group in &rule.actions {
+                if let Some(when) = &group.when {
+                    resources.extend(when.requires());
+                }
             }
         }
         resources
@@ -475,7 +460,7 @@ impl RulesOrchestrator {
         let mut matched_rules_log = Vec::new();
 
         for rule in &self.rules.rules {
-            if !rule.enabled.is_active() {
+            if !!rule.disabled.is_disabled() {
                 continue;
             }
 
@@ -504,7 +489,7 @@ impl RulesOrchestrator {
                 continue;
             }
 
-            let dry_run = rule.enabled.is_dry_run();
+            let dry_run = rule.dry_run;
             tracing::info!(
                 rule = rule.name,
                 dry_run,
@@ -512,31 +497,19 @@ impl RulesOrchestrator {
                 "rule matched"
             );
 
-            let vars = self.evaluate_variables(rule, event, clients, cache).await;
-
-            let action_groups = Self::explain_action_groups(rule, &vars);
-
-            let had_actions = self
-                .execute_actions(rule, &vars, clients, event, cache, dry_run)
+            let actions_log = self
+                .execute_actions(rule, clients, event, cache, dry_run)
                 .await;
 
-            let mut variables: Vec<ExplainVar> = vars
-                .iter()
-                .map(|(name, value)| ExplainVar {
-                    name: name.clone(),
-                    value: value.to_string(),
-                })
-                .collect();
-            variables.sort_by(|a, b| a.name.cmp(&b.name));
+            let had_ran = actions_log.iter().any(|a| a.ran);
 
             matched_rules_log.push(MatchedRule {
                 name: rule.name.clone(),
                 dry_run,
-                variables,
-                action_groups,
+                actions: actions_log,
             });
 
-            if had_actions {
+            if had_ran {
                 executed_rules.insert(rule.name.clone());
             }
         }
@@ -553,7 +526,7 @@ impl RulesOrchestrator {
         })
         .await;
 
-        crate::metrics::record_evaluation(event.event_kind(), rules_matched, elapsed);
+        metrics::record_evaluation(event.event_kind(), rules_matched, elapsed);
     }
 
     fn dependencies_met(&self, rule: &schema::RuleDef, executed: &HashSet<String>) -> bool {
@@ -563,32 +536,45 @@ impl RulesOrchestrator {
     async fn execute_actions<'a>(
         &self,
         rule: &schema::RuleDef,
-        vars: &HashMap<String, expr::Value>,
         clients: &Clients,
         event: &BotEvent<'a>,
         cache: &ResourceCache,
         dry_run: bool,
-    ) -> bool {
+    ) -> Vec<ExplainAction> {
         let rule_start = Instant::now();
+        let now = self.now();
+        let mut log = Vec::new();
 
-        let groups = Self::resolve_action_groups(rule, vars).await;
-        let had_actions = groups.iter().any(|g| !g.actions.is_empty());
+        for group in &rule.actions {
+            let gate_ok = match &group.when {
+                None => true,
+                Some(when) => when.matches(event, rule, clients, cache, now).await,
+            };
 
-        for group in &groups {
-            if let Some(when) = group.when {
-                tracing::info!(rule = rule.name, when, "executing action group");
+            if !gate_ok {
+                tracing::debug!(rule = rule.name, "skipping action group: when: not met");
+                for action_def in &group.run {
+                    log.push(ExplainAction {
+                        action: action_def.to_action().kind(),
+                        ran: false,
+                    });
+                }
+                continue;
             }
 
-            for action_def in &group.actions {
+            for action_def in &group.run {
                 let action = action_def.to_action();
+
                 if dry_run {
                     tracing::info!(
                         rule = rule.name,
-                        when = group.when,
                         action = action.kind(),
                         "[dry-run] would execute action"
                     );
-
+                    log.push(ExplainAction {
+                        action: action.kind(),
+                        ran: true,
+                    });
                     continue;
                 }
 
@@ -598,21 +584,23 @@ impl RulesOrchestrator {
                     otel.name = format!("action: {}", action.kind()),
                     rule = rule.name,
                     action = action.kind(),
-                    when = group.when,
                 );
                 action
                     .execute(clients, event, cache)
                     .instrument(action_span)
                     .await;
                 let action_elapsed = action_start.elapsed();
-                crate::metrics::record_action(&rule.name, action.kind(), true);
+                metrics::record_action(&rule.name, action.kind(), true);
                 tracing::info!(
                     rule = rule.name,
-                    when = group.when,
                     action = action.kind(),
                     elapsed_ms = action_elapsed.as_millis(),
                     "action executed"
                 );
+                log.push(ExplainAction {
+                    action: action.kind(),
+                    ran: true,
+                });
             }
         }
 
@@ -622,84 +610,77 @@ impl RulesOrchestrator {
             "rule actions complete"
         );
 
-        had_actions
+        log
     }
 
-    async fn resolve_action_groups<'a>(
-        rule: &'a schema::RuleDef,
-        vars: &HashMap<String, expr::Value>,
-    ) -> Vec<ActionGroup<'a>> {
-        match &rule.actions {
-            ActionsDef::Flat(actions) => vec![ActionGroup {
-                when: None,
-                actions: actions.iter().collect(),
-            }],
-            ActionsDef::Conditional(groups) => {
-                let mut result = Vec::new();
-
-                for group in groups {
-                    let parsed = expr::parse(&group.when).expect("pre-validated expression");
-                    match expr::eval(&parsed, vars) {
-                        Ok(v) => match v.as_bool() {
-                            Ok(true) => {
-                                result.push(ActionGroup {
-                                    when: Some(group.when.as_str()),
-                                    actions: group.run.iter().collect(),
-                                });
-                            }
-                            Ok(false) => {
-                                tracing::debug!(
-                                    rule = rule.name,
-                                    when = group.when,
-                                    "group condition not met, skipping"
-                                );
-                            }
-                            Err(e) => {
-                                tracing::error!(
-                                    rule = rule.name,
-                                    when = group.when,
-                                    "expression result is not bool: {e}"
-                                );
-                            }
-                        },
-                        Err(e) => {
-                            tracing::error!(
-                                rule = rule.name,
-                                when = group.when,
-                                "expression eval error: {e}"
-                            );
-                        }
-                    }
-                }
-
-                result
+    async fn explain_action_runs<'a>(
+        &self,
+        rule: &schema::RuleDef,
+        event: &BotEvent<'a>,
+        clients: &Clients,
+        cache: &ResourceCache,
+    ) -> Vec<ExplainAction> {
+        let now = self.now();
+        let mut out = Vec::new();
+        for group in &rule.actions {
+            let gate_ok = match &group.when {
+                None => true,
+                Some(when) => when.matches(event, rule, clients, cache, now).await,
+            };
+            for action_def in &group.run {
+                out.push(ExplainAction {
+                    action: action_def.to_action().kind(),
+                    ran: gate_ok,
+                });
             }
         }
+        out
     }
 
-    fn explain_action_groups(
-        rule: &schema::RuleDef,
-        vars: &HashMap<String, expr::Value>,
-    ) -> Vec<ExplainGroup> {
-        match &rule.actions {
-            ActionsDef::Flat(actions) => vec![ExplainGroup {
-                when: None,
-                actions: actions.iter().map(|a| a.to_action().kind()).collect(),
-                ran: true,
-            }],
-            ActionsDef::Conditional(groups) => groups
-                .iter()
-                .map(|group| {
-                    let parsed = expr::parse(&group.when).expect("pre-validated expression");
-                    let ran =
-                        matches!(expr::eval(&parsed, vars).map(|v| v.as_bool()), Ok(Ok(true)));
-                    ExplainGroup {
-                        when: Some(group.when.clone()),
-                        actions: group.run.iter().map(|a| a.to_action().kind()).collect(),
-                        ran,
+    fn resolve_checks(rules: &mut RulesFile) -> Result<(), String> {
+        let globals = rules.checks.clone();
+        for rule in &mut rules.rules {
+            let locals = rule.checks.clone();
+            let mut visiting = HashSet::new();
+            resolve_in_matcher(&mut rule.when, &locals, &globals, &mut visiting)
+                .map_err(|e| format!("rule `{}`: {e}", rule.name))?;
+            for group in &mut rule.actions {
+                if let Some(when) = &mut group.when {
+                    resolve_in_matcher(when, &locals, &globals, &mut visiting)
+                        .map_err(|e| format!("rule `{}`: {e}", rule.name))?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn apply_label_colors(rules: &mut RulesFile) {
+        let registry = &rules.label_colors;
+        if registry.is_empty() {
+            return;
+        }
+        let upgrade = |label: &mut LabelSpec| {
+            if let LabelSpec::Name(name) = label
+                && let Some(color) = registry.get(name)
+            {
+                *label = LabelSpec::WithColor {
+                    name: name.clone(),
+                    color: color.clone(),
+                };
+            }
+        };
+        for rule in &mut rules.rules {
+            for group in &mut rule.actions {
+                for action in &mut group.run {
+                    match action {
+                        ActionDef::AddLabels { labels, .. } => labels.iter_mut().for_each(upgrade),
+                        ActionDef::CreateIssue { labels, .. } => {
+                            labels.iter_mut().for_each(upgrade)
+                        }
+                        _ => {}
                     }
-                })
-                .collect(),
+                }
+            }
         }
     }
 
@@ -761,7 +742,7 @@ mod tests {
     fn make_rule(name: &str, priority: i32, depends_on: Vec<&str>) -> schema::RuleDef {
         let deps: Vec<String> = depends_on.into_iter().map(String::from).collect();
         let yaml = format!(
-            "name: {name}\nenabled: true\npriority: {priority}\nmatches:\n  type: forgejo\nactions: []"
+            "name: {name}\npriority: {priority}\nwhen:\n  type: event\n  kind: pr\n  source: forgejo\nactions: []"
         );
         let mut rule: schema::RuleDef = yaml_serde::from_str(&yaml).unwrap();
         rule.depends_on = deps;
@@ -887,5 +868,140 @@ mod tests {
             make_rule("parent", 0, vec![]),
         ];
         assert_eq!(sorted_names(rules), vec!["parent", "child"]);
+    }
+
+    fn load(yaml: &str) -> Result<RulesFile, String> {
+        let mut f: RulesFile = yaml_serde::from_str(yaml).map_err(|e| e.to_string())?;
+        RulesOrchestrator::resolve_checks(&mut f)?;
+        Ok(f)
+    }
+
+    #[test]
+    fn resolve_local_check() {
+        let yaml = r#"
+rules:
+  - name: r
+    checks:
+      in_window:
+        type: time_of_day
+        tz: UTC
+        after: "09:00"
+        before: "17:00"
+    when:
+      all:
+        - type: event
+          kind: pr
+          source: forgejo
+        - ref: in_window
+    actions: []
+"#;
+        let f = load(yaml).unwrap();
+        match &f.rules[0].when {
+            Matcher::Combinator(Combinator::All(ms)) => {
+                assert!(matches!(
+                    &ms[1],
+                    Matcher::Leaf(matchers::LeafMatcher::TimeOfDay { .. })
+                ));
+            }
+            _ => panic!("expected All"),
+        }
+    }
+
+    #[test]
+    fn resolve_global_check_inside_action_when() {
+        let yaml = r#"
+checks:
+  is_renovate:
+    type: author
+    value: renovate
+rules:
+  - name: r
+    when:
+      type: event
+      kind: pr
+      source: forgejo
+    actions:
+      - when:
+          ref: global.is_renovate
+        run:
+          - type: approve
+"#;
+        let f = load(yaml).unwrap();
+        let group = &f.rules[0].actions[0];
+        assert!(matches!(
+            group.when.as_ref().unwrap(),
+            Matcher::Leaf(matchers::LeafMatcher::Author { .. })
+        ));
+    }
+
+    #[test]
+    fn check_can_reference_another_check() {
+        let yaml = r#"
+checks:
+  weekday_evening:
+    all:
+      - type: time_of_day
+        tz: UTC
+        after: "17:00"
+        before: "22:00"
+        weekdays_only: true
+rules:
+  - name: r
+    checks:
+      gate:
+        all:
+          - ref: global.weekday_evening
+          - type: bot.has_approved
+    when:
+      ref: gate
+    actions: []
+"#;
+        let f = load(yaml).unwrap();
+        match &f.rules[0].when {
+            Matcher::Combinator(Combinator::All(ms)) => assert_eq!(ms.len(), 2),
+            _ => panic!("expected All"),
+        }
+    }
+
+    #[test]
+    fn missing_local_ref_errors() {
+        let yaml = r#"
+rules:
+  - name: r
+    when:
+      ref: nope
+    actions: []
+"#;
+        let err = load(yaml).unwrap_err();
+        assert!(err.contains("unknown check `nope`"), "got: {err}");
+    }
+
+    #[test]
+    fn missing_global_ref_errors() {
+        let yaml = r#"
+rules:
+  - name: r
+    when:
+      ref: global.nope
+    actions: []
+"#;
+        let err = load(yaml).unwrap_err();
+        assert!(err.contains("unknown global check `nope`"), "got: {err}");
+    }
+
+    #[test]
+    fn cyclic_checks_errors() {
+        let yaml = r#"
+rules:
+  - name: r
+    checks:
+      a: { ref: b }
+      b: { ref: a }
+    when:
+      ref: a
+    actions: []
+"#;
+        let err = load(yaml).unwrap_err();
+        assert!(err.contains("cycle"), "got: {err}");
     }
 }

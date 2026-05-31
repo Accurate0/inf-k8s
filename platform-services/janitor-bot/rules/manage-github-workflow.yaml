@@ -1,103 +1,78 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: manage-github-workflow
-enabled: true
-matches:
+when:
   all:
-    - type: github
-    - type: workflow_event
+    - type: event
+      kind: workflow
+      source: github
     - type: repository
       value: Accurate0/inf-k8s
     - type: target_branch
       value: main
-variables:
-  - var: is_failure
-    type: workflow_conclusion
-    value: failure
-  - var: is_success
-    type: workflow_conclusion
-    value: success
-  - var: is_renovate
-    type: title_matches
-    value: renovate
-    mode: contains_ignore_case
 actions:
-  - when: "is_failure && !is_renovate"
+  - when:
+      all:
+        - type: workflow_conclusion
+          value: failure
+        - not:
+            type: title_matches
+            value: renovate
+            mode: contains_ignore_case
     run:
-      - type: ensure_labels_exist
-        target:
-          owner: anurag
-          repo: k8s
-        labels:
-          - name: github-ci-failure
-            color: "#d73a4a"
-          - name: automated
-            color: "#e4e669"
       - type: create_issue
         target:
           owner: anurag
           repo: k8s
         deduplicateByTitle: true
-        title:
-          content: "[GitHub CI] {repository} {github_workflow.workflow_name} failed"
-          template: true
-        labels:
-          - name: github-ci-failure
-            color: "#d73a4a"
-          - name: automated
-            color: "#e4e669"
-        body:
-          template: true
-          content: |
-            ## Workflow Failed
+        title: "[GitHub CI] {repository} {github_workflow.workflow_name} failed"
+        labels: [github-ci-failure, automated]
+        body: |
+          ## Workflow Failed
 
-            | Detail | Value |
-            |--------|-------|
-            | Workflow | **{github_workflow.workflow_name}** |
-            | Result | `failure` |
-            | Branch | `{github_workflow.branch}` |
-            | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
-            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
-            | Author | {github_workflow.commit_author} |
+          | Detail | Value |
+          |--------|-------|
+          | Workflow | **{github_workflow.workflow_name}** |
+          | Result | `failure` |
+          | Branch | `{github_workflow.branch}` |
+          | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
+          | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
+          | Author | {github_workflow.commit_author} |
 
-            ### Logs
+          ### Logs
 
-            ```
-            {github_workflow.failed_jobs_logs}
-            ```
+          ```
+          {github_workflow.failed_jobs_logs}
+          ```
 
-            <!-- {github_workflow.metadata_json} -->
-        on_duplicate_comment:
-          template: true
-          content: |
-            ## Re-run Failed
+          <!-- {github_workflow.metadata_json} -->
+        on_duplicate_comment: |
+          ## Re-run Failed
 
-            | Detail | Value |
-            |--------|-------|
-            | Result | `failure` |
-            | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
-            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
+          | Detail | Value |
+          |--------|-------|
+          | Result | `failure` |
+          | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
+          | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
 
-            ```
-            {github_workflow.failed_jobs_logs}
-            ```
+          ```
+          {github_workflow.failed_jobs_logs}
+          ```
 
-            <!-- {github_workflow.metadata_json} -->
-  - when: "is_success"
+          <!-- {github_workflow.metadata_json} -->
+  - when:
+      type: workflow_conclusion
+      value: success
     run:
       - type: close_issue
         target:
           owner: anurag
           repo: k8s
-        title:
-          content: "[GitHub CI] {repository} {github_workflow.workflow_name} failed"
-          template: true
-        closing_comment:
-          template: true
-          content: |
-            ## Resolved
+        title: "[GitHub CI] {repository} {github_workflow.workflow_name} failed"
+        comment: |
+          ## Resolved
 
-            | Detail | Value |
-            |--------|-------|
-            | Result | `success` |
-            | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
-            | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |
+          | Detail | Value |
+          |--------|-------|
+          | Result | `success` |
+          | Run | [#{github_workflow.run_number} (attempt {github_workflow.run_attempt})]({github_workflow.run_url}) |
+          | Commit | [`{short_sha}`](https://github.com/{repository}/commit/{github_workflow.head_sha}) — {github_workflow.commit_message} |

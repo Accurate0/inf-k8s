@@ -3,35 +3,21 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - close_other_prs
+  - actions:
+      - action: close_other_prs
         ran: true
-        when: is_latest
-      - actions:
-          - ensure_labels_exist
-          - remove_labels_by_name
-          - add_labels_by_name
-          - approve
-          - merge
+      - action: remove_labels
         ran: false
-        when: in_window && needs_approval && is_latest
-      - actions:
-          - ensure_labels_exist
-          - add_labels_by_name
+      - action: add_labels
+        ran: false
+      - action: approve
+        ran: false
+      - action: merge
+        ran: false
+      - action: add_labels
         ran: true
-        when: "!in_window && !already_queued && is_latest"
     dry_run: false
     name: manage-ci-image-updater
-    variables:
-      - name: already_queued
-        value: "false"
-      - name: in_window
-        value: "false"
-      - name: is_latest
-        value: "true"
-      - name: needs_approval
-        value: "true"
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/104/files

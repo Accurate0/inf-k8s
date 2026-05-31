@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: manage-ci-image-updater
-enabled: true
-matches:
+when:
   all:
-    - type: forgejo
-    - type: pr_event
+    - type: event
+      kind: pr
+      source: forgejo
     - type: repository
       value: anurag/k8s
     - type: feature_flag
@@ -18,53 +18,38 @@ matches:
         type: has_label
         value: conflicts
     - type: is_open
-variables:
-  - var: in_window
-    type: time_window
-    timezone: Australia/Perth
-    start: 17
-    end: 22
-  - var: needs_approval
-    type: not_approved_by_self
-  - var: already_queued
-    type: has_label
-    value: janitor/queued
-  - var: is_latest
-    type: is_latest_by_metadata
-    match_metadata_fields: [service]
+    - type: is_latest_by_metadata
+      match_metadata_fields: [service]
 actions:
-  - when: "is_latest"
-    run:
+  - run:
       - type: close_other_prs
         author: ci-image-updater
         criteria: older
         match_metadata_fields: [service]
         delete_branch: true
-        comment:
-          content: "Superseded by #{forgejo_pr.pr_number}"
-          template: true
-  - when: "in_window && needs_approval && is_latest"
+        comment: "Superseded by #{forgejo_pr.pr_number}"
+  - when:
+      all:
+        - ref: global.perth_evening
+        - not:
+            type: bot.has_approved
     run:
-      - type: ensure_labels_exist
-        labels:
-          - name: image-update
-            color: "#0075ca"
-          - name: automated
-            color: "#e4e669"
-      - type: remove_labels_by_name
+      - type: remove_labels
         labels: [janitor/queued]
-      - type: add_labels_by_name
+      - type: add_labels
         labels: [image-update, automated]
       - type: approve
         comment: "Auto-approved: PR from ci-image-updater"
       - type: merge
         strategy: squash
         delete_branch: true
-  - when: "!in_window && !already_queued && is_latest"
+  - when:
+      all:
+        - not:
+            ref: global.perth_evening
+        - not:
+            type: has_label
+            value: janitor/queued
     run:
-      - type: ensure_labels_exist
-        labels:
-          - name: janitor/queued
-            color: "#fbca04"
-      - type: add_labels_by_name
+      - type: add_labels
         labels: [janitor/queued]

@@ -3,28 +3,15 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - ensure_labels_exist
-          - create_issue
+  - actions:
+      - action: create_issue
         ran: false
-        when: is_failure && !is_renovate
-      - actions:
-          - close_issue
+      - action: close_issue
         ran: false
-        when: is_success
     dry_run: false
     name: manage-github-workflow
-    variables:
-      - name: is_failure
-        value: "true"
-      - name: is_renovate
-        value: "true"
-      - name: is_success
-        value: "false"
-  - action_groups:
-      - actions:
-          - retry_workflow
+  - actions:
+      - action: retry_workflow
         ran: true
     dry_run: false
     name: retry-renovate-workflow

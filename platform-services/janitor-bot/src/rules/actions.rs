@@ -7,7 +7,7 @@ use crate::forgejo::CommitStatusParams;
 use crate::rules::matchers::ResourceCache;
 use crate::rules::matchers::cache::get_changed_files_cached;
 use crate::rules::matchers::parse_pr_metadata;
-use crate::rules::schema::{CloseOtherPrsCriteria, TemplateString};
+use crate::rules::schema::{CloseOtherPrsCriteria, LabelSpec, TemplateString};
 use forgejo_api::structs::MergePullRequestOptionDo;
 
 pub enum RetryWorkflowTarget {
@@ -17,28 +17,22 @@ pub enum RetryWorkflowTarget {
 #[allow(dead_code)]
 pub enum Action {
     Approve {
-        body: Option<TemplateString>,
+        comment: Option<TemplateString>,
     },
     Merge {
         strategy: MergePullRequestOptionDo,
         delete_branch: bool,
     },
     Comment {
-        body: TemplateString,
+        comment: TemplateString,
     },
     AddLabels {
-        label_ids: Vec<i64>,
-    },
-    AddLabelsByName {
-        labels: Vec<String>,
-    },
-    RemoveLabelsByName {
-        labels: Vec<String>,
-    },
-    EnsureLabelsExist {
-        labels: Vec<(String, String)>,
+        labels: Vec<LabelSpec>,
         target_owner: Option<String>,
         target_repo: Option<String>,
+    },
+    RemoveLabels {
+        labels: Vec<String>,
     },
     CreateIssue {
         target_owner: String,
@@ -47,13 +41,13 @@ pub enum Action {
         title: TemplateString,
         body: TemplateString,
         on_duplicate_comment: Option<TemplateString>,
-        labels: Vec<(String, String)>,
+        labels: Vec<LabelSpec>,
     },
     CloseIssue {
         target_owner: String,
         target_repo: String,
         title: TemplateString,
-        closing_comment: Option<TemplateString>,
+        comment: Option<TemplateString>,
     },
     ArgoCdDiff,
     RetryWorkflow {
@@ -93,9 +87,7 @@ impl Action {
             Action::Merge { .. } => "merge",
             Action::Comment { .. } => "comment",
             Action::AddLabels { .. } => "add_labels",
-            Action::AddLabelsByName { .. } => "add_labels_by_name",
-            Action::RemoveLabelsByName { .. } => "remove_labels_by_name",
-            Action::EnsureLabelsExist { .. } => "ensure_labels_exist",
+            Action::RemoveLabels { .. } => "remove_labels",
             Action::CreateIssue { .. } => "create_issue",
             Action::CloseIssue { .. } => "close_issue",
             Action::ArgoCdDiff => "argocd_diff",
@@ -110,13 +102,13 @@ impl Action {
     pub async fn execute(&self, clients: &Clients, event: &BotEvent<'_>, cache: &ResourceCache) {
         let client = &clients.forgejo;
         let result = match self {
-            Action::Approve { body } => {
+            Action::Approve { comment } => {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
 
                 let vars = event.template_vars();
-                let rendered = body.as_ref().map(|b| b.render(&vars));
+                let rendered = comment.as_ref().map(|c| c.render(&vars));
                 client
                     .approve_pr(
                         &pr.owner,
@@ -144,36 +136,52 @@ impl Action {
                     )
                     .await
             }
-            Action::Comment { body } => {
+            Action::Comment { comment } => {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
 
                 let vars = event.template_vars();
-                let rendered = body.render(&vars);
+                let rendered = comment.render(&vars);
                 client
                     .comment(&pr.owner, &pr.repo, pr.pr_number as i64, &rendered)
                     .await
             }
-            Action::AddLabels { label_ids } => {
+            Action::AddLabels {
+                labels,
+                target_owner,
+                target_repo,
+            } => {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
 
-                client
-                    .add_labels(&pr.owner, &pr.repo, pr.pr_number as i64, label_ids.clone())
-                    .await
-            }
-            Action::AddLabelsByName { labels } => {
-                let BotEvent::ForgejoPr(pr) = event else {
-                    return;
+                let (owner, repo) = match (target_owner, target_repo) {
+                    (Some(o), Some(r)) => (o.as_str(), r.as_str()),
+                    _ => (pr.owner.as_str(), pr.repo.as_str()),
                 };
 
-                client
-                    .add_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
-                    .await
+                async {
+                    let to_ensure: Vec<(String, String)> = labels
+                        .iter()
+                        .filter_map(|l| {
+                            l.color()
+                                .map(|c| (l.name().to_string(), c.to_string()))
+                        })
+                        .collect();
+                    if !to_ensure.is_empty() {
+                        client.ensure_labels(owner, repo, to_ensure).await?;
+                    }
+
+                    let names: Vec<String> =
+                        labels.iter().map(|l| l.name().to_string()).collect();
+                    client
+                        .add_labels_by_name(owner, repo, pr.pr_number as i64, names)
+                        .await
+                }
+                .await
             }
-            Action::RemoveLabelsByName { labels } => {
+            Action::RemoveLabels { labels } => {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
@@ -181,21 +189,6 @@ impl Action {
                 client
                     .remove_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
                     .await
-            }
-            Action::EnsureLabelsExist {
-                labels,
-                target_owner,
-                target_repo,
-            } => {
-                let (owner, repo) = match (target_owner, target_repo) {
-                    (Some(o), Some(r)) => (o.as_str(), r.as_str()),
-                    _ => match event {
-                        BotEvent::ForgejoPr(pr) => (pr.owner.as_str(), pr.repo.as_str()),
-                        _ => return,
-                    },
-                };
-
-                client.ensure_labels(owner, repo, labels.clone()).await
             }
             Action::CreateIssue {
                 target_owner,
@@ -238,8 +231,20 @@ impl Action {
                             .comment_on_issue(target_owner, target_repo, index, &text)
                             .await?;
                     } else {
+                        let to_ensure: Vec<(String, String)> = labels
+                            .iter()
+                            .filter_map(|l| {
+                                l.color()
+                                    .map(|c| (l.name().to_string(), c.to_string()))
+                            })
+                            .collect();
+                        if !to_ensure.is_empty() {
+                            client
+                                .ensure_labels(target_owner, target_repo, to_ensure)
+                                .await?;
+                        }
                         let label_names: Vec<String> =
-                            labels.iter().map(|(name, _)| name.clone()).collect();
+                            labels.iter().map(|l| l.name().to_string()).collect();
                         client
                             .create_issue_with_labels(
                                 target_owner,
@@ -259,7 +264,7 @@ impl Action {
                 target_owner,
                 target_repo,
                 title,
-                closing_comment,
+                comment,
             } => {
                 let vars = event.template_vars();
                 let rendered_title = title.render(&vars);
@@ -273,7 +278,7 @@ impl Action {
                     };
 
                     let index = existing.number.unwrap();
-                    if let Some(tmpl) = closing_comment {
+                    if let Some(tmpl) = comment {
                         let text = tmpl.render(&vars);
                         client
                             .comment_on_issue(target_owner, target_repo, index, &text)

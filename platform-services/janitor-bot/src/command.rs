@@ -40,27 +40,10 @@ fn format_explain(matched: &[crate::rules::MatchedRule]) -> String {
 
         let mut lines: Vec<(String, String)> = Vec::new();
 
-        if !rule.variables.is_empty() {
-            lines.push(("variables:".to_string(), String::new()));
-            for v in &rule.variables {
-                lines.push((format!("  {}: ...", v.name), format!("= {}", v.value)));
-            }
-        }
-
         lines.push(("actions:".to_string(), String::new()));
-        for group in &rule.action_groups {
-            let mark = if group.ran { "✓ ran" } else { "✗ skipped" };
-            match &group.when {
-                Some(when) => lines.push((format!("  - when: {when}"), mark.to_string())),
-                None => lines.push(("  - run:".to_string(), mark.to_string())),
-            }
-            if group.when.is_some() {
-                lines.push(("    run:".to_string(), String::new()));
-            }
-            for action in &group.actions {
-                let amark = if group.ran { "✓" } else { "·" };
-                lines.push((format!("      - {action}"), amark.to_string()));
-            }
+        for entry in &rule.actions {
+            let mark = if entry.ran { "✓ ran" } else { "✗ skipped" };
+            lines.push((format!("  - {}", entry.action), mark.to_string()));
         }
 
         let width = lines.iter().map(|(code, _)| code.len()).max().unwrap_or(0);
@@ -602,12 +585,8 @@ mod tests {
         assert!(result.contains("No rules matched"));
     }
 
-    fn flat_group(actions: Vec<&'static str>) -> crate::rules::ExplainGroup {
-        crate::rules::ExplainGroup {
-            when: None,
-            actions,
-            ran: true,
-        }
+    fn explain(action: &'static str, ran: bool) -> crate::rules::ExplainAction {
+        crate::rules::ExplainAction { action, ran }
     }
 
     #[test]
@@ -615,7 +594,7 @@ mod tests {
         use crate::rules::MatchedRule;
         let matched = vec![MatchedRule {
             name: "auto-merge".to_string(),
-            action_groups: vec![flat_group(vec!["approve", "merge"])],
+            actions: vec![explain("approve", true), explain("merge", true)],
             ..Default::default()
         }];
         let result = format_explain(&matched);
@@ -631,7 +610,7 @@ mod tests {
         let matched = vec![MatchedRule {
             name: "test-rule".to_string(),
             dry_run: true,
-            action_groups: vec![flat_group(vec!["comment"])],
+            actions: vec![explain("comment", true)],
             ..Default::default()
         }];
         let result = format_explain(&matched);
@@ -644,13 +623,13 @@ mod tests {
         let matched = vec![
             MatchedRule {
                 name: "rule1".to_string(),
-                action_groups: vec![flat_group(vec!["approve"])],
+                actions: vec![explain("approve", true)],
                 ..Default::default()
             },
             MatchedRule {
                 name: "rule2".to_string(),
                 dry_run: true,
-                action_groups: vec![flat_group(vec!["merge"])],
+                actions: vec![explain("merge", true)],
                 ..Default::default()
             },
         ];
@@ -660,39 +639,14 @@ mod tests {
     }
 
     #[test]
-    fn format_explain_variables_and_conditional_groups() {
-        use crate::rules::{ExplainGroup, ExplainVar, MatchedRule};
+    fn format_explain_mixed_ran_and_skipped() {
+        use crate::rules::MatchedRule;
         let matched = vec![MatchedRule {
             name: "renovate".to_string(),
-            variables: vec![
-                ExplainVar {
-                    name: "is_renovate".to_string(),
-                    value: "true".to_string(),
-                },
-                ExplainVar {
-                    name: "in_window".to_string(),
-                    value: "false".to_string(),
-                },
-            ],
-            action_groups: vec![
-                ExplainGroup {
-                    when: Some("is_renovate && in_window".to_string()),
-                    actions: vec!["merge"],
-                    ran: false,
-                },
-                ExplainGroup {
-                    when: Some("is_renovate".to_string()),
-                    actions: vec!["add_labels_by_name"],
-                    ran: true,
-                },
-            ],
+            actions: vec![explain("merge", false), explain("add_labels", true)],
             ..Default::default()
         }];
         let result = format_explain(&matched);
-        assert!(result.contains("is_renovate: ..."));
-        assert!(result.contains("= true"));
-        assert!(result.contains("= false"));
-        assert!(result.contains("when: is_renovate && in_window"));
         assert!(result.contains("✗ skipped"));
         assert!(result.contains("✓ ran"));
     }

@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=../rule.schema.json
 name: retry-renovate-workflow
-enabled: true
-matches:
+when:
   all:
-    - type: github
-    - type: workflow_event
+    - type: event
+      kind: workflow
+      source: github
     - type: repository
       value: Accurate0/inf-k8s
     - type: target_branch
@@ -16,11 +16,8 @@ matches:
     - type: workflow_run_attempt
       expr: "value < 3"
 actions:
-  - type: retry_workflow
-    target: github
-    repository:
-      content: "{repository}"
-      template: true
-    id:
-      content: "{github_workflow.run_id}"
-      template: true
+  - run:
+      - type: retry_workflow
+        target: github
+        repository: "{repository}"
+        id: "{github_workflow.run_id}"

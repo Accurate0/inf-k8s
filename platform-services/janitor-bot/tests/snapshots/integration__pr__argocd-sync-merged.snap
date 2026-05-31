@@ -3,10 +3,10 @@ source: tests/integration.rs
 expression: snapshot
 ---
 response:
-  - action_groups:
-      - actions:
-          - wait_for_github_sync
-          - argocd_sync_changed_apps
+  - actions:
+      - action: wait_for_github_sync
+        ran: true
+      - action: argocd_sync_changed_apps
         ran: true
     dry_run: false
     name: argocd-sync-merged-pr
