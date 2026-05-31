@@ -91,6 +91,8 @@ spec:
             rbac:
               policy.csv: |
                 g, ArgoCD Admins, role:admin
+                p, github-actions, applications, sync, bootstrap/*, allow
+                p, github-actions, applications, get, bootstrap/*, allow
                 p, github-actions, applications, sync, system-components/*, allow
                 p, github-actions, applications, get, system-components/*, allow
                 p, github-actions, applications, sync, platform-services/*, allow
@@ -98,6 +100,8 @@ spec:
                 p, github-actions, applications, sync, projects/*, allow
                 p, github-actions, applications, get, projects/*, allow
                 p, github-actions, projects, get, *, allow
+                p, janitor, applications, get, bootstrap/*, allow
+                p, janitor, applications, sync, bootstrap/*, allow
                 p, janitor, applications, get, system-components/*, allow
                 p, janitor, applications, sync, system-components/*, allow
                 p, janitor, applications, get, platform-services/*, allow

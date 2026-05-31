@@ -12,7 +12,7 @@ spec:
     automated:
       prune: false
       selfHeal: true
-  project: system-components
+  project: bootstrap
   source:
     repoURL: https://github.com/Accurate0/inf-k8s.git
     path: system-components
