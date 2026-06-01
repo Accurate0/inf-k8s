@@ -8,6 +8,7 @@ mod projects 'projects/mod.just'
 mod ansible  'ansible/mod.just'
 mod tf       'terraform/mod.just'
 mod cluster  'charts/mod.just'
+mod ops      'scripts/mod.just'
 
 # List available recipes
 default:

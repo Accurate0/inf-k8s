@@ -13,10 +13,10 @@ spec:
       prune: true
       selfHeal: true
   project: platform-services
-  source:
-    repoURL: https://github.com/Accurate0/inf-k8s.git
-    path: platform-services/pg-db-controller/manifests
-    kustomize: {}
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: platform-services/pg-db-controller/manifests
+      kustomize: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: pg-db-controller

@@ -38,6 +38,12 @@ repos:
         files: \.tf$
         pass_filenames: false
 
+      - id: validate-manifests
+        name: Validate k8s manifests
+        entry: scripts/validate-manifests.sh
+        language: system
+        files: (application\.yaml$|/manifests/.*\.ya?ml$|kustomization\.ya?ml$)
+
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
     hooks:
