@@ -8,6 +8,7 @@ spec:
   syncPolicy:
     managedNamespaceMetadata:
       labels:
+        inf-k8s.net/infisical-secrets: "true"
         internal-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
@@ -19,6 +20,26 @@ spec:
       selfHeal: true
   project: system-components
   sources:
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.3.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: longhorn-system
+            projectSlug: longhorn-uc3e
+            resyncInterval: 900
+          secrets:
+            - name: longhorn-backup-secrets
+              secretPath: /
+              managedSecrets:
+                - secretName: longhorn-backup-credentials
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      AWS_ACCESS_KEY_ID: "{{ .AWS_ACCESS_KEY_ID }}"
+                      AWS_SECRET_ACCESS_KEY: "{{ .AWS_SECRET_ACCESS_KEY }}"
+                      AWS_ENDPOINTS: "{{ .AWS_ENDPOINTS }}"
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/longhorn
     - chart: k8s-http-routes
@@ -62,6 +83,8 @@ spec:
             replicas: 1
           defaultSettings:
             taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
+            backupTarget: s3://longhorn-backup@us-east-1/
+            backupTargetCredentialSecret: longhorn-backup-credentials
           ingress:
             enabled: false
   destination:
