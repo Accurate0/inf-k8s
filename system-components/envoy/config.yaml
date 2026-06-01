@@ -47,8 +47,3 @@ spec:
           environment:
             name: ENVOY_POD_NAMESPACE
             defaultValue: "envoy-gateway-system"
-        # header1:
-        #   type: RequestHeader
-        #   requestHeader:
-        #     name: X-Header-1
-        #     defaultValue: "-"

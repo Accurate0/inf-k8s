@@ -1,5 +1,8 @@
 ---
 extends: default
+ignore: |
+  charts/*/templates/
+  system-components/barman-cloud-plugin/manifest.yaml
 rules:
   line-length: disable
   comments:

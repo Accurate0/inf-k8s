@@ -9,10 +9,10 @@ repos:
       - id: trailing-whitespace
       - id: mixed-line-ending
 
-  # - repo: https://github.com/adrienverge/yamllint
-  #   rev: v1.38.0
-  #   hooks:
-  #     - id: yamllint
+  - repo: https://github.com/adrienverge/yamllint
+    rev: v1.38.0
+    hooks:
+      - id: yamllint
 
   # - repo: https://github.com/ansible/ansible-lint
   #   rev: v26.4.0
@@ -28,7 +28,15 @@ repos:
     rev: v2.3.0
     hooks:
       - id: tofu_fmt
-      - id: tofu_validate
+
+  - repo: local
+    hooks:
+      - id: tofu-validate
+        name: OpenTofu validate
+        entry: tofu -chdir=terraform validate
+        language: system
+        files: \.tf$
+        pass_filenames: false
 
   - repo: https://github.com/shellcheck-py/shellcheck-py
     rev: v0.11.0.1
