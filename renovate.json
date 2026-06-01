@@ -22,6 +22,17 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/ansible/roles/k3s/vars/main\\.yml$/",
+        "/ansible/playbooks/k3s-upgrade\\.yaml$/"
+      ],
+      "matchStrings": ["k3s_version:\\s*\"(?<currentValue>[^\"]+)\""],
+      "depNameTemplate": "k3s-io/k3s",
+      "datasourceTemplate": "github-releases",
+      "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(\\+k3s(?<build>\\d+))?$"
     }
   ],
   "packageRules": [
@@ -42,6 +53,14 @@
       "matchManagers": ["github-actions"],
       "pinDigests": true,
       "description": "Pin GitHub Actions to immutable SHA for security."
+    },
+    {
+      "matchDatasources": ["github-releases"],
+      "matchPackageNames": ["k3s-io/k3s"],
+      "groupName": "k3s",
+      "commitMessageTopic": "k3s",
+      "automerge": false,
+      "addLabels": ["k3s"]
     },
     {
       "matchUpdateTypes": ["major"],
