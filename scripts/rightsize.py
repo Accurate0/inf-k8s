@@ -10,7 +10,12 @@ table, and (with --apply) edits the matching manifest files in place.
 
 Policy:
   cpu_request    = max(p95_cpu * 1.25, 10m)        rounded to nearest 5m
-  memory_request = max(max_memory * 1.20, 16Mi)    rounded up to 8Mi
+  memory_request = max(p95_usage * 1.20, 16Mi)     rounded up to 8Mi
+
+Both are sized off the p95 over the window (typical sustained usage), not the
+worst spike. Memory defaults to container_memory_rss (anonymous memory, excludes
+reclaimable page cache); pass --mem-metric workingset to size on rss + active
+cache instead (the kubelet OOM/eviction basis).
 """
 
 from __future__ import annotations
@@ -41,8 +46,6 @@ REPO = Path(__file__).resolve().parent.parent
 SCOPE_DIRS = ["platform-services", "projects"]
 WORKLOAD_KINDS = {"Deployment", "StatefulSet", "DaemonSet", "CronJob", "Job"}
 
-
-# ---------- Prometheus ----------
 
 def q(expr: str) -> list[dict]:
     url = f"{PROM}/api/v1/query?" + urllib.parse.urlencode({"query": expr})
@@ -79,8 +82,8 @@ def collect_metrics(window: str = WINDOW) -> dict:
         "mem_req_b": join('kube_pod_container_resource_requests{resource="memory"}'),
         "cpu_p95_cores": join(f'quantile_over_time(0.95, rate(container_cpu_usage_seconds_total{{container!="",container!="POD"}}[5m])[{WINDOW_LOCAL}:5m])'),
         "cpu_max_cores": join(f'max_over_time(rate(container_cpu_usage_seconds_total{{container!="",container!="POD"}}[5m])[{WINDOW_LOCAL}:5m])'),
-        "mem_max_b": join(f'max_over_time(container_memory_working_set_bytes{{container!="",container!="POD"}}[{WINDOW_LOCAL}])'),
-        "mem_p95_b": join(f'quantile_over_time(0.95, container_memory_working_set_bytes{{container!="",container!="POD"}}[{WINDOW_LOCAL}])'),
+        "mem_p95_b": join(f'quantile_over_time(0.95, container_memory_rss{{container!="",container!="POD"}}[{WINDOW_LOCAL}])'),
+        "mem_ws_b": join(f'quantile_over_time(0.95, container_memory_working_set_bytes{{container!="",container!="POD"}}[{WINDOW_LOCAL}])'),
     }
     for name, expr in queries.items():
         for s in q(expr):
@@ -94,8 +97,6 @@ def collect_metrics(window: str = WINDOW) -> dict:
             rows[k][name] = v
     return rows
 
-
-# ---------- Manifest indexing ----------
 
 def load_docs(path: Path) -> list:
     with path.open() as f:
@@ -138,8 +139,6 @@ def index_manifests() -> dict[tuple[str, str, str], tuple[Path, str]]:
                         idx[(ns, name, cname)] = (path, cname)
     return idx
 
-
-# ---------- In-place editing ----------
 
 def _pod_spec(doc: dict) -> dict | None:
     spec = doc.get("spec") or {}
@@ -184,12 +183,16 @@ def edit_manifest(path: Path, container: str, new_cpu: str | None, new_mem: str 
     return changed
 
 
-# ---------- Main ----------
-
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--all", action="store_true", help="show every workload")
     ap.add_argument("--ns", help="filter to a namespace")
+    ap.add_argument("--threshold", type=float, default=25.0,
+                    help="flag cpu/mem as changed when it differs from current "
+                         "by more than this percent (default 25)")
+    ap.add_argument("--mem-metric", choices=("rss", "workingset"), default="rss",
+                    help="basis for the memory request: rss = anonymous memory "
+                         "(default, excludes reclaimable page cache); workingset = "
+                         "rss + active cache (matches kubelet OOM/eviction accounting)")
     ap.add_argument("--window", default=WINDOW,
                     help=f"prometheus lookback (default {WINDOW}; e.g. 7d, 30d)")
     ap.add_argument("--apply", action="store_true",
@@ -197,6 +200,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true",
                     help="with --apply, only print what would change")
     args = ap.parse_args()
+    the = args.threshold / 100.0
 
     metrics = collect_metrics(args.window)
     idx = index_manifests()
@@ -208,45 +212,46 @@ def main():
             continue
         if key not in idx:
             continue  # outside platform-services/projects scope
-        if "cpu_p95_cores" not in m and "mem_max_b" not in m:
+        if "cpu_p95_cores" not in m and "mem_p95_b" not in m and "mem_ws_b" not in m:
             continue
 
         cur_cpu = m.get("cpu_req_mc")
         cur_mem = m.get("mem_req_b")
+        mem_usage_b = m.get("mem_p95_b", 0) if args.mem_metric == "rss" else m.get("mem_ws_b", 0)
         sug_cpu_mc = max(m.get("cpu_p95_cores", 0) * 1000 * 1.25, 10)
-        sug_mem_b = max(m.get("mem_max_b", 0) * 1.20, 16 * 1024 * 1024)
+        sug_mem_b = max(mem_usage_b * 1.20, 16 * 1024 * 1024)
         new_cpu = fmt_cpu(sug_cpu_mc)
         new_mem = fmt_mem(sug_mem_b)
+        cpu_pct = (sug_cpu_mc - cur_cpu) / cur_cpu * 100 if cur_cpu else None
+        mem_pct = (sug_mem_b - cur_mem) / cur_mem * 100 if cur_mem else None
 
-        cpu_change = cur_cpu is None or (cur_cpu > 0 and abs(sug_cpu_mc - cur_cpu) / cur_cpu > 0.25)
-        mem_change = cur_mem is None or (cur_mem > 0 and abs(sug_mem_b - cur_mem) / cur_mem > 0.25)
-        if not (args.all or cpu_change or mem_change):
-            continue
+        cpu_change = cur_cpu is None or (cur_cpu > 0 and abs(sug_cpu_mc - cur_cpu) / cur_cpu > the)
+        mem_change = cur_mem is None or (cur_mem > 0 and abs(sug_mem_b - cur_mem) / cur_mem > the)
+        change = "+".join(p for p, c in (("cpu", cpu_change), ("mem", mem_change)) if c) or "-"
 
         path, cname = idx[key]
         suggestions.append({
-            "key": key, "path": path, "container": cname,
+            "key": key, "path": path, "container": cname, "change": change,
             "cur_cpu": f"{int(cur_cpu)}m" if cur_cpu else "-",
-            "p95_cpu": f"{int(m.get('cpu_p95_cores', 0)*1000)}m",
-            "max_cpu": f"{int(m.get('cpu_max_cores', 0)*1000)}m",
+            "cpu_usage": f"{int(m.get('cpu_p95_cores', 0)*1000)}m",
             "new_cpu": new_cpu, "cpu_change": cpu_change,
+            "cpu_pct": f" ({cpu_pct:+.0f}%)" if cpu_pct is not None else "",
             "cur_mem": f"{int(cur_mem/1024/1024)}Mi" if cur_mem else "-",
-            "max_mem": f"{int(m.get('mem_max_b', 0)/1024/1024)}Mi",
+            "mem_usage": f"{int(mem_usage_b/1024/1024)}Mi",
             "new_mem": new_mem, "mem_change": mem_change,
+            "mem_pct": f" ({mem_pct:+.0f}%)" if mem_pct is not None else "",
         })
 
     # Print table
-    cols = [("ns", lambda r: r["key"][0]),
-            ("workload", lambda r: r["key"][1]),
+    cols = [("workload", lambda r: r["key"][1]),
             ("container", lambda r: r["container"]),
+            ("change", lambda r: r["change"]),
             ("cur_cpu", lambda r: r["cur_cpu"]),
-            ("p95_cpu", lambda r: r["p95_cpu"]),
-            ("max_cpu", lambda r: r["max_cpu"]),
-            ("new_cpu", lambda r: r["new_cpu"] + (" *" if r["cpu_change"] else "")),
+            ("cpu_usage", lambda r: r["cpu_usage"]),
+            ("new_cpu", lambda r: r["new_cpu"] + r["cpu_pct"]),
             ("cur_mem", lambda r: r["cur_mem"]),
-            ("max_mem", lambda r: r["max_mem"]),
-            ("new_mem", lambda r: r["new_mem"] + (" *" if r["mem_change"] else "")),
-            ("file", lambda r: str(r["path"].relative_to(REPO)))]
+            ("mem_usage", lambda r: r["mem_usage"]),
+            ("new_mem", lambda r: r["new_mem"] + r["mem_pct"])]
     rendered = [[fn(r) for _, fn in cols] for r in suggestions]
     widths = [max(len(h), *(len(row[i]) for row in rendered)) if rendered else len(h)
               for i, (h, _) in enumerate(cols)]
@@ -256,8 +261,10 @@ def main():
     for row in rendered:
         print("  ".join(c.ljust(w) for c, w in zip(row, widths)))
 
-    print(f"\n{len(suggestions)} workloads in scope needing adjustment "
-          f"(window={args.window}).", file=sys.stderr)
+    needs = sum(1 for r in suggestions if r["change"] != "-")
+    print(f"\n{len(suggestions)} workloads in scope, {needs} need adjustment "
+          f"(window={args.window}, threshold={args.threshold:g}%, mem={args.mem_metric}).",
+          file=sys.stderr)
 
     if args.apply:
         print("\n--- applying ---", file=sys.stderr)

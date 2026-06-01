@@ -1,0 +1,10 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+@@RESOURCES@@
+commonAnnotations:
+  inf-k8s.net/repository: "@@REPO_URL@@"
+  inf-k8s.net/app: "@@NAME@@"
+images:
+  - name: @@IMAGE@@
+    newTag: @@IMAGE_TAG@@
