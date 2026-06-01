@@ -1,4 +1,4 @@
-- name: Setup K3S
+- name: Upgrade K3S
   hosts:
     - agent
     - control
