@@ -81,10 +81,11 @@ spec:
             upgradeVersionCheck: false
           longhornUI:
             replicas: 1
-          defaultSettings:
-            taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
+          defaultBackupStore:
             backupTarget: s3://longhorn-backup@us-east-1/
             backupTargetCredentialSecret: longhorn-backup-credentials
+          defaultSettings:
+            taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
           ingress:
             enabled: false
   destination:
