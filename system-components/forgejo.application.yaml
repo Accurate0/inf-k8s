@@ -212,6 +212,8 @@ spec:
             storageClass: longhorn-replicated
             accessModes:
               - ReadWriteOnce
+            labels:
+              recurring-job-group.longhorn.io/daily-backup: enabled
           signing:
             enabled: false
           gitea:

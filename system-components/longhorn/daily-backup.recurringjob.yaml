@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/longhorn.io/recurringjob_v1beta2.json
+apiVersion: longhorn.io/v1beta2
+kind: RecurringJob
+metadata:
+  name: daily-backup
+  namespace: longhorn-system
+spec:
+  cron: "0 0 * * *"
+  task: backup
+  groups:
+    - daily-backup
+  retain: 7
+  concurrency: 2
