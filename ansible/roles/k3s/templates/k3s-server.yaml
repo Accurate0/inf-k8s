@@ -1,8 +1,8 @@
 vpn-auth: "name=tailscale,joinKey={{ k3s_tailscale_auth_key }}"
 disable:
   - traefik
-node-external-ip: "{{ tailscale_ip.stdout }}"
-node-ip: "{{ tailscale_ip.stdout }}"
+node-external-ip: "{{ tailscale_ip_result.stdout }}"
+node-ip: "{{ tailscale_ip_result.stdout }}"
 server: {{ k3s_control_ip }}
 tls-san:
   - "{{ hostvars['k8s-optiplex-5'].tailscale_ip }}"

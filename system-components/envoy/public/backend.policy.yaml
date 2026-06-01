@@ -9,7 +9,13 @@ spec:
       kind: Gateway
       name: public-gateway
   mergeType: "StrategicMerge"
-  compression:
+  loadBalancer:
+    type: RoundRobin
+    zoneAware:
+      preferLocal:
+        minEndpointsThreshold: 1
+  compressor:
+    - type: Zstd
     - type: Gzip
     - type: Brotli
   tcpKeepalive:

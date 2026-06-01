@@ -17,7 +17,7 @@
 
     - name: Get tailscale ip
       ansible.builtin.command: "tailscale ip -4"
-      register: tailscale_ip
+      register: tailscale_ip_result
       tags:
         - skip_ansible_lint
 

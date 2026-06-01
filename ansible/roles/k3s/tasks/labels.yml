@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Reconcile node labels
+  ansible.builtin.command:
+    cmd: >-
+      kubectl label node {{ k8s_node_name | default(inventory_hostname) }}
+      {{ item.key }}={{ item.value }} --overwrite
+  loop: "{{ node_labels | dict2items }}"
+  delegate_to: "{{ k3s_label_delegate_host }}"
+  changed_when: "'labeled' in label_result.stdout"
+  register: label_result
+  retries: 10
+  delay: 6
+  until: label_result is not failed
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  when: node_labels is defined

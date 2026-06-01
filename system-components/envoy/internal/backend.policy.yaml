@@ -9,6 +9,11 @@ spec:
       kind: Gateway
       name: internal-gateway
   mergeType: "StrategicMerge"
+  loadBalancer:
+    type: RoundRobin
+    zoneAware:
+      preferLocal:
+        minEndpointsThreshold: 1
   tcpKeepalive:
     probes: 9
     idleTime: "7200s"
