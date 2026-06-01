@@ -14,6 +14,8 @@ spec:
       selfHeal: true
   project: @@LOCATION@@
   sources:
+@@SECRETS_SOURCE@@
+@@ROUTE_SOURCE@@
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: @@DIR@@/manifests
