@@ -213,6 +213,7 @@ spec:
             accessModes:
               - ReadWriteOnce
             labels:
+              recurring-job.longhorn.io/source: enabled
               recurring-job-group.longhorn.io/daily-backup: enabled
           signing:
             enabled: false
