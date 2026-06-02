@@ -12,10 +12,10 @@ resources:
   - selfbot/selfbot.deployment.yaml
   - selfbot/selfbot.service.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/home-gateway"
-  inf-k8s.net/app: "home-gateway"
+  inf-k8s.net/app: home-gateway
+  inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
 images:
   - name: ghcr.io/accurate0/home-gateway
-    newTag: 70c9110fd4c66289282e91b3ebe12a33e49e9854
+    newTag: 8a0eaf3f819b1e799962451fdd0a202ff61878ae
   - name: ghcr.io/accurate0/home-selfbot
-    newTag: 70c9110fd4c66289282e91b3ebe12a33e49e9854
+    newTag: 8a0eaf3f819b1e799962451fdd0a202ff61878ae
