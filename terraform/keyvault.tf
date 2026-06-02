@@ -41,18 +41,17 @@ resource "azuread_application_password" "eso-shared-vault" {
   application_id = azuread_application.eso-shared-vault.id
 }
 
-# infisical project that holds the service principal credentials so ESO can
-# pull them into the cluster (replicated via the universal-auth machine identity)
-resource "infisical_project" "external-secrets" {
-  name = "external-secrets"
-  slug = "external-secrets"
+# pre-existing infisical project (slug external-secrets-u2b0) that holds the
+# service principal credentials ESO pulls into the cluster
+locals {
+  infisical_external_secrets_project_id = "cda01656-1403-4d33-aed0-1adda3ca43ea"
 }
 
 resource "infisical_secret" "azure-client-id" {
   name         = "AZURE_CLIENT_ID"
   value        = azuread_application.eso-shared-vault.client_id
   env_slug     = "prod"
-  workspace_id = infisical_project.external-secrets.id
+  workspace_id = local.infisical_external_secrets_project_id
   folder_path  = "/"
 }
 
@@ -60,14 +59,6 @@ resource "infisical_secret" "azure-client-secret" {
   name         = "AZURE_CLIENT_SECRET"
   value        = azuread_application_password.eso-shared-vault.value
   env_slug     = "prod"
-  workspace_id = infisical_project.external-secrets.id
+  workspace_id = local.infisical_external_secrets_project_id
   folder_path  = "/"
-}
-
-output "k8s_shared_vault_uri" {
-  value = azurerm_key_vault.k8s-shared-vault.vault_uri
-}
-
-output "k8s_shared_vault_tenant_id" {
-  value = data.azurerm_client_config.current.tenant_id
 }
