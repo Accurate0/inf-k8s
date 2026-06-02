@@ -41,7 +41,7 @@ module "janitor-bot-github-webhook-secret" {
 resource "github_repository_webhook" "janitor-bot" {
   for_each   = local.janitor_bot_webhook_repos
   repository = each.value
-  events     = ["workflow_run", "check_run", "check_suite", "status"]
+  events     = ["workflow_run", "check_run", "check_suite", "status", "push"]
   active     = true
 
   configuration {

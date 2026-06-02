@@ -10,4 +10,4 @@ expression: names
 - retry-renovate-workflow
 - mirror-commit-status
 - argocd-sync-status
-- argocd-sync-merged-pr
+- forward-push-to-argocd

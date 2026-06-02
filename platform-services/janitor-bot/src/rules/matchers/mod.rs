@@ -27,6 +27,7 @@ fn event_kind_and_source(ev: &BotEvent<'_>) -> (EventKind, EventSource) {
         BotEvent::GitHubWorkflow(_) => (EventKind::Workflow, EventSource::Github),
         BotEvent::GitHubCommitStatus(_) => (EventKind::CommitStatus, EventSource::Github),
         BotEvent::GitHubCheckRun(_) => (EventKind::CheckRun, EventSource::Github),
+        BotEvent::GitHubPush(_) => (EventKind::Push, EventSource::Github),
         BotEvent::ArgoSync(_) => (EventKind::Sync, EventSource::Argocd),
     }
 }
@@ -211,6 +212,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubCheckRun(cr) => {
                     mode.matches(&format!("{} {}", cr.workflow_name, cr.name), value)
                 }
+                BotEvent::GitHubPush(push) => mode.matches(&push.branch, value),
                 BotEvent::ArgoSync(sync) => mode.matches(&sync.app_name, value),
             },
             LeafMatcher::HasLabel { value } => match ev {
@@ -323,6 +325,7 @@ fn eval_leaf<'a>(
             LeafMatcher::TargetBranch { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.target_branch == *value,
                 BotEvent::GitHubWorkflow(wf) => wf.branch == *value,
+                BotEvent::GitHubPush(push) => push.branch == *value,
                 BotEvent::GitHubCommitStatus(_) => false,
                 BotEvent::GitHubCheckRun(_) => false,
                 BotEvent::ArgoSync(_) => false,
@@ -332,6 +335,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubWorkflow(wf) => wf.repository == *value,
                 BotEvent::GitHubCommitStatus(cs) => cs.repository == *value,
                 BotEvent::GitHubCheckRun(cr) => cr.repository == *value,
+                BotEvent::GitHubPush(push) => push.repository == *value,
                 BotEvent::ArgoSync(_) => false,
             },
 

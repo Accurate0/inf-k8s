@@ -111,6 +111,8 @@ spec:
                 p, janitor, projects, get, *, allow
             params:
               server.insecure: true
+            secret:
+              githubSecret: $argocd-managed-secrets:GITHUB_WEBHOOK_SECRET
 
           notifications:
             enabled: true

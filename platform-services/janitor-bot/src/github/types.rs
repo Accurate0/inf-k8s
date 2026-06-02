@@ -79,6 +79,18 @@ pub(super) struct CommitStatusPayload {
 }
 
 #[derive(Debug, Deserialize)]
+pub(super) struct PushRepository {
+    pub full_name: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+pub(super) struct PushPayload {
+    #[serde(rename = "ref")]
+    pub r#ref: Option<String>,
+    pub repository: Option<PushRepository>,
+}
+
+#[derive(Debug, Deserialize)]
 pub(super) struct CheckRunApp {
     pub name: Option<String>,
 }

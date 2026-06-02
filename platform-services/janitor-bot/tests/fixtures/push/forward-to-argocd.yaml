@@ -1,0 +1,10 @@
+type: push
+payload:
+  ref: refs/heads/main
+  repository:
+    full_name: Accurate0/inf-k8s
+mocks:
+  - service: argocd
+    method: POST
+    path: /api/webhook
+    status: 200

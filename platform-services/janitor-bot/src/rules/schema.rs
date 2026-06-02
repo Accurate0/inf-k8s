@@ -179,8 +179,8 @@ pub enum ActionDef {
         #[serde(default = "default_sync_timeout_secs")]
         timeout_secs: u64,
     },
-    #[serde(rename = "argocd_sync_changed_apps")]
-    ArgocdSyncChangedApps,
+    #[serde(rename = "proxy_pass")]
+    ProxyPass { service: ProxyServiceDef },
     #[serde(rename = "close_other_prs")]
     CloseOtherPrs {
         author: String,
@@ -211,6 +211,22 @@ fn default_sync_timeout_secs() -> u64 {
 #[serde(rename_all = "snake_case")]
 pub enum RetryWorkflowTargetDef {
     Github,
+}
+
+/// Target service for the `proxy_pass` action. The original inbound request
+/// (body + headers) is forwarded verbatim to the service's webhook endpoint.
+#[derive(Debug, Deserialize, JsonSchema, Clone, Copy)]
+#[serde(rename_all = "snake_case")]
+pub enum ProxyServiceDef {
+    Argocd,
+}
+
+impl From<ProxyServiceDef> for crate::rules::actions::ProxyService {
+    fn from(def: ProxyServiceDef) -> Self {
+        match def {
+            ProxyServiceDef::Argocd => Self::Argocd,
+        }
+    }
 }
 
 impl From<&RetryWorkflowTargetDef> for RetryWorkflowTarget {
@@ -325,7 +341,9 @@ impl ActionDef {
                 sha: sha.clone(),
                 timeout_secs: *timeout_secs,
             },
-            ActionDef::ArgocdSyncChangedApps => Action::ArgocdSyncChangedApps,
+            ActionDef::ProxyPass { service } => Action::ProxyPass {
+                service: (*service).into(),
+            },
             ActionDef::CloseOtherPrs {
                 author,
                 criteria,

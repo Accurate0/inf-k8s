@@ -5,7 +5,8 @@ pub mod schema;
 
 use crate::clients::Clients;
 use crate::event::{
-    ArgoSyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, WorkflowEvent,
+    ArgoSyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, PushEvent, RawRequest,
+    WorkflowEvent,
 };
 use crate::metrics;
 use crate::rules::matchers::{Combinator, Matcher, ResourceCache};
@@ -211,7 +212,8 @@ impl RulesOrchestrator {
         let matched = self
             .explain_rules_with_cache(&bot_event, clients, &cache)
             .await;
-        self.run_rules_with_cache(clients, &bot_event, &cache).await;
+        self.run_rules_with_cache(clients, &bot_event, &cache, None)
+            .await;
 
         matched
     }
@@ -252,7 +254,7 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::ForgejoPr(event);
-        self.run_rules(clients, &bot_event).await;
+        self.run_rules(clients, &bot_event, None).await;
     }
 
     pub async fn explain_commit_status(
@@ -266,7 +268,7 @@ impl RulesOrchestrator {
 
     pub async fn evaluate_commit_status(&self, clients: &Clients, event: &CommitStatusEvent) {
         let bot_event = BotEvent::GitHubCommitStatus(event);
-        self.run_rules(clients, &bot_event).await;
+        self.run_rules(clients, &bot_event, None).await;
     }
 
     async fn enrich_check_run(clients: &Clients, event: &mut CheckRunEvent) {
@@ -291,7 +293,7 @@ impl RulesOrchestrator {
     pub async fn evaluate_check_run(&self, clients: &Clients, event: &mut CheckRunEvent) {
         Self::enrich_check_run(clients, event).await;
         let bot_event = BotEvent::GitHubCheckRun(event);
-        self.run_rules(clients, &bot_event).await;
+        self.run_rules(clients, &bot_event, None).await;
     }
 
     pub async fn explain_argocd_sync(
@@ -305,7 +307,22 @@ impl RulesOrchestrator {
 
     pub async fn evaluate_argocd_sync(&self, clients: &Clients, event: &ArgoSyncEvent) {
         let bot_event = BotEvent::ArgoSync(event);
-        self.run_rules(clients, &bot_event).await;
+        self.run_rules(clients, &bot_event, None).await;
+    }
+
+    pub async fn explain_push(&self, clients: &Clients, event: &PushEvent) -> Vec<MatchedRule> {
+        let bot_event = BotEvent::GitHubPush(event);
+        self.explain_rules(&bot_event, clients).await
+    }
+
+    pub async fn evaluate_push(
+        &self,
+        clients: &Clients,
+        event: &PushEvent,
+        raw: &RawRequest,
+    ) {
+        let bot_event = BotEvent::GitHubPush(event);
+        self.run_rules(clients, &bot_event, Some(raw)).await;
     }
 
     pub async fn evaluate_workflow(&self, clients: &Clients, event: &mut WorkflowEvent) {
@@ -317,7 +334,7 @@ impl RulesOrchestrator {
         }
 
         let bot_event = BotEvent::GitHubWorkflow(event);
-        self.run_rules(clients, &bot_event).await;
+        self.run_rules(clients, &bot_event, None).await;
     }
 
     pub async fn run_rule_by_name_unconditionally(
@@ -342,7 +359,7 @@ impl RulesOrchestrator {
         let resources = self.collect_resources();
         cache.prefetch(clients, &bot_event, &resources).await;
 
-        self.execute_actions(rule, clients, &bot_event, &cache, false)
+        self.execute_actions(rule, clients, &bot_event, &cache, false, None)
             .await;
 
         Ok(())
@@ -441,12 +458,17 @@ impl RulesOrchestrator {
         resources
     }
 
-    async fn run_rules<'a>(&self, clients: &Clients, event: &BotEvent<'a>) {
+    async fn run_rules<'a>(
+        &self,
+        clients: &Clients,
+        event: &BotEvent<'a>,
+        raw: Option<&RawRequest>,
+    ) {
         let cache = ResourceCache::new();
         let resources = self.collect_resources();
         cache.prefetch(clients, event, &resources).await;
 
-        self.run_rules_with_cache(clients, event, &cache).await;
+        self.run_rules_with_cache(clients, event, &cache, raw).await;
     }
 
     async fn run_rules_with_cache<'a>(
@@ -454,6 +476,7 @@ impl RulesOrchestrator {
         clients: &Clients,
         event: &BotEvent<'a>,
         cache: &ResourceCache,
+        raw: Option<&RawRequest>,
     ) {
         let overall_start = Instant::now();
         let mut executed_rules: HashSet<String> = HashSet::new();
@@ -498,7 +521,7 @@ impl RulesOrchestrator {
             );
 
             let actions_log = self
-                .execute_actions(rule, clients, event, cache, dry_run)
+                .execute_actions(rule, clients, event, cache, dry_run, raw)
                 .await;
 
             let had_ran = actions_log.iter().any(|a| a.ran);
@@ -540,6 +563,7 @@ impl RulesOrchestrator {
         event: &BotEvent<'a>,
         cache: &ResourceCache,
         dry_run: bool,
+        raw: Option<&RawRequest>,
     ) -> Vec<ExplainAction> {
         let rule_start = Instant::now();
         let now = self.now();
@@ -586,7 +610,7 @@ impl RulesOrchestrator {
                     action = action.kind(),
                 );
                 action
-                    .execute(clients, event, cache)
+                    .execute(clients, event, cache, raw)
                     .instrument(action_span)
                     .await;
                 let action_elapsed = action_start.elapsed();

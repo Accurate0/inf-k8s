@@ -2,7 +2,7 @@ use std::time::{Duration, Instant};
 
 use crate::clients::Clients;
 use crate::command::ACK_LABEL;
-use crate::event::BotEvent;
+use crate::event::{BotEvent, RawRequest};
 use crate::forgejo::CommitStatusParams;
 use crate::rules::matchers::ResourceCache;
 use crate::rules::matchers::cache::get_changed_files_cached;
@@ -12,6 +12,10 @@ use forgejo_api::structs::MergePullRequestOptionDo;
 
 pub enum RetryWorkflowTarget {
     GitHub,
+}
+
+pub enum ProxyService {
+    Argocd,
 }
 
 #[allow(dead_code)]
@@ -70,7 +74,9 @@ pub enum Action {
         sha: TemplateString,
         timeout_secs: u64,
     },
-    ArgocdSyncChangedApps,
+    ProxyPass {
+        service: ProxyService,
+    },
     CloseOtherPrs {
         author: String,
         criteria: CloseOtherPrsCriteria,
@@ -94,12 +100,18 @@ impl Action {
             Action::RetryWorkflow { .. } => "retry_workflow",
             Action::SetCommitStatus { .. } => "set_commit_status",
             Action::WaitForGithubSync { .. } => "wait_for_github_sync",
-            Action::ArgocdSyncChangedApps => "argocd_sync_changed_apps",
+            Action::ProxyPass { .. } => "proxy_pass",
             Action::CloseOtherPrs { .. } => "close_other_prs",
         }
     }
 
-    pub async fn execute(&self, clients: &Clients, event: &BotEvent<'_>, cache: &ResourceCache) {
+    pub async fn execute(
+        &self,
+        clients: &Clients,
+        event: &BotEvent<'_>,
+        cache: &ResourceCache,
+        raw: Option<&RawRequest>,
+    ) {
         let client = &clients.forgejo;
         let result = match self {
             Action::Approve { comment } => {
@@ -376,18 +388,27 @@ impl Action {
                 }
                 return;
             }
-            Action::ArgocdSyncChangedApps => {
-                let BotEvent::ForgejoPr(pr) = event else {
+            Action::ProxyPass { service } => {
+                let Some(raw) = raw else {
+                    tracing::warn!(
+                        "proxy_pass action has no raw request to forward; skipping"
+                    );
                     return;
                 };
 
-                if !pr.merged {
-                    tracing::info!(pr = pr.pr_number, "PR not merged, skipping argocd sync");
-                    return;
+                let result = match service {
+                    ProxyService::Argocd => {
+                        clients
+                            .argocd
+                            .forward_webhook(&raw.body, &raw.headers)
+                            .await
+                    }
+                };
+
+                if let Err(e) = result {
+                    tracing::error!("proxy_pass to argocd failed: {e}");
                 }
 
-                let files = get_changed_files_cached(clients, cache, pr).await;
-                clients.argocd.sync_changed_apps(&files).await;
                 return;
             }
             Action::CloseOtherPrs {

@@ -4,7 +4,9 @@ use crate::event::WorkflowEvent;
 use hmac::{Hmac, KeyInit, Mac};
 use serde::Deserialize;
 use sha2::Sha256;
-use types::{CheckRunPayload, CommitStatusPayload, HeadCommit, JobsResponse, WorkflowRunPayload};
+use types::{
+    CheckRunPayload, CommitStatusPayload, HeadCommit, JobsResponse, PushPayload, WorkflowRunPayload,
+};
 
 pub use types::FailedJobsResult;
 
@@ -297,6 +299,21 @@ pub fn parse_check_run_event(body: &[u8]) -> Option<crate::event::CheckRunEvent>
         app_name: cr.app.and_then(|a| a.name).unwrap_or_default(),
         run_id,
         workflow_name: String::new(),
+    })
+}
+
+pub fn parse_push_event(body: &[u8]) -> Option<crate::event::PushEvent> {
+    let payload: PushPayload = serde_json::from_slice(body).ok()?;
+    let branch = payload
+        .r#ref
+        .as_deref()
+        .and_then(|r| r.strip_prefix("refs/heads/"))
+        .unwrap_or_default()
+        .to_string();
+
+    Some(crate::event::PushEvent {
+        repository: payload.repository?.full_name?,
+        branch,
     })
 }
 

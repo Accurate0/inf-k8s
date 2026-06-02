@@ -1,0 +1,6 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response: []
+external_requests: []

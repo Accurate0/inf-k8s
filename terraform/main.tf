@@ -10,6 +10,11 @@ terraform {
       version = ">= 4"
     }
 
+    azuread = {
+      source  = "hashicorp/azuread"
+      version = ">= 3"
+    }
+
     tls = {
       source  = "hashicorp/tls"
       version = ">= 4"
@@ -49,6 +54,7 @@ provider "binarylane" {}
 provider "azurerm" {
   features {}
 }
+provider "azuread" {}
 
 variable "tf_github_token" {
   type      = string

@@ -298,13 +298,17 @@
         {
           "type": "object",
           "properties": {
+            "service": {
+              "$ref": "#/$defs/ProxyServiceDef"
+            },
             "type": {
               "type": "string",
-              "const": "argocd_sync_changed_apps"
+              "const": "proxy_pass"
             }
           },
           "required": [
-            "type"
+            "type",
+            "service"
           ]
         },
         {
@@ -439,6 +443,7 @@
         "workflow",
         "commit_status",
         "check_run",
+        "push",
         "sync"
       ]
     },
@@ -1386,6 +1391,13 @@
         "merge",
         "squash",
         "rebase"
+      ]
+    },
+    "ProxyServiceDef": {
+      "description": "Target service for the `proxy_pass` action. The original inbound request\n(body + headers) is forwarded verbatim to the service's webhook endpoint.",
+      "type": "string",
+      "enum": [
+        "argocd"
       ]
     },
     "RetryWorkflowTargetDef": {

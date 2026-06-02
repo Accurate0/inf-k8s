@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../rule.schema.json
+name: forward-push-to-argocd
+when:
+  all:
+    - type: event
+      kind: push
+      source: github
+    - type: repository
+      value: Accurate0/inf-k8s
+actions:
+  - run:
+      - type: proxy_pass
+        service: argocd

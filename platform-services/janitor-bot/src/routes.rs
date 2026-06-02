@@ -39,6 +39,30 @@ fn background_span(name: &'static str) -> Span {
     span
 }
 
+/// Headers worth forwarding when proxying a webhook downstream. Notably the
+/// GitHub event type and signature, so the downstream service can re-validate
+/// the payload against its own copy of the shared secret.
+const FORWARD_HEADERS: &[&str] = &[
+    "content-type",
+    "user-agent",
+    "x-github-event",
+    "x-github-delivery",
+    "x-hub-signature",
+    "x-hub-signature-256",
+];
+
+fn forward_headers(headers: &HeaderMap) -> Vec<(String, String)> {
+    FORWARD_HEADERS
+        .iter()
+        .filter_map(|name| {
+            headers
+                .get(*name)
+                .and_then(|v| v.to_str().ok())
+                .map(|v| ((*name).to_string(), v.to_string()))
+        })
+        .collect()
+}
+
 pub async fn handle_forgejo_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
@@ -192,6 +216,37 @@ pub async fn handle_github_webhook(
                     .await;
             }
             .instrument(background_span("github_status")),
+        );
+        return StatusCode::OK;
+    }
+
+    if github_event == "push" {
+        let Some(push_event) = github::parse_push_event(&body) else {
+            tracing::info!("received github push event but failed to parse");
+            return StatusCode::OK;
+        };
+
+        tracing::info!(
+            repository = push_event.repository,
+            branch = push_event.branch,
+            "received github push event"
+        );
+
+        // Capture the raw request so the `proxy_pass` action can forward it
+        // verbatim (preserving the signature) to a downstream service.
+        let raw = event::RawRequest {
+            body: body.to_vec(),
+            headers: forward_headers(&headers),
+        };
+
+        tokio::spawn(
+            async move {
+                state
+                    .orchestrator
+                    .evaluate_push(&state.clients, &push_event, &raw)
+                    .await;
+            }
+            .instrument(background_span("github_push")),
         );
         return StatusCode::OK;
     }

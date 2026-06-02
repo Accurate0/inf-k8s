@@ -1,0 +1,6 @@
+type: push
+payload:
+  ref: refs/heads/main
+  repository:
+    full_name: Accurate0/some-other-repo
+mocks: []

@@ -1,0 +1,18 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - action: proxy_pass
+        ran: true
+    dry_run: false
+    name: forward-push-to-argocd
+external_requests:
+  - method: POST
+    path: /api/webhook
+    body:
+      ref: refs/heads/main
+      repository:
+        full_name: Accurate0/inf-k8s
+    service: argocd

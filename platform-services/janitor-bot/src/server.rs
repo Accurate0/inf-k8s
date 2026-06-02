@@ -174,6 +174,41 @@ async fn handle_evaluate(
                 Json(serde_json::to_value(&matched).unwrap()),
             )
         }
+        "push" => {
+            let body = match serde_json::to_vec(&request.payload) {
+                Ok(b) => b,
+                Err(e) => {
+                    return (
+                        StatusCode::BAD_REQUEST,
+                        Json(serde_json::json!({"error": e.to_string()})),
+                    );
+                }
+            };
+            let Some(push_event) = github::parse_push_event(&body) else {
+                return (
+                    StatusCode::BAD_REQUEST,
+                    Json(serde_json::json!({"error": "invalid push payload"})),
+                );
+            };
+
+            let raw = event::RawRequest {
+                headers: vec![
+                    ("content-type".into(), "application/json".into()),
+                    ("x-github-event".into(), "push".into()),
+                ],
+                body,
+            };
+
+            let matched = orchestrator.explain_push(&state.clients, &push_event).await;
+            orchestrator
+                .evaluate_push(&state.clients, &push_event, &raw)
+                .await;
+
+            (
+                StatusCode::OK,
+                Json(serde_json::to_value(&matched).unwrap()),
+            )
+        }
         "argocd_sync" => {
             use crate::argocd::types::ArgoSyncPayload;
             let payload: ArgoSyncPayload = match serde_json::from_value(request.payload) {

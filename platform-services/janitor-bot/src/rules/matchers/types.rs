@@ -9,6 +9,7 @@ pub enum EventKind {
     Workflow,
     CommitStatus,
     CheckRun,
+    Push,
     Sync,
 }
 

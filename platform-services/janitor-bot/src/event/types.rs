@@ -118,6 +118,26 @@ pub struct ArgoSyncEvent {
     pub message: String,
 }
 
+/// A GitHub `push` webhook, parsed only enough for rule matching
+/// (`repository`, `branch`). Forwarding the original request is handled
+/// generically by the `proxy_pass` action via [`RawRequest`], so the raw
+/// bytes are intentionally *not* stored here.
+#[allow(dead_code)]
+pub struct PushEvent {
+    pub repository: String,
+    pub branch: String,
+}
+
+/// The original inbound HTTP request (body + headers) that triggered an
+/// evaluation. Captured at the webhook boundary and threaded through to action
+/// execution so the generic `proxy_pass` action can forward it verbatim —
+/// preserving the GitHub signature so the downstream service can re-verify it.
+#[derive(Clone, Default)]
+pub struct RawRequest {
+    pub body: Vec<u8>,
+    pub headers: Vec<(String, String)>,
+}
+
 #[allow(dead_code)]
 pub struct CheckRunEvent {
     pub repository: String,
@@ -157,5 +177,6 @@ pub enum BotEvent<'a> {
     GitHubWorkflow(&'a WorkflowEvent),
     GitHubCommitStatus(&'a CommitStatusEvent),
     GitHubCheckRun(&'a CheckRunEvent),
+    GitHubPush(&'a PushEvent),
     ArgoSync(&'a ArgoSyncEvent),
 }
