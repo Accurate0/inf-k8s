@@ -47,18 +47,19 @@ locals {
   infisical_external_secrets_project_id = "cda01656-1403-4d33-aed0-1adda3ca43ea"
 }
 
-resource "infisical_secret" "azure-client-id" {
-  name         = "AZURE_CLIENT_ID"
-  value        = azuread_application.eso-shared-vault.client_id
-  env_slug     = "prod"
-  workspace_id = local.infisical_external_secrets_project_id
-  folder_path  = "/"
-}
-
-resource "infisical_secret" "azure-client-secret" {
-  name         = "AZURE_CLIENT_SECRET"
-  value        = azuread_application_password.eso-shared-vault.value
-  env_slug     = "prod"
-  workspace_id = local.infisical_external_secrets_project_id
-  folder_path  = "/"
-}
+# TODO: FIXME
+# resource "infisical_secret" "azure-client-id" {
+#   name         = "AZURE_CLIENT_ID"
+#   value        = azuread_application.eso-shared-vault.client_id
+#   env_slug     = "prod"
+#   workspace_id = local.infisical_external_secrets_project_id
+#   folder_path  = "/"
+# }
+#
+# resource "infisical_secret" "azure-client-secret" {
+#   name         = "AZURE_CLIENT_SECRET"
+#   value        = azuread_application_password.eso-shared-vault.value
+#   env_slug     = "prod"
+#   workspace_id = local.infisical_external_secrets_project_id
+#   folder_path  = "/"
+# }
