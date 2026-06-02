@@ -19,6 +19,16 @@ resource "azurerm_key_vault" "k8s-shared-vault" {
     secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Recover"]
   }
 
+  # my interactive access
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = "47245261-7eb5-4a37-9d1a-a3805201ddde" # me
+
+    key_permissions = ["Get", "List", "Create", "Delete"]
+
+    secret_permissions = ["Get", "List", "Set", "Delete", "Recover", "Restore"]
+  }
+
   # external-secrets-operator reads secrets via its service principal
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
