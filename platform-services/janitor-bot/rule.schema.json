@@ -754,6 +754,26 @@
         {
           "type": "object",
           "properties": {
+            "marker": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "bot.comment_contains"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "marker",
+            "value"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
             "default": {
               "type": "boolean"
             },
@@ -1154,6 +1174,26 @@
           },
           "required": [
             "type"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "marker": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "bot.comment_contains"
+            },
+            "value": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "type",
+            "marker",
+            "value"
           ]
         },
         {

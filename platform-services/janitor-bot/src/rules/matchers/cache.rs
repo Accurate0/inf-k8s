@@ -149,6 +149,42 @@ pub(super) async fn get_reviews_cached(
         .await
 }
 
+pub(super) async fn bot_comment_contains(
+    clients: &Clients,
+    cache: &ResourceCache,
+    pr: &PrEvent,
+    marker: &str,
+    value: &str,
+) -> bool {
+    let key = format!(
+        "bot_comment:{}/{}:{}:{}",
+        pr.owner, pr.repo, pr.pr_number, marker
+    );
+
+    let body: Option<String> = cache
+        .get_or_compute(&key, || async {
+            match clients
+                .forgejo
+                .find_bot_comment_with_marker_and_body(
+                    &pr.owner,
+                    &pr.repo,
+                    pr.pr_number as i64,
+                    marker,
+                )
+                .await
+            {
+                Ok(comment) => comment.map(|c| c.body),
+                Err(e) => {
+                    tracing::warn!(pr = pr.pr_number, "failed to fetch bot comments: {e}");
+                    None
+                }
+            }
+        })
+        .await;
+
+    body.is_some_and(|b| b.contains(value))
+}
+
 pub(super) async fn combined_status_cached(
     clients: &Clients,
     cache: &ResourceCache,

@@ -117,6 +117,8 @@ pub enum LeafMatcher {
     HasConflicts,
     #[serde(rename = "bot.has_approved")]
     BotHasApproved,
+    #[serde(rename = "bot.comment_contains")]
+    BotCommentContains { marker: String, value: String },
 
     #[serde(rename = "feature_flag")]
     FeatureFlag { name: String, default: bool },
@@ -241,6 +243,7 @@ impl LeafMatcher {
             LeafMatcher::IsMerged => "is_merged",
             LeafMatcher::HasConflicts => "has_conflicts",
             LeafMatcher::BotHasApproved => "bot.has_approved",
+            LeafMatcher::BotCommentContains { .. } => "bot.comment_contains",
             LeafMatcher::FeatureFlag { .. } => "feature_flag",
             LeafMatcher::TimeOfDay { .. } => "time_of_day",
             LeafMatcher::WorkflowConclusion { .. } => "workflow_conclusion",

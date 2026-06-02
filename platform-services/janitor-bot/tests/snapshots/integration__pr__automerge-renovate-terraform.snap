@@ -26,6 +26,9 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/issues/200/comments
+    service: forgejo
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/200/reviews
     body:

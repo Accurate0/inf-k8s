@@ -8,8 +8,8 @@ pub use types::*;
 
 pub use cache::ResourceCache;
 use cache::{
-    combined_status_cached, get_changed_files_cached, get_pr_cached, get_reviews_cached,
-    is_latest_by_metadata,
+    bot_comment_contains, combined_status_cached, get_changed_files_cached, get_pr_cached,
+    get_reviews_cached, is_latest_by_metadata,
 };
 
 use crate::clients::Clients;
@@ -239,6 +239,12 @@ fn eval_leaf<'a>(
             },
             LeafMatcher::BotHasApproved => match ev {
                 BotEvent::ForgejoPr(pr) => get_reviews_cached(clients, cache, pr).await,
+                _ => false,
+            },
+            LeafMatcher::BotCommentContains { marker, value } => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    bot_comment_contains(clients, cache, pr, marker, value).await
+                }
                 _ => false,
             },
 

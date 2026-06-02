@@ -113,6 +113,19 @@ mocks:
           created_at: "2026-01-07T09:00:00Z"
           updated_at: "2026-01-07T09:55:00Z"
   - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/issues/200/comments
+    status: 200
+    body:
+      - id: 1
+        body: "<!-- terraform-plan -->\n\nNo changes. Your infrastructure matches the configuration."
+        user:
+          login: janitor
+          avatar_url: ""
+          html_url: ""
+          created: "2020-01-01T00:00:00Z"
+          last_login: "2020-01-01T00:00:00Z"
+  - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/pulls/200/reviews
     status: 200
