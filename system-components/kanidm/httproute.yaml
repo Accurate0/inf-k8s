@@ -13,7 +13,11 @@ spec:
       namespace: envoy-gateway-system
       sectionName: wildcard-anurag-sh-https
   rules:
-    - backendRefs:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
         - group: ""
           kind: Service
           name: kanidm
