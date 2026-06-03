@@ -245,6 +245,9 @@ spec:
                 auth_url: https://idm.anurag.sh/ui/oauth2
                 token_url: https://idm.anurag.sh/oauth2/token
                 api_url: https://idm.anurag.sh/oauth2/openid/grafana/userinfo
+                login_attribute_path: preferred_username
+                email_attribute_path: email
+                name_attribute_path: name
                 role_attribute_strict: true
                 allow_assign_grafana_admin: false
                 role_attribute_path: contains(groups[*], 'platform_admins@idm.anurag.sh') && 'GrafanaAdmin' || contains(groups[*], 'grafana_users@idm.anurag.sh') && 'Editor' || 'Viewer'
