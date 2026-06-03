@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  name: forgejo
+  displayName: Forgejo
+  origin: https://git.anurag.sh/
+  redirectUrls:
+    - https://git.anurag.sh/user/oauth2/kanidm/callback
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-forgejo-oidc
+  secretNamespace: forgejo

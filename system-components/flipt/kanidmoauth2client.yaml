@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: flipt
+  namespace: flipt-v2
+spec:
+  name: flipt
+  displayName: Flipt
+  origin: https://flipt.inf-k8s.net/
+  redirectUrls:
+    - https://flipt.inf-k8s.net/auth/v1/method/oidc/kanidm/callback
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-flipt-oidc
+  secretNamespace: flipt-v2

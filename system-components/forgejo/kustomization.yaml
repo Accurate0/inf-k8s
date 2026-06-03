@@ -5,6 +5,7 @@ resources:
   - ./backend.policy.yaml
   - ./database.yaml
   - ./anubis.yaml
+  - ./kanidmoauth2client.yaml
 configMapGenerator:
   - name: forgejo-themes
     files:

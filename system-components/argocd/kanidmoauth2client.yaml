@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  name: argocd
+  displayName: Argo CD
+  origin: https://argocd.inf-k8s.net/
+  redirectUrls:
+    - https://argocd.inf-k8s.net/api/dex/callback
+    - https://argocd.inf-k8s.net/auth/callback
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-argocd-oidc
+  secretNamespace: argocd
