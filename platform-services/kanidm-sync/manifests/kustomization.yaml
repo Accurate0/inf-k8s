@@ -13,4 +13,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/kanidm-sync
-    newTag: a858d71f5da3fbc4e11a82d9270a772ae65b43bd
+    newTag: 54d01686b4e2195a071b7bf2efb02c71cef9834c
