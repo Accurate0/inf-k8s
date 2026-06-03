@@ -44,6 +44,10 @@ pub struct KanidmOAuth2ClientSpec {
     /// Disable the PKCE requirement for confidential clients that don't support it.
     #[serde(default)]
     pub allow_insecure_client_disable_pkce: bool,
+    /// Sign tokens with RS256 instead of the default ES256. Some OIDC clients
+    /// (e.g. Flipt's go-oidc) only accept RS256.
+    #[serde(default)]
+    pub enable_legacy_crypto: bool,
     /// Expose the short username (instead of the SPN) as preferred_username.
     #[serde(default)]
     pub prefer_short_username: bool,

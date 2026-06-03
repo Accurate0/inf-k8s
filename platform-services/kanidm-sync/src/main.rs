@@ -170,6 +170,12 @@ async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) ->
             .await
             .map_err(kanidm_err)?;
     }
+    if spec.enable_legacy_crypto {
+        kanidm
+            .idm_oauth2_rs_enable_legacy_crypto(name)
+            .await
+            .map_err(kanidm_err)?;
+    }
 
     // 5. Scope maps (desired ones; orphan removal of groups is left to the user in v1).
     for (group, scopes) in &spec.scope_maps {

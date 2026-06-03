@@ -12,6 +12,7 @@ spec:
     - https://flipt.inf-k8s.net/auth/v1/method/oidc/kanidm/callback
   preferShortUsername: true
   allowInsecureClientDisablePkce: true
+  enableLegacyCrypto: true
   secretKeys:
     clientId: FLIPT_KANIDM_CLIENT_ID
     clientSecret: FLIPT_KANIDM_CLIENT_SECRET

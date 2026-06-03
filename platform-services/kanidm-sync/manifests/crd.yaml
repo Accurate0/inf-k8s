@@ -50,6 +50,12 @@ spec:
                 type: object
               displayName:
                 type: string
+              enableLegacyCrypto:
+                default: false
+                description: |-
+                  Sign tokens with RS256 instead of the default ES256. Some OIDC clients
+                  (e.g. Flipt's go-oidc) only accept RS256.
+                type: boolean
               name:
                 description: The kanidm resource server name (lowercase, e.g. "forgejo").
                 type: string
