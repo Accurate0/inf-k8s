@@ -230,6 +230,8 @@ spec:
             deploymentStrategy:
               type: Recreate
             grafana.ini:
+              log:
+                filters: oauth.generic_oauth:debug
               auth:
                 disable_login_form: true
               auth.basic:
@@ -239,18 +241,16 @@ spec:
                 allow_sign_up: true
                 auto_login: true
                 name: Kanidm
-                scopes: openid profile email groups offline_access
+                scopes: openid profile email groups
                 use_pkce: true
                 use_refresh_token: true
                 auth_url: https://idm.anurag.sh/ui/oauth2
                 token_url: https://idm.anurag.sh/oauth2/token
                 api_url: https://idm.anurag.sh/oauth2/openid/grafana/userinfo
                 login_attribute_path: preferred_username
-                email_attribute_path: email
-                name_attribute_path: name
-                role_attribute_strict: true
-                allow_assign_grafana_admin: false
-                role_attribute_path: contains(groups[*], 'platform_admins@idm.anurag.sh') && 'GrafanaAdmin' || contains(groups[*], 'grafana_users@idm.anurag.sh') && 'Editor' || 'Viewer'
+                groups_attribute_path: groups
+                allow_assign_grafana_admin: true
+                role_attribute_path: contains(grafana_role[*], 'GrafanaAdmin') && 'GrafanaAdmin' || contains(grafana_role[*], 'Editor') && 'Editor' || 'Viewer'
               server:
                 root_url: "https://%(domain)s"
                 domain: grafana.inf-k8s.net

@@ -77,18 +77,6 @@ spec:
               dex.config: |
                 connectors:
                 - config:
-                    issuer: https://authentik.inf-k8s.net/application/o/argo-cd/
-                    clientID: $argocd-managed-secrets:AUTHENTIK_CLIENT_ID
-                    clientSecret: $argocd-managed-secrets:AUTHENTIK_CLIENT_SECRET
-                    insecureEnableGroups: true
-                    scopes:
-                      - openid
-                      - profile
-                      - email
-                  name: authentik
-                  type: oidc
-                  id: authentik
-                - config:
                     issuer: https://idm.anurag.sh/oauth2/openid/argocd
                     clientID: $kanidm-argocd-oidc:clientId
                     clientSecret: $kanidm-argocd-oidc:clientSecret
@@ -103,7 +91,6 @@ spec:
                   id: kanidm
             rbac:
               policy.csv: |
-                g, ArgoCD Admins, role:admin
                 g, platform_admins@idm.anurag.sh, role:admin
                 p, github-actions, applications, sync, bootstrap/*, allow
                 p, github-actions, applications, get, bootstrap/*, allow

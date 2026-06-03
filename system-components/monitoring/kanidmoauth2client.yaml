@@ -17,12 +17,18 @@ spec:
       - email
       - profile
       - groups
-      - offline_access
     platform_admins:
       - openid
       - email
       - profile
       - groups
-      - offline_access
+  claimMaps:
+    grafana_role:
+      join: array
+      valuesByGroup:
+        platform_admins:
+          - GrafanaAdmin
+        grafana_users:
+          - Editor
   secretName: kanidm-grafana-oidc
   secretNamespace: monitoring

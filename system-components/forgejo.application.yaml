@@ -64,15 +64,6 @@ spec:
                     includeAllSecrets: false
                     data:
                       privateKey: "{{ .GPG_PRIVATE_KEY }}"
-            - name: forgejo-oauth-secrets
-              secretPath: /oauth
-              managedSecrets:
-                - secretName: forgejo-oauth-managed-secrets
-                  template:
-                    includeAllSecrets: false
-                    data:
-                      key: "{{ .AUTHENTIK_CLIENT_ID }}"
-                      secret: "{{ .AUTHENTIK_CLIENT_SECRET }}"
             - name: forgejo-secrets
               secretPath: /
               managedSecrets:
@@ -349,15 +340,6 @@ spec:
               serviceMonitor:
                 enabled: true
             oauth:
-              - name: "authentik"
-                provider: "openidConnect"
-                existingSecret: forgejo-oauth-managed-secrets
-                autoDiscoverUrl: "https://authentik.anurag.sh/application/o/forgejo/.well-known/openid-configuration"
-                scopes: "email profile forgejo"
-                requiredClaimName: forgejo
-                groupClaimName: "forgejo"
-                adminGroup: "admin"
-                restrictedGroup: "restricted"
               - name: "kanidm"
                 provider: "openidConnect"
                 existingSecret: kanidm-forgejo-oidc

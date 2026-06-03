@@ -106,14 +106,6 @@ spec:
                   oidc:
                     enabled: true
                     providers:
-                      authentik:
-                        issuer_url: "https://authentik.inf-k8s.net/application/o/flipt/"
-                        client_id: "${env:FLIPT_AUTHENTIK_CLIENT_ID}"
-                        client_secret: "${env:FLIPT_AUTHENTIK_CLIENT_SECRET}"
-                        redirect_address: "https://flipt.inf-k8s.net"
-                        scopes:
-                          - email
-                          - profile
                       kanidm:
                         issuer_url: "https://idm.anurag.sh/oauth2/openid/flipt"
                         client_id: "${env:FLIPT_KANIDM_CLIENT_ID}"
