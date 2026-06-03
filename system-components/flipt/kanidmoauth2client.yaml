@@ -11,6 +11,11 @@ spec:
   redirectUrls:
     - https://flipt.inf-k8s.net/auth/v1/method/oidc/kanidm/callback
   scopeMaps:
+    flipt_users:
+      - openid
+      - email
+      - profile
+      - groups
     platform_admins:
       - openid
       - email

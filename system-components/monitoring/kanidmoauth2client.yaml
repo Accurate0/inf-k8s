@@ -11,6 +11,11 @@ spec:
   redirectUrls:
     - https://grafana.inf-k8s.net/login/generic_oauth
   scopeMaps:
+    grafana_users:
+      - openid
+      - email
+      - profile
+      - groups
     platform_admins:
       - openid
       - email

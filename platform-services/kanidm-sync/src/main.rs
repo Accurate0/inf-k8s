@@ -213,20 +213,27 @@ async fn write_secret(
         "name": spec.secret_name,
         "namespace": spec.secret_namespace,
     });
+
     if cr_namespace == spec.secret_namespace {
         metadata["ownerReferences"] = serde_json::json!([obj.controller_owner_ref(&()).unwrap()]);
     }
+    if !spec.secret_labels.is_empty() {
+        metadata["labels"] = serde_json::json!(spec.secret_labels);
+    }
+
+    // Key names are configurable so each app can consume the secret as-is.
+    let keys = &spec.secret_keys;
+    let mut string_data = serde_json::Map::new();
+    string_data.insert(keys.client_id.clone(), serde_json::json!(spec.name));
+    string_data.insert(keys.client_secret.clone(), serde_json::json!(client_secret));
+    string_data.insert(keys.issuer_url.clone(), serde_json::json!(issuer_url));
 
     // Server-side apply requires apiVersion/kind in the body, so build it explicitly.
     let patch = serde_json::json!({
         "apiVersion": "v1",
         "kind": "Secret",
         "metadata": metadata,
-        "stringData": {
-            "clientId": spec.name,
-            "clientSecret": client_secret,
-            "issuerUrl": issuer_url,
-        },
+        "stringData": serde_json::Value::Object(string_data),
     });
 
     let secrets = Api::<Secret>::namespaced(ctx.client.clone(), &spec.secret_namespace);
@@ -243,6 +250,7 @@ async fn write_secret(
         spec.secret_namespace,
         spec.secret_name
     );
+
     Ok(())
 }
 

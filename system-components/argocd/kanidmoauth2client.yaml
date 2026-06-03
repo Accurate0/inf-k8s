@@ -12,6 +12,11 @@ spec:
     - https://argocd.inf-k8s.net/api/dex/callback
     - https://argocd.inf-k8s.net/auth/callback
   scopeMaps:
+    argocd_users:
+      - openid
+      - email
+      - profile
+      - groups
     platform_admins:
       - openid
       - email

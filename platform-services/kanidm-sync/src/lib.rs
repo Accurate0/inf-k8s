@@ -23,9 +23,16 @@ pub struct KanidmOAuth2ClientSpec {
     /// Group name -> OIDC scopes granted to its members.
     #[serde(default)]
     pub scope_maps: BTreeMap<String, Vec<String>>,
-    /// Canonical Secret to write (clientId/clientSecret/issuerUrl).
+    /// Secret to write (clientId/clientSecret/issuerUrl by default).
     pub secret_name: String,
     pub secret_namespace: String,
+    /// Override the key names used in the written Secret (e.g. Forgejo wants key/secret).
+    #[serde(default)]
+    pub secret_keys: SecretKeys,
+    /// Extra labels to set on the written Secret (e.g. Argo CD needs
+    /// app.kubernetes.io/part-of: argocd to read it).
+    #[serde(default)]
+    pub secret_labels: BTreeMap<String, String>,
     /// Public (PKCE-only, no secret) client. Defaults to false (confidential).
     #[serde(default)]
     pub public: bool,
@@ -35,6 +42,37 @@ pub struct KanidmOAuth2ClientSpec {
     /// Expose the short username (instead of the SPN) as preferred_username.
     #[serde(default)]
     pub prefer_short_username: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct SecretKeys {
+    #[serde(default = "default_client_id_key")]
+    pub client_id: String,
+    #[serde(default = "default_client_secret_key")]
+    pub client_secret: String,
+    #[serde(default = "default_issuer_url_key")]
+    pub issuer_url: String,
+}
+
+impl Default for SecretKeys {
+    fn default() -> Self {
+        Self {
+            client_id: default_client_id_key(),
+            client_secret: default_client_secret_key(),
+            issuer_url: default_issuer_url_key(),
+        }
+    }
+}
+
+fn default_client_id_key() -> String {
+    "clientId".to_string()
+}
+fn default_client_secret_key() -> String {
+    "clientSecret".to_string()
+}
+fn default_issuer_url_key() -> String {
+    "issuerUrl".to_string()
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]

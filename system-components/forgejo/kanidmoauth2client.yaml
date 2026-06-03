@@ -10,7 +10,15 @@ spec:
   origin: https://git.anurag.sh/
   redirectUrls:
     - https://git.anurag.sh/user/oauth2/kanidm/callback
+  secretKeys:
+    clientId: key
+    clientSecret: secret
   scopeMaps:
+    forgejo_users:
+      - openid
+      - email
+      - profile
+      - groups
     platform_admins:
       - openid
       - email
