@@ -179,3 +179,157 @@ spec:
     storage: true
     subresources:
       status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kanidmgroups.inf-k8s.net
+spec:
+  group: inf-k8s.net
+  names:
+    kind: KanidmGroup
+    plural: kanidmgroups
+    singular: kanidmgroup
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for KanidmGroupSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              entryManagedBy:
+                description: Optional entry_managed_by parameter for group creation.
+                nullable: true
+                type: string
+              members:
+                default: []
+                description: |-
+                  Person account names to include as members. Authoritative: reconciled to
+                  this exact set via idm_group_set_members.
+                items:
+                  type: string
+                type: array
+              name:
+                description: The kanidm group name (authoritative key).
+                type: string
+            required:
+            - name
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  description: Standard Kubernetes condition (matches `metav1.Condition`).
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        title: KanidmGroup
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: kanidmusers.inf-k8s.net
+spec:
+  group: inf-k8s.net
+  names:
+    kind: KanidmUser
+    plural: kanidmusers
+    singular: kanidmuser
+  scope: Namespaced
+  versions:
+  - name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for KanidmUserSpec via `CustomResource`
+        properties:
+          spec:
+            properties:
+              displayName:
+                description: Display name for the person account.
+                type: string
+              legalName:
+                description: Optional legal name.
+                nullable: true
+                type: string
+              mail:
+                default: []
+                description: Email addresses associated with this account.
+                items:
+                  type: string
+                type: array
+              name:
+                description: The kanidm person account name (authoritative key).
+                type: string
+            required:
+            - displayName
+            - name
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  description: Standard Kubernetes condition (matches `metav1.Condition`).
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        title: KanidmUser
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

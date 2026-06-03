@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmgroup_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmGroup
+metadata:
+  name: argocd-users
+  namespace: kanidm
+spec:
+  name: argocd_users
+  members:
+    - anurag

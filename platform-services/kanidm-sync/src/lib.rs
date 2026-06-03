@@ -138,3 +138,55 @@ pub struct Condition {
     pub observed_generation: i64,
     pub last_transition_time: String,
 }
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[kube(
+    kind = "KanidmGroup",
+    group = "inf-k8s.net",
+    version = "v1",
+    namespaced
+)]
+#[kube(status = "KanidmGroupStatus")]
+pub struct KanidmGroupSpec {
+    /// The kanidm group name (authoritative key).
+    pub name: String,
+    /// Person account names to include as members. Authoritative: reconciled to
+    /// this exact set via idm_group_set_members.
+    #[serde(default)]
+    pub members: Vec<String>,
+    /// Optional entry_managed_by parameter for group creation.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry_managed_by: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KanidmGroupStatus {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
+}
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[kube(kind = "KanidmUser", group = "inf-k8s.net", version = "v1", namespaced)]
+#[kube(status = "KanidmUserStatus")]
+pub struct KanidmUserSpec {
+    /// The kanidm person account name (authoritative key).
+    pub name: String,
+    /// Display name for the person account.
+    pub display_name: String,
+    /// Optional legal name.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub legal_name: Option<String>,
+    /// Email addresses associated with this account.
+    #[serde(default)]
+    pub mail: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KanidmUserStatus {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
+}

@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmuser_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmUser
+metadata:
+  name: anurag
+  namespace: kanidm
+spec:
+  name: anurag
+  displayName: Anurag Singh
+  legalName: Anurag Singh
+  mail:
+    - contact@anurag.sh
+    - hey@anurag.sh

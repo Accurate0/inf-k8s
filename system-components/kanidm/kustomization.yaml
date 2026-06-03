@@ -6,3 +6,9 @@ resources:
   - certificate.yaml
   - httproute.yaml
   - backendtlspolicy.yaml
+  - groups/argocd-users.yaml
+  - groups/flipt-users.yaml
+  - groups/forgejo-users.yaml
+  - groups/grafana-users.yaml
+  - groups/platform-admins.yaml
+  - users/anurag.yaml

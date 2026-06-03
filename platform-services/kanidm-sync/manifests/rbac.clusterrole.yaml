@@ -8,6 +8,8 @@ rules:
       - "inf-k8s.net"
     resources:
       - kanidmoauth2clients
+      - kanidmgroups
+      - kanidmusers
     verbs:
       - get
       - list
@@ -16,6 +18,8 @@ rules:
       - "inf-k8s.net"
     resources:
       - kanidmoauth2clients/status
+      - kanidmgroups/status
+      - kanidmusers/status
     verbs:
       - get
       - update
