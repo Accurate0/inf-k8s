@@ -17,10 +17,12 @@ spec:
       - email
       - profile
       - groups
+      - offline_access
     platform_admins:
       - openid
       - email
       - profile
       - groups
+      - offline_access
   secretName: kanidm-grafana-oidc
   secretNamespace: monitoring

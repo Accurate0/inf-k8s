@@ -60,6 +60,8 @@ spec:
             envFrom:
               - secretRef:
                   name: flipt-managed-secrets
+              - secretRef:
+                  name: kanidm-flipt-oidc
             config:
               environments:
                 production:
@@ -112,6 +114,16 @@ spec:
                         scopes:
                           - email
                           - profile
+                      kanidm:
+                        issuer_url: "https://idm.anurag.sh/oauth2/openid/flipt"
+                        client_id: "${env:FLIPT_KANIDM_CLIENT_ID}"
+                        client_secret: "${env:FLIPT_KANIDM_CLIENT_SECRET}"
+                        redirect_address: "https://flipt.inf-k8s.net"
+                        scopes:
+                          - openid
+                          - email
+                          - profile
+                          - groups
                   github:
                     enabled: false
                     client_id: "${env:FLIPT_GITHUB_CLIENT_ID}"

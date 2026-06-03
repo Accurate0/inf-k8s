@@ -12,6 +12,9 @@ spec:
     - https://argocd.inf-k8s.net/api/dex/callback
     - https://argocd.inf-k8s.net/auth/callback
   preferShortUsername: true
+  allowInsecureClientDisablePkce: true
+  secretLabels:
+    app.kubernetes.io/part-of: argocd
   scopeMaps:
     argocd_users:
       - openid

@@ -218,6 +218,15 @@ spec:
                     - discord-config
           grafana:
             envFromSecret: "monitoring-managed-secrets"
+            envValueFrom:
+              GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
+                secretKeyRef:
+                  name: kanidm-grafana-oidc
+                  key: clientId
+              GF_AUTH_GENERIC_OAUTH_CLIENT_SECRET:
+                secretKeyRef:
+                  name: kanidm-grafana-oidc
+                  key: clientSecret
             deploymentStrategy:
               type: Recreate
             grafana.ini:
@@ -229,16 +238,16 @@ spec:
                 enabled: true
                 allow_sign_up: true
                 auto_login: true
-                name: Authentik
+                name: Kanidm
                 scopes: openid profile email groups offline_access
                 use_pkce: true
                 use_refresh_token: true
-                auth_url: https://authentik.inf-k8s.net/application/o/authorize/
-                token_url: https://authentik.inf-k8s.net/application/o/token/
-                api_url: https://authentik.inf-k8s.net/application/o/userinfo
+                auth_url: https://idm.anurag.sh/ui/oauth2
+                token_url: https://idm.anurag.sh/oauth2/token
+                api_url: https://idm.anurag.sh/oauth2/openid/grafana/userinfo
                 role_attribute_strict: true
                 allow_assign_grafana_admin: true
-                role_attribute_path: contains(groups[*], 'Grafana Admins') && 'GrafanaAdmin' || contains(groups[*], 'Grafana Users') && 'Editor' || 'Viewer'
+                role_attribute_path: contains(groups[*], 'platform_admins@idm.anurag.sh') && 'GrafanaAdmin' || contains(groups[*], 'grafana_users@idm.anurag.sh') && 'Editor' || 'Viewer'
               server:
                 root_url: "%(protocol)s://%(domain)s"
                 domain: grafana.inf-k8s.net

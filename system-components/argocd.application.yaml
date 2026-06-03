@@ -88,9 +88,23 @@ spec:
                   name: authentik
                   type: oidc
                   id: authentik
+                - config:
+                    issuer: https://idm.anurag.sh/oauth2/openid/argocd
+                    clientID: $kanidm-argocd-oidc:clientId
+                    clientSecret: $kanidm-argocd-oidc:clientSecret
+                    insecureEnableGroups: true
+                    scopes:
+                      - openid
+                      - profile
+                      - email
+                      - groups
+                  name: kanidm
+                  type: oidc
+                  id: kanidm
             rbac:
               policy.csv: |
                 g, ArgoCD Admins, role:admin
+                g, platform_admins@idm.anurag.sh, role:admin
                 p, github-actions, applications, sync, bootstrap/*, allow
                 p, github-actions, applications, get, bootstrap/*, allow
                 p, github-actions, applications, sync, system-components/*, allow
