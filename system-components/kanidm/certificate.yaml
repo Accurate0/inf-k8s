@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: idm-anurag-sh
+spec:
+  dnsNames:
+    - idm.anurag.sh
+  issuerRef:
+    kind: ClusterIssuer
+    name: letsencrypt-prod
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  secretName: idm-anurag-sh-tls
+  usages:
+    - digital signature
+    - server auth

@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/statefulset_v1.json
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kanidm
+  labels:
+    app.kubernetes.io/name: kanidm
+spec:
+  replicas: 1
+  serviceName: kanidm
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: kanidm
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: kanidm
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: kanidm
+          image: docker.io/kanidm/server:1.10.3
+          env:
+            - name: KANIDM_BINDADDRESS
+              value: "[::]:8443"
+            - name: KANIDM_LDAPBINDADDRESS
+              value: "[::]:3636"
+            - name: KANIDM_DB_PATH
+              value: /data/kanidm.db
+            - name: KANIDM_DOMAIN
+              value: idm.anurag.sh
+            - name: KANIDM_ORIGIN
+              value: https://idm.anurag.sh
+            - name: KANIDM_TLS_CHAIN
+              value: /certs/tls.crt
+            - name: KANIDM_TLS_KEY
+              value: /certs/tls.key
+            - name: KANIDM_ADMIN_BIND_PATH
+              value: /var/run/kanidmd.sock
+          ports:
+            - name: https
+              containerPort: 8443
+            - name: ldaps
+              containerPort: 3636
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: 8443
+              scheme: HTTPS
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 10m
+            limits:
+              memory: 144Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: run
+              mountPath: /var/run
+      volumes:
+        - name: certs
+          secret:
+            secretName: idm-anurag-sh-tls
+            defaultMode: 0440
+        - name: run
+          emptyDir: {}
+  volumeClaimTemplates:
+    - metadata:
+        name: data
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: longhorn-replicated
+        resources:
+          requests:
+            storage: 10Gi
