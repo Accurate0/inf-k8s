@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/tlsroute_v1.json
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/httproute_v1.json
 apiVersion: gateway.networking.k8s.io/v1
-kind: TLSRoute
+kind: HTTPRoute
 metadata:
   name: kanidm
 spec:
@@ -11,7 +11,7 @@ spec:
       kind: Gateway
       name: public-gateway
       namespace: envoy-gateway-system
-      sectionName: idm-anurag-sh-tls
+      sectionName: wildcard-anurag-sh-https
   rules:
     - backendRefs:
         - group: ""

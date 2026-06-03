@@ -4,4 +4,5 @@ resources:
   - statefulset.yaml
   - service.yaml
   - certificate.yaml
-  - tlsroute.yaml
+  - httproute.yaml
+  - backendtlspolicy.yaml
