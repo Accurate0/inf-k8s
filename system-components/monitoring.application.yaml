@@ -249,7 +249,7 @@ spec:
                 allow_assign_grafana_admin: true
                 role_attribute_path: contains(groups[*], 'platform_admins@idm.anurag.sh') && 'GrafanaAdmin' || contains(groups[*], 'grafana_users@idm.anurag.sh') && 'Editor' || 'Viewer'
               server:
-                root_url: "%(protocol)s://%(domain)s"
+                root_url: "https://%(domain)s"
                 domain: grafana.inf-k8s.net
                 protocol: http
             # Provision grafana-dashboards-kubernetes
