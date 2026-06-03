@@ -13,6 +13,7 @@ spec:
   secretKeys:
     clientId: key
     clientSecret: secret
+  preferShortUsername: true
   scopeMaps:
     forgejo_users:
       - openid
