@@ -50,8 +50,33 @@ spec:
                 default: {}
                 description: Group name -> OIDC scopes granted to its members.
                 type: object
+              secretKeys:
+                default:
+                  clientId: clientId
+                  clientSecret: clientSecret
+                  issuerUrl: issuerUrl
+                description: Override the key names used in the written Secret (e.g. Forgejo wants key/secret).
+                properties:
+                  clientId:
+                    default: clientId
+                    type: string
+                  clientSecret:
+                    default: clientSecret
+                    type: string
+                  issuerUrl:
+                    default: issuerUrl
+                    type: string
+                type: object
+              secretLabels:
+                additionalProperties:
+                  type: string
+                default: {}
+                description: |-
+                  Extra labels to set on the written Secret (e.g. Argo CD needs
+                  app.kubernetes.io/part-of: argocd to read it).
+                type: object
               secretName:
-                description: Canonical Secret to write (clientId/clientSecret/issuerUrl).
+                description: Secret to write (clientId/clientSecret/issuerUrl by default).
                 type: string
               secretNamespace:
                 type: string
