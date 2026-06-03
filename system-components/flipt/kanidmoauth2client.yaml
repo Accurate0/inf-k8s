@@ -10,6 +10,7 @@ spec:
   origin: https://flipt.inf-k8s.net/
   redirectUrls:
     - https://flipt.inf-k8s.net/auth/v1/method/oidc/kanidm/callback
+  preferShortUsername: true
   scopeMaps:
     flipt_users:
       - openid

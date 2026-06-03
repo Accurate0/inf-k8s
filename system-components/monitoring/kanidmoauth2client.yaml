@@ -10,6 +10,7 @@ spec:
   origin: https://grafana.inf-k8s.net/
   redirectUrls:
     - https://grafana.inf-k8s.net/login/generic_oauth
+  preferShortUsername: true
   scopeMaps:
     grafana_users:
       - openid

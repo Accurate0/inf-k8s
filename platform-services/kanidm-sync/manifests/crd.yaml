@@ -21,6 +21,33 @@ spec:
                 default: false
                 description: Disable the PKCE requirement for confidential clients that don't support it.
                 type: boolean
+              claimMaps:
+                additionalProperties:
+                  properties:
+                    join:
+                      default: array
+                      description: How a member's values are joined in the emitted claim.
+                      enum:
+                      - array
+                      - csv
+                      - ssv
+                      type: string
+                    valuesByGroup:
+                      additionalProperties:
+                        items:
+                          type: string
+                        type: array
+                      description: Group name -> claim values contributed by that group's members.
+                      type: object
+                  required:
+                  - valuesByGroup
+                  type: object
+                default: {}
+                description: |-
+                  Claim name -> group-membership-derived claim values. Lets an app
+                  auto-promote members of a kanidm group (e.g. expose a "forgejo" claim
+                  containing "admin" for platform_admins so Forgejo grants them admin).
+                type: object
               displayName:
                 type: string
               name:

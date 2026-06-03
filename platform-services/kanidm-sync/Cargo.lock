@@ -2868,6 +2868,7 @@ dependencies = [
  "futures",
  "k8s-openapi",
  "kanidm_client",
+ "kanidm_proto",
  "kube",
  "rustls",
  "schemars 1.2.1",

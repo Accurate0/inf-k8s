@@ -23,6 +23,11 @@ pub struct KanidmOAuth2ClientSpec {
     /// Group name -> OIDC scopes granted to its members.
     #[serde(default)]
     pub scope_maps: BTreeMap<String, Vec<String>>,
+    /// Claim name -> group-membership-derived claim values. Lets an app
+    /// auto-promote members of a kanidm group (e.g. expose a "forgejo" claim
+    /// containing "admin" for platform_admins so Forgejo grants them admin).
+    #[serde(default)]
+    pub claim_maps: BTreeMap<String, ClaimMap>,
     /// Secret to write (clientId/clientSecret/issuerUrl by default).
     pub secret_name: String,
     pub secret_namespace: String,
@@ -42,6 +47,25 @@ pub struct KanidmOAuth2ClientSpec {
     /// Expose the short username (instead of the SPN) as preferred_username.
     #[serde(default)]
     pub prefer_short_username: bool,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ClaimMap {
+    /// How a member's values are joined in the emitted claim.
+    #[serde(default)]
+    pub join: ClaimMapJoin,
+    /// Group name -> claim values contributed by that group's members.
+    pub values_by_group: BTreeMap<String, Vec<String>>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, JsonSchema, Default)]
+#[serde(rename_all = "lowercase")]
+pub enum ClaimMapJoin {
+    #[default]
+    Array,
+    Csv,
+    Ssv,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]

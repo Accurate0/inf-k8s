@@ -11,6 +11,7 @@ spec:
   redirectUrls:
     - https://argocd.inf-k8s.net/api/dex/callback
     - https://argocd.inf-k8s.net/auth/callback
+  preferShortUsername: true
   scopeMaps:
     argocd_users:
       - openid

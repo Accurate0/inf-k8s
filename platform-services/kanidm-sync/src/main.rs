@@ -1,7 +1,8 @@
 use futures::StreamExt;
 use k8s_openapi::api::core::v1::Secret;
 use kanidm_client::{KanidmClient, KanidmClientBuilder};
-use kanidm_sync::KanidmOAuth2Client;
+use kanidm_proto::internal::Oauth2ClaimMapJoin;
+use kanidm_sync::{ClaimMapJoin, KanidmOAuth2Client};
 use kube::{
     api::{Patch, PatchParams},
     runtime::controller::{Action, Controller},
@@ -84,20 +85,18 @@ async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) ->
 
     tracing::info!("reconciling oauth2 client {name} ({})", obj.name_any());
 
-    // 1. Ensure every group referenced by a scope map exists.
-    for group in spec.scope_maps.keys() {
-        if kanidm
-            .idm_group_get(group)
-            .await
-            .map_err(kanidm_err)?
-            .is_none()
-        {
-            tracing::info!("creating referenced group {group}");
-            kanidm
-                .idm_group_create(group, None)
-                .await
-                .map_err(kanidm_err)?;
-        }
+    // 1. Ensure every group referenced by a scope or claim map exists.
+    let groups: BTreeSet<&String> = spec
+        .scope_maps
+        .keys()
+        .chain(
+            spec.claim_maps
+                .values()
+                .flat_map(|m| m.values_by_group.keys()),
+        )
+        .collect();
+    for group in groups {
+        ensure_group(kanidm, group).await?;
     }
 
     // 2. Ensure the OAuth2 resource server exists, then update its core attributes.
@@ -181,6 +180,21 @@ async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) ->
             .map_err(kanidm_err)?;
     }
 
+    // 5b. Claim maps (group membership -> custom OIDC claim values, e.g. an
+    // "admin" value an app reads to auto-promote platform_admins members).
+    for (claim_name, claim_map) in &spec.claim_maps {
+        kanidm
+            .idm_oauth2_rs_update_claim_map_join(name, claim_name, join_proto(claim_map.join))
+            .await
+            .map_err(kanidm_err)?;
+        for (group, values) in &claim_map.values_by_group {
+            kanidm
+                .idm_oauth2_rs_update_claim_map(name, claim_name, group, values)
+                .await
+                .map_err(kanidm_err)?;
+        }
+    }
+
     // 6. For confidential clients, write the canonical Secret (id/secret/issuer).
     if !spec.public {
         let secret_value = kanidm
@@ -193,6 +207,30 @@ async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) ->
     }
 
     Ok(Action::requeue(Duration::from_secs(3600)))
+}
+
+async fn ensure_group(kanidm: &KanidmClient, group: &str) -> Result<()> {
+    if kanidm
+        .idm_group_get(group)
+        .await
+        .map_err(kanidm_err)?
+        .is_none()
+    {
+        tracing::info!("creating referenced group {group}");
+        kanidm
+            .idm_group_create(group, None)
+            .await
+            .map_err(kanidm_err)?;
+    }
+    Ok(())
+}
+
+fn join_proto(join: ClaimMapJoin) -> Oauth2ClaimMapJoin {
+    match join {
+        ClaimMapJoin::Array => Oauth2ClaimMapJoin::Array,
+        ClaimMapJoin::Csv => Oauth2ClaimMapJoin::Csv,
+        ClaimMapJoin::Ssv => Oauth2ClaimMapJoin::Ssv,
+    }
 }
 
 async fn write_secret(

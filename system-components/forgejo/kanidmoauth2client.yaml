@@ -25,5 +25,11 @@ spec:
       - email
       - profile
       - groups
+  claimMaps:
+    forgejo:
+      join: ssv
+      valuesByGroup:
+        platform_admins:
+          - admin
   secretName: kanidm-forgejo-oidc
   secretNamespace: forgejo
