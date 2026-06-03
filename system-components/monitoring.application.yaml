@@ -230,11 +230,8 @@ spec:
             deploymentStrategy:
               type: Recreate
             grafana.ini:
-              log:
-                filters: oauth.generic_oauth:debug
               auth:
                 disable_login_form: true
-                oauth_allow_insecure_email_lookup: true
               auth.basic:
                 enabled: false
               auth.generic_oauth:
