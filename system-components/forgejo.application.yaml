@@ -358,15 +358,15 @@ spec:
                 groupClaimName: "forgejo"
                 adminGroup: "admin"
                 restrictedGroup: "restricted"
-              # - name: "kanidm"
-              #   provider: "openidConnect"
-              #   existingSecret: kanidm-forgejo-oidc
-              #   autoDiscoverUrl: "https://idm.anurag.sh/oauth2/openid/forgejo/.well-known/openid-configuration"
-              #   scopes: "email profile, openid groups"
-              # requiredClaimName: forgejo
-              # groupClaimName: "forgejo"
-              # adminGroup: "admin"
-              # restrictedGroup: "restricted"
+              - name: "kanidm"
+                provider: "openidConnect"
+                existingSecret: kanidm-forgejo-oidc
+                autoDiscoverUrl: "https://idm.anurag.sh/oauth2/openid/forgejo/.well-known/openid-configuration"
+                scopes: "email profile openid groups"
+                # requiredClaimName: forgejo
+                # groupClaimName: "forgejo"
+                # adminGroup: "admin"
+                # restrictedGroup: "restricted"
     - chart: app-template
       repoURL: oci://ghcr.io/bjw-s-labs/helm/app-template
       targetRevision: 5.0.1
