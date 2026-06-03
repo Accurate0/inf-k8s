@@ -15,5 +15,8 @@ configMapGenerator:
   - name: forgejo-anubis-policy
     files:
       - botPolicies.yaml=anubis-policy.yaml
+  - name: forgejo-kanidm-icon
+    files:
+      - Forgejo.svg
 generatorOptions:
   disableNameSuffixHash: true

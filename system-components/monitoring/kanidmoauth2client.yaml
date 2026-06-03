@@ -32,3 +32,6 @@ spec:
           - Editor
   secretName: kanidm-grafana-oidc
   secretNamespace: monitoring
+  icon:
+    configMap: grafana-kanidm-icon
+    key: Grafana.svg

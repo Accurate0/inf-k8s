@@ -28,3 +28,6 @@ spec:
       - groups
   secretName: kanidm-argocd-oidc
   secretNamespace: argocd
+  icon:
+    configMap: argocd-kanidm-icon
+    key: ArgoCD.svg

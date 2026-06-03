@@ -51,6 +51,22 @@ pub struct KanidmOAuth2ClientSpec {
     /// Expose the short username (instead of the SPN) as preferred_username.
     #[serde(default)]
     pub prefer_short_username: bool,
+    /// Optional app icon/logo, sourced from a ConfigMap.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon: Option<IconRef>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct IconRef {
+    /// ConfigMap name holding the image.
+    pub config_map: String,
+    /// Key within the ConfigMap; its file extension sets the image type
+    /// (e.g. "Forgejo.svg" -> Svg).
+    pub key: String,
+    /// Namespace of the ConfigMap. Defaults to the CR's own namespace.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub namespace: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
@@ -106,5 +122,19 @@ fn default_issuer_url_key() -> String {
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct KanidmOAuth2ClientStatus {
-    pub provisioned: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
+}
+
+/// Standard Kubernetes condition (matches `metav1.Condition`).
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Condition {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub status: String,
+    pub reason: String,
+    pub message: String,
+    pub observed_generation: i64,
+    pub last_transition_time: String,
 }

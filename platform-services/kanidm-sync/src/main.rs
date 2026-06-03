@@ -1,8 +1,8 @@
 use futures::StreamExt;
-use k8s_openapi::api::core::v1::Secret;
+use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kanidm_client::{KanidmClient, KanidmClientBuilder};
-use kanidm_proto::internal::Oauth2ClaimMapJoin;
-use kanidm_sync::{ClaimMapJoin, KanidmOAuth2Client};
+use kanidm_proto::internal::{ImageType, ImageValue, Oauth2ClaimMapJoin};
+use kanidm_sync::{ClaimMapJoin, Condition, IconRef, KanidmOAuth2Client, KanidmOAuth2ClientStatus};
 use kube::{
     api::{Patch, PatchParams},
     runtime::controller::{Action, Controller},
@@ -27,6 +27,12 @@ pub enum Error {
 
     #[error("object {0} is missing a namespace")]
     MissingNamespace(String),
+
+    #[error("configmap {0} has no key {1}")]
+    MissingConfigMapKey(String, String),
+
+    #[error("unsupported image type for {0}: {1}")]
+    UnsupportedImageType(String, String),
 }
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -79,6 +85,15 @@ async fn main() -> Result<()> {
 }
 
 async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) -> Result<Action> {
+    let outcome = provision(&obj, &ctx).await;
+    if let Err(e) = write_status(&obj, &ctx, outcome.as_ref().err()).await {
+        tracing::warn!("failed to write status for {}: {e}", obj.name_any());
+    }
+    outcome?;
+    Ok(Action::requeue(Duration::from_secs(3600)))
+}
+
+async fn provision(obj: &KanidmOAuth2Client, ctx: &ControllerContext) -> Result<()> {
     let spec = &obj.spec;
     let kanidm = &ctx.kanidm;
     let name = spec.name.as_str();
@@ -201,6 +216,13 @@ async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) ->
         }
     }
 
+    // 5c. App icon (best-effort: a bad icon must never block auth provisioning).
+    if let Some(icon) = &spec.icon {
+        if let Err(e) = upload_icon(obj, ctx, name, icon).await {
+            tracing::warn!("failed to set icon for {name}: {e}");
+        }
+    }
+
     // 6. For confidential clients, write the canonical Secret (id/secret/issuer).
     if !spec.public {
         let secret_value = kanidm
@@ -209,10 +231,82 @@ async fn reconcile(obj: Arc<KanidmOAuth2Client>, ctx: Arc<ControllerContext>) ->
             .map_err(kanidm_err)?
             .ok_or_else(|| Error::MissingSecret(name.to_string()))?;
 
-        write_secret(&obj, &ctx, &secret_value).await?;
+        write_secret(obj, ctx, &secret_value).await?;
     }
 
-    Ok(Action::requeue(Duration::from_secs(3600)))
+    Ok(())
+}
+
+/// Write back Accepted/Programmed conditions to the CR's status subresource,
+/// mirroring the standard Kubernetes condition shape (like Gateway status).
+async fn write_status(
+    obj: &KanidmOAuth2Client,
+    ctx: &ControllerContext,
+    error: Option<&Error>,
+) -> Result<()> {
+    let namespace = obj
+        .namespace()
+        .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
+    let generation = obj.metadata.generation.unwrap_or(0);
+    let existing = obj.status.as_ref();
+
+    let (status, reason, message) = match error {
+        None => (
+            "True",
+            "Programmed",
+            "OAuth2 client provisioned in kanidm".to_string(),
+        ),
+        Some(e) => ("False", "ReconcileFailed", e.to_string()),
+    };
+
+    let conditions = vec![
+        condition(
+            existing,
+            "Accepted",
+            "True",
+            "Accepted",
+            "KanidmOAuth2Client has been accepted",
+            generation,
+        ),
+        condition(existing, "Programmed", status, reason, &message, generation),
+    ];
+
+    let patch = serde_json::json!({ "status": { "conditions": conditions } });
+    Api::<KanidmOAuth2Client>::namespaced(ctx.client.clone(), &namespace)
+        .patch_status(
+            &obj.name_any(),
+            &PatchParams::default(),
+            &Patch::Merge(&patch),
+        )
+        .await?;
+
+    Ok(())
+}
+
+/// Build a condition, preserving `lastTransitionTime` when the status is unchanged.
+fn condition(
+    existing: Option<&KanidmOAuth2ClientStatus>,
+    type_: &str,
+    status: &str,
+    reason: &str,
+    message: &str,
+    observed_generation: i64,
+) -> Condition {
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let last_transition_time = existing
+        .and_then(|s| s.conditions.iter().find(|c| c.type_ == type_))
+        .filter(|c| c.status == status)
+        .map(|c| c.last_transition_time.clone())
+        .unwrap_or(now);
+
+    Condition {
+        type_: type_.to_string(),
+        status: status.to_string(),
+        reason: reason.to_string(),
+        message: message.to_string(),
+        observed_generation,
+        last_transition_time,
+    }
 }
 
 async fn ensure_group(kanidm: &KanidmClient, group: &str) -> Result<()> {
@@ -228,6 +322,55 @@ async fn ensure_group(kanidm: &KanidmClient, group: &str) -> Result<()> {
             .await
             .map_err(kanidm_err)?;
     }
+    Ok(())
+}
+
+async fn upload_icon(
+    obj: &KanidmOAuth2Client,
+    ctx: &ControllerContext,
+    name: &str,
+    icon: &IconRef,
+) -> Result<()> {
+    let cr_namespace = obj
+        .namespace()
+        .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
+    let ns = icon.namespace.as_deref().unwrap_or(&cr_namespace);
+
+    let cm = Api::<ConfigMap>::namespaced(ctx.client.clone(), ns)
+        .get(&icon.config_map)
+        .await?;
+
+    // Binary images (PNG/JPG/...) land in binaryData; SVG (text) in data.
+    let contents: Vec<u8> = cm
+        .binary_data
+        .as_ref()
+        .and_then(|d| d.get(&icon.key))
+        .map(|b| b.0.clone())
+        .or_else(|| {
+            cm.data
+                .as_ref()
+                .and_then(|d| d.get(&icon.key))
+                .map(|s| s.clone().into_bytes())
+        })
+        .ok_or_else(|| Error::MissingConfigMapKey(icon.config_map.clone(), icon.key.clone()))?;
+
+    let ext = icon.key.rsplit('.').next().unwrap_or_default();
+    let filetype = ImageType::try_from(ext)
+        .map_err(|_| Error::UnsupportedImageType(icon.key.clone(), ext.to_string()))?;
+
+    ctx.kanidm
+        .idm_oauth2_rs_update_image(
+            name,
+            ImageValue {
+                filename: icon.key.clone(),
+                filetype,
+                contents,
+            },
+        )
+        .await
+        .map_err(kanidm_err)?;
+
+    tracing::info!("set icon for {name} from {ns}/{}", icon.config_map);
     Ok(())
 }
 

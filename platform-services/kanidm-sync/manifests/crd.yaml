@@ -56,6 +56,26 @@ spec:
                   Sign tokens with RS256 instead of the default ES256. Some OIDC clients
                   (e.g. Flipt's go-oidc) only accept RS256.
                 type: boolean
+              icon:
+                description: Optional app icon/logo, sourced from a ConfigMap.
+                nullable: true
+                properties:
+                  configMap:
+                    description: ConfigMap name holding the image.
+                    type: string
+                  key:
+                    description: |-
+                      Key within the ConfigMap; its file extension sets the image type
+                      (e.g. "Forgejo.svg" -> Svg).
+                    type: string
+                  namespace:
+                    description: Namespace of the ConfigMap. Defaults to the CR's own namespace.
+                    nullable: true
+                    type: string
+                required:
+                - configMap
+                - key
+                type: object
               name:
                 description: The kanidm resource server name (lowercase, e.g. "forgejo").
                 type: string
@@ -124,10 +144,32 @@ spec:
           status:
             nullable: true
             properties:
-              provisioned:
-                type: boolean
-            required:
-            - provisioned
+              conditions:
+                items:
+                  description: Standard Kubernetes condition (matches `metav1.Condition`).
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
             type: object
         required:
         - spec

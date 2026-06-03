@@ -33,3 +33,6 @@ spec:
           - admin
   secretName: kanidm-forgejo-oidc
   secretNamespace: forgejo
+  icon:
+    configMap: forgejo-kanidm-icon
+    key: Forgejo.svg

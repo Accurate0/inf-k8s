@@ -30,3 +30,6 @@ spec:
       - groups
   secretName: kanidm-flipt-oidc
   secretNamespace: flipt-v2
+  icon:
+    configMap: flipt-kanidm-icon
+    key: Flipt.svg
