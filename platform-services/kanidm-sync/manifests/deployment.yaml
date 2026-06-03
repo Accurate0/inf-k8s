@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kanidm-sync
+  namespace: kanidm-sync
+spec:
+  selector:
+    matchLabels:
+      app: kanidm-sync
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: kanidm-sync
+    spec:
+      serviceAccountName: kanidm-sync
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: kanidm-sync
+          image: ghcr.io/accurate0/kanidm-sync
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            requests:
+              cpu: 10m
+              memory: 16Mi
+          env:
+            - name: KANIDM_URL
+              value: https://idm.anurag.sh
+          envFrom:
+            - secretRef:
+                name: kanidm-sync-managed-secrets

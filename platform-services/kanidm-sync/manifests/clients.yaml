@@ -1,0 +1,84 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: forgejo
+  namespace: forgejo
+spec:
+  name: forgejo
+  displayName: Forgejo
+  origin: https://git.anurag.sh/
+  redirectUrls:
+    - https://git.anurag.sh/user/oauth2/kanidm/callback
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-forgejo-oidc
+  secretNamespace: forgejo
+---
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: flipt
+  namespace: flipt-v2
+spec:
+  name: flipt
+  displayName: Flipt
+  origin: https://flipt.inf-k8s.net/
+  redirectUrls:
+    - https://flipt.inf-k8s.net/auth/v1/method/oidc/kanidm/callback
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-flipt-oidc
+  secretNamespace: flipt-v2
+---
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: grafana
+  namespace: monitoring
+spec:
+  name: grafana
+  displayName: Grafana
+  origin: https://grafana.inf-k8s.net/
+  redirectUrls:
+    - https://grafana.inf-k8s.net/login/generic_oauth
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-grafana-oidc
+  secretNamespace: monitoring
+---
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: argocd
+  namespace: argocd
+spec:
+  name: argocd
+  displayName: Argo CD
+  origin: https://argocd.inf-k8s.net/
+  redirectUrls:
+    - https://argocd.inf-k8s.net/api/dex/callback
+    - https://argocd.inf-k8s.net/auth/callback
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-argocd-oidc
+  secretNamespace: argocd

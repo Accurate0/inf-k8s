@@ -1,0 +1,36 @@
+name: Build & deploy kanidm-sync
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - platform-services/kanidm-sync/**
+      - '!platform-services/kanidm-sync/manifests/**'
+      - '!platform-services/kanidm-sync/application.yaml'
+      - .github/workflows/build-deploy-kanidm-sync.yaml
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      packages: write
+
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
+    with:
+      directory: ./platform-services/kanidm-sync
+      image-name: kanidm-sync
+      docker-build-args: |
+        BINARY_NAME=kanidm-sync
+      use-rust-caching: true
+
+  deploy:
+    needs:
+      - build
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
+    with:
+      service-name: kanidm-sync
+      images: ghcr.io/accurate0/kanidm-sync
+      manifests-path: platform-services/kanidm-sync/manifests
+      tag: ${{ github.sha }}
+    secrets:
+      FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}
