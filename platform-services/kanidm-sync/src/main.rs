@@ -43,6 +43,12 @@ struct ControllerContext {
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
 
+    // Both ring and aws-lc-rs are pulled in transitively (kube vs reqwest), so rustls
+    // cannot auto-select a provider — install one explicitly before any TLS is used.
+    rustls::crypto::aws_lc_rs::default_provider()
+        .install_default()
+        .expect("failed to install default rustls CryptoProvider");
+
     let kanidm_url = std::env::var("KANIDM_URL").expect("KANIDM_URL must be set");
     let kanidm_token = std::env::var("KANIDM_TOKEN").expect("KANIDM_TOKEN must be set");
 

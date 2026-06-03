@@ -5,15 +5,12 @@ metadata:
 spec:
   group: inf-k8s.net
   names:
-    categories: []
     kind: KanidmOAuth2Client
     plural: kanidmoauth2clients
-    shortNames: []
     singular: kanidmoauth2client
   scope: Namespaced
   versions:
-  - additionalPrinterColumns: []
-    name: v1
+  - name: v1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for KanidmOAuth2ClientSpec via `CustomResource`
