@@ -7,4 +7,4 @@ metadata:
 spec:
   name: flipt_users
   members:
-    - anurag
+    - platform_admins

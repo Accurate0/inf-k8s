@@ -7,4 +7,4 @@ metadata:
 spec:
   name: argocd_users
   members:
-    - anurag
+    - platform_admins
