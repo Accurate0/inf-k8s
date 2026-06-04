@@ -10,7 +10,17 @@ spec:
     singular: kanidmoauth2client
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.name
+      name: Name
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Programmed")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for KanidmOAuth2ClientSpec via `CustomResource`
@@ -141,6 +151,11 @@ spec:
             - secretName
             - secretNamespace
             type: object
+            x-kubernetes-validations:
+            - message: spec.name must not be empty
+              rule: self.name != ""
+            - message: spec.redirectUrls must contain at least one URL
+              rule: self.redirectUrls.size() > 0
           status:
             nullable: true
             properties:
@@ -192,7 +207,17 @@ spec:
     singular: kanidmgroup
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.name
+      name: Group
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Programmed")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for KanidmGroupSpec via `CustomResource`
@@ -217,6 +242,9 @@ spec:
             required:
             - name
             type: object
+            x-kubernetes-validations:
+            - message: spec.name must not be empty
+              rule: self.name != ""
           status:
             nullable: true
             properties:
@@ -268,7 +296,20 @@ spec:
     singular: kanidmuser
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - jsonPath: .spec.name
+      name: Username
+      type: string
+    - jsonPath: .spec.displayName
+      name: Display Name
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Programmed")].status
+      name: Ready
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: Auto-generated derived type for KanidmUserSpec via `CustomResource`
@@ -295,6 +336,9 @@ spec:
             - displayName
             - name
             type: object
+            x-kubernetes-validations:
+            - message: spec.name must not be empty
+              rule: self.name != ""
           status:
             nullable: true
             properties:

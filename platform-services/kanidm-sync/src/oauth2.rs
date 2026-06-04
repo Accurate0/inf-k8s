@@ -1,213 +1,216 @@
-use crate::{condition, kanidm_err, ControllerContext, Error, Result};
+use crate::{kanidm_err, ControllerContext, Error, Reconcile, Result};
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
 use kanidm_proto::internal::{ImageType, ImageValue, Oauth2ClaimMapJoin};
-use kanidm_sync::{ClaimMapJoin, IconRef, KanidmOAuth2Client};
+use kanidm_sync::{ClaimMapJoin, Condition, IconRef, KanidmOAuth2Client};
 use kube::{
     api::{Patch, PatchParams},
-    runtime::controller::Action,
     Api, Resource, ResourceExt,
 };
-use std::{collections::BTreeSet, sync::Arc, time::Duration};
+use std::collections::BTreeSet;
 use url::Url;
 
-pub async fn reconcile(
-    obj: Arc<KanidmOAuth2Client>,
-    ctx: Arc<ControllerContext>,
-) -> Result<Action> {
-    let outcome = provision(&obj, &ctx).await;
-    if let Err(e) = write_status(&obj, &ctx, outcome.as_ref().err()).await {
-        tracing::warn!("failed to write status for {}: {e}", obj.name_any());
-    }
-    outcome?;
-    Ok(Action::requeue(Duration::from_secs(3600)))
-}
+impl Reconcile for KanidmOAuth2Client {
+    const KIND: &'static str = "KanidmOAuth2Client";
+    const PROGRAMMED_OK: &'static str = "OAuth2 client provisioned in kanidm";
 
-async fn provision(obj: &KanidmOAuth2Client, ctx: &ControllerContext) -> Result<()> {
-    let spec = &obj.spec;
-    let kanidm = &ctx.kanidm;
-    let name = spec.name.as_str();
-
-    tracing::info!("reconciling oauth2 client {name} ({})", obj.name_any());
-
-    // 1. Ensure every group referenced by a scope or claim map exists.
-    let groups: BTreeSet<&String> = spec
-        .scope_maps
-        .keys()
-        .chain(
-            spec.claim_maps
-                .values()
-                .flat_map(|m| m.values_by_group.keys()),
-        )
-        .collect();
-    for group in groups {
-        ensure_group(kanidm, group).await?;
+    fn validate(&self) -> Result<(), String> {
+        let spec = &self.spec;
+        if spec.name.is_empty() {
+            return Err("spec.name must not be empty".to_string());
+        }
+        if spec.redirect_urls.is_empty() {
+            return Err("spec.redirectUrls must not be empty".to_string());
+        }
+        Url::parse(&spec.origin).map_err(|e| format!("spec.origin is not a valid URL: {e}"))?;
+        for url in &spec.redirect_urls {
+            Url::parse(url)
+                .map_err(|e| format!("spec.redirectUrls entry {url:?} is invalid: {e}"))?;
+        }
+        Ok(())
     }
 
-    // 2. Ensure the OAuth2 resource server exists, then update its core attributes.
-    if kanidm
-        .idm_oauth2_rs_get(name)
-        .await
-        .map_err(kanidm_err)?
-        .is_none()
-    {
-        tracing::info!("creating oauth2 resource server {name}");
-        if spec.public {
+    fn existing_conditions(&self) -> Option<&Vec<Condition>> {
+        self.status.as_ref().map(|s| &s.conditions)
+    }
+
+    async fn provision(&self, ctx: &ControllerContext) -> Result<()> {
+        let spec = &self.spec;
+        let kanidm = &ctx.kanidm;
+        let name = spec.name.as_str();
+
+        let groups: BTreeSet<&String> = spec
+            .scope_maps
+            .keys()
+            .chain(
+                spec.claim_maps
+                    .values()
+                    .flat_map(|m| m.values_by_group.keys()),
+            )
+            .collect();
+        for group in groups {
+            ensure_group(kanidm, group).await?;
+        }
+
+        if kanidm
+            .idm_oauth2_rs_get(name)
+            .await
+            .map_err(kanidm_err)?
+            .is_none()
+        {
+            tracing::info!("creating oauth2 resource server {name}");
+            if spec.public {
+                kanidm
+                    .idm_oauth2_rs_public_create(name, &spec.display_name, &spec.origin)
+                    .await
+                    .map_err(kanidm_err)?;
+            } else {
+                kanidm
+                    .idm_oauth2_rs_basic_create(name, &spec.display_name, &spec.origin)
+                    .await
+                    .map_err(kanidm_err)?;
+            }
+        }
+
+        kanidm
+            .idm_oauth2_rs_update(
+                name,
+                None,
+                Some(&spec.display_name),
+                Some(&spec.origin),
+                false,
+            )
+            .await
+            .map_err(kanidm_err)?;
+
+        let entry = kanidm.idm_oauth2_rs_get(name).await.map_err(kanidm_err)?;
+        let current: BTreeSet<String> = entry
+            .as_ref()
+            .and_then(|e| e.attrs.get("oauth2_rs_origin"))
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let desired: BTreeSet<String> = spec.redirect_urls.iter().cloned().collect();
+
+        for added in desired.difference(&current) {
+            tracing::info!("adding redirect origin {added}");
             kanidm
-                .idm_oauth2_rs_public_create(name, &spec.display_name, &spec.origin)
+                .idm_oauth2_client_add_origin(name, &Url::parse(added)?)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        for removed in current.difference(&desired) {
+            tracing::info!("removing redirect origin {removed}");
+            kanidm
+                .idm_oauth2_client_remove_origin(name, &Url::parse(removed)?)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        if spec.prefer_short_username {
+            kanidm
+                .idm_oauth2_rs_prefer_short_username(name)
                 .await
                 .map_err(kanidm_err)?;
         } else {
             kanidm
-                .idm_oauth2_rs_basic_create(name, &spec.display_name, &spec.origin)
+                .idm_oauth2_rs_prefer_spn_username(name)
                 .await
                 .map_err(kanidm_err)?;
         }
-    }
 
-    kanidm
-        .idm_oauth2_rs_update(
-            name,
-            None,
-            Some(&spec.display_name),
-            Some(&spec.origin),
-            false,
-        )
-        .await
-        .map_err(kanidm_err)?;
+        if !spec.public {
+            if spec.allow_insecure_client_disable_pkce {
+                kanidm
+                    .idm_oauth2_rs_disable_pkce(name)
+                    .await
+                    .map_err(kanidm_err)?;
+            } else {
+                kanidm
+                    .idm_oauth2_rs_enable_pkce(name)
+                    .await
+                    .map_err(kanidm_err)?;
+            }
+        }
 
-    // 3. Reconcile redirect origins (add desired, remove stale).
-    let entry = kanidm.idm_oauth2_rs_get(name).await.map_err(kanidm_err)?;
-    let current: BTreeSet<String> = entry
-        .as_ref()
-        .and_then(|e| e.attrs.get("oauth2_rs_origin"))
-        .cloned()
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
-    let desired: BTreeSet<String> = spec.redirect_urls.iter().cloned().collect();
-
-    for added in desired.difference(&current) {
-        tracing::info!("adding redirect origin {added}");
-        kanidm
-            .idm_oauth2_client_add_origin(name, &Url::parse(added)?)
-            .await
-            .map_err(kanidm_err)?;
-    }
-    for removed in current.difference(&desired) {
-        tracing::info!("removing redirect origin {removed}");
-        kanidm
-            .idm_oauth2_client_remove_origin(name, &Url::parse(removed)?)
-            .await
-            .map_err(kanidm_err)?;
-    }
-
-    // 4. Flags.
-    if spec.prefer_short_username {
-        kanidm
-            .idm_oauth2_rs_prefer_short_username(name)
-            .await
-            .map_err(kanidm_err)?;
-    }
-    if spec.allow_insecure_client_disable_pkce {
-        kanidm
-            .idm_oauth2_rs_disable_pkce(name)
-            .await
-            .map_err(kanidm_err)?;
-    }
-    if spec.enable_legacy_crypto {
-        kanidm
-            .idm_oauth2_rs_enable_legacy_crypto(name)
-            .await
-            .map_err(kanidm_err)?;
-    }
-
-    // 5. Scope maps (desired ones; orphan removal of groups is left to the user in v1).
-    for (group, scopes) in &spec.scope_maps {
-        let scopes: Vec<&str> = scopes.iter().map(String::as_str).collect();
-        kanidm
-            .idm_oauth2_rs_update_scope_map(name, group, scopes)
-            .await
-            .map_err(kanidm_err)?;
-    }
-
-    // 5b. Claim maps (group membership -> custom OIDC claim values, e.g. an
-    // "admin" value an app reads to auto-promote platform_admins members).
-    for (claim_name, claim_map) in &spec.claim_maps {
-        kanidm
-            .idm_oauth2_rs_update_claim_map_join(name, claim_name, join_proto(claim_map.join))
-            .await
-            .map_err(kanidm_err)?;
-        for (group, values) in &claim_map.values_by_group {
+        if spec.enable_legacy_crypto {
             kanidm
-                .idm_oauth2_rs_update_claim_map(name, claim_name, group, values)
+                .idm_oauth2_rs_enable_legacy_crypto(name)
+                .await
+                .map_err(kanidm_err)?;
+        } else {
+            kanidm
+                .idm_oauth2_rs_disable_legacy_crypto(name)
                 .await
                 .map_err(kanidm_err)?;
         }
-    }
 
-    // 5c. App icon (best-effort: a bad icon must never block auth provisioning).
-    if let Some(icon) = &spec.icon {
-        if let Err(e) = upload_icon(obj, ctx, name, icon).await {
-            tracing::warn!("failed to set icon for {name}: {e}");
+        for (group, scopes) in &spec.scope_maps {
+            let scopes: Vec<&str> = scopes.iter().map(String::as_str).collect();
+            kanidm
+                .idm_oauth2_rs_update_scope_map(name, group, scopes)
+                .await
+                .map_err(kanidm_err)?;
         }
+
+        let current_scope_groups = scope_map_groups(entry.as_ref());
+        for group in current_scope_groups.difference(&spec.scope_maps.keys().cloned().collect()) {
+            tracing::info!("removing stale scope map for group {group}");
+            kanidm
+                .idm_oauth2_rs_delete_scope_map(name, group)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        for (claim_name, claim_map) in &spec.claim_maps {
+            kanidm
+                .idm_oauth2_rs_update_claim_map_join(name, claim_name, join_proto(claim_map.join))
+                .await
+                .map_err(kanidm_err)?;
+            for (group, values) in &claim_map.values_by_group {
+                kanidm
+                    .idm_oauth2_rs_update_claim_map(name, claim_name, group, values)
+                    .await
+                    .map_err(kanidm_err)?;
+            }
+        }
+
+        let desired_claim_pairs: BTreeSet<(String, String)> = spec
+            .claim_maps
+            .iter()
+            .flat_map(|(claim, map)| {
+                map.values_by_group
+                    .keys()
+                    .map(move |g| (claim.clone(), g.clone()))
+            })
+            .collect();
+        for (claim, group) in claim_map_pairs(entry.as_ref()).difference(&desired_claim_pairs) {
+            tracing::info!("removing stale claim map {claim} for group {group}");
+            kanidm
+                .idm_oauth2_rs_delete_claim_map(name, claim, group)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        if let Some(icon) = &spec.icon {
+            if let Err(e) = upload_icon(self, ctx, name, icon).await {
+                tracing::warn!("failed to set icon for {name}: {e}");
+            }
+        }
+
+        if !spec.public {
+            let secret_value = kanidm
+                .idm_oauth2_rs_get_basic_secret(name)
+                .await
+                .map_err(kanidm_err)?
+                .ok_or_else(|| Error::MissingSecret(name.to_string()))?;
+
+            write_secret(self, ctx, &secret_value).await?;
+        }
+
+        Ok(())
     }
-
-    // 6. For confidential clients, write the canonical Secret (id/secret/issuer).
-    if !spec.public {
-        let secret_value = kanidm
-            .idm_oauth2_rs_get_basic_secret(name)
-            .await
-            .map_err(kanidm_err)?
-            .ok_or_else(|| Error::MissingSecret(name.to_string()))?;
-
-        write_secret(obj, ctx, &secret_value).await?;
-    }
-
-    Ok(())
-}
-
-async fn write_status(
-    obj: &KanidmOAuth2Client,
-    ctx: &ControllerContext,
-    error: Option<&Error>,
-) -> Result<()> {
-    let namespace = obj
-        .namespace()
-        .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
-    let generation = obj.metadata.generation.unwrap_or(0);
-    let existing = obj.status.as_ref().map(|s| &s.conditions);
-
-    let (status, reason, message) = match error {
-        None => (
-            "True",
-            "Programmed",
-            "OAuth2 client provisioned in kanidm".to_string(),
-        ),
-        Some(e) => ("False", "ReconcileFailed", e.to_string()),
-    };
-
-    let conditions = vec![
-        condition(
-            existing,
-            "Accepted",
-            "True",
-            "Accepted",
-            "KanidmOAuth2Client has been accepted",
-            generation,
-        ),
-        condition(existing, "Programmed", status, reason, &message, generation),
-    ];
-
-    let patch = serde_json::json!({ "status": { "conditions": conditions } });
-    Api::<KanidmOAuth2Client>::namespaced(ctx.client.clone(), &namespace)
-        .patch_status(
-            &obj.name_any(),
-            &PatchParams::default(),
-            &Patch::Merge(&patch),
-        )
-        .await?;
-
-    Ok(())
 }
 
 async fn ensure_group(kanidm: &kanidm_client::KanidmClient, group: &str) -> Result<()> {
@@ -224,6 +227,48 @@ async fn ensure_group(kanidm: &kanidm_client::KanidmClient, group: &str) -> Resu
             .map_err(kanidm_err)?;
     }
     Ok(())
+}
+
+fn scope_map_groups(entry: Option<&kanidm_proto::v1::Entry>) -> BTreeSet<String> {
+    entry
+        .and_then(|e| e.attrs.get("oauth2_rs_scope_map"))
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(|v| v.split(':').next())
+                .map(short_group_name)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn claim_map_pairs(entry: Option<&kanidm_proto::v1::Entry>) -> BTreeSet<(String, String)> {
+    entry
+        .and_then(|e| e.attrs.get("oauth2_rs_claim_map"))
+        .map(|values| {
+            values
+                .iter()
+                .filter_map(|v| {
+                    let mut parts = v.splitn(3, ':');
+                    let claim = parts.next()?.trim();
+                    let group = parts.next()?;
+                    if claim.is_empty() {
+                        return None;
+                    }
+                    Some((claim.to_string(), short_group_name(group)))
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+fn short_group_name(spn: &str) -> String {
+    spn.trim()
+        .split('@')
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string()
 }
 
 async fn upload_icon(
@@ -274,14 +319,6 @@ async fn upload_icon(
     Ok(())
 }
 
-fn join_proto(join: ClaimMapJoin) -> Oauth2ClaimMapJoin {
-    match join {
-        ClaimMapJoin::Array => Oauth2ClaimMapJoin::Array,
-        ClaimMapJoin::Csv => Oauth2ClaimMapJoin::Csv,
-        ClaimMapJoin::Ssv => Oauth2ClaimMapJoin::Ssv,
-    }
-}
-
 async fn write_secret(
     obj: &KanidmOAuth2Client,
     ctx: &ControllerContext,
@@ -319,8 +356,7 @@ async fn write_secret(
         "stringData": serde_json::Value::Object(string_data),
     });
 
-    let secrets = Api::<Secret>::namespaced(ctx.client.clone(), &spec.secret_namespace);
-    secrets
+    Api::<Secret>::namespaced(ctx.client.clone(), &spec.secret_namespace)
         .patch(
             &spec.secret_name,
             &PatchParams::apply("kanidm-sync").force(),
@@ -333,6 +369,13 @@ async fn write_secret(
         spec.secret_namespace,
         spec.secret_name
     );
-
     Ok(())
+}
+
+fn join_proto(join: ClaimMapJoin) -> Oauth2ClaimMapJoin {
+    match join {
+        ClaimMapJoin::Array => Oauth2ClaimMapJoin::Array,
+        ClaimMapJoin::Csv => Oauth2ClaimMapJoin::Csv,
+        ClaimMapJoin::Ssv => Oauth2ClaimMapJoin::Ssv,
+    }
 }

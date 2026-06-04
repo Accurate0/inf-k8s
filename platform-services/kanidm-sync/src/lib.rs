@@ -12,6 +12,11 @@ use std::collections::BTreeMap;
     namespaced
 )]
 #[kube(status = "KanidmOAuth2ClientStatus")]
+#[kube(printcolumn = r#"{"name":"Name","type":"string","jsonPath":".spec.name"}"#)]
+#[kube(
+    printcolumn = r#"{"name":"Ready","type":"string","jsonPath":".status.conditions[?(@.type==\"Programmed\")].status"}"#
+)]
+#[kube(printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#)]
 pub struct KanidmOAuth2ClientSpec {
     /// The kanidm resource server name (lowercase, e.g. "forgejo").
     pub name: String,
@@ -148,6 +153,11 @@ pub struct Condition {
     namespaced
 )]
 #[kube(status = "KanidmGroupStatus")]
+#[kube(printcolumn = r#"{"name":"Group","type":"string","jsonPath":".spec.name"}"#)]
+#[kube(
+    printcolumn = r#"{"name":"Ready","type":"string","jsonPath":".status.conditions[?(@.type==\"Programmed\")].status"}"#
+)]
+#[kube(printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#)]
 pub struct KanidmGroupSpec {
     /// The kanidm group name (authoritative key).
     pub name: String,
@@ -171,6 +181,12 @@ pub struct KanidmGroupStatus {
 #[serde(rename_all = "camelCase")]
 #[kube(kind = "KanidmUser", group = "inf-k8s.net", version = "v1", namespaced)]
 #[kube(status = "KanidmUserStatus")]
+#[kube(printcolumn = r#"{"name":"Username","type":"string","jsonPath":".spec.name"}"#)]
+#[kube(printcolumn = r#"{"name":"Display Name","type":"string","jsonPath":".spec.displayName"}"#)]
+#[kube(
+    printcolumn = r#"{"name":"Ready","type":"string","jsonPath":".status.conditions[?(@.type==\"Programmed\")].status"}"#
+)]
+#[kube(printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#)]
 pub struct KanidmUserSpec {
     /// The kanidm person account name (authoritative key).
     pub name: String,
