@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: longhorn
+  namespace: longhorn-system
+spec:
+  name: longhorn
+  displayName: Longhorn
+  origin: https://longhorn.inf-k8s.net/
+  redirectUrls:
+    - https://longhorn.inf-k8s.net/oauth2/callback
+  preferShortUsername: true
+  allowInsecureClientDisablePkce: true
+  secretKeys:
+    clientId: client-id
+    clientSecret: client-secret
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+  secretName: kanidm-longhorn-oidc
+  secretNamespace: longhorn-system

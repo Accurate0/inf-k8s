@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./longhorn-local-perth.storageclass.yaml
+  - ./longhorn-local.storageclass.yaml
+  - ./longhorn-local-wait.storageclass.yaml
+  - ./longhorn-rwo.storageclass.yaml
+  - ./longhorn-single.storageclass.yaml
+  - ./longhorn-single-v2.storageclass.yaml
