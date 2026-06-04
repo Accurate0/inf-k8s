@@ -1,5 +1,7 @@
 use crate::{kanidm_err, ControllerContext, Error, Reconcile, Result};
 use k8s_openapi::api::core::v1::{ConfigMap, Secret};
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
+use k8s_openapi::ByteString;
 use kanidm_proto::internal::{ImageType, ImageValue, Oauth2ClaimMapJoin};
 use kanidm_sync::{ClaimMapJoin, Condition, IconRef, KanidmOAuth2Client};
 use kube::{
@@ -331,44 +333,33 @@ async fn write_secret(
         .namespace()
         .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
 
-    let mut metadata = serde_json::json!({
-        "name": spec.secret_name,
-        "namespace": spec.secret_namespace,
-    });
-
-    if cr_namespace == spec.secret_namespace {
-        metadata["ownerReferences"] = serde_json::json!([obj.controller_owner_ref(&()).unwrap()]);
-    }
-    if !spec.secret_labels.is_empty() {
-        metadata["labels"] = serde_json::json!(spec.secret_labels);
-    }
-
     let keys = &spec.secret_keys;
-    let mut string_data = serde_json::Map::new();
-    string_data.insert(keys.client_id.clone(), serde_json::json!(spec.name));
-    string_data.insert(keys.client_secret.clone(), serde_json::json!(client_secret));
-    string_data.insert(keys.issuer_url.clone(), serde_json::json!(issuer_url));
-
-    let patch = serde_json::json!({
-        "apiVersion": "v1",
-        "kind": "Secret",
-        "metadata": metadata,
-        "stringData": serde_json::Value::Object(string_data),
-    });
+    let secret = Secret {
+        metadata: ObjectMeta {
+            name: Some(spec.secret_name.clone()),
+            namespace: Some(spec.secret_namespace.clone()),
+            owner_references: (cr_namespace == spec.secret_namespace)
+                .then(|| vec![obj.controller_owner_ref(&()).unwrap()]),
+            labels: (!spec.secret_labels.is_empty()).then(|| spec.secret_labels.clone()),
+            ..Default::default()
+        },
+        data: Some([
+            (keys.client_id.clone(), ByteString(spec.name.as_bytes().to_vec())),
+            (keys.client_secret.clone(), ByteString(client_secret.as_bytes().to_vec())),
+            (keys.issuer_url.clone(), ByteString(issuer_url.as_bytes().to_vec())),
+        ].into()),
+        ..Default::default()
+    };
 
     Api::<Secret>::namespaced(ctx.client.clone(), &spec.secret_namespace)
         .patch(
             &spec.secret_name,
             &PatchParams::apply("kanidm-sync").force(),
-            &Patch::Apply(patch),
+            &Patch::Apply(secret),
         )
         .await?;
 
-    tracing::info!(
-        "wrote secret {}/{}",
-        spec.secret_namespace,
-        spec.secret_name
-    );
+    tracing::info!("wrote secret {}/{}", spec.secret_namespace, spec.secret_name);
     Ok(())
 }
 
