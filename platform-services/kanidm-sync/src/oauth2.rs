@@ -343,11 +343,23 @@ async fn write_secret(
             labels: (!spec.secret_labels.is_empty()).then(|| spec.secret_labels.clone()),
             ..Default::default()
         },
-        data: Some([
-            (keys.client_id.clone(), ByteString(spec.name.as_bytes().to_vec())),
-            (keys.client_secret.clone(), ByteString(client_secret.as_bytes().to_vec())),
-            (keys.issuer_url.clone(), ByteString(issuer_url.as_bytes().to_vec())),
-        ].into()),
+        data: Some(
+            [
+                (
+                    keys.client_id.clone(),
+                    ByteString(spec.name.as_bytes().to_vec()),
+                ),
+                (
+                    keys.client_secret.clone(),
+                    ByteString(client_secret.as_bytes().to_vec()),
+                ),
+                (
+                    keys.issuer_url.clone(),
+                    ByteString(issuer_url.as_bytes().to_vec()),
+                ),
+            ]
+            .into(),
+        ),
         ..Default::default()
     };
 
@@ -359,7 +371,11 @@ async fn write_secret(
         )
         .await?;
 
-    tracing::info!("wrote secret {}/{}", spec.secret_namespace, spec.secret_name);
+    tracing::info!(
+        "wrote secret {}/{}",
+        spec.secret_namespace,
+        spec.secret_name
+    );
     Ok(())
 }
 
