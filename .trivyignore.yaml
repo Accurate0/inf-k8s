@@ -3,6 +3,7 @@ misconfigurations:
   - id: AVD-KSV-0041
     paths:
       - "platform-services/pg-db-controller/**"
+      - "platform-services/kanidm-sync/manifests/**"
 
   # HEALTHCHECK is enforced via Kubernetes liveness/readiness probes, not Dockerfile.
   - id: AVD-DS-0026
