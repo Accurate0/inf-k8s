@@ -4,10 +4,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::ByteString;
 use kanidm_proto::internal::{ImageType, ImageValue, Oauth2ClaimMapJoin};
 use kanidm_sync::{ClaimMapJoin, Condition, IconRef, KanidmOAuth2Client};
-use kube::{
-    api::{Patch, PatchParams},
-    Api, Resource, ResourceExt,
-};
+use kube::{api::PostParams, Api, Resource, ResourceExt};
 use std::collections::BTreeSet;
 use url::Url;
 
@@ -334,7 +331,9 @@ async fn write_secret(
         .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
 
     let keys = &spec.secret_keys;
-    let secret = Secret {
+    let api = Api::<Secret>::namespaced(ctx.client.clone(), &spec.secret_namespace);
+
+    let mut secret = Secret {
         metadata: ObjectMeta {
             name: Some(spec.secret_name.clone()),
             namespace: Some(spec.secret_namespace.clone()),
@@ -363,19 +362,24 @@ async fn write_secret(
         ..Default::default()
     };
 
-    Api::<Secret>::namespaced(ctx.client.clone(), &spec.secret_namespace)
-        .patch(
-            &spec.secret_name,
-            &PatchParams::apply("kanidm-sync").force(),
-            &Patch::Apply(secret),
-        )
-        .await?;
+    match api.get(&spec.secret_name).await {
+        Ok(existing) => {
+            secret.metadata.resource_version = existing.metadata.resource_version;
+            api.replace(&spec.secret_name, &PostParams::default(), &secret)
+                .await?;
+        }
+        Err(kube::Error::Api(e)) if e.code == 404 => {
+            api.create(&PostParams::default(), &secret).await?;
+        }
+        Err(e) => return Err(e.into()),
+    };
 
     tracing::info!(
         "wrote secret {}/{}",
         spec.secret_namespace,
         spec.secret_name
     );
+
     Ok(())
 }
 
