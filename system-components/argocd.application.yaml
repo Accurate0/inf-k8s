@@ -81,6 +81,7 @@ spec:
                     clientID: $kanidm-argocd-oidc:clientId
                     clientSecret: $kanidm-argocd-oidc:clientSecret
                     insecureEnableGroups: true
+                    enablePKCEAuthentication: true
                     scopes:
                       - openid
                       - profile
