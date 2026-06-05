@@ -53,7 +53,9 @@
       "matchManagers": ["github-actions"],
       "pinDigests": true,
       "description": "Pin GitHub Actions to immutable SHA for security.",
-      "excludeDepPatterns": ["^helm$"]
+      "matchDepNames": [
+        "!/^helm$/"
+      ]
     },
     {
       "matchDatasources": ["github-releases"],
