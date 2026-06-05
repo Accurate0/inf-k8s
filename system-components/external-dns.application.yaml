@@ -9,14 +9,14 @@ spec:
     managedNamespaceMetadata:
       labels:
         inf-k8s.net/infisical-secrets: "true"
+    automated:
+      prune: true
+      selfHeal: true
     syncOptions:
       - ApplyOutOfSyncOnly=true
       - RespectIgnoreDifferences=true
       - CreateNamespace=true
       - ServerSideApply=true
-    automated:
-      prune: true
-      selfHeal: true
   project: system-components
   sources:
     - chart: k8s-secrets
@@ -56,6 +56,7 @@ spec:
             - ingress
             - gateway-httproute
           txtOwnerId: inf-k8s
+          annotationFilter: "external-dns.alpha.kubernetes.io/managed=true"
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns
