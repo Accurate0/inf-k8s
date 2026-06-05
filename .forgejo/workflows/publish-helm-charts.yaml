@@ -22,9 +22,6 @@ jobs:
         with:
           version: v4.2.0
 
-      - name: Install helm cm-push plugin
-        run: helm plugin install https://github.com/chartmuseum/helm-push
-
       - name: Package and Publish
         env:
           FORGEJO_TOKEN: ${{ secrets.PACKAGES_WRITE }}
@@ -34,5 +31,5 @@ jobs:
           helm package charts/k8s-http-routes
           helm package charts/k8s-secrets
           for pkg in ./*.tgz; do
-            helm cm-push --username "${OWNER}" --password "${FORGEJO_TOKEN}" "${pkg}" "${FORGEJO_HELM_URL}"
+            helm push --username "${OWNER}" --password "${FORGEJO_TOKEN}" "${pkg}" "${FORGEJO_HELM_URL}"
           done
