@@ -5,6 +5,7 @@ metadata:
   name: public-gateway
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
+    external-dns.alpha.kubernetes.io/target: external.inf-k8s.net
 spec:
   gatewayClassName: envoy-gateway
   # NOTE: ports must be unique across the internal-gateway too — mergeGateways

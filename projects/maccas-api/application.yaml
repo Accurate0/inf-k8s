@@ -52,7 +52,6 @@ spec:
                 namespace: envoy-gateway-system
               annotations:
                 external-dns.alpha.kubernetes.io/managed: "true"
-                external-dns.alpha.kubernetes.io/target: external.inf-k8s.net
                 external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
               hostnames:
                 - maccas.one
@@ -72,27 +71,6 @@ spec:
                       kind: Service
                       name: maccas-web
                       port: 3000
-                      weight: 1
-                  matches:
-                    - path:
-                        type: PathPrefix
-                        value: /
-            - name: graphql-maccas-route
-              gateway:
-                name: public-gateway
-                namespace: envoy-gateway-system
-              annotations:
-                external-dns.alpha.kubernetes.io/managed: "true"
-                external-dns.alpha.kubernetes.io/target: inf-k8s.net
-                external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
-              hostnames:
-                - graphql.maccas.one
-              rules:
-                - backendRefs:
-                    - group: ""
-                      kind: Service
-                      name: maccas-api
-                      port: 8000
                       weight: 1
                   matches:
                     - path:
