@@ -59,6 +59,7 @@ spec:
           extraArgs:
             - --txt-encrypt-enabled
           policy: sync
+          interval: 15m
           triggerLoopOnEvent: true
           sources:
             - gateway-httproute
