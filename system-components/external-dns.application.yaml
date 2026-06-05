@@ -32,11 +32,12 @@ spec:
             - name: external-dns-cloudflare
               secretPath: /
               managedSecrets:
-                - secretName: cloudflare-api-token
+                - secretName: external-dns-secrets
                   template:
                     includeAllSecrets: false
                     data:
                       CF_API_TOKEN: "{{ .CF_API_TOKEN }}"
+                      TXT_ENCRYPT_AES_KEY: "{{ .TXT_ENCRYPT_AES_KEY }}"
     - chart: external-dns
       repoURL: https://kubernetes-sigs.github.io/external-dns/
       targetRevision: 1.21.1
@@ -48,13 +49,23 @@ spec:
             - name: CF_API_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: cloudflare-api-token
+                  name: external-dns-secrets
                   key: CF_API_TOKEN
+            - name: EXTERNAL_DNS_TXT_ENCRYPT_AES_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: external-dns-secrets
+                  key: TXT_ENCRYPT_AES_KEY
+          extraArgs:
+            - --txt-encrypt-enabled
           policy: sync
+          triggerLoopOnEvent: true
           sources:
-            - service
-            - ingress
             - gateway-httproute
+          serviceMonitor:
+            enabled: true
+            additionalLabels:
+              release: monitoring
           txtOwnerId: inf-k8s
           annotationFilter: "external-dns.alpha.kubernetes.io/managed=true"
           domainFilters:
