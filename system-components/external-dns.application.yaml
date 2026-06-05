@@ -57,6 +57,11 @@ spec:
             - gateway-httproute
           txtOwnerId: inf-k8s
           annotationFilter: "external-dns.alpha.kubernetes.io/managed=true"
+          domainFilters:
+            - anurag.sh
+            - anurag.id.au
+            - inf-k8s.net
+            - maccas.one
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns
