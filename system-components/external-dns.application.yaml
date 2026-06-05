@@ -1,0 +1,68 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: external-dns
+  namespace: argocd
+spec:
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        inf-k8s.net/infisical-secrets: "true"
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: system-components
+  sources:
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.3.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: external-dns
+            projectSlug: external-dns-h-f-ms
+            resyncInterval: 900
+          secrets:
+            - name: external-dns-cloudflare
+              secretPath: /
+              managedSecrets:
+                - secretName: cloudflare-api-token
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      CF_API_TOKEN: "{{ .CF_API_TOKEN }}"
+    - chart: external-dns
+      repoURL: https://kubernetes-sigs.github.io/external-dns/
+      targetRevision: 1.21.1
+      helm:
+        valuesObject:
+          provider:
+            name: cloudflare
+          env:
+            - name: CF_API_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: cloudflare-api-token
+                  key: CF_API_TOKEN
+          policy: sync
+          sources:
+            - service
+            - ingress
+            - gateway-httproute
+          txtOwnerId: inf-k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: external-dns
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}
