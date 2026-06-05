@@ -58,6 +58,7 @@ spec:
                   key: TXT_ENCRYPT_AES_KEY
           extraArgs:
             - --txt-encrypt-enabled
+            - --cloudflare-record-comment=Provisioned by external-dns
           policy: sync
           interval: 15m
           triggerLoopOnEvent: true
