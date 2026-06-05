@@ -19,6 +19,7 @@ spec:
     - https://grafana-community.github.io/helm-charts
     - https://helm.flipt.io
     - https://kubernetes-sigs.github.io/descheduler/
+    - https://kubernetes-sigs.github.io/external-dns/
     - https://mend.github.io/renovate-ce-ee
     - https://prometheus-community.github.io/helm-charts
     - docker.io/envoyproxy
