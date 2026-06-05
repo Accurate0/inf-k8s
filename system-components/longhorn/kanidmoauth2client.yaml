@@ -22,3 +22,6 @@ spec:
       - profile
   secretName: kanidm-longhorn-oidc
   secretNamespace: longhorn-system
+  icon:
+    configMap: longhorn-kanidm-icon
+    key: longhorn.png

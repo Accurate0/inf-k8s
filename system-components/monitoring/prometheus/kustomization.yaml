@@ -4,3 +4,9 @@ kind: Kustomization
 resources:
   - ./kanidmoauth2client.yaml
   - ./securitypolicy.yaml
+configMapGenerator:
+  - name: prometheus-kanidm-icon
+    files:
+      - prometheus.svg
+generatorOptions:
+  disableNameSuffixHash: true

@@ -7,3 +7,9 @@ resources:
   - ./longhorn-replicated-perth.yaml
   - ./securitypolicy.yaml
   - ./storageclasses
+configMapGenerator:
+  - name: longhorn-kanidm-icon
+    files:
+      - longhorn.png
+generatorOptions:
+  disableNameSuffixHash: true

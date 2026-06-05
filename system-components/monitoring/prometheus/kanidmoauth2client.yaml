@@ -22,3 +22,6 @@ spec:
       - profile
   secretName: kanidm-prometheus-oidc
   secretNamespace: monitoring
+  icon:
+    configMap: prometheus-kanidm-icon
+    key: prometheus.svg
