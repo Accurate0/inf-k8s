@@ -15,8 +15,9 @@ control:
     k8s-optiplex-1:
       ansible_host: k8s-optiplex-1.host.inf-k8s.net
       ansible_user: janitor
-      tailscale_ip: 100.70.180.118
+      tailscale_ip: 100.70.180.117
       is_api_server: true
+      proxy_enabled: false
       node_labels:
         topology.kubernetes.io/zone: australind
         inf-k8s.net/location: australind
@@ -46,6 +47,7 @@ agent:
       ansible_user: janitor
       tailscale_ip: 100.89.112.112
       is_api_server: false
+      proxy_enabled: false
       node_labels:
         topology.kubernetes.io/zone: australind
         inf-k8s.net/location: australind
@@ -57,6 +59,7 @@ agent:
       ansible_user: janitor
       tailscale_ip: 100.115.217.79
       is_api_server: false
+      proxy_enabled: false
       node_labels:
         topology.kubernetes.io/zone: australind
         inf-k8s.net/location: australind

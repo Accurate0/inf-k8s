@@ -9,9 +9,11 @@
   delegate_to: "{{ k3s_label_delegate_host }}"
   changed_when: "'labeled' in label_result.stdout"
   register: label_result
-  retries: 10
-  delay: 6
+  retries: 2
+  delay: 3
   until: label_result is not failed
   environment:
     KUBECONFIG: /etc/rancher/k3s/k3s.yaml
   when: node_labels is defined
+  ignore_errors: true
+  ignore_unreachable: true

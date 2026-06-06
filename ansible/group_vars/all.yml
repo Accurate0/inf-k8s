@@ -1,4 +1,4 @@
-k3s_control_ip: "https://{{ hostvars['k8s-optiplex-5'].tailscale_ip }}:6443"
+k3s_control_ip: "https://{{ hostvars['k8s-control-1'].tailscale_ip }}:6443"
 
 proxy_backends: >-
   {%- set backends = [] -%}
@@ -7,14 +7,15 @@ proxy_backends: >-
       {%- set _ = backends.append({
         'name': host,
         'ip': hostvars[host].tailscale_ip,
-        'is_api_server': hostvars[host].is_api_server | default(false)
+        'is_api_server': hostvars[host].is_api_server | default(false),
+        'proxy_enabled': hostvars[host].proxy_enabled | default(true)
       }) -%}
     {%- endif -%}
   {%- endfor -%}
   {{ backends }}
 
 local_lans:
-  - 192.168.1.0/24  # Bunbury
-  - 10.0.1.0/24     # Perth
+  - 192.168.1.0/24 # Bunbury
+  - 10.0.1.0/24 # Perth
 
 binarylane_vpc_cidr: 10.242.0.0/16
