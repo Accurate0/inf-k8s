@@ -15,4 +15,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/pg-db-controller
-    newTag: 842b16f06d2318c3750aa5dc9482e4d184cdd516
+    newTag: 3ec6df0d1bd4ab31b6d7a29596c29058e9ec25d7
