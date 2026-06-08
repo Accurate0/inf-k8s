@@ -50,6 +50,18 @@ resource "aws_iam_access_key" "home-gateway-access-key" {
   user = aws_iam_user.home-gateway-user.name
 }
 
+resource "github_actions_secret" "aws-key-id" {
+  repository  = "home-gateway"
+  secret_name = "AWS_ACCESS_KEY_ID"
+  value       = aws_iam_access_key.home-gateway-access-key.id
+}
+
+resource "github_actions_secret" "aws-key-secret" {
+  repository  = "home-gateway"
+  secret_name = "AWS_SECRET_ACCESS_KEY"
+  value       = aws_iam_access_key.home-gateway-access-key.secret
+}
+
 # resource "infisical_secret" "aws_key_id" {
 #   name         = "AWS_ACCESS_KEY_ID"
 #   value        = aws_iam_access_key.home-gateway-access-key.id
