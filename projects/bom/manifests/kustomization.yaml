@@ -12,4 +12,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/bom
 images:
   - name: ghcr.io/accurate0/bom
-    newTag: b46a77e82811edbad93f7eb2976e9b1d3395f7e9
+    newTag: 26b982075658624f84e5a4869ac189c26a39ff41
