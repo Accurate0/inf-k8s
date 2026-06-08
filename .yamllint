@@ -4,6 +4,7 @@ ignore: |
   charts/*/templates/
   system-components/barman-cloud-plugin/manifest.yaml
   platform-services/kanidm-sync/manifests/crd.yaml
+  platform-services/pg-db-controller/manifests/crd.yaml
 rules:
   line-length: disable
   comments:

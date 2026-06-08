@@ -14,6 +14,14 @@ rules:
       - list
       - watch
   - apiGroups:
+      - "inf-k8s.net"
+    resources:
+      - postgresdatabases/status
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
       - ""
     resources:
       - secrets
@@ -21,3 +29,4 @@ rules:
       - create
       - get
       - list
+      - patch
