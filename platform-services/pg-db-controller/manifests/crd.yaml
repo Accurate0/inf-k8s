@@ -19,11 +19,8 @@ spec:
     - jsonPath: .spec.databaseName
       name: Database
       type: string
-    - jsonPath: .status.ready
+    - jsonPath: .status.conditions[?(@.type=="Programmed")].status
       name: Ready
-      type: string
-    - jsonPath: .status.phase
-      name: Phase
       type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
@@ -54,27 +51,31 @@ spec:
           status:
             nullable: true
             properties:
-              message:
-                nullable: true
-                type: string
-              observedGeneration:
-                format: int64
-                nullable: true
-                type: integer
-              phase:
-                enum:
-                - Pending
-                - Ready
-                - Error
-                type: string
-              ready:
-                type: boolean
-              secretRef:
-                nullable: true
-                type: string
-            required:
-            - phase
-            - ready
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
             type: object
         required:
         - spec

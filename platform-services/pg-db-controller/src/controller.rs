@@ -1,6 +1,6 @@
-use crate::crd::{Phase, PostgresDatabase, PostgresDatabaseStatus};
+use crate::crd::{Condition, PostgresDatabase};
 use crate::error::{Error, Result};
-use crate::sql::{quote_ident, quote_literal};
+use crate::sql::{is_valid_ident, quote_ident, quote_literal};
 use base64::{prelude::BASE64_URL_SAFE, Engine};
 use k8s_openapi::api::core::v1::Secret;
 use kube::{
@@ -16,6 +16,7 @@ use sqlx::{AssertSqlSafe, PgPool};
 use std::{collections::BTreeMap, sync::Arc, time::Duration};
 
 pub const FIELD_MANAGER: &str = "pg-db-controller";
+const PROGRAMMED_OK: &str = "database, role, and credentials secret provisioned";
 const REQUEUE: Duration = Duration::from_secs(3600);
 const ERROR_REQUEUE: Duration = Duration::from_secs(30);
 
@@ -25,44 +26,23 @@ pub struct Context {
 }
 
 pub async fn reconcile(obj: Arc<PostgresDatabase>, ctx: Arc<Context>) -> Result<Action> {
-    let ns = obj.namespace().ok_or(Error::MissingNamespace)?;
-    let api = Api::<PostgresDatabase>::namespaced(ctx.client.clone(), &ns);
-    let name = obj.name_any();
-    tracing::info!("reconciling {name}");
+    let accepted = validate(&obj);
+    let provisioned = match &accepted {
+        Ok(()) => {
+            tracing::info!("reconciling {}", obj.name_any());
+            provision(&obj, &ctx).await
+        }
+        Err(_) => Ok(()),
+    };
 
-    match provision(&obj, &ctx).await {
-        Ok(secret_ref) => {
-            patch_status(
-                &api,
-                &name,
-                PostgresDatabaseStatus {
-                    ready: true,
-                    phase: Phase::Ready,
-                    observed_generation: obj.meta().generation,
-                    message: None,
-                    secret_ref: Some(secret_ref),
-                },
-            )
-            .await?;
-            Ok(Action::requeue(REQUEUE))
-        }
-        Err(e) => {
-            patch_status(
-                &api,
-                &name,
-                PostgresDatabaseStatus {
-                    ready: false,
-                    phase: Phase::Error,
-                    observed_generation: obj.meta().generation,
-                    message: Some(e.to_string()),
-                    secret_ref: None,
-                },
-            )
-            .await
-            .ok();
-            Err(e)
-        }
+    if let Err(e) = write_status(&obj, &ctx, &accepted, provisioned.as_ref().err()).await {
+        tracing::warn!("failed to write status for {}: {e}", obj.name_any());
     }
+
+    accepted.map_err(Error::Validation)?;
+    provisioned?;
+
+    Ok(Action::requeue(REQUEUE))
 }
 
 pub fn error_policy(_obj: Arc<PostgresDatabase>, err: &Error, _ctx: Arc<Context>) -> Action {
@@ -70,7 +50,80 @@ pub fn error_policy(_obj: Arc<PostgresDatabase>, err: &Error, _ctx: Arc<Context>
     Action::requeue(ERROR_REQUEUE)
 }
 
-async fn provision(obj: &PostgresDatabase, ctx: &Context) -> Result<String> {
+fn validate(obj: &PostgresDatabase) -> Result<(), String> {
+    if !is_valid_ident(&obj.spec.database_name) {
+        return Err(format!("invalid databaseName: {:?}", obj.spec.database_name));
+    }
+    if let Some(role) = &obj.spec.role_name {
+        if !is_valid_ident(role) {
+            return Err(format!("invalid roleName: {role:?}"));
+        }
+    }
+    Ok(())
+}
+
+fn condition(
+    existing: Option<&Vec<Condition>>,
+    type_: &str,
+    status: &str,
+    reason: &str,
+    message: &str,
+    observed_generation: i64,
+) -> Condition {
+    let now = chrono::Utc::now().to_rfc3339_opts(chrono::SecondsFormat::Secs, true);
+    let last_transition_time = existing
+        .and_then(|conds| conds.iter().find(|c| c.type_ == type_))
+        .filter(|c| c.status == status)
+        .map(|c| c.last_transition_time.clone())
+        .unwrap_or(now);
+
+    Condition {
+        type_: type_.to_string(),
+        status: status.to_string(),
+        reason: reason.to_string(),
+        message: message.to_string(),
+        observed_generation,
+        last_transition_time,
+    }
+}
+
+async fn write_status(
+    obj: &PostgresDatabase,
+    ctx: &Context,
+    accepted: &Result<(), String>,
+    provision_error: Option<&Error>,
+) -> Result<()> {
+    let namespace = obj.namespace().ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
+    let generation = obj.meta().generation.unwrap_or(0);
+    let existing = obj.status.as_ref().map(|s| &s.conditions);
+
+    let (accepted_status, accepted_reason, accepted_message) = match accepted {
+        Ok(()) => ("True", "Accepted", "PostgresDatabase has been accepted".to_string()),
+        Err(msg) => ("False", "InvalidSpec", msg.clone()),
+    };
+
+    let (programmed_status, programmed_reason, programmed_message) = match accepted {
+        Err(_) => ("False", "NotAccepted", "spec validation failed".to_string()),
+        Ok(()) => match provision_error {
+            None => ("True", "Programmed", PROGRAMMED_OK.to_string()),
+            Some(e) => ("False", "ReconcileFailed", e.to_string()),
+        },
+    };
+
+    let conditions = vec![
+        condition(existing, "Accepted", accepted_status, accepted_reason, &accepted_message, generation),
+        condition(existing, "Programmed", programmed_status, programmed_reason, &programmed_message, generation),
+    ];
+
+    let patch = serde_json::json!({ "status": { "conditions": conditions } });
+    Api::<PostgresDatabase>::namespaced(ctx.client.clone(), &namespace)
+        .patch_status(&obj.name_any(), &PatchParams::default(), &Patch::Merge(&patch))
+        .await?;
+
+    Ok(())
+}
+
+async fn provision(obj: &PostgresDatabase, ctx: &Context) -> Result<()> {
     let database = quote_ident(&obj.spec.database_name)?;
     let role_raw = obj
         .spec
@@ -126,8 +179,6 @@ async fn provision(obj: &PostgresDatabase, ctx: &Context) -> Result<String> {
         .await?;
     }
 
-    let secret_ref = format!("{}/{}", obj.spec.secret_namespace, obj.spec.secret_name);
-
     if let Some(password) = password {
         let secret = build_secret(obj, role_raw, &password, ctx);
         secrets
@@ -137,10 +188,10 @@ async fn provision(obj: &PostgresDatabase, ctx: &Context) -> Result<String> {
                 &Patch::Apply(&secret),
             )
             .await?;
-        tracing::info!("wrote secret {secret_ref}");
+        tracing::info!("wrote secret {}/{}", obj.spec.secret_namespace, obj.spec.secret_name);
     }
 
-    Ok(secret_ref)
+    Ok(())
 }
 
 fn build_secret(obj: &PostgresDatabase, role: &str, password: &str, ctx: &Context) -> Secret {
@@ -170,21 +221,6 @@ fn build_secret(obj: &PostgresDatabase, role: &str, password: &str, ctx: &Contex
         },
         ..Default::default()
     }
-}
-
-async fn patch_status(
-    api: &Api<PostgresDatabase>,
-    name: &str,
-    status: PostgresDatabaseStatus,
-) -> Result<()> {
-    let patch = serde_json::json!({ "status": status });
-    api.patch_status(
-        name,
-        &PatchParams::apply(FIELD_MANAGER),
-        &Patch::Merge(&patch),
-    )
-    .await?;
-    Ok(())
 }
 
 fn generate_password() -> String {

@@ -15,8 +15,7 @@ pub const IDENT_PATTERN: &str = r"^[A-Za-z_][A-Za-z0-9_]*$";
     category = "databases",
     status = "PostgresDatabaseStatus",
     printcolumn = r#"{"name":"Database","type":"string","jsonPath":".spec.databaseName"}"#,
-    printcolumn = r#"{"name":"Ready","type":"string","jsonPath":".status.ready"}"#,
-    printcolumn = r#"{"name":"Phase","type":"string","jsonPath":".status.phase"}"#,
+    printcolumn = r#"{"name":"Ready","type":"string","jsonPath":".status.conditions[?(@.type==\"Programmed\")].status"}"#,
     printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#
 )]
 pub struct PgDatabaseSpec {
@@ -31,20 +30,21 @@ pub struct PgDatabaseSpec {
     pub secret_namespace: String,
 }
 
-#[derive(Deserialize, Serialize, Clone, Copy, Debug, Default, PartialEq, Eq, JsonSchema)]
-pub enum Phase {
-    #[default]
-    Pending,
-    Ready,
-    Error,
-}
-
 #[derive(Deserialize, Serialize, Clone, Debug, Default, JsonSchema)]
 #[serde(rename_all = "camelCase")]
 pub struct PostgresDatabaseStatus {
-    pub ready: bool,
-    pub phase: Phase,
-    pub observed_generation: Option<i64>,
-    pub message: Option<String>,
-    pub secret_ref: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct Condition {
+    #[serde(rename = "type")]
+    pub type_: String,
+    pub status: String,
+    pub reason: String,
+    pub message: String,
+    pub observed_generation: i64,
+    pub last_transition_time: String,
 }
