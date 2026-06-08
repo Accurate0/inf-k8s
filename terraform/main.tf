@@ -39,6 +39,11 @@ terraform {
       source  = "Infisical/infisical"
       version = "0.16.28"
     }
+
+    google = {
+      source  = "hashicorp/google"
+      version = ">= 4"
+    }
   }
 
   backend "s3" {
@@ -51,6 +56,9 @@ terraform {
 }
 
 provider "binarylane" {}
+provider "google" {
+  project = "home-gateway-22"
+}
 provider "azurerm" {
   features {}
 }
