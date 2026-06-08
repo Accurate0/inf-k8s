@@ -1,9 +1,9 @@
-resource "aws_s3_bucket" "home-gateway-image-bucket" {
-  bucket = "home-gateway-image-bucket"
+resource "aws_s3_bucket" "home-gateway-bucket" {
+  bucket = "home-gateway-bucket"
 }
 
-resource "aws_s3_bucket_public_access_block" "home-gateway-image-bucket-public-block" {
-  bucket = aws_s3_bucket.home-gateway-image-bucket.id
+resource "aws_s3_bucket_public_access_block" "home-gateway-bucket-public-block" {
+  bucket = aws_s3_bucket.home-gateway-bucket.id
 
   block_public_acls       = true
   block_public_policy     = true
@@ -32,8 +32,8 @@ resource "aws_iam_policy" "home-gateway-policy" {
             "s3:ListBucket"
           ],
           "Resource" : [
-            aws_s3_bucket.home-gateway-image-bucket.arn,
-            "${aws_s3_bucket.home-gateway-image-bucket.arn}/*"
+            aws_s3_bucket.home-gateway-bucket.arn,
+            "${aws_s3_bucket.home-gateway-bucket.arn}/*"
           ]
         }
       ]
