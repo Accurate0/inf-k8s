@@ -2,7 +2,7 @@ terraform {
   required_providers {
     binarylane = {
       source  = "oscarhermoso/binarylane"
-      version = "~> 0.12"
+      version = "~> 0.13"
     }
 
     azurerm = {
