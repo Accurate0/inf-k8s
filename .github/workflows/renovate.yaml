@@ -1,6 +1,14 @@
 name: Renovate
 on:
   workflow_dispatch: # Allows manual trigger
+    inputs:
+      logLevel:
+        description: Renovate log level
+        type: choice
+        default: info
+        options:
+          - info
+          - debug
   schedule:
     - cron: "0 * * * *" # Runs every hour
 
@@ -17,7 +25,7 @@ jobs:
           configurationFile: platform-services/renovate/config.js
           token: ${{ secrets.FORGEJO_RENOVATE_TOKEN }}
         env:
-          LOG_LEVEL: info
+          LOG_LEVEL: ${{ inputs.logLevel || 'info' }}
           RENOVATE_PLATFORM: forgejo
           RENOVATE_ENDPOINT: https://git.anurag.sh
           RENOVATE_AUTODISCOVER: "true"
