@@ -1,0 +1,22 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Shared labels applied to Renovate PRs.",
+  "labels": ["renovate"],
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["major"],
+      "addLabels": ["update-major"]
+    },
+    {
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest",
+        "pin",
+        "rollback",
+        "bump"
+      ],
+      "addLabels": ["update-non-major"]
+    }
+  ]
+}

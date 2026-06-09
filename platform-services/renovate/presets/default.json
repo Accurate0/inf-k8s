@@ -5,6 +5,7 @@
   "rebaseWhen": "conflicted",
   "extends": [
     "mergeConfidence:all-badges",
+    "local>anurag/k8s//platform-services/renovate/presets/labels",
     "local>anurag/k8s//platform-services/renovate/presets/pin-github-actions",
     "local>anurag/k8s//platform-services/renovate/presets/npm-min-release-age",
     "local>anurag/k8s//platform-services/renovate/presets/docker-min-release-age",

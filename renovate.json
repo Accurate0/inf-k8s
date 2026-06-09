@@ -11,7 +11,6 @@
     ]
   },
   "ignorePaths": ["system-components/redis.application.yaml"],
-  "labels": ["renovate"],
   "customManagers": [
     {
       "customType": "regex",
@@ -59,21 +58,6 @@
       "commitMessageTopic": "k3s",
       "automerge": false,
       "addLabels": ["k3s"]
-    },
-    {
-      "matchUpdateTypes": ["major"],
-      "addLabels": ["update-major"]
-    },
-    {
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest",
-        "pin",
-        "rollback",
-        "bump"
-      ],
-      "addLabels": ["update-non-major"]
     },
     {
       "matchDatasources": ["terraform-provider", "terraform-module"],
