@@ -6,7 +6,7 @@ use axum::{
     routing::get,
     Router,
 };
-use gateway_api::httproutes::HTTPRoute;
+use gateway_api::httproutes::HttpRoute;
 use itertools::Itertools;
 use k8s_openapi::api::networking::v1::Ingress;
 use kube::{api::ListParams, Api, ResourceExt};
@@ -61,7 +61,7 @@ where
 
 // basic handler that responds with a static string
 async fn index(State(state): State<AppState>) -> Result<Html<String>, AppError> {
-    let http_routes: Api<HTTPRoute> = Api::all(state.client.clone());
+    let http_routes: Api<HttpRoute> = Api::all(state.client.clone());
     let params = ListParams::default();
     let all_http_routes = http_routes.list(&params).await?;
 
