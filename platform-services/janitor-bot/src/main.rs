@@ -17,7 +17,6 @@ use tokio_cron_scheduler::{JobBuilder, JobScheduler};
 use tracing::Instrument;
 
 const FORGEJO_OWNER: &str = "anurag";
-const WATCH_REPOS: &[&str] = &["k8s"];
 
 struct AppState {
     clients: Clients,
@@ -31,18 +30,13 @@ async fn evaluate_open_prs(state: &AppState) {
     let cron_start = std::time::Instant::now();
     let mut total_prs = 0usize;
 
-    for repo in WATCH_REPOS {
-        tracing::info!(owner = FORGEJO_OWNER, repo, "polling open PRs");
+    for (owner, repo) in state.orchestrator.watch_repos() {
+        tracing::info!(owner, repo, "polling open PRs");
 
-        let prs = match state
-            .clients
-            .forgejo
-            .list_open_prs(FORGEJO_OWNER, repo)
-            .await
-        {
+        let prs = match state.clients.forgejo.list_open_prs(owner, repo).await {
             Ok(prs) => prs,
             Err(e) => {
-                tracing::error!(owner = FORGEJO_OWNER, repo, "failed to list open PRs: {e}");
+                tracing::error!(owner, repo, "failed to list open PRs: {e}");
                 continue;
             }
         };
@@ -51,7 +45,7 @@ async fn evaluate_open_prs(state: &AppState) {
 
         for pr in &prs {
             let Some(mut pr_event) =
-                event::PrEvent::from_api_pr(pr, FORGEJO_OWNER.to_owned(), repo.to_string())
+                event::PrEvent::from_api_pr(pr, owner.to_owned(), repo.to_owned())
             else {
                 continue;
             };

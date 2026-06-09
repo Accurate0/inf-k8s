@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::time::{Duration, Instant};
 
 use crate::clients::Clients;
@@ -112,6 +113,7 @@ impl Action {
         event: &BotEvent<'_>,
         cache: &ResourceCache,
         raw: Option<&RawRequest>,
+        extra_vars: &HashMap<&'static str, String>,
     ) {
         let client = &clients.forgejo;
         let result = match self {
@@ -323,11 +325,24 @@ impl Action {
                 description,
                 target_url,
             } => {
-                let vars = event.template_vars();
+                let mut vars = event.template_vars();
+                vars.extend(extra_vars.iter().map(|(k, v)| (*k, v.clone())));
+
+                let owner = crate::event::render_template(target_owner, &vars);
+                let repo = crate::event::render_template(target_repo, &vars);
+                if owner.is_empty() || repo.is_empty() {
+                    tracing::debug!(
+                        target_owner,
+                        target_repo,
+                        "skipping set_commit_status: target did not resolve (no mirror mapping)"
+                    );
+                    return;
+                }
+
                 client
                     .set_commit_status(CommitStatusParams {
-                        owner: target_owner,
-                        repo: target_repo,
+                        owner: &owner,
+                        repo: &repo,
                         sha: &sha.render(&vars),
                         state: &state.render(&vars),
                         context: &context.render(&vars),

@@ -3,10 +3,10 @@ use yaml_include::Transformer;
 
 fn main() {
     let manifest_dir = Path::new(env!("CARGO_MANIFEST_DIR"));
-    let rules_path = manifest_dir.join("rules.yaml");
+    let rules_path = manifest_dir.join("config.yaml");
 
     let transformer = Transformer::new(rules_path, true)
-        .expect("failed to load rules.yaml for include processing");
+        .expect("failed to load config.yaml for include processing");
     let resolved = transformer.to_string();
 
     let out_dir = std::env::var("OUT_DIR").unwrap();
@@ -14,19 +14,19 @@ fn main() {
         .expect("write merged rules");
 
     let schema_str =
-        std::fs::read_to_string(manifest_dir.join("rules.schema.json")).expect("read schema");
-    std::fs::write(Path::new(&out_dir).join("rules.schema.json"), &schema_str)
+        std::fs::read_to_string(manifest_dir.join("config.schema.json")).expect("read schema");
+    std::fs::write(Path::new(&out_dir).join("config.schema.json"), &schema_str)
         .expect("write schema");
 
     // Validate rules against schema at build time
     let yaml_value: serde_json::Value =
-        yaml_serde::from_str(&resolved).expect("rules.yaml is not valid YAML");
+        yaml_serde::from_str(&resolved).expect("config.yaml is not valid YAML");
 
     if std::env::var("SKIP_SCHEMA_VALIDATION").is_err() {
         let schema: serde_json::Value =
-            serde_json::from_str(&schema_str).expect("rules.schema.json is not valid JSON");
+            serde_json::from_str(&schema_str).expect("config.schema.json is not valid JSON");
         let validator = jsonschema::validator_for(&schema)
-            .expect("rules.schema.json is not a valid JSON Schema");
+            .expect("config.schema.json is not a valid JSON Schema");
 
         let errors: Vec<String> = validator
             .iter_errors(&yaml_value)
@@ -35,7 +35,7 @@ fn main() {
 
         if !errors.is_empty() {
             panic!(
-                "rules.yaml failed schema validation:\n{}",
+                "config.yaml failed schema validation:\n{}",
                 errors.join("\n")
             );
         }
@@ -107,8 +107,8 @@ fn main() {
         }
     }
 
-    println!("cargo:rerun-if-changed=rules.yaml");
-    println!("cargo:rerun-if-changed=rules.schema.json");
+    println!("cargo:rerun-if-changed=config.yaml");
+    println!("cargo:rerun-if-changed=config.schema.json");
     println!("cargo:rerun-if-changed=rules/");
 }
 

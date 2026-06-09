@@ -29,11 +29,26 @@ impl From<String> for TemplateString {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RulesFile {
+    /// Repositories the bot knows about, keyed by Forgejo `owner/repo` slug.
+    #[serde(default)]
+    pub repos: Vec<RepoConfig>,
     #[serde(default)]
     pub checks: std::collections::HashMap<String, Matcher>,
     #[serde(default)]
     pub label_colors: std::collections::HashMap<String, String>,
     pub rules: Vec<RuleDef>,
+}
+
+#[derive(Debug, Deserialize, JsonSchema)]
+pub struct RepoConfig {
+    /// Forgejo repo slug, `owner/repo`.
+    pub repo: String,
+    /// Whether the cron poller and admin endpoints process this repo.
+    #[serde(default)]
+    pub watched: bool,
+    /// GitHub mirror slug, `owner/repo`, when this repo is mirrored to GitHub.
+    #[serde(default)]
+    pub github_repo: Option<String>,
 }
 
 #[derive(Debug, Deserialize, JsonSchema)]

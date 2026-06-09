@@ -6,14 +6,14 @@ fn main() {
 
     let rules_schema = schemars::schema_for!(RulesFile);
     let json = serde_json::to_string_pretty(&rules_schema).expect("serialize schema");
-    let out = base.join("rules.schema.json");
+    let out = base.join("config.schema.json");
 
     std::fs::write(&out, format!("{json}\n")).expect("write schema");
     eprintln!("wrote {}", out.display());
 
     let rule_schema = schemars::schema_for!(RuleDef);
     let json = serde_json::to_string_pretty(&rule_schema).expect("serialize schema");
-    let out = base.join("rule.schema.json");
+    let out = base.join("rules").join("rule.schema.json");
 
     std::fs::write(&out, format!("{json}\n")).expect("write schema");
     eprintln!("wrote {}", out.display());

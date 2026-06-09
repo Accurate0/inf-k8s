@@ -16,6 +16,13 @@
       },
       "default": {}
     },
+    "repos": {
+      "description": "Repositories the bot knows about, keyed by Forgejo `owner/repo` slug.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RepoConfig"
+      }
+    },
     "rules": {
       "type": "array",
       "items": {
@@ -1406,6 +1413,31 @@
       "type": "string",
       "enum": [
         "argocd"
+      ]
+    },
+    "RepoConfig": {
+      "type": "object",
+      "properties": {
+        "github_repo": {
+          "description": "GitHub mirror slug, `owner/repo`, when this repo is mirrored to GitHub.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "repo": {
+          "description": "Forgejo repo slug, `owner/repo`.",
+          "type": "string"
+        },
+        "watched": {
+          "description": "Whether the cron poller and admin endpoints process this repo.",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "required": [
+        "repo"
       ]
     },
     "RetryWorkflowTargetDef": {

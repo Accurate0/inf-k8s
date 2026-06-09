@@ -112,7 +112,7 @@ impl Default for RulesOrchestrator {
 impl RulesOrchestrator {
     pub fn new() -> Self {
         let rules: RulesFile =
-            yaml_serde::from_str(RULES_YAML).expect("rules.yaml deserialization failed");
+            yaml_serde::from_str(RULES_YAML).expect("config.yaml deserialization failed");
         Self::from_rules(rules)
     }
 
@@ -151,6 +151,36 @@ impl RulesOrchestrator {
 
     pub async fn get_eval_log(&self) -> Vec<EvalLogEntry> {
         self.eval_log.lock().await.iter().cloned().collect()
+    }
+
+    /// Watched repos as `(owner, repo)` pairs, parsed from `owner/repo` slugs.
+    pub fn watch_repos(&self) -> impl Iterator<Item = (&str, &str)> {
+        self.rules
+            .repos
+            .iter()
+            .filter(|r| r.watched)
+            .filter_map(|r| r.repo.split_once('/'))
+    }
+
+    /// Template vars resolving a GitHub mirror back to its Forgejo repo.
+    /// For a GitHub event whose `repository` matches a configured `github_repo`,
+    /// exposes `mirror.owner` and `mirror.repo` for the Forgejo target.
+    fn mirror_vars(&self, event: &BotEvent) -> HashMap<&'static str, String> {
+        let mut vars = HashMap::new();
+        let Some(github_repo) = event.template_vars().get("repository").cloned() else {
+            return vars;
+        };
+        if let Some((owner, repo)) = self
+            .rules
+            .repos
+            .iter()
+            .find(|r| r.github_repo.as_deref() == Some(github_repo.as_str()))
+            .and_then(|r| r.repo.split_once('/'))
+        {
+            vars.insert("mirror.owner", owner.to_string());
+            vars.insert("mirror.repo", repo.to_string());
+        }
+        vars
     }
 
     pub fn rules_summary(&self) -> Vec<RuleSummary> {
@@ -568,6 +598,7 @@ impl RulesOrchestrator {
         let rule_start = Instant::now();
         let now = self.now();
         let mut log = Vec::new();
+        let extra_vars = self.mirror_vars(event);
 
         for group in &rule.actions {
             let gate_ok = match &group.when {
@@ -610,7 +641,7 @@ impl RulesOrchestrator {
                     action = action.kind(),
                 );
                 action
-                    .execute(clients, event, cache, raw)
+                    .execute(clients, event, cache, raw, &extra_vars)
                     .instrument(action_span)
                     .await;
                 let action_elapsed = action_start.elapsed();
@@ -878,7 +909,7 @@ mod tests {
     #[test]
     fn topo_sort_current_rules() {
         let rules: RulesFile =
-            yaml_serde::from_str(RULES_YAML).expect("rules.yaml deserialization failed");
+            yaml_serde::from_str(RULES_YAML).expect("config.yaml deserialization failed");
         let sorted = RulesOrchestrator::topo_sort(rules.rules);
         let names: Vec<&str> = sorted.iter().map(|r| r.name.as_str()).collect();
         insta::assert_yaml_snapshot!(names);

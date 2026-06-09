@@ -1,12 +1,15 @@
-# yaml-language-server: $schema=../rule.schema.json
+# yaml-language-server: $schema=./rule.schema.json
 name: clear-janitor-labels-on-merge
 when:
   all:
     - type: event
       kind: pr
       source: forgejo
-    - type: repository
-      value: anurag/k8s
+    - any:
+        - type: repository
+          value: anurag/home-gateway
+        - type: repository
+          value: anurag/k8s
     - type: action
       value: closed
     - type: is_merged

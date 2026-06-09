@@ -1,4 +1,11 @@
-# yaml-language-server: $schema=./rules.schema.json
+# yaml-language-server: $schema=./config.schema.json
+repos:
+  - repo: anurag/k8s
+    watched: true
+    github_repo: Accurate0/inf-k8s
+  - repo: anurag/home-gateway
+    watched: true
+    github_repo: Accurate0/home-gateway
 checks:
   perth_evening:
     type: time_of_day

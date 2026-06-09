@@ -1,12 +1,15 @@
-# yaml-language-server: $schema=../rule.schema.json
+# yaml-language-server: $schema=./rule.schema.json
 name: manage-renovate
 when:
   all:
     - type: event
       kind: pr
       source: forgejo
-    - type: repository
-      value: anurag/k8s
+    - any:
+        - type: repository
+          value: anurag/home-gateway
+        - type: repository
+          value: anurag/k8s
     - type: feature_flag
       name: allow_automerging_rules
       default: true
@@ -18,6 +21,7 @@ when:
     - type: changed_files_all_match
       patterns:
         - ".github/workflows/**"
+        - ".forgejo/workflows/**"
         - "**/Dockerfile*"
     - type: changed_files_none_match
       patterns:

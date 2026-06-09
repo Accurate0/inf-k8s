@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../rule.schema.json
+# yaml-language-server: $schema=./rule.schema.json
 name: mirror-commit-status
 when:
   all:
@@ -9,8 +9,6 @@ when:
         - type: event
           kind: check_run
           source: github
-    - type: repository
-      value: Accurate0/inf-k8s
     - not:
         type: title_matches
         value: renovate
@@ -18,8 +16,8 @@ actions:
   - run:
       - type: set_commit_status
         target:
-          owner: anurag
-          repo: k8s
+          owner: "{mirror.owner}"
+          repo: "{mirror.repo}"
         sha: "{sha}"
         state: "{state}"
         context: "{context}"

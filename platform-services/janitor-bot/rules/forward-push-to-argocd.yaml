@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../rule.schema.json
+# yaml-language-server: $schema=./rule.schema.json
 name: forward-push-to-argocd
 when:
   all:

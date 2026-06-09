@@ -1,4 +1,4 @@
-# yaml-language-server: $schema=../rule.schema.json
+# yaml-language-server: $schema=./rule.schema.json
 name: manage-github-workflow
 when:
   all:
