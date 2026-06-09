@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.envoyproxy.io/clienttrafficpolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: ClientTrafficPolicy
+metadata:
+  name: git-anurag-sh-client-policy
+spec:
+  # Scoped to the git.anurag.sh listener via sectionName, layered on top of the
+  # gateway-wide public-gateway-client-policy via StrategicMerge so only the
+  # delta below is declared (everything else is inherited).
+  #
+  # path.escapedSlashesAction: KeepUnchanged forwards %2F intact. The gateway
+  # default (UnescapeAndRedirect) 307-decodes %2F, making Forgejo 404 on
+  # /commits/{ref}/statuses for slash-containing branch refs (renovate/*), which
+  # Renovate maps to REPOSITORY_CHANGED and aborts the repo.
+  mergeType: StrategicMerge
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public-gateway
+      sectionName: git-anurag-sh-https
+  path:
+    escapedSlashesAction: KeepUnchanged

@@ -57,6 +57,7 @@ spec:
       kind: Gateway
       name: public-gateway
       namespace: envoy-gateway-system
+      sectionName: git-anurag-sh-https
   hostnames:
     - git.anurag.sh
   rules:
