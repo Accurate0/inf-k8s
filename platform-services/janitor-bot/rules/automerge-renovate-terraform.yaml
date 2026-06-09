@@ -21,8 +21,7 @@ when:
         type: has_label
         value: update-major
     - not:
-        type: has_label
-        value: conflicts
+        type: has_conflicts
     - type: is_open
     - not:
         type: bot.has_approved

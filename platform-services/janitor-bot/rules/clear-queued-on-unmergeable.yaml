@@ -1,0 +1,25 @@
+# yaml-language-server: $schema=./rule.schema.json
+name: clear-queued-on-unmergeable
+when:
+  all:
+    - type: event
+      kind: pr
+      source: forgejo
+    - any:
+        - type: repository
+          value: anurag/home-gateway
+        - type: repository
+          value: anurag/k8s
+    - type: has_label
+      value: janitor/queued
+    - type: is_open
+    - any:
+        - type: has_conflicts
+        - all:
+            - type: has_status_checks
+            - not:
+                type: all_status_checks_passed
+actions:
+  - run:
+      - type: remove_labels
+        labels: [janitor/queued]

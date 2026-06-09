@@ -15,8 +15,7 @@ when:
     - type: author
       value: ci-image-updater
     - not:
-        type: has_label
-        value: conflicts
+        type: has_conflicts
     - type: is_open
     - type: is_latest_by_metadata
       match_metadata_fields: [service]

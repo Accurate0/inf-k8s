@@ -28,3 +28,4 @@ rules:
   - !include rules/argocd-sync-status.yaml
   - !include rules/forward-push-to-argocd.yaml
   - !include rules/clear-janitor-labels-on-merge.yaml
+  - !include rules/clear-queued-on-unmergeable.yaml

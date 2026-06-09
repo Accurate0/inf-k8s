@@ -1,0 +1,45 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - action: remove_labels
+        ran: true
+    dry_run: false
+    name: clear-queued-on-unmergeable
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/150/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/150
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/150/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls?state=open
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/commits/abc1000000000000000000000000000000000000/status
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/150/labels/7
+    body:
+      updated_at: ~
+    service: forgejo
+  - method: POST
+    path: /evaluate/v1/boolean
+    body:
+      context:
+        environment: development
+        rule_name: manage-ci-image-updater
+      entityId: ""
+      flagKey: allow_automerging_rules
+      namespaceKey: janitor-bot
+      reference: ~
+    service: flipt

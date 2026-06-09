@@ -12,3 +12,4 @@ expression: names
 - argocd-sync-status
 - forward-push-to-argocd
 - clear-janitor-labels-on-merge
+- clear-queued-on-unmergeable

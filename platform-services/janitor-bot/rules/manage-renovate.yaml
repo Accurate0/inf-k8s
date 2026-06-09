@@ -30,8 +30,7 @@ when:
         type: has_label
         value: update-major
     - not:
-        type: has_label
-        value: conflicts
+        type: has_conflicts
     - any:
         - not:
             type: has_status_checks
