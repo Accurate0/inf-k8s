@@ -1,6 +1,9 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["local>anurag/k8s//platform-services/renovate/presets/pin-github-actions"],
+  "extends": [
+    "local>anurag/k8s//platform-services/renovate/presets/pin-github-actions",
+    "local>anurag/k8s//platform-services/renovate/presets/npm-min-release-age"
+  ],
   "argocd": {
     "managerFilePatterns": [
       "/system-components/.*\\.application\\.yaml$/",

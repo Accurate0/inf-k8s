@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Wait before adopting new npm releases to avoid supply-chain attacks.",
+  "packageRules": [
+    {
+      "matchManagers": ["npm"],
+      "minimumReleaseAge": "14 days",
+      "internalChecksFilter": "strict",
+      "description": "Hold npm updates until releases have aged 14 days."
+    }
+  ]
+}
