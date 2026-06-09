@@ -5,7 +5,8 @@
     {
       "matchManagers": ["github-actions"],
       "pinDigests": true,
-      "description": "Pin GitHub Actions to immutable SHA for security.",
+      "groupName": "github-actions",
+      "description": "Pin GitHub Actions to immutable SHA for security and group updates into one PR.",
       "matchDepNames": ["!/^helm$/"]
     }
   ]

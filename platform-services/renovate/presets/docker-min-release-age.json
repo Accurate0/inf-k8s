@@ -1,0 +1,13 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Wait before adopting new container/OCI image tags to avoid supply-chain attacks.",
+  "packageRules": [
+    {
+      "matchDatasources": ["docker"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "minimumReleaseAge": "3 days",
+      "internalChecksFilter": "strict",
+      "description": "Hold container/OCI minor and patch updates until tags have aged 3 days."
+    }
+  ]
+}
