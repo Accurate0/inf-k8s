@@ -6,7 +6,9 @@
       "matchManagers": ["npm"],
       "minimumReleaseAge": "14 days",
       "internalChecksFilter": "strict",
-      "description": "Hold npm updates until releases have aged 14 days."
+      "rebaseWhen": "behind-base-branch",
+      "schedule": ["after 2am and before 3am"],
+      "description": "Hold npm updates until releases have aged 14 days; rebase stale PRs once daily."
     }
   ]
 }
