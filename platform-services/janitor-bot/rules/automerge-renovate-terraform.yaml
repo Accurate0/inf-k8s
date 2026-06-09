@@ -19,7 +19,7 @@ when:
         - "terraform/**"
     - not:
         type: has_label
-        value: update-major
+        value: renovate/major
     - not:
         type: has_conflicts
     - type: is_open

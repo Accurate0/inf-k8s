@@ -6,6 +6,7 @@ expression: names
 - manage-ci-image-updater
 - manage-renovate
 - automerge-renovate-terraform
+- automerge-renovate-lockfile
 - manage-github-workflow
 - retry-renovate-workflow
 - mirror-commit-status

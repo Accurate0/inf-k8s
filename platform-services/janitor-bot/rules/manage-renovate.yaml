@@ -28,7 +28,7 @@ when:
         - "system-components/postgres-cluster/container/Dockerfile"
     - not:
         type: has_label
-        value: update-major
+        value: renovate/major
     - not:
         type: has_conflicts
     - any:

@@ -5,18 +5,35 @@
   "packageRules": [
     {
       "matchUpdateTypes": ["major"],
-      "addLabels": ["update-major"]
+      "addLabels": ["renovate/major"]
     },
     {
-      "matchUpdateTypes": [
-        "minor",
-        "patch",
-        "digest",
-        "pin",
-        "rollback",
-        "bump"
-      ],
-      "addLabels": ["update-non-major"]
+      "matchUpdateTypes": ["minor"],
+      "addLabels": ["renovate/minor"]
+    },
+    {
+      "matchUpdateTypes": ["patch"],
+      "addLabels": ["renovate/patch"]
+    },
+    {
+      "matchUpdateTypes": ["digest"],
+      "addLabels": ["renovate/digest"]
+    },
+    {
+      "matchUpdateTypes": ["pin"],
+      "addLabels": ["renovate/pin"]
+    },
+    {
+      "matchUpdateTypes": ["rollback"],
+      "addLabels": ["renovate/rollback"]
+    },
+    {
+      "matchUpdateTypes": ["bump"],
+      "addLabels": ["renovate/bump"]
+    },
+    {
+      "matchUpdateTypes": ["lockFileMaintenance"],
+      "addLabels": ["renovate/lockfile"]
     }
   ]
 }
