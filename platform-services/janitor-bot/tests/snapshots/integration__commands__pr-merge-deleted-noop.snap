@@ -1,0 +1,7 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  ignored: comment not created
+external_requests: []

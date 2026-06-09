@@ -1,0 +1,52 @@
+now: "2026-01-07T10:00:00Z"
+type: pr
+payload:
+  action: closed
+  pull_request:
+    number: 100
+    title: Update dependency foo to v2
+    merged: true
+    labels:
+      - id: 7
+        name: janitor/queued
+      - id: 8
+        name: automated
+    base:
+      ref: main
+    diff_url: ""
+    html_url: ""
+    patch_url: ""
+    url: ""
+  sender:
+    login: anurag
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - service: flipt
+    method: POST
+    path: /evaluate/v1/boolean
+    status: 200
+    body:
+      enabled: true
+      reason: MATCH_EVALUATION_REASON
+      request_id: test
+      request_duration_millis: 0.1
+      timestamp: "2026-01-07T10:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    status: 200
+    body:
+      - id: 7
+        name: janitor/queued
+        color: "#fbca04"
+        url: ""
+      - id: 8
+        name: automated
+        color: "#e4e669"
+        url: ""
+  - service: forgejo
+    method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/100/labels/7
+    status: 200
+    body: {}

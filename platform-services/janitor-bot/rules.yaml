@@ -20,3 +20,4 @@ rules:
   - !include rules/mirror-commit-status.yaml
   - !include rules/argocd-sync-status.yaml
   - !include rules/forward-push-to-argocd.yaml
+  - !include rules/clear-janitor-labels-on-merge.yaml

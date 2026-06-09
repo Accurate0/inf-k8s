@@ -135,7 +135,14 @@ pub enum ActionDef {
         target: Option<IssueTarget>,
     },
     #[serde(rename = "remove_labels")]
-    RemoveLabels { labels: Vec<String> },
+    RemoveLabels {
+        #[serde(default)]
+        labels: Vec<String>,
+        /// Remove any of the PR's current labels whose name starts with one of
+        /// these prefixes (e.g. `janitor/` to clear all janitor labels).
+        #[serde(default)]
+        prefixes: Vec<String>,
+    },
     #[serde(rename = "create_issue")]
     CreateIssue {
         target: IssueTarget,
@@ -276,8 +283,9 @@ impl ActionDef {
                 target_owner: target.as_ref().map(|t| t.owner.clone()),
                 target_repo: target.as_ref().map(|t| t.repo.clone()),
             },
-            ActionDef::RemoveLabels { labels } => Action::RemoveLabels {
+            ActionDef::RemoveLabels { labels, prefixes } => Action::RemoveLabels {
                 labels: labels.clone(),
+                prefixes: prefixes.clone(),
             },
             ActionDef::CreateIssue {
                 target,

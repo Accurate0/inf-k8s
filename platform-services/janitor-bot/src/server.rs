@@ -97,6 +97,14 @@ async fn handle_evaluate(
                     );
                 }
             };
+            // Editing or deleting a comment re-delivers the webhook with the
+            // original body; only act on freshly created comments.
+            if webhook.action != "created" {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({"ignored": "comment not created"})),
+                );
+            }
             let Some(cmd) = webhook.into_comment_event() else {
                 return (
                     StatusCode::BAD_REQUEST,
@@ -251,6 +259,14 @@ async fn handle_evaluate(
                     );
                 }
             };
+            // Editing or deleting a comment re-delivers the webhook with the
+            // original body; only act on freshly created comments.
+            if webhook.action != "created" {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({"ignored": "comment not created"})),
+                );
+            }
             let Some(cmd) = webhook.into_issue_comment_event() else {
                 return (
                     StatusCode::BAD_REQUEST,

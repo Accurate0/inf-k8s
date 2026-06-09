@@ -136,6 +136,15 @@
           "properties": {
             "labels": {
               "type": "array",
+              "default": [],
+              "items": {
+                "type": "string"
+              }
+            },
+            "prefixes": {
+              "description": "Remove any of the PR's current labels whose name starts with one of\nthese prefixes (e.g. `janitor/` to clear all janitor labels).",
+              "type": "array",
+              "default": [],
               "items": {
                 "type": "string"
               }
@@ -146,8 +155,7 @@
             }
           },
           "required": [
-            "type",
-            "labels"
+            "type"
           ]
         },
         {

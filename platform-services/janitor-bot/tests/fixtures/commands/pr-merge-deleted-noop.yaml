@@ -1,0 +1,19 @@
+# Deleting a comment that contained a `@janitor` command must NOT re-run it.
+# The webhook re-delivers the original body with action=deleted; expect no
+# external requests (not even the reaction POST).
+type: pr_comment
+payload:
+  action: deleted
+  issue:
+    number: 5
+    pull_request: {}
+    body: null
+    labels: []
+  comment:
+    id: 200
+    body: "@janitor merge"
+  sender:
+    login: anurag
+  repository:
+    full_name: anurag/k8s
+mocks: []

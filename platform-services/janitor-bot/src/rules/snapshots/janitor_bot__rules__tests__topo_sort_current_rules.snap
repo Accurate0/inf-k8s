@@ -11,3 +11,4 @@ expression: names
 - mirror-commit-status
 - argocd-sync-status
 - forward-push-to-argocd
+- clear-janitor-labels-on-merge

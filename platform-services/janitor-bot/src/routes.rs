@@ -95,8 +95,14 @@ pub async fn handle_forgejo_webhook(
         "received forgejo webhook event"
     );
 
+    // Deleting (or otherwise mutating) a comment re-delivers an `issue_comment`
+    // webhook whose payload still carries the original comment body. Only act on
+    // newly created comments so removing a `janitor ...` command doesn't re-run it.
+    let comment_created = event.action == "created";
+
     if forgejo_event == "issue_comment" && (forgejo_event_type != "pull_request_comment") {
         if let Some(cmd) = event.into_issue_comment_event()
+            .filter(|_| comment_created)
             && cmd.author == super::FORGEJO_OWNER
             && let Some(parsed) = command::parse_issue_command(&cmd.comment_body)
         {
@@ -111,7 +117,7 @@ pub async fn handle_forgejo_webhook(
     }
 
     if forgejo_event == "issue_comment" && forgejo_event_type == "pull_request_comment" {
-        if let Some(cmd) = event.into_comment_event()
+        if let Some(cmd) = event.into_comment_event().filter(|_| comment_created)
             && cmd.author == super::FORGEJO_OWNER
             && let Some(parsed) = command::parse_pr_command(&cmd.body)
         {

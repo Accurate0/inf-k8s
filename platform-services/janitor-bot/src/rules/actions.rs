@@ -37,6 +37,7 @@ pub enum Action {
     },
     RemoveLabels {
         labels: Vec<String>,
+        prefixes: Vec<String>,
     },
     CreateIssue {
         target_owner: String,
@@ -189,13 +190,28 @@ impl Action {
                 }
                 .await
             }
-            Action::RemoveLabels { labels } => {
+            Action::RemoveLabels { labels, prefixes } => {
                 let BotEvent::ForgejoPr(pr) = event else {
                     return;
                 };
 
+                let mut to_remove = labels.clone();
+                if !prefixes.is_empty() {
+                    for label in &pr.labels {
+                        if prefixes.iter().any(|p| label.name.starts_with(p))
+                            && !to_remove.contains(&label.name)
+                        {
+                            to_remove.push(label.name.clone());
+                        }
+                    }
+                }
+
+                if to_remove.is_empty() {
+                    return;
+                }
+
                 client
-                    .remove_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, labels.clone())
+                    .remove_labels_by_name(&pr.owner, &pr.repo, pr.pr_number as i64, to_remove)
                     .await
             }
             Action::CreateIssue {
