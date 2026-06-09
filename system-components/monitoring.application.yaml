@@ -98,9 +98,9 @@ spec:
               otlp:
                 protocols:
                   grpc:
-                    endpoint: 0.0.0.0:4317
+                    endpoint: "0.0.0.0:4317"
                   http:
-                    endpoint: 0.0.0.0:4318
+                    endpoint: "0.0.0.0:4318"
             metricsGenerator:
               enabled: true
               remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
