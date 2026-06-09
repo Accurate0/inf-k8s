@@ -1,0 +1,12 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Pin GitHub Actions to immutable SHA for security.",
+  "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "pinDigests": true,
+      "description": "Pin GitHub Actions to immutable SHA for security.",
+      "matchDepNames": ["!/^helm$/"]
+    }
+  ]
+}

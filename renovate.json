@@ -1,5 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["local>anurag/k8s//platform-services/renovate/presets/pin-github-actions"],
   "argocd": {
     "managerFilePatterns": [
       "/system-components/.*\\.application\\.yaml$/",
@@ -48,14 +49,6 @@
         "code.forgejo.org/forgejo-helm/forgejo/forgejo"
       ],
       "enabled": false
-    },
-    {
-      "matchManagers": ["github-actions"],
-      "pinDigests": true,
-      "description": "Pin GitHub Actions to immutable SHA for security.",
-      "matchDepNames": [
-        "!/^helm$/"
-      ]
     },
     {
       "matchDatasources": ["github-releases"],
