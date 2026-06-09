@@ -32,6 +32,10 @@ when:
     - not:
         type: has_label
         value: conflicts
+    - any:
+        - not:
+            type: has_status_checks
+        - type: all_status_checks_passed
     - type: is_open
 actions:
   - when:
@@ -39,10 +43,6 @@ actions:
         - ref: global.perth_evening
         - not:
             type: bot.has_approved
-        - any:
-            - not:
-                type: has_status_checks
-            - type: all_status_checks_passed
     run:
       - type: remove_labels
         labels: [janitor/queued]
