@@ -5,5 +5,6 @@ module.exports = {
   autodiscoverTopics: ["managed-by-renovate"],
   dependencyDashboard: true,
   gitAuthor: "renovate[bot] <noreply@git.anurag.sh>",
+  allowedUnsafeExecutions: ["gradleWrapper"],
   extends: ["config:recommended"],
 };
