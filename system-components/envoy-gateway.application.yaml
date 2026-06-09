@@ -9,8 +9,6 @@ spec:
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/envoy
-      directory:
-        recurse: true
     - chart: gateway-helm
       helm:
         valuesObject:
