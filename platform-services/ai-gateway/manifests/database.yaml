@@ -5,6 +5,6 @@ metadata:
   name: ai-gateway-database
   namespace: ai-gateway
 spec:
-  databaseName: ai-gateway
+  databaseName: ai_gateway
   secretName: ai-gateway-database-secret
   secretNamespace: ai-gateway
