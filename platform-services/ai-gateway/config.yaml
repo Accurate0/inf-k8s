@@ -13,6 +13,7 @@ providers:
     api_key_env: OPENAI_API_KEY
     models:
       - gpt-4o
+    embedding_models:
       - text-embedding-3-large
 
   openrouter:

@@ -20,6 +20,25 @@ pub enum Dialect {
     OpenAiCompatible,
 }
 
+/// What an endpoint expects from a model. Embedding models are only reachable from the
+/// embeddings endpoint; chat/messages endpoints only route chat models.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub enum ModelKind {
+    Chat,
+    Embedding,
+}
+
+impl ModelKind {
+    /// The kind of model a proxied sub-path serves.
+    pub fn for_sub_path(sub_path: &str) -> Self {
+        if sub_path.ends_with("/embeddings") {
+            ModelKind::Embedding
+        } else {
+            ModelKind::Chat
+        }
+    }
+}
+
 #[derive(Clone, Copy, Default, Debug, PartialEq, Eq)]
 pub struct Usage {
     pub input: i64,

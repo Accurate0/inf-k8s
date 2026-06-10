@@ -33,6 +33,8 @@ struct ProviderDef {
     dialect: Dialect,
     #[serde(default)]
     models: Vec<String>,
+    #[serde(default)]
+    embedding_models: Vec<String>,
 }
 
 fn default_provider_name() -> String {
@@ -126,6 +128,7 @@ fixture_test!(chat_openai_happy_path, "chat", "openai-happy-path");
 fixture_test!(chat_no_provider_for_model, "chat", "no-provider-for-model");
 fixture_test!(chat_endpoint_to_anthropic_provider, "chat", "endpoint-to-anthropic-provider");
 fixture_test!(embeddings_openai_happy_path, "embeddings", "openai-happy-path");
+fixture_test!(embeddings_no_provider_for_model, "embeddings", "no-provider-for-model");
 
 async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     let snapshot_name = format!("{dir}__{file}");
@@ -152,6 +155,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
             base_url: upstream.uri(),
             api_key_env: Some(API_KEY_ENV.into()),
             models: fixture.provider.models.clone(),
+            embedding_models: fixture.provider.embedding_models.clone(),
         },
     );
     let config = Config {

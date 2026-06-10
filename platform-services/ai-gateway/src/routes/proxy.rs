@@ -15,7 +15,7 @@ use crate::{
     error::{GatewayError, Result},
     keys::VirtualKey,
     metrics,
-    providers::{Provider, ProxyRequest, Usage},
+    providers::{ModelKind, Provider, ProxyRequest, Usage},
     state::AppState,
     usage::{self, UsageEvent},
 };
@@ -118,10 +118,11 @@ async fn proxy(
     };
     span.record("resolved_model", resolved_model.as_str());
 
-    // The (resolved) model determines the downstream provider.
+    // The (resolved) model and the endpoint kind together determine the downstream
+    // provider, so an embedding model can only be reached via /embeddings.
     let provider = state
         .providers
-        .provider_for_model(&resolved_model)
+        .provider_for_model(&resolved_model, ModelKind::for_sub_path(sub_path))
         .ok_or_else(|| GatewayError::NoProvider(resolved_model.clone()))?;
     span.record("provider", provider.name());
 

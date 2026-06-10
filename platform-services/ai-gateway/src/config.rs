@@ -31,6 +31,8 @@ pub struct ProviderConfig {
     pub api_key_env: Option<String>,
     #[serde(default)]
     pub models: Vec<String>,
+    #[serde(default)]
+    pub embedding_models: Vec<String>,
 }
 
 impl ProviderConfig {
