@@ -1,19 +1,21 @@
 ---
-name: Terraform plan
+name: Terraform apply
 "on":
   workflow_dispatch:
-  pull_request:
+  push:
+    branches:
+      - main
     paths:
       - "terraform/**"
-      - ".forgejo/workflows/terraform-plan.yaml"
+      - ".forgejo/workflows/terraform-apply.yaml"
 
 concurrency:
-  group: terraform-plan
+  group: terraform-apply
   cancel-in-progress: false
 
 jobs:
-  plan:
-    name: tofu plan
+  apply:
+    name: tofu apply
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -50,28 +52,5 @@ jobs:
       - name: tofu init
         run: tofu init -input=false
 
-      - name: tofu plan
-        id: plan
-        run: |
-          set +e
-          tofu plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
-          echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
-
-      - name: Post plan as PR comment
-        if: github.event_name == 'pull_request'
-        working-directory: ${{ github.workspace }}
-        env:
-          FORGEJO_TOKEN: ${{ secrets.JANITOR_TOKEN }}
-          SERVER_URL: ${{ github.server_url }}
-          REPO: ${{ github.repository }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
-          PLAN_FILE: ${{ github.workspace }}/terraform/plan.txt
-          PLAN_EXIT_CODE: ${{ steps.plan.outputs.exitcode }}
-          RUN_ID: ${{ github.run_id }}
-          RUN_URL: https://git.anurag.sh/${{ github.repository }}/actions/runs/${{ github.run_number }}
-          COMMIT_SHA: ${{ github.event.pull_request.head.sha }}
-        run: .forgejo/scripts/post-tf-plan-comment.sh
-
-      - name: Fail if plan errored
-        if: steps.plan.outputs.exitcode != '0'
-        run: exit 1
+      - name: tofu apply
+        run: tofu apply -input=false -no-color -auto-approve
