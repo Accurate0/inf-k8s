@@ -37,3 +37,6 @@ spec:
           envFrom:
             - secretRef:
                 name: tldr-bot-managed-secrets
+          env:
+            - name: OPENAI_API_BASE
+              value: http://api.ai-gateway.svc.cluster.local/v1

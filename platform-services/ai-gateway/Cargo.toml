@@ -35,7 +35,12 @@ opentelemetry-otlp = { version = "0.32.0", features = ["trace", "reqwest-blockin
 opentelemetry-semantic-conventions = { version = "0.32.0", features = ["semconv_experimental"] }
 tracing-opentelemetry = "0.33.0"
 axum-tracing-opentelemetry = "0.38.0"
+clap = { version = "4", features = ["derive", "env"] }
 
 [[bin]]
 name = "ai-gateway"
 path = "src/main.rs"
+
+[[bin]]
+name = "aig"
+path = "src/bin/aig.rs"
