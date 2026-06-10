@@ -60,7 +60,7 @@ jobs:
   deploy:
     needs:
       - build
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@031fbf87eee0a58a76a52b17e4d3ca2f04f0dffa # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@6405dc1ebbb75fe4b8dc5cb1c303e9e42a746391 # main
     with:
       service-name: k8s-schemas
       images: ghcr.io/accurate0/k8s-schemas
