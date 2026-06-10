@@ -6,8 +6,6 @@ use axum::{
 use opentelemetry::trace::TraceContextExt;
 use serde::Serialize;
 use std::sync::Arc;
-use std::time::Duration;
-use tokio::time::sleep;
 use tracing::{Instrument, Span};
 use tracing_opentelemetry::OpenTelemetrySpanExt;
 
@@ -463,10 +461,6 @@ async fn run_admin_merge_queued(state: Arc<AppState>) {
                 .await;
 
             merged.push(serde_json::json!({"repo": repo, "pr": pr_number}));
-
-            // Forgejo needs a moment to recompute mergeability for the next queued PR
-            // after a merge changes the target branch head.
-            sleep(Duration::from_secs(5)).await;
         }
     }
 

@@ -2,7 +2,7 @@ pub mod types;
 
 use crate::marker::Marker;
 use forgejo_api::structs::*;
-use forgejo_api::{Auth, Forgejo};
+use forgejo_api::{ApiErrorKind, Auth, Forgejo, ForgejoError};
 use std::collections::HashSet;
 use types::RawCombinedStatus;
 pub use types::*;
@@ -91,6 +91,14 @@ impl ForgejoClient {
         Ok(())
     }
 
+    fn is_mergeability_pending(err: &ForgejoError) -> bool {
+        matches!(
+            err,
+            ForgejoError::ApiError(e)
+                if matches!(e.error_kind(), ApiErrorKind::Other(s) if s.as_u16() == 405)
+        )
+    }
+
     #[tracing::instrument(skip_all)]
     pub async fn merge_pr(
         &self,
@@ -100,26 +108,50 @@ impl ForgejoClient {
         strategy: MergePullRequestOptionDo,
         delete_branch: bool,
     ) -> Result<(), forgejo_api::ForgejoError> {
-        self.api
-            .repo_merge_pull_request(
-                owner,
-                repo,
-                pr,
-                MergePullRequestOption {
-                    r#do: strategy,
-                    delete_branch_after_merge: Some(delete_branch),
-                    merge_commit_id: None,
-                    merge_message_field: None,
-                    merge_title_field: None,
-                    force_merge: None,
-                    head_commit_id: None,
-                    merge_when_checks_succeed: None,
-                },
-            )
-            .send()
-            .await?;
-        tracing::info!(pr, owner, repo, "merged");
-        Ok(())
+        const MAX_ATTEMPTS: u32 = 5;
+        let mut attempt = 1;
+        loop {
+            let result = self
+                .api
+                .repo_merge_pull_request(
+                    owner,
+                    repo,
+                    pr,
+                    MergePullRequestOption {
+                        r#do: strategy,
+                        delete_branch_after_merge: Some(delete_branch),
+                        merge_commit_id: None,
+                        merge_message_field: None,
+                        merge_title_field: None,
+                        force_merge: None,
+                        head_commit_id: None,
+                        merge_when_checks_succeed: None,
+                    },
+                )
+                .send()
+                .await;
+
+            match result {
+                Ok(_) => {
+                    tracing::info!(pr, owner, repo, attempt, "merged");
+                    return Ok(());
+                }
+                Err(e) if attempt < MAX_ATTEMPTS && Self::is_mergeability_pending(&e) => {
+                    let delay = std::time::Duration::from_secs(2u64.pow(attempt - 1));
+                    tracing::warn!(
+                        pr,
+                        owner,
+                        repo,
+                        attempt,
+                        delay_secs = delay.as_secs(),
+                        "merge not yet mergeable (forgejo recomputing); retrying: {e}"
+                    );
+                    tokio::time::sleep(delay).await;
+                    attempt += 1;
+                }
+                Err(e) => return Err(e),
+            }
+        }
     }
 
     #[tracing::instrument(skip_all)]

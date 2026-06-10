@@ -39,6 +39,12 @@ struct MockDef {
     body_text: Option<String>,
     #[serde(default)]
     service: String,
+    // Stop matching after N calls, letting a lower-priority mock for the same
+    // path take over — used to simulate transient responses (e.g. a 405 that
+    // clears on retry).
+    max_match_count: Option<u64>,
+    // Lower number = higher precedence when multiple mocks match a request.
+    priority: Option<u8>,
 }
 
 #[derive(Serialize)]
@@ -71,7 +77,14 @@ async fn setup_mocks(server: &MockServer, mocks: &[MockDef]) {
         for (key, value) in &mock_def.query {
             mock = mock.and(query_param(key.as_str(), value.as_str()));
         }
-        mock.respond_with(response).expect(1..).mount(server).await;
+        let mut mock = mock.respond_with(response).expect(1..);
+        if let Some(n) = mock_def.max_match_count {
+            mock = mock.up_to_n_times(n);
+        }
+        if let Some(p) = mock_def.priority {
+            mock = mock.with_priority(p);
+        }
+        mock.mount(server).await;
     }
 }
 
