@@ -68,7 +68,10 @@ fn usage_of(usage: Option<&Value>) -> Usage {
     };
     Usage {
         input: u.get("prompt_tokens").and_then(Value::as_i64).unwrap_or(0),
-        output: u.get("completion_tokens").and_then(Value::as_i64).unwrap_or(0),
+        output: u
+            .get("completion_tokens")
+            .and_then(Value::as_i64)
+            .unwrap_or(0),
     }
 }
 
@@ -83,7 +86,13 @@ mod tests {
     #[test]
     fn parses_buffered_usage() {
         let body = br#"{"usage":{"prompt_tokens":30,"completion_tokens":5}}"#;
-        assert_eq!(provider().parse_usage(body), Usage { input: 30, output: 5 });
+        assert_eq!(
+            provider().parse_usage(body),
+            Usage {
+                input: 30,
+                output: 5
+            }
+        );
     }
 
     #[test]
@@ -91,6 +100,12 @@ mod tests {
         let sse = "data: {\"choices\":[]}\n\
                    data: {\"usage\":{\"prompt_tokens\":11,\"completion_tokens\":22}}\n\
                    data: [DONE]\n";
-        assert_eq!(provider().parse_stream_usage(sse.as_bytes()), Usage { input: 11, output: 22 });
+        assert_eq!(
+            provider().parse_stream_usage(sse.as_bytes()),
+            Usage {
+                input: 11,
+                output: 22
+            }
+        );
     }
 }

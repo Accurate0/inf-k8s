@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO usage_daily (key_name, model, day, input_tokens, output_tokens, requests) SELECT key_name, resolved_model, date_trunc('day', created_at)::date, SUM(input_tokens), SUM(output_tokens), COUNT(*) FROM usage_events WHERE created_at >= date_trunc('day', now() - interval '2 days') GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date ON CONFLICT (key_name, model, day) DO UPDATE SET input_tokens = EXCLUDED.input_tokens, output_tokens = EXCLUDED.output_tokens, requests = EXCLUDED.requests",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "70e7743f40c7ed630edbc923f8c7a47b849b512538ee0c65031558900249cefc"
+}

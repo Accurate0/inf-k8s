@@ -2,97 +2,109 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use super::{Anthropic, Dialect, OpenAiCompatible, Provider};
+use crate::config::Config;
 
-/// The set of configured upstreams plus the default chosen per dialect. Providers are
-/// enabled by the presence of their API key, keeping the secret surface declarative.
-#[derive(Clone)]
+/// Configured upstreams plus the model→provider routing table. A provider is enabled
+/// once its API key is present in the environment.
+#[derive(Clone, Default)]
 pub struct Registry {
     providers: HashMap<String, Arc<dyn Provider>>,
-    default_anthropic: Option<String>,
-    default_openai: Option<String>,
+    routes: HashMap<String, String>,
 }
 
 impl Registry {
-    pub fn from_env() -> Self {
-        let mut builder = RegistryBuilder::default();
+    pub fn from_config(config: &Config) -> Self {
+        let mut providers: HashMap<String, Arc<dyn Provider>> = HashMap::new();
+        let mut routes: HashMap<String, String> = HashMap::new();
 
-        if let Some(key) = env_key("ANTHROPIC_API_KEY") {
-            let base = env_or("ANTHROPIC_BASE_URL", "https://api.anthropic.com");
-            builder.add(Arc::new(Anthropic::new("anthropic", base, key)));
+        for (name, pc) in &config.providers {
+            for model in &pc.models {
+                if let Some(existing) = routes.insert(model.clone(), name.clone()) {
+                    tracing::warn!(
+                        model,
+                        existing,
+                        replacement = name,
+                        "model declared under multiple providers; last one wins"
+                    );
+                }
+            }
+
+            let key_env = pc.api_key_env(name);
+            let Some(key) = env_value(&key_env) else {
+                tracing::warn!(
+                    provider = name,
+                    env = key_env,
+                    "skipping provider: API key env var unset"
+                );
+                continue;
+            };
+
+            let base = pc.base_url.trim_end_matches('/').to_owned();
+            let provider: Arc<dyn Provider> = match pc.dialect {
+                Dialect::Anthropic => Arc::new(Anthropic::new(name.clone(), base, key)),
+                Dialect::OpenAiCompatible => {
+                    Arc::new(OpenAiCompatible::new(name.clone(), base, key))
+                }
+            };
+            providers.insert(name.clone(), provider);
         }
 
-        if let Some(key) = env_key("OPENAI_API_KEY") {
-            let base = env_or("OPENAI_BASE_URL", "https://api.openai.com/v1");
-            builder.add(Arc::new(OpenAiCompatible::new("openai", base, key)));
-        }
-
-        if let Some(key) = env_key("OPENROUTER_API_KEY") {
-            let base = env_or("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1");
-            builder.add(Arc::new(OpenAiCompatible::new("openrouter", base, key)));
-        }
-
-        if let Some(key) = env_key("GEMINI_API_KEY") {
-            let base = env_or(
-                "GEMINI_BASE_URL",
-                "https://generativelanguage.googleapis.com/v1beta/openai",
-            );
-            builder.add(Arc::new(OpenAiCompatible::new("gemini", base, key)));
-        }
-
-        builder.build()
+        Self { providers, routes }
     }
 
     pub fn get(&self, name: &str) -> Option<Arc<dyn Provider>> {
         self.providers.get(name).cloned()
     }
 
-    pub fn default_for(&self, dialect: Dialect) -> Option<Arc<dyn Provider>> {
-        let name = match dialect {
-            Dialect::Anthropic => self.default_anthropic.as_deref(),
-            Dialect::OpenAiCompatible => self.default_openai.as_deref(),
-        }?;
-        self.get(name)
+    pub fn provider_for_model(&self, model: &str) -> Option<Arc<dyn Provider>> {
+        let provider = self.routes.get(model)?;
+        self.get(provider)
     }
 
     pub fn names(&self) -> Vec<String> {
         self.providers.keys().cloned().collect()
     }
-}
 
-#[derive(Default)]
-struct RegistryBuilder {
-    providers: HashMap<String, Arc<dyn Provider>>,
-    default_anthropic: Option<String>,
-    default_openai: Option<String>,
-}
-
-impl RegistryBuilder {
-    /// First provider registered for a dialect becomes that dialect's default.
-    fn add(&mut self, provider: Arc<dyn Provider>) {
-        let name = provider.name().to_owned();
-        match provider.dialect() {
-            Dialect::Anthropic => self.default_anthropic.get_or_insert(name.clone()),
-            Dialect::OpenAiCompatible => self.default_openai.get_or_insert(name.clone()),
-        };
-        self.providers.insert(name, provider);
-    }
-
-    fn build(self) -> Registry {
-        Registry {
-            providers: self.providers,
-            default_anthropic: self.default_anthropic,
-            default_openai: self.default_openai,
-        }
+    pub fn models(&self) -> Vec<(String, String)> {
+        self.routes
+            .iter()
+            .map(|(m, p)| (m.clone(), p.clone()))
+            .collect()
     }
 }
 
-fn env_key(name: &str) -> Option<String> {
+fn env_value(name: &str) -> Option<String> {
     std::env::var(name).ok().filter(|v| !v.is_empty())
 }
 
-fn env_or(name: &str, default: &str) -> String {
-    match std::env::var(name) {
-        Ok(v) if !v.is_empty() => v.trim_end_matches('/').to_owned(),
-        _ => default.to_owned(),
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn registry_from_yaml(yaml: &str, key_env: &str) -> Registry {
+        let providers: HashMap<String, crate::config::ProviderConfig> =
+            serde_yaml::from_str(yaml).unwrap();
+        let config = Config {
+            providers,
+            ..Default::default()
+        };
+        unsafe { std::env::set_var(key_env, "secret") };
+        Registry::from_config(&config)
+    }
+
+    #[test]
+    fn routes_model_to_its_provider() {
+        let yaml = r#"
+anthropic:
+  dialect: anthropic
+  base_url: https://example.test
+  api_key_env: TEST_ANTHROPIC_KEY
+  models:
+    - claude-fable-5
+"#;
+        let registry = registry_from_yaml(yaml, "TEST_ANTHROPIC_KEY");
+        let provider = registry.provider_for_model("claude-fable-5").unwrap();
+        assert_eq!(provider.name(), "anthropic");
+        assert!(registry.provider_for_model("unknown-model").is_none());
     }
 }

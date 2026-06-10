@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, allowed_models FROM virtual_keys WHERE key_hash = $1 AND revoked = FALSE",
+  "query": "SELECT id, name, allowed_models, monthly_token_budget FROM virtual_keys WHERE key_hash = $1 AND revoked = FALSE",
   "describe": {
     "columns": [
       {
@@ -35,6 +35,17 @@
             "name": "allowed_models"
           }
         }
+      },
+      {
+        "ordinal": 3,
+        "name": "monthly_token_budget",
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "virtual_keys",
+            "name": "monthly_token_budget"
+          }
+        }
       }
     ],
     "parameters": {
@@ -45,8 +56,9 @@
     "nullable": [
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "7761b4533a9fbbb0bd806dfe660f6ef834ecc83977352a0ec4c19a3113a0e9d8"
+  "hash": "3c4ab52abd139548c8f178178c4108c729cdf36ef5af6fe75b1744c87e7eb3b5"
 }

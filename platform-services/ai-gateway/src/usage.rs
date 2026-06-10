@@ -58,9 +58,8 @@ pub struct UsageRow {
     pub requests: Option<i64>,
 }
 
-/// Live per-day usage for `/admin/usage`, aggregated straight from `usage_events` so
-/// results reflect traffic immediately rather than waiting on the rollup. Cheap on the
-/// hypertable; the rolled-up `usage_daily` table is reserved for Grafana.
+/// Live per-day usage for `/admin/usage`, bounded to the last 30 days to keep the
+/// hypertable scan cheap. Grafana's longer history comes from the `usage_daily` rollup.
 pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
     let rows = sqlx::query_as!(
         UsageRow,
@@ -71,6 +70,7 @@ pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
                 SUM(output_tokens)::bigint AS output_tokens, \
                 COUNT(*)::bigint AS requests \
          FROM usage_events \
+         WHERE created_at >= now() - interval '30 days' \
          GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date \
          ORDER BY day DESC, key_name, model LIMIT 1000",
     )
@@ -79,14 +79,15 @@ pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
     Ok(rows)
 }
 
-/// Refreshes `usage_daily` from `usage_events`. Run periodically so Grafana queries
-/// stay cheap regardless of `usage_events` cardinality.
+/// Refreshes `usage_daily` from `usage_events`, re-aggregating only the last few days so
+/// the cost stays constant as history grows.
 pub async fn refresh_rollup(pool: &PgPool) -> Result<()> {
     sqlx::query!(
         "INSERT INTO usage_daily (key_name, model, day, input_tokens, output_tokens, requests) \
          SELECT key_name, resolved_model, date_trunc('day', created_at)::date, \
                 SUM(input_tokens), SUM(output_tokens), COUNT(*) \
          FROM usage_events \
+         WHERE created_at >= date_trunc('day', now() - interval '2 days') \
          GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date \
          ON CONFLICT (key_name, model, day) DO UPDATE SET \
             input_tokens = EXCLUDED.input_tokens, \

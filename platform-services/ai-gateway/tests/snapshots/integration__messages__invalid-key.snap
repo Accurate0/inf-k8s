@@ -1,0 +1,11 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 401
+  body:
+    error:
+      message: invalid or revoked api key
+      type: ai_gateway_error
+upstream_requests: []

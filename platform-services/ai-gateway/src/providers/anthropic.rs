@@ -88,7 +88,13 @@ mod tests {
     #[test]
     fn parses_buffered_usage() {
         let body = br#"{"usage":{"input_tokens":12,"output_tokens":7}}"#;
-        assert_eq!(provider().parse_usage(body), Usage { input: 12, output: 7 });
+        assert_eq!(
+            provider().parse_usage(body),
+            Usage {
+                input: 12,
+                output: 7
+            }
+        );
     }
 
     #[test]
@@ -96,6 +102,12 @@ mod tests {
         let sse = "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":40,\"output_tokens\":1}}}\n\
                    data: {\"type\":\"message_delta\",\"usage\":{\"output_tokens\":99}}\n\
                    data: [DONE]\n";
-        assert_eq!(provider().parse_stream_usage(sse.as_bytes()), Usage { input: 40, output: 99 });
+        assert_eq!(
+            provider().parse_stream_usage(sse.as_bytes()),
+            Usage {
+                input: 40,
+                output: 99
+            }
+        );
     }
 }

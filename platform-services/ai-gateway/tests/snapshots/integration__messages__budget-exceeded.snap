@@ -1,0 +1,11 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 429
+  body:
+    error:
+      message: key it-messages__budget-exceeded has exceeded its monthly token budget
+      type: ai_gateway_error
+upstream_requests: []

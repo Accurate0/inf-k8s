@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
-use open_feature::{EvaluationContext, EvaluationContextFieldValue, OpenFeature, provider::NoOpProvider};
+use open_feature::{EvaluationContext, OpenFeature, provider::NoOpProvider};
 use open_feature_flipt::flipt::{self, FliptProvider, NoneAuthentication};
 
 /// Runtime routing / kill-switch flags evaluated per request. Falls back to a NoOp
@@ -69,8 +69,6 @@ impl FeatureFlagClient {
             .with_custom_field("key", key_name)
     }
 
-    /// Global kill switch et al. Cached briefly; cache key folds in the virtual key
-    /// name so per-key targeting still works.
     #[tracing::instrument(
         skip(self),
         fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty, cached = tracing::field::Empty)
@@ -102,8 +100,6 @@ impl FeatureFlagClient {
         result
     }
 
-    /// Variant flag returning a string (e.g. a model or provider override). An empty
-    /// string is treated as "no override" by callers.
     #[tracing::instrument(
         skip(self),
         fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty, cached = tracing::field::Empty)
@@ -135,7 +131,3 @@ impl FeatureFlagClient {
         result
     }
 }
-
-// Silence unused import warning when the open-feature API shifts; kept for clarity.
-#[allow(unused)]
-type FieldValue = EvaluationContextFieldValue;

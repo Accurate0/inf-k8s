@@ -2,38 +2,47 @@ use std::time::Duration;
 
 use ai_gateway::{
     cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, metrics,
-    providers::Registry, routes, state::AppState, tracing_setup, usage,
+    providers::Registry, state::AppState, tracing_setup, usage,
 };
-use axum::{
-    Router,
-    http::StatusCode,
-    routing::{delete, get, post},
-};
-use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
+use anyhow::Context;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
 
 /// How often `usage_daily` is refreshed from `usage_events`.
 const ROLLUP_INTERVAL: Duration = Duration::from_secs(300);
 
+fn env_u32(name: &str, default: u32) -> u32 {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let tracer_provider = tracing_setup::init();
     metrics::init();
 
-    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let database_url = std::env::var("DATABASE_URL").context("DATABASE_URL must be set")?;
+    let min_connections = env_u32("DB_MIN_CONNECTIONS", 0);
+    let max_connections = env_u32("DB_MAX_CONNECTIONS", 10);
     let pool = PgPoolOptions::new()
-        .max_connections(10)
+        .min_connections(min_connections)
+        .max_connections(max_connections)
         .connect(&database_url)
         .await?;
-    tracing::info!("connected to postgres");
+    tracing::info!(min_connections, max_connections, "connected to postgres");
 
     sqlx::migrate!("./migrations").run(&pool).await?;
     tracing::info!("migrations applied");
 
-    let config = Config::from_env();
-    let providers = Registry::from_env();
-    tracing::info!(providers = ?providers.names(), "loaded provider config");
+    let config = Config::load()?;
+    let providers = Registry::from_config(&config);
+    tracing::info!(
+        providers = ?providers.names(),
+        models = ?providers.models(),
+        "loaded provider config"
+    );
 
     let features = FeatureFlagClient::from_env().await;
     let cache = CacheClient::from_env().await;
@@ -42,6 +51,26 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let state = AppState::new(config, providers, pool.clone(), features, cache);
+
+    for key in &state.config.keys {
+        let claimed = state
+            .keys
+            .claim(
+                &key.name,
+                &key.allowed_models,
+                key.monthly_token_budget,
+                key.revoked,
+            )
+            .await?;
+        if claimed {
+            tracing::info!(key = key.name, "claimed key from config");
+        } else {
+            tracing::warn!(
+                key = key.name,
+                "config key not found; create it via the admin API"
+            );
+        }
+    }
 
     // Background rollup so Grafana queries hit the small usage_daily table.
     tokio::spawn(async move {
@@ -54,38 +83,45 @@ async fn main() -> anyhow::Result<()> {
         }
     });
 
-    let app = Router::new()
-        .route("/health", get(|| async { StatusCode::OK }))
-        .route("/v1/messages", post(routes::proxy::messages))
-        .route("/v1/chat/completions", post(routes::proxy::chat_completions))
-        .route("/v1/embeddings", post(routes::proxy::embeddings))
-        .route("/v1/models", get(routes::admin::list_models))
-        .route("/admin/metrics", get(routes::admin::metrics_handler))
-        .route(
-            "/admin/keys",
-            post(routes::admin::create_key).get(routes::admin::list_keys),
-        )
-        .route(
-            "/admin/keys/{id}",
-            delete(routes::admin::revoke_key).patch(routes::admin::update_key),
-        )
-        .route("/admin/usage", get(routes::admin::usage_summary))
-        .layer(OtelInResponseLayer)
-        .layer(
-            OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/admin/metrics")),
-        )
-        .with_state(state);
+    let app = ai_gateway::server::router(state);
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{port}");
     tracing::info!("listening on {addr}");
     let listener = TcpListener::bind(&addr).await?;
 
-    axum::serve(listener, app).await?;
+    axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal())
+        .await?;
+    tracing::info!("shutting down");
 
     if let Some(provider) = tracer_provider {
         let _ = provider.shutdown();
     }
 
     Ok(())
+}
+
+async fn shutdown_signal() {
+    let ctrl_c = async {
+        tokio::signal::ctrl_c()
+            .await
+            .expect("failed to install Ctrl-C handler");
+    };
+
+    #[cfg(unix)]
+    let terminate = async {
+        tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate())
+            .expect("failed to install SIGTERM handler")
+            .recv()
+            .await;
+    };
+
+    #[cfg(not(unix))]
+    let terminate = std::future::pending::<()>();
+
+    tokio::select! {
+        _ = ctrl_c => {}
+        _ = terminate => {}
+    }
 }

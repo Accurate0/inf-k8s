@@ -35,9 +35,9 @@ pub async fn metrics_handler() -> impl IntoResponse {
 pub async fn list_models(State(state): State<AppState>) -> impl IntoResponse {
     let data: Vec<_> = state
         .providers
-        .names()
+        .models()
         .into_iter()
-        .map(|id| json!({ "id": id, "object": "provider" }))
+        .map(|(id, provider)| json!({ "id": id, "object": "model", "provider": provider }))
         .collect();
     Json(json!({ "object": "list", "data": data }))
 }
@@ -73,10 +73,7 @@ pub async fn create_key(
         .into_response())
 }
 
-pub async fn list_keys(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Response> {
+pub async fn list_keys(State(state): State<AppState>, headers: HeaderMap) -> Result<Response> {
     if let Err(resp) = authorize(&state, &headers) {
         return Ok(resp);
     }
@@ -114,10 +111,7 @@ pub async fn update_key(
     })
 }
 
-pub async fn usage_summary(
-    State(state): State<AppState>,
-    headers: HeaderMap,
-) -> Result<Response> {
+pub async fn usage_summary(State(state): State<AppState>, headers: HeaderMap) -> Result<Response> {
     if let Err(resp) = authorize(&state, &headers) {
         return Ok(resp);
     }

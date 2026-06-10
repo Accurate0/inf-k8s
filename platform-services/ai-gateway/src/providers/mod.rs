@@ -12,9 +12,11 @@ use serde_json::Value;
 
 use crate::error::{GatewayError, Result};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, serde::Deserialize)]
+#[serde(rename_all = "snake_case")]
 pub enum Dialect {
     Anthropic,
+    #[serde(alias = "openai")]
     OpenAiCompatible,
 }
 
@@ -44,7 +46,8 @@ pub struct ProxyRequest {
 
 impl ProxyRequest {
     pub fn from_slice(body: &[u8]) -> Result<Self> {
-        let json = serde_json::from_slice(body).map_err(|e| GatewayError::BadRequest(e.to_string()))?;
+        let json =
+            serde_json::from_slice(body).map_err(|e| GatewayError::BadRequest(e.to_string()))?;
         Ok(Self { json })
     }
 
@@ -56,7 +59,10 @@ impl ProxyRequest {
     }
 
     pub fn is_stream(&self) -> bool {
-        self.json.get("stream").and_then(Value::as_bool).unwrap_or(false)
+        self.json
+            .get("stream")
+            .and_then(Value::as_bool)
+            .unwrap_or(false)
     }
 
     pub fn set_model(&mut self, model: &str) {

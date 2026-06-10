@@ -15,19 +15,18 @@ use crate::{
     error::{GatewayError, Result},
     keys::VirtualKey,
     metrics,
-    providers::{Dialect, Provider, ProxyRequest, Usage},
+    providers::{Provider, ProxyRequest, Usage},
     state::AppState,
     usage::{self, UsageEvent},
 };
 
 const ENABLED_FLAG: &str = "ai-gateway-enabled";
 const MODEL_OVERRIDE_FLAG: &str = "ai-gateway-model-override";
-const PROVIDER_FLAG: &str = "ai-gateway-provider";
 const CACHE_HEADER: &str = "x-aig-cache";
 const STREAM_USAGE_CAP: usize = 8 * 1024 * 1024;
 
 pub async fn messages(state: State<AppState>, headers: HeaderMap, body: Bytes) -> Result<Response> {
-    proxy(state, headers, body, Dialect::Anthropic, "/v1/messages").await
+    proxy(state, headers, body, "/v1/messages").await
 }
 
 pub async fn chat_completions(
@@ -35,7 +34,7 @@ pub async fn chat_completions(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response> {
-    proxy(state, headers, body, Dialect::OpenAiCompatible, "/chat/completions").await
+    proxy(state, headers, body, "/chat/completions").await
 }
 
 pub async fn embeddings(
@@ -43,7 +42,7 @@ pub async fn embeddings(
     headers: HeaderMap,
     body: Bytes,
 ) -> Result<Response> {
-    proxy(state, headers, body, Dialect::OpenAiCompatible, "/embeddings").await
+    proxy(state, headers, body, "/embeddings").await
 }
 
 /// Carries everything resolved on the request hot path through to where usage is
@@ -74,7 +73,6 @@ async fn proxy(
     State(state): State<AppState>,
     headers: HeaderMap,
     body: Bytes,
-    dialect: Dialect,
     sub_path: &'static str,
 ) -> Result<Response> {
     let started = Instant::now();
@@ -84,7 +82,11 @@ async fn proxy(
     let key = state.keys.authenticate(raw_key).await?;
     span.record("key", key.name.as_str());
 
-    if !state.features.bool_flag(ENABLED_FLAG, &key.name, true).await {
+    if !state
+        .features
+        .bool_flag(ENABLED_FLAG, &key.name, true)
+        .await
+    {
         return Err(GatewayError::Disabled);
     }
 
@@ -92,10 +94,23 @@ async fn proxy(
     let requested_model = request.model()?.to_owned();
     span.record("requested_model", requested_model.as_str());
     if !key.allows(&requested_model) {
-        return Err(GatewayError::ModelNotAllowed(key.name.clone(), requested_model));
+        return Err(GatewayError::ModelNotAllowed(
+            key.name.clone(),
+            requested_model,
+        ));
     }
 
-    let override_model = state.features.string_flag(MODEL_OVERRIDE_FLAG, &key.name, "").await;
+    if let Some(budget) = key.monthly_token_budget {
+        let used = state.keys.month_to_date_tokens(key.id).await?;
+        if used >= budget {
+            return Err(GatewayError::BudgetExceeded(key.name.clone()));
+        }
+    }
+
+    let override_model = state
+        .features
+        .string_flag(MODEL_OVERRIDE_FLAG, &key.name, "")
+        .await;
     let resolved_model = if override_model.is_empty() {
         requested_model.clone()
     } else {
@@ -103,7 +118,11 @@ async fn proxy(
     };
     span.record("resolved_model", resolved_model.as_str());
 
-    let provider = select_provider(&state, dialect, &key.name).await?;
+    // The (resolved) model determines the downstream provider.
+    let provider = state
+        .providers
+        .provider_for_model(&resolved_model)
+        .ok_or_else(|| GatewayError::NoProvider(resolved_model.clone()))?;
     span.record("provider", provider.name());
 
     let outbound = if resolved_model != requested_model {
@@ -124,9 +143,7 @@ async fn proxy(
     span.record("stream", streaming);
     let cache_ttl = cache_ttl(&headers).filter(|ttl| *ttl > 0);
 
-    if !streaming
-        && let (Some(_), Some(client)) = (cache_ttl, &state.cache)
-    {
+    if !streaming && let (Some(_), Some(client)) = (cache_ttl, &state.cache) {
         let key = cache::cache_key(ctx.provider.name(), &ctx.resolved_model, &outbound);
         if let Some(hit) = client.get(&key).await {
             return Ok(serve_cache_hit(&state, &ctx, hit, started).await);
@@ -154,7 +171,14 @@ async fn proxy(
         .unwrap_or_else(|| "application/json".parse().unwrap());
 
     if streaming {
-        Ok(stream_response(state, ctx, status, content_type, response, started))
+        Ok(stream_response(
+            state,
+            ctx,
+            status,
+            content_type,
+            response,
+            started,
+        ))
     } else {
         let bytes = response.bytes().await?;
         let usage = ctx.provider.parse_usage(&bytes);
@@ -185,24 +209,6 @@ async fn proxy(
             .body(Body::from(bytes))
             .unwrap())
     }
-}
-
-async fn select_provider(
-    state: &AppState,
-    dialect: Dialect,
-    key_name: &str,
-) -> Result<Arc<dyn Provider>> {
-    let chosen = state.features.string_flag(PROVIDER_FLAG, key_name, "").await;
-    if !chosen.is_empty() {
-        return state
-            .providers
-            .get(&chosen)
-            .ok_or(GatewayError::NoProvider(chosen));
-    }
-    state
-        .providers
-        .default_for(dialect)
-        .ok_or_else(|| GatewayError::NoProvider("no default provider configured".into()))
 }
 
 fn stream_response(
