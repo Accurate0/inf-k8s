@@ -15,7 +15,7 @@ jobs:
     permissions:
       packages: write
 
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@031fbf87eee0a58a76a52b17e4d3ca2f04f0dffa # main
     with:
       directory: ./platform-services/janitor-bot
       image-name: janitor-bot
@@ -43,7 +43,7 @@ jobs:
     needs:
       - build
       - test
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@95dcf6b102fdaecdc3befae3831b99b3f09ea177 # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@031fbf87eee0a58a76a52b17e4d3ca2f04f0dffa # main
     with:
       service-name: janitor-bot
       images: ghcr.io/accurate0/janitor-bot
