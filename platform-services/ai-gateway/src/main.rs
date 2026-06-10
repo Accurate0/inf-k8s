@@ -125,3 +125,5 @@ async fn shutdown_signal() {
         _ = terminate => {}
     }
 }
+
+// FIXME: streaming integration testing

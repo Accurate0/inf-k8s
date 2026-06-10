@@ -7,6 +7,9 @@ use crate::{
     providers::Registry,
 };
 
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
+const IDLE_TIMEOUT: Duration = Duration::from_secs(120);
+
 /// Shared, cheaply-cloneable application state handed to every handler.
 #[derive(Clone)]
 pub struct AppState {
@@ -27,10 +30,11 @@ impl AppState {
         features: FeatureFlagClient,
         cache: Option<CacheClient>,
     ) -> Self {
+        // No total deadline (streams run long), but a stalled connection — no bytes for
+        // IDLE_TIMEOUT — fails so it can't pin a task and client connection forever.
         let http = reqwest::Client::builder()
-            // LLM responses stream for a long time; don't impose a total deadline,
-            // only a connect timeout.
-            .connect_timeout(Duration::from_secs(10))
+            .connect_timeout(CONNECT_TIMEOUT)
+            .read_timeout(IDLE_TIMEOUT)
             .build()
             .expect("failed to build http client");
 

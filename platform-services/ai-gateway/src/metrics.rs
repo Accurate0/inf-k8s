@@ -68,3 +68,9 @@ pub fn record_request(
 pub fn record_upstream_error(provider: &str) {
     counter!("ai_gateway_upstream_errors_total", "provider" => provider.to_owned()).increment(1);
 }
+
+/// A streamed response whose body exceeded the usage-parsing buffer cap, so its recorded
+/// token counts may undercount. Tracked so undercounting is visible rather than silent.
+pub fn record_stream_truncated(provider: &str) {
+    counter!("ai_gateway_stream_truncated_total", "provider" => provider.to_owned()).increment(1);
+}

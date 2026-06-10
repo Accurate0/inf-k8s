@@ -33,6 +33,13 @@ pub struct ProviderConfig {
     pub models: Vec<String>,
     #[serde(default)]
     pub embedding_models: Vec<String>,
+    /// Failover order among providers that serve the same model: lower is tried first.
+    #[serde(default = "default_priority")]
+    pub priority: i32,
+}
+
+fn default_priority() -> i32 {
+    100
 }
 
 impl ProviderConfig {

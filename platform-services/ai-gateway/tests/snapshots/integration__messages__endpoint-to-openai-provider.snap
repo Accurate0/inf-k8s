@@ -5,22 +5,21 @@ expression: snapshot
 response:
   status: 200
   body:
-    choices:
-      - finish_reason: stop
-        index: 0
-        message:
-          content: hi there
-          role: assistant
+    content:
+      - text: hi there
+        type: text
     id: chatcmpl-01
     model: gpt-4o
-    object: chat.completion
+    role: assistant
+    stop_reason: end_turn
+    stop_sequence: ~
+    type: message
     usage:
-      completion_tokens: 4
-      prompt_tokens: 9
-      total_tokens: 13
+      input_tokens: 9
+      output_tokens: 4
 upstream_requests:
   - method: POST
-    path: /v1/messages
+    path: /chat/completions
     body:
       messages:
         - content: hello

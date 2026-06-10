@@ -156,6 +156,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
             api_key_env: Some(API_KEY_ENV.into()),
             models: fixture.provider.models.clone(),
             embedding_models: fixture.provider.embedding_models.clone(),
+            priority: 100,
         },
     );
     let config = Config {

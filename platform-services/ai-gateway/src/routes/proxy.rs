@@ -1,13 +1,14 @@
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use axum::{
     body::{Body, Bytes},
     extract::State,
-    http::{HeaderMap, StatusCode},
+    http::{HeaderMap, HeaderValue, StatusCode},
     response::Response,
 };
 use futures::{SinkExt, StreamExt, channel::mpsc};
+use serde_json::Value;
 use tracing::{Instrument, Span, field};
 
 use crate::{
@@ -15,7 +16,10 @@ use crate::{
     error::{GatewayError, Result},
     keys::VirtualKey,
     metrics,
-    providers::{ModelKind, Provider, ProxyRequest, Usage},
+    providers::{
+        Dialect, ModelKind, Provider, ProxyRequest, Usage,
+        translate::{self, SseTranslator},
+    },
     state::AppState,
     usage::{self, UsageEvent},
 };
@@ -24,6 +28,20 @@ const ENABLED_FLAG: &str = "ai-gateway-enabled";
 const MODEL_OVERRIDE_FLAG: &str = "ai-gateway-model-override";
 const CACHE_HEADER: &str = "x-aig-cache";
 const STREAM_USAGE_CAP: usize = 8 * 1024 * 1024;
+
+/// Per-provider attempts before failing over to the next provider (1 initial + retries).
+const MAX_ATTEMPTS_PER_PROVIDER: u32 = 3;
+const RETRY_BASE_DELAY: Duration = Duration::from_millis(100);
+
+/// Total deadline for a non-streaming upstream request. Streaming has no total deadline
+/// and relies on the client's idle (read) timeout instead.
+const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
+
+/// HTTP statuses worth retrying/failing over on: rate limits and transient upstream
+/// faults. Client errors (4xx other than 429) are returned as-is.
+fn is_retryable(status: StatusCode) -> bool {
+    status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
 
 pub async fn messages(state: State<AppState>, headers: HeaderMap, body: Bytes) -> Result<Response> {
     proxy(state, headers, body, "/v1/messages").await
@@ -118,63 +136,105 @@ async fn proxy(
     };
     span.record("resolved_model", resolved_model.as_str());
 
-    // The (resolved) model and the endpoint kind together determine the downstream
-    // provider, so an embedding model can only be reached via /embeddings.
-    let provider = state
-        .providers
-        .provider_for_model(&resolved_model, ModelKind::for_sub_path(sub_path))
-        .ok_or_else(|| GatewayError::NoProvider(resolved_model.clone()))?;
-    span.record("provider", provider.name());
+    let kind = ModelKind::for_sub_path(sub_path);
+    let client_dialect = Dialect::for_sub_path(sub_path);
 
-    let outbound = if resolved_model != requested_model {
+    if resolved_model != requested_model {
         request.set_model(&resolved_model);
-        request.to_bytes()?
-    } else {
-        body.clone()
+    }
+
+    let candidates = state.providers.providers_for_model(&resolved_model, kind);
+
+    let Some(primary) = candidates.first().cloned() else {
+        return Err(GatewayError::NoProvider(resolved_model));
     };
 
-    let ctx = RequestContext {
+    span.record("provider", primary.name());
+
+    let primary_outbound = outbound_for(&request, client_dialect, primary.dialect())?;
+
+    let streaming = request.is_stream();
+    span.record("stream", streaming);
+
+    let cache_ttl = cache_ttl(&headers).filter(|ttl| *ttl > 0);
+
+    let mut ctx = RequestContext {
         key,
-        provider,
+        provider: primary.clone(),
         requested_model,
         resolved_model,
     };
 
-    let streaming = request.is_stream();
-    span.record("stream", streaming);
-    let cache_ttl = cache_ttl(&headers).filter(|ttl| *ttl > 0);
-
     if !streaming && let (Some(_), Some(client)) = (cache_ttl, &state.cache) {
-        let key = cache::cache_key(ctx.provider.name(), &ctx.resolved_model, &outbound);
+        let key = cache::cache_key(primary.name(), &ctx.resolved_model, sub_path, &primary_outbound);
+
         if let Some(hit) = client.get(&key).await {
             return Ok(serve_cache_hit(&state, &ctx, hit, started).await);
         }
     }
 
-    let upstream_span = tracing::info_span!(
-        "upstream.request",
-        provider = ctx.provider.name(),
-        model = %ctx.resolved_model,
-    );
-    let response = ctx
-        .provider
-        .build_request(&state.http, sub_path, outbound.clone())
-        .send()
-        .instrument(upstream_span)
-        .await
-        .inspect_err(|_| metrics::record_upstream_error(ctx.provider.name()))?;
+    // `fallback` keeps the last retryable response so an exhausted failover still returns
+    // a real upstream status rather than a synthetic error.
+    let mut served: Option<(Arc<dyn Provider>, reqwest::Response)> = None;
+    let mut fallback: Option<(Arc<dyn Provider>, reqwest::Response)> = None;
+    let mut last_err: Option<GatewayError> = None;
+
+    'failover: for provider in &candidates {
+        let outbound = outbound_for(&request, client_dialect, provider.dialect())?;
+        for attempt in 0..MAX_ATTEMPTS_PER_PROVIDER {
+            if attempt > 0 {
+                tokio::time::sleep(RETRY_BASE_DELAY * (1 << (attempt - 1))).await;
+            }
+            let upstream_span = tracing::info_span!(
+                "upstream.request",
+                provider = provider.name(),
+                model = %ctx.resolved_model,
+                attempt = attempt + 1,
+            );
+            let mut request = provider.build_request(&state.http, kind, outbound.clone());
+            if !streaming {
+                request = request.timeout(REQUEST_TIMEOUT);
+            }
+
+            match request.send().instrument(upstream_span).await {
+                Ok(resp) if is_retryable(resp.status()) => {
+                    metrics::record_upstream_error(provider.name());
+                    fallback = Some((provider.clone(), resp));
+                }
+                Ok(resp) => {
+                    served = Some((provider.clone(), resp));
+                    break 'failover;
+                }
+                Err(e) => {
+                    metrics::record_upstream_error(provider.name());
+                    last_err = Some(e.into());
+                }
+            }
+        }
+    }
+
+    let (provider, response) = match served.or(fallback) {
+        Some(v) => v,
+        None => {
+            return Err(last_err
+                .unwrap_or_else(|| GatewayError::NoProvider(ctx.resolved_model.clone())));
+        }
+    };
+    span.record("provider", provider.name());
+    ctx.provider = provider.clone();
 
     let status = response.status();
     let content_type = response
         .headers()
         .get("content-type")
         .cloned()
-        .unwrap_or_else(|| "application/json".parse().unwrap());
+        .unwrap_or_else(|| HeaderValue::from_static("application/json"));
 
     if streaming {
         Ok(stream_response(
             state,
             ctx,
+            client_dialect,
             status,
             content_type,
             response,
@@ -182,19 +242,34 @@ async fn proxy(
         ))
     } else {
         let bytes = response.bytes().await?;
-        let usage = ctx.provider.parse_usage(&bytes);
+        let usage = provider.parse_usage(&bytes);
+
+        // Error bodies aren't in the chat/messages schema, so only successful ones are
+        // translated back to the client's dialect.
+        let client_bytes = if provider.dialect() == client_dialect || !status.is_success() {
+            bytes.clone()
+        } else {
+            let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
+            let translated =
+                translate::translate_response(&v, client_dialect, provider.dialect());
+            Bytes::from(
+                serde_json::to_vec(&translated)
+                    .map_err(|e| GatewayError::BadRequest(e.to_string()))?,
+            )
+        };
 
         if let (Some(ttl), Some(client)) = (cache_ttl, &state.cache)
             && status.is_success()
         {
-            let key = cache::cache_key(ctx.provider.name(), &ctx.resolved_model, &outbound);
+            let key =
+                cache::cache_key(primary.name(), &ctx.resolved_model, sub_path, &primary_outbound);
             client
                 .put(
                     &key,
                     ttl,
                     &CachedResponse {
                         status: status.as_u16(),
-                        body: bytes.to_vec(),
+                        body: client_bytes.to_vec(),
                         input_tokens: usage.input,
                         output_tokens: usage.output,
                     },
@@ -207,16 +282,33 @@ async fn proxy(
         Ok(Response::builder()
             .status(status)
             .header("content-type", content_type)
-            .body(Body::from(bytes))
+            .body(Body::from(client_bytes))
             .unwrap())
     }
 }
 
+/// Serializes the request body in the dialect `provider` expects, translating from the
+/// client's dialect when they differ.
+fn outbound_for(request: &ProxyRequest, client: Dialect, provider: Dialect) -> Result<Bytes> {
+    if client == provider {
+        request.to_bytes()
+    } else {
+        let translated = translate::translate_request(request.body(), client, provider);
+        serde_json::to_vec(&translated)
+            .map(Bytes::from)
+            .map_err(|e| GatewayError::BadRequest(e.to_string()))
+    }
+}
+
+/// Status recorded for a stream the client abandoned before it completed.
+const CLIENT_CLOSED: u16 = 499;
+
 fn stream_response(
     state: AppState,
     ctx: RequestContext,
+    client_dialect: Dialect,
     status: StatusCode,
-    content_type: axum::http::HeaderValue,
+    content_type: HeaderValue,
     upstream: reqwest::Response,
     started: Instant,
 ) -> Response {
@@ -234,30 +326,69 @@ fn stream_response(
         output_tokens = field::Empty,
     );
 
+    let provider_dialect = ctx.provider.dialect();
+
     tokio::spawn(
         async move {
             let mut stream = upstream.bytes_stream();
-            let mut buf: Vec<u8> = Vec::new();
+            let mut translator =
+                SseTranslator::new(provider_dialect, client_dialect, &ctx.resolved_model);
+
+            // Provider-native bytes, kept for usage parsing regardless of translation.
+            let mut raw: Vec<u8> = Vec::new();
+
+            let mut truncated = false;
+            let mut aborted = false;
+            let mut client_gone = false;
 
             while let Some(chunk) = stream.next().await {
                 match chunk {
                     Ok(b) => {
-                        if buf.len() < STREAM_USAGE_CAP {
-                            buf.extend_from_slice(&b);
+                        if raw.len() < STREAM_USAGE_CAP {
+                            raw.extend_from_slice(&b);
+                            truncated = raw.len() >= STREAM_USAGE_CAP;
                         }
-                        if tx.send(Ok(b)).await.is_err() {
+                        let out = translator.push(&b);
+                        if !out.is_empty() && tx.send(Ok(Bytes::from(out))).await.is_err() {
+                            client_gone = true;
                             break;
                         }
                     }
                     Err(e) => {
                         let _ = tx.send(Err(std::io::Error::other(e))).await;
+                        aborted = true;
                         break;
                     }
                 }
             }
 
-            let usage = ctx.provider.parse_stream_usage(&buf);
-            record(&state, &ctx, usage, false, status.as_u16(), started).await;
+            if !aborted && !client_gone {
+                let tail = translator.finish();
+                if !tail.is_empty() {
+                    let _ = tx.send(Ok(Bytes::from(tail))).await;
+                }
+            }
+
+            let outcome = if aborted {
+                metrics::record_upstream_error(ctx.provider.name());
+                StatusCode::BAD_GATEWAY.as_u16()
+            } else if client_gone {
+                CLIENT_CLOSED
+            } else {
+                status.as_u16()
+            };
+
+            if truncated {
+                metrics::record_stream_truncated(ctx.provider.name());
+                tracing::warn!(
+                    provider = ctx.provider.name(),
+                    model = %ctx.resolved_model,
+                    "stream exceeded usage buffer cap; recorded token counts may undercount"
+                );
+            }
+
+            let usage = ctx.provider.parse_stream_usage(&raw);
+            record(&state, &ctx, usage, false, outcome, started).await;
         }
         .instrument(stream_span),
     );

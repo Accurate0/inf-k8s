@@ -1,6 +1,7 @@
 pub mod anthropic;
 pub mod openai;
 pub mod registry;
+pub mod translate;
 
 pub use anthropic::Anthropic;
 pub use openai::OpenAiCompatible;
@@ -18,6 +19,18 @@ pub enum Dialect {
     Anthropic,
     #[serde(alias = "openai")]
     OpenAiCompatible,
+}
+
+impl Dialect {
+    /// The wire dialect a proxied sub-path speaks to the client. Differs from the
+    /// provider's dialect when the proxy must translate (see [`super::translate`]).
+    pub fn for_sub_path(sub_path: &str) -> Self {
+        if sub_path.ends_with("/messages") {
+            Dialect::Anthropic
+        } else {
+            Dialect::OpenAiCompatible
+        }
+    }
 }
 
 /// What an endpoint expects from a model. Embedding models are only reachable from the
@@ -49,9 +62,11 @@ pub trait Provider: Send + Sync {
     fn name(&self) -> &str;
     fn dialect(&self) -> Dialect;
 
-    /// Builds the authenticated upstream request. The caller drives `.send()`, keeping
-    /// the trait object-safe.
-    fn build_request(&self, http: &Client, sub_path: &str, body: Bytes) -> RequestBuilder;
+    /// Builds the authenticated upstream request against this provider's *native* path
+    /// for the given model kind (e.g. an OpenAI provider always posts to
+    /// `/chat/completions`, never the inbound `/v1/messages`). The caller drives
+    /// `.send()`, keeping the trait object-safe.
+    fn build_request(&self, http: &Client, kind: ModelKind, body: Bytes) -> RequestBuilder;
 
     fn parse_usage(&self, body: &[u8]) -> Usage;
     fn parse_stream_usage(&self, body: &[u8]) -> Usage;
@@ -75,6 +90,11 @@ impl ProxyRequest {
             .get("model")
             .and_then(Value::as_str)
             .ok_or_else(|| GatewayError::BadRequest("missing model".into()))
+    }
+
+    /// The parsed request body, for dialect translation.
+    pub fn body(&self) -> &Value {
+        &self.json
     }
 
     pub fn is_stream(&self) -> bool {

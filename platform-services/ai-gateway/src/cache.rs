@@ -53,12 +53,15 @@ impl CacheClient {
     }
 }
 
-/// Deterministic cache key over the routing decision and the exact request body.
-pub fn cache_key(provider: &str, model: &str, body: &[u8]) -> String {
+/// Deterministic cache key over the route, client endpoint, and request body. The
+/// endpoint matters because the cached body is in the client's dialect.
+pub fn cache_key(provider: &str, model: &str, endpoint: &str, body: &[u8]) -> String {
     let mut hasher = Sha256::new();
     hasher.update(provider.as_bytes());
     hasher.update(b"|");
     hasher.update(model.as_bytes());
+    hasher.update(b"|");
+    hasher.update(endpoint.as_bytes());
     hasher.update(b"|");
     hasher.update(body);
     format!("aig:cache:{}", hex::encode(hasher.finalize()))

@@ -2,7 +2,7 @@ use bytes::Bytes;
 use reqwest::{Client, RequestBuilder};
 use serde_json::Value;
 
-use super::{Dialect, Provider, Usage, for_each_sse_event};
+use super::{Dialect, ModelKind, Provider, Usage, for_each_sse_event};
 
 pub struct Anthropic {
     name: String,
@@ -31,8 +31,9 @@ impl Provider for Anthropic {
         Dialect::Anthropic
     }
 
-    fn build_request(&self, http: &Client, sub_path: &str, body: Bytes) -> RequestBuilder {
-        http.post(format!("{}{sub_path}", self.base_url))
+    fn build_request(&self, http: &Client, _kind: ModelKind, body: Bytes) -> RequestBuilder {
+        // Anthropic only serves chat-style traffic; embedding models never route here.
+        http.post(format!("{}/v1/messages", self.base_url))
             .header("content-type", "application/json")
             .header("x-api-key", &self.api_key)
             .header("anthropic-version", &self.version)

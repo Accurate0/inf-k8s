@@ -4,20 +4,19 @@ use std::sync::Arc;
 use super::{Anthropic, Dialect, ModelKind, OpenAiCompatible, Provider};
 use crate::config::Config;
 
-/// Configured upstreams plus the model→provider routing table. A provider is enabled
-/// once its API key is present in the environment. Routes are keyed by model and the
-/// kind of endpoint that serves it, so an embedding model is unreachable from chat
-/// endpoints and vice versa.
+/// Configured upstreams and the routing table. Routes are keyed by `(model, kind)` so an
+/// embedding model is unreachable from chat endpoints, and map to providers in failover
+/// order.
 #[derive(Clone, Default)]
 pub struct Registry {
     providers: HashMap<String, Arc<dyn Provider>>,
-    routes: HashMap<(String, ModelKind), String>,
+    routes: HashMap<(String, ModelKind), Vec<String>>,
 }
 
 impl Registry {
     pub fn from_config(config: &Config) -> Self {
         let mut providers: HashMap<String, Arc<dyn Provider>> = HashMap::new();
-        let mut routes: HashMap<(String, ModelKind), String> = HashMap::new();
+        let mut routes: HashMap<(String, ModelKind), Vec<String>> = HashMap::new();
 
         for (name, pc) in &config.providers {
             let declared = pc
@@ -26,15 +25,10 @@ impl Registry {
                 .map(|m| (m, ModelKind::Chat))
                 .chain(pc.embedding_models.iter().map(|m| (m, ModelKind::Embedding)));
             for (model, kind) in declared {
-                if let Some(existing) = routes.insert((model.clone(), kind), name.clone()) {
-                    tracing::warn!(
-                        model,
-                        ?kind,
-                        existing,
-                        replacement = name,
-                        "model declared under multiple providers; last one wins"
-                    );
-                }
+                routes
+                    .entry((model.clone(), kind))
+                    .or_default()
+                    .push(name.clone());
             }
 
             let key_env = pc.api_key_env(name);
@@ -57,6 +51,15 @@ impl Registry {
             providers.insert(name.clone(), provider);
         }
 
+        // Lowest priority first, name as a deterministic tiebreaker.
+        for names in routes.values_mut() {
+            names.sort_by(|a, b| {
+                let pa = config.providers.get(a).map(|p| p.priority).unwrap_or(i32::MAX);
+                let pb = config.providers.get(b).map(|p| p.priority).unwrap_or(i32::MAX);
+                pa.cmp(&pb).then_with(|| a.cmp(b))
+            });
+        }
+
         Self { providers, routes }
     }
 
@@ -64,9 +67,14 @@ impl Registry {
         self.providers.get(name).cloned()
     }
 
-    pub fn provider_for_model(&self, model: &str, kind: ModelKind) -> Option<Arc<dyn Provider>> {
-        let provider = self.routes.get(&(model.to_owned(), kind))?;
-        self.get(provider)
+    /// Enabled providers that can serve `model` on this endpoint kind, in failover order.
+    pub fn providers_for_model(&self, model: &str, kind: ModelKind) -> Vec<Arc<dyn Provider>> {
+        self.routes
+            .get(&(model.to_owned(), kind))
+            .into_iter()
+            .flatten()
+            .filter_map(|name| self.get(name))
+            .collect()
     }
 
     pub fn names(&self) -> Vec<String> {
@@ -76,7 +84,7 @@ impl Registry {
     pub fn models(&self) -> Vec<(String, String)> {
         self.routes
             .iter()
-            .map(|((m, _), p)| (m.clone(), p.clone()))
+            .flat_map(|((m, _), names)| names.iter().map(move |n| (m.clone(), n.clone())))
             .collect()
     }
 }
@@ -111,14 +119,13 @@ anthropic:
     - claude-fable-5
 "#;
         let registry = registry_from_yaml(yaml, "TEST_ANTHROPIC_KEY");
-        let provider = registry
-            .provider_for_model("claude-fable-5", ModelKind::Chat)
-            .unwrap();
-        assert_eq!(provider.name(), "anthropic");
+        let providers = registry.providers_for_model("claude-fable-5", ModelKind::Chat);
+        assert_eq!(providers.len(), 1);
+        assert_eq!(providers[0].name(), "anthropic");
         assert!(
             registry
-                .provider_for_model("unknown-model", ModelKind::Chat)
-                .is_none()
+                .providers_for_model("unknown-model", ModelKind::Chat)
+                .is_empty()
         );
     }
 
@@ -134,14 +141,38 @@ openai:
 "#;
         let registry = registry_from_yaml(yaml, "TEST_OPENAI_KEY");
         assert!(
-            registry
-                .provider_for_model("text-embedding-3-large", ModelKind::Embedding)
-                .is_some()
+            !registry
+                .providers_for_model("text-embedding-3-large", ModelKind::Embedding)
+                .is_empty()
         );
         assert!(
             registry
-                .provider_for_model("text-embedding-3-large", ModelKind::Chat)
-                .is_none()
+                .providers_for_model("text-embedding-3-large", ModelKind::Chat)
+                .is_empty()
         );
+    }
+
+    #[test]
+    fn providers_for_model_are_ordered_by_priority() {
+        let yaml = r#"
+openrouter:
+  dialect: openai
+  base_url: https://openrouter.test
+  api_key_env: TEST_FAILOVER_KEY
+  priority: 200
+  models:
+    - gpt-4o
+openai:
+  dialect: openai
+  base_url: https://openai.test
+  api_key_env: TEST_FAILOVER_KEY
+  priority: 10
+  models:
+    - gpt-4o
+"#;
+        let registry = registry_from_yaml(yaml, "TEST_FAILOVER_KEY");
+        let providers = registry.providers_for_model("gpt-4o", ModelKind::Chat);
+        let names: Vec<_> = providers.iter().map(|p| p.name()).collect();
+        assert_eq!(names, ["openai", "openrouter"]);
     }
 }
