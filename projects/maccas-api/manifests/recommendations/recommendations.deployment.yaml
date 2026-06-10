@@ -64,6 +64,8 @@ spec:
             successThreshold: 1
             timeoutSeconds: 5
           env:
+            - name: OPENAI_BASE_URL
+              value: http://api.ai-gateway.svc.cluster.local/v1
             - name: FLIPT_URL
               value: http://flipt.flipt.svc.cluster.local:8080
             - name: CLUSTERING_API_BASE
