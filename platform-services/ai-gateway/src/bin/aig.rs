@@ -42,6 +42,20 @@ enum KeyAction {
     },
     /// List existing keys
     List,
+    /// Update an existing key; only the flags you pass are changed
+    Update {
+        id: String,
+        #[arg(long)]
+        name: Option<String>,
+        /// Replace the allowed-models list; repeatable.
+        #[arg(long = "model")]
+        models: Option<Vec<String>>,
+        #[arg(long)]
+        budget: Option<i64>,
+        /// Revoke (`true`) or restore (`false`) the key.
+        #[arg(long)]
+        revoked: Option<bool>,
+    },
     /// Revoke a key by id
     Revoke { id: String },
 }
@@ -64,6 +78,28 @@ async fn main() -> anyhow::Result<()> {
                 "monthly_token_budget": budget,
             })),
             KeyAction::List => http.get(format!("{base}/admin/keys")),
+            KeyAction::Update {
+                id,
+                name,
+                models,
+                budget,
+                revoked,
+            } => {
+                let mut body = serde_json::Map::new();
+                if let Some(name) = name {
+                    body.insert("name".into(), json!(name));
+                }
+                if let Some(models) = models {
+                    body.insert("allowed_models".into(), json!(models));
+                }
+                if let Some(budget) = budget {
+                    body.insert("monthly_token_budget".into(), json!(budget));
+                }
+                if let Some(revoked) = revoked {
+                    body.insert("revoked".into(), json!(revoked));
+                }
+                http.patch(format!("{base}/admin/keys/{id}")).json(&body)
+            }
             KeyAction::Revoke { id } => http.delete(format!("{base}/admin/keys/{id}")),
         },
         Command::Usage => http.get(format!("{base}/admin/usage")),

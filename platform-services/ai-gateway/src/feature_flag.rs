@@ -71,9 +71,13 @@ impl FeatureFlagClient {
 
     /// Global kill switch et al. Cached briefly; cache key folds in the virtual key
     /// name so per-key targeting still works.
+    #[tracing::instrument(skip(self), fields(result = tracing::field::Empty, cached = tracing::field::Empty))]
     pub async fn bool_flag(&self, flag: &str, key_name: &str, default: bool) -> bool {
+        let span = tracing::Span::current();
         let cache_key = format!("{flag}:{key_name}");
         if let Some(v) = self.bool_cache.get(&cache_key).await {
+            span.record("result", v);
+            span.record("cached", true);
             return v;
         }
 
@@ -89,15 +93,21 @@ impl FeatureFlagClient {
             }
         };
 
+        span.record("result", result);
+        span.record("cached", false);
         self.bool_cache.insert(cache_key, result).await;
         result
     }
 
     /// Variant flag returning a string (e.g. a model or provider override). An empty
     /// string is treated as "no override" by callers.
+    #[tracing::instrument(skip(self), fields(result = tracing::field::Empty, cached = tracing::field::Empty))]
     pub async fn string_flag(&self, flag: &str, key_name: &str, default: &str) -> String {
+        let span = tracing::Span::current();
         let cache_key = format!("{flag}:{key_name}");
         if let Some(v) = self.string_cache.get(&cache_key).await {
+            span.record("result", v.as_str());
+            span.record("cached", true);
             return v;
         }
 
@@ -113,6 +123,8 @@ impl FeatureFlagClient {
             }
         };
 
+        span.record("result", result.as_str());
+        span.record("cached", false);
         self.string_cache.insert(cache_key, result.clone()).await;
         result
     }

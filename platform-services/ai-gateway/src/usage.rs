@@ -22,6 +22,7 @@ pub struct UsageEvent {
 
 /// Inserts a usage row. Logged-and-swallowed on failure: telemetry must never break
 /// the proxy path.
+#[tracing::instrument(skip_all)]
 pub async fn record(pool: &PgPool, event: &UsageEvent) {
     let result = sqlx::query(
         "INSERT INTO usage_events \
@@ -57,11 +58,20 @@ pub struct UsageRow {
     pub requests: i64,
 }
 
-/// Reads the rolled-up daily usage table for `/admin/usage`.
+/// Live per-day usage for `/admin/usage`, aggregated straight from `usage_events` so
+/// results reflect traffic immediately rather than waiting on the rollup. Cheap on the
+/// hypertable; the rolled-up `usage_daily` table is reserved for Grafana.
 pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
     let rows = sqlx::query_as::<_, UsageRow>(
-        "SELECT key_name, model, day, input_tokens, output_tokens, requests \
-         FROM usage_daily ORDER BY day DESC, key_name, model LIMIT 1000",
+        "SELECT key_name, \
+                resolved_model AS model, \
+                date_trunc('day', created_at)::date AS day, \
+                SUM(input_tokens)::bigint AS input_tokens, \
+                SUM(output_tokens)::bigint AS output_tokens, \
+                COUNT(*)::bigint AS requests \
+         FROM usage_events \
+         GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date \
+         ORDER BY day DESC, key_name, model LIMIT 1000",
     )
     .fetch_all(pool)
     .await?;

@@ -8,6 +8,7 @@ use axum::{
     response::Response,
 };
 use futures::{SinkExt, StreamExt, channel::mpsc};
+use tracing::{Instrument, Span, field};
 
 use crate::{
     cache::{self, CachedResponse},
@@ -54,6 +55,21 @@ struct RequestContext {
     resolved_model: String,
 }
 
+#[tracing::instrument(
+    skip_all,
+    fields(
+        otel.name = format!("proxy {sub_path}"),
+        key = field::Empty,
+        requested_model = field::Empty,
+        resolved_model = field::Empty,
+        provider = field::Empty,
+        stream = field::Empty,
+        cache_hit = field::Empty,
+        upstream.status = field::Empty,
+        input_tokens = field::Empty,
+        output_tokens = field::Empty,
+    )
+)]
 async fn proxy(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -62,9 +78,11 @@ async fn proxy(
     sub_path: &'static str,
 ) -> Result<Response> {
     let started = Instant::now();
+    let span = Span::current();
 
     let raw_key = bearer(&headers).ok_or(GatewayError::MissingKey)?;
     let key = state.keys.authenticate(raw_key).await?;
+    span.record("key", key.name.as_str());
 
     if !state.features.bool_flag(ENABLED_FLAG, &key.name, true).await {
         return Err(GatewayError::Disabled);
@@ -72,6 +90,7 @@ async fn proxy(
 
     let mut request = ProxyRequest::from_slice(&body)?;
     let requested_model = request.model()?.to_owned();
+    span.record("requested_model", requested_model.as_str());
     if !key.allows(&requested_model) {
         return Err(GatewayError::ModelNotAllowed(key.name.clone(), requested_model));
     }
@@ -82,8 +101,10 @@ async fn proxy(
     } else {
         override_model
     };
+    span.record("resolved_model", resolved_model.as_str());
 
     let provider = select_provider(&state, dialect, &key.name).await?;
+    span.record("provider", provider.name());
 
     let outbound = if resolved_model != requested_model {
         request.set_model(&resolved_model);
@@ -100,6 +121,7 @@ async fn proxy(
     };
 
     let streaming = request.is_stream();
+    span.record("stream", streaming);
     let cache_ttl = cache_ttl(&headers).filter(|ttl| *ttl > 0);
 
     if !streaming
@@ -111,10 +133,16 @@ async fn proxy(
         }
     }
 
+    let upstream_span = tracing::info_span!(
+        "upstream.request",
+        provider = ctx.provider.name(),
+        model = %ctx.resolved_model,
+    );
     let response = ctx
         .provider
         .build_request(&state.http, sub_path, outbound.clone())
         .send()
+        .instrument(upstream_span)
         .await
         .inspect_err(|_| metrics::record_upstream_error(ctx.provider.name()))?;
 
@@ -187,30 +215,45 @@ fn stream_response(
 ) -> Response {
     let (mut tx, rx) = mpsc::channel::<std::result::Result<Bytes, std::io::Error>>(16);
 
-    tokio::spawn(async move {
-        let mut stream = upstream.bytes_stream();
-        let mut buf: Vec<u8> = Vec::new();
+    // The stream outlives the request future, so give its completion an explicit span
+    // parented to the current trace, matching the buffered path's recording.
+    let stream_span = tracing::info_span!(
+        "proxy.stream",
+        key = %ctx.key.name,
+        provider = ctx.provider.name(),
+        model = %ctx.resolved_model,
+        upstream.status = field::Empty,
+        input_tokens = field::Empty,
+        output_tokens = field::Empty,
+    );
 
-        while let Some(chunk) = stream.next().await {
-            match chunk {
-                Ok(b) => {
-                    if buf.len() < STREAM_USAGE_CAP {
-                        buf.extend_from_slice(&b);
+    tokio::spawn(
+        async move {
+            let mut stream = upstream.bytes_stream();
+            let mut buf: Vec<u8> = Vec::new();
+
+            while let Some(chunk) = stream.next().await {
+                match chunk {
+                    Ok(b) => {
+                        if buf.len() < STREAM_USAGE_CAP {
+                            buf.extend_from_slice(&b);
+                        }
+                        if tx.send(Ok(b)).await.is_err() {
+                            break;
+                        }
                     }
-                    if tx.send(Ok(b)).await.is_err() {
+                    Err(e) => {
+                        let _ = tx.send(Err(std::io::Error::other(e))).await;
                         break;
                     }
                 }
-                Err(e) => {
-                    let _ = tx.send(Err(std::io::Error::other(e))).await;
-                    break;
-                }
             }
-        }
 
-        let usage = ctx.provider.parse_stream_usage(&buf);
-        record(&state, &ctx, usage, false, status.as_u16(), started).await;
-    });
+            let usage = ctx.provider.parse_stream_usage(&buf);
+            record(&state, &ctx, usage, false, status.as_u16(), started).await;
+        }
+        .instrument(stream_span),
+    );
 
     Response::builder()
         .status(status)
@@ -244,6 +287,26 @@ async fn record(
     started: Instant,
 ) {
     let elapsed = started.elapsed();
+
+    let span = Span::current();
+    span.record("upstream.status", status);
+    span.record("cache_hit", cache_hit);
+    span.record("input_tokens", usage.input);
+    span.record("output_tokens", usage.output);
+
+    tracing::info!(
+        key = %ctx.key.name,
+        provider = ctx.provider.name(),
+        requested_model = %ctx.requested_model,
+        resolved_model = %ctx.resolved_model,
+        status,
+        cache_hit,
+        input_tokens = usage.input,
+        output_tokens = usage.output,
+        latency_ms = elapsed.as_millis(),
+        "request completed"
+    );
+
     metrics::record_request(
         &ctx.key.name,
         &ctx.resolved_model,

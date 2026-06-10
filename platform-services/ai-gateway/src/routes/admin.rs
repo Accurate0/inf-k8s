@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::{error::Result, metrics, state::AppState, usage};
+use crate::{error::Result, keys::UpdateKey, metrics, state::AppState, usage};
 
 /// Guards `/admin/*`. Requires the bearer to equal the configured admin token; when no
 /// token is configured admin endpoints are closed entirely.
@@ -96,6 +96,21 @@ pub async fn revoke_key(
         StatusCode::NO_CONTENT.into_response()
     } else {
         StatusCode::NOT_FOUND.into_response()
+    })
+}
+
+pub async fn update_key(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+    Json(body): Json<UpdateKey>,
+) -> Result<Response> {
+    if let Err(resp) = authorize(&state, &headers) {
+        return Ok(resp);
+    }
+    Ok(match state.keys.update(id, &body).await? {
+        Some(info) => Json(info).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
     })
 }
 

@@ -65,7 +65,10 @@ async fn main() -> anyhow::Result<()> {
             "/admin/keys",
             post(routes::admin::create_key).get(routes::admin::list_keys),
         )
-        .route("/admin/keys/{id}", delete(routes::admin::revoke_key))
+        .route(
+            "/admin/keys/{id}",
+            delete(routes::admin::revoke_key).patch(routes::admin::update_key),
+        )
         .route("/admin/usage", get(routes::admin::usage_summary))
         .layer(OtelInResponseLayer)
         .layer(

@@ -3,7 +3,7 @@ use std::time::Duration;
 use chrono::{DateTime, Utc};
 use moka::future::Cache;
 use rand::RngExt;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
@@ -65,6 +65,7 @@ impl KeyStore {
     }
 
     /// Authenticates a raw bearer token. Revoked keys are treated as absent.
+    #[tracing::instrument(skip_all)]
     pub async fn authenticate(&self, raw: &str) -> Result<VirtualKey> {
         let hash = Self::hash(raw);
 
@@ -150,6 +151,44 @@ impl KeyStore {
             .rows_affected();
         Ok(affected > 0)
     }
+
+    /// Applies a partial update; only the fields present in `fields` change. Returns the
+    /// updated row, or `None` if no key has that id. Flushes the cache so changes take
+    /// effect immediately rather than waiting out the TTL.
+    pub async fn update(&self, id: Uuid, fields: &UpdateKey) -> Result<Option<KeyInfo>> {
+        let info = sqlx::query_as::<_, KeyRow>(
+            "UPDATE virtual_keys SET \
+             name = COALESCE($2, name), \
+             allowed_models = COALESCE($3, allowed_models), \
+             monthly_token_budget = COALESCE($4, monthly_token_budget), \
+             revoked = COALESCE($5, revoked) \
+             WHERE id = $1 \
+             RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at",
+        )
+        .bind(id)
+        .bind(&fields.name)
+        .bind(&fields.allowed_models)
+        .bind(fields.monthly_token_budget)
+        .bind(fields.revoked)
+        .fetch_optional(&self.pool)
+        .await?
+        .map(Into::into);
+
+        if info.is_some() {
+            self.cache.invalidate_all();
+        }
+        Ok(info)
+    }
+}
+
+/// Partial update payload; absent fields are left unchanged. `monthly_token_budget`
+/// can only be set, not cleared back to null, through this path.
+#[derive(Debug, Default, Deserialize)]
+pub struct UpdateKey {
+    pub name: Option<String>,
+    pub allowed_models: Option<Vec<String>>,
+    pub monthly_token_budget: Option<i64>,
+    pub revoked: Option<bool>,
 }
 
 #[derive(sqlx::FromRow)]
