@@ -1,0 +1,49 @@
+name: Build & deploy ai-gateway
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - platform-services/ai-gateway/**
+      - '!platform-services/ai-gateway/manifests/**'
+      - '!platform-services/ai-gateway/application.yaml'
+      - .github/workflows/build-deploy-ai-gateway.yaml
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      packages: write
+
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@031fbf87eee0a58a76a52b17e4d3ca2f04f0dffa # main
+    with:
+      directory: ./platform-services/ai-gateway
+      image-name: ai-gateway
+      docker-build-args: |
+        BINARY_NAME=ai-gateway
+      use-rust-caching: true
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: platform-services/ai-gateway/target
+          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-ai-gateway
+      - run: cargo test
+        working-directory: platform-services/ai-gateway
+
+  deploy:
+    needs:
+      - build
+      - test
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@031fbf87eee0a58a76a52b17e4d3ca2f04f0dffa # main
+    with:
+      service-name: ai-gateway
+      images: ghcr.io/accurate0/ai-gateway
+      manifests-path: platform-services/ai-gateway/manifests
+      tag: ${{ github.sha }}
+    secrets:
+      FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

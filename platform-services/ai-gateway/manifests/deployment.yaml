@@ -1,0 +1,79 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-gateway
+  namespace: ai-gateway
+spec:
+  selector:
+    matchLabels:
+      app: ai-gateway
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: ai-gateway
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ai-gateway
+          image: ghcr.io/accurate0/ai-gateway
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 60
+          envFrom:
+            - secretRef:
+                name: ai-gateway-managed-secrets
+          env:
+            # Credentials come from the pg-db-controller-provisioned secret, but the
+            # host is the CNPG pgbouncer pooler rather than the direct cluster service.
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-database-secret
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-database-secret
+                  key: PGPASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-database-secret
+                  key: PGDATABASE
+            - name: DATABASE_URL
+              value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+            - name: FLIPT_URL
+              value: http://flipt-v2.flipt-v2.svc.cluster.local:8080
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+            - name: REDIS_URL
+              value: redis://dragonfly.dragonfly-system.svc.cluster.local
