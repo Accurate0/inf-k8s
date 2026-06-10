@@ -7,15 +7,9 @@ resources:
   - home-gateway/home-gateway.service.yaml
   - namespace.yaml
   - database.yaml
-  - selfbot.secret.yaml
-  - selfbot.secretstore.yaml
-  - selfbot/selfbot.deployment.yaml
-  - selfbot/selfbot.service.yaml
 commonAnnotations:
   inf-k8s.net/app: home-gateway
   inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
 images:
   - name: ghcr.io/accurate0/home-gateway
-    newTag: f6a17bb67045b126731ec84408ee3eccfbbb750c
-  - name: ghcr.io/accurate0/home-selfbot
     newTag: f6a17bb67045b126731ec84408ee3eccfbbb750c
