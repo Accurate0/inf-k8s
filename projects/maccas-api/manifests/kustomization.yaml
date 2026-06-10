@@ -10,20 +10,20 @@ resources:
   - namespace.yaml
   - web/web.service.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/maccas-api"
-  inf-k8s.net/app: "maccas-api"
+  inf-k8s.net/app: maccas-api
+  inf-k8s.net/repository: https://github.com/Accurate0/maccas-api
 images:
   - name: ghcr.io/accurate0/maccas-api
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
   - name: ghcr.io/accurate0/maccas-clustering
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
   - name: ghcr.io/accurate0/maccas-migration
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
   - name: ghcr.io/accurate0/maccas-recommendations
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
   - name: ghcr.io/accurate0/maccas-scheduler
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
   - name: ghcr.io/accurate0/maccas-sensordata
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
   - name: ghcr.io/accurate0/maccas-web
-    newTag: 0f4c9cff257fe215019a1cb184958a9290962718
+    newTag: 1ca463b761618e7b2e64ca643dff626809799c4e
