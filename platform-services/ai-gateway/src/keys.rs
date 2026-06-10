@@ -53,7 +53,7 @@ impl KeyStore {
             pool,
             cache: Cache::builder()
                 .name("virtual_key_cache")
-                .time_to_live(Duration::from_secs(60))
+                .time_to_live(Duration::from_secs(3600))
                 .build(),
         }
     }
@@ -65,7 +65,7 @@ impl KeyStore {
     }
 
     /// Authenticates a raw bearer token. Revoked keys are treated as absent.
-    #[tracing::instrument(skip_all)]
+    #[tracing::instrument(skip_all, fields(otel.name = "key.authenticate"))]
     pub async fn authenticate(&self, raw: &str) -> Result<VirtualKey> {
         let hash = Self::hash(raw);
 
@@ -74,20 +74,26 @@ impl KeyStore {
             return Ok(key);
         }
 
-        let row = sqlx::query_as::<_, (Uuid, String, Vec<String>)>(
+        struct QueryRow {
+            id: Uuid,
+            name: String,
+            allowed_models: Vec<String>,
+        }
+
+        let key = sqlx::query_as!(
+            QueryRow,
             "SELECT id, name, allowed_models FROM virtual_keys \
              WHERE key_hash = $1 AND revoked = FALSE",
+            &hash
         )
-        .bind(&hash)
         .fetch_optional(&self.pool)
-        .await?;
-
-        let (id, name, allowed_models) = row.ok_or(GatewayError::InvalidKey)?;
-        let key = VirtualKey {
-            id,
-            name,
-            allowed_models,
-        };
+        .await?
+        .map(|row| VirtualKey {
+            id: row.id,
+            name: row.name,
+            allowed_models: row.allowed_models,
+        })
+        .ok_or(GatewayError::InvalidKey)?;
 
         self.cache.insert(hash, key.clone()).await;
         self.touch(key.id).await;
@@ -96,10 +102,12 @@ impl KeyStore {
 
     /// Best-effort `last_used_at` bump; never fails the request.
     async fn touch(&self, id: Uuid) {
-        if let Err(e) = sqlx::query("UPDATE virtual_keys SET last_used_at = now() WHERE id = $1")
-            .bind(id)
-            .execute(&self.pool)
-            .await
+        if let Err(e) = sqlx::query!(
+            "UPDATE virtual_keys SET last_used_at = now() WHERE id = $1",
+            id
+        )
+        .execute(&self.pool)
+        .await
         {
             tracing::debug!("failed to bump last_used_at for {id}: {e}");
         }
@@ -115,15 +123,16 @@ impl KeyStore {
         let raw = generate_token();
         let hash = Self::hash(&raw);
 
-        let info = sqlx::query_as::<_, KeyRow>(
+        let info = sqlx::query_as!(
+            KeyRow,
             "INSERT INTO virtual_keys (name, key_hash, allowed_models, monthly_token_budget) \
              VALUES ($1, $2, $3, $4) \
              RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at",
+            name,
+            hash,
+            allowed_models,
+            monthly_token_budget
         )
-        .bind(name)
-        .bind(&hash)
-        .bind(allowed_models)
-        .bind(monthly_token_budget)
         .fetch_one(&self.pool)
         .await?
         .into();
@@ -132,7 +141,8 @@ impl KeyStore {
     }
 
     pub async fn list(&self) -> Result<Vec<KeyInfo>> {
-        let rows = sqlx::query_as::<_, KeyRow>(
+        let rows = sqlx::query_as!(
+            KeyRow,
             "SELECT id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at \
              FROM virtual_keys ORDER BY created_at DESC",
         )
@@ -142,13 +152,16 @@ impl KeyStore {
         Ok(rows.into_iter().map(Into::into).collect())
     }
 
-    /// Revokes (soft-deletes) a key. The in-process cache expires within its TTL.
+    /// Revokes (soft-deletes) a key, flushing the cache so it stops authenticating
+    /// immediately rather than lingering for the cache TTL.
     pub async fn revoke(&self, id: Uuid) -> Result<bool> {
-        let affected = sqlx::query("UPDATE virtual_keys SET revoked = TRUE WHERE id = $1")
-            .bind(id)
+        let affected = sqlx::query!("UPDATE virtual_keys SET revoked = TRUE WHERE id = $1", id)
             .execute(&self.pool)
             .await?
             .rows_affected();
+        if affected > 0 {
+            self.cache.invalidate_all();
+        }
         Ok(affected > 0)
     }
 
@@ -156,20 +169,24 @@ impl KeyStore {
     /// updated row, or `None` if no key has that id. Flushes the cache so changes take
     /// effect immediately rather than waiting out the TTL.
     pub async fn update(&self, id: Uuid, fields: &UpdateKey) -> Result<Option<KeyInfo>> {
-        let info = sqlx::query_as::<_, KeyRow>(
-            "UPDATE virtual_keys SET \
-             name = COALESCE($2, name), \
-             allowed_models = COALESCE($3, allowed_models), \
-             monthly_token_budget = COALESCE($4, monthly_token_budget), \
-             revoked = COALESCE($5, revoked) \
-             WHERE id = $1 \
-             RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at",
+        // keep as runtime because of COALESCE type inference
+        let info = sqlx::query_as!(
+           KeyRow,
+            r#"
+            UPDATE virtual_keys SET
+                name = COALESCE($2::text, name),
+                allowed_models = COALESCE($3::text[], allowed_models),
+                monthly_token_budget = COALESCE($4::bigint, monthly_token_budget),
+                revoked = COALESCE($5::boolean, revoked)
+            WHERE id = $1::uuid
+            RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at
+            "#,
+            id,
+            fields.name,
+            fields.allowed_models.as_deref(),
+            fields.monthly_token_budget,
+            fields.revoked,
         )
-        .bind(id)
-        .bind(&fields.name)
-        .bind(&fields.allowed_models)
-        .bind(fields.monthly_token_budget)
-        .bind(fields.revoked)
         .fetch_optional(&self.pool)
         .await?
         .map(Into::into);

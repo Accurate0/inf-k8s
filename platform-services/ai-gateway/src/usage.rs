@@ -22,24 +22,24 @@ pub struct UsageEvent {
 
 /// Inserts a usage row. Logged-and-swallowed on failure: telemetry must never break
 /// the proxy path.
-#[tracing::instrument(skip_all)]
+#[tracing::instrument(skip_all, fields(otel.name = "usage.record"))]
 pub async fn record(pool: &PgPool, event: &UsageEvent) {
-    let result = sqlx::query(
-        "INSERT INTO usage_events \
-         (key_id, key_name, provider, requested_model, resolved_model, \
-          input_tokens, output_tokens, cache_hit, latency_ms, status) \
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)",
+    let result = sqlx::query!(
+        r#"INSERT INTO usage_events
+         (key_id, key_name, provider, requested_model, resolved_model,
+          input_tokens, output_tokens, cache_hit, latency_ms, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
+        event.key_id,
+        &event.key_name,
+        &event.provider,
+        &event.requested_model,
+        &event.resolved_model,
+        event.input_tokens,
+        event.output_tokens,
+        event.cache_hit,
+        event.latency_ms,
+        event.status,
     )
-    .bind(event.key_id)
-    .bind(&event.key_name)
-    .bind(&event.provider)
-    .bind(&event.requested_model)
-    .bind(&event.resolved_model)
-    .bind(event.input_tokens)
-    .bind(event.output_tokens)
-    .bind(event.cache_hit)
-    .bind(event.latency_ms)
-    .bind(event.status)
     .execute(pool)
     .await;
 
@@ -52,17 +52,18 @@ pub async fn record(pool: &PgPool, event: &UsageEvent) {
 pub struct UsageRow {
     pub key_name: String,
     pub model: String,
-    pub day: NaiveDate,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-    pub requests: i64,
+    pub day: Option<NaiveDate>,
+    pub input_tokens: Option<i64>,
+    pub output_tokens: Option<i64>,
+    pub requests: Option<i64>,
 }
 
 /// Live per-day usage for `/admin/usage`, aggregated straight from `usage_events` so
 /// results reflect traffic immediately rather than waiting on the rollup. Cheap on the
 /// hypertable; the rolled-up `usage_daily` table is reserved for Grafana.
 pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
-    let rows = sqlx::query_as::<_, UsageRow>(
+    let rows = sqlx::query_as!(
+        UsageRow,
         "SELECT key_name, \
                 resolved_model AS model, \
                 date_trunc('day', created_at)::date AS day, \
@@ -81,7 +82,7 @@ pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
 /// Refreshes `usage_daily` from `usage_events`. Run periodically so Grafana queries
 /// stay cheap regardless of `usage_events` cardinality.
 pub async fn refresh_rollup(pool: &PgPool) -> Result<()> {
-    sqlx::query(
+    sqlx::query!(
         "INSERT INTO usage_daily (key_name, model, day, input_tokens, output_tokens, requests) \
          SELECT key_name, resolved_model, date_trunc('day', created_at)::date, \
                 SUM(input_tokens), SUM(output_tokens), COUNT(*) \

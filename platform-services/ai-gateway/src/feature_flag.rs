@@ -71,7 +71,10 @@ impl FeatureFlagClient {
 
     /// Global kill switch et al. Cached briefly; cache key folds in the virtual key
     /// name so per-key targeting still works.
-    #[tracing::instrument(skip(self), fields(result = tracing::field::Empty, cached = tracing::field::Empty))]
+    #[tracing::instrument(
+        skip(self),
+        fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty, cached = tracing::field::Empty)
+    )]
     pub async fn bool_flag(&self, flag: &str, key_name: &str, default: bool) -> bool {
         let span = tracing::Span::current();
         let cache_key = format!("{flag}:{key_name}");
@@ -101,7 +104,10 @@ impl FeatureFlagClient {
 
     /// Variant flag returning a string (e.g. a model or provider override). An empty
     /// string is treated as "no override" by callers.
-    #[tracing::instrument(skip(self), fields(result = tracing::field::Empty, cached = tracing::field::Empty))]
+    #[tracing::instrument(
+        skip(self),
+        fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty, cached = tracing::field::Empty)
+    )]
     pub async fn string_flag(&self, flag: &str, key_name: &str, default: &str) -> String {
         let span = tracing::Span::current();
         let cache_key = format!("{flag}:{key_name}");
