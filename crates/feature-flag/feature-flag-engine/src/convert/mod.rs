@@ -8,7 +8,9 @@ mod types;
 pub use types::ConversionError;
 
 use crate::engine::{EvalContext, Resolution};
-use crate::model::{Constraint, Distribution, Flag, Rule, Segment, Snapshot, Variant};
+use crate::model::{
+    Constraint, ConstraintGroup, Distribution, Flag, Rule, Segment, Snapshot, Variant,
+};
 use feature_flag_proto as pb;
 use prost_types::value::Kind;
 use serde_json::Value as Json;
@@ -130,6 +132,14 @@ impl From<&Variant> for pb::Variant {
     }
 }
 
+fn domain_constraint_to_pb(c: &Constraint) -> pb::Constraint {
+    pb::Constraint {
+        attribute: c.attribute.clone(),
+        operator: pb::ConstraintOperator::from(c.operator) as i32,
+        values: c.values.iter().map(json_to_prost_value).collect(),
+    }
+}
+
 impl From<&Rule> for pb::Rule {
     fn from(r: &Rule) -> Self {
         pb::Rule {
@@ -144,6 +154,13 @@ impl From<&Rule> for pb::Rule {
                     weight: d.weight,
                 })
                 .collect(),
+            constraint_groups: r
+                .constraint_groups
+                .iter()
+                .map(|g| pb::ConstraintGroup {
+                    constraints: g.constraints.iter().map(domain_constraint_to_pb).collect(),
+                })
+                .collect(),
         }
     }
 }
@@ -153,15 +170,7 @@ impl From<&Segment> for pb::Segment {
         pb::Segment {
             key: s.key.clone(),
             name: s.name.clone(),
-            constraints: s
-                .constraints
-                .iter()
-                .map(|c| pb::Constraint {
-                    attribute: c.attribute.clone(),
-                    operator: pb::ConstraintOperator::from(c.operator) as i32,
-                    values: c.values.iter().map(json_to_prost_value).collect(),
-                })
-                .collect(),
+            constraints: s.constraints.iter().map(domain_constraint_to_pb).collect(),
         }
     }
 }
@@ -175,9 +184,25 @@ impl From<&pb::Variant> for Variant {
     }
 }
 
-impl From<&pb::Rule> for Rule {
-    fn from(r: &pb::Rule) -> Self {
-        Rule {
+/// Convert a list of proto constraints to the domain model, failing if any operator
+/// is unspecified. Shared by segment and inline rule constraint conversion.
+fn pb_constraints_to_domain(constraints: &[pb::Constraint]) -> Result<Vec<Constraint>, ConversionError> {
+    let mut out = Vec::with_capacity(constraints.len());
+    for c in constraints {
+        out.push(Constraint {
+            attribute: c.attribute.clone(),
+            operator: c.operator().try_into()?,
+            values: c.values.iter().map(prost_value_to_json).collect(),
+        });
+    }
+    Ok(out)
+}
+
+impl TryFrom<&pb::Rule> for Rule {
+    type Error = ConversionError;
+
+    fn try_from(r: &pb::Rule) -> Result<Self, Self::Error> {
+        Ok(Rule {
             rank: r.rank,
             segment_key: (!r.segment_key.is_empty()).then(|| r.segment_key.clone()),
             variant_key: (!r.variant_key.is_empty()).then(|| r.variant_key.clone()),
@@ -189,7 +214,16 @@ impl From<&pb::Rule> for Rule {
                     weight: d.weight,
                 })
                 .collect(),
-        }
+            constraint_groups: r
+                .constraint_groups
+                .iter()
+                .map(|g| {
+                    Ok(ConstraintGroup {
+                        constraints: pb_constraints_to_domain(&g.constraints)?,
+                    })
+                })
+                .collect::<Result<_, ConversionError>>()?,
+        })
     }
 }
 
@@ -197,18 +231,10 @@ impl TryFrom<&pb::Segment> for Segment {
     type Error = ConversionError;
 
     fn try_from(s: &pb::Segment) -> Result<Self, Self::Error> {
-        let mut constraints = Vec::with_capacity(s.constraints.len());
-        for c in &s.constraints {
-            constraints.push(Constraint {
-                attribute: c.attribute.clone(),
-                operator: c.operator().try_into()?,
-                values: c.values.iter().map(prost_value_to_json).collect(),
-            });
-        }
         Ok(Segment {
             key: s.key.clone(),
             name: s.name.clone(),
-            constraints,
+            constraints: pb_constraints_to_domain(&s.constraints)?,
         })
     }
 }
@@ -224,7 +250,11 @@ impl TryFrom<&pb::Flag> for Flag {
             default_variant_key: f.default_variant_key.clone(),
             archived: f.archived,
             variants: f.variants.iter().map(Variant::from).collect(),
-            rules: f.rules.iter().map(Rule::from).collect(),
+            rules: f
+                .rules
+                .iter()
+                .map(Rule::try_from)
+                .collect::<Result<_, _>>()?,
         })
     }
 }

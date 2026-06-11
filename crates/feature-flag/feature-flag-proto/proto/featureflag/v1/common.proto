@@ -72,6 +72,12 @@ message Segment {
   repeated Constraint constraints = 3;
 }
 
+// A group of constraints OR-combined together. Used by a rule's inline targeting:
+// the group matches when ANY of its constraints match. An empty group matches.
+message ConstraintGroup {
+  repeated Constraint constraints = 1;
+}
+
 // One weighted variant within a rule's percentage split.
 message Distribution {
   string variant_key = 1;
@@ -79,13 +85,19 @@ message Distribution {
   uint32 weight = 2;
 }
 
-// An ordered targeting rule on a flag. When the segment matches, the rule serves
-// either a single variant or a weighted split of variants.
+// An ordered targeting rule on a flag. A rule matches when its segment (if any)
+// matches AND all of its inline constraints match; it then serves either a single
+// variant or a weighted split of variants.
 message Rule {
   uint32 rank = 1;
   string segment_key = 2;
   string variant_key = 3;
   repeated Distribution distributions = 4;
+  // Inline constraint groups matched directly against context attributes (CNF):
+  // the groups are AND-combined with each other and with segment_key, while the
+  // constraints within a group are OR-combined. Lets a rule target attributes
+  // without a named segment.
+  repeated ConstraintGroup constraint_groups = 5;
 }
 
 message Flag {

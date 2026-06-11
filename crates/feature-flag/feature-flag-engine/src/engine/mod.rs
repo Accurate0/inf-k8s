@@ -6,7 +6,9 @@ mod types;
 
 pub use types::{ErrorCode, EvalContext, EvalError, Reason, Resolution};
 
-use crate::model::{Constraint, Distribution, Flag, Operator, Segment, Snapshot};
+use crate::model::{
+    Constraint, ConstraintGroup, Distribution, Flag, Operator, Rule, Segment, Snapshot,
+};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -39,7 +41,7 @@ impl Engine {
         }
 
         for rule in &flag.rules {
-            if !self.rule_matches(rule.segment_key.as_deref(), ctx) {
+            if !self.rule_matches(rule, ctx) {
                 continue;
             }
             if !rule.distributions.is_empty() {
@@ -54,15 +56,32 @@ impl Engine {
         Self::resolve_variant(flag, &flag.default_variant_key, Reason::Default)
     }
 
-    fn rule_matches(&self, segment_key: Option<&str>, ctx: &EvalContext) -> bool {
-        match segment_key {
+    /// A rule matches when its referenced segment (if any) matches AND all of its
+    /// inline constraints match.
+    fn rule_matches(&self, rule: &Rule, ctx: &EvalContext) -> bool {
+        let segment_ok = match rule.segment_key.as_deref() {
             None => true,
             Some(key) => match self.snapshot.segments.get(key) {
                 Some(segment) => Self::segment_matches(segment, ctx),
                 // A rule pointing at a missing segment never matches rather than erroring.
                 None => false,
             },
-        }
+        };
+        segment_ok
+            && rule
+                .constraint_groups
+                .iter()
+                .all(|g| Self::group_matches(g, ctx))
+    }
+
+    /// A constraint group matches when any of its constraints match (OR). An empty
+    /// group matches, so it never blocks a rule.
+    fn group_matches(group: &ConstraintGroup, ctx: &EvalContext) -> bool {
+        group.constraints.is_empty()
+            || group
+                .constraints
+                .iter()
+                .any(|c| Self::constraint_matches(c, ctx))
     }
 
     fn resolve_variant(
@@ -85,10 +104,12 @@ impl Engine {
     }
 
     pub fn segment_matches(segment: &Segment, ctx: &EvalContext) -> bool {
-        segment
-            .constraints
-            .iter()
-            .all(|c| Self::constraint_matches(c, ctx))
+        Self::constraints_match(&segment.constraints, ctx)
+    }
+
+    /// A context matches a constraint set only when every constraint matches (AND).
+    fn constraints_match(constraints: &[Constraint], ctx: &EvalContext) -> bool {
+        constraints.iter().all(|c| Self::constraint_matches(c, ctx))
     }
 
     fn constraint_matches(c: &Constraint, ctx: &EvalContext) -> bool {
@@ -253,6 +274,7 @@ mod tests {
             segment_key: Some("beta".into()),
             variant_key: Some("on".into()),
             distributions: vec![],
+            constraint_groups: vec![],
         }];
         let beta = Segment {
             key: "beta".into(),
@@ -273,12 +295,120 @@ mod tests {
         assert_eq!(miss.reason, Reason::Default);
     }
 
+    fn group(constraints: Vec<Constraint>) -> ConstraintGroup {
+        ConstraintGroup { constraints }
+    }
+
+    #[test]
+    fn inline_constraints_match_without_segment() {
+        let mut flag = bool_flag();
+        flag.rules = vec![Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: Some("on".into()),
+            distributions: vec![],
+            constraint_groups: vec![group(vec![Constraint {
+                attribute: "email".into(),
+                operator: Operator::EndsWith,
+                values: vec![json!("@anurag.sh")],
+            }])],
+        }];
+        let e = engine(flag, vec![]);
+
+        let hit = e.evaluate("feature", &ctx("u1", json!({"email": "a@anurag.sh"}))).unwrap();
+        assert_eq!(hit.reason, Reason::TargetingMatch);
+        assert_eq!(hit.value, json!(true));
+
+        let miss = e.evaluate("feature", &ctx("u2", json!({"email": "a@other.com"}))).unwrap();
+        assert_eq!(miss.reason, Reason::Default);
+    }
+
+    #[test]
+    fn inline_constraint_group_is_ored() {
+        let mut flag = bool_flag();
+        // One group with two constraints: match when country is AU OR NZ.
+        flag.rules = vec![Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: Some("on".into()),
+            distributions: vec![],
+            constraint_groups: vec![group(vec![
+                Constraint { attribute: "country".into(), operator: Operator::Eq, values: vec![json!("AU")] },
+                Constraint { attribute: "country".into(), operator: Operator::Eq, values: vec![json!("NZ")] },
+            ])],
+        }];
+        let e = engine(flag, vec![]);
+
+        assert_eq!(e.evaluate("feature", &ctx("u1", json!({"country": "AU"}))).unwrap().reason, Reason::TargetingMatch);
+        assert_eq!(e.evaluate("feature", &ctx("u2", json!({"country": "NZ"}))).unwrap().reason, Reason::TargetingMatch);
+        assert_eq!(e.evaluate("feature", &ctx("u3", json!({"country": "US"}))).unwrap().reason, Reason::Default);
+    }
+
+    #[test]
+    fn inline_constraint_groups_are_anded() {
+        let mut flag = bool_flag();
+        // (country == AU OR NZ) AND (plan == pro).
+        flag.rules = vec![Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: Some("on".into()),
+            distributions: vec![],
+            constraint_groups: vec![
+                group(vec![
+                    Constraint { attribute: "country".into(), operator: Operator::Eq, values: vec![json!("AU")] },
+                    Constraint { attribute: "country".into(), operator: Operator::Eq, values: vec![json!("NZ")] },
+                ]),
+                group(vec![Constraint { attribute: "plan".into(), operator: Operator::Eq, values: vec![json!("pro")] }]),
+            ],
+        }];
+        let e = engine(flag, vec![]);
+
+        assert_eq!(e.evaluate("feature", &ctx("u1", json!({"country": "AU", "plan": "pro"}))).unwrap().reason, Reason::TargetingMatch);
+        assert_eq!(e.evaluate("feature", &ctx("u2", json!({"country": "NZ", "plan": "free"}))).unwrap().reason, Reason::Default);
+        assert_eq!(e.evaluate("feature", &ctx("u3", json!({"country": "US", "plan": "pro"}))).unwrap().reason, Reason::Default);
+    }
+
+    #[test]
+    fn segment_and_inline_constraints_are_anded() {
+        let mut flag = bool_flag();
+        flag.rules = vec![Rule {
+            rank: 0,
+            segment_key: Some("beta".into()),
+            variant_key: Some("on".into()),
+            distributions: vec![],
+            constraint_groups: vec![group(vec![Constraint {
+                attribute: "age".into(),
+                operator: Operator::Gte,
+                values: vec![json!(18)],
+            }])],
+        }];
+        let beta = Segment {
+            key: "beta".into(),
+            name: "Beta".into(),
+            constraints: vec![Constraint {
+                attribute: "plan".into(),
+                operator: Operator::Eq,
+                values: vec![json!("pro")],
+            }],
+        };
+        let e = engine(flag, vec![beta]);
+
+        let both = e.evaluate("feature", &ctx("u1", json!({"plan": "pro", "age": 20}))).unwrap();
+        assert_eq!(both.reason, Reason::TargetingMatch);
+
+        let segment_only = e.evaluate("feature", &ctx("u2", json!({"plan": "pro", "age": 16}))).unwrap();
+        assert_eq!(segment_only.reason, Reason::Default);
+
+        let constraint_only = e.evaluate("feature", &ctx("u3", json!({"plan": "free", "age": 20}))).unwrap();
+        assert_eq!(constraint_only.reason, Reason::Default);
+    }
+
     #[test]
     fn rules_evaluated_in_order() {
         let mut flag = bool_flag();
         flag.rules = vec![
-            Rule { rank: 0, segment_key: None, variant_key: Some("on".into()), distributions: vec![] },
-            Rule { rank: 1, segment_key: None, variant_key: Some("off".into()), distributions: vec![] },
+            Rule { rank: 0, segment_key: None, variant_key: Some("on".into()), distributions: vec![], constraint_groups: vec![] },
+            Rule { rank: 1, segment_key: None, variant_key: Some("off".into()), distributions: vec![], constraint_groups: vec![] },
         ];
         let e = engine(flag, vec![]);
         let r = e.evaluate("feature", &ctx("u1", json!({}))).unwrap();
@@ -296,6 +426,7 @@ mod tests {
                 Distribution { variant_key: "on".into(), weight: 50 },
                 Distribution { variant_key: "off".into(), weight: 50 },
             ],
+            constraint_groups: vec![],
         }];
         let e = engine(flag, vec![]);
 

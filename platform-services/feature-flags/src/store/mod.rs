@@ -5,10 +5,12 @@
 mod types;
 
 use crate::error::{AppError, AppResult};
-use crate::model::{Constraint, Distribution, Flag, Rule, Segment, Snapshot, ValueType, Variant};
+use crate::model::{
+    Constraint, ConstraintGroup, Distribution, Flag, Rule, Segment, Snapshot, ValueType, Variant,
+};
 use serde_json::Value as Json;
 use sqlx::PgPool;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use types::{
     json_array, operator_from_str, operator_to_str, unique_violation, value_type_from_str,
     value_type_to_str,
@@ -88,6 +90,27 @@ impl Store {
                 });
         }
 
+        // Constraints are grouped by `group_index` within a rule: rows sharing an
+        // index form one OR-group, and the groups are AND-combined (CNF).
+        let mut rule_groups: HashMap<Uuid, BTreeMap<i32, Vec<Constraint>>> = HashMap::new();
+        for row in sqlx::query!(
+            r#"SELECT rule_id, group_index, attribute, operator, values as "values: Json" FROM rule_constraints"#
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            rule_groups
+                .entry(row.rule_id)
+                .or_default()
+                .entry(row.group_index)
+                .or_default()
+                .push(Constraint {
+                    attribute: row.attribute,
+                    operator: operator_from_str(&row.operator)?,
+                    values: json_array(row.values),
+                });
+        }
+
         for row in sqlx::query!(
             "SELECT id, flag_id, rank, segment_key, variant_key FROM flag_rules ORDER BY rank"
         )
@@ -100,6 +123,12 @@ impl Store {
                     segment_key: row.segment_key,
                     variant_key: row.variant_key,
                     distributions: distributions.remove(&row.id).unwrap_or_default(),
+                    constraint_groups: rule_groups
+                        .remove(&row.id)
+                        .unwrap_or_default()
+                        .into_values()
+                        .map(|constraints| ConstraintGroup { constraints })
+                        .collect(),
                 });
             }
         }
@@ -374,6 +403,22 @@ impl Store {
                 )
                 .execute(&mut *tx)
                 .await?;
+            }
+
+            for (group_index, group) in rule.constraint_groups.iter().enumerate() {
+                for c in &group.constraints {
+                    sqlx::query!(
+                        "INSERT INTO rule_constraints (rule_id, group_index, attribute, operator, values) \
+                         VALUES ($1, $2, $3, $4, $5)",
+                        rule_id,
+                        group_index as i32,
+                        c.attribute,
+                        operator_to_str(c.operator),
+                        Json::Array(c.values.clone()),
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                }
             }
         }
         tx.commit().await?;

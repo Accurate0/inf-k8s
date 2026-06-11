@@ -7,7 +7,8 @@ on:
       - platform-services/feature-flags/**
       - "!platform-services/feature-flags/manifests/**"
       - "!platform-services/feature-flags/application.yaml"
-      - crates/**
+      - crates/feature-flag/feature-flag-proto/**
+      - crates/feature-flag/feature-flag-engine/**
       - .github/workflows/build-deploy-feature-flags.yaml
   workflow_dispatch:
 

@@ -83,6 +83,14 @@ export interface Segment {
   constraints: Constraint[];
 }
 
+/**
+ * A group of constraints OR-combined together. Used by a rule's inline targeting:
+ * the group matches when ANY of its constraints match. An empty group matches.
+ */
+export interface ConstraintGroup {
+  constraints: Constraint[];
+}
+
 /** One weighted variant within a rule's percentage split. */
 export interface Distribution {
   variantKey: string;
@@ -91,14 +99,22 @@ export interface Distribution {
 }
 
 /**
- * An ordered targeting rule on a flag. When the segment matches, the rule serves
- * either a single variant or a weighted split of variants.
+ * An ordered targeting rule on a flag. A rule matches when its segment (if any)
+ * matches AND all of its inline constraints match; it then serves either a single
+ * variant or a weighted split of variants.
  */
 export interface Rule {
   rank: number;
   segmentKey: string;
   variantKey: string;
   distributions: Distribution[];
+  /**
+   * Inline constraint groups matched directly against context attributes (CNF):
+   * the groups are AND-combined with each other and with segment_key, while the
+   * constraints within a group are OR-combined. Lets a rule target attributes
+   * without a named segment.
+   */
+  constraintGroups: ConstraintGroup[];
 }
 
 export interface Flag {
@@ -367,6 +383,52 @@ export const Segment: MessageFns<Segment> = {
   },
 };
 
+function createBaseConstraintGroup(): ConstraintGroup {
+  return { constraints: [] };
+}
+
+export const ConstraintGroup: MessageFns<ConstraintGroup> = {
+  encode(message: ConstraintGroup, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.constraints) {
+      Constraint.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ConstraintGroup {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseConstraintGroup();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.constraints.push(Constraint.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ConstraintGroup>, I>>(base?: I): ConstraintGroup {
+    return ConstraintGroup.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ConstraintGroup>, I>>(object: I): ConstraintGroup {
+    const message = createBaseConstraintGroup();
+    message.constraints = object.constraints?.map((e) => Constraint.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 function createBaseDistribution(): Distribution {
   return { variantKey: "", weight: 0 };
 }
@@ -426,7 +488,7 @@ export const Distribution: MessageFns<Distribution> = {
 };
 
 function createBaseRule(): Rule {
-  return { rank: 0, segmentKey: "", variantKey: "", distributions: [] };
+  return { rank: 0, segmentKey: "", variantKey: "", distributions: [], constraintGroups: [] };
 }
 
 export const Rule: MessageFns<Rule> = {
@@ -442,6 +504,9 @@ export const Rule: MessageFns<Rule> = {
     }
     for (const v of message.distributions) {
       Distribution.encode(v!, writer.uint32(34).fork()).join();
+    }
+    for (const v of message.constraintGroups) {
+      ConstraintGroup.encode(v!, writer.uint32(42).fork()).join();
     }
     return writer;
   },
@@ -485,6 +550,14 @@ export const Rule: MessageFns<Rule> = {
           message.distributions.push(Distribution.decode(reader, reader.uint32()));
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.constraintGroups.push(ConstraintGroup.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -503,6 +576,7 @@ export const Rule: MessageFns<Rule> = {
     message.segmentKey = object.segmentKey ?? "";
     message.variantKey = object.variantKey ?? "";
     message.distributions = object.distributions?.map((e) => Distribution.fromPartial(e)) || [];
+    message.constraintGroups = object.constraintGroups?.map((e) => ConstraintGroup.fromPartial(e)) || [];
     return message;
   },
 };

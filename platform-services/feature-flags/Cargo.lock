@@ -664,7 +664,6 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 [[package]]
 name = "feature-flag-engine"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#af74a2a5ff1c8c913ed51bd957668d4d0ce4a5bc"
 dependencies = [
  "feature-flag-proto",
  "prost-types",
@@ -677,7 +676,6 @@ dependencies = [
 [[package]]
 name = "feature-flag-proto"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#af74a2a5ff1c8c913ed51bd957668d4d0ce4a5bc"
 dependencies = [
  "prost 0.13.5",
  "prost-types",

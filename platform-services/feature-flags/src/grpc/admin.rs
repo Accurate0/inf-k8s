@@ -178,7 +178,14 @@ impl Admin for AdminService {
         request: Request<pb::SetFlagRulesRequest>,
     ) -> Result<Response<pb::Flag>, Status> {
         let req = request.into_inner();
-        let rules: Vec<_> = req.rules.iter().map(Rule::from).collect();
+        let rules: Vec<_> = req
+            .rules
+            .iter()
+            .map(Rule::try_from)
+            .collect::<Result<_, _>>()
+            .map_err(|e: crate::convert::ConversionError| {
+                Status::invalid_argument(e.to_string())
+            })?;
         let flag = self.store.set_flag_rules(&req.flag_key, &rules).await?;
         self.refresh().await;
         Ok(Response::new(pb::Flag::from(&flag)))

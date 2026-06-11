@@ -1,5 +1,5 @@
 import type { Actions, PageServerLoad } from "./$types";
-import { client, type Rule } from "$lib/server/client";
+import { client, type Rule, type Constraint } from "$lib/server/client";
 import { error, fail, redirect } from "@sveltejs/kit";
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -88,6 +88,17 @@ export const actions: Actions = {
           ? r.distributions.map((d: { variantKey: unknown; weight: unknown }) => ({
               variantKey: String(d.variantKey),
               weight: Number(d.weight),
+            }))
+          : [],
+        constraintGroups: Array.isArray(r.constraintGroups)
+          ? r.constraintGroups.map((g: { constraints: Constraint[] }) => ({
+              constraints: Array.isArray(g.constraints)
+                ? g.constraints.map((c: Constraint) => ({
+                    attribute: String(c.attribute),
+                    operator: Number(c.operator),
+                    values: Array.isArray(c.values) ? c.values : [],
+                  }))
+                : [],
             }))
           : [],
       }));

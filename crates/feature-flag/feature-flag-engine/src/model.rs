@@ -51,20 +51,30 @@ pub struct Segment {
     pub constraints: Vec<Constraint>,
 }
 
+/// A group of constraints OR-combined together. Matches when any of its
+/// constraints match; an empty group matches.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ConstraintGroup {
+    pub constraints: Vec<Constraint>,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Distribution {
     pub variant_key: String,
     pub weight: u32,
 }
 
-/// An ordered targeting rule. `segment_key == None` matches every context (a
-/// catch-all rollout); otherwise the named segment must match.
+/// An ordered targeting rule. A rule matches when its segment (if any) matches AND
+/// every inline constraint group matches (CNF: groups are AND-combined, constraints
+/// within a group are OR-combined). With no `segment_key` and no `constraint_groups`
+/// it is a catch-all rollout.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Rule {
     pub rank: u32,
     pub segment_key: Option<String>,
     pub variant_key: Option<String>,
     pub distributions: Vec<Distribution>,
+    pub constraint_groups: Vec<ConstraintGroup>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

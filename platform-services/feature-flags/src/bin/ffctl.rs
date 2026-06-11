@@ -118,7 +118,8 @@ enum SegmentAction {
 #[derive(Subcommand)]
 enum RulesAction {
     /// Replace a flag's rules from a JSON array, ordered by priority, e.g.
-    /// `[{"segment_key":"beta","variant_key":"on"},{"distributions":[{"variant_key":"on","weight":50},{"variant_key":"off","weight":50}]}]`.
+    /// `[{"segment_key":"beta","variant_key":"on"},{"constraint_groups":[[{"attribute":"country","operator":"IN","values":["AU","NZ"]}],[{"attribute":"plan","operator":"EQ","values":["pro"]}]],"variant_key":"on"}]`.
+    /// `constraint_groups` is CNF: groups are AND-combined, constraints within a group OR-combined; `constraints` (a flat array) is sugar for plain AND. Both work with or without a `segment_key`.
     Set { flag_key: String, json: String },
 }
 
@@ -397,6 +398,7 @@ fn parse_rule(json: &Json) -> anyhow::Result<pb::Rule> {
         })
         .transpose()?
         .unwrap_or_default();
+    let constraint_groups = parse_constraint_groups(obj)?;
     Ok(pb::Rule {
         // Rank is assigned by position on the server; array order is the priority.
         rank: 0,
@@ -411,7 +413,41 @@ fn parse_rule(json: &Json) -> anyhow::Result<pb::Rule> {
             .unwrap_or_default()
             .to_owned(),
         distributions,
+        constraint_groups,
     })
+}
+
+/// Parse a rule's inline constraint groups. Accepts `constraint_groups` (an array of
+/// arrays, each inner array an OR-group) or `constraints` (a flat array sugar where
+/// each constraint becomes its own group, i.e. plain AND).
+fn parse_constraint_groups(
+    obj: &serde_json::Map<String, Json>,
+) -> anyhow::Result<Vec<pb::ConstraintGroup>> {
+    if let Some(groups) = obj.get("constraint_groups").and_then(Json::as_array) {
+        return groups
+            .iter()
+            .map(|g| {
+                let constraints = g
+                    .as_array()
+                    .context("constraint group must be a JSON array")?
+                    .iter()
+                    .map(parse_constraint)
+                    .collect::<anyhow::Result<_>>()?;
+                Ok(pb::ConstraintGroup { constraints })
+            })
+            .collect();
+    }
+    if let Some(constraints) = obj.get("constraints").and_then(Json::as_array) {
+        return constraints
+            .iter()
+            .map(|c| {
+                Ok(pb::ConstraintGroup {
+                    constraints: vec![parse_constraint(c)?],
+                })
+            })
+            .collect();
+    }
+    Ok(Vec::new())
 }
 
 fn str_field<'a>(obj: &'a serde_json::Map<String, Json>, field: &str) -> anyhow::Result<&'a str> {
@@ -450,6 +486,15 @@ fn flag_to_json(flag: &pb::Flag) -> Json {
                 "variant_key": d.variant_key,
                 "weight": d.weight,
             })).collect::<Vec<_>>(),
+            "constraint_groups": r.constraint_groups.iter().map(|g| {
+                g.constraints.iter().map(|c| json!({
+                    "attribute": c.attribute,
+                    "operator": pb::ConstraintOperator::try_from(c.operator)
+                        .unwrap_or_default()
+                        .as_str_name(),
+                    "values": c.values.iter().map(value_to_json).collect::<Vec<_>>(),
+                })).collect::<Vec<_>>()
+            }).collect::<Vec<_>>(),
         })).collect::<Vec<_>>(),
     })
 }

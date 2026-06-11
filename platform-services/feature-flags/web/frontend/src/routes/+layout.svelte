@@ -19,7 +19,7 @@
 <div class="min-h-screen bg-muted/30">
   <header class="bg-foreground text-background">
     <div class="mx-auto flex max-w-5xl items-center gap-8 px-6">
-      <span class="py-4 text-base font-semibold">Feature Flags</span>
+      <a href="/" class="py-4 text-base font-semibold">Feature Flags</a>
       <nav class="flex gap-1">
         {#each tabs as tab (tab.href)}
           <a

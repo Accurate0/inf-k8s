@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT rule_id, group_index, attribute, operator, values as \"values: Json\" FROM rule_constraints",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "rule_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "rule_constraints",
+            "name": "rule_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "group_index",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "rule_constraints",
+            "name": "group_index"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "attribute",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rule_constraints",
+            "name": "attribute"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "operator",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "rule_constraints",
+            "name": "operator"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "values: Json",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "rule_constraints",
+            "name": "values"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "be73e3e82241f037cadf404a9836786660763917e350a696df9c32d1e0c257d0"
+}

@@ -4,7 +4,8 @@ on:
   pull_request:
     paths:
       - platform-services/feature-flags/**
-      - crates/**
+      - crates/feature-flag/feature-flag-proto/**
+      - crates/feature-flag/feature-flag-engine/**
       - .forgejo/workflows/branch-build-feature-flags.yaml
 
 jobs:

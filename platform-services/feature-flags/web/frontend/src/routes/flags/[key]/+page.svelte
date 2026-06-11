@@ -1,6 +1,6 @@
 <script lang="ts">
   import { enhance } from "$app/forms";
-  import { valueTypeLabels } from "$lib/labels";
+  import { valueTypeLabels, operatorOptions } from "$lib/labels";
   import { ValueType, type Rule } from "@accurate0/feature-flag-client/model";
   import * as Card from "$lib/components/ui/card";
   import * as Table from "$lib/components/ui/table";
@@ -24,13 +24,35 @@
     { value: "single", label: "a single variant" },
     { value: "split", label: "a weighted split" },
   ];
+  // FieldSelect works with string values; operator enums are mapped to/from strings.
+  const operatorSelectOptions = operatorOptions.map((o) => ({ value: String(o.value), label: o.label }));
+
+  type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+
+  // Inline constraint values are edited as JSON text (e.g. `"@anurag.sh"` or
+  // `["AU", "NZ"]`) and parsed back into an array on save.
+  type EditorConstraint = { attribute: string; operator: string; valuesRaw: string };
+  // CNF: groups are AND-combined, constraints within a group are OR-combined.
+  type EditorGroup = { constraints: EditorConstraint[] };
 
   type EditorRule = {
     segmentKey: string;
     mode: "single" | "split";
     variantKey: string;
     distributions: { variantKey: string; weight: number }[];
+    constraintGroups: EditorGroup[];
   };
+
+  function parseValues(raw: string): JsonValue[] {
+    const trimmed = raw.trim();
+    if (trimmed === "") return [];
+    try {
+      const parsed = JSON.parse(trimmed) as JsonValue;
+      return Array.isArray(parsed) ? parsed : [parsed];
+    } catch {
+      return [raw];
+    }
+  }
 
   function toEditorRules(rules: Rule[]): EditorRule[] {
     return rules.map((r) => ({
@@ -38,6 +60,13 @@
       mode: r.distributions.length > 0 ? "split" : "single",
       variantKey: r.variantKey || (flag.variants[0]?.key ?? ""),
       distributions: r.distributions.length > 0 ? r.distributions.map((d) => ({ ...d })) : [],
+      constraintGroups: r.constraintGroups.map((g) => ({
+        constraints: g.constraints.map((c) => ({
+          attribute: c.attribute,
+          operator: String(c.operator),
+          valuesRaw: JSON.stringify(c.values),
+        })),
+      })),
     }));
   }
 
@@ -57,12 +86,43 @@
         segmentKey: r.segmentKey,
         variantKey: r.mode === "single" ? r.variantKey : "",
         distributions: r.mode === "split" ? r.distributions : [],
+        // Drop empty groups (and empty constraints) so they don't persist as noise.
+        constraintGroups: r.constraintGroups
+          .map((g) => ({
+            constraints: g.constraints
+              .filter((c) => c.attribute.trim() !== "")
+              .map((c) => ({
+                attribute: c.attribute,
+                operator: Number(c.operator),
+                values: parseValues(c.valuesRaw),
+              })),
+          }))
+          .filter((g) => g.constraints.length > 0),
       })),
     ),
   );
 
   function addRule() {
-    rules.push({ segmentKey: "", mode: "single", variantKey: flag.variants[0]?.key ?? "", distributions: [] });
+    rules.push({
+      segmentKey: "",
+      mode: "single",
+      variantKey: flag.variants[0]?.key ?? "",
+      distributions: [],
+      constraintGroups: [],
+    });
+  }
+  function newConstraint(): EditorConstraint {
+    return { attribute: "", operator: String(operatorOptions[0].value), valuesRaw: "" };
+  }
+  function addGroup(rule: EditorRule) {
+    rule.constraintGroups.push({ constraints: [newConstraint()] });
+  }
+  function addCondition(group: EditorGroup) {
+    group.constraints.push(newConstraint());
+  }
+  function removeConstraint(rule: EditorRule, group: EditorGroup, constraint: EditorConstraint) {
+    group.constraints.splice(group.constraints.indexOf(constraint), 1);
+    if (group.constraints.length === 0) rule.constraintGroups.splice(rule.constraintGroups.indexOf(group), 1);
   }
   function move(i: number, delta: number) {
     const j = i + delta;
@@ -201,6 +261,31 @@
               <Button type="button" variant="outline" size="icon" onclick={() => move(i, -1)} disabled={i === 0}>↑</Button>
               <Button type="button" variant="outline" size="icon" onclick={() => move(i, 1)} disabled={i === rules.length - 1}>↓</Button>
               <Button type="button" variant="ghost" size="sm" class="text-destructive" onclick={() => rules.splice(i, 1)}>remove</Button>
+            </div>
+
+            <div class="mt-2 ml-6 flex flex-col gap-1.5">
+              {#each rule.constraintGroups as group, gi (group)}
+                {#if gi > 0}
+                  <span class="text-xs font-medium text-muted-foreground">and</span>
+                {/if}
+                <div class="flex flex-col gap-1.5 rounded-md border border-dashed bg-background/40 p-2">
+                  {#each group.constraints as constraint, ci (constraint)}
+                    <div class="flex items-center gap-2 text-sm">
+                      <span class="w-8 text-right text-xs text-muted-foreground">{ci === 0 ? "if" : "or"}</span>
+                      <Input placeholder="attribute" bind:value={constraint.attribute} class="h-8 w-36" />
+                      <FieldSelect bind:value={constraint.operator} options={operatorSelectOptions} class="h-8 w-32" />
+                      <Input placeholder={`value or ["a","b"]`} bind:value={constraint.valuesRaw} class="h-8 w-48" />
+                      <Button type="button" variant="ghost" size="icon" class="size-7 text-muted-foreground hover:text-destructive" onclick={() => removeConstraint(rule, group, constraint)}>×</Button>
+                    </div>
+                  {/each}
+                  <button type="button" class="ml-10 w-fit text-xs text-muted-foreground hover:text-foreground" onclick={() => addCondition(group)}>
+                    + or
+                  </button>
+                </div>
+              {/each}
+              <button type="button" class="w-fit text-xs text-muted-foreground hover:text-foreground" onclick={() => addGroup(rule)}>
+                + add attribute condition
+              </button>
             </div>
 
             {#if rule.mode === "single"}
