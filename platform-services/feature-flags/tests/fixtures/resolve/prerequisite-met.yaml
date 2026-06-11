@@ -1,0 +1,24 @@
+flags:
+  - key: master
+    value_type: boolean
+    default_variant: "on"
+    variants:
+      - {key: "on", value: true}
+      - {key: "off", value: false}
+
+  - key: dependent
+    value_type: string
+    default_variant: classic
+    variants:
+      - {key: classic, value: "classic"}
+      - {key: modern, value: "modern"}
+    rules:
+      - variant: modern
+    prerequisites:
+      - {flag_key: master, variant_key: "on"}
+
+resolve:
+  kind: string
+  flag_key: dependent
+  context:
+    targeting_key: user-1

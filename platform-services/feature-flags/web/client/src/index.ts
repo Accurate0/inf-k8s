@@ -1,4 +1,4 @@
-import { ChannelCredentials, type ClientUnaryCall } from "@grpc/grpc-js";
+import { ChannelCredentials, Metadata, type ClientUnaryCall } from "@grpc/grpc-js";
 import {
   AdminClient,
   type CreateFlagRequest,
@@ -15,6 +15,7 @@ import {
 } from "./gen/featureflag/v1/evaluation.js";
 import {
   type Flag,
+  type Prerequisite,
   type Rule,
   type Segment,
   ValueType,
@@ -25,16 +26,28 @@ export * from "./model.js";
 
 type UnaryMethod<Req, Res> = (
   request: Req,
+  metadata: Metadata,
   callback: (error: Error | null, response: Res) => void,
 ) => ClientUnaryCall;
 
-function unary<Req, Res>(method: UnaryMethod<Req, Res>, request: Req): Promise<Res> {
+function unary<Req, Res>(
+  method: UnaryMethod<Req, Res>,
+  request: Req,
+  metadata: Metadata = new Metadata(),
+): Promise<Res> {
   return new Promise((resolve, reject) => {
-    method(request, (error, response) => {
+    method(request, metadata, (error, response) => {
       if (error) reject(error);
       else resolve(response);
     });
   });
+}
+
+/** Build gRPC metadata carrying the acting user, recorded by the backend audit log. */
+function actorMetadata(actor?: string): Metadata {
+  const metadata = new Metadata();
+  if (actor) metadata.set("actor", actor);
+  return metadata;
 }
 
 /**
@@ -59,44 +72,81 @@ export class FeatureFlagClient {
     return unary(this.admin.getFlag.bind(this.admin), { key });
   }
 
-  createFlag(request: CreateFlagRequest): Promise<Flag> {
-    return unary(this.admin.createFlag.bind(this.admin), request);
+  createFlag(request: CreateFlagRequest, actor?: string): Promise<Flag> {
+    return unary(this.admin.createFlag.bind(this.admin), request, actorMetadata(actor));
   }
 
-  updateFlag(key: string, enabled: boolean, defaultVariantKey: string): Promise<Flag> {
-    return unary(this.admin.updateFlag.bind(this.admin), { key, enabled, defaultVariantKey });
+  updateFlag(
+    key: string,
+    enabled: boolean,
+    defaultVariantKey: string,
+    actor?: string,
+  ): Promise<Flag> {
+    return unary(
+      this.admin.updateFlag.bind(this.admin),
+      { key, enabled, defaultVariantKey },
+      actorMetadata(actor),
+    );
   }
 
-  archiveFlag(key: string, archived: boolean): Promise<Flag> {
-    return unary(this.admin.archiveFlag.bind(this.admin), { key, archived });
+  archiveFlag(key: string, archived: boolean, actor?: string): Promise<Flag> {
+    return unary(this.admin.archiveFlag.bind(this.admin), { key, archived }, actorMetadata(actor));
   }
 
-  deleteFlag(key: string): Promise<void> {
-    return unary(this.admin.deleteFlag.bind(this.admin), { key }).then(() => undefined);
+  deleteFlag(key: string, actor?: string): Promise<void> {
+    return unary(this.admin.deleteFlag.bind(this.admin), { key }, actorMetadata(actor)).then(
+      () => undefined,
+    );
   }
 
-  upsertVariant(flagKey: string, variant: Variant): Promise<Flag> {
-    return unary(this.admin.upsertVariant.bind(this.admin), { flagKey, variant });
+  upsertVariant(flagKey: string, variant: Variant, actor?: string): Promise<Flag> {
+    return unary(
+      this.admin.upsertVariant.bind(this.admin),
+      { flagKey, variant },
+      actorMetadata(actor),
+    );
   }
 
-  deleteVariant(flagKey: string, variantKey: string): Promise<Flag> {
-    return unary(this.admin.deleteVariant.bind(this.admin), { flagKey, variantKey });
+  deleteVariant(flagKey: string, variantKey: string, actor?: string): Promise<Flag> {
+    return unary(
+      this.admin.deleteVariant.bind(this.admin),
+      { flagKey, variantKey },
+      actorMetadata(actor),
+    );
   }
 
-  setFlagRules(flagKey: string, rules: Rule[]): Promise<Flag> {
-    return unary(this.admin.setFlagRules.bind(this.admin), { flagKey, rules });
+  setFlagRules(flagKey: string, rules: Rule[], actor?: string): Promise<Flag> {
+    return unary(
+      this.admin.setFlagRules.bind(this.admin),
+      { flagKey, rules },
+      actorMetadata(actor),
+    );
+  }
+
+  setFlagPrerequisites(
+    flagKey: string,
+    prerequisites: Prerequisite[],
+    actor?: string,
+  ): Promise<Flag> {
+    return unary(
+      this.admin.setFlagPrerequisites.bind(this.admin),
+      { flagKey, prerequisites },
+      actorMetadata(actor),
+    );
   }
 
   listSegments(): Promise<ListSegmentsResponse> {
     return unary(this.admin.listSegments.bind(this.admin), {});
   }
 
-  upsertSegment(segment: Segment): Promise<Segment> {
-    return unary(this.admin.updateSegment.bind(this.admin), { segment });
+  upsertSegment(segment: Segment, actor?: string): Promise<Segment> {
+    return unary(this.admin.updateSegment.bind(this.admin), { segment }, actorMetadata(actor));
   }
 
-  deleteSegment(key: string): Promise<void> {
-    return unary(this.admin.deleteSegment.bind(this.admin), { key }).then(() => undefined);
+  deleteSegment(key: string, actor?: string): Promise<void> {
+    return unary(this.admin.deleteSegment.bind(this.admin), { key }, actorMetadata(actor)).then(
+      () => undefined,
+    );
   }
 
   getSnapshot(): Promise<SnapshotResponse> {

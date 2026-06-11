@@ -10,6 +10,9 @@ use sqlx::postgres::PgPoolOptions;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 
+// TODO: audit log visible on FE
+// TODO: flag prereqs is actually a constraint rule type
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _otel = tracing_setup::init();

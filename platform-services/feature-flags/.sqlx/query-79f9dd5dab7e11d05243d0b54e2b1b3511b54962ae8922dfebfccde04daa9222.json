@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO flag_rules (flag_id, rank, segment_key, variant_key) VALUES ($1, $2, $3, $4) RETURNING id",
+  "query": "INSERT INTO flag_rules (flag_id, rank, segment_key, variant_key, bucket_salt) VALUES ($1, $2, $3, $4, $5) RETURNING id",
   "describe": {
     "columns": [
       {
@@ -20,6 +20,7 @@
         "Uuid",
         "Int4",
         "Text",
+        "Text",
         "Text"
       ]
     },
@@ -27,5 +28,5 @@
       false
     ]
   },
-  "hash": "c5cf196909f7d140ec1b936382292e53ea151df1de1b3c936c2114eb3cceab55"
+  "hash": "79f9dd5dab7e11d05243d0b54e2b1b3511b54962ae8922dfebfccde04daa9222"
 }

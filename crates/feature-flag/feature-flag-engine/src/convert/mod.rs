@@ -9,7 +9,7 @@ pub use types::ConversionError;
 
 use crate::engine::{EvalContext, Resolution};
 use crate::model::{
-    Constraint, ConstraintGroup, Distribution, Flag, Rule, Segment, Snapshot, Variant,
+    Constraint, ConstraintGroup, Distribution, Flag, Prerequisite, Rule, Segment, Snapshot, Variant,
 };
 use feature_flag_proto as pb;
 use prost_types::value::Kind;
@@ -119,6 +119,25 @@ impl From<&Flag> for pb::Flag {
             archived: flag.archived,
             variants: flag.variants.iter().map(pb::Variant::from).collect(),
             rules: flag.rules.iter().map(pb::Rule::from).collect(),
+            prerequisites: flag.prerequisites.iter().map(pb::Prerequisite::from).collect(),
+        }
+    }
+}
+
+impl From<&Prerequisite> for pb::Prerequisite {
+    fn from(p: &Prerequisite) -> Self {
+        pb::Prerequisite {
+            flag_key: p.flag_key.clone(),
+            variant_key: p.variant_key.clone(),
+        }
+    }
+}
+
+impl From<&pb::Prerequisite> for Prerequisite {
+    fn from(p: &pb::Prerequisite) -> Self {
+        Prerequisite {
+            flag_key: p.flag_key.clone(),
+            variant_key: p.variant_key.clone(),
         }
     }
 }
@@ -161,6 +180,7 @@ impl From<&Rule> for pb::Rule {
                     constraints: g.constraints.iter().map(domain_constraint_to_pb).collect(),
                 })
                 .collect(),
+            bucket_salt: r.bucket_salt.clone(),
         }
     }
 }
@@ -223,6 +243,7 @@ impl TryFrom<&pb::Rule> for Rule {
                     })
                 })
                 .collect::<Result<_, ConversionError>>()?,
+            bucket_salt: r.bucket_salt.clone(),
         })
     }
 }
@@ -255,6 +276,7 @@ impl TryFrom<&pb::Flag> for Flag {
                 .iter()
                 .map(Rule::try_from)
                 .collect::<Result<_, _>>()?,
+            prerequisites: f.prerequisites.iter().map(Prerequisite::from).collect(),
         })
     }
 }

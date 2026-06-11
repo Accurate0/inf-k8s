@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from "./$types";
 import { client, type Rule, type Constraint } from "$lib/server/client";
+import { actorFromRequest } from "$lib/server/actor";
 import { error, fail, redirect } from "@sveltejs/kit";
 
 export const load: PageServerLoad = async ({ params }) => {
@@ -84,6 +85,7 @@ export const actions: Actions = {
         rank: i,
         segmentKey: String(r.segmentKey ?? ""),
         variantKey: String(r.variantKey ?? ""),
+        bucketSalt: String(r.bucketSalt ?? ""),
         distributions: Array.isArray(r.distributions)
           ? r.distributions.map((d: { variantKey: unknown; weight: unknown }) => ({
               variantKey: String(d.variantKey),
@@ -107,6 +109,30 @@ export const actions: Actions = {
     }
     try {
       await client.setFlagRules(params.key, rules);
+    } catch (e) {
+      return fail(400, { message: (e as Error).message });
+    }
+    return { success: true };
+  },
+
+  setPrerequisites: async ({ request, params }) => {
+    const data = await request.formData();
+    const raw = String(data.get("prerequisites"));
+
+    let prerequisites: { flagKey: string; variantKey: string }[];
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) throw new Error("prerequisites must be a JSON array");
+      prerequisites = parsed.map((p) => ({
+        flagKey: String(p.flagKey),
+        variantKey: String(p.variantKey),
+      }));
+    } catch (e) {
+      return fail(400, { message: `invalid prerequisites: ${(e as Error).message}` });
+    }
+
+    try {
+      await client.setFlagPrerequisites(params.key, prerequisites, actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }

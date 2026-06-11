@@ -6,11 +6,12 @@ mod types;
 
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    Constraint, ConstraintGroup, Distribution, Flag, Rule, Segment, Snapshot, ValueType, Variant,
+    Constraint, ConstraintGroup, Distribution, Flag, Prerequisite, Rule, Segment, Snapshot,
+    ValueType, Variant,
 };
 use serde_json::Value as Json;
 use sqlx::PgPool;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, HashSet};
 use types::{
     json_array, operator_from_str, operator_to_str, unique_violation, value_type_from_str,
     value_type_to_str,
@@ -60,6 +61,7 @@ impl Store {
                     archived: row.archived,
                     variants: Vec::new(),
                     rules: Vec::new(),
+                    prerequisites: Vec::new(),
                 },
             );
         }
@@ -112,7 +114,7 @@ impl Store {
         }
 
         for row in sqlx::query!(
-            "SELECT id, flag_id, rank, segment_key, variant_key FROM flag_rules ORDER BY rank"
+            "SELECT id, flag_id, rank, segment_key, variant_key, bucket_salt FROM flag_rules ORDER BY rank"
         )
         .fetch_all(&self.pool)
         .await?
@@ -122,6 +124,7 @@ impl Store {
                     rank: row.rank as u32,
                     segment_key: row.segment_key,
                     variant_key: row.variant_key,
+                    bucket_salt: row.bucket_salt,
                     distributions: distributions.remove(&row.id).unwrap_or_default(),
                     constraint_groups: rule_groups
                         .remove(&row.id)
@@ -129,6 +132,20 @@ impl Store {
                         .into_values()
                         .map(|constraints| ConstraintGroup { constraints })
                         .collect(),
+                });
+            }
+        }
+
+        for row in sqlx::query!(
+            "SELECT flag_id, prerequisite_key, variant_key FROM flag_prerequisites"
+        )
+        .fetch_all(&self.pool)
+        .await?
+        {
+            if let Some(flag) = flags.get_mut(&row.flag_id) {
+                flag.prerequisites.push(Prerequisite {
+                    flag_key: row.prerequisite_key,
+                    variant_key: row.variant_key,
                 });
             }
         }
@@ -170,6 +187,37 @@ impl Store {
         })
     }
 
+    /// Append an audit row inside the caller's transaction, stamping the version the
+    /// bump trigger has already advanced to.
+    async fn record_change(
+        tx: &mut sqlx::PgConnection,
+        actor: &str,
+        action: &str,
+        target_kind: &str,
+        target_key: &str,
+        detail: Json,
+    ) -> AppResult<()> {
+        sqlx::query!(
+            "INSERT INTO flag_changes (version, actor, action, target_kind, target_key, detail) \
+             VALUES ((SELECT version FROM config_version), $1, $2, $3, $4, $5)",
+            actor,
+            action,
+            target_kind,
+            target_key,
+            detail,
+        )
+        .execute(&mut *tx)
+        .await?;
+        Ok(())
+    }
+
+    async fn variant_keys(&self, flag_id: Uuid) -> AppResult<HashSet<String>> {
+        let keys = sqlx::query_scalar!("SELECT key FROM variants WHERE flag_id = $1", flag_id)
+            .fetch_all(&self.pool)
+            .await?;
+        Ok(keys.into_iter().collect())
+    }
+
     pub async fn flag_id(&self, key: &str) -> AppResult<Uuid> {
         sqlx::query_scalar!("SELECT id FROM flags WHERE key = $1", key)
             .fetch_optional(&self.pool)
@@ -200,6 +248,7 @@ impl Store {
 
     pub async fn create_flag(
         &self,
+        actor: &str,
         key: &str,
         value_type: ValueType,
         enabled: bool,
@@ -210,6 +259,9 @@ impl Store {
             return Err(AppError::Invalid(format!(
                 "default variant `{default_variant_key}` is not among the provided variants"
             )));
+        }
+        for v in variants {
+            check_variant_type(value_type, v)?;
         }
 
         let mut tx = self.pool.begin().await?;
@@ -235,16 +287,37 @@ impl Store {
             .execute(&mut *tx)
             .await?;
         }
+        Self::record_change(
+            &mut tx,
+            actor,
+            "create_flag",
+            "flag",
+            key,
+            serde_json::json!({
+                "value_type": value_type_to_str(value_type),
+                "enabled": enabled,
+                "default_variant_key": default_variant_key,
+            }),
+        )
+        .await?;
         tx.commit().await?;
         self.get_flag(key).await
     }
 
     pub async fn update_flag(
         &self,
+        actor: &str,
         key: &str,
         enabled: bool,
         default_variant_key: &str,
     ) -> AppResult<Flag> {
+        let flag_id = self.flag_id(key).await?;
+        if !self.variant_keys(flag_id).await?.contains(default_variant_key) {
+            return Err(AppError::Invalid(format!(
+                "default variant `{default_variant_key}` is not among flag `{key}`'s variants"
+            )));
+        }
+        let mut tx = self.pool.begin().await?;
         let affected = sqlx::query!(
             "UPDATE flags SET enabled = $2, default_variant_key = $3, updated_at = now() \
              WHERE key = $1",
@@ -252,43 +325,78 @@ impl Store {
             enabled,
             default_variant_key,
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
         if affected == 0 {
             return Err(AppError::NotFound(format!("flag `{key}`")));
         }
+        Self::record_change(
+            &mut tx,
+            actor,
+            "update_flag",
+            "flag",
+            key,
+            serde_json::json!({ "enabled": enabled, "default_variant_key": default_variant_key }),
+        )
+        .await?;
+        tx.commit().await?;
         self.get_flag(key).await
     }
 
-    pub async fn archive_flag(&self, key: &str, archived: bool) -> AppResult<Flag> {
+    pub async fn archive_flag(&self, actor: &str, key: &str, archived: bool) -> AppResult<Flag> {
+        let mut tx = self.pool.begin().await?;
         let affected = sqlx::query!(
             "UPDATE flags SET archived = $2, updated_at = now() WHERE key = $1",
             key,
             archived,
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?
         .rows_affected();
         if affected == 0 {
             return Err(AppError::NotFound(format!("flag `{key}`")));
         }
+        Self::record_change(
+            &mut tx,
+            actor,
+            if archived { "archive_flag" } else { "unarchive_flag" },
+            "flag",
+            key,
+            serde_json::json!({ "archived": archived }),
+        )
+        .await?;
+        tx.commit().await?;
         self.get_flag(key).await
     }
 
-    pub async fn delete_flag(&self, key: &str) -> AppResult<()> {
+    pub async fn delete_flag(&self, actor: &str, key: &str) -> AppResult<()> {
+        let mut tx = self.pool.begin().await?;
         let affected = sqlx::query!("DELETE FROM flags WHERE key = $1", key)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?
             .rows_affected();
         if affected == 0 {
             return Err(AppError::NotFound(format!("flag `{key}`")));
         }
+        Self::record_change(&mut tx, actor, "delete_flag", "flag", key, Json::Null).await?;
+        tx.commit().await?;
         Ok(())
     }
 
-    pub async fn upsert_variant(&self, flag_key: &str, variant: &Variant) -> AppResult<Flag> {
-        let flag_id = self.flag_id(flag_key).await?;
+    pub async fn upsert_variant(
+        &self,
+        actor: &str,
+        flag_key: &str,
+        variant: &Variant,
+    ) -> AppResult<Flag> {
+        let flag = sqlx::query!("SELECT id, value_type FROM flags WHERE key = $1", flag_key)
+            .fetch_optional(&self.pool)
+            .await?
+            .ok_or_else(|| AppError::NotFound(format!("flag `{flag_key}`")))?;
+        check_variant_type(value_type_from_str(&flag.value_type)?, variant)?;
+        let flag_id = flag.id;
+        let mut tx = self.pool.begin().await?;
         sqlx::query!(
             "INSERT INTO variants (flag_id, key, value) VALUES ($1, $2, $3) \
              ON CONFLICT (flag_id, key) DO UPDATE SET value = EXCLUDED.value",
@@ -296,24 +404,50 @@ impl Store {
             variant.key,
             variant.value,
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        Self::record_change(
+            &mut tx,
+            actor,
+            "upsert_variant",
+            "flag",
+            flag_key,
+            serde_json::json!({ "variant_key": variant.key, "value": variant.value }),
+        )
+        .await?;
+        tx.commit().await?;
         self.get_flag(flag_key).await
     }
 
-    pub async fn delete_variant(&self, flag_key: &str, variant_key: &str) -> AppResult<Flag> {
+    pub async fn delete_variant(
+        &self,
+        actor: &str,
+        flag_key: &str,
+        variant_key: &str,
+    ) -> AppResult<Flag> {
         let flag_id = self.flag_id(flag_key).await?;
+        let mut tx = self.pool.begin().await?;
         sqlx::query!(
             "DELETE FROM variants WHERE flag_id = $1 AND key = $2",
             flag_id,
             variant_key,
         )
-        .execute(&self.pool)
+        .execute(&mut *tx)
         .await?;
+        Self::record_change(
+            &mut tx,
+            actor,
+            "delete_variant",
+            "flag",
+            flag_key,
+            serde_json::json!({ "variant_key": variant_key }),
+        )
+        .await?;
+        tx.commit().await?;
         self.get_flag(flag_key).await
     }
 
-    pub async fn upsert_segment(&self, segment: &Segment) -> AppResult<Segment> {
+    pub async fn upsert_segment(&self, actor: &str, segment: &Segment) -> AppResult<Segment> {
         let mut tx = self.pool.begin().await?;
         let segment_id = sqlx::query_scalar!(
             "INSERT INTO segments (key, name) VALUES ($1, $2) \
@@ -343,6 +477,15 @@ impl Store {
             .execute(&mut *tx)
             .await?;
         }
+        Self::record_change(
+            &mut tx,
+            actor,
+            "upsert_segment",
+            "segment",
+            &segment.key,
+            serde_json::json!({ "name": segment.name, "constraints": segment.constraints.len() }),
+        )
+        .await?;
         tx.commit().await?;
         self.get_segment(&segment.key).await
     }
@@ -363,19 +506,28 @@ impl Store {
         Ok(segments)
     }
 
-    pub async fn delete_segment(&self, key: &str) -> AppResult<()> {
+    pub async fn delete_segment(&self, actor: &str, key: &str) -> AppResult<()> {
+        let mut tx = self.pool.begin().await?;
         let affected = sqlx::query!("DELETE FROM segments WHERE key = $1", key)
-            .execute(&self.pool)
+            .execute(&mut *tx)
             .await?
             .rows_affected();
         if affected == 0 {
             return Err(AppError::NotFound(format!("segment `{key}`")));
         }
+        Self::record_change(&mut tx, actor, "delete_segment", "segment", key, Json::Null).await?;
+        tx.commit().await?;
         Ok(())
     }
 
-    pub async fn set_flag_rules(&self, flag_key: &str, rules: &[Rule]) -> AppResult<Flag> {
+    pub async fn set_flag_rules(
+        &self,
+        actor: &str,
+        flag_key: &str,
+        rules: &[Rule],
+    ) -> AppResult<Flag> {
         let flag_id = self.flag_id(flag_key).await?;
+        validate_rules(flag_key, rules, &self.variant_keys(flag_id).await?)?;
         let mut tx = self.pool.begin().await?;
         sqlx::query!("DELETE FROM flag_rules WHERE flag_id = $1", flag_id)
             .execute(&mut *tx)
@@ -383,12 +535,13 @@ impl Store {
 
         for (rank, rule) in rules.iter().enumerate() {
             let rule_id = sqlx::query_scalar!(
-                "INSERT INTO flag_rules (flag_id, rank, segment_key, variant_key) \
-                 VALUES ($1, $2, $3, $4) RETURNING id",
+                "INSERT INTO flag_rules (flag_id, rank, segment_key, variant_key, bucket_salt) \
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id",
                 flag_id,
                 rank as i32,
                 rule.segment_key.as_deref(),
                 rule.variant_key.as_deref(),
+                rule.bucket_salt,
             )
             .fetch_one(&mut *tx)
             .await?;
@@ -421,7 +574,199 @@ impl Store {
                 }
             }
         }
+        Self::record_change(
+            &mut tx,
+            actor,
+            "set_flag_rules",
+            "flag",
+            flag_key,
+            serde_json::json!({ "rule_count": rules.len() }),
+        )
+        .await?;
         tx.commit().await?;
         self.get_flag(flag_key).await
+    }
+
+    pub async fn set_flag_prerequisites(
+        &self,
+        actor: &str,
+        flag_key: &str,
+        prerequisites: &[Prerequisite],
+    ) -> AppResult<Flag> {
+        let flag_id = self.flag_id(flag_key).await?;
+
+        for p in prerequisites {
+            if p.flag_key == flag_key {
+                return Err(AppError::Invalid(format!(
+                    "flag `{flag_key}` cannot be its own prerequisite"
+                )));
+            }
+            if self.flag_id(&p.flag_key).await.is_err() {
+                return Err(AppError::Invalid(format!(
+                    "prerequisite flag `{}` does not exist",
+                    p.flag_key
+                )));
+            }
+        }
+
+        let mut tx = self.pool.begin().await?;
+        sqlx::query!("DELETE FROM flag_prerequisites WHERE flag_id = $1", flag_id)
+            .execute(&mut *tx)
+            .await?;
+
+        for p in prerequisites {
+            sqlx::query!(
+                "INSERT INTO flag_prerequisites (flag_id, prerequisite_key, variant_key) \
+                 VALUES ($1, $2, $3)",
+                flag_id,
+                p.flag_key,
+                p.variant_key,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        Self::record_change(
+            &mut tx,
+            actor,
+            "set_flag_prerequisites",
+            "flag",
+            flag_key,
+            serde_json::json!({ "prerequisite_count": prerequisites.len() }),
+        )
+        .await?;
+        tx.commit().await?;
+        self.get_flag(flag_key).await
+    }
+}
+
+/// Reject a variant whose JSON value doesn't match the flag's declared type, so the
+/// mismatch surfaces at write time rather than as a `TYPE_MISMATCH` during evaluation.
+fn check_variant_type(value_type: ValueType, variant: &Variant) -> AppResult<()> {
+    let ok = match value_type {
+        ValueType::Boolean => variant.value.is_boolean(),
+        ValueType::String => variant.value.is_string(),
+        // Numbers arrive as protobuf doubles, so accept any whole-valued number.
+        ValueType::Integer => variant.value.as_f64().is_some_and(|f| f.fract() == 0.0),
+        ValueType::Float => variant.value.is_number(),
+        ValueType::Object => variant.value.is_object(),
+    };
+    if !ok {
+        return Err(AppError::Invalid(format!(
+            "variant `{}` value does not match flag type `{}`",
+            variant.key,
+            value_type_to_str(value_type)
+        )));
+    }
+    Ok(())
+}
+
+/// Reject rules that reference unknown variants or whose percentage split does not
+/// sum to exactly 100, before any of them are written.
+fn validate_rules(flag_key: &str, rules: &[Rule], variants: &HashSet<String>) -> AppResult<()> {
+    for (rank, rule) in rules.iter().enumerate() {
+        if let Some(variant) = &rule.variant_key
+            && !variants.contains(variant)
+        {
+            return Err(AppError::Invalid(format!(
+                "rule references variant `{variant}` not defined on flag `{flag_key}`"
+            )));
+        }
+
+        if !rule.distributions.is_empty() {
+            let mut total = 0u32;
+            for d in &rule.distributions {
+                if !variants.contains(&d.variant_key) {
+                    return Err(AppError::Invalid(format!(
+                        "rule references variant `{}` not defined on flag `{flag_key}`",
+                        d.variant_key
+                    )));
+                }
+                total += d.weight;
+            }
+            if total != 100 {
+                return Err(AppError::Invalid(format!(
+                    "rule {rank} distribution weights sum to {total}, expected 100"
+                )));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::Distribution;
+
+    fn variants(keys: &[&str]) -> HashSet<String> {
+        keys.iter().map(|k| k.to_string()).collect()
+    }
+
+    fn rule(variant_key: Option<&str>, distributions: Vec<Distribution>) -> Rule {
+        Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: variant_key.map(String::from),
+            distributions,
+            constraint_groups: vec![],
+            bucket_salt: String::new(),
+        }
+    }
+
+    fn dist(variant_key: &str, weight: u32) -> Distribution {
+        Distribution { variant_key: variant_key.into(), weight }
+    }
+
+    #[test]
+    fn accepts_known_variant_and_full_split() {
+        let vs = variants(&["on", "off"]);
+        let rules = vec![
+            rule(Some("on"), vec![]),
+            rule(None, vec![dist("on", 30), dist("off", 70)]),
+        ];
+        assert!(validate_rules("f", &rules, &vs).is_ok());
+    }
+
+    #[test]
+    fn rejects_unknown_target_variant() {
+        let vs = variants(&["on", "off"]);
+        let err = validate_rules("f", &[rule(Some("maybe"), vec![])], &vs).unwrap_err();
+        assert!(matches!(err, AppError::Invalid(_)));
+    }
+
+    #[test]
+    fn rejects_unknown_distribution_variant() {
+        let vs = variants(&["on", "off"]);
+        let rules = vec![rule(None, vec![dist("on", 50), dist("ghost", 50)])];
+        assert!(matches!(validate_rules("f", &rules, &vs), Err(AppError::Invalid(_))));
+    }
+
+    fn variant(value: serde_json::Value) -> Variant {
+        Variant { key: "v".into(), value }
+    }
+
+    #[test]
+    fn variant_type_check_accepts_matching_and_rejects_mismatched() {
+        use serde_json::json;
+        assert!(check_variant_type(ValueType::Boolean, &variant(json!(true))).is_ok());
+        assert!(check_variant_type(ValueType::Integer, &variant(json!(7))).is_ok());
+        assert!(check_variant_type(ValueType::Float, &variant(json!(1.5))).is_ok());
+        assert!(check_variant_type(ValueType::Float, &variant(json!(2))).is_ok());
+        assert!(check_variant_type(ValueType::String, &variant(json!("x"))).is_ok());
+        assert!(check_variant_type(ValueType::Object, &variant(json!({"a": 1}))).is_ok());
+
+        assert!(check_variant_type(ValueType::Integer, &variant(json!("hello"))).is_err());
+        assert!(check_variant_type(ValueType::Integer, &variant(json!(1.5))).is_err());
+        assert!(check_variant_type(ValueType::Boolean, &variant(json!(1))).is_err());
+        assert!(check_variant_type(ValueType::Object, &variant(json!([1, 2]))).is_err());
+    }
+
+    #[test]
+    fn rejects_split_not_summing_to_100() {
+        let vs = variants(&["on", "off"]);
+        let rules = vec![rule(None, vec![dist("on", 30), dist("off", 60)])];
+        let err = validate_rules("f", &rules, &vs).unwrap_err();
+        assert!(matches!(err, AppError::Invalid(m) if m.contains("sum to 90")));
     }
 }

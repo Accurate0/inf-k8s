@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT flag_id, prerequisite_key, variant_key FROM flag_prerequisites",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "flag_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "flag_prerequisites",
+            "name": "flag_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "prerequisite_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flag_prerequisites",
+            "name": "prerequisite_key"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "variant_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flag_prerequisites",
+            "name": "variant_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "cec53f0945a6b0238e0d3ee78aeb2b57f03cd48f46a4b8dc8793625e1f844e80"
+}

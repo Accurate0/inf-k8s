@@ -115,6 +115,21 @@ export interface Rule {
    * without a named segment.
    */
   constraintGroups: ConstraintGroup[];
+  /**
+   * Optional salt mixed into percentage-rollout bucketing. Two rules with different
+   * salts bucket the same targeting key independently; empty preserves the legacy
+   * per-flag bucketing shared across the flag's rules.
+   */
+  bucketSalt: string;
+}
+
+/**
+ * A dependency on another flag: this flag serves its rules only when the
+ * prerequisite flag resolves to variant_key, otherwise it falls back to its default.
+ */
+export interface Prerequisite {
+  flagKey: string;
+  variantKey: string;
 }
 
 export interface Flag {
@@ -125,6 +140,7 @@ export interface Flag {
   archived: boolean;
   variants: Variant[];
   rules: Rule[];
+  prerequisites: Prerequisite[];
 }
 
 function createBaseEvaluationContext(): EvaluationContext {
@@ -488,7 +504,7 @@ export const Distribution: MessageFns<Distribution> = {
 };
 
 function createBaseRule(): Rule {
-  return { rank: 0, segmentKey: "", variantKey: "", distributions: [], constraintGroups: [] };
+  return { rank: 0, segmentKey: "", variantKey: "", distributions: [], constraintGroups: [], bucketSalt: "" };
 }
 
 export const Rule: MessageFns<Rule> = {
@@ -507,6 +523,9 @@ export const Rule: MessageFns<Rule> = {
     }
     for (const v of message.constraintGroups) {
       ConstraintGroup.encode(v!, writer.uint32(42).fork()).join();
+    }
+    if (message.bucketSalt !== "") {
+      writer.uint32(50).string(message.bucketSalt);
     }
     return writer;
   },
@@ -558,6 +577,14 @@ export const Rule: MessageFns<Rule> = {
           message.constraintGroups.push(ConstraintGroup.decode(reader, reader.uint32()));
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.bucketSalt = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -577,12 +604,80 @@ export const Rule: MessageFns<Rule> = {
     message.variantKey = object.variantKey ?? "";
     message.distributions = object.distributions?.map((e) => Distribution.fromPartial(e)) || [];
     message.constraintGroups = object.constraintGroups?.map((e) => ConstraintGroup.fromPartial(e)) || [];
+    message.bucketSalt = object.bucketSalt ?? "";
+    return message;
+  },
+};
+
+function createBasePrerequisite(): Prerequisite {
+  return { flagKey: "", variantKey: "" };
+}
+
+export const Prerequisite: MessageFns<Prerequisite> = {
+  encode(message: Prerequisite, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.flagKey !== "") {
+      writer.uint32(10).string(message.flagKey);
+    }
+    if (message.variantKey !== "") {
+      writer.uint32(18).string(message.variantKey);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Prerequisite {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePrerequisite();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.flagKey = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.variantKey = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<Prerequisite>, I>>(base?: I): Prerequisite {
+    return Prerequisite.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Prerequisite>, I>>(object: I): Prerequisite {
+    const message = createBasePrerequisite();
+    message.flagKey = object.flagKey ?? "";
+    message.variantKey = object.variantKey ?? "";
     return message;
   },
 };
 
 function createBaseFlag(): Flag {
-  return { key: "", valueType: 0, enabled: false, defaultVariantKey: "", archived: false, variants: [], rules: [] };
+  return {
+    key: "",
+    valueType: 0,
+    enabled: false,
+    defaultVariantKey: "",
+    archived: false,
+    variants: [],
+    rules: [],
+    prerequisites: [],
+  };
 }
 
 export const Flag: MessageFns<Flag> = {
@@ -607,6 +702,9 @@ export const Flag: MessageFns<Flag> = {
     }
     for (const v of message.rules) {
       Rule.encode(v!, writer.uint32(58).fork()).join();
+    }
+    for (const v of message.prerequisites) {
+      Prerequisite.encode(v!, writer.uint32(66).fork()).join();
     }
     return writer;
   },
@@ -674,6 +772,14 @@ export const Flag: MessageFns<Flag> = {
           message.rules.push(Rule.decode(reader, reader.uint32()));
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.prerequisites.push(Prerequisite.decode(reader, reader.uint32()));
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -695,6 +801,7 @@ export const Flag: MessageFns<Flag> = {
     message.archived = object.archived ?? false;
     message.variants = object.variants?.map((e) => Variant.fromPartial(e)) || [];
     message.rules = object.rules?.map((e) => Rule.fromPartial(e)) || [];
+    message.prerequisites = object.prerequisites?.map((e) => Prerequisite.fromPartial(e)) || [];
     return message;
   },
 };

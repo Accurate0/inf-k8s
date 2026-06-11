@@ -133,6 +133,23 @@
     rule.distributions.push({ variantKey: flag.variants[0]?.key ?? "", weight: 0 });
   }
 
+  type EditorPrereq = { flagKey: string; variantKey: string };
+  let prereqs = $state<EditorPrereq[]>([]);
+  let syncedPrereqKey = $state("");
+  $effect(() => {
+    const stamp = `${flag.key}:${JSON.stringify(flag.prerequisites)}`;
+    if (stamp !== syncedPrereqKey) {
+      prereqs = flag.prerequisites.map((p) => ({ flagKey: p.flagKey, variantKey: p.variantKey }));
+      syncedPrereqKey = stamp;
+    }
+  });
+
+  const serializedPrereqs = $derived(JSON.stringify(prereqs.filter((p) => p.flagKey.trim() !== "")));
+
+  function addPrereq() {
+    prereqs.push({ flagKey: "", variantKey: "" });
+  }
+
   // Settings form state.
   let enabled = $state(false);
   let defaultVariantKey = $state("");
@@ -315,6 +332,32 @@
         <div class="flex gap-3">
           <Button type="button" variant="outline" onclick={addRule}>Add rule</Button>
           <Button type="submit">Save rules</Button>
+        </div>
+      </form>
+    </Card.Content>
+  </Card.Root>
+
+  <Card.Root>
+    <Card.Header>
+      <Card.Title>Prerequisites</Card.Title>
+      <Card.Description>This flag serves its rules only when every prerequisite flag resolves to the given variant; otherwise it serves the default.</Card.Description>
+    </Card.Header>
+    <Card.Content>
+      <form method="POST" action="?/setPrerequisites" use:enhance class="space-y-3">
+        <input type="hidden" name="prerequisites" value={serializedPrereqs} />
+        {#each prereqs as prereq, i (i)}
+          <div class="flex items-center gap-2">
+            <span class="text-sm text-muted-foreground">flag</span>
+            <Input placeholder="flag key" bind:value={prereq.flagKey} class="h-8 w-56" />
+            <span class="text-sm text-muted-foreground">resolves to</span>
+            <Input placeholder="variant key" bind:value={prereq.variantKey} class="h-8 w-44" />
+            <Button type="button" variant="ghost" size="sm" class="text-destructive" onclick={() => prereqs.splice(i, 1)}>remove</Button>
+          </div>
+        {/each}
+
+        <div class="flex gap-3">
+          <Button type="button" variant="outline" onclick={addPrereq}>Add prerequisite</Button>
+          <Button type="submit">Save prerequisites</Button>
         </div>
       </form>
     </Card.Content>

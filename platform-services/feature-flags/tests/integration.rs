@@ -35,6 +35,14 @@ struct FlagDef {
     variants: Vec<VariantDef>,
     #[serde(default)]
     rules: Vec<RuleDef>,
+    #[serde(default)]
+    prerequisites: Vec<PrereqDef>,
+}
+
+#[derive(Deserialize)]
+struct PrereqDef {
+    flag_key: String,
+    variant_key: String,
 }
 
 fn default_true() -> bool {
@@ -57,6 +65,8 @@ struct RuleDef {
     distributions: Vec<DistDef>,
     #[serde(default)]
     constraint_groups: Vec<Vec<ConstraintDef>>,
+    #[serde(default)]
+    bucket_salt: String,
 }
 
 #[derive(Deserialize)]
@@ -192,6 +202,8 @@ fixture_test!(resolve_segment_and_inline_match, "resolve", "segment-and-inline-m
 fixture_test!(resolve_segment_and_inline_miss, "resolve", "segment-and-inline-miss");
 fixture_test!(resolve_multi_constraint_segment, "resolve", "multi-constraint-segment");
 fixture_test!(resolve_object_default, "resolve", "object-default");
+fixture_test!(resolve_prerequisite_met, "resolve", "prerequisite-met");
+fixture_test!(resolve_prerequisite_unmet, "resolve", "prerequisite-unmet");
 fixture_test!(resolve_all_mixed, "resolve_all", "mixed");
 
 async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
@@ -317,12 +329,35 @@ async fn seed(client: &mut AdminClient<tonic::transport::Channel>, fixture: &Fix
                         constraints: group.iter().map(constraint).collect(),
                     })
                     .collect(),
+                bucket_salt: r.bucket_salt.clone(),
             })
             .collect();
         client
             .set_flag_rules(pb::SetFlagRulesRequest {
                 flag_key: flag.key.clone(),
                 rules,
+            })
+            .await
+            .unwrap();
+    }
+
+    // Second pass: all flags exist now, so prerequisites can reference any of them.
+    for flag in &fixture.flags {
+        if flag.prerequisites.is_empty() {
+            continue;
+        }
+        let prerequisites = flag
+            .prerequisites
+            .iter()
+            .map(|p| pb::Prerequisite {
+                flag_key: p.flag_key.clone(),
+                variant_key: p.variant_key.clone(),
+            })
+            .collect();
+        client
+            .set_flag_prerequisites(pb::SetFlagPrerequisitesRequest {
+                flag_key: flag.key.clone(),
+                prerequisites,
             })
             .await
             .unwrap();

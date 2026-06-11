@@ -1,0 +1,7 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+value: classic
+variant: classic
+reason: Default

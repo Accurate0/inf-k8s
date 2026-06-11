@@ -6,9 +6,7 @@ mod types;
 
 pub use types::{ErrorCode, EvalContext, EvalError, Reason, Resolution};
 
-use crate::model::{
-    Constraint, ConstraintGroup, Distribution, Flag, Operator, Rule, Segment, Snapshot,
-};
+use crate::model::{Constraint, ConstraintGroup, Flag, Operator, Rule, Segment, Snapshot};
 use serde_json::Value;
 use sha2::{Digest, Sha256};
 use std::sync::Arc;
@@ -31,6 +29,22 @@ impl Engine {
     /// value drawn from the flag's variants; type checking against the caller's
     /// requested type happens in [`crate::convert`].
     pub fn evaluate(&self, flag_key: &str, ctx: &EvalContext) -> Result<Resolution, EvalError> {
+        self.evaluate_inner(flag_key, ctx, &mut Vec::new())
+    }
+
+    fn evaluate_inner(
+        &self,
+        flag_key: &str,
+        ctx: &EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<Resolution, EvalError> {
+        if stack.iter().any(|k| k == flag_key) {
+            return Err(EvalError {
+                code: ErrorCode::ParseError,
+                message: format!("prerequisite cycle through flag `{flag_key}`"),
+            });
+        }
+
         let flag = self.snapshot.flags.get(flag_key).ok_or_else(|| EvalError {
             code: ErrorCode::FlagNotFound,
             message: format!("flag `{flag_key}` not found"),
@@ -40,12 +54,23 @@ impl Engine {
             return Self::resolve_variant(flag, &flag.default_variant_key, Reason::Disabled);
         }
 
+        for prereq in &flag.prerequisites {
+            stack.push(flag_key.to_string());
+            let result = self.evaluate_inner(&prereq.flag_key, ctx, stack);
+            stack.pop();
+
+            let met = matches!(&result, Ok(res) if res.variant == prereq.variant_key);
+            if !met {
+                return Self::resolve_variant(flag, &flag.default_variant_key, Reason::Default);
+            }
+        }
+
         for rule in &flag.rules {
             if !self.rule_matches(rule, ctx) {
                 continue;
             }
             if !rule.distributions.is_empty() {
-                let variant_key = Self::pick_distribution(flag_key, ctx, &rule.distributions);
+                let variant_key = Self::pick_distribution(flag_key, rule, ctx);
                 return Self::resolve_variant(flag, variant_key, Reason::Split);
             }
             if let Some(variant_key) = &rule.variant_key {
@@ -125,7 +150,7 @@ impl Engine {
             Operator::Contains => Self::string_op(attr, first, |a, b| a.contains(b)),
             Operator::StartsWith => Self::string_op(attr, first, |a, b| a.starts_with(b)),
             Operator::EndsWith => Self::string_op(attr, first, |a, b| a.ends_with(b)),
-            Operator::Regex => Self::string_op(attr, first, Self::regex_lite_match),
+            Operator::Regex => Self::string_op(attr, first, Self::regex_match),
             Operator::Gt => Self::number_op(attr, first, |a, b| a > b),
             Operator::Gte => Self::number_op(attr, first, |a, b| a >= b),
             Operator::Lt => Self::number_op(attr, first, |a, b| a < b),
@@ -155,44 +180,45 @@ impl Engine {
         }
     }
 
-    /// Minimal anchored matcher for the rare `REGEX` operator: supports plain
-    /// substrings and `^`/`$` anchors, avoiding a dependency on the `regex` crate.
-    fn regex_lite_match(haystack: &str, pattern: &str) -> bool {
-        if let Some(rest) = pattern.strip_prefix('^') {
-            match rest.strip_suffix('$') {
-                Some(mid) => haystack == mid,
-                None => haystack.starts_with(rest),
-            }
-        } else if let Some(mid) = pattern.strip_suffix('$') {
-            haystack.ends_with(mid)
-        } else {
-            haystack.contains(pattern)
-        }
+    /// Size-bounded so a pathological pattern can't exhaust memory; an uncompilable
+    /// or oversized pattern never matches rather than failing the resolution.
+    fn regex_match(haystack: &str, pattern: &str) -> bool {
+        const SIZE_LIMIT: usize = 1 << 20;
+        regex::RegexBuilder::new(pattern)
+            .size_limit(SIZE_LIMIT)
+            .dfa_size_limit(SIZE_LIMIT)
+            .build()
+            .is_ok_and(|re| re.is_match(haystack))
     }
 
-    /// Deterministic bucketing: hash `flag_key:targeting_key` into [0,100) and walk
-    /// the cumulative weights. Stable across replicas and restarts.
-    fn pick_distribution<'a>(
-        flag_key: &str,
-        ctx: &EvalContext,
-        distributions: &'a [Distribution],
-    ) -> &'a str {
-        let bucket = Self::bucket_of(flag_key, &ctx.targeting_key);
+    /// Deterministic bucketing into [0,100), walking the cumulative weights. The rule's
+    /// salt lets two rollouts on one flag bucket the same key independently.
+    fn pick_distribution<'a>(flag_key: &str, rule: &'a Rule, ctx: &EvalContext) -> &'a str {
+        let bucket = Self::bucket_of(flag_key, &rule.bucket_salt, &ctx.targeting_key);
+
         let mut cumulative = 0u32;
-        for d in distributions {
+        for d in &rule.distributions {
             cumulative += d.weight;
             if bucket < cumulative {
                 return &d.variant_key;
             }
         }
-        &distributions[distributions.len() - 1].variant_key
+
+        &rule.distributions[rule.distributions.len() - 1].variant_key
     }
 
-    fn bucket_of(flag_key: &str, targeting_key: &str) -> u32 {
+    /// An empty salt reproduces the pre-salt `flag_key:targeting_key` hash, so existing
+    /// rollouts keep their buckets.
+    fn bucket_of(flag_key: &str, salt: &str, targeting_key: &str) -> u32 {
         let mut hasher = Sha256::new();
         hasher.update(flag_key.as_bytes());
+        if !salt.is_empty() {
+            hasher.update(b":");
+            hasher.update(salt.as_bytes());
+        }
         hasher.update(b":");
         hasher.update(targeting_key.as_bytes());
+
         let digest = hasher.finalize();
         let n = u64::from_be_bytes(digest[..8].try_into().unwrap());
         (n % 100) as u32
@@ -217,6 +243,7 @@ mod tests {
                 Variant { key: "off".into(), value: json!(false) },
             ],
             rules: vec![],
+            prerequisites: vec![],
         }
     }
 
@@ -239,6 +266,80 @@ mod tests {
                 .map(|(k, v)| (k.clone(), v.clone()))
                 .collect(),
         }
+    }
+
+    fn engine_with(flags: Vec<Flag>) -> Engine {
+        let mut s = Snapshot { version: 1, ..Default::default() };
+        for f in flags {
+            s.flags.insert(f.key.clone(), f);
+        }
+        Engine::new(Arc::new(s))
+    }
+
+    #[test]
+    fn prerequisite_met_allows_rules() {
+        let mut master = bool_flag();
+        master.key = "master".into();
+        master.default_variant_key = "on".into();
+
+        let mut dependent = bool_flag();
+        dependent.key = "dependent".into();
+        dependent.default_variant_key = "on".into();
+        dependent.prerequisites = vec![Prerequisite {
+            flag_key: "master".into(),
+            variant_key: "on".into(),
+        }];
+
+        let e = engine_with(vec![master, dependent]);
+        let r = e.evaluate("dependent", &ctx("u1", json!({}))).unwrap();
+        assert_eq!(r.variant, "on");
+    }
+
+    #[test]
+    fn prerequisite_unmet_serves_default() {
+        let mut master = bool_flag();
+        master.key = "master".into();
+        master.default_variant_key = "off".into(); // resolves to "off"
+
+        let mut dependent = bool_flag();
+        dependent.key = "dependent".into();
+        dependent.default_variant_key = "off".into();
+        dependent.rules = vec![Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: Some("on".into()),
+            distributions: vec![],
+            constraint_groups: vec![],
+            bucket_salt: String::new(),
+        }];
+        dependent.prerequisites = vec![Prerequisite {
+            flag_key: "master".into(),
+            variant_key: "on".into(), // master is "off", so unmet
+        }];
+
+        let e = engine_with(vec![master, dependent]);
+        let r = e.evaluate("dependent", &ctx("u1", json!({}))).unwrap();
+        // Rule would have served "on", but the unmet prerequisite forces the default.
+        assert_eq!(r.variant, "off");
+        assert_eq!(r.reason, Reason::Default);
+    }
+
+    #[test]
+    fn prerequisite_cycle_resolves_to_default() {
+        let mut a = bool_flag();
+        a.key = "a".into();
+        a.default_variant_key = "off".into();
+        a.prerequisites = vec![Prerequisite { flag_key: "b".into(), variant_key: "on".into() }];
+
+        let mut b = bool_flag();
+        b.key = "b".into();
+        b.default_variant_key = "off".into();
+        b.prerequisites = vec![Prerequisite { flag_key: "a".into(), variant_key: "on".into() }];
+
+        let e = engine_with(vec![a, b]);
+        // The cycle is treated as an unmet prerequisite, not an infinite loop or error.
+        let r = e.evaluate("a", &ctx("u1", json!({}))).unwrap();
+        assert_eq!(r.variant, "off");
     }
 
     #[test]
@@ -271,6 +372,7 @@ mod tests {
         let mut flag = bool_flag();
         flag.rules = vec![Rule {
             rank: 0,
+            bucket_salt: String::new(),
             segment_key: Some("beta".into()),
             variant_key: Some("on".into()),
             distributions: vec![],
@@ -304,6 +406,7 @@ mod tests {
         let mut flag = bool_flag();
         flag.rules = vec![Rule {
             rank: 0,
+            bucket_salt: String::new(),
             segment_key: None,
             variant_key: Some("on".into()),
             distributions: vec![],
@@ -329,6 +432,7 @@ mod tests {
         // One group with two constraints: match when country is AU OR NZ.
         flag.rules = vec![Rule {
             rank: 0,
+            bucket_salt: String::new(),
             segment_key: None,
             variant_key: Some("on".into()),
             distributions: vec![],
@@ -350,6 +454,7 @@ mod tests {
         // (country == AU OR NZ) AND (plan == pro).
         flag.rules = vec![Rule {
             rank: 0,
+            bucket_salt: String::new(),
             segment_key: None,
             variant_key: Some("on".into()),
             distributions: vec![],
@@ -373,6 +478,7 @@ mod tests {
         let mut flag = bool_flag();
         flag.rules = vec![Rule {
             rank: 0,
+            bucket_salt: String::new(),
             segment_key: Some("beta".into()),
             variant_key: Some("on".into()),
             distributions: vec![],
@@ -407,8 +513,8 @@ mod tests {
     fn rules_evaluated_in_order() {
         let mut flag = bool_flag();
         flag.rules = vec![
-            Rule { rank: 0, segment_key: None, variant_key: Some("on".into()), distributions: vec![], constraint_groups: vec![] },
-            Rule { rank: 1, segment_key: None, variant_key: Some("off".into()), distributions: vec![], constraint_groups: vec![] },
+            Rule { rank: 0, segment_key: None, variant_key: Some("on".into()), distributions: vec![], constraint_groups: vec![], bucket_salt: String::new() },
+            Rule { rank: 1, segment_key: None, variant_key: Some("off".into()), distributions: vec![], constraint_groups: vec![], bucket_salt: String::new() },
         ];
         let e = engine(flag, vec![]);
         let r = e.evaluate("feature", &ctx("u1", json!({}))).unwrap();
@@ -420,6 +526,7 @@ mod tests {
         let mut flag = bool_flag();
         flag.rules = vec![Rule {
             rank: 0,
+            bucket_salt: String::new(),
             segment_key: None,
             variant_key: None,
             distributions: vec![
@@ -444,6 +551,50 @@ mod tests {
             })
             .count();
         assert!((350..650).contains(&on), "unexpected split: {on}/1000");
+    }
+
+    #[test]
+    fn bucket_salt_makes_rollouts_independent() {
+        // Two 50/50 rollouts on the same flag with different salts should not bucket
+        // every key the same way; without a salt they would be perfectly correlated.
+        let agree = (0..1000)
+            .filter(|i| {
+                let key = format!("user-{i}");
+                let a = Engine::bucket_of("feature", "salt-a", &key) < 50;
+                let b = Engine::bucket_of("feature", "salt-b", &key) < 50;
+                a == b
+            })
+            .count();
+        assert!((400..600).contains(&agree), "salts not independent: {agree}/1000 agree");
+
+        // The same salt is deterministic.
+        assert_eq!(
+            Engine::bucket_of("feature", "salt-a", "user-1"),
+            Engine::bucket_of("feature", "salt-a", "user-1"),
+        );
+    }
+
+    #[test]
+    fn empty_salt_preserves_legacy_bucketing() {
+        // An empty salt must hash `flag_key:targeting_key` exactly as before salts
+        // existed, so deploying this change does not re-bucket existing rollouts.
+        for key in ["user-1", "abc", "", "🦀"] {
+            let mut hasher = Sha256::new();
+            hasher.update(b"feature");
+            hasher.update(b":");
+            hasher.update(key.as_bytes());
+            let legacy = (u64::from_be_bytes(hasher.finalize()[..8].try_into().unwrap()) % 100) as u32;
+            assert_eq!(Engine::bucket_of("feature", "", key), legacy);
+        }
+    }
+
+    #[test]
+    fn regex_operator_matches_and_rejects() {
+        assert!(Engine::regex_match("v12", "^v[0-9]+$"));
+        assert!(!Engine::regex_match("v12a", "^v[0-9]+$"));
+        assert!(Engine::regex_match("hello world", "wor"));
+        // An invalid pattern never matches rather than erroring.
+        assert!(!Engine::regex_match("anything", "("));
     }
 
     #[test]

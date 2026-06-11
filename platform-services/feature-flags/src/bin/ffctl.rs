@@ -41,6 +41,11 @@ enum Command {
         #[command(subcommand)]
         action: RulesAction,
     },
+    /// Replace the prerequisites (flag dependencies) for a flag
+    Prereqs {
+        #[command(subcommand)]
+        action: PrereqsAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -123,6 +128,14 @@ enum RulesAction {
     Set { flag_key: String, json: String },
 }
 
+#[derive(Subcommand)]
+enum PrereqsAction {
+    /// Replace a flag's prerequisites from a JSON array, e.g.
+    /// `[{"flag_key":"master","variant_key":"on"}]`. The flag serves its rules only
+    /// when every prerequisite flag resolves to the given variant, else its default.
+    Set { flag_key: String, json: String },
+}
+
 #[derive(Clone, Copy, ValueEnum)]
 enum FlagType {
     Bool,
@@ -156,6 +169,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Variant { action } => variant(&mut admin, action).await,
         Command::Segment { action } => segment(&mut admin, action).await,
         Command::Rules { action } => rules(&mut admin, action).await,
+        Command::Prereqs { action } => prereqs(&mut admin, action).await,
     }
 }
 
@@ -322,6 +336,38 @@ async fn rules(admin: &mut AdminClient<Channel>, action: RulesAction) -> anyhow:
     print(flag_to_json(&flag))
 }
 
+async fn prereqs(admin: &mut AdminClient<Channel>, action: PrereqsAction) -> anyhow::Result<()> {
+    let PrereqsAction::Set { flag_key, json } = action;
+    let Json::Array(items) = parse_json(&json) else {
+        bail!("prerequisites must be a JSON array");
+    };
+    let prerequisites = items
+        .iter()
+        .map(parse_prerequisite)
+        .collect::<anyhow::Result<_>>()?;
+    let flag = admin
+        .set_flag_prerequisites(pb::SetFlagPrerequisitesRequest { flag_key, prerequisites })
+        .await?
+        .into_inner();
+    print(flag_to_json(&flag))
+}
+
+fn parse_prerequisite(item: &Json) -> anyhow::Result<pb::Prerequisite> {
+    let obj = item.as_object().context("prerequisite must be a JSON object")?;
+    Ok(pb::Prerequisite {
+        flag_key: obj
+            .get("flag_key")
+            .and_then(Json::as_str)
+            .context("prerequisite requires a `flag_key`")?
+            .to_owned(),
+        variant_key: obj
+            .get("variant_key")
+            .and_then(Json::as_str)
+            .context("prerequisite requires a `variant_key`")?
+            .to_owned(),
+    })
+}
+
 /// Parse a `key=value` variant spec, reading `value` as JSON with a bare-string fallback.
 fn parse_variant(spec: &str) -> anyhow::Result<pb::Variant> {
     let (key, value) = spec
@@ -414,6 +460,11 @@ fn parse_rule(json: &Json) -> anyhow::Result<pb::Rule> {
             .to_owned(),
         distributions,
         constraint_groups,
+        bucket_salt: obj
+            .get("bucket_salt")
+            .and_then(Json::as_str)
+            .unwrap_or_default()
+            .to_owned(),
     })
 }
 
@@ -482,6 +533,7 @@ fn flag_to_json(flag: &pb::Flag) -> Json {
             "rank": r.rank,
             "segment_key": r.segment_key,
             "variant_key": r.variant_key,
+            "bucket_salt": r.bucket_salt,
             "distributions": r.distributions.iter().map(|d| json!({
                 "variant_key": d.variant_key,
                 "weight": d.weight,
@@ -495,6 +547,10 @@ fn flag_to_json(flag: &pb::Flag) -> Json {
                     "values": c.values.iter().map(value_to_json).collect::<Vec<_>>(),
                 })).collect::<Vec<_>>()
             }).collect::<Vec<_>>(),
+        })).collect::<Vec<_>>(),
+        "prerequisites": flag.prerequisites.iter().map(|p| json!({
+            "flag_key": p.flag_key,
+            "variant_key": p.variant_key,
         })).collect::<Vec<_>>(),
     })
 }

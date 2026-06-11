@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO flag_prerequisites (flag_id, prerequisite_key, variant_key) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "95535e7ddf2f0fa0a7c162044af4213b12107881ae1a0ca2e81e34301d5730e2"
+}

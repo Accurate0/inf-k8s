@@ -18,7 +18,7 @@ import {
   type ServiceError,
   type UntypedServiceImplementation,
 } from "@grpc/grpc-js";
-import { Flag, Rule, Segment, ValueType, Variant } from "./common";
+import { Flag, Prerequisite, Rule, Segment, ValueType, Variant } from "./common";
 
 export const protobufPackage = "featureflag.v1";
 
@@ -99,6 +99,11 @@ export interface DeleteSegmentResponse {
 export interface SetFlagRulesRequest {
   flagKey: string;
   rules: Rule[];
+}
+
+export interface SetFlagPrerequisitesRequest {
+  flagKey: string;
+  prerequisites: Prerequisite[];
 }
 
 function createBaseCreateFlagRequest(): CreateFlagRequest {
@@ -1019,6 +1024,64 @@ export const SetFlagRulesRequest: MessageFns<SetFlagRulesRequest> = {
   },
 };
 
+function createBaseSetFlagPrerequisitesRequest(): SetFlagPrerequisitesRequest {
+  return { flagKey: "", prerequisites: [] };
+}
+
+export const SetFlagPrerequisitesRequest: MessageFns<SetFlagPrerequisitesRequest> = {
+  encode(message: SetFlagPrerequisitesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.flagKey !== "") {
+      writer.uint32(10).string(message.flagKey);
+    }
+    for (const v of message.prerequisites) {
+      Prerequisite.encode(v!, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SetFlagPrerequisitesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSetFlagPrerequisitesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.flagKey = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.prerequisites.push(Prerequisite.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<SetFlagPrerequisitesRequest>, I>>(base?: I): SetFlagPrerequisitesRequest {
+    return SetFlagPrerequisitesRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SetFlagPrerequisitesRequest>, I>>(object: I): SetFlagPrerequisitesRequest {
+    const message = createBaseSetFlagPrerequisitesRequest();
+    message.flagKey = object.flagKey ?? "";
+    message.prerequisites = object.prerequisites?.map((e) => Prerequisite.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 /**
  * Write path: manage flags, variants, segments, and targeting rules. Every
  * mutation bumps the global config version and notifies streaming evaluators.
@@ -1154,6 +1217,17 @@ export const AdminService = {
     responseSerialize: (value: Flag): Buffer => Buffer.from(Flag.encode(value).finish()),
     responseDeserialize: (value: Buffer): Flag => Flag.decode(value),
   },
+  /** Replaces the full set of prerequisites for a flag. */
+  setFlagPrerequisites: {
+    path: "/featureflag.v1.Admin/SetFlagPrerequisites" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: SetFlagPrerequisitesRequest): Buffer =>
+      Buffer.from(SetFlagPrerequisitesRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): SetFlagPrerequisitesRequest => SetFlagPrerequisitesRequest.decode(value),
+    responseSerialize: (value: Flag): Buffer => Buffer.from(Flag.encode(value).finish()),
+    responseDeserialize: (value: Buffer): Flag => Flag.decode(value),
+  },
 } as const;
 
 export interface AdminServer extends UntypedServiceImplementation {
@@ -1172,6 +1246,8 @@ export interface AdminServer extends UntypedServiceImplementation {
   deleteSegment: handleUnaryCall<DeleteSegmentRequest, DeleteSegmentResponse>;
   /** Replaces the full ordered rule set for a flag; ranks are assigned by position. */
   setFlagRules: handleUnaryCall<SetFlagRulesRequest, Flag>;
+  /** Replaces the full set of prerequisites for a flag. */
+  setFlagPrerequisites: handleUnaryCall<SetFlagPrerequisitesRequest, Flag>;
 }
 
 export interface AdminClient extends Client {
@@ -1379,6 +1455,22 @@ export interface AdminClient extends Client {
   ): ClientUnaryCall;
   setFlagRules(
     request: SetFlagRulesRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: Flag) => void,
+  ): ClientUnaryCall;
+  /** Replaces the full set of prerequisites for a flag. */
+  setFlagPrerequisites(
+    request: SetFlagPrerequisitesRequest,
+    callback: (error: ServiceError | null, response: Flag) => void,
+  ): ClientUnaryCall;
+  setFlagPrerequisites(
+    request: SetFlagPrerequisitesRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: Flag) => void,
+  ): ClientUnaryCall;
+  setFlagPrerequisites(
+    request: SetFlagPrerequisitesRequest,
     metadata: Metadata,
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: Flag) => void,

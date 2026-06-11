@@ -98,6 +98,17 @@ message Rule {
   // constraints within a group are OR-combined. Lets a rule target attributes
   // without a named segment.
   repeated ConstraintGroup constraint_groups = 5;
+  // Optional salt mixed into percentage-rollout bucketing. Two rules with different
+  // salts bucket the same targeting key independently; empty preserves the legacy
+  // per-flag bucketing shared across the flag's rules.
+  string bucket_salt = 6;
+}
+
+// A dependency on another flag: this flag serves its rules only when the
+// prerequisite flag resolves to variant_key, otherwise it falls back to its default.
+message Prerequisite {
+  string flag_key = 1;
+  string variant_key = 2;
 }
 
 message Flag {
@@ -108,4 +119,5 @@ message Flag {
   bool archived = 5;
   repeated Variant variants = 6;
   repeated Rule rules = 7;
+  repeated Prerequisite prerequisites = 8;
 }

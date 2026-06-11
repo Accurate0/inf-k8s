@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM flag_prerequisites WHERE flag_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a61948f109d1cb235646cfbf5d9f86596368cec525899fcdf3bbf5d695b9b41b"
+}

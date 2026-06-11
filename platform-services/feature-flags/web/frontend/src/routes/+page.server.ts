@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from "./$types";
 import { client } from "$lib/server/client";
+import { actorFromRequest } from "$lib/server/actor";
 import { fail } from "@sveltejs/kit";
 
 export const load: PageServerLoad = async ({ url }) => {
@@ -15,7 +16,7 @@ export const actions: Actions = {
     const defaultVariantKey = String(data.get("defaultVariantKey"));
     const enabled = data.get("enabled") === "true";
     try {
-      await client.updateFlag(key, enabled, defaultVariantKey);
+      await client.updateFlag(key, enabled, defaultVariantKey, actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }

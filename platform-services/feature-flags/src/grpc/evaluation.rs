@@ -226,11 +226,11 @@ impl Evaluation for EvaluationService {
         };
         let head = futures::stream::once(async move { Ok(ready) });
         let tail = BroadcastStream::new(rx).filter_map(|item| async move {
-            item.ok().map(|version| {
+            item.ok().map(|update| {
                 Ok(pb::Event {
                     r#type: pb::EventType::ConfigurationChanged as i32,
-                    config_version: version,
-                    changed_flag_keys: Vec::new(),
+                    config_version: update.version,
+                    changed_flag_keys: (*update.changed_flag_keys).clone(),
                 })
             })
         });

@@ -25,6 +25,9 @@ service Admin {
 
   // Replaces the full ordered rule set for a flag; ranks are assigned by position.
   rpc SetFlagRules(SetFlagRulesRequest) returns (Flag);
+
+  // Replaces the full set of prerequisites for a flag.
+  rpc SetFlagPrerequisites(SetFlagPrerequisitesRequest) returns (Flag);
 }
 
 message CreateFlagRequest {
@@ -101,4 +104,9 @@ message DeleteSegmentResponse {}
 message SetFlagRulesRequest {
   string flag_key = 1;
   repeated Rule rules = 2;
+}
+
+message SetFlagPrerequisitesRequest {
+  string flag_key = 1;
+  repeated Prerequisite prerequisites = 2;
 }
