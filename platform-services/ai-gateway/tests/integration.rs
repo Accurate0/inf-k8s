@@ -142,7 +142,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
             .mount(&upstream)
             .await;
     }
-    let flipt = MockServer::start().await;
+    let feature_flags = MockServer::start().await;
 
     // SAFETY: tests are serialized, so the shared process env is not raced.
     unsafe { std::env::set_var(API_KEY_ENV, "secret") };
@@ -166,9 +166,10 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     };
     let registry = Registry::from_config(&config);
 
-    // An empty flipt server makes every flag eval error out, so the gateway falls back
-    // to flag defaults (enabled, no model override) — the production-on configuration.
-    let features = FeatureFlagClient::new(Some(flipt.uri())).await;
+    // A plain HTTP mock isn't a feature-flags gRPC backend, so the provider fails to
+    // connect and every flag eval errors out — the gateway falls back to flag defaults
+    // (enabled, no model override), the production-on configuration.
+    let features = FeatureFlagClient::new(Some(feature_flags.uri())).await;
     let state = AppState::new(config, registry, pool, features, None::<CacheClient>);
 
     let token = match fixture.key.auth.as_str() {

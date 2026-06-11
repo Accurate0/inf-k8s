@@ -2,11 +2,15 @@ use std::{sync::Arc, time::Duration};
 
 use moka::future::Cache;
 use open_feature::{EvaluationContext, OpenFeature, provider::NoOpProvider};
-use open_feature_flipt::flipt::{self, FliptProvider, NoneAuthentication};
+use openfeature_provider::{EvaluationMode, FeatureFlagProvider};
 
-/// Runtime routing / kill-switch flags evaluated per request. Falls back to a NoOp
-/// provider (every flag returns its default) when `FLIPT_URL` is unset, mirroring
-/// janitor-bot.
+/// Runtime routing / kill-switch flags evaluated per request, backed by the
+/// feature-flags gRPC service via its OpenFeature provider. Falls back to a NoOp
+/// provider (every flag returns its default) when `FEATURE_FLAGS_URL` is unset.
+///
+/// The provider runs in [`Local`](EvaluationMode::Local) mode: it streams the flag
+/// snapshot from the backend and evaluates in-process, so the per-request hot path
+/// never makes a network round-trip.
 #[derive(Clone)]
 pub struct FeatureFlagClient {
     client: Arc<open_feature::Client>,
@@ -17,23 +21,17 @@ pub struct FeatureFlagClient {
 
 impl FeatureFlagClient {
     pub async fn from_env() -> Self {
-        Self::new(std::env::var("FLIPT_URL").ok()).await
+        Self::new(std::env::var("FEATURE_FLAGS_URL").ok()).await
     }
 
     pub async fn new(url: Option<String>) -> Self {
         let mut client = OpenFeature::singleton_mut().await;
 
         if let Some(url) = url {
-            let config = flipt::Config {
-                url,
-                authentication_strategy: NoneAuthentication::new(),
-                timeout: 60,
-            };
-
-            match FliptProvider::new("ai-gateway".to_string(), config) {
+            match FeatureFlagProvider::connect_with(url, EvaluationMode::Local).await {
                 Ok(provider) => client.set_provider(provider).await,
                 Err(e) => {
-                    tracing::error!("error when init flipt: {e}");
+                    tracing::error!("error when connecting to feature-flags: {e}");
                     client.set_provider(NoOpProvider::default()).await
                 }
             };
