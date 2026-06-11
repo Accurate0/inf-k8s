@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE flags SET archived = $2, updated_at = now() WHERE key = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "7678b37385879f5fe63335fc0e9a1b743c3257876a68294d7a8a6184ce6ba1ff"
+}

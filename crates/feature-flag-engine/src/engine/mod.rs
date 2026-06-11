@@ -1,0 +1,332 @@
+//! The pure, side-effect-free evaluation engine. An [`Engine`] wraps an immutable
+//! [`Snapshot`] and resolves flags against an [`EvalContext`], yielding a value, the
+//! served variant, and a reason. Kept free of IO so it can be exhaustively tested.
+
+mod types;
+
+pub use types::{ErrorCode, EvalContext, EvalError, Reason, Resolution};
+
+use crate::model::{Constraint, Distribution, Flag, Operator, Segment, Snapshot};
+use serde_json::Value;
+use sha2::{Digest, Sha256};
+use std::sync::Arc;
+
+#[derive(Clone)]
+pub struct Engine {
+    snapshot: Arc<Snapshot>,
+}
+
+impl Engine {
+    pub fn new(snapshot: Arc<Snapshot>) -> Self {
+        Self { snapshot }
+    }
+
+    pub fn snapshot(&self) -> &Snapshot {
+        &self.snapshot
+    }
+
+    /// Resolve a single flag. The returned [`Resolution`] always carries a concrete
+    /// value drawn from the flag's variants; type checking against the caller's
+    /// requested type happens in [`crate::convert`].
+    pub fn evaluate(&self, flag_key: &str, ctx: &EvalContext) -> Result<Resolution, EvalError> {
+        let flag = self.snapshot.flags.get(flag_key).ok_or_else(|| EvalError {
+            code: ErrorCode::FlagNotFound,
+            message: format!("flag `{flag_key}` not found"),
+        })?;
+
+        if flag.archived || !flag.enabled {
+            return Self::resolve_variant(flag, &flag.default_variant_key, Reason::Disabled);
+        }
+
+        for rule in &flag.rules {
+            if !self.rule_matches(rule.segment_key.as_deref(), ctx) {
+                continue;
+            }
+            if !rule.distributions.is_empty() {
+                let variant_key = Self::pick_distribution(flag_key, ctx, &rule.distributions);
+                return Self::resolve_variant(flag, variant_key, Reason::Split);
+            }
+            if let Some(variant_key) = &rule.variant_key {
+                return Self::resolve_variant(flag, variant_key, Reason::TargetingMatch);
+            }
+        }
+
+        Self::resolve_variant(flag, &flag.default_variant_key, Reason::Default)
+    }
+
+    fn rule_matches(&self, segment_key: Option<&str>, ctx: &EvalContext) -> bool {
+        match segment_key {
+            None => true,
+            Some(key) => match self.snapshot.segments.get(key) {
+                Some(segment) => Self::segment_matches(segment, ctx),
+                // A rule pointing at a missing segment never matches rather than erroring.
+                None => false,
+            },
+        }
+    }
+
+    fn resolve_variant(
+        flag: &Flag,
+        variant_key: &str,
+        reason: Reason,
+    ) -> Result<Resolution, EvalError> {
+        let variant = flag.variant(variant_key).ok_or_else(|| EvalError {
+            code: ErrorCode::ParseError,
+            message: format!(
+                "flag `{}` references unknown variant `{variant_key}`",
+                flag.key
+            ),
+        })?;
+        Ok(Resolution {
+            value: variant.value.clone(),
+            variant: variant.key.clone(),
+            reason,
+        })
+    }
+
+    pub fn segment_matches(segment: &Segment, ctx: &EvalContext) -> bool {
+        segment
+            .constraints
+            .iter()
+            .all(|c| Self::constraint_matches(c, ctx))
+    }
+
+    fn constraint_matches(c: &Constraint, ctx: &EvalContext) -> bool {
+        let attr = ctx.attributes.get(&c.attribute);
+        let first = c.values.first();
+
+        match c.operator {
+            Operator::Exists => attr.is_some(),
+            Operator::Eq => attr.is_some_and(|a| first == Some(a)),
+            Operator::Neq => attr.is_none_or(|a| first != Some(a)),
+            Operator::In => attr.is_some_and(|a| c.values.iter().any(|v| v == a)),
+            Operator::NotIn => attr.is_none_or(|a| !c.values.iter().any(|v| v == a)),
+            Operator::Contains => Self::string_op(attr, first, |a, b| a.contains(b)),
+            Operator::StartsWith => Self::string_op(attr, first, |a, b| a.starts_with(b)),
+            Operator::EndsWith => Self::string_op(attr, first, |a, b| a.ends_with(b)),
+            Operator::Regex => Self::string_op(attr, first, Self::regex_lite_match),
+            Operator::Gt => Self::number_op(attr, first, |a, b| a > b),
+            Operator::Gte => Self::number_op(attr, first, |a, b| a >= b),
+            Operator::Lt => Self::number_op(attr, first, |a, b| a < b),
+            Operator::Lte => Self::number_op(attr, first, |a, b| a <= b),
+        }
+    }
+
+    fn string_op(
+        attr: Option<&Value>,
+        operand: Option<&Value>,
+        f: impl Fn(&str, &str) -> bool,
+    ) -> bool {
+        match (attr.and_then(Value::as_str), operand.and_then(Value::as_str)) {
+            (Some(a), Some(b)) => f(a, b),
+            _ => false,
+        }
+    }
+
+    fn number_op(
+        attr: Option<&Value>,
+        operand: Option<&Value>,
+        f: impl Fn(f64, f64) -> bool,
+    ) -> bool {
+        match (attr.and_then(Value::as_f64), operand.and_then(Value::as_f64)) {
+            (Some(a), Some(b)) => f(a, b),
+            _ => false,
+        }
+    }
+
+    /// Minimal anchored matcher for the rare `REGEX` operator: supports plain
+    /// substrings and `^`/`$` anchors, avoiding a dependency on the `regex` crate.
+    fn regex_lite_match(haystack: &str, pattern: &str) -> bool {
+        if let Some(rest) = pattern.strip_prefix('^') {
+            match rest.strip_suffix('$') {
+                Some(mid) => haystack == mid,
+                None => haystack.starts_with(rest),
+            }
+        } else if let Some(mid) = pattern.strip_suffix('$') {
+            haystack.ends_with(mid)
+        } else {
+            haystack.contains(pattern)
+        }
+    }
+
+    /// Deterministic bucketing: hash `flag_key:targeting_key` into [0,100) and walk
+    /// the cumulative weights. Stable across replicas and restarts.
+    fn pick_distribution<'a>(
+        flag_key: &str,
+        ctx: &EvalContext,
+        distributions: &'a [Distribution],
+    ) -> &'a str {
+        let bucket = Self::bucket_of(flag_key, &ctx.targeting_key);
+        let mut cumulative = 0u32;
+        for d in distributions {
+            cumulative += d.weight;
+            if bucket < cumulative {
+                return &d.variant_key;
+            }
+        }
+        &distributions[distributions.len() - 1].variant_key
+    }
+
+    fn bucket_of(flag_key: &str, targeting_key: &str) -> u32 {
+        let mut hasher = Sha256::new();
+        hasher.update(flag_key.as_bytes());
+        hasher.update(b":");
+        hasher.update(targeting_key.as_bytes());
+        let digest = hasher.finalize();
+        let n = u64::from_be_bytes(digest[..8].try_into().unwrap());
+        (n % 100) as u32
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::model::*;
+    use serde_json::json;
+
+    fn bool_flag() -> Flag {
+        Flag {
+            key: "feature".into(),
+            value_type: ValueType::Boolean,
+            enabled: true,
+            default_variant_key: "off".into(),
+            archived: false,
+            variants: vec![
+                Variant { key: "on".into(), value: json!(true) },
+                Variant { key: "off".into(), value: json!(false) },
+            ],
+            rules: vec![],
+        }
+    }
+
+    fn engine(flag: Flag, segments: Vec<Segment>) -> Engine {
+        let mut s = Snapshot { version: 1, ..Default::default() };
+        s.flags.insert(flag.key.clone(), flag);
+        for seg in segments {
+            s.segments.insert(seg.key.clone(), seg);
+        }
+        Engine::new(Arc::new(s))
+    }
+
+    fn ctx(targeting_key: &str, attrs: serde_json::Value) -> EvalContext {
+        EvalContext {
+            targeting_key: targeting_key.into(),
+            attributes: attrs
+                .as_object()
+                .unwrap()
+                .iter()
+                .map(|(k, v)| (k.clone(), v.clone()))
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn default_when_no_rules() {
+        let e = engine(bool_flag(), vec![]);
+        let r = e.evaluate("feature", &ctx("u1", json!({}))).unwrap();
+        assert_eq!(r.value, json!(false));
+        assert_eq!(r.variant, "off");
+        assert_eq!(r.reason, Reason::Default);
+    }
+
+    #[test]
+    fn disabled_serves_default_with_disabled_reason() {
+        let mut flag = bool_flag();
+        flag.enabled = false;
+        let e = engine(flag, vec![]);
+        let r = e.evaluate("feature", &ctx("u1", json!({}))).unwrap();
+        assert_eq!(r.reason, Reason::Disabled);
+    }
+
+    #[test]
+    fn missing_flag_errors() {
+        let e = engine(bool_flag(), vec![]);
+        let err = e.evaluate("nope", &ctx("u1", json!({}))).unwrap_err();
+        assert_eq!(err.code, ErrorCode::FlagNotFound);
+    }
+
+    #[test]
+    fn segment_targeting_match() {
+        let mut flag = bool_flag();
+        flag.rules = vec![Rule {
+            rank: 0,
+            segment_key: Some("beta".into()),
+            variant_key: Some("on".into()),
+            distributions: vec![],
+        }];
+        let beta = Segment {
+            key: "beta".into(),
+            name: "Beta".into(),
+            constraints: vec![Constraint {
+                attribute: "email".into(),
+                operator: Operator::EndsWith,
+                values: vec![json!("@anurag.sh")],
+            }],
+        };
+        let e = engine(flag, vec![beta]);
+
+        let hit = e.evaluate("feature", &ctx("u1", json!({"email": "a@anurag.sh"}))).unwrap();
+        assert_eq!(hit.reason, Reason::TargetingMatch);
+        assert_eq!(hit.value, json!(true));
+
+        let miss = e.evaluate("feature", &ctx("u2", json!({"email": "a@other.com"}))).unwrap();
+        assert_eq!(miss.reason, Reason::Default);
+    }
+
+    #[test]
+    fn rules_evaluated_in_order() {
+        let mut flag = bool_flag();
+        flag.rules = vec![
+            Rule { rank: 0, segment_key: None, variant_key: Some("on".into()), distributions: vec![] },
+            Rule { rank: 1, segment_key: None, variant_key: Some("off".into()), distributions: vec![] },
+        ];
+        let e = engine(flag, vec![]);
+        let r = e.evaluate("feature", &ctx("u1", json!({}))).unwrap();
+        assert_eq!(r.variant, "on");
+    }
+
+    #[test]
+    fn percentage_rollout_is_deterministic_and_split() {
+        let mut flag = bool_flag();
+        flag.rules = vec![Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: None,
+            distributions: vec![
+                Distribution { variant_key: "on".into(), weight: 50 },
+                Distribution { variant_key: "off".into(), weight: 50 },
+            ],
+        }];
+        let e = engine(flag, vec![]);
+
+        let a1 = e.evaluate("feature", &ctx("stable-key", json!({}))).unwrap();
+        let a2 = e.evaluate("feature", &ctx("stable-key", json!({}))).unwrap();
+        assert_eq!(a1.variant, a2.variant);
+        assert_eq!(a1.reason, Reason::Split);
+
+        let on = (0..1000)
+            .filter(|i| {
+                e.evaluate("feature", &ctx(&format!("user-{i}"), json!({})))
+                    .unwrap()
+                    .variant
+                    == "on"
+            })
+            .count();
+        assert!((350..650).contains(&on), "unexpected split: {on}/1000");
+    }
+
+    #[test]
+    fn numeric_and_membership_operators() {
+        let seg = Segment {
+            key: "s".into(),
+            name: "s".into(),
+            constraints: vec![
+                Constraint { attribute: "age".into(), operator: Operator::Gte, values: vec![json!(18)] },
+                Constraint { attribute: "country".into(), operator: Operator::In, values: vec![json!("AU"), json!("NZ")] },
+            ],
+        };
+        assert!(Engine::segment_matches(&seg, &ctx("u", json!({"age": 20, "country": "AU"}))));
+        assert!(!Engine::segment_matches(&seg, &ctx("u", json!({"age": 16, "country": "AU"}))));
+        assert!(!Engine::segment_matches(&seg, &ctx("u", json!({"age": 20, "country": "US"}))));
+    }
+}

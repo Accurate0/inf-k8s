@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO rule_distributions (rule_id, variant_key, weight) VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "3bd6a8e77583ed22a915b6c24043dc5c6fd7d16ebfaccd1c20497442295dceba"
+}

@@ -1,0 +1,63 @@
+name: Build & deploy feature-flags
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - platform-services/feature-flags/**
+      - '!platform-services/feature-flags/manifests/**'
+      - '!platform-services/feature-flags/application.yaml'
+      - crates/**
+      - .github/workflows/build-deploy-feature-flags.yaml
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      - uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: ./platform-services/feature-flags/Dockerfile
+          push: true
+          tags: ghcr.io/accurate0/feature-flags:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  test:
+    runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libprotobuf-dev
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+        with:
+          path: platform-services/feature-flags/target
+          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-feature-flags
+      - run: cargo test
+        working-directory: platform-services/feature-flags
+      - run: cargo test
+        working-directory: crates
+
+  deploy:
+    needs:
+      - build
+      - test
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@6405dc1ebbb75fe4b8dc5cb1c303e9e42a746391 # main
+    with:
+      service-name: feature-flags
+      images: ghcr.io/accurate0/feature-flags
+      manifests-path: platform-services/feature-flags/manifests
+      tag: ${{ github.sha }}
+    secrets:
+      FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

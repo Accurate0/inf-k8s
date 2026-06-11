@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, key, value_type, enabled, default_variant_key, archived FROM flags",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "key"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "value_type",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "value_type"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "enabled",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "enabled"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "default_variant_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "default_variant_key"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "archived",
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "archived"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "55b5f3f5d1843f21edcaa1c015bb66eb9318a803a0b275025b010b6afc995f3d"
+}

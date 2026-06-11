@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/service_v1.json
+apiVersion: v1
+kind: Service
+metadata:
+  name: api
+  namespace: feature-flags
+  labels:
+    app: feature-flags
+spec:
+  selector:
+    app: feature-flags
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50051
+      targetPort: grpc
+      appProtocol: grpc
+    - name: metrics
+      protocol: TCP
+      port: 9090
+      targetPort: metrics

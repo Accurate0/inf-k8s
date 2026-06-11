@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO variants (flag_id, key, value) VALUES ($1, $2, $3) ON CONFLICT (flag_id, key) DO UPDATE SET value = EXCLUDED.value",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Jsonb"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "892874bef768c47494d058496fbb4590ca023938d8769b35a0383189684dcb68"
+}

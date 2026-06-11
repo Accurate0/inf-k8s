@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM segment_constraints WHERE segment_id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a398efd2bd32a810704d7301a2a3b96e5f09ddc6a0a9dc14ce8b08bb03a60a21"
+}
