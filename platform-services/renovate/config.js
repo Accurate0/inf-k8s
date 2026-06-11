@@ -9,7 +9,7 @@ module.exports = {
   prConcurrentLimit: 3,
   gitAuthor: "renovate[bot] <noreply@git.anurag.sh>",
   allowedUnsafeExecutions: ["gradleWrapper"],
-  allowedPostUpgradeCommands: ["^sh -c 'cd eink-display-web && pnpm .*"],
+  allowedCommands: ["^sh -c 'cd eink-display-web && pnpm .*"],
   lockFileMaintenance: {
     enabled: true,
     schedule: ["before 4am on monday"],
