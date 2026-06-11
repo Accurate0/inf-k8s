@@ -133,7 +133,10 @@ async fn refresh_loop(
 ) {
     loop {
         match stream.message().await {
-            Ok(Some(snapshot)) => evaluator.apply(snapshot),
+            Ok(Some(snapshot)) => {
+                tracing::info!("received new snapshot: {}", snapshot.version);
+                evaluator.apply(snapshot)
+            }
             Ok(None) => tracing::warn!("snapshot stream closed, reconnecting"),
             Err(e) => tracing::warn!("snapshot stream error: {e}, reconnecting"),
         }
