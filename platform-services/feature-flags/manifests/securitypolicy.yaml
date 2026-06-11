@@ -29,6 +29,7 @@ spec:
       - name: kanidm
         issuer: https://idm.anurag.sh/oauth2/openid/feature-flags
         remoteJWKS:
+          cacheDuration: 3600s
           uri: https://idm.anurag.sh/oauth2/openid/feature-flags/public_key.jwk
         claimToHeaders:
           - claim: preferred_username
