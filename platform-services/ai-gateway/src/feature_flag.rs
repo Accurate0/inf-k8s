@@ -1,8 +1,6 @@
-use std::{sync::Arc, time::Duration};
-
-use moka::future::Cache;
 use open_feature::{EvaluationContext, OpenFeature, provider::NoOpProvider};
 use openfeature_provider::{EvaluationMode, FeatureFlagProvider};
+use std::sync::Arc;
 
 /// Runtime routing / kill-switch flags evaluated per request, backed by the
 /// feature-flags gRPC service via its OpenFeature provider. Falls back to a NoOp
@@ -15,8 +13,6 @@ use openfeature_provider::{EvaluationMode, FeatureFlagProvider};
 pub struct FeatureFlagClient {
     client: Arc<open_feature::Client>,
     environment: &'static str,
-    bool_cache: Cache<String, bool>,
-    string_cache: Cache<String, String>,
 }
 
 impl FeatureFlagClient {
@@ -49,14 +45,6 @@ impl FeatureFlagClient {
         Self {
             client: Arc::new(client.create_client()),
             environment,
-            bool_cache: Cache::builder()
-                .name("ff_bool_cache")
-                .time_to_live(Duration::from_secs(30))
-                .build(),
-            string_cache: Cache::builder()
-                .name("ff_string_cache")
-                .time_to_live(Duration::from_secs(30))
-                .build(),
         }
     }
 
@@ -69,17 +57,10 @@ impl FeatureFlagClient {
 
     #[tracing::instrument(
         skip(self),
-        fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty, cached = tracing::field::Empty)
+        fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty)
     )]
     pub async fn bool_flag(&self, flag: &str, key_name: &str, default: bool) -> bool {
         let span = tracing::Span::current();
-        let cache_key = format!("{flag}:{key_name}");
-        if let Some(v) = self.bool_cache.get(&cache_key).await {
-            span.record("result", v);
-            span.record("cached", true);
-            return v;
-        }
-
         let result = match self
             .client
             .get_bool_value(flag, Some(&self.context(key_name)), None)
@@ -93,23 +74,15 @@ impl FeatureFlagClient {
         };
 
         span.record("result", result);
-        span.record("cached", false);
-        self.bool_cache.insert(cache_key, result).await;
         result
     }
 
     #[tracing::instrument(
         skip(self),
-        fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty, cached = tracing::field::Empty)
+        fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty)
     )]
     pub async fn string_flag(&self, flag: &str, key_name: &str, default: &str) -> String {
         let span = tracing::Span::current();
-        let cache_key = format!("{flag}:{key_name}");
-        if let Some(v) = self.string_cache.get(&cache_key).await {
-            span.record("result", v.as_str());
-            span.record("cached", true);
-            return v;
-        }
 
         let result = match self
             .client
@@ -124,8 +97,6 @@ impl FeatureFlagClient {
         };
 
         span.record("result", result.as_str());
-        span.record("cached", false);
-        self.string_cache.insert(cache_key, result.clone()).await;
         result
     }
 }
