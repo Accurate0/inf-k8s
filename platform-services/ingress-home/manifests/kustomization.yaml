@@ -14,4 +14,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/ingress-home
-    newTag: 20ee9ae6c3de87376a0c48906a39932deda4ef10
+    newTag: af74a2a5ff1c8c913ed51bd957668d4d0ce4a5bc
