@@ -1,0 +1,5 @@
+resolve:
+  kind: boolean
+  flag_key: missing-flag
+  context:
+    targeting_key: user-1

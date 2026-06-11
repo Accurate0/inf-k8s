@@ -1,0 +1,36 @@
+segments:
+  - key: enterprise
+    name: Enterprise accounts
+    constraints:
+      - attribute: plan
+        operator: eq
+        values: ["enterprise"]
+
+flags:
+  - key: new-checkout
+    value_type: boolean
+    default_variant: "off"
+    variants:
+      - {key: "on", value: true}
+      - {key: "off", value: false}
+    rules:
+      - segment: enterprise
+        variant: "on"
+
+  - key: checkout-theme
+    value_type: string
+    default_variant: classic
+    variants:
+      - {key: classic, value: "classic"}
+      - {key: modern, value: "modern"}
+
+  - key: max-items
+    value_type: integer
+    default_variant: default
+    variants:
+      - {key: default, value: 50}
+
+resolve_all:
+  targeting_key: user-1
+  attributes:
+    plan: enterprise

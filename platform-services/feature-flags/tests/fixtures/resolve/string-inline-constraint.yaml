@@ -1,0 +1,21 @@
+flags:
+  - key: checkout-theme
+    value_type: string
+    default_variant: classic
+    variants:
+      - {key: classic, value: "classic"}
+      - {key: modern, value: "modern"}
+    rules:
+      - variant: modern
+        constraint_groups:
+          - - attribute: country
+              operator: in
+              values: ["US", "CA"]
+
+resolve:
+  kind: string
+  flag_key: checkout-theme
+  context:
+    targeting_key: user-9
+    attributes:
+      country: CA

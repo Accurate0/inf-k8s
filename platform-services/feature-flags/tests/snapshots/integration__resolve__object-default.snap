@@ -1,0 +1,9 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+value:
+  burst: 10
+  requests_per_minute: 60
+variant: standard
+reason: Default

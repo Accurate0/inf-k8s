@@ -1,0 +1,19 @@
+flags:
+  - key: rate-limits
+    value_type: object
+    default_variant: standard
+    variants:
+      - key: standard
+        value:
+          requests_per_minute: 60
+          burst: 10
+      - key: premium
+        value:
+          requests_per_minute: 600
+          burst: 100
+
+resolve:
+  kind: object
+  flag_key: rate-limits
+  context:
+    targeting_key: user-1

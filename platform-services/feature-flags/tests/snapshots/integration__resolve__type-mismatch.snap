@@ -1,0 +1,9 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+value: ""
+variant: ""
+reason: Error
+error_code: TYPE_MISMATCH
+error_message: flag is not of type string

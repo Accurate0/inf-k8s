@@ -36,8 +36,10 @@ opentelemetry-otlp = { version = "0.32.0", features = ["trace", "reqwest-blockin
 opentelemetry-semantic-conventions = { version = "0.32.0", features = ["semconv_experimental"] }
 
 [dev-dependencies]
-insta = { version = "1", features = ["json", "redactions"] }
+insta = { version = "1", features = ["yaml", "redactions"] }
 serial_test = "3"
+serde_yaml = "0.9"
+tokio-stream = { version = "0.1", features = ["net"] }
 
 [[bin]]
 name = "feature-flags"

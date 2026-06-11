@@ -1,0 +1,14 @@
+flags:
+  - key: new-checkout
+    value_type: boolean
+    enabled: false
+    default_variant: "off"
+    variants:
+      - {key: "on", value: true}
+      - {key: "off", value: false}
+
+resolve:
+  kind: boolean
+  flag_key: new-checkout
+  context:
+    targeting_key: user-1

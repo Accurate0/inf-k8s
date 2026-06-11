@@ -1,0 +1,16 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+- flag_key: checkout-theme
+  value: classic
+  variant: classic
+  reason: Default
+- flag_key: max-items
+  value: 50
+  variant: default
+  reason: Default
+- flag_key: new-checkout
+  value: true
+  variant: "on"
+  reason: TargetingMatch

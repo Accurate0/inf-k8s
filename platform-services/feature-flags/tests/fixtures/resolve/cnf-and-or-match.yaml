@@ -1,0 +1,22 @@
+flags:
+  - key: new-checkout
+    value_type: boolean
+    default_variant: "off"
+    variants:
+      - {key: "on", value: true}
+      - {key: "off", value: false}
+    rules:
+      - variant: "on"
+        constraint_groups:
+          - - {attribute: country, operator: eq, values: ["US"]}
+            - {attribute: country, operator: eq, values: ["CA"]}
+          - - {attribute: plan, operator: eq, values: ["pro"]}
+
+resolve:
+  kind: boolean
+  flag_key: new-checkout
+  context:
+    targeting_key: user-1
+    attributes:
+      country: CA
+      plan: pro

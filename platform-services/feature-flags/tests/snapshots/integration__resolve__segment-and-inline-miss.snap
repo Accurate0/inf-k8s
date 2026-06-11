@@ -1,0 +1,7 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+value: false
+variant: "off"
+reason: Default

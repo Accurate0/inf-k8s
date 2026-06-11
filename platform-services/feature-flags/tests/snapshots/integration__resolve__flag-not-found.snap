@@ -1,0 +1,9 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+value: false
+variant: ""
+reason: Error
+error_code: FLAG_NOT_FOUND
+error_message: "flag `missing-flag` not found"

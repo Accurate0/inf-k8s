@@ -1,0 +1,26 @@
+segments:
+  - key: enterprise
+    name: Enterprise accounts
+    constraints:
+      - attribute: plan
+        operator: eq
+        values: ["enterprise"]
+
+flags:
+  - key: new-checkout
+    value_type: boolean
+    default_variant: "off"
+    variants:
+      - {key: "on", value: true}
+      - {key: "off", value: false}
+    rules:
+      - segment: enterprise
+        variant: "on"
+
+resolve:
+  kind: boolean
+  flag_key: new-checkout
+  context:
+    targeting_key: user-2
+    attributes:
+      plan: free

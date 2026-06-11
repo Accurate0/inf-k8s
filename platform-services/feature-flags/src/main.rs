@@ -10,9 +10,6 @@ use sqlx::postgres::PgPoolOptions;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 
-// priority order
-// TODO: integration testing
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _otel = tracing_setup::init();
