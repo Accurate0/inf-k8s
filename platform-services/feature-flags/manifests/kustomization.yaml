@@ -17,6 +17,6 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/feature-flags
-    newTag: d1a2c4a0e1f0f527836483d7c7ed27518efaddfd
+    newTag: fa82a33e972aa8622c4ae3258bbb01f55a5a54db
   - name: ghcr.io/accurate0/feature-flags-frontend
     newTag: fa82a33e972aa8622c4ae3258bbb01f55a5a54db
