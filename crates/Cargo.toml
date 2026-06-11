@@ -1,0 +1,8 @@
+[workspace]
+resolver = "2"
+members = [
+    "feature-flag-proto",
+    "feature-flag-engine",
+    "feature-flag-client",
+    "openfeature-provider",
+]

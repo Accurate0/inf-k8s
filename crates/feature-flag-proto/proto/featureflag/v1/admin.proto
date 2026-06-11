@@ -1,0 +1,104 @@
+syntax = "proto3";
+
+package featureflag.v1;
+
+import "featureflag/v1/common.proto";
+
+// Write path: manage flags, variants, segments, and targeting rules. Every
+// mutation bumps the global config version and notifies streaming evaluators.
+service Admin {
+  rpc CreateFlag(CreateFlagRequest) returns (Flag);
+  rpc GetFlag(GetFlagRequest) returns (Flag);
+  rpc ListFlags(ListFlagsRequest) returns (ListFlagsResponse);
+  rpc UpdateFlag(UpdateFlagRequest) returns (Flag);
+  rpc ArchiveFlag(ArchiveFlagRequest) returns (Flag);
+  rpc DeleteFlag(DeleteFlagRequest) returns (DeleteFlagResponse);
+
+  rpc UpsertVariant(UpsertVariantRequest) returns (Flag);
+  rpc DeleteVariant(DeleteVariantRequest) returns (Flag);
+
+  rpc CreateSegment(CreateSegmentRequest) returns (Segment);
+  rpc GetSegment(GetSegmentRequest) returns (Segment);
+  rpc ListSegments(ListSegmentsRequest) returns (ListSegmentsResponse);
+  rpc UpdateSegment(UpdateSegmentRequest) returns (Segment);
+  rpc DeleteSegment(DeleteSegmentRequest) returns (DeleteSegmentResponse);
+
+  // Replaces the full ordered rule set for a flag; ranks are assigned by position.
+  rpc SetFlagRules(SetFlagRulesRequest) returns (Flag);
+}
+
+message CreateFlagRequest {
+  string key = 1;
+  ValueType value_type = 2;
+  bool enabled = 3;
+  string default_variant_key = 4;
+  repeated Variant variants = 5;
+}
+
+message GetFlagRequest {
+  string key = 1;
+}
+
+message ListFlagsRequest {
+  bool include_archived = 1;
+}
+
+message ListFlagsResponse {
+  repeated Flag flags = 1;
+}
+
+message UpdateFlagRequest {
+  string key = 1;
+  bool enabled = 2;
+  string default_variant_key = 3;
+}
+
+message ArchiveFlagRequest {
+  string key = 1;
+  bool archived = 2;
+}
+
+message DeleteFlagRequest {
+  string key = 1;
+}
+
+message DeleteFlagResponse {}
+
+message UpsertVariantRequest {
+  string flag_key = 1;
+  Variant variant = 2;
+}
+
+message DeleteVariantRequest {
+  string flag_key = 1;
+  string variant_key = 2;
+}
+
+message CreateSegmentRequest {
+  Segment segment = 1;
+}
+
+message GetSegmentRequest {
+  string key = 1;
+}
+
+message ListSegmentsRequest {}
+
+message ListSegmentsResponse {
+  repeated Segment segments = 1;
+}
+
+message UpdateSegmentRequest {
+  Segment segment = 1;
+}
+
+message DeleteSegmentRequest {
+  string key = 1;
+}
+
+message DeleteSegmentResponse {}
+
+message SetFlagRulesRequest {
+  string flag_key = 1;
+  repeated Rule rules = 2;
+}

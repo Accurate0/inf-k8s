@@ -1,0 +1,38 @@
+name: Branch build feature-flags
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - platform-services/feature-flags/**
+      - crates/**
+      - .forgejo/workflows/branch-build-feature-flags.yaml
+
+jobs:
+  build:
+    name: Build
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
+      - uses: docker/build-push-action@f9f3042f7e2789586610d6e8b85c8f03e5195baf # v7
+        with:
+          context: .
+          file: ./platform-services/feature-flags/Dockerfile
+          push: false
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libprotobuf-dev
+      - name: Install rustup
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain stable --profile minimal
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - run: cargo test
+        working-directory: platform-services/feature-flags
+      - run: cargo test
+        working-directory: crates

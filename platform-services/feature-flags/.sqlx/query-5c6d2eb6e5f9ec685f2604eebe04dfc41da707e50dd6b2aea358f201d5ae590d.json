@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE flags SET enabled = $2, default_variant_key = $3, updated_at = now() WHERE key = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Bool",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5c6d2eb6e5f9ec685f2604eebe04dfc41da707e50dd6b2aea358f201d5ae590d"
+}

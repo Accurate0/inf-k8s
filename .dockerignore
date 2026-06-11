@@ -1,0 +1,9 @@
+**/target
+.git
+.ansible
+ansible
+terraform
+system-components
+charts
+projects
+trivy-data

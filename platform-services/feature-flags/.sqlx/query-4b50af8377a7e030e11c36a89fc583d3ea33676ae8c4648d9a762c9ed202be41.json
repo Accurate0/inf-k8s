@@ -1,0 +1,74 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, flag_id, rank, segment_key, variant_key FROM flag_rules ORDER BY rank",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "flag_rules",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "flag_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "flag_rules",
+            "name": "flag_id"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "rank",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "flag_rules",
+            "name": "rank"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "segment_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flag_rules",
+            "name": "segment_key"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "variant_key",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "flag_rules",
+            "name": "variant_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "4b50af8377a7e030e11c36a89fc583d3ea33676ae8c4648d9a762c9ed202be41"
+}

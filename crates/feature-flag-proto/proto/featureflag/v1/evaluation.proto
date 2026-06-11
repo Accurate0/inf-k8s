@@ -1,0 +1,103 @@
+syntax = "proto3";
+
+package featureflag.v1;
+
+import "google/protobuf/struct.proto";
+import "featureflag/v1/common.proto";
+
+// Read path: resolve flag values for a given evaluation context, and stream
+// configuration-change events so providers can invalidate caches and emit
+// OpenFeature CONFIGURATION_CHANGED.
+service Evaluation {
+  rpc ResolveBoolean(ResolveRequest) returns (ResolveBooleanResponse);
+  rpc ResolveString(ResolveRequest) returns (ResolveStringResponse);
+  rpc ResolveInteger(ResolveRequest) returns (ResolveIntegerResponse);
+  rpc ResolveFloat(ResolveRequest) returns (ResolveFloatResponse);
+  rpc ResolveObject(ResolveRequest) returns (ResolveObjectResponse);
+  rpc ResolveAll(ResolveAllRequest) returns (ResolveAllResponse);
+  rpc StreamEvents(EventStreamRequest) returns (stream Event);
+  // Full flag + segment config at the current version, for a one-shot fetch.
+  rpc GetSnapshot(GetSnapshotRequest) returns (SnapshotResponse);
+  // The current snapshot followed by a fresh snapshot on every config change, for
+  // clients that evaluate locally in-process and stay live off this single stream.
+  rpc StreamSnapshot(GetSnapshotRequest) returns (stream SnapshotResponse);
+}
+
+message GetSnapshotRequest {}
+
+message SnapshotResponse {
+  int64 version = 1;
+  repeated Flag flags = 2;
+  repeated Segment segments = 3;
+}
+
+message ResolveRequest {
+  string flag_key = 1;
+  EvaluationContext context = 2;
+}
+
+// Common resolution metadata shared by every typed response.
+message ResolutionMeta {
+  string variant = 1;
+  Reason reason = 2;
+  // Set only when reason is REASON_ERROR; an OpenFeature error code such as
+  // FLAG_NOT_FOUND, TYPE_MISMATCH, PARSE_ERROR.
+  string error_code = 3;
+  string error_message = 4;
+}
+
+message ResolveBooleanResponse {
+  bool value = 1;
+  ResolutionMeta meta = 2;
+}
+
+message ResolveStringResponse {
+  string value = 1;
+  ResolutionMeta meta = 2;
+}
+
+message ResolveIntegerResponse {
+  int64 value = 1;
+  ResolutionMeta meta = 2;
+}
+
+message ResolveFloatResponse {
+  double value = 1;
+  ResolutionMeta meta = 2;
+}
+
+message ResolveObjectResponse {
+  google.protobuf.Struct value = 1;
+  ResolutionMeta meta = 2;
+}
+
+message ResolveAllRequest {
+  EvaluationContext context = 1;
+}
+
+message EvaluatedFlag {
+  string flag_key = 1;
+  ValueType value_type = 2;
+  google.protobuf.Value value = 3;
+  ResolutionMeta meta = 4;
+}
+
+message ResolveAllResponse {
+  repeated EvaluatedFlag flags = 1;
+}
+
+message EventStreamRequest {}
+
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_READY = 1;
+  EVENT_TYPE_CONFIGURATION_CHANGED = 2;
+}
+
+message Event {
+  EventType type = 1;
+  // Global monotonically increasing config version after the change.
+  int64 config_version = 2;
+  // Flag keys affected by a CONFIGURATION_CHANGED event (empty for READY).
+  repeated string changed_flag_keys = 3;
+}

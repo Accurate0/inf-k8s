@@ -1,0 +1,76 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: feature-flags
+  namespace: feature-flags
+spec:
+  selector:
+    matchLabels:
+      app: feature-flags
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: feature-flags
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: feature-flags
+          image: ghcr.io/accurate0/feature-flags
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          ports:
+            - name: grpc
+              containerPort: 50051
+            - name: metrics
+              containerPort: 9090
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          livenessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 60
+          readinessProbe:
+            grpc:
+              port: 50051
+            initialDelaySeconds: 5
+            periodSeconds: 60
+          envFrom:
+            - secretRef:
+                name: feature-flags-managed-secrets
+          env:
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: feature-flags-database-secret
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: feature-flags-database-secret
+                  key: PGPASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: feature-flags-database-secret
+                  key: PGDATABASE
+            - name: DATABASE_URL
+              value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+            - name: REDIS_URL
+              value: redis://dragonfly.dragonfly-system.svc.cluster.local
