@@ -56,14 +56,6 @@
       "commitMessageTopic": "k3s",
       "automerge": false
     },
-
-    {
-      "matchDatasources": ["crate"],
-      "matchPackageNames": ["prost", "prost-types"],
-      "groupName": "prost",
-      "commitMessageTopic": "prost",
-      "automerge": false
-    },
     {
       "matchDatasources": ["terraform-provider", "terraform-module"],
       "registryUrls": ["https://registry.opentofu.org"]
