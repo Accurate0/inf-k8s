@@ -3,7 +3,7 @@ ARG BINARY_NAME
 FROM rust:1.96.0-slim-bookworm AS builder
 ARG BINARY_NAME
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev
+RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler libprotobuf-dev
 
 WORKDIR /app/${BINARY_NAME}-build
 
