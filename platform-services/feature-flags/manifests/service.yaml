@@ -9,7 +9,7 @@ metadata:
 spec:
   selector:
     app: feature-flags
-  internalTrafficPolicy: Local
+  trafficDistribution: PreferSameNode
   ports:
     - name: grpc
       protocol: TCP
