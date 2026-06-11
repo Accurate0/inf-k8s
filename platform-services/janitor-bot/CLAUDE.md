@@ -24,7 +24,7 @@ cargo run --bin gen-schema     # regenerate rule.schema.json + rules.schema.json
 
 Required env vars to run: `FORGEJO_INSTANCE_URL`, `FORGEJO_ACCESS_KEY`, `GITHUB_TOKEN`,
 `FORGEJO_INCOMING_WEBHOOK_AUTH`, `GITHUB_WEBHOOK_SECRET`. Optional: `ARGOCD_WEBHOOK_SECRET`,
-`FLIPT_URL` (feature flags; falls back to a NoOp provider when unset).
+`FEATURE_FLAGS_URL` (feature flags; falls back to a NoOp provider when unset).
 
 Snapshot tests: review/accept changes with `cargo insta review` (snapshots in
 `tests/snapshots/`, fixtures in `tests/fixtures/<event_type>/*.yaml`).

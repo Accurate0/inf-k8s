@@ -2,7 +2,6 @@ pub(crate) mod cache;
 mod types;
 
 use forgejo_api::structs::{CommitStatusState, StateType};
-use open_feature::EvaluationContext;
 use regex::Regex;
 pub use types::*;
 
@@ -279,11 +278,9 @@ fn eval_leaf<'a>(
             },
 
             LeafMatcher::FeatureFlag { name, default } => {
-                let evaluation_context =
-                    EvaluationContext::default().with_custom_field("rule_name", rule.name.clone());
                 clients
                     .feature_flag
-                    .is_feature_enabled(name, *default, evaluation_context)
+                    .bool_flag(name, &rule.name, *default)
                     .await
             }
 
