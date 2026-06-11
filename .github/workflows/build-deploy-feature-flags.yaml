@@ -5,8 +5,8 @@ on:
       - main
     paths:
       - platform-services/feature-flags/**
-      - '!platform-services/feature-flags/manifests/**'
-      - '!platform-services/feature-flags/application.yaml'
+      - "!platform-services/feature-flags/manifests/**"
+      - "!platform-services/feature-flags/application.yaml"
       - crates/**
       - .github/workflows/build-deploy-feature-flags.yaml
   workflow_dispatch:
@@ -44,9 +44,11 @@ jobs:
         with:
           path: platform-services/feature-flags/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-feature-flags
-      - run: cargo test
+      - name: cargo test (service)
+        run: cargo test
         working-directory: platform-services/feature-flags
-      - run: cargo test
+      - name: cargo test (crates)
+        run: cargo test
         working-directory: crates
 
   deploy:
