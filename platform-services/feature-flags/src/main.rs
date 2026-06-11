@@ -10,8 +10,6 @@ use sqlx::postgres::PgPoolOptions;
 use tonic::transport::Server;
 
 // priority order
-// TODO: replace local crate path with github for downstream consumers (also means crate changes
-// dont redeploy multiple things)
 // TODO: frontend interface with oidc (envoy oidc)
 // TODO: frontend should have debugging tab like snapshot stream, and test evaluation (call server
 // side eval)

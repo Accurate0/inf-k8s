@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-feature-flag-proto = { path = "../../crates/feature-flag-proto" }
-feature-flag-engine = { path = "../../crates/feature-flag-engine" }
+feature-flag-proto = { git = "https://github.com/Accurate0/inf-k8s.git", branch = "main" }
+feature-flag-engine = { git = "https://github.com/Accurate0/inf-k8s.git", branch = "main" }
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tonic = { version = "0.13", features = ["transport"] }
