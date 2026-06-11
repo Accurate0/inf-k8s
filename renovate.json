@@ -1,8 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "local>anurag/k8s//platform-services/renovate/presets/default"
-  ],
+  "extends": ["local>anurag/k8s//platform-services/renovate/presets/default"],
   "argocd": {
     "managerFilePatterns": [
       "/system-components/.*\\.application\\.yaml$/",
@@ -56,8 +54,15 @@
       "matchPackageNames": ["k3s-io/k3s"],
       "groupName": "k3s",
       "commitMessageTopic": "k3s",
-      "automerge": false,
-      "addLabels": ["k3s"]
+      "automerge": false
+    },
+
+    {
+      "matchDatasources": ["crate"],
+      "matchPackageNames": ["prost", "prost-types"],
+      "groupName": "prost",
+      "commitMessageTopic": "prost",
+      "automerge": false
     },
     {
       "matchDatasources": ["terraform-provider", "terraform-module"],
