@@ -5,27 +5,18 @@ use feature_flags::pb::admin_server::AdminServer;
 use feature_flags::pb::evaluation_server::EvaluationServer;
 use feature_flags::snapshot::SnapshotManager;
 use feature_flags::store::Store;
-use feature_flags::{metrics, tracing_setup};
+use feature_flags::tracing_setup;
 use sqlx::postgres::PgPoolOptions;
+use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 
 // priority order
-// TODO: test evaluation should be per flag and return more details
-// TODO: allow feature flag provisioning from flags.yaml in repo
-// TODO: feature flags enabled by default
-// TODO: handle snapshot version number getting too big
-// TODO: fix prometheus metrics
-// TODO: better logging of stream connection start and grpc requests + tracing
-// TODO: make sure multiple replicas works, run as daemonset with local routing preferred
 // TODO: integration testing
-// TODO: use compression for grpc snapshots in particular
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _otel = tracing_setup::init();
     let config = Config::from_env();
-
-    metrics::init(config.metrics_addr.parse()?)?;
 
     let pool = PgPoolOptions::new()
         .min_connections(0)
@@ -56,11 +47,16 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("feature-flags gRPC listening on {addr}");
 
     Server::builder()
+        .trace_fn(tracing_setup::grpc_span)
         .add_service(health_service)
         .add_service(reflection)
-        .add_service(EvaluationServer::new(EvaluationService::new(
-            manager.clone(),
-        )))
+        .add_service(
+            EvaluationServer::new(EvaluationService::new(manager.clone()))
+                .send_compressed(CompressionEncoding::Zstd)
+                .send_compressed(CompressionEncoding::Gzip)
+                .accept_compressed(CompressionEncoding::Zstd)
+                .accept_compressed(CompressionEncoding::Gzip),
+        )
         .add_service(AdminServer::new(AdminService::new(store, manager)))
         .serve(addr)
         .await?;

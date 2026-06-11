@@ -1,6 +1,6 @@
-# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/daemonset_v1.json
 apiVersion: apps/v1
-kind: Deployment
+kind: DaemonSet
 metadata:
   name: feature-flags
   namespace: feature-flags
@@ -8,7 +8,6 @@ spec:
   selector:
     matchLabels:
       app: feature-flags
-  replicas: 1
   template:
     metadata:
       labels:
@@ -33,8 +32,6 @@ spec:
           ports:
             - name: grpc
               containerPort: 50051
-            - name: metrics
-              containerPort: 9090
           resources:
             requests:
               cpu: 10m

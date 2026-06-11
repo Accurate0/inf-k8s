@@ -1,5 +1,7 @@
 use http::{HeaderMap, HeaderValue};
 use opentelemetry::{KeyValue, global, trace::TracerProvider as _};
+use opentelemetry_http::HeaderExtractor;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
     Resource,
@@ -90,4 +92,15 @@ pub fn init() -> Option<SdkTracerProvider> {
         .init();
 
     Some(provider)
+}
+
+/// Per-request span for the gRPC server. Links to the caller's trace by extracting the
+/// W3C `traceparent` from request metadata, and emits a line on every request so the
+/// logs show which RPC was called.
+pub fn grpc_span(req: &http::Request<()>) -> tracing::Span {
+    let span = tracing::info_span!("grpc.request", rpc = req.uri().path());
+    let parent = global::get_text_map_propagator(|p| p.extract(&HeaderExtractor(req.headers())));
+    let _ = span.set_parent(parent);
+    span.in_scope(|| tracing::debug!("grpc request"));
+    span
 }

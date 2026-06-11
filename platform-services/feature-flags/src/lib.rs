@@ -2,7 +2,6 @@ pub mod cache;
 pub mod config;
 pub mod error;
 pub mod grpc;
-pub mod metrics;
 pub mod snapshot;
 pub mod store;
 pub mod tracing_setup;

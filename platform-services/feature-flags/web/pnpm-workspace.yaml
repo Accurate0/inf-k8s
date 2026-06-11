@@ -1,4 +1,10 @@
 packages:
   - client
   - frontend
+
 injectWorkspacePackages: true
+
+onlyBuiltDependencies:
+  - esbuild
+  - grpc-tools
+  - protobufjs

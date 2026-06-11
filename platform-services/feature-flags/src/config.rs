@@ -14,10 +14,6 @@ pub struct Config {
     /// Address the gRPC server binds to.
     #[arg(long, env = "GRPC_ADDR", default_value = "0.0.0.0:50051")]
     pub grpc_addr: String,
-
-    /// Address the Prometheus metrics endpoint binds to.
-    #[arg(long, env = "METRICS_ADDR", default_value = "0.0.0.0:9090")]
-    pub metrics_addr: String,
 }
 
 impl Config {

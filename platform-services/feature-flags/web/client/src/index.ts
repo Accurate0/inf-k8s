@@ -7,13 +7,17 @@ import {
 } from "./gen/featureflag/v1/admin.js";
 import {
   EvaluationClient,
+  type EvaluatedFlag,
   type ResolveAllResponse,
+  type ResolveRequest,
+  type ResolutionMeta,
   type SnapshotResponse,
 } from "./gen/featureflag/v1/evaluation.js";
 import {
   type Flag,
   type Rule,
   type Segment,
+  ValueType,
   type Variant,
 } from "./gen/featureflag/v1/common.js";
 
@@ -103,6 +107,38 @@ export class FeatureFlagClient {
     return unary(this.evaluation.resolveAll.bind(this.evaluation), {
       context: { targetingKey, attributes },
     });
+  }
+
+  /**
+   * Resolve a single flag through the typed RPC matching its value type, normalised into
+   * the same {@link EvaluatedFlag} shape `resolveAll` returns so callers can render either
+   * uniformly. The full {@link ResolutionMeta} (including `errorMessage`) is preserved.
+   */
+  resolve(
+    flagKey: string,
+    valueType: ValueType,
+    targetingKey: string,
+    attributes: Record<string, unknown>,
+  ): Promise<EvaluatedFlag> {
+    const request: ResolveRequest = { flagKey, context: { targetingKey, attributes } };
+    const evaluation = this.evaluation;
+    const into = (p: Promise<{ value?: unknown; meta?: ResolutionMeta }>): Promise<EvaluatedFlag> =>
+      p.then((r) => ({ flagKey, valueType, value: r.value, meta: r.meta }));
+
+    switch (valueType) {
+      case ValueType.VALUE_TYPE_BOOLEAN:
+        return into(unary(evaluation.resolveBoolean.bind(evaluation), request));
+      case ValueType.VALUE_TYPE_STRING:
+        return into(unary(evaluation.resolveString.bind(evaluation), request));
+      case ValueType.VALUE_TYPE_INTEGER:
+        return into(unary(evaluation.resolveInteger.bind(evaluation), request));
+      case ValueType.VALUE_TYPE_FLOAT:
+        return into(unary(evaluation.resolveFloat.bind(evaluation), request));
+      case ValueType.VALUE_TYPE_OBJECT:
+        return into(unary(evaluation.resolveObject.bind(evaluation), request));
+      default:
+        return Promise.reject(new Error(`unsupported value type: ${valueType}`));
+    }
   }
 
   /**

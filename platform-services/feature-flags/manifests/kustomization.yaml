@@ -3,7 +3,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - database.yaml
-  - deployment.yaml
+  - daemonset.yaml
   - frontend-deployment.yaml
   - frontend-service.yaml
   - kanidmoauth2client.yaml
@@ -11,7 +11,6 @@ resources:
   - secret.yaml
   - secretstore.yaml
   - service.yaml
-  - servicemonitor.yaml
 commonAnnotations:
   inf-k8s.net/app: feature-flags
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

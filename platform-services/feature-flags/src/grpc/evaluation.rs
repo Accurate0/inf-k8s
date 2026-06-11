@@ -183,8 +183,13 @@ impl Evaluation for EvaluationService {
 
     async fn stream_snapshot(
         &self,
-        _request: Request<pb::GetSnapshotRequest>,
+        request: Request<pb::GetSnapshotRequest>,
     ) -> Result<Response<Self::StreamSnapshotStream>, Status> {
+        tracing::info!(
+            peer = ?request.remote_addr(),
+            version = self.mgr.version(),
+            "snapshot stream connected"
+        );
         let rx = self.mgr.subscribe();
         let head_mgr = self.mgr.clone();
         let head =
@@ -206,8 +211,13 @@ impl Evaluation for EvaluationService {
 
     async fn stream_events(
         &self,
-        _request: Request<pb::EventStreamRequest>,
+        request: Request<pb::EventStreamRequest>,
     ) -> Result<Response<Self::StreamEventsStream>, Status> {
+        tracing::info!(
+            peer = ?request.remote_addr(),
+            version = self.mgr.version(),
+            "event stream connected"
+        );
         let rx = self.mgr.subscribe();
         let ready = pb::Event {
             r#type: pb::EventType::Ready as i32,

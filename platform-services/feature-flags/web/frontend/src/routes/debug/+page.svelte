@@ -10,8 +10,9 @@
   import { Label } from "$lib/components/ui/label";
   import { Textarea } from "$lib/components/ui/textarea";
   import { Badge } from "$lib/components/ui/badge";
+  import FieldSelect from "$lib/components/field-select.svelte";
 
-  let { form } = $props();
+  let { data, form } = $props();
 
   type Snapshot = { version: number; flags: Flag[]; segments: Segment[] };
   let live = $state<Snapshot | null>(null);
@@ -19,6 +20,14 @@
 
   const sortedFlags = $derived([...(live?.flags ?? [])].sort((a, b) => a.key.localeCompare(b.key)));
   const sortedSegments = $derived([...(live?.segments ?? [])].sort((a, b) => a.key.localeCompare(b.key)));
+
+  const flagOptions = $derived([
+    { value: "", label: "All flags" },
+    ...[...data.flags]
+      .sort((a, b) => a.key.localeCompare(b.key))
+      .map((f) => ({ value: f.key, label: f.key })),
+  ]);
+  let selectedFlag = $state(form?.values?.flagKey ?? "");
 
   onMount(() => {
     const source = new EventSource("/debug/stream");
@@ -107,13 +116,17 @@
   <Card.Root>
     <Card.Header>
       <Card.Title>Test evaluation</Card.Title>
-      <Card.Description>Resolves every flag server-side against the context, exactly as a provider would.</Card.Description>
+      <Card.Description>Resolves a single flag (through its typed RPC) or every flag server-side against the context, exactly as a provider would.</Card.Description>
     </Card.Header>
     <Card.Content class="space-y-4">
       {#if form?.message}
         <p class="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">{form.message}</p>
       {/if}
       <form method="POST" action="?/evaluate" use:enhance class="space-y-4">
+        <div class="grid gap-2">
+          <Label for="flag">Flag</Label>
+          <FieldSelect name="flagKey" bind:value={selectedFlag} options={flagOptions} class="w-72" />
+        </div>
         <div class="grid gap-2">
           <Label for="tk">Targeting key</Label>
           <Input id="tk" name="targetingKey" value={form?.values?.targetingKey ?? "user-123"} class="w-72" />
@@ -125,7 +138,36 @@
         <Button type="submit">Evaluate</Button>
       </form>
 
-      {#if form?.flags}
+      {#if form?.flags && form.single}
+        {@const f = form.flags[0]}
+        <div class="space-y-3 rounded-md border p-4">
+          <div class="flex items-center gap-2">
+            <a class="font-medium hover:underline" href="/flags/{encodeURIComponent(f.flagKey)}">{f.flagKey}</a>
+            <Badge variant="outline">{valueTypeLabels[f.valueType] ?? "?"}</Badge>
+            {#if f.meta?.reason}<Badge variant="secondary">{reasonLabels[f.meta.reason] ?? ""}</Badge>{/if}
+          </div>
+          <dl class="grid grid-cols-[8rem_1fr] gap-x-4 gap-y-1.5 text-sm">
+            <dt class="text-muted-foreground">Value</dt>
+            <dd><code class="rounded bg-muted px-1.5 py-0.5 text-xs">{JSON.stringify(f.value)}</code></dd>
+            <dt class="text-muted-foreground">Variant</dt>
+            <dd>{f.meta?.variant || "—"}</dd>
+            <dt class="text-muted-foreground">Reason</dt>
+            <dd>{f.meta ? (reasonLabels[f.meta.reason] ?? "—") : "—"}</dd>
+            {#if f.meta?.errorCode}
+              <dt class="text-muted-foreground">Error code</dt>
+              <dd class="text-destructive">{f.meta.errorCode}</dd>
+            {/if}
+            {#if f.meta?.errorMessage}
+              <dt class="text-muted-foreground">Error message</dt>
+              <dd class="text-destructive">{f.meta.errorMessage}</dd>
+            {/if}
+          </dl>
+          <div>
+            <div class="mb-1 text-xs font-semibold text-muted-foreground">Context</div>
+            <pre class="overflow-x-auto rounded bg-muted px-2 py-1.5 font-mono text-xs">{JSON.stringify(form.context, null, 2)}</pre>
+          </div>
+        </div>
+      {:else if form?.flags}
         <Table.Root>
           <Table.Header>
             <Table.Row>

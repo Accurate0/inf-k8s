@@ -9,13 +9,10 @@ metadata:
 spec:
   selector:
     app: feature-flags
+  internalTrafficPolicy: Local
   ports:
     - name: grpc
       protocol: TCP
       port: 50051
       targetPort: grpc
       appProtocol: grpc
-    - name: metrics
-      protocol: TCP
-      port: 9090
-      targetPort: metrics
