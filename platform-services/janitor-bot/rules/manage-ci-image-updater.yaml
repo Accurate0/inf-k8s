@@ -8,7 +8,7 @@ when:
     - type: repository
       value: anurag/k8s
     - type: feature_flag
-      name: allow_automerging_rules
+      name: janitor-bot-allow-automerging-rules
       default: true
     - type: target_branch
       value: main

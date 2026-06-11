@@ -124,7 +124,6 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     let forgejo_server = MockServer::start().await;
     let github_server = MockServer::start().await;
     let argocd_server = MockServer::start().await;
-    let flipt_server = MockServer::start().await;
 
     let payload_str = serde_json::to_string(&fixture.payload)
         .unwrap()
@@ -136,7 +135,6 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             "github" => setup_mocks(&github_server, slice::from_ref(mock_def)).await,
             "argocd" => setup_mocks(&argocd_server, slice::from_ref(mock_def)).await,
             "forgejo" => setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await,
-            "flipt" => setup_mocks(&flipt_server, slice::from_ref(mock_def)).await,
             _ => unreachable!(),
         }
     }
@@ -146,7 +144,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
             GitHubClient::new(github_server.uri(), "test-token".into()),
             ArgocdClient::new(argocd_server.uri(), "test-token".into()),
-            FeatureFlagClient::new(Some(flipt_server.uri())).await,
+            FeatureFlagClient::new(None).await,
         ),
         orchestrator: rules::RulesOrchestrator::new(),
     });
@@ -178,17 +176,14 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     forgejo_server.verify().await;
     github_server.verify().await;
     argocd_server.verify().await;
-    flipt_server.verify().await;
 
     let forgejo_requests = forgejo_server.received_requests().await.unwrap_or_default();
     let github_requests = github_server.received_requests().await.unwrap_or_default();
     let argocd_requests = argocd_server.received_requests().await.unwrap_or_default();
-    let flipt_requests = flipt_server.received_requests().await.unwrap_or_default();
 
     let mut external_requests = capture_requests(&forgejo_requests, "forgejo");
     external_requests.extend(capture_requests(&github_requests, "github"));
     external_requests.extend(capture_requests(&argocd_requests, "argocd"));
-    external_requests.extend(capture_requests(&flipt_requests, "flipt"));
 
     let snapshot = Snapshot {
         response,

@@ -19,14 +19,3 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/commits/def1000000000000000000000000000000000000/status
     service: forgejo
-  - method: POST
-    path: /evaluate/v1/boolean
-    body:
-      context:
-        environment: development
-        rule_name: manage-ci-image-updater
-      entityId: ""
-      flagKey: allow_automerging_rules
-      namespaceKey: janitor-bot
-      reference: ~
-    service: flipt

@@ -17,16 +17,6 @@ payload:
   repository:
     full_name: anurag/k8s
 mocks:
-  - service: flipt
-    method: POST
-    path: /evaluate/v1/boolean
-    status: 200
-    body:
-      enabled: true
-      reason: MATCH_EVALUATION_REASON
-      request_id: test
-      request_duration_millis: 0.1
-      timestamp: "2026-01-07T06:00:00Z"
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/pulls/104/files
