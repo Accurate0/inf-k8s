@@ -4,6 +4,10 @@ resources:
   - namespace.yaml
   - database.yaml
   - deployment.yaml
+  - frontend-deployment.yaml
+  - frontend-service.yaml
+  - kanidmoauth2client.yaml
+  - securitypolicy.yaml
   - secret.yaml
   - secretstore.yaml
   - service.yaml
@@ -14,3 +18,5 @@ commonAnnotations:
 images:
   - name: ghcr.io/accurate0/feature-flags
     newTag: af74a2a5ff1c8c913ed51bd957668d4d0ce4a5bc
+  - name: ghcr.io/accurate0/feature-flags-frontend
+    newTag: latest

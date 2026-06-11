@@ -1,0 +1,11 @@
+{
+  "name": "feature-flags-web",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "gen": "pnpm --filter @accurate0/feature-flag-client gen",
+    "build": "pnpm --filter @accurate0/feature-flag-client build && pnpm --filter feature-flags-frontend build",
+    "check": "pnpm -r check"
+  },
+  "packageManager": "pnpm@9.15.0"
+}
