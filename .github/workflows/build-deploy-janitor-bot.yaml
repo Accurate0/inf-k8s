@@ -5,8 +5,8 @@ on:
       - main
     paths:
       - platform-services/janitor-bot/**
-      - '!platform-services/janitor-bot/manifests/**'
-      - '!platform-services/janitor-bot/application.yaml'
+      - "!platform-services/janitor-bot/manifests/**"
+      - "!platform-services/janitor-bot/application.yaml"
       - .github/workflows/build-deploy-janitor-bot.yaml
   workflow_dispatch:
 
@@ -28,6 +28,7 @@ jobs:
     steps:
       - name: Checkout repo
         uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+      - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libprotobuf-dev
       - name: Install argocd CLI
         run: |
           curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
