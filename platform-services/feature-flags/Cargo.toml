@@ -43,3 +43,7 @@ serial_test = "3"
 [[bin]]
 name = "feature-flags"
 path = "src/main.rs"
+
+[[bin]]
+name = "ffctl"
+path = "src/bin/ffctl.rs"
