@@ -1,7 +1,6 @@
 use http::{HeaderMap, HeaderValue};
 use opentelemetry::{KeyValue, global, trace::TracerProvider as _};
 use opentelemetry_http::HeaderExtractor;
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
     Resource,
@@ -14,6 +13,7 @@ use opentelemetry_semantic_conventions::resource::{
 };
 use std::time::Duration;
 use tracing::Level;
+use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
 const SERVICE: &str = "feature-flags";
@@ -98,9 +98,25 @@ pub fn init() -> Option<SdkTracerProvider> {
 /// W3C `traceparent` from request metadata, and emits a line on every request so the
 /// logs show which RPC was called.
 pub fn grpc_span(req: &http::Request<()>) -> tracing::Span {
-    let span = tracing::info_span!("grpc.request", rpc = req.uri().path());
+    let rpc = req.uri().path();
+
+    let is_health_check = rpc == "/grpc.health.v1.Health/Check";
+    let span = if is_health_check {
+        tracing::trace_span!("grpc.request", rpc = rpc)
+    } else {
+        tracing::info_span!("grpc.request", rpc = rpc)
+    };
+
     let parent = global::get_text_map_propagator(|p| p.extract(&HeaderExtractor(req.headers())));
     let _ = span.set_parent(parent);
-    span.in_scope(|| tracing::debug!("grpc request"));
+
+    span.in_scope(|| {
+        if is_health_check {
+            tracing::trace!("grpc request")
+        } else {
+            tracing::debug!("grpc request")
+        }
+    });
+
     span
 }
