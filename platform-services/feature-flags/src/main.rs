@@ -10,15 +10,12 @@ use sqlx::postgres::PgPoolOptions;
 use tonic::transport::Server;
 
 // priority order
-// TODO: frontend interface with oidc (envoy oidc)
-// TODO: frontend should have debugging tab like snapshot stream, and test evaluation (call server
-// side eval)
-// TODO: boolean flags should default to having variants true and false
+// TODO: test evaluation should be per flag and return more details
 // TODO: allow feature flag provisioning from flags.yaml in repo
 // TODO: feature flags enabled by default
 // TODO: handle snapshot version number getting too big
 // TODO: fix prometheus metrics
-// TODO: better logging of stream connection start and grpc requests
+// TODO: better logging of stream connection start and grpc requests + tracing
 // TODO: make sure multiple replicas works, run as daemonset with local routing preferred
 // TODO: integration testing
 // TODO: use compression for grpc snapshots in particular
