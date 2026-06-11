@@ -33,7 +33,13 @@ enum Typed<T> {
     Err(pb::ResolutionMeta),
 }
 
-fn resolved<T>(engine: &Engine, flag_key: &str, ctx: &EvalContext, extract: impl Fn(&Json) -> Option<T>, type_name: &str) -> Typed<T> {
+fn resolved<T>(
+    engine: &Engine,
+    flag_key: &str,
+    ctx: &EvalContext,
+    extract: impl Fn(&Json) -> Option<T>,
+    type_name: &str,
+) -> Typed<T> {
     match engine.evaluate(flag_key, ctx) {
         Ok(res) => match extract(&res.value) {
             Some(value) => Typed::Ok(value, pb::ResolutionMeta::from(&res)),
@@ -77,11 +83,16 @@ impl Evaluation for EvaluationService {
         request: Request<pb::ResolveRequest>,
     ) -> Result<Response<pb::ResolveStringResponse>, Status> {
         let (engine, ctx, flag_key) = self.resolve(request.into_inner());
-        let (value, meta) =
-            match resolved(&engine, &flag_key, &ctx, |j| j.as_str().map(str::to_owned), "string") {
-                Typed::Ok(v, m) => (v, m),
-                Typed::Err(m) => (String::new(), m),
-            };
+        let (value, meta) = match resolved(
+            &engine,
+            &flag_key,
+            &ctx,
+            |j| j.as_str().map(str::to_owned),
+            "string",
+        ) {
+            Typed::Ok(v, m) => (v, m),
+            Typed::Err(m) => (String::new(), m),
+        };
         Ok(Response::new(pb::ResolveStringResponse {
             value,
             meta: Some(meta),
@@ -128,7 +139,10 @@ impl Evaluation for EvaluationService {
             Typed::Ok(v, m) => (Some(v), m),
             Typed::Err(m) => (None, m),
         };
-        Ok(Response::new(pb::ResolveObjectResponse { value, meta: Some(meta) }))
+        Ok(Response::new(pb::ResolveObjectResponse {
+            value,
+            meta: Some(meta),
+        }))
     }
 
     async fn resolve_all(
@@ -160,7 +174,9 @@ impl Evaluation for EvaluationService {
         &self,
         _request: Request<pb::GetSnapshotRequest>,
     ) -> Result<Response<pb::SnapshotResponse>, Status> {
-        Ok(Response::new(snapshot_response(self.mgr.engine().snapshot())))
+        Ok(Response::new(snapshot_response(
+            self.mgr.engine().snapshot(),
+        )))
     }
 
     type StreamSnapshotStream = SnapshotStream;
@@ -172,7 +188,9 @@ impl Evaluation for EvaluationService {
         let rx = self.mgr.subscribe();
         let head_mgr = self.mgr.clone();
         let head =
-            futures::stream::once(async move { Ok(snapshot_response(head_mgr.engine().snapshot())) });
+            futures::stream::once(
+                async move { Ok(snapshot_response(head_mgr.engine().snapshot())) },
+            );
         let tail_mgr = self.mgr.clone();
         let tail = BroadcastStream::new(rx).filter_map(move |item| {
             let mgr = tail_mgr.clone();

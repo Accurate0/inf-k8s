@@ -30,9 +30,11 @@ impl Store {
     }
 
     pub async fn config_version(&self) -> AppResult<i64> {
-        Ok(sqlx::query_scalar!("SELECT version FROM config_version WHERE id")
-            .fetch_one(&self.pool)
-            .await?)
+        Ok(
+            sqlx::query_scalar!("SELECT version FROM config_version WHERE id")
+                .fetch_one(&self.pool)
+                .await?,
+        )
     }
 
     pub async fn load_snapshot(&self) -> AppResult<Snapshot> {

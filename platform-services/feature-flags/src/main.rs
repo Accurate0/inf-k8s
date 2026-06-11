@@ -47,7 +47,9 @@ async fn main() -> anyhow::Result<()> {
     Server::builder()
         .add_service(health_service)
         .add_service(reflection)
-        .add_service(EvaluationServer::new(EvaluationService::new(manager.clone())))
+        .add_service(EvaluationServer::new(EvaluationService::new(
+            manager.clone(),
+        )))
         .add_service(AdminServer::new(AdminService::new(store, manager)))
         .serve(addr)
         .await?;

@@ -184,7 +184,10 @@ async fn flag(admin: &mut AdminClient<Channel>, action: FlagAction) -> anyhow::R
             print(flag_to_json(&flag))
         }
         FlagAction::Get { key } => {
-            let flag = admin.get_flag(pb::GetFlagRequest { key }).await?.into_inner();
+            let flag = admin
+                .get_flag(pb::GetFlagRequest { key })
+                .await?
+                .into_inner();
             print(flag_to_json(&flag))
         }
         FlagAction::List { archived } => {
@@ -293,7 +296,9 @@ async fn segment(admin: &mut AdminClient<Channel>, action: SegmentAction) -> any
             print(Json::Array(segments.iter().map(segment_to_json).collect()))
         }
         SegmentAction::Delete { key } => {
-            admin.delete_segment(pb::DeleteSegmentRequest { key }).await?;
+            admin
+                .delete_segment(pb::DeleteSegmentRequest { key })
+                .await?;
             println!("ok");
             Ok(())
         }
@@ -305,7 +310,10 @@ async fn rules(admin: &mut AdminClient<Channel>, action: RulesAction) -> anyhow:
     let Json::Array(items) = parse_json(&json) else {
         bail!("rules must be a JSON array");
     };
-    let rules = items.iter().map(parse_rule).collect::<anyhow::Result<_>>()?;
+    let rules = items
+        .iter()
+        .map(parse_rule)
+        .collect::<anyhow::Result<_>>()?;
     let flag = admin
         .set_flag_rules(pb::SetFlagRulesRequest { flag_key, rules })
         .await?
@@ -329,19 +337,32 @@ fn parse_segment(json: &Json) -> anyhow::Result<pb::Segment> {
     let constraints = obj
         .get("constraints")
         .and_then(Json::as_array)
-        .map(|cs| cs.iter().map(parse_constraint).collect::<anyhow::Result<_>>())
+        .map(|cs| {
+            cs.iter()
+                .map(parse_constraint)
+                .collect::<anyhow::Result<_>>()
+        })
         .transpose()?
         .unwrap_or_default();
     Ok(pb::Segment {
         key: str_field(obj, "key")?.to_owned(),
-        name: obj.get("name").and_then(Json::as_str).unwrap_or_default().to_owned(),
+        name: obj
+            .get("name")
+            .and_then(Json::as_str)
+            .unwrap_or_default()
+            .to_owned(),
         constraints,
     })
 }
 
 fn parse_constraint(json: &Json) -> anyhow::Result<pb::Constraint> {
-    let obj = json.as_object().context("constraint must be a JSON object")?;
-    let op_name = format!("CONSTRAINT_OPERATOR_{}", str_field(obj, "operator")?.to_uppercase());
+    let obj = json
+        .as_object()
+        .context("constraint must be a JSON object")?;
+    let op_name = format!(
+        "CONSTRAINT_OPERATOR_{}",
+        str_field(obj, "operator")?.to_uppercase()
+    );
     let operator = pb::ConstraintOperator::from_str_name(&op_name)
         .with_context(|| format!("unknown operator `{}`", &op_name))?;
     let values = obj
@@ -364,7 +385,9 @@ fn parse_rule(json: &Json) -> anyhow::Result<pb::Rule> {
         .map(|ds| {
             ds.iter()
                 .map(|d| {
-                    let d = d.as_object().context("distribution must be a JSON object")?;
+                    let d = d
+                        .as_object()
+                        .context("distribution must be a JSON object")?;
                     Ok(pb::Distribution {
                         variant_key: str_field(d, "variant_key")?.to_owned(),
                         weight: d.get("weight").and_then(Json::as_u64).unwrap_or(0) as u32,
@@ -377,16 +400,21 @@ fn parse_rule(json: &Json) -> anyhow::Result<pb::Rule> {
     Ok(pb::Rule {
         // Rank is assigned by position on the server; array order is the priority.
         rank: 0,
-        segment_key: obj.get("segment_key").and_then(Json::as_str).unwrap_or_default().to_owned(),
-        variant_key: obj.get("variant_key").and_then(Json::as_str).unwrap_or_default().to_owned(),
+        segment_key: obj
+            .get("segment_key")
+            .and_then(Json::as_str)
+            .unwrap_or_default()
+            .to_owned(),
+        variant_key: obj
+            .get("variant_key")
+            .and_then(Json::as_str)
+            .unwrap_or_default()
+            .to_owned(),
         distributions,
     })
 }
 
-fn str_field<'a>(
-    obj: &'a serde_json::Map<String, Json>,
-    field: &str,
-) -> anyhow::Result<&'a str> {
+fn str_field<'a>(obj: &'a serde_json::Map<String, Json>, field: &str) -> anyhow::Result<&'a str> {
     obj.get(field)
         .and_then(Json::as_str)
         .with_context(|| format!("missing string field `{field}`"))
@@ -447,9 +475,12 @@ fn value_to_json(v: &prost_types::Value) -> Json {
         Some(Kind::NumberValue(n)) => json!(n),
         Some(Kind::StringValue(s)) => Json::String(s.clone()),
         Some(Kind::ListValue(l)) => Json::Array(l.values.iter().map(value_to_json).collect()),
-        Some(Kind::StructValue(s)) => {
-            Json::Object(s.fields.iter().map(|(k, v)| (k.clone(), value_to_json(v))).collect())
-        }
+        Some(Kind::StructValue(s)) => Json::Object(
+            s.fields
+                .iter()
+                .map(|(k, v)| (k.clone(), value_to_json(v)))
+                .collect(),
+        ),
     }
 }
 
@@ -463,7 +494,10 @@ fn json_to_value(j: &Json) -> prost_types::Value {
             values: a.iter().map(json_to_value).collect(),
         }),
         Json::Object(o) => Kind::StructValue(prost_types::Struct {
-            fields: o.iter().map(|(k, v)| (k.clone(), json_to_value(v))).collect(),
+            fields: o
+                .iter()
+                .map(|(k, v)| (k.clone(), json_to_value(v)))
+                .collect(),
         }),
     };
     prost_types::Value { kind: Some(kind) }

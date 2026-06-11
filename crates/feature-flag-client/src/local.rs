@@ -135,12 +135,18 @@ async fn refresh_loop(
         match stream.message().await {
             Ok(Some(snapshot)) => {
                 tracing::info!("received new snapshot: {}", snapshot.version);
-                evaluator.apply(snapshot)
+                evaluator.apply(snapshot);
+                continue;
             }
-            Ok(None) => tracing::warn!("snapshot stream closed, reconnecting"),
-            Err(e) => tracing::warn!("snapshot stream error: {e}, reconnecting"),
+            Ok(None) => {
+                tracing::warn!("snapshot stream closed, reconnecting");
+            }
+            Err(e) => {
+                tracing::warn!("snapshot stream error: {e}, reconnecting");
+            }
         }
-        // Reconnect on close/error so the local engine recovers from a transient blip.
+
+        // Reconnect only when stream closed or errored
         loop {
             tokio::time::sleep(Duration::from_secs(2)).await;
             match open_stream(client.clone()).await {

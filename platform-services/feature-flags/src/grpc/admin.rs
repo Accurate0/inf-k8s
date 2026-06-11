@@ -37,7 +37,13 @@ impl Admin for AdminService {
         let variants: Vec<_> = req.variants.iter().map(Variant::from).collect();
         let flag = self
             .store
-            .create_flag(&req.key, value_type, req.enabled, &req.default_variant_key, &variants)
+            .create_flag(
+                &req.key,
+                value_type,
+                req.enabled,
+                &req.default_variant_key,
+                &variants,
+            )
             .await?;
         self.refresh().await;
         Ok(Response::new(pb::Flag::from(&flag)))
@@ -55,7 +61,10 @@ impl Admin for AdminService {
         &self,
         request: Request<pb::ListFlagsRequest>,
     ) -> Result<Response<pb::ListFlagsResponse>, Status> {
-        let flags = self.store.list_flags(request.into_inner().include_archived).await?;
+        let flags = self
+            .store
+            .list_flags(request.into_inner().include_archived)
+            .await?;
         Ok(Response::new(pb::ListFlagsResponse {
             flags: flags.iter().map(pb::Flag::from).collect(),
         }))
@@ -113,7 +122,10 @@ impl Admin for AdminService {
         request: Request<pb::DeleteVariantRequest>,
     ) -> Result<Response<pb::Flag>, Status> {
         let req = request.into_inner();
-        let flag = self.store.delete_variant(&req.flag_key, &req.variant_key).await?;
+        let flag = self
+            .store
+            .delete_variant(&req.flag_key, &req.variant_key)
+            .await?;
         self.refresh().await;
         Ok(Response::new(pb::Flag::from(&flag)))
     }
@@ -122,7 +134,8 @@ impl Admin for AdminService {
         &self,
         request: Request<pb::CreateSegmentRequest>,
     ) -> Result<Response<pb::Segment>, Status> {
-        self.upsert_segment_inner(request.into_inner().segment).await
+        self.upsert_segment_inner(request.into_inner().segment)
+            .await
     }
 
     async fn get_segment(
@@ -147,7 +160,8 @@ impl Admin for AdminService {
         &self,
         request: Request<pb::UpdateSegmentRequest>,
     ) -> Result<Response<pb::Segment>, Status> {
-        self.upsert_segment_inner(request.into_inner().segment).await
+        self.upsert_segment_inner(request.into_inner().segment)
+            .await
     }
 
     async fn delete_segment(
@@ -177,7 +191,8 @@ impl AdminService {
         segment: Option<pb::Segment>,
     ) -> Result<Response<pb::Segment>, Status> {
         let proto = segment.ok_or_else(|| Status::invalid_argument("segment is required"))?;
-        let domain = Segment::try_from(&proto).map_err(|e| Status::invalid_argument(e.to_string()))?;
+        let domain =
+            Segment::try_from(&proto).map_err(|e| Status::invalid_argument(e.to_string()))?;
         let saved = self.store.upsert_segment(&domain).await?;
         self.refresh().await;
         Ok(Response::new(pb::Segment::from(&saved)))
