@@ -10,8 +10,6 @@ use sqlx::postgres::PgPoolOptions;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 
-// TODO: i dont get actor correctly in BE
-
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let _otel = tracing_setup::init();

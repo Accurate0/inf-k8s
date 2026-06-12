@@ -1,5 +1,6 @@
 import type { Actions, PageServerLoad } from "./$types";
 import { client, type Constraint } from "$lib/server/client";
+import { actorFromRequest } from "$lib/server/actor";
 import { operatorLabels } from "$lib/labels";
 import { fail } from "@sveltejs/kit";
 
@@ -37,7 +38,7 @@ export const actions: Actions = {
     }
 
     try {
-      await client.upsertSegment({ key, name, constraints });
+      await client.upsertSegment({ key, name, constraints }, actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message, values: { key, name, constraintsRaw } });
     }
@@ -47,7 +48,7 @@ export const actions: Actions = {
   delete: async ({ request }) => {
     const data = await request.formData();
     try {
-      await client.deleteSegment(String(data.get("key")));
+      await client.deleteSegment(String(data.get("key")), actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }

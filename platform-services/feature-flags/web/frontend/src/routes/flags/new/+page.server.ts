@@ -1,5 +1,6 @@
 import type { Actions } from "./$types";
 import { client, type Variant } from "$lib/server/client";
+import { actorFromRequest } from "$lib/server/actor";
 import { fail, redirect } from "@sveltejs/kit";
 
 export const actions: Actions = {
@@ -21,7 +22,7 @@ export const actions: Actions = {
     }
 
     try {
-      await client.createFlag({ key, valueType, enabled, defaultVariantKey, variants });
+      await client.createFlag({ key, valueType, enabled, defaultVariantKey, variants }, actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message, values: { key, defaultVariantKey, variantsRaw } });
     }
