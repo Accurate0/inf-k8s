@@ -29,6 +29,8 @@
   ]);
   let selectedFlag = $state(form?.values?.flagKey ?? "");
 
+  const auth = $derived(data.auth);
+
   onMount(() => {
     const source = new EventSource("/debug/stream");
     source.onopen = () => (connected = true);
@@ -47,6 +49,24 @@
 <h2 class="mb-4 text-xl font-semibold">Debug</h2>
 
 <div class="space-y-6">
+  <Card.Root>
+    <Card.Header>
+      <Card.Title>Auth forwarding</Card.Title>
+      <Card.Description>What the gateway forwarded to this request — diagnosing the audit-log actor.</Card.Description>
+    </Card.Header>
+    <Card.Content class="space-y-2 text-sm">
+      <div>x-forwarded-user: <code>{auth.forwardedUser ?? "(absent)"}</code></div>
+      <div>Authorization present: <code>{auth.hasAuthorization}</code></div>
+      <div>
+        access token claims:
+        {#if auth.accessTokenClaims}
+          {#each auth.accessTokenClaims as c}<Badge variant="outline" class="mr-1">{c}</Badge>{/each}
+        {:else}
+          <code>(no JWT in Authorization)</code>
+        {/if}
+      </div>
+    </Card.Content>
+  </Card.Root>
   <Card.Root>
     <Card.Header>
       <Card.Title>Snapshot stream</Card.Title>
