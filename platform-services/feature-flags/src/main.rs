@@ -44,7 +44,7 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("feature-flags gRPC listening on {addr}");
 
     Server::builder()
-        .trace_fn(tracing_setup::grpc_span)
+        .trace_fn(feature_flags::grpc::grpc_span)
         .add_service(health_service)
         .add_service(reflection)
         .add_service(
