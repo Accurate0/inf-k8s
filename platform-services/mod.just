@@ -30,3 +30,12 @@ status:
 # Sync a platform service application
 sync service:
     kubectl -n argocd patch application {{service}} --type merge -p '{"operation":{"initiatedBy":{"username":"just"},"sync":{"prune":true}}}'
+
+# Bump the inf-k8s feature-flag crates in every consumer service's Cargo.lock
+update-flag-deps:
+    for svc in $(grep -rl 'inf-k8s' */Cargo.lock | xargs -rn1 dirname | sort -u); do \
+        echo "==> $svc"; \
+        cargo update --manifest-path "$svc/Cargo.toml" \
+            -p feature-flag-proto -p feature-flag-engine \
+            -p feature-flag-client -p openfeature-provider; \
+    done
