@@ -23,6 +23,22 @@ pub struct Store {
     pool: PgPool,
 }
 
+/// One row of the `flag_changes` audit log, surfaced read-only to the admin UI.
+pub struct FlagChange {
+    pub id: Uuid,
+    pub version: i64,
+    pub actor: String,
+    pub action: String,
+    pub target_kind: String,
+    pub target_key: String,
+    pub detail: Json,
+    pub created_at: chrono::DateTime<chrono::Utc>,
+}
+
+/// Upper bound on audit rows returned in a single request, regardless of the
+/// caller-supplied limit, to keep responses bounded.
+const MAX_CHANGES: i64 = 500;
+
 impl Store {
     pub fn new(pool: PgPool) -> Self {
         Self { pool }
@@ -209,6 +225,39 @@ impl Store {
         .execute(&mut *tx)
         .await?;
         Ok(())
+    }
+
+    /// Read the audit log newest-first, optionally filtered to a single target. Empty
+    /// `target_kind`/`target_key` match any value; `limit` is clamped to [`MAX_CHANGES`].
+    pub async fn list_changes(
+        &self,
+        target_kind: &str,
+        target_key: &str,
+        limit: i64,
+    ) -> AppResult<Vec<FlagChange>> {
+        let limit = if limit <= 0 {
+            MAX_CHANGES
+        } else {
+            limit.min(MAX_CHANGES)
+        };
+        let kind = (!target_kind.is_empty()).then(|| target_kind.to_owned());
+        let key = (!target_key.is_empty()).then(|| target_key.to_owned());
+        let rows = sqlx::query_as!(
+            FlagChange,
+            r#"SELECT id, version, actor, action, target_kind, target_key,
+                      detail as "detail: Json", created_at
+               FROM flag_changes
+               WHERE ($1::text IS NULL OR target_kind = $1)
+                 AND ($2::text IS NULL OR target_key = $2)
+               ORDER BY created_at DESC
+               LIMIT $3"#,
+            kind,
+            key,
+            limit,
+        )
+        .fetch_all(&self.pool)
+        .await?;
+        Ok(rows)
     }
 
     async fn variant_keys(&self, flag_id: Uuid) -> AppResult<HashSet<String>> {

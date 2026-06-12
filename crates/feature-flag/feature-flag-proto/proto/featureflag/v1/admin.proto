@@ -28,6 +28,9 @@ service Admin {
 
   // Replaces the full set of prerequisites for a flag.
   rpc SetFlagPrerequisites(SetFlagPrerequisitesRequest) returns (Flag);
+
+  // Read the audit log of admin mutations, newest first.
+  rpc ListChanges(ListChangesRequest) returns (ListChangesResponse);
 }
 
 message CreateFlagRequest {
@@ -109,4 +112,33 @@ message SetFlagRulesRequest {
 message SetFlagPrerequisitesRequest {
   string flag_key = 1;
   repeated Prerequisite prerequisites = 2;
+}
+
+// One audit-log entry: a single admin mutation, stamped with the config version it
+// produced and the identity of the actor that made it.
+message FlagChange {
+  string id = 1;
+  int64 version = 2;
+  string actor = 3;
+  // The mutating operation, e.g. `create_flag`, `set_flag_rules`, `delete_segment`.
+  string action = 4;
+  // What was changed: `flag` or `segment`, plus its key.
+  string target_kind = 5;
+  string target_key = 6;
+  // Operation-specific payload, serialised as a JSON object string.
+  string detail = 7;
+  // RFC 3339 timestamp of when the change was recorded.
+  string created_at = 8;
+}
+
+message ListChangesRequest {
+  // Optional filters; an empty string matches any kind/key.
+  string target_kind = 1;
+  string target_key = 2;
+  // Maximum rows to return; clamped server-side. 0 applies the default limit.
+  uint32 limit = 3;
+}
+
+message ListChangesResponse {
+  repeated FlagChange changes = 1;
 }

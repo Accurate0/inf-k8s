@@ -2,9 +2,24 @@ use crate::model::{Prerequisite, Rule, Segment, ValueType, Variant};
 use crate::pb;
 use crate::pb::admin_server::Admin;
 use crate::snapshot::SnapshotManager;
-use crate::store::Store;
+use crate::store::{FlagChange, Store};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
+
+impl From<&FlagChange> for pb::FlagChange {
+    fn from(c: &FlagChange) -> Self {
+        pb::FlagChange {
+            id: c.id.to_string(),
+            version: c.version,
+            actor: c.actor.clone(),
+            action: c.action.clone(),
+            target_kind: c.target_kind.clone(),
+            target_key: c.target_key.clone(),
+            detail: c.detail.to_string(),
+            created_at: c.created_at.to_rfc3339(),
+        }
+    }
+}
 
 /// Identity of the caller, forwarded by the authenticated frontend in the `actor`
 /// gRPC metadata header. Falls back to `unknown` so an audit row is always written.
@@ -233,6 +248,20 @@ impl Admin for AdminService {
             .await?;
         self.refresh().await;
         Ok(Response::new(pb::Flag::from(&flag)))
+    }
+
+    async fn list_changes(
+        &self,
+        request: Request<pb::ListChangesRequest>,
+    ) -> Result<Response<pb::ListChangesResponse>, Status> {
+        let req = request.into_inner();
+        let changes = self
+            .store
+            .list_changes(&req.target_kind, &req.target_key, req.limit.into())
+            .await?;
+        Ok(Response::new(pb::ListChangesResponse {
+            changes: changes.iter().map(pb::FlagChange::from).collect(),
+        }))
     }
 }
 

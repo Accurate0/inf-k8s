@@ -106,6 +106,37 @@ export interface SetFlagPrerequisitesRequest {
   prerequisites: Prerequisite[];
 }
 
+/**
+ * One audit-log entry: a single admin mutation, stamped with the config version it
+ * produced and the identity of the actor that made it.
+ */
+export interface FlagChange {
+  id: string;
+  version: number;
+  actor: string;
+  /** The mutating operation, e.g. `create_flag`, `set_flag_rules`, `delete_segment`. */
+  action: string;
+  /** What was changed: `flag` or `segment`, plus its key. */
+  targetKind: string;
+  targetKey: string;
+  /** Operation-specific payload, serialised as a JSON object string. */
+  detail: string;
+  /** RFC 3339 timestamp of when the change was recorded. */
+  createdAt: string;
+}
+
+export interface ListChangesRequest {
+  /** Optional filters; an empty string matches any kind/key. */
+  targetKind: string;
+  targetKey: string;
+  /** Maximum rows to return; clamped server-side. 0 applies the default limit. */
+  limit: number;
+}
+
+export interface ListChangesResponse {
+  changes: FlagChange[];
+}
+
 function createBaseCreateFlagRequest(): CreateFlagRequest {
   return { key: "", valueType: 0, enabled: false, defaultVariantKey: "", variants: [] };
 }
@@ -1082,6 +1113,252 @@ export const SetFlagPrerequisitesRequest: MessageFns<SetFlagPrerequisitesRequest
   },
 };
 
+function createBaseFlagChange(): FlagChange {
+  return { id: "", version: 0, actor: "", action: "", targetKind: "", targetKey: "", detail: "", createdAt: "" };
+}
+
+export const FlagChange: MessageFns<FlagChange> = {
+  encode(message: FlagChange, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.id !== "") {
+      writer.uint32(10).string(message.id);
+    }
+    if (message.version !== 0) {
+      writer.uint32(16).int64(message.version);
+    }
+    if (message.actor !== "") {
+      writer.uint32(26).string(message.actor);
+    }
+    if (message.action !== "") {
+      writer.uint32(34).string(message.action);
+    }
+    if (message.targetKind !== "") {
+      writer.uint32(42).string(message.targetKind);
+    }
+    if (message.targetKey !== "") {
+      writer.uint32(50).string(message.targetKey);
+    }
+    if (message.detail !== "") {
+      writer.uint32(58).string(message.detail);
+    }
+    if (message.createdAt !== "") {
+      writer.uint32(66).string(message.createdAt);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): FlagChange {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseFlagChange();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.id = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 16) {
+            break;
+          }
+
+          message.version = longToNumber(reader.int64());
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.actor = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.action = reader.string();
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.targetKind = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.targetKey = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.detail = reader.string();
+          continue;
+        }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.createdAt = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<FlagChange>, I>>(base?: I): FlagChange {
+    return FlagChange.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<FlagChange>, I>>(object: I): FlagChange {
+    const message = createBaseFlagChange();
+    message.id = object.id ?? "";
+    message.version = object.version ?? 0;
+    message.actor = object.actor ?? "";
+    message.action = object.action ?? "";
+    message.targetKind = object.targetKind ?? "";
+    message.targetKey = object.targetKey ?? "";
+    message.detail = object.detail ?? "";
+    message.createdAt = object.createdAt ?? "";
+    return message;
+  },
+};
+
+function createBaseListChangesRequest(): ListChangesRequest {
+  return { targetKind: "", targetKey: "", limit: 0 };
+}
+
+export const ListChangesRequest: MessageFns<ListChangesRequest> = {
+  encode(message: ListChangesRequest, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.targetKind !== "") {
+      writer.uint32(10).string(message.targetKind);
+    }
+    if (message.targetKey !== "") {
+      writer.uint32(18).string(message.targetKey);
+    }
+    if (message.limit !== 0) {
+      writer.uint32(24).uint32(message.limit);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListChangesRequest {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListChangesRequest();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.targetKind = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.targetKey = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.limit = reader.uint32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ListChangesRequest>, I>>(base?: I): ListChangesRequest {
+    return ListChangesRequest.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListChangesRequest>, I>>(object: I): ListChangesRequest {
+    const message = createBaseListChangesRequest();
+    message.targetKind = object.targetKind ?? "";
+    message.targetKey = object.targetKey ?? "";
+    message.limit = object.limit ?? 0;
+    return message;
+  },
+};
+
+function createBaseListChangesResponse(): ListChangesResponse {
+  return { changes: [] };
+}
+
+export const ListChangesResponse: MessageFns<ListChangesResponse> = {
+  encode(message: ListChangesResponse, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.changes) {
+      FlagChange.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ListChangesResponse {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseListChangesResponse();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.changes.push(FlagChange.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  create<I extends Exact<DeepPartial<ListChangesResponse>, I>>(base?: I): ListChangesResponse {
+    return ListChangesResponse.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ListChangesResponse>, I>>(object: I): ListChangesResponse {
+    const message = createBaseListChangesResponse();
+    message.changes = object.changes?.map((e) => FlagChange.fromPartial(e)) || [];
+    return message;
+  },
+};
+
 /**
  * Write path: manage flags, variants, segments, and targeting rules. Every
  * mutation bumps the global config version and notifies streaming evaluators.
@@ -1228,6 +1505,16 @@ export const AdminService = {
     responseSerialize: (value: Flag): Buffer => Buffer.from(Flag.encode(value).finish()),
     responseDeserialize: (value: Buffer): Flag => Flag.decode(value),
   },
+  /** Read the audit log of admin mutations, newest first. */
+  listChanges: {
+    path: "/featureflag.v1.Admin/ListChanges" as const,
+    requestStream: false as const,
+    responseStream: false as const,
+    requestSerialize: (value: ListChangesRequest): Buffer => Buffer.from(ListChangesRequest.encode(value).finish()),
+    requestDeserialize: (value: Buffer): ListChangesRequest => ListChangesRequest.decode(value),
+    responseSerialize: (value: ListChangesResponse): Buffer => Buffer.from(ListChangesResponse.encode(value).finish()),
+    responseDeserialize: (value: Buffer): ListChangesResponse => ListChangesResponse.decode(value),
+  },
 } as const;
 
 export interface AdminServer extends UntypedServiceImplementation {
@@ -1248,6 +1535,8 @@ export interface AdminServer extends UntypedServiceImplementation {
   setFlagRules: handleUnaryCall<SetFlagRulesRequest, Flag>;
   /** Replaces the full set of prerequisites for a flag. */
   setFlagPrerequisites: handleUnaryCall<SetFlagPrerequisitesRequest, Flag>;
+  /** Read the audit log of admin mutations, newest first. */
+  listChanges: handleUnaryCall<ListChangesRequest, ListChangesResponse>;
 }
 
 export interface AdminClient extends Client {
@@ -1475,6 +1764,22 @@ export interface AdminClient extends Client {
     options: Partial<CallOptions>,
     callback: (error: ServiceError | null, response: Flag) => void,
   ): ClientUnaryCall;
+  /** Read the audit log of admin mutations, newest first. */
+  listChanges(
+    request: ListChangesRequest,
+    callback: (error: ServiceError | null, response: ListChangesResponse) => void,
+  ): ClientUnaryCall;
+  listChanges(
+    request: ListChangesRequest,
+    metadata: Metadata,
+    callback: (error: ServiceError | null, response: ListChangesResponse) => void,
+  ): ClientUnaryCall;
+  listChanges(
+    request: ListChangesRequest,
+    metadata: Metadata,
+    options: Partial<CallOptions>,
+    callback: (error: ServiceError | null, response: ListChangesResponse) => void,
+  ): ClientUnaryCall;
 }
 
 export const AdminClient = makeGenericClientConstructor(AdminService, "featureflag.v1.Admin") as unknown as {
@@ -1494,6 +1799,17 @@ export type DeepPartial<T> = T extends Builtin ? T
 type KeysOfUnion<T> = T extends T ? keyof T : never;
 export type Exact<P, I extends P> = P extends Builtin ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
+
+function longToNumber(int64: { toString(): string }): number {
+  const num = globalThis.Number(int64.toString());
+  if (num > globalThis.Number.MAX_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is larger than Number.MAX_SAFE_INTEGER");
+  }
+  if (num < globalThis.Number.MIN_SAFE_INTEGER) {
+    throw new globalThis.Error("Value is smaller than Number.MIN_SAFE_INTEGER");
+  }
+  return num;
+}
 
 export interface MessageFns<T> {
   encode(message: T, writer?: BinaryWriter): BinaryWriter;

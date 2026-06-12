@@ -7,6 +7,7 @@
   const tabs = [
     { href: "/", label: "Flags" },
     { href: "/segments", label: "Segments" },
+    { href: "/audit", label: "Audit" },
     { href: "/debug", label: "Debug" },
   ];
 

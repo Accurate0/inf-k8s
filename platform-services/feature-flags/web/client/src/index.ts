@@ -2,6 +2,7 @@ import { ChannelCredentials, Metadata, type ClientUnaryCall } from "@grpc/grpc-j
 import {
   AdminClient,
   type CreateFlagRequest,
+  type ListChangesResponse,
   type ListFlagsResponse,
   type ListSegmentsResponse,
 } from "./gen/featureflag/v1/admin.js";
@@ -147,6 +148,18 @@ export class FeatureFlagClient {
     return unary(this.admin.deleteSegment.bind(this.admin), { key }, actorMetadata(actor)).then(
       () => undefined,
     );
+  }
+
+  /**
+   * Read the audit log newest-first. Pass `targetKind`/`targetKey` to scope it to a
+   * single flag or segment; `limit` caps the row count (clamped server-side).
+   */
+  listChanges(
+    targetKind = "",
+    targetKey = "",
+    limit = 0,
+  ): Promise<ListChangesResponse> {
+    return unary(this.admin.listChanges.bind(this.admin), { targetKind, targetKey, limit });
   }
 
   getSnapshot(): Promise<SnapshotResponse> {

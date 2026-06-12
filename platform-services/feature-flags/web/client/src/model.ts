@@ -16,6 +16,8 @@ export {
 } from "./gen/featureflag/v1/common.js";
 export type {
   CreateFlagRequest,
+  FlagChange,
+  ListChangesResponse,
   ListFlagsResponse,
   ListSegmentsResponse,
 } from "./gen/featureflag/v1/admin.js";

@@ -4,7 +4,7 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - pgdata:/var/lib/postgresql/data
+      - pgdata2:/var/lib/postgresql
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -23,4 +23,4 @@ services:
       - "6379:6379"
 
 volumes:
-  pgdata:
+  pgdata2:
