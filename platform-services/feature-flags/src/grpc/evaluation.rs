@@ -26,6 +26,19 @@ impl EvaluationService {
     }
 }
 
+/// Identity of the calling service, sent by the feature-flag client in the `client-id`
+/// gRPC metadata header. Required on every request so we can tell who is streaming or
+/// evaluating; an absent or empty value is rejected.
+fn client_id_of<T>(request: &Request<T>) -> Result<String, Status> {
+    request
+        .metadata()
+        .get("client-id")
+        .and_then(|v| v.to_str().ok())
+        .filter(|s| !s.is_empty())
+        .map(str::to_owned)
+        .ok_or_else(|| Status::unauthenticated("missing client-id"))
+}
+
 /// Outcome of a typed resolution: either a successful value+meta, or just an error
 /// meta (the caller-side default is supplied by the provider, not the backend).
 enum Typed<T> {
@@ -67,6 +80,8 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::ResolveRequest>,
     ) -> Result<Response<pb::ResolveBooleanResponse>, Status> {
+        let client_id = client_id_of(&request)?;
+        tracing::debug!(client_id, "resolve");
         let (engine, ctx, flag_key) = self.resolve(request.into_inner());
         let (value, meta) = match resolved(&engine, &flag_key, &ctx, Json::as_bool, "boolean") {
             Typed::Ok(v, m) => (v, m),
@@ -82,6 +97,8 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::ResolveRequest>,
     ) -> Result<Response<pb::ResolveStringResponse>, Status> {
+        let client_id = client_id_of(&request)?;
+        tracing::debug!(client_id, "resolve");
         let (engine, ctx, flag_key) = self.resolve(request.into_inner());
         let (value, meta) = match resolved(
             &engine,
@@ -103,6 +120,8 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::ResolveRequest>,
     ) -> Result<Response<pb::ResolveIntegerResponse>, Status> {
+        let client_id = client_id_of(&request)?;
+        tracing::debug!(client_id, "resolve");
         let (engine, ctx, flag_key) = self.resolve(request.into_inner());
         let (value, meta) = match resolved(&engine, &flag_key, &ctx, Json::as_i64, "integer") {
             Typed::Ok(v, m) => (v, m),
@@ -118,6 +137,8 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::ResolveRequest>,
     ) -> Result<Response<pb::ResolveFloatResponse>, Status> {
+        let client_id = client_id_of(&request)?;
+        tracing::debug!(client_id, "resolve");
         let (engine, ctx, flag_key) = self.resolve(request.into_inner());
         let (value, meta) = match resolved(&engine, &flag_key, &ctx, Json::as_f64, "float") {
             Typed::Ok(v, m) => (v, m),
@@ -133,6 +154,8 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::ResolveRequest>,
     ) -> Result<Response<pb::ResolveObjectResponse>, Status> {
+        let client_id = client_id_of(&request)?;
+        tracing::debug!(client_id, "resolve");
         let (engine, ctx, flag_key) = self.resolve(request.into_inner());
         let extract = |j: &Json| j.as_object().map(|_| convert::json_to_struct(j));
         let (value, meta) = match resolved(&engine, &flag_key, &ctx, extract, "object") {
@@ -149,6 +172,8 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::ResolveAllRequest>,
     ) -> Result<Response<pb::ResolveAllResponse>, Status> {
+        let client_id = client_id_of(&request)?;
+        tracing::debug!(client_id, "resolve_all");
         let ctx: EvalContext = request.into_inner().context.unwrap_or_default().into();
         let engine = self.mgr.engine();
         let mut flags = Vec::new();
@@ -172,8 +197,9 @@ impl Evaluation for EvaluationService {
 
     async fn get_snapshot(
         &self,
-        _request: Request<pb::GetSnapshotRequest>,
+        request: Request<pb::GetSnapshotRequest>,
     ) -> Result<Response<pb::SnapshotResponse>, Status> {
+        client_id_of(&request)?;
         Ok(Response::new(snapshot_response(
             self.mgr.engine().snapshot(),
         )))
@@ -185,8 +211,9 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::GetSnapshotRequest>,
     ) -> Result<Response<Self::StreamSnapshotStream>, Status> {
+        let client_id = client_id_of(&request)?;
         tracing::info!(
-            peer = ?request.remote_addr(),
+            client_id,
             version = self.mgr.version(),
             "snapshot stream connected"
         );
@@ -213,8 +240,9 @@ impl Evaluation for EvaluationService {
         &self,
         request: Request<pb::EventStreamRequest>,
     ) -> Result<Response<Self::StreamEventsStream>, Status> {
+        let client_id = client_id_of(&request)?;
         tracing::info!(
-            peer = ?request.remote_addr(),
+            client_id,
             version = self.mgr.version(),
             "event stream connected"
         );

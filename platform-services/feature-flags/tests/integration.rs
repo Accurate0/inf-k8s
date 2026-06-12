@@ -183,17 +183,37 @@ macro_rules! fixture_test {
     };
 }
 
-fixture_test!(resolve_targeting_match, "resolve", "boolean-targeting-match");
+fixture_test!(
+    resolve_targeting_match,
+    "resolve",
+    "boolean-targeting-match"
+);
 fixture_test!(resolve_default, "resolve", "boolean-default");
 fixture_test!(resolve_disabled, "resolve", "disabled");
 fixture_test!(resolve_flag_not_found, "resolve", "flag-not-found");
 fixture_test!(resolve_type_mismatch, "resolve", "type-mismatch");
-fixture_test!(resolve_string_inline_constraint, "resolve", "string-inline-constraint");
+fixture_test!(
+    resolve_string_inline_constraint,
+    "resolve",
+    "string-inline-constraint"
+);
 fixture_test!(resolve_cnf_and_or_match, "resolve", "cnf-and-or-match");
 fixture_test!(resolve_cnf_and_or_miss, "resolve", "cnf-and-or-miss");
-fixture_test!(resolve_segment_and_inline_match, "resolve", "segment-and-inline-match");
-fixture_test!(resolve_segment_and_inline_miss, "resolve", "segment-and-inline-miss");
-fixture_test!(resolve_multi_constraint_segment, "resolve", "multi-constraint-segment");
+fixture_test!(
+    resolve_segment_and_inline_match,
+    "resolve",
+    "segment-and-inline-match"
+);
+fixture_test!(
+    resolve_segment_and_inline_miss,
+    "resolve",
+    "segment-and-inline-miss"
+);
+fixture_test!(
+    resolve_multi_constraint_segment,
+    "resolve",
+    "multi-constraint-segment"
+);
 fixture_test!(resolve_object_default, "resolve", "object-default");
 fixture_test!(resolve_prerequisite_met, "resolve", "prerequisite-met");
 fixture_test!(resolve_prerequisite_unmet, "resolve", "prerequisite-unmet");
@@ -205,7 +225,9 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     let fixture: Fixture = serde_yaml::from_str(&content).unwrap();
 
     let store = Store::new(pool);
-    let manager = SnapshotManager::bootstrap(store.clone(), None).await.unwrap();
+    let manager = SnapshotManager::bootstrap(store.clone(), None)
+        .await
+        .unwrap();
 
     let admin = AdminService::new(store, manager.clone());
     let evaluation = EvaluationService::new(manager);
@@ -335,6 +357,16 @@ async fn seed(client: &mut AdminClient<tonic::transport::Channel>, fixture: &Fix
     }
 }
 
+/// Wrap an evaluation message in a request carrying the `client-id` header the backend
+/// now requires on the read path.
+fn eval_request<T>(msg: T) -> tonic::Request<T> {
+    let mut request = tonic::Request::new(msg);
+    request
+        .metadata_mut()
+        .insert("client-id", "integration-test".parse().unwrap());
+    request
+}
+
 async fn run_resolve(
     client: &mut EvaluationClient<tonic::transport::Channel>,
     resolve: &ResolveDef,
@@ -345,23 +377,43 @@ async fn run_resolve(
     };
     match resolve.kind.as_str() {
         "boolean" => {
-            let r = client.resolve_boolean(request).await.unwrap().into_inner();
+            let r = client
+                .resolve_boolean(eval_request(request))
+                .await
+                .unwrap()
+                .into_inner();
             meta_snapshot(Value::from(r.value), r.meta)
         }
         "string" => {
-            let r = client.resolve_string(request).await.unwrap().into_inner();
+            let r = client
+                .resolve_string(eval_request(request))
+                .await
+                .unwrap()
+                .into_inner();
             meta_snapshot(Value::from(r.value), r.meta)
         }
         "integer" => {
-            let r = client.resolve_integer(request).await.unwrap().into_inner();
+            let r = client
+                .resolve_integer(eval_request(request))
+                .await
+                .unwrap()
+                .into_inner();
             meta_snapshot(Value::from(r.value), r.meta)
         }
         "float" => {
-            let r = client.resolve_float(request).await.unwrap().into_inner();
+            let r = client
+                .resolve_float(eval_request(request))
+                .await
+                .unwrap()
+                .into_inner();
             meta_snapshot(Value::from(r.value), r.meta)
         }
         "object" => {
-            let r = client.resolve_object(request).await.unwrap().into_inner();
+            let r = client
+                .resolve_object(eval_request(request))
+                .await
+                .unwrap()
+                .into_inner();
             let value = r
                 .value
                 .as_ref()
@@ -387,7 +439,7 @@ async fn run_resolve_all(
         context: Some(eval_context(ctx)),
     };
     let mut flags: Vec<_> = client
-        .resolve_all(request)
+        .resolve_all(eval_request(request))
         .await
         .unwrap()
         .into_inner()
@@ -417,7 +469,14 @@ async fn list_changes_records_and_filters_audit_log(pool: PgPool) {
         value: serde_json::Value::Bool(true),
     }];
     store
-        .create_flag("alice", "flag-a", feature_flags::model::ValueType::Boolean, true, "on", &variants)
+        .create_flag(
+            "alice",
+            "flag-a",
+            feature_flags::model::ValueType::Boolean,
+            true,
+            "on",
+            &variants,
+        )
         .await
         .unwrap();
     store
@@ -443,4 +502,45 @@ async fn list_changes_records_and_filters_audit_log(pool: PgPool) {
     let limited = store.list_changes("", "", 1).await.unwrap();
     assert_eq!(limited.len(), 1);
     assert_eq!(limited[0].action, "update_flag");
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn resolve_requires_client_id(pool: PgPool) {
+    let store = Store::new(pool);
+    let manager = SnapshotManager::bootstrap(store.clone(), None)
+        .await
+        .unwrap();
+    let evaluation = EvaluationService::new(manager);
+
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
+    let server_handle = tokio::spawn(async move {
+        tonic::transport::Server::builder()
+            .add_service(EvaluationServer::new(evaluation))
+            .serve_with_incoming(incoming)
+            .await
+            .unwrap();
+    });
+
+    let mut client = EvaluationClient::connect(format!("http://{addr}"))
+        .await
+        .unwrap();
+    let request = pb::ResolveRequest {
+        flag_key: "anything".into(),
+        context: None,
+    };
+
+    // Without the `client-id` header the request is rejected.
+    let err = client
+        .resolve_boolean(request.clone())
+        .await
+        .expect_err("expected rejection");
+    assert_eq!(err.code(), tonic::Code::Unauthenticated);
+
+    // With it, the request is served (flag missing, but the call itself succeeds).
+    let ok = client.resolve_boolean(eval_request(request)).await;
+    assert!(ok.is_ok());
+
+    server_handle.abort();
 }

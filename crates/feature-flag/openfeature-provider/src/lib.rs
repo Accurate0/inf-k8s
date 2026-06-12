@@ -12,7 +12,9 @@ use async_trait::async_trait;
 use convert::{context_to_client, error_from_code, reason_to_open_feature, struct_to_open_feature};
 use feature_flag_client::{Error as ClientError, Resolution};
 use feature_flag_proto::EventType;
-use open_feature::provider::{FeatureProvider, ProviderMetadata, ProviderStatus, ResolutionDetails};
+use open_feature::provider::{
+    FeatureProvider, ProviderMetadata, ProviderStatus, ResolutionDetails,
+};
 use open_feature::{
     EvaluationContext, EvaluationError, EvaluationErrorCode, EvaluationResult, StructValue,
 };
@@ -43,18 +45,25 @@ pub struct FeatureFlagProvider {
 }
 
 impl FeatureFlagProvider {
-    pub async fn connect(endpoint: impl Into<String>) -> Result<Self, ClientError> {
-        Ok(Self::new(FeatureFlagClient::connect(endpoint).await?))
+    pub async fn connect(
+        endpoint: impl Into<String>,
+        client_id: impl Into<String>,
+    ) -> Result<Self, ClientError> {
+        Ok(Self::new(
+            FeatureFlagClient::connect(endpoint, client_id).await?,
+        ))
     }
 
     /// Connect with an explicit evaluation mode (remote RPC vs in-process local
-    /// evaluation against the streamed snapshot).
+    /// evaluation against the streamed snapshot). `client_id` identifies the calling
+    /// service to the backend.
     pub async fn connect_with(
         endpoint: impl Into<String>,
+        client_id: impl Into<String>,
         mode: EvaluationMode,
     ) -> Result<Self, ClientError> {
         Ok(Self::new(
-            FeatureFlagClient::connect_with(endpoint, mode).await?,
+            FeatureFlagClient::connect_with(endpoint, client_id, mode).await?,
         ))
     }
 
@@ -158,7 +167,11 @@ impl FeatureProvider for FeatureFlagProvider {
         flag_key: &str,
         ctx: &EvaluationContext,
     ) -> EvaluationResult<ResolutionDetails<bool>> {
-        into_details(self.client.resolve_bool(flag_key, context_to_client(ctx)).await)
+        into_details(
+            self.client
+                .resolve_bool(flag_key, context_to_client(ctx))
+                .await,
+        )
     }
 
     async fn resolve_int_value(
@@ -166,7 +179,11 @@ impl FeatureProvider for FeatureFlagProvider {
         flag_key: &str,
         ctx: &EvaluationContext,
     ) -> EvaluationResult<ResolutionDetails<i64>> {
-        into_details(self.client.resolve_int(flag_key, context_to_client(ctx)).await)
+        into_details(
+            self.client
+                .resolve_int(flag_key, context_to_client(ctx))
+                .await,
+        )
     }
 
     async fn resolve_float_value(
@@ -174,7 +191,11 @@ impl FeatureProvider for FeatureFlagProvider {
         flag_key: &str,
         ctx: &EvaluationContext,
     ) -> EvaluationResult<ResolutionDetails<f64>> {
-        into_details(self.client.resolve_float(flag_key, context_to_client(ctx)).await)
+        into_details(
+            self.client
+                .resolve_float(flag_key, context_to_client(ctx))
+                .await,
+        )
     }
 
     async fn resolve_string_value(
@@ -182,7 +203,11 @@ impl FeatureProvider for FeatureFlagProvider {
         flag_key: &str,
         ctx: &EvaluationContext,
     ) -> EvaluationResult<ResolutionDetails<String>> {
-        into_details(self.client.resolve_string(flag_key, context_to_client(ctx)).await)
+        into_details(
+            self.client
+                .resolve_string(flag_key, context_to_client(ctx))
+                .await,
+        )
     }
 
     async fn resolve_struct_value(

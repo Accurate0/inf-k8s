@@ -16,23 +16,51 @@ pub use feature_flag_proto as proto;
 use feature_flag_proto::admin_client::AdminClient;
 use feature_flag_proto::evaluation_client::EvaluationClient;
 use feature_flag_proto::{
-    EvaluationContext, Event, Reason, ResolveAllResponse, ResolveRequest, ResolutionMeta,
+    EvaluationContext, Event, Reason, ResolutionMeta, ResolveAllResponse, ResolveRequest,
 };
 use local::LocalEvaluator;
 use std::sync::Arc;
 use tonic::Streaming;
+use tonic::metadata::{Ascii, MetadataValue};
+use tonic::service::Interceptor;
+use tonic::service::interceptor::InterceptedService;
 use tonic::transport::Channel;
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("invalid endpoint: {0}")]
     InvalidEndpoint(String),
+    #[error("invalid client id: {0}")]
+    InvalidClientId(String),
     #[error("connection error: {0}")]
     Connect(#[from] tonic::transport::Error),
     #[error("rpc error: {0}")]
     Rpc(#[from] tonic::Status),
     #[error("invalid snapshot: {0}")]
     Snapshot(String),
+}
+
+/// Channel wrapped with the [`ClientIdInterceptor`], used by both the evaluation and
+/// admin clients so every request carries the `client-id` metadata header.
+pub type IdentifiedChannel = InterceptedService<Channel, ClientIdInterceptor>;
+
+/// Injects the caller's `client-id` into the metadata of every outgoing request,
+/// including streaming opens, so the backend can identify who is connected.
+#[derive(Clone)]
+pub struct ClientIdInterceptor {
+    client_id: MetadataValue<Ascii>,
+}
+
+impl Interceptor for ClientIdInterceptor {
+    fn call(
+        &mut self,
+        mut request: tonic::Request<()>,
+    ) -> Result<tonic::Request<()>, tonic::Status> {
+        request
+            .metadata_mut()
+            .insert("client-id", self.client_id.clone());
+        Ok(request)
+    }
 }
 
 /// Where flag evaluation happens.
@@ -58,44 +86,59 @@ pub struct Resolution<T> {
 
 #[derive(Clone)]
 pub struct FeatureFlagClient {
-    evaluation: EvaluationClient<Channel>,
-    admin: AdminClient<Channel>,
+    evaluation: EvaluationClient<IdentifiedChannel>,
+    admin: AdminClient<IdentifiedChannel>,
     local: Option<Arc<LocalEvaluator>>,
 }
 
 impl FeatureFlagClient {
-    /// Connect in [remote](EvaluationMode::Remote) mode.
-    pub async fn connect(endpoint: impl Into<String>) -> Result<Self, Error> {
-        Self::connect_with(endpoint, EvaluationMode::Remote).await
+    /// Connect in [remote](EvaluationMode::Remote) mode. `client_id` identifies the
+    /// calling service and is sent on every request as the `client-id` header.
+    pub async fn connect(
+        endpoint: impl Into<String>,
+        client_id: impl Into<String>,
+    ) -> Result<Self, Error> {
+        Self::connect_with(endpoint, client_id, EvaluationMode::Remote).await
     }
 
     /// Connect in the given mode. In [`Local`](EvaluationMode::Local) mode this awaits
     /// the first streamed snapshot so the returned client is immediately usable.
     pub async fn connect_with(
         endpoint: impl Into<String>,
+        client_id: impl Into<String>,
         mode: EvaluationMode,
     ) -> Result<Self, Error> {
         let channel = Channel::from_shared(endpoint.into())
             .map_err(|e| Error::InvalidEndpoint(e.to_string()))?
             .connect()
             .await?;
-        Self::from_channel(channel, mode).await
+        Self::from_channel(channel, client_id, mode).await
     }
 
-    pub async fn from_channel(channel: Channel, mode: EvaluationMode) -> Result<Self, Error> {
-        let evaluation = EvaluationClient::new(channel.clone());
+    pub async fn from_channel(
+        channel: Channel,
+        client_id: impl Into<String>,
+        mode: EvaluationMode,
+    ) -> Result<Self, Error> {
+        let client_id = client_id.into();
+        let interceptor = ClientIdInterceptor {
+            client_id: client_id
+                .parse()
+                .map_err(|_| Error::InvalidClientId(client_id))?,
+        };
+        let evaluation = EvaluationClient::with_interceptor(channel.clone(), interceptor.clone());
         let local = match mode {
             EvaluationMode::Remote => None,
             EvaluationMode::Local => Some(LocalEvaluator::bootstrap(evaluation.clone()).await?),
         };
         Ok(Self {
             evaluation,
-            admin: AdminClient::new(channel),
+            admin: AdminClient::with_interceptor(channel, interceptor),
             local,
         })
     }
 
-    pub fn admin(&self) -> AdminClient<Channel> {
+    pub fn admin(&self) -> AdminClient<IdentifiedChannel> {
         self.admin.clone()
     }
 

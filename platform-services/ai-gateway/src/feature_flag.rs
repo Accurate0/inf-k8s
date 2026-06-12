@@ -24,7 +24,7 @@ impl FeatureFlagClient {
         let mut client = OpenFeature::singleton_mut().await;
 
         if let Some(url) = url {
-            match FeatureFlagProvider::connect_with(url, EvaluationMode::Local).await {
+            match FeatureFlagProvider::connect_with(url, "ai-gateway", EvaluationMode::Local).await {
                 Ok(provider) => client.set_provider(provider).await,
                 Err(e) => {
                     tracing::error!("error when connecting to feature-flags: {e}");

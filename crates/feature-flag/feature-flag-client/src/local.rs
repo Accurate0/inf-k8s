@@ -3,7 +3,7 @@
 //! round-trip per evaluation. The stream pushes a fresh snapshot on every config
 //! change, so the local engine stays live off a single long-lived stream.
 
-use crate::{Error, Resolution};
+use crate::{Error, IdentifiedChannel, Resolution};
 use feature_flag_engine::{Engine, EvalContext, Snapshot, convert};
 use feature_flag_proto::evaluation_client::EvaluationClient;
 use feature_flag_proto::{
@@ -13,14 +13,15 @@ use feature_flag_proto::{
 use serde_json::Value as Json;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
-use tonic::transport::Channel;
 
 pub(crate) struct LocalEvaluator {
     engine: RwLock<Engine>,
 }
 
 impl LocalEvaluator {
-    pub(crate) async fn bootstrap(client: EvaluationClient<Channel>) -> Result<Arc<Self>, Error> {
+    pub(crate) async fn bootstrap(
+        client: EvaluationClient<IdentifiedChannel>,
+    ) -> Result<Arc<Self>, Error> {
         let mut stream = open_stream(client.clone()).await?;
         let first = stream
             .message()
@@ -127,7 +128,7 @@ impl LocalEvaluator {
 }
 
 async fn refresh_loop(
-    client: EvaluationClient<Channel>,
+    client: EvaluationClient<IdentifiedChannel>,
     mut stream: tonic::Streaming<SnapshotResponse>,
     evaluator: Arc<LocalEvaluator>,
 ) {
@@ -161,7 +162,7 @@ async fn refresh_loop(
 }
 
 async fn open_stream(
-    mut client: EvaluationClient<Channel>,
+    mut client: EvaluationClient<IdentifiedChannel>,
 ) -> Result<tonic::Streaming<SnapshotResponse>, Error> {
     Ok(client
         .stream_snapshot(GetSnapshotRequest {})

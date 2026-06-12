@@ -5,4 +5,4 @@ export type { Rule, Variant, Constraint, Segment, Flag } from "@accurate0/featur
 
 const address = env.GRPC_ADDR ?? "localhost:50051";
 
-export const client = new FeatureFlagClient(address);
+export const client = new FeatureFlagClient(address, "feature-flags-web");
