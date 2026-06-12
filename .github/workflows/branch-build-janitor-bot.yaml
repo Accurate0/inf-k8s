@@ -1,15 +1,17 @@
 name: Branch build janitor-bot
 on:
   workflow_dispatch:
-  pull_request:
+  push:
+    branches-ignore:
+      - main
     paths:
       - platform-services/janitor-bot/**
-      - .forgejo/workflows/branch-build-janitor-bot.yaml
+      - .github/workflows/branch-build-janitor-bot.yaml
 
 jobs:
   build:
     name: Build
-    runs-on: docker
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4
