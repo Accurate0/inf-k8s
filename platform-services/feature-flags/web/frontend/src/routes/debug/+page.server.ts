@@ -2,27 +2,9 @@ import type { Actions, PageServerLoad } from "./$types";
 import { client } from "$lib/server/client";
 import { fail } from "@sveltejs/kit";
 
-/** Decode a JWT payload's claim names without verifying — diagnostics only. */
-function jwtClaimKeys(authorization: string | null): string[] | null {
-  const token = authorization?.replace(/^Bearer\s+/i, "");
-  const payload = token?.split(".")[1];
-  if (!payload) return null;
-  try {
-    const json = Buffer.from(payload, "base64url").toString("utf8");
-    return Object.keys(JSON.parse(json)).sort();
-  } catch {
-    return null;
-  }
-}
-
-export const load: PageServerLoad = async ({ request }) => {
+export const load: PageServerLoad = async () => {
   const { flags } = await client.listFlags();
-  const auth = {
-    forwardedUser: request.headers.get("x-forwarded-user"),
-    hasAuthorization: request.headers.has("authorization"),
-    accessTokenClaims: jwtClaimKeys(request.headers.get("authorization")),
-  };
-  return { flags, auth };
+  return { flags };
 };
 
 export const actions: Actions = {

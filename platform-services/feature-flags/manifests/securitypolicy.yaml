@@ -21,8 +21,6 @@ spec:
       - openid
       - email
       - profile
-    # Forward the token to the backend so the jwt filter below can read it and
-    # project the user's username into a request header for the audit log.
     forwardAccessToken: true
   jwt:
     providers:
@@ -31,6 +29,3 @@ spec:
         remoteJWKS:
           cacheDuration: 3600s
           uri: https://idm.anurag.sh/oauth2/openid/feature-flags/public_key.jwk
-        claimToHeaders:
-          - claim: preferred_username
-            header: x-forwarded-user

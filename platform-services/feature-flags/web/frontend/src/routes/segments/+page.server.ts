@@ -38,7 +38,7 @@ export const actions: Actions = {
     }
 
     try {
-      await client.upsertSegment({ key, name, constraints }, actorFromRequest(request));
+      await client.upsertSegment({ key, name, constraints }, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message, values: { key, name, constraintsRaw } });
     }
@@ -48,7 +48,7 @@ export const actions: Actions = {
   delete: async ({ request }) => {
     const data = await request.formData();
     try {
-      await client.deleteSegment(String(data.get("key")), actorFromRequest(request));
+      await client.deleteSegment(String(data.get("key")), await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }

@@ -19,7 +19,7 @@ export const actions: Actions = {
     const enabled = data.get("enabled") === "on";
     const defaultVariantKey = String(data.get("defaultVariantKey"));
     try {
-      await client.updateFlag(params.key, enabled, defaultVariantKey, actorFromRequest(request));
+      await client.updateFlag(params.key, enabled, defaultVariantKey, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }
@@ -30,7 +30,7 @@ export const actions: Actions = {
     const data = await request.formData();
     const archived = data.get("archived") === "true";
     try {
-      await client.archiveFlag(params.key, archived, actorFromRequest(request));
+      await client.archiveFlag(params.key, archived, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }
@@ -39,7 +39,7 @@ export const actions: Actions = {
 
   delete: async ({ request, params }) => {
     try {
-      await client.deleteFlag(params.key, actorFromRequest(request));
+      await client.deleteFlag(params.key, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }
@@ -57,7 +57,7 @@ export const actions: Actions = {
       return fail(400, { message: `invalid variant value JSON: ${(e as Error).message}` });
     }
     try {
-      await client.upsertVariant(params.key, { key, value }, actorFromRequest(request));
+      await client.upsertVariant(params.key, { key, value }, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }
@@ -67,7 +67,7 @@ export const actions: Actions = {
   deleteVariant: async ({ request, params }) => {
     const data = await request.formData();
     try {
-      await client.deleteVariant(params.key, String(data.get("variantKey")), actorFromRequest(request));
+      await client.deleteVariant(params.key, String(data.get("variantKey")), await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }
@@ -108,7 +108,7 @@ export const actions: Actions = {
       return fail(400, { message: `invalid rules: ${(e as Error).message}` });
     }
     try {
-      await client.setFlagRules(params.key, rules, actorFromRequest(request));
+      await client.setFlagRules(params.key, rules, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }

@@ -22,7 +22,7 @@ export const actions: Actions = {
     }
 
     try {
-      await client.createFlag({ key, valueType, enabled, defaultVariantKey, variants }, actorFromRequest(request));
+      await client.createFlag({ key, valueType, enabled, defaultVariantKey, variants }, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message, values: { key, defaultVariantKey, variantsRaw } });
     }

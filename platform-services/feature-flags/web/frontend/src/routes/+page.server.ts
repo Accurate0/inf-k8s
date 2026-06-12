@@ -16,7 +16,7 @@ export const actions: Actions = {
     const defaultVariantKey = String(data.get("defaultVariantKey"));
     const enabled = data.get("enabled") === "true";
     try {
-      await client.updateFlag(key, enabled, defaultVariantKey, actorFromRequest(request));
+      await client.updateFlag(key, enabled, defaultVariantKey, await actorFromRequest(request));
     } catch (e) {
       return fail(400, { message: (e as Error).message });
     }
