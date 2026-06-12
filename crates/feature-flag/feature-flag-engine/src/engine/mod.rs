@@ -7,9 +7,19 @@ mod types;
 pub use types::{ErrorCode, EvalContext, EvalError, Reason, Resolution};
 
 use crate::model::{Constraint, ConstraintGroup, Flag, Operator, Rule, Segment, Snapshot};
+use moka::sync::Cache;
+use regex::Regex;
 use serde_json::Value;
 use sha2::{Digest, Sha256};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
+
+/// Process-wide memo of compiled patterns, shared across every snapshot and request so
+/// a regex constraint on a hot flag compiles once rather than on each evaluation. A
+/// `None` value caches a pattern that failed to compile (or exceeded the size limit),
+/// so repeated bad patterns are not re-attempted. Bounded so a flood of distinct
+/// patterns supplied through context can't grow it without limit.
+static REGEX_CACHE: LazyLock<Cache<String, Option<Regex>>> =
+    LazyLock::new(|| Cache::new(10_000));
 
 #[derive(Clone)]
 pub struct Engine {
@@ -202,14 +212,19 @@ impl Engine {
     }
 
     /// Size-bounded so a pathological pattern can't exhaust memory; an uncompilable
-    /// or oversized pattern never matches rather than failing the resolution.
+    /// or oversized pattern never matches rather than failing the resolution. Compiled
+    /// patterns are memoized in [`REGEX_CACHE`] so a hot flag compiles each pattern once.
     fn regex_match(haystack: &str, pattern: &str) -> bool {
-        const SIZE_LIMIT: usize = 1 << 20;
-        regex::RegexBuilder::new(pattern)
-            .size_limit(SIZE_LIMIT)
-            .dfa_size_limit(SIZE_LIMIT)
-            .build()
-            .is_ok_and(|re| re.is_match(haystack))
+        REGEX_CACHE
+            .get_with_by_ref(pattern, || {
+                const SIZE_LIMIT: usize = 1 << 20;
+                regex::RegexBuilder::new(pattern)
+                    .size_limit(SIZE_LIMIT)
+                    .dfa_size_limit(SIZE_LIMIT)
+                    .build()
+                    .ok()
+            })
+            .is_some_and(|re| re.is_match(haystack))
     }
 
     /// Deterministic bucketing into [0,100), walking the cumulative weights. The rule's

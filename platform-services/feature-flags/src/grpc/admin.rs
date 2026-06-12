@@ -63,8 +63,7 @@ impl Admin for AdminService {
         let value_type = ValueType::try_from(req.value_type())
             .map_err(|e| Status::invalid_argument(e.to_string()))?;
         let variants: Vec<_> = req.variants.iter().map(Variant::from).collect();
-        let flag = self
-            .store
+        self.store
             .create_flag(
                 &actor,
                 &req.key,
@@ -75,14 +74,14 @@ impl Admin for AdminService {
             )
             .await?;
         self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
+        Ok(Response::new(pb::Flag::from(&self.mgr.get_flag(&req.key)?)))
     }
 
     async fn get_flag(
         &self,
         request: Request<pb::GetFlagRequest>,
     ) -> Result<Response<pb::Flag>, Status> {
-        let flag = self.store.get_flag(&request.into_inner().key).await?;
+        let flag = self.mgr.get_flag(&request.into_inner().key)?;
         Ok(Response::new(pb::Flag::from(&flag)))
     }
 
@@ -90,10 +89,7 @@ impl Admin for AdminService {
         &self,
         request: Request<pb::ListFlagsRequest>,
     ) -> Result<Response<pb::ListFlagsResponse>, Status> {
-        let flags = self
-            .store
-            .list_flags(request.into_inner().include_archived)
-            .await?;
+        let flags = self.mgr.list_flags(request.into_inner().include_archived);
         Ok(Response::new(pb::ListFlagsResponse {
             flags: flags.iter().map(pb::Flag::from).collect(),
         }))
@@ -105,12 +101,11 @@ impl Admin for AdminService {
     ) -> Result<Response<pb::Flag>, Status> {
         let actor = actor_of(&request);
         let req = request.into_inner();
-        let flag = self
-            .store
+        self.store
             .update_flag(&actor, &req.key, req.enabled, &req.default_variant_key)
             .await?;
         self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
+        Ok(Response::new(pb::Flag::from(&self.mgr.get_flag(&req.key)?)))
     }
 
     async fn archive_flag(
@@ -119,9 +114,11 @@ impl Admin for AdminService {
     ) -> Result<Response<pb::Flag>, Status> {
         let actor = actor_of(&request);
         let req = request.into_inner();
-        let flag = self.store.archive_flag(&actor, &req.key, req.archived).await?;
+        self.store
+            .archive_flag(&actor, &req.key, req.archived)
+            .await?;
         self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
+        Ok(Response::new(pb::Flag::from(&self.mgr.get_flag(&req.key)?)))
     }
 
     async fn delete_flag(
@@ -129,7 +126,9 @@ impl Admin for AdminService {
         request: Request<pb::DeleteFlagRequest>,
     ) -> Result<Response<pb::DeleteFlagResponse>, Status> {
         let actor = actor_of(&request);
-        self.store.delete_flag(&actor, &request.into_inner().key).await?;
+        self.store
+            .delete_flag(&actor, &request.into_inner().key)
+            .await?;
         self.refresh().await;
         Ok(Response::new(pb::DeleteFlagResponse {}))
     }
@@ -145,12 +144,13 @@ impl Admin for AdminService {
             .as_ref()
             .map(Variant::from)
             .ok_or_else(|| Status::invalid_argument("variant is required"))?;
-        let flag = self
-            .store
+        self.store
             .upsert_variant(&actor, &req.flag_key, &variant)
             .await?;
         self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
+        Ok(Response::new(pb::Flag::from(
+            &self.mgr.get_flag(&req.flag_key)?,
+        )))
     }
 
     async fn delete_variant(
@@ -159,12 +159,13 @@ impl Admin for AdminService {
     ) -> Result<Response<pb::Flag>, Status> {
         let actor = actor_of(&request);
         let req = request.into_inner();
-        let flag = self
-            .store
+        self.store
             .delete_variant(&actor, &req.flag_key, &req.variant_key)
             .await?;
         self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
+        Ok(Response::new(pb::Flag::from(
+            &self.mgr.get_flag(&req.flag_key)?,
+        )))
     }
 
     async fn create_segment(
@@ -180,7 +181,7 @@ impl Admin for AdminService {
         &self,
         request: Request<pb::GetSegmentRequest>,
     ) -> Result<Response<pb::Segment>, Status> {
-        let segment = self.store.get_segment(&request.into_inner().key).await?;
+        let segment = self.mgr.get_segment(&request.into_inner().key)?;
         Ok(Response::new(pb::Segment::from(&segment)))
     }
 
@@ -188,7 +189,7 @@ impl Admin for AdminService {
         &self,
         _request: Request<pb::ListSegmentsRequest>,
     ) -> Result<Response<pb::ListSegmentsResponse>, Status> {
-        let segments = self.store.list_segments().await?;
+        let segments = self.mgr.list_segments();
         Ok(Response::new(pb::ListSegmentsResponse {
             segments: segments.iter().map(pb::Segment::from).collect(),
         }))
@@ -208,7 +209,9 @@ impl Admin for AdminService {
         request: Request<pb::DeleteSegmentRequest>,
     ) -> Result<Response<pb::DeleteSegmentResponse>, Status> {
         let actor = actor_of(&request);
-        self.store.delete_segment(&actor, &request.into_inner().key).await?;
+        self.store
+            .delete_segment(&actor, &request.into_inner().key)
+            .await?;
         self.refresh().await;
         Ok(Response::new(pb::DeleteSegmentResponse {}))
     }
@@ -227,12 +230,13 @@ impl Admin for AdminService {
             .map_err(|e: crate::convert::ConversionError| {
                 Status::invalid_argument(e.to_string())
             })?;
-        let flag = self
-            .store
+        self.store
             .set_flag_rules(&actor, &req.flag_key, &rules)
             .await?;
         self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
+        Ok(Response::new(pb::Flag::from(
+            &self.mgr.get_flag(&req.flag_key)?,
+        )))
     }
 
     async fn list_changes(
@@ -259,8 +263,10 @@ impl AdminService {
         let proto = segment.ok_or_else(|| Status::invalid_argument("segment is required"))?;
         let domain =
             Segment::try_from(&proto).map_err(|e| Status::invalid_argument(e.to_string()))?;
-        let saved = self.store.upsert_segment(actor, &domain).await?;
+        self.store.upsert_segment(actor, &domain).await?;
         self.refresh().await;
-        Ok(Response::new(pb::Segment::from(&saved)))
+        Ok(Response::new(pb::Segment::from(
+            &self.mgr.get_segment(&domain.key)?,
+        )))
     }
 }

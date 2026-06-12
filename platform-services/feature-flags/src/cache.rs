@@ -9,6 +9,12 @@ use redis::aio::ConnectionManager;
 
 const SNAPSHOT_KEY: &str = "ff:snapshot";
 
+/// Expiry on the cached snapshot. The boot-time version check already rejects a stale
+/// entry for correctness; this bounds how long a no-longer-advancing entry can linger
+/// (e.g. one written by a replica that briefly raced a newer version) before the key
+/// simply falls out and the next reader rebuilds from Postgres.
+const SNAPSHOT_TTL_SECS: u64 = 3600;
+
 #[derive(Clone)]
 pub struct CacheClient {
     conn: ConnectionManager,
@@ -43,6 +49,6 @@ impl CacheClient {
             return;
         };
         let mut conn = self.conn.clone();
-        let _: Result<(), _> = conn.set(SNAPSHOT_KEY, bytes).await;
+        let _: Result<(), _> = conn.set_ex(SNAPSHOT_KEY, bytes, SNAPSHOT_TTL_SECS).await;
     }
 }

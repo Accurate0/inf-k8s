@@ -670,6 +670,7 @@ name = "feature-flag-engine"
 version = "0.1.0"
 dependencies = [
  "feature-flag-proto",
+ "moka",
  "prost-types",
  "regex",
  "serde",

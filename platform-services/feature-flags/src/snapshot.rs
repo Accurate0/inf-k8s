@@ -4,8 +4,8 @@
 
 use crate::cache::CacheClient;
 use crate::engine::Engine;
-use crate::error::AppResult;
-use crate::model::Snapshot;
+use crate::error::{AppError, AppResult};
+use crate::model::{Flag, Segment, Snapshot};
 use crate::store::Store;
 use sqlx::postgres::PgListener;
 use std::collections::BTreeSet;
@@ -62,6 +62,56 @@ impl SnapshotManager {
 
     pub fn version(&self) -> i64 {
         self.current.read().unwrap().version
+    }
+
+    /// Read-only flag lookup served from the live snapshot, so the admin surface
+    /// doesn't rebuild the whole config from Postgres on every read. After a write the
+    /// caller refreshes first (see [`Self::reload`]), so this still reflects the write.
+    pub fn get_flag(&self, key: &str) -> AppResult<Flag> {
+        self.current
+            .read()
+            .unwrap()
+            .flags
+            .get(key)
+            .cloned()
+            .ok_or_else(|| AppError::NotFound(format!("flag `{key}`")))
+    }
+
+    pub fn list_flags(&self, include_archived: bool) -> Vec<Flag> {
+        let mut flags: Vec<Flag> = self
+            .current
+            .read()
+            .unwrap()
+            .flags
+            .values()
+            .filter(|f| include_archived || !f.archived)
+            .cloned()
+            .collect();
+        flags.sort_by(|a, b| a.key.cmp(&b.key));
+        flags
+    }
+
+    pub fn get_segment(&self, key: &str) -> AppResult<Segment> {
+        self.current
+            .read()
+            .unwrap()
+            .segments
+            .get(key)
+            .cloned()
+            .ok_or_else(|| AppError::NotFound(format!("segment `{key}`")))
+    }
+
+    pub fn list_segments(&self) -> Vec<Segment> {
+        let mut segments: Vec<Segment> = self
+            .current
+            .read()
+            .unwrap()
+            .segments
+            .values()
+            .cloned()
+            .collect();
+        segments.sort_by(|a, b| a.key.cmp(&b.key));
+        segments
     }
 
     pub fn subscribe(&self) -> broadcast::Receiver<ConfigUpdate> {
@@ -176,7 +226,10 @@ mod tests {
             enabled,
             default_variant_key: "off".into(),
             archived: false,
-            variants: vec![Variant { key: "off".into(), value: json!(false) }],
+            variants: vec![Variant {
+                key: "off".into(),
+                value: json!(false),
+            }],
             rules: segment
                 .map(|s| Rule {
                     rank: 0,
@@ -213,7 +266,11 @@ mod tests {
 
     #[test]
     fn reports_added_removed_and_modified_flags() {
-        let old = snapshot(1, vec![flag("a", true, None), flag("b", true, None)], vec![]);
+        let old = snapshot(
+            1,
+            vec![flag("a", true, None), flag("b", true, None)],
+            vec![],
+        );
         let new = snapshot(
             2,
             vec![flag("a", false, None), flag("c", true, None)],
@@ -232,8 +289,16 @@ mod tests {
 
     #[test]
     fn segment_change_propagates_to_referencing_flags() {
-        let old = snapshot(1, vec![flag("a", true, Some("s"))], vec![segment("s", "AU")]);
-        let new = snapshot(2, vec![flag("a", true, Some("s"))], vec![segment("s", "NZ")]);
+        let old = snapshot(
+            1,
+            vec![flag("a", true, Some("s"))],
+            vec![segment("s", "AU")],
+        );
+        let new = snapshot(
+            2,
+            vec![flag("a", true, Some("s"))],
+            vec![segment("s", "NZ")],
+        );
         assert_eq!(changed_flag_keys(&old, &new), vec!["a"]);
     }
 }

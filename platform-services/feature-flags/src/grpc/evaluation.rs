@@ -9,6 +9,7 @@ use serde_json::Value as Json;
 use std::pin::Pin;
 use std::sync::Arc;
 use tokio_stream::wrappers::BroadcastStream;
+use tokio_stream::wrappers::errors::BroadcastStreamRecvError;
 use tonic::{Request, Response, Status};
 
 pub struct EvaluationService {
@@ -224,13 +225,8 @@ impl Evaluation for EvaluationService {
                 async move { Ok(snapshot_response(head_mgr.engine().snapshot())) },
             );
         let tail_mgr = self.mgr.clone();
-        let tail = BroadcastStream::new(rx).filter_map(move |item| {
-            let mgr = tail_mgr.clone();
-            async move {
-                item.ok()
-                    .map(|_| Ok(snapshot_response(mgr.engine().snapshot())))
-            }
-        });
+        let tail = BroadcastStream::new(rx)
+            .map(move |_| Ok(snapshot_response(tail_mgr.engine().snapshot())));
         Ok(Response::new(Box::pin(head.chain(tail))))
     }
 
@@ -253,16 +249,28 @@ impl Evaluation for EvaluationService {
             changed_flag_keys: Vec::new(),
         };
         let head = futures::stream::once(async move { Ok(ready) });
-        let tail = BroadcastStream::new(rx).filter_map(|item| async move {
-            item.ok().map(|update| {
-                Ok(pb::Event {
-                    r#type: pb::EventType::ConfigurationChanged as i32,
-                    config_version: update.version,
-                    changed_flag_keys: (*update.changed_flag_keys).clone(),
-                })
-            })
-        });
+        let tail_mgr = self.mgr.clone();
+        let tail =
+            BroadcastStream::new(rx).map(move |item| Ok(config_event(item, tail_mgr.version())));
         Ok(Response::new(Box::pin(head.chain(tail))))
+    }
+}
+
+fn config_event(
+    item: Result<crate::snapshot::ConfigUpdate, BroadcastStreamRecvError>,
+    current_version: i64,
+) -> pb::Event {
+    match item {
+        Ok(update) => pb::Event {
+            r#type: pb::EventType::ConfigurationChanged as i32,
+            config_version: update.version,
+            changed_flag_keys: (*update.changed_flag_keys).clone(),
+        },
+        Err(BroadcastStreamRecvError::Lagged(_)) => pb::Event {
+            r#type: pb::EventType::Resync as i32,
+            config_version: current_version,
+            changed_flag_keys: Vec::new(),
+        },
     }
 }
 
@@ -272,5 +280,33 @@ fn evaluated_flag(key: &str, value_type: ValueType, res: &Resolution) -> pb::Eva
         value_type: pb::ValueType::from(value_type) as i32,
         value: Some(convert::json_to_prost_value(&res.value)),
         meta: Some(pb::ResolutionMeta::from(res)),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::snapshot::ConfigUpdate;
+
+    #[test]
+    fn update_maps_to_configuration_changed() {
+        let event = config_event(
+            Ok(ConfigUpdate {
+                version: 7,
+                changed_flag_keys: std::sync::Arc::new(vec!["a".to_owned()]),
+            }),
+            5,
+        );
+        assert_eq!(event.r#type, pb::EventType::ConfigurationChanged as i32);
+        assert_eq!(event.config_version, 7);
+        assert_eq!(event.changed_flag_keys, vec!["a"]);
+    }
+
+    #[test]
+    fn lag_maps_to_resync_with_current_version() {
+        let event = config_event(Err(BroadcastStreamRecvError::Lagged(99)), 5);
+        assert_eq!(event.r#type, pb::EventType::Resync as i32);
+        assert_eq!(event.config_version, 5);
+        assert!(event.changed_flag_keys.is_empty());
     }
 }

@@ -258,27 +258,6 @@ impl Store {
             .ok_or_else(|| AppError::NotFound(format!("flag `{key}`")))
     }
 
-    pub async fn get_flag(&self, key: &str) -> AppResult<Flag> {
-        self.load_snapshot()
-            .await?
-            .flags
-            .get(key)
-            .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("flag `{key}`")))
-    }
-
-    pub async fn list_flags(&self, include_archived: bool) -> AppResult<Vec<Flag>> {
-        let mut flags: Vec<Flag> = self
-            .load_snapshot()
-            .await?
-            .flags
-            .into_values()
-            .filter(|f| include_archived || !f.archived)
-            .collect();
-        flags.sort_by(|a, b| a.key.cmp(&b.key));
-        Ok(flags)
-    }
-
     pub async fn create_flag(
         &self,
         actor: &str,
@@ -287,7 +266,7 @@ impl Store {
         enabled: bool,
         default_variant_key: &str,
         variants: &[Variant],
-    ) -> AppResult<Flag> {
+    ) -> AppResult<()> {
         if variants.iter().all(|v| v.key != default_variant_key) {
             return Err(AppError::Invalid(format!(
                 "default variant `{default_variant_key}` is not among the provided variants"
@@ -334,7 +313,7 @@ impl Store {
         )
         .await?;
         tx.commit().await?;
-        self.get_flag(key).await
+        Ok(())
     }
 
     pub async fn update_flag(
@@ -343,9 +322,13 @@ impl Store {
         key: &str,
         enabled: bool,
         default_variant_key: &str,
-    ) -> AppResult<Flag> {
+    ) -> AppResult<()> {
         let flag_id = self.flag_id(key).await?;
-        if !self.variant_keys(flag_id).await?.contains(default_variant_key) {
+        if !self
+            .variant_keys(flag_id)
+            .await?
+            .contains(default_variant_key)
+        {
             return Err(AppError::Invalid(format!(
                 "default variant `{default_variant_key}` is not among flag `{key}`'s variants"
             )));
@@ -374,10 +357,10 @@ impl Store {
         )
         .await?;
         tx.commit().await?;
-        self.get_flag(key).await
+        Ok(())
     }
 
-    pub async fn archive_flag(&self, actor: &str, key: &str, archived: bool) -> AppResult<Flag> {
+    pub async fn archive_flag(&self, actor: &str, key: &str, archived: bool) -> AppResult<()> {
         let mut tx = self.pool.begin().await?;
         let affected = sqlx::query!(
             "UPDATE flags SET archived = $2, updated_at = now() WHERE key = $1",
@@ -393,14 +376,18 @@ impl Store {
         Self::record_change(
             &mut tx,
             actor,
-            if archived { "archive_flag" } else { "unarchive_flag" },
+            if archived {
+                "archive_flag"
+            } else {
+                "unarchive_flag"
+            },
             "flag",
             key,
             serde_json::json!({ "archived": archived }),
         )
         .await?;
         tx.commit().await?;
-        self.get_flag(key).await
+        Ok(())
     }
 
     pub async fn delete_flag(&self, actor: &str, key: &str) -> AppResult<()> {
@@ -422,7 +409,7 @@ impl Store {
         actor: &str,
         flag_key: &str,
         variant: &Variant,
-    ) -> AppResult<Flag> {
+    ) -> AppResult<()> {
         let flag = sqlx::query!("SELECT id, value_type FROM flags WHERE key = $1", flag_key)
             .fetch_optional(&self.pool)
             .await?
@@ -449,7 +436,7 @@ impl Store {
         )
         .await?;
         tx.commit().await?;
-        self.get_flag(flag_key).await
+        Ok(())
     }
 
     pub async fn delete_variant(
@@ -457,7 +444,7 @@ impl Store {
         actor: &str,
         flag_key: &str,
         variant_key: &str,
-    ) -> AppResult<Flag> {
+    ) -> AppResult<()> {
         let flag_id = self.flag_id(flag_key).await?;
         let mut tx = self.pool.begin().await?;
         sqlx::query!(
@@ -477,10 +464,10 @@ impl Store {
         )
         .await?;
         tx.commit().await?;
-        self.get_flag(flag_key).await
+        Ok(())
     }
 
-    pub async fn upsert_segment(&self, actor: &str, segment: &Segment) -> AppResult<Segment> {
+    pub async fn upsert_segment(&self, actor: &str, segment: &Segment) -> AppResult<()> {
         let mut tx = self.pool.begin().await?;
         let segment_id = sqlx::query_scalar!(
             "INSERT INTO segments (key, name) VALUES ($1, $2) \
@@ -520,23 +507,7 @@ impl Store {
         )
         .await?;
         tx.commit().await?;
-        self.get_segment(&segment.key).await
-    }
-
-    pub async fn get_segment(&self, key: &str) -> AppResult<Segment> {
-        self.load_snapshot()
-            .await?
-            .segments
-            .get(key)
-            .cloned()
-            .ok_or_else(|| AppError::NotFound(format!("segment `{key}`")))
-    }
-
-    pub async fn list_segments(&self) -> AppResult<Vec<Segment>> {
-        let mut segments: Vec<Segment> =
-            self.load_snapshot().await?.segments.into_values().collect();
-        segments.sort_by(|a, b| a.key.cmp(&b.key));
-        Ok(segments)
+        Ok(())
     }
 
     pub async fn delete_segment(&self, actor: &str, key: &str) -> AppResult<()> {
@@ -558,7 +529,7 @@ impl Store {
         actor: &str,
         flag_key: &str,
         rules: &[Rule],
-    ) -> AppResult<Flag> {
+    ) -> AppResult<()> {
         let flag_id = self.flag_id(flag_key).await?;
         validate_rules(flag_key, rules, &self.variant_keys(flag_id).await?)?;
         let mut tx = self.pool.begin().await?;
@@ -617,9 +588,8 @@ impl Store {
         )
         .await?;
         tx.commit().await?;
-        self.get_flag(flag_key).await
+        Ok(())
     }
-
 }
 
 /// Reject a variant whose JSON value doesn't match the flag's declared type, so the
@@ -697,7 +667,10 @@ mod tests {
     }
 
     fn dist(variant_key: &str, weight: u32) -> Distribution {
-        Distribution { variant_key: variant_key.into(), weight }
+        Distribution {
+            variant_key: variant_key.into(),
+            weight,
+        }
     }
 
     #[test]
@@ -721,11 +694,17 @@ mod tests {
     fn rejects_unknown_distribution_variant() {
         let vs = variants(&["on", "off"]);
         let rules = vec![rule(None, vec![dist("on", 50), dist("ghost", 50)])];
-        assert!(matches!(validate_rules("f", &rules, &vs), Err(AppError::Invalid(_))));
+        assert!(matches!(
+            validate_rules("f", &rules, &vs),
+            Err(AppError::Invalid(_))
+        ));
     }
 
     fn variant(value: serde_json::Value) -> Variant {
-        Variant { key: "v".into(), value }
+        Variant {
+            key: "v".into(),
+            value,
+        }
     }
 
     #[test]

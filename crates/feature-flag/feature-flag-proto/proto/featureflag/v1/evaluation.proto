@@ -92,12 +92,14 @@ enum EventType {
   EVENT_TYPE_UNSPECIFIED = 0;
   EVENT_TYPE_READY = 1;
   EVENT_TYPE_CONFIGURATION_CHANGED = 2;
+  // Subscriber fell behind and lost events; refetch the full snapshot.
+  EVENT_TYPE_RESYNC = 3;
 }
 
 message Event {
   EventType type = 1;
   // Global monotonically increasing config version after the change.
   int64 config_version = 2;
-  // Flag keys affected by a CONFIGURATION_CHANGED event (empty for READY).
+  // Flag keys affected by a CONFIGURATION_CHANGED event (empty for READY and RESYNC).
   repeated string changed_flag_keys = 3;
 }

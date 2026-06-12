@@ -1,17 +1,15 @@
+mod common;
+
 use insta::assert_yaml_snapshot;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::PgPool;
 
+use common::{connect_admin, connect_eval, eval_request, spawn_server};
 use feature_flags::convert;
-use feature_flags::grpc::{AdminService, EvaluationService};
 use feature_flags::pb;
 use feature_flags::pb::admin_client::AdminClient;
-use feature_flags::pb::admin_server::AdminServer;
 use feature_flags::pb::evaluation_client::EvaluationClient;
-use feature_flags::pb::evaluation_server::EvaluationServer;
-use feature_flags::snapshot::SnapshotManager;
-use feature_flags::store::Store;
 
 #[derive(Deserialize)]
 struct Fixture {
@@ -224,29 +222,9 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     let content = std::fs::read_to_string(format!("tests/fixtures/{dir}/{file}.yaml")).unwrap();
     let fixture: Fixture = serde_yaml::from_str(&content).unwrap();
 
-    let store = Store::new(pool);
-    let manager = SnapshotManager::bootstrap(store.clone(), None)
-        .await
-        .unwrap();
-
-    let admin = AdminService::new(store, manager.clone());
-    let evaluation = EvaluationService::new(manager);
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
-    let server_handle = tokio::spawn(async move {
-        tonic::transport::Server::builder()
-            .add_service(EvaluationServer::new(evaluation))
-            .add_service(AdminServer::new(admin))
-            .serve_with_incoming(incoming)
-            .await
-            .unwrap();
-    });
-
-    let endpoint = format!("http://{addr}");
+    let (endpoint, server_handle) = spawn_server(pool).await;
     let mut admin_client = connect_admin(&endpoint).await;
-    let mut eval_client = EvaluationClient::connect(endpoint).await.unwrap();
+    let mut eval_client = connect_eval(&endpoint).await;
 
     seed(&mut admin_client, &fixture).await;
 
@@ -277,10 +255,6 @@ struct EvaluatedSnapshot {
     flag_key: String,
     #[serde(flatten)]
     resolution: ResolveSnapshot,
-}
-
-async fn connect_admin(endpoint: &str) -> AdminClient<tonic::transport::Channel> {
-    AdminClient::connect(endpoint.to_string()).await.unwrap()
 }
 
 async fn seed(client: &mut AdminClient<tonic::transport::Channel>, fixture: &Fixture) {
@@ -355,16 +329,6 @@ async fn seed(client: &mut AdminClient<tonic::transport::Channel>, fixture: &Fix
             .await
             .unwrap();
     }
-}
-
-/// Wrap an evaluation message in a request carrying the `client-id` header the backend
-/// now requires on the read path.
-fn eval_request<T>(msg: T) -> tonic::Request<T> {
-    let mut request = tonic::Request::new(msg);
-    request
-        .metadata_mut()
-        .insert("client-id", "integration-test".parse().unwrap());
-    request
 }
 
 async fn run_resolve(
@@ -459,88 +423,4 @@ async fn run_resolve_all(
         .collect();
     flags.sort_by(|a, b| a.flag_key.cmp(&b.flag_key));
     flags
-}
-
-#[sqlx::test(migrations = "./migrations")]
-async fn list_changes_records_and_filters_audit_log(pool: PgPool) {
-    let store = Store::new(pool);
-    let variants = [feature_flags::model::Variant {
-        key: "on".into(),
-        value: serde_json::Value::Bool(true),
-    }];
-    store
-        .create_flag(
-            "alice",
-            "flag-a",
-            feature_flags::model::ValueType::Boolean,
-            true,
-            "on",
-            &variants,
-        )
-        .await
-        .unwrap();
-    store
-        .update_flag("bob", "flag-a", false, "on")
-        .await
-        .unwrap();
-
-    let all = store.list_changes("", "", 0).await.unwrap();
-    assert_eq!(all.len(), 2);
-    // Newest first: the update precedes the create.
-    assert_eq!(all[0].action, "update_flag");
-    assert_eq!(all[0].actor, "bob");
-    assert_eq!(all[1].action, "create_flag");
-    assert_eq!(all[1].actor, "alice");
-
-    // Filtering by target narrows to that flag's rows.
-    let filtered = store.list_changes("flag", "flag-a", 0).await.unwrap();
-    assert_eq!(filtered.len(), 2);
-    let other = store.list_changes("segment", "nope", 0).await.unwrap();
-    assert!(other.is_empty());
-
-    // The limit caps the returned rows.
-    let limited = store.list_changes("", "", 1).await.unwrap();
-    assert_eq!(limited.len(), 1);
-    assert_eq!(limited[0].action, "update_flag");
-}
-
-#[sqlx::test(migrations = "./migrations")]
-async fn resolve_requires_client_id(pool: PgPool) {
-    let store = Store::new(pool);
-    let manager = SnapshotManager::bootstrap(store.clone(), None)
-        .await
-        .unwrap();
-    let evaluation = EvaluationService::new(manager);
-
-    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
-    let addr = listener.local_addr().unwrap();
-    let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
-    let server_handle = tokio::spawn(async move {
-        tonic::transport::Server::builder()
-            .add_service(EvaluationServer::new(evaluation))
-            .serve_with_incoming(incoming)
-            .await
-            .unwrap();
-    });
-
-    let mut client = EvaluationClient::connect(format!("http://{addr}"))
-        .await
-        .unwrap();
-    let request = pb::ResolveRequest {
-        flag_key: "anything".into(),
-        context: None,
-    };
-
-    // Without the `client-id` header the request is rejected.
-    let err = client
-        .resolve_boolean(request.clone())
-        .await
-        .expect_err("expected rejection");
-    assert_eq!(err.code(), tonic::Code::Unauthenticated);
-
-    // With it, the request is served (flag missing, but the call itself succeeds).
-    let ok = client.resolve_boolean(eval_request(request)).await;
-    assert!(ok.is_ok());
-
-    server_handle.abort();
 }

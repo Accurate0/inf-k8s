@@ -99,7 +99,7 @@ async fn event_loop(
                             status.store(STATUS_READY, Ordering::Relaxed);
                             let _ = events.send(ProviderEvent::Ready);
                         }
-                        Ok(EventType::ConfigurationChanged) => {
+                        Ok(EventType::ConfigurationChanged) | Ok(EventType::Resync) => {
                             let _ = events.send(ProviderEvent::ConfigurationChanged {
                                 version: event.config_version,
                             });

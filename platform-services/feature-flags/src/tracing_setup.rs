@@ -1,6 +1,5 @@
 use http::{HeaderMap, HeaderValue};
 use opentelemetry::{KeyValue, global, trace::TracerProvider as _};
-use opentelemetry_http::HeaderExtractor;
 use opentelemetry_otlp::{Protocol, WithExportConfig};
 use opentelemetry_sdk::{
     Resource,
@@ -13,7 +12,6 @@ use opentelemetry_semantic_conventions::resource::{
 };
 use std::time::Duration;
 use tracing::Level;
-use tracing_opentelemetry::OpenTelemetrySpanExt;
 use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
 const SERVICE: &str = "feature-flags";
