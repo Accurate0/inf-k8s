@@ -14,8 +14,8 @@ flags:
       - {key: modern, value: "modern"}
     rules:
       - variant: modern
-    prerequisites:
-      - {flag_key: master, variant_key: "on"}
+        constraint_groups:
+          - - {attribute: master, operator: flag_matches, values: ["on"]}
 
 resolve:
   kind: string

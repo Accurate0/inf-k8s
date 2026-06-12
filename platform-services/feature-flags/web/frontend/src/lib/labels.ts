@@ -30,6 +30,7 @@ export const operatorLabels: Record<number, string> = {
   [ConstraintOperator.CONSTRAINT_OPERATOR_LTE]: "lte",
   [ConstraintOperator.CONSTRAINT_OPERATOR_EXISTS]: "exists",
   [ConstraintOperator.CONSTRAINT_OPERATOR_REGEX]: "regex",
+  [ConstraintOperator.CONSTRAINT_OPERATOR_FLAG_MATCHES]: "flag matches",
 };
 
 export const operatorOptions = Object.entries(operatorLabels).map(([value, label]) => ({

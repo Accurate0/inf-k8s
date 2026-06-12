@@ -49,6 +49,11 @@ export enum ConstraintOperator {
   CONSTRAINT_OPERATOR_LTE = 11,
   CONSTRAINT_OPERATOR_EXISTS = 12,
   CONSTRAINT_OPERATOR_REGEX = 13,
+  /**
+   * CONSTRAINT_OPERATOR_FLAG_MATCHES - Matches when the flag named by the constraint's attribute resolves to one of
+   * the variant keys in values. Lets a rule depend on another flag's resolution.
+   */
+  CONSTRAINT_OPERATOR_FLAG_MATCHES = 14,
   UNRECOGNIZED = -1,
 }
 
@@ -123,15 +128,6 @@ export interface Rule {
   bucketSalt: string;
 }
 
-/**
- * A dependency on another flag: this flag serves its rules only when the
- * prerequisite flag resolves to variant_key, otherwise it falls back to its default.
- */
-export interface Prerequisite {
-  flagKey: string;
-  variantKey: string;
-}
-
 export interface Flag {
   key: string;
   valueType: ValueType;
@@ -140,7 +136,6 @@ export interface Flag {
   archived: boolean;
   variants: Variant[];
   rules: Rule[];
-  prerequisites: Prerequisite[];
 }
 
 function createBaseEvaluationContext(): EvaluationContext {
@@ -609,75 +604,8 @@ export const Rule: MessageFns<Rule> = {
   },
 };
 
-function createBasePrerequisite(): Prerequisite {
-  return { flagKey: "", variantKey: "" };
-}
-
-export const Prerequisite: MessageFns<Prerequisite> = {
-  encode(message: Prerequisite, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.flagKey !== "") {
-      writer.uint32(10).string(message.flagKey);
-    }
-    if (message.variantKey !== "") {
-      writer.uint32(18).string(message.variantKey);
-    }
-    return writer;
-  },
-
-  decode(input: BinaryReader | Uint8Array, length?: number): Prerequisite {
-    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
-    const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBasePrerequisite();
-    while (reader.pos < end) {
-      const tag = reader.uint32();
-      switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.flagKey = reader.string();
-          continue;
-        }
-        case 2: {
-          if (tag !== 18) {
-            break;
-          }
-
-          message.variantKey = reader.string();
-          continue;
-        }
-      }
-      if ((tag & 7) === 4 || tag === 0) {
-        break;
-      }
-      reader.skip(tag & 7);
-    }
-    return message;
-  },
-
-  create<I extends Exact<DeepPartial<Prerequisite>, I>>(base?: I): Prerequisite {
-    return Prerequisite.fromPartial(base ?? ({} as any));
-  },
-  fromPartial<I extends Exact<DeepPartial<Prerequisite>, I>>(object: I): Prerequisite {
-    const message = createBasePrerequisite();
-    message.flagKey = object.flagKey ?? "";
-    message.variantKey = object.variantKey ?? "";
-    return message;
-  },
-};
-
 function createBaseFlag(): Flag {
-  return {
-    key: "",
-    valueType: 0,
-    enabled: false,
-    defaultVariantKey: "",
-    archived: false,
-    variants: [],
-    rules: [],
-    prerequisites: [],
-  };
+  return { key: "", valueType: 0, enabled: false, defaultVariantKey: "", archived: false, variants: [], rules: [] };
 }
 
 export const Flag: MessageFns<Flag> = {
@@ -702,9 +630,6 @@ export const Flag: MessageFns<Flag> = {
     }
     for (const v of message.rules) {
       Rule.encode(v!, writer.uint32(58).fork()).join();
-    }
-    for (const v of message.prerequisites) {
-      Prerequisite.encode(v!, writer.uint32(66).fork()).join();
     }
     return writer;
   },
@@ -772,14 +697,6 @@ export const Flag: MessageFns<Flag> = {
           message.rules.push(Rule.decode(reader, reader.uint32()));
           continue;
         }
-        case 8: {
-          if (tag !== 66) {
-            break;
-          }
-
-          message.prerequisites.push(Prerequisite.decode(reader, reader.uint32()));
-          continue;
-        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -801,7 +718,6 @@ export const Flag: MessageFns<Flag> = {
     message.archived = object.archived ?? false;
     message.variants = object.variants?.map((e) => Variant.fromPartial(e)) || [];
     message.rules = object.rules?.map((e) => Rule.fromPartial(e)) || [];
-    message.prerequisites = object.prerequisites?.map((e) => Prerequisite.fromPartial(e)) || [];
     return message;
   },
 };

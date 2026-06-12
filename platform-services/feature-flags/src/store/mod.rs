@@ -6,8 +6,7 @@ mod types;
 
 use crate::error::{AppError, AppResult};
 use crate::model::{
-    Constraint, ConstraintGroup, Distribution, Flag, Prerequisite, Rule, Segment, Snapshot,
-    ValueType, Variant,
+    Constraint, ConstraintGroup, Distribution, Flag, Rule, Segment, Snapshot, ValueType, Variant,
 };
 use serde_json::Value as Json;
 use sqlx::PgPool;
@@ -77,7 +76,6 @@ impl Store {
                     archived: row.archived,
                     variants: Vec::new(),
                     rules: Vec::new(),
-                    prerequisites: Vec::new(),
                 },
             );
         }
@@ -148,20 +146,6 @@ impl Store {
                         .into_values()
                         .map(|constraints| ConstraintGroup { constraints })
                         .collect(),
-                });
-            }
-        }
-
-        for row in sqlx::query!(
-            "SELECT flag_id, prerequisite_key, variant_key FROM flag_prerequisites"
-        )
-        .fetch_all(&self.pool)
-        .await?
-        {
-            if let Some(flag) = flags.get_mut(&row.flag_id) {
-                flag.prerequisites.push(Prerequisite {
-                    flag_key: row.prerequisite_key,
-                    variant_key: row.variant_key,
                 });
             }
         }
@@ -636,57 +620,6 @@ impl Store {
         self.get_flag(flag_key).await
     }
 
-    pub async fn set_flag_prerequisites(
-        &self,
-        actor: &str,
-        flag_key: &str,
-        prerequisites: &[Prerequisite],
-    ) -> AppResult<Flag> {
-        let flag_id = self.flag_id(flag_key).await?;
-
-        for p in prerequisites {
-            if p.flag_key == flag_key {
-                return Err(AppError::Invalid(format!(
-                    "flag `{flag_key}` cannot be its own prerequisite"
-                )));
-            }
-            if self.flag_id(&p.flag_key).await.is_err() {
-                return Err(AppError::Invalid(format!(
-                    "prerequisite flag `{}` does not exist",
-                    p.flag_key
-                )));
-            }
-        }
-
-        let mut tx = self.pool.begin().await?;
-        sqlx::query!("DELETE FROM flag_prerequisites WHERE flag_id = $1", flag_id)
-            .execute(&mut *tx)
-            .await?;
-
-        for p in prerequisites {
-            sqlx::query!(
-                "INSERT INTO flag_prerequisites (flag_id, prerequisite_key, variant_key) \
-                 VALUES ($1, $2, $3)",
-                flag_id,
-                p.flag_key,
-                p.variant_key,
-            )
-            .execute(&mut *tx)
-            .await?;
-        }
-
-        Self::record_change(
-            &mut tx,
-            actor,
-            "set_flag_prerequisites",
-            "flag",
-            flag_key,
-            serde_json::json!({ "prerequisite_count": prerequisites.len() }),
-        )
-        .await?;
-        tx.commit().await?;
-        self.get_flag(flag_key).await
-    }
 }
 
 /// Reject a variant whose JSON value doesn't match the flag's declared type, so the

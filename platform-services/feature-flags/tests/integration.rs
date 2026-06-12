@@ -35,14 +35,6 @@ struct FlagDef {
     variants: Vec<VariantDef>,
     #[serde(default)]
     rules: Vec<RuleDef>,
-    #[serde(default)]
-    prerequisites: Vec<PrereqDef>,
-}
-
-#[derive(Deserialize)]
-struct PrereqDef {
-    flag_key: String,
-    variant_key: String,
 }
 
 fn default_true() -> bool {
@@ -134,6 +126,7 @@ fn operator(s: &str) -> pb::ConstraintOperator {
         "lte" => Op::Lte,
         "exists" => Op::Exists,
         "regex" => Op::Regex,
+        "flag_matches" => Op::FlagMatches,
         other => panic!("unknown operator: {other}"),
     }
 }
@@ -336,28 +329,6 @@ async fn seed(client: &mut AdminClient<tonic::transport::Channel>, fixture: &Fix
             .set_flag_rules(pb::SetFlagRulesRequest {
                 flag_key: flag.key.clone(),
                 rules,
-            })
-            .await
-            .unwrap();
-    }
-
-    // Second pass: all flags exist now, so prerequisites can reference any of them.
-    for flag in &fixture.flags {
-        if flag.prerequisites.is_empty() {
-            continue;
-        }
-        let prerequisites = flag
-            .prerequisites
-            .iter()
-            .map(|p| pb::Prerequisite {
-                flag_key: p.flag_key.clone(),
-                variant_key: p.variant_key.clone(),
-            })
-            .collect();
-        client
-            .set_flag_prerequisites(pb::SetFlagPrerequisitesRequest {
-                flag_key: flag.key.clone(),
-                prerequisites,
             })
             .await
             .unwrap();

@@ -66,6 +66,7 @@ impl From<Operator> for ConstraintOperator {
             Operator::Lte => ConstraintOperator::Lte,
             Operator::Exists => ConstraintOperator::Exists,
             Operator::Regex => ConstraintOperator::Regex,
+            Operator::FlagMatches => ConstraintOperator::FlagMatches,
         }
     }
 }
@@ -91,6 +92,7 @@ impl TryFrom<ConstraintOperator> for Operator {
             ConstraintOperator::Lte => Operator::Lte,
             ConstraintOperator::Exists => Operator::Exists,
             ConstraintOperator::Regex => Operator::Regex,
+            ConstraintOperator::FlagMatches => Operator::FlagMatches,
         })
     }
 }

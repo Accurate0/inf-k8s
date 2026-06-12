@@ -41,6 +41,9 @@ enum ConstraintOperator {
   CONSTRAINT_OPERATOR_LTE = 11;
   CONSTRAINT_OPERATOR_EXISTS = 12;
   CONSTRAINT_OPERATOR_REGEX = 13;
+  // Matches when the flag named by the constraint's attribute resolves to one of
+  // the variant keys in values. Lets a rule depend on another flag's resolution.
+  CONSTRAINT_OPERATOR_FLAG_MATCHES = 14;
 }
 
 // The OpenFeature-style evaluation context the engine matches rules against.
@@ -104,13 +107,6 @@ message Rule {
   string bucket_salt = 6;
 }
 
-// A dependency on another flag: this flag serves its rules only when the
-// prerequisite flag resolves to variant_key, otherwise it falls back to its default.
-message Prerequisite {
-  string flag_key = 1;
-  string variant_key = 2;
-}
-
 message Flag {
   string key = 1;
   ValueType value_type = 2;
@@ -119,5 +115,6 @@ message Flag {
   bool archived = 5;
   repeated Variant variants = 6;
   repeated Rule rules = 7;
-  repeated Prerequisite prerequisites = 8;
+  reserved 8;
+  reserved "prerequisites";
 }

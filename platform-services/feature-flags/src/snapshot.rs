@@ -188,7 +188,6 @@ mod tests {
                 })
                 .into_iter()
                 .collect(),
-            prerequisites: vec![],
         }
     }
 

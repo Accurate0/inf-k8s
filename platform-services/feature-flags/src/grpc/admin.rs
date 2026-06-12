@@ -1,4 +1,4 @@
-use crate::model::{Prerequisite, Rule, Segment, ValueType, Variant};
+use crate::model::{Rule, Segment, ValueType, Variant};
 use crate::pb;
 use crate::pb::admin_server::Admin;
 use crate::snapshot::SnapshotManager;
@@ -230,21 +230,6 @@ impl Admin for AdminService {
         let flag = self
             .store
             .set_flag_rules(&actor, &req.flag_key, &rules)
-            .await?;
-        self.refresh().await;
-        Ok(Response::new(pb::Flag::from(&flag)))
-    }
-
-    async fn set_flag_prerequisites(
-        &self,
-        request: Request<pb::SetFlagPrerequisitesRequest>,
-    ) -> Result<Response<pb::Flag>, Status> {
-        let actor = actor_of(&request);
-        let req = request.into_inner();
-        let prerequisites: Vec<_> = req.prerequisites.iter().map(Prerequisite::from).collect();
-        let flag = self
-            .store
-            .set_flag_prerequisites(&actor, &req.flag_key, &prerequisites)
             .await?;
         self.refresh().await;
         Ok(Response::new(pb::Flag::from(&flag)))

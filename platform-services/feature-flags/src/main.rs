@@ -10,7 +10,6 @@ use sqlx::postgres::PgPoolOptions;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 
-// TODO: flag prereqs is actually a constraint rule type
 // TODO: i dont get actor correctly in BE
 
 #[tokio::main]

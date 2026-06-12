@@ -35,6 +35,10 @@ pub enum Operator {
     Lte,
     Exists,
     Regex,
+    /// Depends on another flag rather than a context attribute: the constraint's
+    /// `attribute` names the flag and `values` lists the variant keys it must
+    /// resolve to. Only meaningful inside a rule, where the engine can recurse.
+    FlagMatches,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -80,15 +84,6 @@ pub struct Rule {
     pub bucket_salt: String,
 }
 
-/// A dependency on another flag: this flag only serves its rules when the
-/// prerequisite flag resolves to `variant_key`; otherwise it falls back to its
-/// default variant.
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Prerequisite {
-    pub flag_key: String,
-    pub variant_key: String,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Flag {
     pub key: String,
@@ -98,7 +93,6 @@ pub struct Flag {
     pub archived: bool,
     pub variants: Vec<Variant>,
     pub rules: Vec<Rule>,
-    pub prerequisites: Vec<Prerequisite>,
 }
 
 impl Flag {

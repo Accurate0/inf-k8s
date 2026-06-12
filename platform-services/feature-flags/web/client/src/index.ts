@@ -16,7 +16,6 @@ import {
 } from "./gen/featureflag/v1/evaluation.js";
 import {
   type Flag,
-  type Prerequisite,
   type Rule,
   type Segment,
   ValueType,
@@ -120,18 +119,6 @@ export class FeatureFlagClient {
     return unary(
       this.admin.setFlagRules.bind(this.admin),
       { flagKey, rules },
-      actorMetadata(actor),
-    );
-  }
-
-  setFlagPrerequisites(
-    flagKey: string,
-    prerequisites: Prerequisite[],
-    actor?: string,
-  ): Promise<Flag> {
-    return unary(
-      this.admin.setFlagPrerequisites.bind(this.admin),
-      { flagKey, prerequisites },
       actorMetadata(actor),
     );
   }

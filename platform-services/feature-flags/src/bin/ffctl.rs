@@ -41,11 +41,6 @@ enum Command {
         #[command(subcommand)]
         action: RulesAction,
     },
-    /// Replace the prerequisites (flag dependencies) for a flag
-    Prereqs {
-        #[command(subcommand)]
-        action: PrereqsAction,
-    },
 }
 
 #[derive(Subcommand)]
@@ -125,14 +120,7 @@ enum RulesAction {
     /// Replace a flag's rules from a JSON array, ordered by priority, e.g.
     /// `[{"segment_key":"beta","variant_key":"on"},{"constraint_groups":[[{"attribute":"country","operator":"IN","values":["AU","NZ"]}],[{"attribute":"plan","operator":"EQ","values":["pro"]}]],"variant_key":"on"}]`.
     /// `constraint_groups` is CNF: groups are AND-combined, constraints within a group OR-combined; `constraints` (a flat array) is sugar for plain AND. Both work with or without a `segment_key`.
-    Set { flag_key: String, json: String },
-}
-
-#[derive(Subcommand)]
-enum PrereqsAction {
-    /// Replace a flag's prerequisites from a JSON array, e.g.
-    /// `[{"flag_key":"master","variant_key":"on"}]`. The flag serves its rules only
-    /// when every prerequisite flag resolves to the given variant, else its default.
+    /// A `FLAG_MATCHES` operator depends on another flag: `attribute` is the flag key and `values` the variant keys it must resolve to (a prerequisite).
     Set { flag_key: String, json: String },
 }
 
@@ -169,7 +157,6 @@ async fn main() -> anyhow::Result<()> {
         Command::Variant { action } => variant(&mut admin, action).await,
         Command::Segment { action } => segment(&mut admin, action).await,
         Command::Rules { action } => rules(&mut admin, action).await,
-        Command::Prereqs { action } => prereqs(&mut admin, action).await,
     }
 }
 
@@ -334,38 +321,6 @@ async fn rules(admin: &mut AdminClient<Channel>, action: RulesAction) -> anyhow:
         .await?
         .into_inner();
     print(flag_to_json(&flag))
-}
-
-async fn prereqs(admin: &mut AdminClient<Channel>, action: PrereqsAction) -> anyhow::Result<()> {
-    let PrereqsAction::Set { flag_key, json } = action;
-    let Json::Array(items) = parse_json(&json) else {
-        bail!("prerequisites must be a JSON array");
-    };
-    let prerequisites = items
-        .iter()
-        .map(parse_prerequisite)
-        .collect::<anyhow::Result<_>>()?;
-    let flag = admin
-        .set_flag_prerequisites(pb::SetFlagPrerequisitesRequest { flag_key, prerequisites })
-        .await?
-        .into_inner();
-    print(flag_to_json(&flag))
-}
-
-fn parse_prerequisite(item: &Json) -> anyhow::Result<pb::Prerequisite> {
-    let obj = item.as_object().context("prerequisite must be a JSON object")?;
-    Ok(pb::Prerequisite {
-        flag_key: obj
-            .get("flag_key")
-            .and_then(Json::as_str)
-            .context("prerequisite requires a `flag_key`")?
-            .to_owned(),
-        variant_key: obj
-            .get("variant_key")
-            .and_then(Json::as_str)
-            .context("prerequisite requires a `variant_key`")?
-            .to_owned(),
-    })
 }
 
 /// Parse a `key=value` variant spec, reading `value` as JSON with a bare-string fallback.
@@ -547,10 +502,6 @@ fn flag_to_json(flag: &pb::Flag) -> Json {
                     "values": c.values.iter().map(value_to_json).collect::<Vec<_>>(),
                 })).collect::<Vec<_>>()
             }).collect::<Vec<_>>(),
-        })).collect::<Vec<_>>(),
-        "prerequisites": flag.prerequisites.iter().map(|p| json!({
-            "flag_key": p.flag_key,
-            "variant_key": p.variant_key,
         })).collect::<Vec<_>>(),
     })
 }

@@ -41,7 +41,7 @@ impl Engine {
         if stack.iter().any(|k| k == flag_key) {
             return Err(EvalError {
                 code: ErrorCode::ParseError,
-                message: format!("prerequisite cycle through flag `{flag_key}`"),
+                message: format!("flag dependency cycle through flag `{flag_key}`"),
             });
         }
 
@@ -54,19 +54,23 @@ impl Engine {
             return Self::resolve_variant(flag, &flag.default_variant_key, Reason::Disabled);
         }
 
-        for prereq in &flag.prerequisites {
-            stack.push(flag_key.to_string());
-            let result = self.evaluate_inner(&prereq.flag_key, ctx, stack);
-            stack.pop();
+        // Track this flag while its rules evaluate so a flag-match constraint that
+        // (transitively) depends back on it is detected as a cycle rather than looping.
+        stack.push(flag_key.to_string());
+        let resolution = self.resolve_rules(flag, flag_key, ctx, stack);
+        stack.pop();
+        resolution
+    }
 
-            let met = matches!(&result, Ok(res) if res.variant == prereq.variant_key);
-            if !met {
-                return Self::resolve_variant(flag, &flag.default_variant_key, Reason::Default);
-            }
-        }
-
+    fn resolve_rules(
+        &self,
+        flag: &Flag,
+        flag_key: &str,
+        ctx: &EvalContext,
+        stack: &mut Vec<String>,
+    ) -> Result<Resolution, EvalError> {
         for rule in &flag.rules {
-            if !self.rule_matches(rule, ctx) {
+            if !self.rule_matches(rule, ctx, stack) {
                 continue;
             }
             if !rule.distributions.is_empty() {
@@ -83,7 +87,7 @@ impl Engine {
 
     /// A rule matches when its referenced segment (if any) matches AND all of its
     /// inline constraints match.
-    fn rule_matches(&self, rule: &Rule, ctx: &EvalContext) -> bool {
+    fn rule_matches(&self, rule: &Rule, ctx: &EvalContext, stack: &mut Vec<String>) -> bool {
         let segment_ok = match rule.segment_key.as_deref() {
             None => true,
             Some(key) => match self.snapshot.segments.get(key) {
@@ -96,17 +100,27 @@ impl Engine {
             && rule
                 .constraint_groups
                 .iter()
-                .all(|g| Self::group_matches(g, ctx))
+                .all(|g| self.group_matches(g, ctx, stack))
     }
 
     /// A constraint group matches when any of its constraints match (OR). An empty
     /// group matches, so it never blocks a rule.
-    fn group_matches(group: &ConstraintGroup, ctx: &EvalContext) -> bool {
+    fn group_matches(&self, group: &ConstraintGroup, ctx: &EvalContext, stack: &mut Vec<String>) -> bool {
         group.constraints.is_empty()
             || group
                 .constraints
                 .iter()
-                .any(|c| Self::constraint_matches(c, ctx))
+                .any(|c| self.constraint_matches(c, ctx, stack))
+    }
+
+    /// Match a single rule constraint, dispatching flag-match constraints to a
+    /// recursive flag resolution and all others to the attribute matcher.
+    fn constraint_matches(&self, c: &Constraint, ctx: &EvalContext, stack: &mut Vec<String>) -> bool {
+        if c.operator == Operator::FlagMatches {
+            let result = self.evaluate_inner(&c.attribute, ctx, stack);
+            return matches!(&result, Ok(res) if c.values.iter().any(|v| v.as_str() == Some(res.variant.as_str())));
+        }
+        Self::attr_constraint_matches(c, ctx)
     }
 
     fn resolve_variant(
@@ -133,11 +147,15 @@ impl Engine {
     }
 
     /// A context matches a constraint set only when every constraint matches (AND).
+    /// Used for segments, which are pure attribute predicates; a flag-match operator
+    /// here has no flag to resolve against and so never matches.
     fn constraints_match(constraints: &[Constraint], ctx: &EvalContext) -> bool {
-        constraints.iter().all(|c| Self::constraint_matches(c, ctx))
+        constraints
+            .iter()
+            .all(|c| Self::attr_constraint_matches(c, ctx))
     }
 
-    fn constraint_matches(c: &Constraint, ctx: &EvalContext) -> bool {
+    fn attr_constraint_matches(c: &Constraint, ctx: &EvalContext) -> bool {
         let attr = ctx.attributes.get(&c.attribute);
         let first = c.values.first();
 
@@ -155,6 +173,9 @@ impl Engine {
             Operator::Gte => Self::number_op(attr, first, |a, b| a >= b),
             Operator::Lt => Self::number_op(attr, first, |a, b| a < b),
             Operator::Lte => Self::number_op(attr, first, |a, b| a <= b),
+            // Resolved against another flag, not a context attribute; the engine
+            // dispatches it before reaching here, so a bare attribute match cannot.
+            Operator::FlagMatches => false,
         }
     }
 
@@ -243,7 +264,25 @@ mod tests {
                 Variant { key: "off".into(), value: json!(false) },
             ],
             rules: vec![],
-            prerequisites: vec![],
+        }
+    }
+
+    /// A rule that serves `variant` only when flag `dep` resolves to `dep_variant`,
+    /// i.e. a prerequisite expressed as a flag-match constraint.
+    fn flag_match_rule(dep: &str, dep_variant: &str, variant: &str) -> Rule {
+        Rule {
+            rank: 0,
+            segment_key: None,
+            variant_key: Some(variant.into()),
+            distributions: vec![],
+            constraint_groups: vec![ConstraintGroup {
+                constraints: vec![Constraint {
+                    attribute: dep.into(),
+                    operator: Operator::FlagMatches,
+                    values: vec![json!(dep_variant)],
+                }],
+            }],
+            bucket_salt: String::new(),
         }
     }
 
@@ -277,26 +316,24 @@ mod tests {
     }
 
     #[test]
-    fn prerequisite_met_allows_rules() {
+    fn flag_match_constraint_met_serves_rule() {
         let mut master = bool_flag();
         master.key = "master".into();
         master.default_variant_key = "on".into();
 
         let mut dependent = bool_flag();
         dependent.key = "dependent".into();
-        dependent.default_variant_key = "on".into();
-        dependent.prerequisites = vec![Prerequisite {
-            flag_key: "master".into(),
-            variant_key: "on".into(),
-        }];
+        dependent.default_variant_key = "off".into();
+        dependent.rules = vec![flag_match_rule("master", "on", "on")];
 
         let e = engine_with(vec![master, dependent]);
         let r = e.evaluate("dependent", &ctx("u1", json!({}))).unwrap();
         assert_eq!(r.variant, "on");
+        assert_eq!(r.reason, Reason::TargetingMatch);
     }
 
     #[test]
-    fn prerequisite_unmet_serves_default() {
+    fn flag_match_constraint_unmet_serves_default() {
         let mut master = bool_flag();
         master.key = "master".into();
         master.default_variant_key = "off".into(); // resolves to "off"
@@ -304,40 +341,29 @@ mod tests {
         let mut dependent = bool_flag();
         dependent.key = "dependent".into();
         dependent.default_variant_key = "off".into();
-        dependent.rules = vec![Rule {
-            rank: 0,
-            segment_key: None,
-            variant_key: Some("on".into()),
-            distributions: vec![],
-            constraint_groups: vec![],
-            bucket_salt: String::new(),
-        }];
-        dependent.prerequisites = vec![Prerequisite {
-            flag_key: "master".into(),
-            variant_key: "on".into(), // master is "off", so unmet
-        }];
+        // The rule would serve "on", but its flag-match constraint on master is unmet.
+        dependent.rules = vec![flag_match_rule("master", "on", "on")];
 
         let e = engine_with(vec![master, dependent]);
         let r = e.evaluate("dependent", &ctx("u1", json!({}))).unwrap();
-        // Rule would have served "on", but the unmet prerequisite forces the default.
         assert_eq!(r.variant, "off");
         assert_eq!(r.reason, Reason::Default);
     }
 
     #[test]
-    fn prerequisite_cycle_resolves_to_default() {
+    fn flag_match_cycle_resolves_to_default() {
         let mut a = bool_flag();
         a.key = "a".into();
         a.default_variant_key = "off".into();
-        a.prerequisites = vec![Prerequisite { flag_key: "b".into(), variant_key: "on".into() }];
+        a.rules = vec![flag_match_rule("b", "on", "on")];
 
         let mut b = bool_flag();
         b.key = "b".into();
         b.default_variant_key = "off".into();
-        b.prerequisites = vec![Prerequisite { flag_key: "a".into(), variant_key: "on".into() }];
+        b.rules = vec![flag_match_rule("a", "on", "on")];
 
         let e = engine_with(vec![a, b]);
-        // The cycle is treated as an unmet prerequisite, not an infinite loop or error.
+        // The cycle makes the flag-match constraint fail rather than looping forever.
         let r = e.evaluate("a", &ctx("u1", json!({}))).unwrap();
         assert_eq!(r.variant, "off");
     }

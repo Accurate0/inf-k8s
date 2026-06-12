@@ -52,6 +52,7 @@ pub(super) fn operator_to_str(op: Operator) -> &'static str {
         Operator::Lte => "lte",
         Operator::Exists => "exists",
         Operator::Regex => "regex",
+        Operator::FlagMatches => "flag_matches",
     }
 }
 
@@ -70,6 +71,7 @@ pub(super) fn operator_from_str(s: &str) -> AppResult<Operator> {
         "lte" => Operator::Lte,
         "exists" => Operator::Exists,
         "regex" => Operator::Regex,
+        "flag_matches" => Operator::FlagMatches,
         other => return Err(AppError::Invalid(format!("unknown operator `{other}`"))),
     })
 }
