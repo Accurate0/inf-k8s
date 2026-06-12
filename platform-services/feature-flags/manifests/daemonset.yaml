@@ -8,6 +8,11 @@ spec:
   selector:
     matchLabels:
       app: feature-flags
+  updateStrategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
@@ -45,7 +50,7 @@ spec:
             grpc:
               port: 50051
             initialDelaySeconds: 5
-            periodSeconds: 60
+            periodSeconds: 15
           envFrom:
             - secretRef:
                 name: feature-flags-managed-secrets

@@ -9,6 +9,11 @@ spec:
     matchLabels:
       app: janitor-bot
   replicas: 1
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
@@ -53,7 +58,7 @@ spec:
               path: /health
               port: 3000
             initialDelaySeconds: 5
-            periodSeconds: 60
+            periodSeconds: 15
           envFrom:
             - secretRef:
                 name: janitor-bot-managed-secrets
