@@ -54,4 +54,4 @@ jobs:
         working-directory: platform-services/feature-flags
       - name: cargo test (crates)
         run: cargo test
-        working-directory: crates
+        working-directory: crates/feature-flags
