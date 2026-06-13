@@ -7,12 +7,16 @@ use crate::engine::Engine;
 use crate::error::{AppError, AppResult};
 use crate::model::{Flag, Segment, Snapshot};
 use crate::store::Store;
+use arc_swap::ArcSwap;
 use sqlx::postgres::PgListener;
 use std::collections::BTreeSet;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::broadcast;
 
 const CHANNEL: &str = "flag_changes";
+
+const RECONCILE_INTERVAL: Duration = Duration::from_secs(60);
 
 /// A published config change: the new version plus the flag keys whose evaluation may
 /// have changed, so subscribers can invalidate selectively rather than re-diffing.
@@ -25,18 +29,26 @@ pub struct ConfigUpdate {
 pub struct SnapshotManager {
     store: Store,
     cache: Option<CacheClient>,
-    current: RwLock<Arc<Snapshot>>,
+    current: ArcSwap<Snapshot>,
+    reload_lock: tokio::sync::Mutex<()>,
     tx: broadcast::Sender<ConfigUpdate>,
 }
 
 impl SnapshotManager {
     pub async fn bootstrap(store: Store, cache: Option<CacheClient>) -> AppResult<Arc<Self>> {
-        let snapshot = Self::initial(&store, cache.as_ref()).await?;
+        let snapshot = match Self::initial(&store, cache.as_ref()).await {
+            Ok(snapshot) => snapshot,
+            Err(e) => {
+                tracing::error!("snapshot bootstrap failed ({e}), starting empty and retrying");
+                Snapshot::default()
+            }
+        };
         let (tx, _) = broadcast::channel(64);
         Ok(Arc::new(Self {
             store,
             cache,
-            current: RwLock::new(Arc::new(snapshot)),
+            current: ArcSwap::from(Arc::new(snapshot)),
+            reload_lock: tokio::sync::Mutex::new(()),
             tx,
         }))
     }
@@ -57,11 +69,11 @@ impl SnapshotManager {
     }
 
     pub fn engine(&self) -> Engine {
-        Engine::new(self.current.read().unwrap().clone())
+        Engine::new(self.current.load_full())
     }
 
     pub fn version(&self) -> i64 {
-        self.current.read().unwrap().version
+        self.current.load().version
     }
 
     /// Read-only flag lookup served from the live snapshot, so the admin surface
@@ -69,8 +81,7 @@ impl SnapshotManager {
     /// caller refreshes first (see [`Self::reload`]), so this still reflects the write.
     pub fn get_flag(&self, key: &str) -> AppResult<Flag> {
         self.current
-            .read()
-            .unwrap()
+            .load()
             .flags
             .get(key)
             .cloned()
@@ -80,8 +91,7 @@ impl SnapshotManager {
     pub fn list_flags(&self, include_archived: bool) -> Vec<Flag> {
         let mut flags: Vec<Flag> = self
             .current
-            .read()
-            .unwrap()
+            .load()
             .flags
             .values()
             .filter(|f| include_archived || !f.archived)
@@ -93,8 +103,7 @@ impl SnapshotManager {
 
     pub fn get_segment(&self, key: &str) -> AppResult<Segment> {
         self.current
-            .read()
-            .unwrap()
+            .load()
             .segments
             .get(key)
             .cloned()
@@ -104,8 +113,7 @@ impl SnapshotManager {
     pub fn list_segments(&self) -> Vec<Segment> {
         let mut segments: Vec<Segment> = self
             .current
-            .read()
-            .unwrap()
+            .load()
             .segments
             .values()
             .cloned()
@@ -123,9 +131,12 @@ impl SnapshotManager {
     /// read-your-writes) and the LISTEN/NOTIFY reload; the version guard collapses
     /// those into one swap and one broadcast.
     pub async fn reload(&self) -> AppResult<()> {
+        let _guard = self.reload_lock.lock().await;
+
         let snapshot = self.store.load_snapshot().await?;
         let version = snapshot.version;
-        if version <= self.version() {
+        let current = self.current.load();
+        if version <= current.version {
             return Ok(());
         }
 
@@ -133,19 +144,12 @@ impl SnapshotManager {
             cache.put_snapshot(&snapshot).await;
         }
 
-        let changed_flag_keys = {
-            let mut current = self.current.write().unwrap();
-            if version <= current.version {
-                return Ok(());
-            }
-            let changed = changed_flag_keys(&current, &snapshot);
-            *current = Arc::new(snapshot);
-            changed
-        };
+        let changed = changed_flag_keys(&current, &snapshot);
+        self.current.store(Arc::new(snapshot));
 
         let _ = self.tx.send(ConfigUpdate {
             version,
-            changed_flag_keys: Arc::new(changed_flag_keys),
+            changed_flag_keys: Arc::new(changed),
         });
         Ok(())
     }
@@ -175,6 +179,17 @@ impl SnapshotManager {
                 }
             }
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    }
+
+    pub async fn reconcile_loop(self: Arc<Self>) {
+        let mut tick = tokio::time::interval(RECONCILE_INTERVAL);
+        tick.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        loop {
+            tick.tick().await;
+            if let Err(e) = self.reload().await {
+                tracing::warn!("periodic snapshot reconcile failed: {e}");
+            }
         }
     }
 }

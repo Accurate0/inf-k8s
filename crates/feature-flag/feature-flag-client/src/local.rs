@@ -10,40 +10,49 @@ use feature_flag_proto::{
     EvaluatedFlag, EvaluationContext, GetSnapshotRequest, Reason, ResolutionMeta,
     ResolveAllResponse, SnapshotResponse, ValueType,
 };
+use arc_swap::ArcSwap;
 use serde_json::Value as Json;
-use std::sync::{Arc, RwLock};
+use std::sync::Arc;
 use std::time::Duration;
 
 pub(crate) struct LocalEvaluator {
-    engine: RwLock<Engine>,
+    snapshot: ArcSwap<Snapshot>,
 }
 
 impl LocalEvaluator {
     pub(crate) async fn bootstrap(
         client: EvaluationClient<IdentifiedChannel>,
     ) -> Result<Arc<Self>, Error> {
-        let mut stream = open_stream(client.clone()).await?;
-        let first = stream
-            .message()
-            .await?
-            .ok_or_else(|| Error::Snapshot("snapshot stream closed before first message".into()))?;
-
-        let evaluator = Arc::new(Self {
-            engine: RwLock::new(build_engine(first)?),
-        });
+        let (stream, evaluator) = match open_initial(&client).await {
+            Ok((stream, first)) => {
+                let evaluator = Arc::new(Self {
+                    snapshot: ArcSwap::from(build_snapshot(first)?),
+                });
+                (Some(stream), evaluator)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "snapshot bootstrap failed ({e}), serving defaults and retrying in background"
+                );
+                let evaluator = Arc::new(Self {
+                    snapshot: ArcSwap::from(empty_snapshot()),
+                });
+                (None, evaluator)
+            }
+        };
         tokio::spawn(refresh_loop(client, stream, evaluator.clone()));
         Ok(evaluator)
     }
 
     fn apply(&self, snapshot: SnapshotResponse) {
-        match build_engine(snapshot) {
-            Ok(engine) => *self.engine.write().unwrap() = engine,
+        match build_snapshot(snapshot) {
+            Ok(s) => self.snapshot.store(s),
             Err(e) => tracing::error!("ignoring invalid snapshot: {e}"),
         }
     }
 
     fn engine(&self) -> Engine {
-        self.engine.read().unwrap().clone()
+        Engine::new(self.snapshot.load_full())
     }
 
     pub(crate) fn resolve_bool(&self, flag_key: &str, ctx: EvaluationContext) -> Resolution<bool> {
@@ -127,38 +136,92 @@ impl LocalEvaluator {
     }
 }
 
+const RECONNECT_MIN: Duration = Duration::from_secs(1);
+const RECONNECT_MAX: Duration = Duration::from_secs(60);
+const OPEN_TIMEOUT: Duration = Duration::from_secs(10);
+const BOOTSTRAP_ATTEMPTS: u32 = 8;
+
 async fn refresh_loop(
     client: EvaluationClient<IdentifiedChannel>,
-    mut stream: tonic::Streaming<SnapshotResponse>,
+    initial: Option<tonic::Streaming<SnapshotResponse>>,
     evaluator: Arc<LocalEvaluator>,
 ) {
-    loop {
-        match stream.message().await {
-            Ok(Some(snapshot)) => {
-                tracing::info!("received new snapshot: {}", snapshot.version);
-                evaluator.apply(snapshot);
-                continue;
-            }
-            Ok(None) => {
-                tracing::warn!("snapshot stream closed, reconnecting");
-            }
-            Err(e) => {
-                tracing::warn!("snapshot stream error: {e}, reconnecting");
-            }
-        }
+    let mut stream = initial;
+    let mut backoff = RECONNECT_MIN;
 
-        // Reconnect only when stream closed or errored
+    loop {
+        let mut active = match stream.take() {
+            Some(s) => s,
+            None => {
+                let s = loop {
+                    tokio::time::sleep(with_jitter(backoff)).await;
+                    backoff = (backoff * 2).min(RECONNECT_MAX);
+                    match tokio::time::timeout(OPEN_TIMEOUT, open_stream(client.clone())).await {
+                        Ok(Ok(s)) => break s,
+                        Ok(Err(e)) => tracing::warn!("snapshot stream reconnect failed: {e}"),
+                        Err(_) => tracing::warn!("snapshot stream reconnect timed out"),
+                    }
+                };
+                tracing::info!("snapshot stream reconnected");
+                s
+            }
+        };
+
+        backoff = RECONNECT_MIN;
+
         loop {
-            tokio::time::sleep(Duration::from_secs(2)).await;
-            match open_stream(client.clone()).await {
-                Ok(s) => {
-                    stream = s;
+            match active.message().await {
+                Ok(Some(snapshot)) => {
+                    tracing::info!("received new snapshot: {}", snapshot.version);
+                    evaluator.apply(snapshot);
+                }
+                Ok(None) => {
+                    tracing::warn!("snapshot stream closed, reconnecting");
                     break;
                 }
-                Err(e) => tracing::warn!("snapshot stream reconnect failed: {e}"),
+                Err(e) => {
+                    tracing::warn!("snapshot stream error: {e}, reconnecting");
+                    break;
+                }
             }
         }
     }
+}
+
+fn empty_snapshot() -> Arc<Snapshot> {
+    build_snapshot(SnapshotResponse::default()).expect("empty snapshot always builds")
+}
+
+fn with_jitter(d: Duration) -> Duration {
+    let jitter = rand::random::<f64>() * 0.3 + 0.85;
+    d.mul_f64(jitter)
+}
+
+async fn open_initial(
+    client: &EvaluationClient<IdentifiedChannel>,
+) -> Result<(tonic::Streaming<SnapshotResponse>, SnapshotResponse), Error> {
+    let mut backoff = RECONNECT_MIN;
+    let mut last_err = None;
+    for attempt in 1..=BOOTSTRAP_ATTEMPTS {
+        match open_stream(client.clone()).await {
+            Ok(mut stream) => match stream.message().await {
+                Ok(Some(first)) => return Ok((stream, first)),
+                Ok(None) => {
+                    last_err = Some(Error::Snapshot(
+                        "snapshot stream closed before first message".into(),
+                    ))
+                }
+                Err(e) => last_err = Some(e.into()),
+            },
+            Err(e) => last_err = Some(e),
+        }
+        if attempt < BOOTSTRAP_ATTEMPTS {
+            tracing::warn!(attempt, "snapshot bootstrap failed, retrying");
+            tokio::time::sleep(with_jitter(backoff)).await;
+            backoff = (backoff * 2).min(RECONNECT_MAX);
+        }
+    }
+    Err(last_err.unwrap_or_else(|| Error::Snapshot("snapshot bootstrap failed".into())))
 }
 
 async fn open_stream(
@@ -170,9 +233,9 @@ async fn open_stream(
         .into_inner())
 }
 
-fn build_engine(snapshot: SnapshotResponse) -> Result<Engine, Error> {
+fn build_snapshot(snapshot: SnapshotResponse) -> Result<Arc<Snapshot>, Error> {
     let snapshot = Snapshot::try_from(snapshot).map_err(|e| Error::Snapshot(e.to_string()))?;
-    Ok(Engine::new(Arc::new(snapshot)))
+    Ok(Arc::new(snapshot))
 }
 
 fn error_resolution<T: Default>(code: &str) -> Resolution<T> {

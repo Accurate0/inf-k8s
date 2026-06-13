@@ -110,8 +110,7 @@ impl FeatureFlagClient {
     ) -> Result<Self, Error> {
         let channel = Channel::from_shared(endpoint.into())
             .map_err(|e| Error::InvalidEndpoint(e.to_string()))?
-            .connect()
-            .await?;
+            .connect_lazy();
         Self::from_channel(channel, client_id, mode).await
     }
 

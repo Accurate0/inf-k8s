@@ -27,6 +27,7 @@ async fn main() -> anyhow::Result<()> {
     let manager = SnapshotManager::bootstrap(store.clone(), cache).await?;
 
     tokio::spawn(manager.clone().listen(config.database_url.clone()));
+    tokio::spawn(manager.clone().reconcile_loop());
 
     let (health_reporter, health_service) = tonic_health::server::health_reporter();
     health_reporter
@@ -55,8 +56,19 @@ async fn main() -> anyhow::Result<()> {
                 .accept_compressed(CompressionEncoding::Gzip),
         )
         .add_service(AdminServer::new(AdminService::new(store, manager)))
-        .serve(addr)
+        .serve_with_shutdown(addr, shutdown_signal())
         .await?;
 
+    tracing::info!("feature-flags gRPC shut down");
     Ok(())
+}
+
+async fn shutdown_signal() {
+    use tokio::signal::unix::{SignalKind, signal};
+    let mut term = signal(SignalKind::terminate()).expect("install SIGTERM handler");
+    tokio::select! {
+        _ = term.recv() => {}
+        _ = tokio::signal::ctrl_c() => {}
+    }
+    tracing::info!("shutdown signal received, draining");
 }
