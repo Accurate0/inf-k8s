@@ -11,8 +11,7 @@ module.exports = {
   allowedUnsafeExecutions: ["gradleWrapper"],
   allowedCommands: ["^sh -c 'cd eink-display-web && pnpm .*"],
   lockFileMaintenance: {
-    enabled: true,
-    schedule: ["before 4am on monday"],
+    enabled: false,
   },
   extends: ["config:recommended"],
 };

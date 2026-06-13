@@ -21,7 +21,6 @@ rules:
   - !include rules/manage-ci-image-updater.yaml
   - !include rules/manage-renovate.yaml
   - !include rules/automerge-renovate-terraform.yaml
-  - !include rules/automerge-renovate-lockfile.yaml
   - !include rules/manage-github-workflow.yaml
   - !include rules/retry-renovate-workflow.yaml
   - !include rules/argocd-diff-renovate.yaml
