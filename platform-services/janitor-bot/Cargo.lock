@@ -97,6 +97,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
+name = "arc-swap"
+version = "1.9.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a3a1fd6f75306b68087b831f025c712524bcb19aad54e557b1129cfa0a2b207"
+dependencies = [
+ "rustversion",
+]
+
+[[package]]
 name = "assert-json-diff"
 version = "2.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -771,7 +780,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -805,11 +814,13 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 [[package]]
 name = "feature-flag-client"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#44445f563d3324f49adf39a5ed1b121a56dedceb"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#7fb5c0f9452dd062612e66257f054b3f525d5324"
 dependencies = [
+ "arc-swap",
  "feature-flag-engine",
  "feature-flag-proto",
  "prost-types",
+ "rand",
  "serde_json",
  "thiserror 2.0.18",
  "tokio",
@@ -820,7 +831,7 @@ dependencies = [
 [[package]]
 name = "feature-flag-engine"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#44445f563d3324f49adf39a5ed1b121a56dedceb"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#7fb5c0f9452dd062612e66257f054b3f525d5324"
 dependencies = [
  "feature-flag-proto",
  "moka",
@@ -835,7 +846,7 @@ dependencies = [
 [[package]]
 name = "feature-flag-proto"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#44445f563d3324f49adf39a5ed1b121a56dedceb"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#7fb5c0f9452dd062612e66257f054b3f525d5324"
 dependencies = [
  "prost 0.13.5",
  "prost-types",
@@ -2120,7 +2131,7 @@ dependencies = [
 [[package]]
 name = "openfeature-provider"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#44445f563d3324f49adf39a5ed1b121a56dedceb"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#7fb5c0f9452dd062612e66257f054b3f525d5324"
 dependencies = [
  "async-trait",
  "feature-flag-client",
@@ -2964,7 +2975,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3021,7 +3032,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3476,10 +3487,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4235,7 +4246,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
