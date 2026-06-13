@@ -28,6 +28,6 @@
   "devDependencies": {
     "grpc-tools": "^1.12.4",
     "ts-proto": "^2.6.1",
-    "typescript": "^5.7.2"
+    "typescript": "^6.0.0"
   }
 }
