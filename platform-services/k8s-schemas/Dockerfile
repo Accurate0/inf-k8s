@@ -1,4 +1,4 @@
-FROM alpine:3.23
+FROM alpine:3.24
 
 RUN apk add --no-cache bash git kubectl aws-cli curl python3 py3-yaml py3-pip \
   && python3 -m venv --system-site-packages /opt/venv \
