@@ -185,6 +185,12 @@ spec:
                   - type
                   type: object
                 type: array
+              iconHash:
+                description: |-
+                  SHA-256 of the icon contents last uploaded to kanidm. Used to skip
+                  re-uploading the image when it hasn't changed.
+                nullable: true
+                type: string
             type: object
         required:
         - spec

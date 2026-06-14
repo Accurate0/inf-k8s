@@ -129,6 +129,10 @@ fn default_issuer_url_key() -> String {
 pub struct KanidmOAuth2ClientStatus {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conditions: Vec<Condition>,
+    /// SHA-256 of the icon contents last uploaded to kanidm. Used to skip
+    /// re-uploading the image when it hasn't changed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub icon_hash: Option<String>,
 }
 
 /// Standard Kubernetes condition (matches `metav1.Condition`).

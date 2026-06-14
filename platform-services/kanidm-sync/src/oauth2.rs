@@ -4,7 +4,11 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::ObjectMeta;
 use k8s_openapi::ByteString;
 use kanidm_proto::internal::{ImageType, ImageValue, Oauth2ClaimMapJoin};
 use kanidm_sync::{ClaimMapJoin, Condition, IconRef, KanidmOAuth2Client};
-use kube::{api::PostParams, Api, Resource, ResourceExt};
+use kube::{
+    api::{PatchParams, PostParams},
+    Api, Resource, ResourceExt,
+};
+use sha2::{Digest, Sha256};
 use std::collections::BTreeSet;
 use url::Url;
 
@@ -302,6 +306,12 @@ async fn upload_icon(
     let filetype = ImageType::try_from(ext)
         .map_err(|_| Error::UnsupportedImageType(icon.key.clone(), ext.to_string()))?;
 
+    let hash = format!("{:x}", Sha256::digest(&contents));
+    if obj.status.as_ref().and_then(|s| s.icon_hash.as_deref()) == Some(hash.as_str()) {
+        tracing::info!("icon for {name} unchanged ({hash}), skipping upload");
+        return Ok(());
+    }
+
     ctx.kanidm
         .idm_oauth2_rs_update_image(
             name,
@@ -313,6 +323,15 @@ async fn upload_icon(
         )
         .await
         .map_err(kanidm_err)?;
+
+    let patch = serde_json::json!({ "status": { "iconHash": hash } });
+    Api::<KanidmOAuth2Client>::namespaced(ctx.client.clone(), &cr_namespace)
+        .patch_status(
+            &obj.name_any(),
+            &PatchParams::default(),
+            &kube::api::Patch::Merge(&patch),
+        )
+        .await?;
 
     tracing::info!("set icon for {name} from {ns}/{}", icon.config_map);
     Ok(())
