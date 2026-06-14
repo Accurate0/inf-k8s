@@ -53,7 +53,7 @@ jobs:
     needs:
       - build
       - check
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@6405dc1ebbb75fe4b8dc5cb1c303e9e42a746391 # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@1daec34b2444f1c75a17f58ed0a70a148c0def3b # main
     with:
       service-name: feature-flags-frontend
       images: ghcr.io/accurate0/feature-flags-frontend
