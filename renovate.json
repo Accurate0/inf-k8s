@@ -33,6 +33,17 @@
       "depNameTemplate": "k3s-io/k3s",
       "datasourceTemplate": "github-releases",
       "versioningTemplate": "regex:^v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(\\+k3s(?<build>\\d+))?$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/system-components/barman-cloud-plugin/kustomization\\.yaml$/"
+      ],
+      "matchStrings": [
+        "plugin-barman-cloud/releases/download/(?<currentValue>v[^/]+)/manifest\\.yaml"
+      ],
+      "depNameTemplate": "cloudnative-pg/plugin-barman-cloud",
+      "datasourceTemplate": "github-releases"
     }
   ],
   "packageRules": [
