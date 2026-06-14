@@ -33,8 +33,8 @@ spec:
             successThreshold: 1
             timeoutSeconds: 1
           env:
-            - name: FLIPT_URL
-              value: http://flipt-v2.flipt-v2.svc.cluster.local:8080
+            - name: FEATURE_FLAGS_URL
+              value: http://api.feature-flags.svc.cluster.local:50051
             - name: SOLAR_API_BASE
               value: http://solar-panel-api.solar-panels.svc.cluster.local:8000/api
             - name: BOM_API_BASE
