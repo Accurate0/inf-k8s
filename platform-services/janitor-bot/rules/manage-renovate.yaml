@@ -39,7 +39,7 @@ when:
 actions:
   - when:
       all:
-        - ref: global.perth_evening
+        - ref: global.perth_day
         - not:
             type: bot.has_approved
     run:
@@ -55,7 +55,7 @@ actions:
   - when:
       all:
         - not:
-            ref: global.perth_evening
+            ref: global.perth_day
         - not:
             type: has_label
             value: janitor/queued

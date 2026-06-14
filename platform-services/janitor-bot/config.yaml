@@ -7,10 +7,10 @@ repos:
     watched: true
     github_repo: Accurate0/home-gateway
 checks:
-  perth_evening:
+  perth_day:
     type: time_of_day
     tz: Australia/Perth
-    after: "17:00"
+    after: "11:00"
     before: "22:00"
 label_colors:
   automated: "#e4e669"
