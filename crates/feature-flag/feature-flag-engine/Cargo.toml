@@ -5,7 +5,7 @@ edition = "2024"
 
 [dependencies]
 feature-flag-proto = { path = "../feature-flag-proto" }
-prost-types = "0.13"
+prost-types = "0.14"
 moka = { version = "0.12", features = ["sync"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }

@@ -8,7 +8,7 @@ feature-flag-client = { path = "../feature-flag-client" }
 feature-flag-proto = { path = "../feature-flag-proto" }
 open-feature = "0.3"
 async-trait = "0.1"
-prost-types = "0.13"
+prost-types = "0.14"
 tokio = { version = "1", features = ["rt", "sync", "time", "macros"] }
 tracing = "0.1"
 
