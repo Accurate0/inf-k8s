@@ -44,6 +44,17 @@
       ],
       "depNameTemplate": "cloudnative-pg/plugin-barman-cloud",
       "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/system-components/postgres-cluster/postgres\\.yaml$/"
+      ],
+      "matchStrings": [
+        "imageName:\\s*(?<depName>[^\\s:]+):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)(-(?<compatibility>.+))?$"
     }
   ],
   "packageRules": [
