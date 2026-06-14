@@ -154,7 +154,11 @@ pub enum LeafMatcher {
     },
 
     #[serde(rename = "is_latest_by_metadata")]
-    IsLatestByMetadata { match_metadata_fields: Vec<String> },
+    IsLatestByMetadata {
+        match_metadata_fields: Vec<String>,
+        #[serde(default)]
+        order_by_metadata_field: Option<String>,
+    },
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq, Hash)]

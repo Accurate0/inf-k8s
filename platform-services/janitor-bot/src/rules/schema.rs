@@ -209,6 +209,8 @@ pub enum ActionDef {
         criteria: CloseOtherPrsCriteria,
         match_metadata_fields: Vec<String>,
         #[serde(default)]
+        order_by_metadata_field: Option<String>,
+        #[serde(default)]
         delete_branch: bool,
         #[serde(default)]
         comment: Option<TemplateString>,
@@ -371,12 +373,14 @@ impl ActionDef {
                 author,
                 criteria,
                 match_metadata_fields,
+                order_by_metadata_field,
                 delete_branch,
                 comment,
             } => Action::CloseOtherPrs {
                 author: author.clone(),
                 criteria: criteria.clone(),
                 match_metadata_fields: match_metadata_fields.clone(),
+                order_by_metadata_field: order_by_metadata_field.clone(),
                 delete_branch: *delete_branch,
                 comment: comment.clone(),
             },

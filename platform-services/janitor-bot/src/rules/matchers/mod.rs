@@ -39,6 +39,14 @@ pub fn parse_pr_metadata(body: &str) -> Option<serde_json::Map<String, serde_jso
     serde_json::from_str(caps.get(1)?.as_str()).ok()
 }
 
+pub fn metadata_order_key(
+    meta: &serde_json::Map<String, serde_json::Value>,
+    field: &str,
+) -> Option<i64> {
+    meta.get(field)
+        .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())))
+}
+
 impl Matcher {
     pub fn matches<'a>(
         &'a self,
@@ -388,9 +396,17 @@ fn eval_leaf<'a>(
 
             LeafMatcher::IsLatestByMetadata {
                 match_metadata_fields,
+                order_by_metadata_field,
             } => match ev {
                 BotEvent::ForgejoPr(pr) => {
-                    is_latest_by_metadata(clients, cache, pr, match_metadata_fields).await
+                    is_latest_by_metadata(
+                        clients,
+                        cache,
+                        pr,
+                        match_metadata_fields,
+                        order_by_metadata_field.as_deref(),
+                    )
+                    .await
                 }
                 _ => false,
             },

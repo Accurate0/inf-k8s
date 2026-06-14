@@ -19,12 +19,14 @@ when:
     - type: is_open
     - type: is_latest_by_metadata
       match_metadata_fields: [service]
+      order_by_metadata_field: committed_at
 actions:
   - run:
       - type: close_other_prs
         author: ci-image-updater
         criteria: older
         match_metadata_fields: [service]
+        order_by_metadata_field: committed_at
         delete_branch: true
         comment: "Superseded by #{forgejo_pr.pr_number}"
   - when:

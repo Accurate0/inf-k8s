@@ -7,7 +7,7 @@ use crate::event::{BotEvent, RawRequest};
 use crate::forgejo::CommitStatusParams;
 use crate::rules::matchers::ResourceCache;
 use crate::rules::matchers::cache::get_changed_files_cached;
-use crate::rules::matchers::parse_pr_metadata;
+use crate::rules::matchers::{metadata_order_key, parse_pr_metadata};
 use crate::rules::schema::{CloseOtherPrsCriteria, LabelSpec, TemplateString};
 use forgejo_api::structs::MergePullRequestOptionDo;
 
@@ -83,6 +83,7 @@ pub enum Action {
         author: String,
         criteria: CloseOtherPrsCriteria,
         match_metadata_fields: Vec<String>,
+        order_by_metadata_field: Option<String>,
         delete_branch: bool,
         comment: Option<TemplateString>,
     },
@@ -446,6 +447,7 @@ impl Action {
                 author,
                 criteria,
                 match_metadata_fields,
+                order_by_metadata_field,
                 delete_branch,
                 comment,
             } => {
@@ -488,6 +490,9 @@ impl Action {
                     }
 
                     let current_created = current.created_at;
+                    let current_order_key = order_by_metadata_field
+                        .as_deref()
+                        .and_then(|f| metadata_order_key(&current_meta, f));
 
                     // List all open PRs
                     let open_prs = client.list_open_prs(&pr.owner, &pr.repo).await?;
@@ -525,7 +530,17 @@ impl Action {
 
                         // Apply criteria
                         let should_close = match criteria {
-                            CloseOtherPrsCriteria::Older => other.created_at < current_created,
+                            CloseOtherPrsCriteria::Older => {
+                                match (order_by_metadata_field.as_deref(), current_order_key) {
+                                    (Some(f), Some(cur_key)) => {
+                                        match metadata_order_key(&other_meta, f) {
+                                            Some(other_key) => other_key < cur_key,
+                                            None => other.created_at < current_created,
+                                        }
+                                    }
+                                    _ => other.created_at < current_created,
+                                }
+                            }
                         };
 
                         if !should_close {

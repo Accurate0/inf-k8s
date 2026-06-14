@@ -9,7 +9,7 @@ use crate::clients::Clients;
 use crate::event::{BotEvent, PrEvent};
 use crate::forgejo::PrCombinedStatus;
 
-use super::{LeafMatcher, Resource, parse_pr_metadata};
+use super::{LeafMatcher, Resource, metadata_order_key, parse_pr_metadata};
 
 pub struct ResourceCache {
     pub(super) matcher_results: moka::sync::Cache<LeafMatcher, bool>,
@@ -226,6 +226,7 @@ pub(super) async fn is_latest_by_metadata(
     cache: &ResourceCache,
     pr: &PrEvent,
     fields: &[String],
+    order_field: Option<&str>,
 ) -> bool {
     let Some(current) = get_pr_cached(clients, cache, pr).await else {
         return true;
@@ -254,6 +255,7 @@ pub(super) async fn is_latest_by_metadata(
     }
 
     let current_created = current.created_at;
+    let current_order_key = order_field.and_then(|f| metadata_order_key(&current_meta, f));
 
     // List all open PRs (cached)
     let key = format!("open_prs:{}/{}", pr.owner, pr.repo);
@@ -307,7 +309,15 @@ pub(super) async fn is_latest_by_metadata(
             continue;
         }
 
-        if other.created_at > current_created {
+        let other_is_newer = match (order_field, current_order_key) {
+            (Some(f), Some(cur_key)) => match metadata_order_key(&other_meta, f) {
+                Some(other_key) => other_key > cur_key,
+                None => other.created_at > current_created,
+            },
+            _ => other.created_at > current_created,
+        };
+
+        if other_is_newer {
             return false;
         }
     }

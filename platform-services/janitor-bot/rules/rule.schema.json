@@ -363,6 +363,13 @@
                 "type": "string"
               }
             },
+            "order_by_metadata_field": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
             "type": {
               "type": "string",
               "const": "close_other_prs"
@@ -948,6 +955,13 @@
                 "type": "string"
               }
             },
+            "order_by_metadata_field": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
+            },
             "type": {
               "type": "string",
               "const": "is_latest_by_metadata"
@@ -1372,6 +1386,13 @@
               "items": {
                 "type": "string"
               }
+            },
+            "order_by_metadata_field": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "default": null
             },
             "type": {
               "type": "string",
