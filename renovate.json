@@ -81,6 +81,11 @@
     {
       "matchDatasources": ["terraform-provider", "terraform-module"],
       "registryUrls": ["https://registry.opentofu.org"]
+    },
+    {
+      "matchManagers": ["cargo"],
+      "matchPackageNames": ["kube", "k8s-openapi"],
+      "groupName": "kube ecosystem"
     }
   ]
 }
