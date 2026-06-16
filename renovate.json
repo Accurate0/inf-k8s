@@ -90,7 +90,8 @@
     {
       "matchDatasources": ["docker"],
       "matchPackageNames": ["ghcr.io/accurate0/cnpg-postgresql"],
-      "labels": ["renovate/critical", "postgres"]
+      "labels": ["renovate/critical", "postgres"],
+      "minimumReleaseAge": "0 days"
     }
   ]
 }
