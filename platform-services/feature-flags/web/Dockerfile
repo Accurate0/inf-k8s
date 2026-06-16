@@ -1,6 +1,3 @@
-# Build context is platform-services/feature-flags/web: the SvelteKit frontend and the Node
-# gRPC client live in this self-contained pnpm workspace. Generated proto stubs are committed,
-# so no protoc/crates tree is needed at build time.
 FROM node:24-slim AS builder
 
 ENV PNPM_HOME=/pnpm
