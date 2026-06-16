@@ -20,7 +20,7 @@ spec:
       path: system-components/dragonfly
     - chart: dragonfly-operator
       repoURL: oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
-      targetRevision: v1.5.0
+      targetRevision: v1.6.1
       helm:
         valuesObject:
           serviceMonitor:
