@@ -86,6 +86,11 @@
       "matchManagers": ["cargo"],
       "matchPackageNames": ["kube", "k8s-openapi"],
       "groupName": "kube ecosystem"
+    },
+    {
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["ghcr.io/accurate0/cnpg-postgresql"],
+      "labels": ["renovate/critical", "postgres"]
     }
   ]
 }
