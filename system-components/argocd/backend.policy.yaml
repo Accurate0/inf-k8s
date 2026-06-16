@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.envoyproxy.io/backendtrafficpolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: argocd-server-stream
+  namespace: argocd
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: argocd-server
+  timeout:
+    http:
+      requestTimeout: 0s
