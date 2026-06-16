@@ -2,7 +2,7 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
-  name: argocd-server-stream
+  name: argocd-server-backend-policy
   namespace: argocd
 spec:
   targetRefs:
