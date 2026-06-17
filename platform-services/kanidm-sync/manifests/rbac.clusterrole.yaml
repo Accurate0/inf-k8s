@@ -17,6 +17,13 @@ rules:
   - apiGroups:
       - "inf-k8s.net"
     resources:
+      - kanidmoauth2clients
+    verbs:
+      - update
+      - patch
+  - apiGroups:
+      - "inf-k8s.net"
+    resources:
       - kanidmoauth2clients/status
       - kanidmgroups/status
       - kanidmusers/status

@@ -4,7 +4,10 @@ use kanidm_sync::{Condition, KanidmGroup, KanidmOAuth2Client, KanidmUser};
 use kube::{
     api::{Patch, PatchParams},
     core::NamespaceResourceScope,
-    runtime::controller::{Action, Controller},
+    runtime::{
+        controller::{Action, Controller},
+        finalizer::{finalizer, Event as FinalizerEvent},
+    },
     Api, Client, Resource, ResourceExt,
 };
 use serde::{de::DeserializeOwned, Serialize};
@@ -39,7 +42,12 @@ pub enum Error {
 
     #[error("invalid spec: {0}")]
     Validation(String),
+
+    #[error("finalizer error: {0}")]
+    Finalizer(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 }
+
+const OAUTH2_FINALIZER: &str = "kanidmoauth2client.inf-k8s.net/cleanup";
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
@@ -87,7 +95,7 @@ async fn main() -> Result<()> {
     let users = Api::<KanidmUser>::all(client.clone());
 
     let oauth2_controller = Controller::new(oauth2_clients, Default::default())
-        .run(reconcile::<KanidmOAuth2Client>, error_policy, ctx.clone())
+        .run(reconcile_oauth2, error_policy, ctx.clone())
         .for_each(|_| futures::future::ready(()));
 
     let group_controller = Controller::new(groups, Default::default())
@@ -170,6 +178,28 @@ async fn reconcile<K: Reconcile>(obj: Arc<K>, ctx: Arc<ControllerContext>) -> Re
     provisioned?;
 
     Ok(Action::requeue(Duration::from_secs(3600)))
+}
+
+async fn reconcile_oauth2(
+    obj: Arc<KanidmOAuth2Client>,
+    ctx: Arc<ControllerContext>,
+) -> Result<Action> {
+    let namespace = obj
+        .namespace()
+        .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
+    let api = Api::<KanidmOAuth2Client>::namespaced(ctx.client.clone(), &namespace);
+
+    finalizer(&api, OAUTH2_FINALIZER, obj, |event| async {
+        match event {
+            FinalizerEvent::Apply(obj) => reconcile(obj, ctx.clone()).await,
+            FinalizerEvent::Cleanup(obj) => {
+                oauth2::cleanup(&obj, &ctx).await?;
+                Ok(Action::await_change())
+            }
+        }
+    })
+    .await
+    .map_err(|e| Error::Finalizer(Box::new(e)))
 }
 
 async fn write_status<K: Reconcile>(

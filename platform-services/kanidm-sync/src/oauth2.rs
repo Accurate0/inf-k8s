@@ -216,6 +216,24 @@ impl Reconcile for KanidmOAuth2Client {
     }
 }
 
+pub(crate) async fn cleanup(obj: &KanidmOAuth2Client, ctx: &ControllerContext) -> Result<()> {
+    let kanidm = &ctx.kanidm;
+    let name = obj.spec.name.as_str();
+    if kanidm
+        .idm_oauth2_rs_get(name)
+        .await
+        .map_err(kanidm_err)?
+        .is_some()
+    {
+        tracing::info!("deleting oauth2 resource server {name}");
+        kanidm
+            .idm_oauth2_rs_delete(name)
+            .await
+            .map_err(kanidm_err)?;
+    }
+    Ok(())
+}
+
 async fn ensure_group(kanidm: &kanidm_client::KanidmClient, group: &str) -> Result<()> {
     if kanidm
         .idm_group_get(group)
