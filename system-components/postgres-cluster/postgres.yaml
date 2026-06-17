@@ -38,7 +38,7 @@ spec:
         barmanObjectName: r2-store
   enablePDB: true
   enableSuperuserAccess: true
-  imageName: ghcr.io/accurate0/cnpg-postgresql:18.3-trixie
+  imageName: ghcr.io/accurate0/cnpg-postgresql:18.4-trixie
   imagePullPolicy: IfNotPresent
   instances: 3
   logLevel: info
