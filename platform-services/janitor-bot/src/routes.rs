@@ -383,7 +383,6 @@ async fn run_admin_merge_queued(state: Arc<AppState>) {
     let mut failed: Vec<serde_json::Value> = Vec::new();
 
     for (owner, repo) in state.orchestrator.watch_repos() {
-        let (owner, repo) = (owner.as_str(), repo.as_str());
         let prs = match state.clients.forgejo.list_open_prs(owner, repo).await {
             Ok(prs) => prs,
             Err(e) => {

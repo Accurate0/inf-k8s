@@ -40,8 +40,6 @@ regex = "1.12"
 metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 clap = { version = "4", features = ["derive", "env"] }
-arc-swap = "1.9.1"
-notify = "8.2.0"
 yaml-include = "0.8.1"
 
 [build-dependencies]

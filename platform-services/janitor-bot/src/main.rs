@@ -10,7 +10,6 @@ use chrono_tz::Australia;
 use janitor_bot::{argocd::ArgocdClient, clients::Clients, github::GitHubClient, metrics};
 use janitor_bot::{event, rules, tracing_setup};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
-use notify::{RecursiveMode, Watcher};
 use rules::RulesOrchestrator;
 use std::sync::Arc;
 use tokio::net::TcpListener;
@@ -18,54 +17,6 @@ use tokio_cron_scheduler::{JobBuilder, JobScheduler};
 use tracing::Instrument;
 
 const FORGEJO_OWNER: &str = "anurag";
-
-/// Watch the ConfigMap directory and hot-reload the orchestrator on change.
-/// We watch the directory, not the file: a ConfigMap volume swaps its `..data`
-/// symlink atomically on update. No-op when `RULES_CONFIGMAP_PATH` is unset.
-fn spawn_rules_watcher(state: Arc<AppState>) -> anyhow::Result<()> {
-    let Ok(path) = std::env::var(rules::RULES_CONFIGMAP_PATH_ENV) else {
-        return Ok(());
-    };
-    let watch_dir = std::path::Path::new(&path)
-        .parent()
-        .map(std::path::Path::to_path_buf)
-        .unwrap_or_else(|| std::path::PathBuf::from("."));
-
-    std::thread::Builder::new()
-        .name("rules-watcher".into())
-        .spawn(move || {
-            let (tx, rx) = std::sync::mpsc::channel();
-            let mut watcher = match notify::recommended_watcher(tx) {
-                Ok(w) => w,
-                Err(e) => {
-                    tracing::error!("failed to create rules watcher: {e}");
-                    return;
-                }
-            };
-            if let Err(e) = watcher.watch(&watch_dir, RecursiveMode::NonRecursive) {
-                tracing::error!(dir = %watch_dir.display(), "failed to watch rules dir: {e}");
-                return;
-            }
-            tracing::info!(dir = %watch_dir.display(), "watching rules directory for changes");
-
-            for res in rx {
-                match res {
-                    Ok(event)
-                        if event.kind.is_modify()
-                            || event.kind.is_create()
-                            || event.kind.is_remove() =>
-                    {
-                        tracing::info!(?event.kind, "rules directory changed, reloading");
-                        state.orchestrator.reload();
-                    }
-                    Ok(_) => {}
-                    Err(e) => tracing::error!("rules watch error: {e}"),
-                }
-            }
-        })?;
-
-    Ok(())
-}
 
 struct AppState {
     clients: Clients,
@@ -82,7 +33,7 @@ async fn evaluate_open_prs(state: &AppState) {
     for (owner, repo) in state.orchestrator.watch_repos() {
         tracing::info!(owner, repo, "polling open PRs");
 
-        let prs = match state.clients.forgejo.list_open_prs(&owner, &repo).await {
+        let prs = match state.clients.forgejo.list_open_prs(owner, repo).await {
             Ok(prs) => prs,
             Err(e) => {
                 tracing::error!(owner, repo, "failed to list open PRs: {e}");
@@ -93,7 +44,8 @@ async fn evaluate_open_prs(state: &AppState) {
         total_prs += prs.len();
 
         for pr in &prs {
-            let Some(mut pr_event) = event::PrEvent::from_api_pr(pr, owner.clone(), repo.clone())
+            let Some(mut pr_event) =
+                event::PrEvent::from_api_pr(pr, owner.to_owned(), repo.to_owned())
             else {
                 continue;
             };
@@ -133,8 +85,6 @@ async fn main() -> anyhow::Result<()> {
         argocd_webhook_secret: std::env::var("ARGOCD_WEBHOOK_SECRET").unwrap_or_default(),
         orchestrator: RulesOrchestrator::new(),
     });
-
-    spawn_rules_watcher(Arc::clone(&state))?;
 
     let scheduler = JobScheduler::new().await?;
 

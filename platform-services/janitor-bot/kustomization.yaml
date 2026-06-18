@@ -18,5 +18,3 @@ configMapGenerator:
       - rules/forward-push-to-argocd.yaml
       - rules/clear-janitor-labels-on-merge.yaml
       - rules/clear-queued-on-unmergeable.yaml
-generatorOptions:
-  disableNameSuffixHash: true

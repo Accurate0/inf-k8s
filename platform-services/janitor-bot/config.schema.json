@@ -28,13 +28,6 @@
       "items": {
         "$ref": "#/$defs/RuleDef"
       }
-    },
-    "version": {
-      "description": "Rule-format version. A ruleset loaded from an external source (e.g. a\nConfigMap) is only honoured when this matches the binary's\n`RULES_SCHEMA_VERSION`; a mismatch means the format changed in a\nbreaking way and the binary falls back to its baked-in rules.",
-      "type": "integer",
-      "format": "uint32",
-      "default": 0,
-      "minimum": 0
     }
   },
   "required": [
