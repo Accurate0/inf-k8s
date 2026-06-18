@@ -6,6 +6,9 @@ repos:
   - repo: anurag/home-gateway
     watched: true
     github_repo: Accurate0/home-gateway
+  - repo: anurag/solar-panels
+    watched: true
+    github_repo: Accurate0/solar-panels
 checks:
   perth_day:
     type: time_of_day
