@@ -18,13 +18,10 @@ spec:
     targetRevision: HEAD
     helm:
       valuesObject:
-        tokens:
-          gateway: envoy-gateway-system
-          monitoring: monitoring
         namespaces:
           feature-flags:
             ingress:
-              - gateway
+              - envoy-gateway-system
               - ai-gateway
               - home-gateway
               - maccas-api
