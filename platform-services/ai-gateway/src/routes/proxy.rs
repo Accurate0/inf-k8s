@@ -8,6 +8,7 @@ use axum::{
     response::Response,
 };
 use futures::{SinkExt, StreamExt, channel::mpsc};
+use open_feature::EvaluationContext;
 use serde_json::Value;
 use tracing::{Instrument, Span, field};
 
@@ -97,9 +98,18 @@ async fn proxy(
     let key = state.keys.authenticate(raw_key).await?;
     span.record("key", key.name.as_str());
 
+    let request = ProxyRequest::from_slice(&body)?;
+    let requested_model = request.model()?.to_owned();
+    span.record("requested_model", requested_model.as_str());
+
+    let evaluation_context = EvaluationContext::default()
+        .with_targeting_key(&key.name)
+        .with_custom_field("key", key.name.clone())
+        .with_custom_field("requested_model", requested_model.clone());
+
     if !state
         .features
-        .bool_flag(ENABLED_FLAG, &key.name, true)
+        .bool_flag(ENABLED_FLAG, evaluation_context.clone(), true)
         .await
     {
         return Err(GatewayError::Disabled);
@@ -124,13 +134,14 @@ async fn proxy(
 
     let override_model = state
         .features
-        .string_flag(MODEL_OVERRIDE_FLAG, &key.name, "")
+        .string_flag(MODEL_OVERRIDE_FLAG, evaluation_context, "")
         .await;
     let resolved_model = if override_model.is_empty() {
         requested_model.clone()
     } else {
         override_model
     };
+
     span.record("resolved_model", resolved_model.as_str());
 
     let kind = ModelKind::for_sub_path(sub_path);
@@ -201,10 +212,12 @@ async fn proxy(
     let (provider, response) = match served.or(fallback) {
         Some(v) => v,
         None => {
-            return Err(last_err
-                .unwrap_or_else(|| GatewayError::NoProvider(ctx.resolved_model.clone())));
+            return Err(
+                last_err.unwrap_or_else(|| GatewayError::NoProvider(ctx.resolved_model.clone()))
+            );
         }
     };
+
     span.record("provider", provider.name());
     ctx.provider = provider.clone();
 
@@ -235,8 +248,7 @@ async fn proxy(
             bytes.clone()
         } else {
             let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-            let translated =
-                translate::translate_response(&v, client_dialect, provider.dialect());
+            let translated = translate::translate_response(&v, client_dialect, provider.dialect());
             Bytes::from(
                 serde_json::to_vec(&translated)
                     .map_err(|e| GatewayError::BadRequest(e.to_string()))?,

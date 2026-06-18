@@ -12,7 +12,7 @@ use std::sync::Arc;
 #[derive(Clone)]
 pub struct FeatureFlagClient {
     client: Arc<open_feature::Client>,
-    environment: &'static str,
+    default_context: EvaluationContext,
 }
 
 impl FeatureFlagClient {
@@ -24,7 +24,8 @@ impl FeatureFlagClient {
         let mut client = OpenFeature::singleton_mut().await;
 
         if let Some(url) = url {
-            match FeatureFlagProvider::connect_with(url, "ai-gateway", EvaluationMode::Local).await {
+            match FeatureFlagProvider::connect_with(url, "ai-gateway", EvaluationMode::Local).await
+            {
                 Ok(provider) => client.set_provider(provider).await,
                 Err(e) => {
                     tracing::error!("error when connecting to feature-flags: {e}");
@@ -44,28 +45,25 @@ impl FeatureFlagClient {
 
         Self {
             client: Arc::new(client.create_client()),
-            environment,
+            default_context: EvaluationContext::default()
+                .with_custom_field("environment", environment),
         }
-    }
-
-    fn context(&self, key_name: &str) -> EvaluationContext {
-        EvaluationContext::default()
-            .with_targeting_key(key_name)
-            .with_custom_field("environment", self.environment)
-            .with_custom_field("key", key_name)
     }
 
     #[tracing::instrument(
         skip(self),
         fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty)
     )]
-    pub async fn bool_flag(&self, flag: &str, key_name: &str, default: bool) -> bool {
+    pub async fn bool_flag(
+        &self,
+        flag: &str,
+        mut context: EvaluationContext,
+        default: bool,
+    ) -> bool {
         let span = tracing::Span::current();
-        let result = match self
-            .client
-            .get_bool_value(flag, Some(&self.context(key_name)), None)
-            .await
-        {
+
+        context.merge_missing(&self.default_context);
+        let result = match self.client.get_bool_value(flag, Some(&context), None).await {
             Ok(v) => v,
             Err(e) => {
                 tracing::debug!("flag {flag} eval error, using default {default}: {e:?}");
@@ -81,12 +79,18 @@ impl FeatureFlagClient {
         skip(self),
         fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty)
     )]
-    pub async fn string_flag(&self, flag: &str, key_name: &str, default: &str) -> String {
+    pub async fn string_flag(
+        &self,
+        flag: &str,
+        mut context: EvaluationContext,
+        default: &str,
+    ) -> String {
         let span = tracing::Span::current();
+        context.merge_missing(&self.default_context);
 
         let result = match self
             .client
-            .get_string_value(flag, Some(&self.context(key_name)), None)
+            .get_string_value(flag, Some(&context), None)
             .await
         {
             Ok(v) => v,
