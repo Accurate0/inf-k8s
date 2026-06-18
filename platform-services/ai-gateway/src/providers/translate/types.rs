@@ -48,7 +48,10 @@ fn default_role() -> String {
 }
 
 fn opt_text(content: &Option<Content>) -> Option<String> {
-    content.as_ref().map(Content::to_text).filter(|s| !s.is_empty())
+    content
+        .as_ref()
+        .map(Content::to_text)
+        .filter(|s| !s.is_empty())
 }
 
 fn args_to_input(arguments: &str) -> Value {
@@ -99,9 +102,21 @@ impl ToolCall {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 enum Block {
-    Text { #[serde(default)] text: String },
-    ToolUse { id: String, name: String, #[serde(default)] input: Value },
-    ToolResult { tool_use_id: String, #[serde(default)] content: Value },
+    Text {
+        #[serde(default)]
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        #[serde(default)]
+        input: Value,
+    },
+    ToolResult {
+        tool_use_id: String,
+        #[serde(default)]
+        content: Value,
+    },
     #[serde(other)]
     Other,
 }
@@ -170,9 +185,18 @@ struct AnthropicOutMessage {
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(super) enum OutBlock {
-    Text { text: String },
-    ToolUse { id: String, name: String, input: Value },
-    ToolResult { tool_use_id: String, content: String },
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: Value,
+    },
+    ToolResult {
+        tool_use_id: String,
+        content: String,
+    },
 }
 
 #[derive(Deserialize)]
@@ -354,7 +378,12 @@ impl From<AnthropicRequest> for OpenAiChatRequest {
     fn from(a: AnthropicRequest) -> Self {
         let mut messages = Vec::new();
 
-        if let Some(system) = a.system.as_ref().map(Content::to_text).filter(|s| !s.is_empty()) {
+        if let Some(system) = a
+            .system
+            .as_ref()
+            .map(Content::to_text)
+            .filter(|s| !s.is_empty())
+        {
             messages.push(OpenAiOutMessage {
                 role: "system".into(),
                 content: Some(system),
@@ -374,11 +403,15 @@ impl From<AnthropicRequest> for OpenAiChatRequest {
                     Block::ToolUse { id, name, input } => tool_calls.push(ToolCall {
                         id,
                         kind: "function".into(),
-                        function: FunctionCall { name, arguments: input.to_string() },
+                        function: FunctionCall {
+                            name,
+                            arguments: input.to_string(),
+                        },
                     }),
-                    Block::ToolResult { tool_use_id, content } => {
-                        tool_results.push((tool_use_id, value_to_text(&content)))
-                    }
+                    Block::ToolResult {
+                        tool_use_id,
+                        content,
+                    } => tool_results.push((tool_use_id, value_to_text(&content))),
                     Block::Other => {}
                 }
             }
@@ -402,10 +435,9 @@ impl From<AnthropicRequest> for OpenAiChatRequest {
             }
         }
 
-        let stream_options = a
-            .stream
-            .unwrap_or(false)
-            .then_some(StreamOptions { include_usage: true });
+        let stream_options = a.stream.unwrap_or(false).then_some(StreamOptions {
+            include_usage: true,
+        });
 
         OpenAiChatRequest {
             model: a.model,
@@ -416,7 +448,9 @@ impl From<AnthropicRequest> for OpenAiChatRequest {
             top_p: a.top_p,
             stream: a.stream,
             stream_options,
-            tools: a.tools.map(|ts| ts.into_iter().map(OpenAiToolOut::from).collect()),
+            tools: a
+                .tools
+                .map(|ts| ts.into_iter().map(OpenAiToolOut::from).collect()),
             tool_choice: a.tool_choice.map(tool_choice_a2o),
         }
     }
@@ -469,7 +503,10 @@ impl From<OpenAiRequest> for AnthropicMessagesRequest {
                     while iter.peek().is_some_and(|n| n.role == "tool") {
                         blocks.push(tool_result_block(iter.next().unwrap()));
                     }
-                    messages.push(AnthropicOutMessage { role: "user".into(), content: blocks });
+                    messages.push(AnthropicOutMessage {
+                        role: "user".into(),
+                        content: blocks,
+                    });
                 }
                 "assistant" => {
                     let mut blocks = Vec::new();
@@ -479,7 +516,10 @@ impl From<OpenAiRequest> for AnthropicMessagesRequest {
                     for tc in m.tool_calls {
                         blocks.push(tc.into_tool_use());
                     }
-                    messages.push(AnthropicOutMessage { role: "assistant".into(), content: blocks });
+                    messages.push(AnthropicOutMessage {
+                        role: "assistant".into(),
+                        content: blocks,
+                    });
                 }
                 _ => messages.push(AnthropicOutMessage {
                     role: m.role,
@@ -498,13 +538,18 @@ impl From<OpenAiRequest> for AnthropicMessagesRequest {
         AnthropicMessagesRequest {
             model: o.model,
             messages,
-            max_tokens: o.max_tokens.or(o.max_completion_tokens).unwrap_or(DEFAULT_MAX_TOKENS),
+            max_tokens: o
+                .max_tokens
+                .or(o.max_completion_tokens)
+                .unwrap_or(DEFAULT_MAX_TOKENS),
             system: (!system.is_empty()).then_some(system),
             stop_sequences,
             temperature: o.temperature,
             top_p: o.top_p,
             stream: o.stream,
-            tools: o.tools.map(|ts| ts.into_iter().map(AnthropicToolOut::from).collect()),
+            tools: o
+                .tools
+                .map(|ts| ts.into_iter().map(AnthropicToolOut::from).collect()),
             tool_choice: o.tool_choice.map(tool_choice_o2a),
         }
     }
@@ -577,7 +622,9 @@ impl From<OpenAiResponse> for AnthropicMessageResponse {
             content.push(tc.into_tool_use());
         }
         if content.is_empty() {
-            content.push(OutBlock::Text { text: String::new() });
+            content.push(OutBlock::Text {
+                text: String::new(),
+            });
         }
 
         AnthropicMessageResponse {
@@ -600,6 +647,7 @@ impl From<OpenAiResponse> for AnthropicMessageResponse {
 pub(super) struct OpenAiChatResponse {
     id: Option<String>,
     object: &'static str,
+    created: i64,
     model: Option<String>,
     choices: Vec<OutChoice>,
     usage: OpenAiUsage,
@@ -624,7 +672,10 @@ impl From<AnthropicResponse> for OpenAiChatResponse {
                 Block::ToolUse { id, name, input } => tool_calls.push(ToolCall {
                     id,
                     kind: "function".into(),
-                    function: FunctionCall { name, arguments: input.to_string() },
+                    function: FunctionCall {
+                        name,
+                        arguments: input.to_string(),
+                    },
                 }),
                 _ => {}
             }
@@ -640,6 +691,7 @@ impl From<AnthropicResponse> for OpenAiChatResponse {
         OpenAiChatResponse {
             id: a.id,
             object: "chat.completion",
+            created: chrono::Utc::now().timestamp(),
             model: a.model,
             choices: vec![OutChoice {
                 index: 0,
@@ -694,9 +746,16 @@ pub(super) struct OpenAiDelta {
 #[derive(Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(super) enum AnthropicStreamEvent {
-    MessageStart { message: StartMessage },
-    ContentBlockDelta { delta: TextDelta },
-    MessageDelta { delta: StopDelta, usage: Option<AnthropicUsage> },
+    MessageStart {
+        message: StartMessage,
+    },
+    ContentBlockDelta {
+        delta: TextDelta,
+    },
+    MessageDelta {
+        delta: StopDelta,
+        usage: Option<AnthropicUsage>,
+    },
     MessageStop,
     #[serde(other)]
     Other,
@@ -746,11 +805,24 @@ pub(super) struct OpenAiDeltaOut {
 #[derive(Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub(super) enum AnthropicStreamOut {
-    MessageStart { message: OutStartMessage },
-    ContentBlockStart { index: u32, content_block: OutBlock },
-    ContentBlockDelta { index: u32, delta: TextDeltaOut },
-    ContentBlockStop { index: u32 },
-    MessageDelta { delta: StopDeltaOut, usage: AnthropicUsage },
+    MessageStart {
+        message: OutStartMessage,
+    },
+    ContentBlockStart {
+        index: u32,
+        content_block: OutBlock,
+    },
+    ContentBlockDelta {
+        index: u32,
+        delta: TextDeltaOut,
+    },
+    ContentBlockStop {
+        index: u32,
+    },
+    MessageDelta {
+        delta: StopDeltaOut,
+        usage: AnthropicUsage,
+    },
     MessageStop,
 }
 
