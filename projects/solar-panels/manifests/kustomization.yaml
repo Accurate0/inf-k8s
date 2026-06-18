@@ -10,10 +10,10 @@ resources:
   - secretstore.yaml
   - database.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/solar-panels"
-  inf-k8s.net/app: "solar-panels"
+  inf-k8s.net/app: solar-panels
+  inf-k8s.net/repository: https://github.com/Accurate0/solar-panels
 images:
   - name: ghcr.io/accurate0/solar
-    newTag: 57a4e1815dc77e946e867cf8c66ba069f6ea38cc
+    newTag: 80804378ec26b9b179ab06ff16ceaab38320f417
   - name: ghcr.io/accurate0/solar-web
-    newTag: 57a4e1815dc77e946e867cf8c66ba069f6ea38cc
+    newTag: 80804378ec26b9b179ab06ff16ceaab38320f417
