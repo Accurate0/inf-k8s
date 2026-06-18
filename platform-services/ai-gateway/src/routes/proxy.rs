@@ -154,7 +154,7 @@ async fn proxy(
         return Err(GatewayError::NoProvider(resolved_model));
     };
 
-    span.record("provider", primary.name());
+    span.record("primary_provider", primary.name());
 
     let streaming = request.is_stream();
     span.record("stream", streaming);
