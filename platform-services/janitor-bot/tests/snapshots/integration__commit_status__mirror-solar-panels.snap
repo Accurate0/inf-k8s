@@ -1,0 +1,19 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - action: set_commit_status
+        ran: true
+    dry_run: false
+    name: mirror-commit-status
+external_requests:
+  - method: POST
+    path: /api/v1/repos/anurag/solar-panels/statuses/abc1234567890def
+    body:
+      context: ci/build
+      description: Build succeeded
+      state: success
+      target_url: "https://github.com/Accurate0/solar-panels/actions/runs/123"
+    service: forgejo
