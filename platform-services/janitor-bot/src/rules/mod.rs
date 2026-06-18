@@ -23,6 +23,11 @@ use tracing::Instrument;
 
 const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
 
+/// Rule-format version this binary understands. Bump on any breaking change to
+/// the rule schema. A ConfigMap ruleset whose `version` differs is rejected in
+/// favour of the baked-in rules. See [`RulesOrchestrator::load_rules`].
+pub const RULES_SCHEMA_VERSION: u32 = 1;
+
 /// Env var pointing at an externally-mounted rules file (e.g. a ConfigMap
 /// volume). When unset, the baked-in rules are used.
 const RULES_CONFIGMAP_PATH_ENV: &str = "RULES_CONFIGMAP_PATH";
@@ -118,14 +123,21 @@ impl RulesOrchestrator {
         Self::from_rules(Self::load_rules())
     }
 
+    /// Rules baked into the binary at build time; the fallback when no usable
+    /// ConfigMap ruleset is available.
+    fn baked_in_rules() -> RulesFile {
+        yaml_serde::from_str(RULES_YAML).expect("baked-in rules deserialization failed")
+    }
+
     /// Load the active ruleset. When `RULES_CONFIGMAP_PATH` is set, the ConfigMap
-    /// at that path wins; a malformed ConfigMap panics (the pod fails to start,
-    /// leaving the previous ReplicaSet running). When unset, falls back to the
-    /// rules baked into the binary at build time.
+    /// at that path wins, provided its `version` matches [`RULES_SCHEMA_VERSION`];
+    /// a version mismatch (breaking schema change) falls back to the baked-in
+    /// rules, while a malformed ConfigMap panics (the pod fails to start, leaving
+    /// the previous ReplicaSet running). When unset, uses the baked-in rules.
     fn load_rules() -> RulesFile {
         let Ok(path) = std::env::var(RULES_CONFIGMAP_PATH_ENV) else {
             tracing::info!("{RULES_CONFIGMAP_PATH_ENV} unset; using baked-in rules");
-            return yaml_serde::from_str(RULES_YAML).expect("baked-in rules deserialization failed");
+            return Self::baked_in_rules();
         };
 
         // Resolve `!include`s the same way `build.rs` does, so the ConfigMap can
@@ -133,9 +145,19 @@ impl RulesOrchestrator {
         let merged = yaml_include::Transformer::new(path.clone().into(), true)
             .expect("failed to read rules ConfigMap")
             .to_string();
-        let rules = yaml_serde::from_str(&merged).expect("failed to parse rules ConfigMap");
+        let rules: RulesFile =
+            yaml_serde::from_str(&merged).expect("failed to parse rules ConfigMap");
 
-        tracing::info!(path, "loaded rules from ConfigMap");
+        if rules.version != RULES_SCHEMA_VERSION {
+            tracing::warn!(
+                configmap_version = rules.version,
+                code_version = RULES_SCHEMA_VERSION,
+                "rules ConfigMap version incompatible with this binary (breaking change); using baked-in rules"
+            );
+            return Self::baked_in_rules();
+        }
+
+        tracing::info!(path, version = rules.version, "loaded rules from ConfigMap");
         rules
     }
 

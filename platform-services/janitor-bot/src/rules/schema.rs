@@ -29,6 +29,11 @@ impl From<String> for TemplateString {
 
 #[derive(Debug, Deserialize, JsonSchema)]
 pub struct RulesFile {
+    /// Rule-format version. A ConfigMap ruleset is only loaded when this matches
+    /// the binary's `RULES_SCHEMA_VERSION`; otherwise the format changed in a
+    /// breaking way and the binary falls back to its baked-in rules.
+    #[serde(default)]
+    pub version: u32,
     /// Repositories the bot knows about, keyed by Forgejo `owner/repo` slug.
     #[serde(default)]
     pub repos: Vec<RepoConfig>,
