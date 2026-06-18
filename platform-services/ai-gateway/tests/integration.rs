@@ -216,5 +216,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
         upstream_requests,
     };
 
-    assert_yaml_snapshot!(snapshot_name, snapshot);
+    assert_yaml_snapshot!(snapshot_name, snapshot, {
+        ".response.body.created" => "[created]"
+    });
 }
