@@ -6,6 +6,8 @@ providers:
     models:
       - claude-fable-5
       - claude-opus-4-8
+      - claude-sonnet-4-6
+      - claude-haiku-4-5-20251001
 
   openai:
     dialect: openai
@@ -13,6 +15,8 @@ providers:
     api_key_env: OPENAI_API_KEY
     models:
       - gpt-4o
+      - gpt-5.4-mini
+      - gpt-5.4
     embedding_models:
       - text-embedding-3-large
 
