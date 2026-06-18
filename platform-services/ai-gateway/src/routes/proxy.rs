@@ -98,7 +98,7 @@ async fn proxy(
     let key = state.keys.authenticate(raw_key).await?;
     span.record("key", key.name.as_str());
 
-    let request = ProxyRequest::from_slice(&body)?;
+    let mut request = ProxyRequest::from_slice(&body)?;
     let requested_model = request.model()?.to_owned();
     span.record("requested_model", requested_model.as_str());
 
@@ -115,9 +115,6 @@ async fn proxy(
         return Err(GatewayError::Disabled);
     }
 
-    let mut request = ProxyRequest::from_slice(&body)?;
-    let requested_model = request.model()?.to_owned();
-    span.record("requested_model", requested_model.as_str());
     if !key.allows(&requested_model) {
         return Err(GatewayError::ModelNotAllowed(
             key.name.clone(),
