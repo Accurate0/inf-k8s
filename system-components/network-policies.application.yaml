@@ -32,6 +32,33 @@ spec:
               - maccas-api
               - tldr-bot
               - monitoring
+          janitor-bot:
+            ingress:
+              - envoy-gateway-system
+              - argocd
+              - forgejo
+              - monitoring
+          maccas-api:
+            ingress:
+              - envoy-gateway-system
+          home-gateway:
+            ingress:
+              - envoy-gateway-system
+              - solar-panels
+          solar-panels:
+            ingress:
+              - envoy-gateway-system
+              - home-gateway
+          anurag-sh:
+            ingress:
+              - envoy-gateway-system
+          bom:
+            ingress:
+              - home-gateway
+          ozbargain: {}
+          pg-db-controller: {}
+          kanidm-sync: {}
+          k8s-schemas: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: default
