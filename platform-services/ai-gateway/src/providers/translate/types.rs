@@ -292,6 +292,64 @@ fn tool_choice_o2a(v: Value) -> Value {
     }
 }
 
+#[derive(Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+enum OpenAiResponseFormat {
+    JsonSchema {
+        json_schema: OpenAiJsonSchema,
+    },
+    JsonObject,
+    #[serde(other)]
+    Other,
+}
+
+#[derive(Deserialize)]
+struct OpenAiJsonSchema {
+    #[serde(default)]
+    schema: Value,
+}
+
+#[derive(Serialize)]
+struct OpenAiResponseFormatOut {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    json_schema: OpenAiJsonSchemaOut,
+}
+
+#[derive(Serialize)]
+struct OpenAiJsonSchemaOut {
+    name: &'static str,
+    schema: Value,
+    strict: bool,
+}
+
+#[derive(Deserialize)]
+pub(super) struct AnthropicOutputConfig {
+    format: Option<AnthropicFormat>,
+    effort: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct AnthropicFormat {
+    #[serde(default)]
+    schema: Value,
+}
+
+#[derive(Serialize)]
+struct AnthropicOutputConfigOut {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    format: Option<AnthropicFormatOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    effort: Option<String>,
+}
+
+#[derive(Serialize)]
+struct AnthropicFormatOut {
+    #[serde(rename = "type")]
+    kind: &'static str,
+    schema: Value,
+}
+
 #[derive(Deserialize, Serialize, Default, Clone, Copy)]
 pub(super) struct AnthropicUsage {
     #[serde(default)]
@@ -323,6 +381,8 @@ pub(super) struct AnthropicRequest {
     stream: Option<bool>,
     tools: Option<Vec<AnthropicTool>>,
     tool_choice: Option<Value>,
+    output_config: Option<AnthropicOutputConfig>,
+    metadata: Option<Value>,
 }
 
 #[derive(Deserialize, Default)]
@@ -338,6 +398,9 @@ pub(super) struct OpenAiRequest {
     stream: Option<bool>,
     tools: Option<Vec<OpenAiTool>>,
     tool_choice: Option<Value>,
+    response_format: Option<OpenAiResponseFormat>,
+    user: Option<String>,
+    reasoning_effort: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -372,6 +435,12 @@ pub(super) struct OpenAiChatRequest {
     tools: Option<Vec<OpenAiToolOut>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_choice: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    response_format: Option<OpenAiResponseFormatOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    user: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    reasoning_effort: Option<String>,
 }
 
 impl From<AnthropicRequest> for OpenAiChatRequest {
@@ -439,6 +508,26 @@ impl From<AnthropicRequest> for OpenAiChatRequest {
             include_usage: true,
         });
 
+        let response_format = a
+            .output_config
+            .as_ref()
+            .and_then(|c| c.format.as_ref())
+            .map(|f| OpenAiResponseFormatOut {
+                kind: "json_schema",
+                json_schema: OpenAiJsonSchemaOut {
+                    name: "response",
+                    schema: f.schema.clone(),
+                    strict: true,
+                },
+            });
+        let reasoning_effort = a.output_config.and_then(|c| c.effort);
+        let user = a
+            .metadata
+            .as_ref()
+            .and_then(|m| m.get("user_id"))
+            .and_then(Value::as_str)
+            .map(str::to_owned);
+
         OpenAiChatRequest {
             model: a.model,
             messages,
@@ -452,6 +541,9 @@ impl From<AnthropicRequest> for OpenAiChatRequest {
                 .tools
                 .map(|ts| ts.into_iter().map(OpenAiToolOut::from).collect()),
             tool_choice: a.tool_choice.map(tool_choice_a2o),
+            response_format,
+            user,
+            reasoning_effort,
         }
     }
 }
@@ -475,6 +567,10 @@ pub(super) struct AnthropicMessagesRequest {
     tools: Option<Vec<AnthropicToolOut>>,
     #[serde(skip_serializing_if = "Option::is_none")]
     tool_choice: Option<Value>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    output_config: Option<AnthropicOutputConfigOut>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    metadata: Option<Value>,
 }
 
 impl From<OpenAiRequest> for AnthropicMessagesRequest {
@@ -535,6 +631,23 @@ impl From<OpenAiRequest> for AnthropicMessagesRequest {
             StopField::Many(v) => v,
         });
 
+        let format = match o.response_format {
+            Some(OpenAiResponseFormat::JsonSchema { json_schema }) => Some(AnthropicFormatOut {
+                kind: "json_schema",
+                schema: json_schema.schema,
+            }),
+            _ => None,
+        };
+
+        let output_config = (format.is_some() || o.reasoning_effort.is_some()).then_some(
+            AnthropicOutputConfigOut {
+                format,
+                effort: o.reasoning_effort,
+            },
+        );
+
+        let metadata = o.user.map(|u| json!({ "user_id": u }));
+
         AnthropicMessagesRequest {
             model: o.model,
             messages,
@@ -551,6 +664,8 @@ impl From<OpenAiRequest> for AnthropicMessagesRequest {
                 .tools
                 .map(|ts| ts.into_iter().map(AnthropicToolOut::from).collect()),
             tool_choice: o.tool_choice.map(tool_choice_o2a),
+            output_config,
+            metadata,
         }
     }
 }

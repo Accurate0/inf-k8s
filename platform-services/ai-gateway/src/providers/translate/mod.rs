@@ -154,6 +154,86 @@ mod tests {
     }
 
     #[test]
+    fn openai_response_format_becomes_anthropic_output_config() {
+        let req = json!({
+            "model": "claude-opus-4-8",
+            "messages": [{ "role": "user", "content": "extract" }],
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": { "name": "person", "schema": { "type": "object" } },
+            },
+        });
+        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
+        assert_eq!(out["output_config"]["format"]["type"], "json_schema");
+        assert_eq!(out["output_config"]["format"]["schema"]["type"], "object");
+    }
+
+    #[test]
+    fn openai_json_object_response_format_is_dropped() {
+        let req = json!({
+            "model": "claude-opus-4-8",
+            "messages": [{ "role": "user", "content": "extract" }],
+            "response_format": { "type": "json_object" },
+        });
+        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
+        assert!(out.get("output_config").is_none());
+    }
+
+    #[test]
+    fn anthropic_output_config_becomes_openai_response_format() {
+        let req = json!({
+            "model": "gpt-4o", "max_tokens": 100,
+            "messages": [{ "role": "user", "content": "extract" }],
+            "output_config": { "format": { "type": "json_schema", "schema": { "type": "object" } } },
+        });
+        let out = translate_request(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
+        assert_eq!(out["response_format"]["type"], "json_schema");
+        assert_eq!(out["response_format"]["json_schema"]["schema"]["type"], "object");
+        assert_eq!(out["response_format"]["json_schema"]["strict"], true);
+    }
+
+    #[test]
+    fn openai_user_becomes_anthropic_metadata() {
+        let req = json!({
+            "model": "claude-opus-4-8",
+            "messages": [{ "role": "user", "content": "hi" }],
+            "user": "u-123",
+        });
+        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
+        assert_eq!(out["metadata"]["user_id"], "u-123");
+    }
+
+    #[test]
+    fn anthropic_metadata_user_becomes_openai_user() {
+        let req = json!({
+            "model": "gpt-4o", "max_tokens": 100,
+            "messages": [{ "role": "user", "content": "hi" }],
+            "metadata": { "user_id": "u-123" },
+        });
+        let out = translate_request(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
+        assert_eq!(out["user"], "u-123");
+    }
+
+    #[test]
+    fn reasoning_effort_maps_to_effort_both_ways() {
+        let openai = json!({
+            "model": "claude-opus-4-8",
+            "messages": [{ "role": "user", "content": "hi" }],
+            "reasoning_effort": "high",
+        });
+        let to_anthropic = translate_request(&openai, Dialect::OpenAiCompatible, Dialect::Anthropic);
+        assert_eq!(to_anthropic["output_config"]["effort"], "high");
+
+        let anthropic = json!({
+            "model": "gpt-4o", "max_tokens": 100,
+            "messages": [{ "role": "user", "content": "hi" }],
+            "output_config": { "effort": "high" },
+        });
+        let to_openai = translate_request(&anthropic, Dialect::Anthropic, Dialect::OpenAiCompatible);
+        assert_eq!(to_openai["reasoning_effort"], "high");
+    }
+
+    #[test]
     fn openai_response_tool_call_becomes_anthropic_tool_use() {
         let resp = json!({
             "id": "chatcmpl-1", "model": "gpt-4o",
