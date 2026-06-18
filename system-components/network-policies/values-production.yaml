@@ -9,6 +9,7 @@ namespaces:
   tldr-bot: {}
   ai-gateway:
     ingress:
+      - envoy-gateway-system
       - maccas-api
       - tldr-bot
       - monitoring
