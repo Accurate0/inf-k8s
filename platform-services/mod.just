@@ -23,6 +23,24 @@ diff service:
 diff-manifests service:
     kubectl diff -k {{service}}/manifests
 
+# Install all platform service binaries with cargo
+install:
+    cargo install --path ai-gateway
+    cargo install --path janitor-bot
+    cargo install --path feature-flags
+
+# Run the ai-gateway aig binary
+aig *args:
+    cargo run --manifest-path ai-gateway/Cargo.toml --bin aig -- {{args}}
+
+# Run the janitor-bot binary
+janitor *args:
+    cargo run --manifest-path janitor-bot/Cargo.toml --bin janitor-bot -- {{args}}
+
+# Run the feature-flags binary
+ff *args:
+    cargo run --manifest-path feature-flags/Cargo.toml --bin feature-flags -- {{args}}
+
 # Show ArgoCD applications status
 status:
     kubectl get applications -n argocd

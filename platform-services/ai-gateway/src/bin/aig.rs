@@ -6,7 +6,11 @@ use serde_json::json;
 #[derive(Parser)]
 #[command(name = "aig", about = "ai-gateway admin CLI")]
 struct Cli {
-    #[arg(long, env = "AIG_URL", default_value = "http://localhost:3000")]
+    #[arg(
+        long,
+        env = "AIG_URL",
+        default_value = "https://ai-gateway.inf-k8s.net"
+    )]
     url: String,
     #[arg(long, env = "AIG_ADMIN_TOKEN")]
     token: String,
