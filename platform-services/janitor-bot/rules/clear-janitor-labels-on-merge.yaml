@@ -10,6 +10,8 @@ when:
           value: anurag/home-gateway
         - type: repository
           value: anurag/k8s
+        - type: repository
+          value: anurag/solar-panels
     - type: action
       value: closed
     - type: is_merged
