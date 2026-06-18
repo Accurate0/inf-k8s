@@ -15,7 +15,7 @@ spec:
   project: platform-services
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: platform-services/janitor-bot/manifests
+      path: platform-services/janitor-bot
       kustomize: {}
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes

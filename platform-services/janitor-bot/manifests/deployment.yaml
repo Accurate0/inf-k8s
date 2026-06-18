@@ -28,6 +28,34 @@ spec:
       volumes:
         - name: tmp
           emptyDir: {}
+        - name: rules
+          configMap:
+            name: janitor-bot-rules
+            items:
+              - key: config.yaml
+                path: config.yaml
+              - key: manage-ci-image-updater.yaml
+                path: rules/manage-ci-image-updater.yaml
+              - key: manage-renovate.yaml
+                path: rules/manage-renovate.yaml
+              - key: automerge-renovate-terraform.yaml
+                path: rules/automerge-renovate-terraform.yaml
+              - key: manage-github-workflow.yaml
+                path: rules/manage-github-workflow.yaml
+              - key: retry-renovate-workflow.yaml
+                path: rules/retry-renovate-workflow.yaml
+              - key: argocd-diff-renovate.yaml
+                path: rules/argocd-diff-renovate.yaml
+              - key: mirror-commit-status.yaml
+                path: rules/mirror-commit-status.yaml
+              - key: argocd-sync-status.yaml
+                path: rules/argocd-sync-status.yaml
+              - key: forward-push-to-argocd.yaml
+                path: rules/forward-push-to-argocd.yaml
+              - key: clear-janitor-labels-on-merge.yaml
+                path: rules/clear-janitor-labels-on-merge.yaml
+              - key: clear-queued-on-unmergeable.yaml
+                path: rules/clear-queued-on-unmergeable.yaml
       containers:
         - name: janitor-bot
           image: ghcr.io/accurate0/janitor-bot
@@ -41,6 +69,9 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: rules
+              mountPath: /etc/janitor-bot/rules
+              readOnly: true
           ports:
             - containerPort: 3000
           resources:
@@ -63,6 +94,8 @@ spec:
             - secretRef:
                 name: janitor-bot-managed-secrets
           env:
+            - name: RULES_CONFIGMAP_PATH
+              value: /etc/janitor-bot/rules/config.yaml
             - name: FEATURE_FLAGS_URL
               value: http://api.feature-flags.svc.cluster.local:50051
             - name: ARGOCD_SERVER

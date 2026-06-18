@@ -99,8 +99,7 @@ pub async fn handle_forgejo_webhook(
     let comment_created = event.action == "created";
 
     if forgejo_event == "issue_comment" && (forgejo_event_type != "pull_request_comment") {
-        if let Some(cmd) = event.into_issue_comment_event()
-            .filter(|_| comment_created)
+        if let Some(cmd) = event.into_issue_comment_event().filter(|_| comment_created)
             && cmd.author == super::FORGEJO_OWNER
             && let Some(parsed) = command::parse_issue_command(&cmd.comment_body)
         {
@@ -384,8 +383,8 @@ async fn run_admin_merge_queued(state: Arc<AppState>) {
     let mut failed: Vec<serde_json::Value> = Vec::new();
 
     for (owner, repo) in state.orchestrator.watch_repos() {
-        let prs = match state.clients.forgejo.list_open_prs(owner, repo).await
-        {
+        let (owner, repo) = (owner.as_str(), repo.as_str());
+        let prs = match state.clients.forgejo.list_open_prs(owner, repo).await {
             Ok(prs) => prs,
             Err(e) => {
                 failed.push(
@@ -452,12 +451,7 @@ async fn run_admin_merge_queued(state: Arc<AppState>) {
             let _ = state
                 .clients
                 .forgejo
-                .remove_labels_by_name(
-                    owner,
-                    repo,
-                    pr_number,
-                    vec![QUEUED_LABEL.to_string()],
-                )
+                .remove_labels_by_name(owner, repo, pr_number, vec![QUEUED_LABEL.to_string()])
                 .await;
 
             merged.push(serde_json::json!({"repo": repo, "pr": pr_number}));

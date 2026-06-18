@@ -43,8 +43,10 @@ pub fn metadata_order_key(
     meta: &serde_json::Map<String, serde_json::Value>,
     field: &str,
 ) -> Option<i64> {
-    meta.get(field)
-        .and_then(|v| v.as_i64().or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok())))
+    meta.get(field).and_then(|v| {
+        v.as_i64()
+            .or_else(|| v.as_str().and_then(|s| s.parse::<i64>().ok()))
+    })
 }
 
 impl Matcher {

@@ -1,0 +1,22 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - manifests
+configMapGenerator:
+  - name: janitor-bot-rules
+    namespace: janitor-bot
+    files:
+      - config.yaml
+      - rules/manage-ci-image-updater.yaml
+      - rules/manage-renovate.yaml
+      - rules/automerge-renovate-terraform.yaml
+      - rules/manage-github-workflow.yaml
+      - rules/retry-renovate-workflow.yaml
+      - rules/argocd-diff-renovate.yaml
+      - rules/mirror-commit-status.yaml
+      - rules/argocd-sync-status.yaml
+      - rules/forward-push-to-argocd.yaml
+      - rules/clear-janitor-labels-on-merge.yaml
+      - rules/clear-queued-on-unmergeable.yaml
+generatorOptions:
+  disableNameSuffixHash: true

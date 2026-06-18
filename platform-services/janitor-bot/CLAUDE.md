@@ -36,10 +36,25 @@ Snapshot tests: review/accept changes with `cargo insta review` (snapshots in
 (`rules/mod.rs`) → `actions.rs` execution. `command.rs` handles PR/issue comment commands
 (e.g. `janitor merge`, `janitor explain`, `janitor ignore`) separately from the rule engine.
 
-**Rules are data, not code.** `rules.yaml` is the entry point; it `!include`s individual
+**Rules are data, not code.** `config.yaml` is the entry point; it `!include`s individual
 files from `rules/`. `build.rs` resolves the includes into `OUT_DIR/rules.merged.yaml`,
-which is `include_str!`'d into the binary at `rules/mod.rs`. So **rule changes require a
-rebuild**, and the running bot only knows the rules baked in at compile time.
+which is `include_str!`'d into the binary at `rules/mod.rs` — these baked-in rules are the
+source of truth and the always-available fallback.
+
+**Rule loading & hot reload (`load_rules` in `rules/mod.rs`):** at startup, and whenever
+the watched directory changes, the bot prefers an external ruleset over the baked-in one.
+If `RULES_CONFIGMAP_PATH` is set, it resolves `!include`s at that path via the same
+`yaml_include::Transformer` `build.rs` uses, so a ConfigMap can bundle the raw `config.yaml`
++ `rules/*.yaml`. The external ruleset is only honoured when its `version` matches the
+binary's `RULES_SCHEMA_VERSION` (bump on breaking schema changes) — a mismatch, parse
+error, or missing file logs a warning and falls back to baked-in rules, so the bot is never
+left without rules. `RulesOrchestrator` holds the ruleset in an `ArcSwap`; `reload()`
+re-resolves and atomically swaps it (in-flight evaluations keep their snapshot). In k8s the
+ConfigMap is mounted as a directory (no `subPath`) so updates land in place; `main.rs`
+watches that directory with `notify` and calls `reload()`. The ConfigMap is generated from
+the existing source files by the root `kustomization.yaml` (`configMapGenerator`, stable
+name via `disableNameSuffixHash` so edits don't restart pods); the deployment remaps the
+flat keys back into a `rules/` subdir with volume `items`.
 
 **Build-time validation (`build.rs`):** every build (1) validates merged rules against
 `rules.schema.json`, and (2) parses each action group's `when` expression and fails the

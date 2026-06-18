@@ -422,9 +422,7 @@ impl Action {
             }
             Action::ProxyPass { service } => {
                 let Some(raw) = raw else {
-                    tracing::warn!(
-                        "proxy_pass action has no raw request to forward; skipping"
-                    );
+                    tracing::warn!("proxy_pass action has no raw request to forward; skipping");
                     return;
                 };
 

@@ -11,6 +11,7 @@ use crate::event::{
 use crate::metrics;
 use crate::rules::matchers::{Combinator, Matcher, ResourceCache};
 pub use actions::Action;
+use arc_swap::ArcSwap;
 use chrono::Utc;
 use moka::sync::Cache;
 use schema::{ActionDef, LabelSpec, RulesFile};
@@ -22,6 +23,15 @@ use tokio::sync::Mutex;
 use tracing::Instrument;
 
 const RULES_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/rules.merged.yaml"));
+
+/// Rule-format version this binary understands. Bump on any breaking change to
+/// the rule schema. An externally-loaded ruleset whose `version` differs is
+/// rejected in favour of the baked-in rules. See [`RulesOrchestrator::load_rules`].
+pub const RULES_SCHEMA_VERSION: u32 = 1;
+
+/// Env var pointing at an externally-mounted merged rules file (e.g. a
+/// ConfigMap volume). When unset, the baked-in rules are used.
+pub const RULES_CONFIGMAP_PATH_ENV: &str = "RULES_CONFIGMAP_PATH";
 
 fn resolve_in_matcher(
     m: &mut Matcher,
@@ -96,7 +106,7 @@ pub struct RuleSummary {
 pub type ClockFn = Arc<dyn Fn() -> chrono::DateTime<chrono::Utc> + Send + Sync>;
 
 pub struct RulesOrchestrator {
-    rules: RulesFile,
+    rules: ArcSwap<RulesFile>,
     pr_locks: Cache<(String, String, u64), Arc<Mutex<()>>>,
     workflow_lock: Mutex<()>,
     clock: ClockFn,
@@ -111,18 +121,70 @@ impl Default for RulesOrchestrator {
 
 impl RulesOrchestrator {
     pub fn new() -> Self {
-        let rules: RulesFile =
-            yaml_serde::from_str(RULES_YAML).expect("config.yaml deserialization failed");
-        Self::from_rules(rules)
+        Self::from_rules(Self::load_rules())
     }
 
-    pub fn from_rules(mut rules: RulesFile) -> Self {
-        Self::resolve_checks(&mut rules).expect("check resolution failed");
-        Self::apply_label_colors(&mut rules);
-        rules.rules = Self::topo_sort(rules.rules);
+    /// Rules baked into the binary at build time; the fallback when no external
+    /// ruleset is usable.
+    fn baked_in_rules() -> RulesFile {
+        yaml_serde::from_str(RULES_YAML).expect("baked-in rules deserialization failed")
+    }
 
+    /// Prefer the ConfigMap at `RULES_CONFIGMAP_PATH` when present, parseable,
+    /// and version-compatible; otherwise fall back to the baked-in rules.
+    fn load_rules() -> RulesFile {
+        let path = match std::env::var(RULES_CONFIGMAP_PATH_ENV) {
+            Ok(p) => p,
+            Err(_) => {
+                tracing::info!("{RULES_CONFIGMAP_PATH_ENV} unset; using baked-in rules");
+                return Self::baked_in_rules();
+            }
+        };
+
+        // Resolve `!include`s the same way `build.rs` does, so the ConfigMap can
+        // bundle the raw `config.yaml` + `rules/*.yaml` rather than a pre-merged file.
+        let merged = match yaml_include::Transformer::new(path.clone().into(), true) {
+            Ok(t) => t.to_string(),
+            Err(e) => {
+                tracing::warn!(
+                    path,
+                    "failed to read rules ConfigMap, using baked-in rules: {e}"
+                );
+                return Self::baked_in_rules();
+            }
+        };
+
+        let external: RulesFile = match yaml_serde::from_str(&merged) {
+            Ok(r) => r,
+            Err(e) => {
+                tracing::warn!(
+                    path,
+                    "failed to parse rules ConfigMap, using baked-in rules: {e}"
+                );
+                return Self::baked_in_rules();
+            }
+        };
+
+        if external.version != RULES_SCHEMA_VERSION {
+            tracing::warn!(
+                configmap_version = external.version,
+                code_version = RULES_SCHEMA_VERSION,
+                "rules ConfigMap version incompatible with this binary (breaking change); using baked-in rules"
+            );
+            return Self::baked_in_rules();
+        }
+
+        tracing::info!(
+            path,
+            version = external.version,
+            "loaded rules from ConfigMap"
+        );
+        external
+    }
+
+    pub fn from_rules(rules: RulesFile) -> Self {
         Self {
-            rules,
+            rules: ArcSwap::from_pointee(Self::prepare(rules)),
             pr_locks: Cache::builder()
                 .time_to_idle(Duration::from_secs(10 * 60))
                 .build(),
@@ -130,6 +192,23 @@ impl RulesOrchestrator {
             clock: Arc::new(chrono::Utc::now),
             eval_log: Mutex::new(VecDeque::with_capacity(EVAL_LOG_CAPACITY)),
         }
+    }
+
+    /// Resolve check refs, apply label colours, and topo-sort a ruleset before
+    /// it goes live.
+    fn prepare(mut rules: RulesFile) -> RulesFile {
+        Self::resolve_checks(&mut rules).expect("check resolution failed");
+        Self::apply_label_colors(&mut rules);
+        rules.rules = Self::topo_sort(rules.rules);
+        rules
+    }
+
+    /// Re-resolve the active ruleset and atomically swap it in. In-flight
+    /// evaluations keep the snapshot they loaded; later ones see the new rules.
+    pub fn reload(&self) {
+        let rules = Self::prepare(Self::load_rules());
+        self.rules.store(Arc::new(rules));
+        tracing::info!("rules reloaded");
     }
 
     pub fn with_clock(mut self, clock: ClockFn) -> Self {
@@ -154,12 +233,15 @@ impl RulesOrchestrator {
     }
 
     /// Watched repos as `(owner, repo)` pairs, parsed from `owner/repo` slugs.
-    pub fn watch_repos(&self) -> impl Iterator<Item = (&str, &str)> {
+    pub fn watch_repos(&self) -> Vec<(String, String)> {
         self.rules
+            .load()
             .repos
             .iter()
             .filter(|r| r.watched)
             .filter_map(|r| r.repo.split_once('/'))
+            .map(|(o, r)| (o.to_owned(), r.to_owned()))
+            .collect()
     }
 
     /// Template vars resolving a GitHub mirror back to its Forgejo repo.
@@ -172,6 +254,7 @@ impl RulesOrchestrator {
         };
         if let Some((owner, repo)) = self
             .rules
+            .load()
             .repos
             .iter()
             .find(|r| r.github_repo.as_deref() == Some(github_repo.as_str()))
@@ -185,6 +268,7 @@ impl RulesOrchestrator {
 
     pub fn rules_summary(&self) -> Vec<RuleSummary> {
         self.rules
+            .load()
             .rules
             .iter()
             .map(|r| RuleSummary {
@@ -345,12 +429,7 @@ impl RulesOrchestrator {
         self.explain_rules(&bot_event, clients).await
     }
 
-    pub async fn evaluate_push(
-        &self,
-        clients: &Clients,
-        event: &PushEvent,
-        raw: &RawRequest,
-    ) {
+    pub async fn evaluate_push(&self, clients: &Clients, event: &PushEvent, raw: &RawRequest) {
         let bot_event = BotEvent::GitHubPush(event);
         self.run_rules(clients, &bot_event, Some(raw)).await;
     }
@@ -373,8 +452,8 @@ impl RulesOrchestrator {
         event: &mut PrEvent,
         action_name: &str,
     ) -> anyhow::Result<()> {
-        let rule = self
-            .rules
+        let rules = self.rules.load();
+        let rule = rules
             .rules
             .iter()
             .find(|r| r.name == action_name)
@@ -423,7 +502,8 @@ impl RulesOrchestrator {
         let mut matched_rules = Vec::new();
         let mut executed_rules: HashSet<String> = HashSet::new();
 
-        for rule in &self.rules.rules {
+        let rules = self.rules.load();
+        for rule in &rules.rules {
             if rule.disabled.is_disabled() {
                 continue;
             }
@@ -474,7 +554,7 @@ impl RulesOrchestrator {
 
     fn collect_resources(&self) -> HashSet<matchers::Resource> {
         let mut resources = HashSet::new();
-        for rule in &self.rules.rules {
+        for rule in &self.rules.load().rules {
             if rule.disabled.is_disabled() {
                 continue;
             }
@@ -512,7 +592,8 @@ impl RulesOrchestrator {
         let mut executed_rules: HashSet<String> = HashSet::new();
         let mut matched_rules_log = Vec::new();
 
-        for rule in &self.rules.rules {
+        let rules = self.rules.load();
+        for rule in &rules.rules {
             if rule.disabled.is_disabled() {
                 continue;
             }
