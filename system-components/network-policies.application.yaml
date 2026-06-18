@@ -18,8 +18,6 @@ spec:
     targetRevision: HEAD
     helm:
       valuesObject:
-        defaults:
-          allowSelf: true
         tokens:
           gateway: envoy-gateway-system
           monitoring: monitoring
@@ -31,6 +29,12 @@ spec:
               - home-gateway
               - maccas-api
               - janitor-bot
+          tldr-bot: {}
+          ai-gateway:
+            ingress:
+              - maccas-api
+              - tldr-bot
+              - monitoring
   destination:
     server: https://kubernetes.default.svc
     namespace: default
