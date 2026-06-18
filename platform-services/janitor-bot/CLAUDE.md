@@ -44,9 +44,11 @@ source of truth and the always-available fallback.
 **Rule loading (`load_rules` in `rules/mod.rs`):** at startup the bot prefers an external
 ruleset over the baked-in one. If `RULES_CONFIGMAP_PATH` is set, it resolves `!include`s at
 that path via the same `yaml_include::Transformer` `build.rs` uses, so a ConfigMap can
-bundle the raw `config.yaml` + `rules/*.yaml`. A malformed ConfigMap panics — the pod fails
-to start and the previous ReplicaSet keeps running. When the env var is unset, it falls back
-to the baked-in rules. Rules are loaded once and never reloaded in-process. The ConfigMap is
+bundle the raw `config.yaml` + `rules/*.yaml`. The ConfigMap is only used when its `version`
+matches the binary's `RULES_SCHEMA_VERSION` (bump on breaking schema changes) — a mismatch
+falls back to the baked-in rules, while a malformed ConfigMap panics so the pod fails to
+start and the previous ReplicaSet keeps running. When the env var is unset, it uses the
+baked-in rules. Rules are loaded once at startup and never reloaded in-process. The ConfigMap is
 generated from the existing source files by the root `kustomization.yaml`
 (`configMapGenerator`); its name carries a content hash, so editing a rule rolls the
 Deployment. The deployment remaps the flat ConfigMap keys back into a `rules/` subdir with
