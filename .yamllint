@@ -2,6 +2,7 @@
 extends: default
 ignore: |
   charts/*/templates/
+  system-components/network-policies/templates/
   system-components/barman-cloud-plugin/manifest.yaml
   platform-services/kanidm-sync/manifests/crd.yaml
   platform-services/pg-db-controller/manifests/crd.yaml

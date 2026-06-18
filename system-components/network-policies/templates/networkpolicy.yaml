@@ -1,0 +1,44 @@
+{{- $root := . }}
+{{- $defaults := .Values.defaults }}
+{{- range $ns, $cfg := .Values.namespaces }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/managed-by: network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+{{- $ingress := default (list) $cfg.ingress }}
+{{- if $defaults.allowSelf }}{{- $ingress = append $ingress $ns }}{{- end }}
+{{- if $ingress }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress
+  namespace: {{ $ns }}
+  labels:
+    app.kubernetes.io/managed-by: network-policies
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+{{- range $entry := $ingress }}
+{{- if eq $entry "internet" }}
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+{{- else }}
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: {{ get $root.Values.tokens $entry | default $entry }}
+{{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

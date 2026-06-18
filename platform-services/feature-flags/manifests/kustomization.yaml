@@ -11,7 +11,6 @@ resources:
   - secret.yaml
   - secretstore.yaml
   - service.yaml
-  - networkpolicy.yaml
 commonAnnotations:
   inf-k8s.net/app: feature-flags
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

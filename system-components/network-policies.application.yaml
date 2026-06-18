@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: network-policies
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: system-components
+  source:
+    repoURL: https://github.com/Accurate0/inf-k8s.git
+    path: system-components/network-policies
+    targetRevision: HEAD
+    helm:
+      valuesObject:
+        defaults:
+          allowSelf: true
+        tokens:
+          gateway: envoy-gateway-system
+          monitoring: monitoring
+        namespaces:
+          feature-flags:
+            ingress:
+              - gateway
+              - ai-gateway
+              - home-gateway
+              - maccas-api
+              - janitor-bot
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}

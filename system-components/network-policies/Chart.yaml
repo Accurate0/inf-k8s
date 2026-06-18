@@ -1,0 +1,6 @@
+apiVersion: v2
+name: network-policies
+description: Default-deny ingress NetworkPolicies generated from a per-namespace allowlist
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
