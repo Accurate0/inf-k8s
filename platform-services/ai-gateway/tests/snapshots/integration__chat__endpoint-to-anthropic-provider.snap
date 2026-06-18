@@ -11,6 +11,7 @@ response:
         message:
           content: hi there
           role: assistant
+    created: 1781778031
     id: msg_01
     model: claude-fable-5
     object: chat.completion
