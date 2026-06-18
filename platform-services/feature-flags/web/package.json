@@ -7,5 +7,5 @@
     "build": "pnpm --filter @accurate0/feature-flag-client build && pnpm --filter feature-flags-frontend build",
     "check": "pnpm -r check"
   },
-  "packageManager": "pnpm@11.5.0"
+  "packageManager": "pnpm@11.5.1"
 }
