@@ -1,74 +1,53 @@
-use std::time::Duration;
+mod types;
 
-use chrono::{DateTime, Utc};
-use moka::future::Cache;
+pub use types::{KeyInfo, UpdateKey, VirtualKey};
+
 use rand::RngExt;
-use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::cache::CacheClient;
 use crate::error::{GatewayError, Result};
+use types::KeyRow;
 
 const KEY_PREFIX: &str = "aig_";
 const KEY_BYTES: usize = 24;
 const BASE62: &[u8] = b"0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-const TOUCH_INTERVAL: Duration = Duration::from_secs(60);
-const BUDGET_CACHE_TTL: Duration = Duration::from_secs(60);
+const KEY_CACHE_TTL: u64 = 3600;
+const BUDGET_CACHE_TTL: u64 = 60;
 
-/// A resolved virtual key, as seen on the request hot path.
-#[derive(Clone, Debug)]
-pub struct VirtualKey {
-    pub id: Uuid,
-    pub name: String,
-    pub allowed_models: Vec<String>,
-    pub monthly_token_budget: Option<i64>,
+/// Cache-key namespaces in the shared dragonfly store. `KEY_NAMESPACE` is flushed wholesale
+/// on any key mutation, so it gets its own prefix the SCAN pattern can target.
+const KEY_NAMESPACE: &str = "aig:key:";
+
+fn key_cache_key(hash: &str) -> String {
+    format!("{KEY_NAMESPACE}{hash}")
 }
 
-impl VirtualKey {
-    /// Empty `allowed_models` means "any model".
-    pub fn allows(&self, model: &str) -> bool {
-        self.allowed_models.is_empty() || self.allowed_models.iter().any(|m| m == model)
-    }
-}
-
-#[derive(Clone, Serialize)]
-pub struct KeyInfo {
-    pub id: Uuid,
-    pub name: String,
-    pub allowed_models: Vec<String>,
-    pub monthly_token_budget: Option<i64>,
-    pub revoked: bool,
-    pub created_at: DateTime<Utc>,
-    pub last_used_at: Option<DateTime<Utc>>,
+fn budget_key(id: Uuid) -> String {
+    format!("aig:budget:{id}")
 }
 
 #[derive(Clone)]
 pub struct KeyStore {
     pool: PgPool,
-    /// Maps key hash -> resolved key, so the hot path avoids Postgres per request.
-    cache: Cache<String, VirtualKey>,
-    touch_throttle: Cache<Uuid, ()>,
-    budget_usage: Cache<Uuid, i64>,
+    /// Shared across replicas so cached keys, throttles and budgets stay consistent. When
+    /// absent (no `REDIS_URL`) every lookup falls back to Postgres.
+    cache: Option<CacheClient>,
 }
 
 impl KeyStore {
-    pub fn new(pool: PgPool) -> Self {
-        Self {
-            pool,
-            cache: Cache::builder()
-                .name("virtual_key_cache")
-                .time_to_live(Duration::from_secs(3600))
-                .build(),
-            touch_throttle: Cache::builder()
-                .name("key_touch_throttle")
-                .time_to_live(TOUCH_INTERVAL)
-                .build(),
-            budget_usage: Cache::builder()
-                .name("key_budget_usage")
-                .time_to_live(BUDGET_CACHE_TTL)
-                .build(),
+    pub fn new(pool: PgPool, cache: Option<CacheClient>) -> Self {
+        Self { pool, cache }
+    }
+
+    /// Flushes every cached virtual key across the fleet so a mutation takes effect
+    /// immediately rather than lingering for the TTL.
+    async fn invalidate_keys(&self) {
+        if let Some(cache) = &self.cache {
+            cache.invalidate(&format!("{KEY_NAMESPACE}*")).await;
         }
     }
 
@@ -83,8 +62,9 @@ impl KeyStore {
     pub async fn authenticate(&self, raw: &str) -> Result<VirtualKey> {
         let hash = Self::hash(raw);
 
-        if let Some(key) = self.cache.get(&hash).await {
-            self.touch(key.id).await;
+        if let Some(cache) = &self.cache
+            && let Some(key) = cache.get_json::<VirtualKey>(&key_cache_key(&hash)).await
+        {
             return Ok(key);
         }
 
@@ -111,30 +91,18 @@ impl KeyStore {
         })
         .ok_or(GatewayError::InvalidKey)?;
 
-        self.cache.insert(hash, key.clone()).await;
-        self.touch(key.id).await;
+        if let Some(cache) = &self.cache {
+            cache
+                .set_json(&key_cache_key(&hash), KEY_CACHE_TTL, &key)
+                .await;
+        }
         Ok(key)
     }
 
-    async fn touch(&self, id: Uuid) {
-        if self.touch_throttle.get(&id).await.is_some() {
-            return;
-        }
-        self.touch_throttle.insert(id, ()).await;
-
-        if let Err(e) = sqlx::query!(
-            "UPDATE virtual_keys SET last_used_at = now() WHERE id = $1",
-            id
-        )
-        .execute(&self.pool)
-        .await
-        {
-            tracing::debug!("failed to bump last_used_at for {id}: {e}");
-        }
-    }
-
     pub async fn month_to_date_tokens(&self, id: Uuid) -> Result<i64> {
-        if let Some(total) = self.budget_usage.get(&id).await {
+        if let Some(cache) = &self.cache
+            && let Some(total) = cache.get_i64(&budget_key(id)).await
+        {
             return Ok(total);
         }
 
@@ -148,7 +116,9 @@ impl KeyStore {
         .await?
         .unwrap_or(0);
 
-        self.budget_usage.insert(id, total).await;
+        if let Some(cache) = &self.cache {
+            cache.set_i64(&budget_key(id), BUDGET_CACHE_TTL, total).await;
+        }
         Ok(total)
     }
 
@@ -166,7 +136,7 @@ impl KeyStore {
             KeyRow,
             "INSERT INTO virtual_keys (name, key_hash, allowed_models, monthly_token_budget) \
              VALUES ($1, $2, $3, $4) \
-             RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at",
+             RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at",
             name,
             hash,
             allowed_models,
@@ -181,7 +151,7 @@ impl KeyStore {
 
     /// Applies config-managed fields to an existing key, matched by name. The key itself
     /// is minted via the admin API; config is the source of truth for every mutable field
-    /// (everything but id, created_at and last_used_at). Returns `false` if no key with
+    /// (everything but id and created_at). Returns `false` if no key with
     /// that name exists yet.
     pub async fn claim(
         &self,
@@ -190,31 +160,49 @@ impl KeyStore {
         monthly_token_budget: Option<i64>,
         revoked: bool,
     ) -> Result<bool> {
-        let affected = sqlx::query!(
-            "UPDATE virtual_keys SET \
-                allowed_models = $2, \
-                monthly_token_budget = $3, \
-                revoked = $4 \
-             WHERE name = $1",
+        // Only writes (and thus only invalidates the cache) when a field actually differs,
+        // so a fleet rollout re-claiming unchanged keys doesn't stampede the cache. `found`
+        // still reflects existence so the caller can warn about keys missing from the DB.
+        let row = sqlx::query!(
+            r#"
+            WITH existing AS (
+                SELECT id,
+                       (allowed_models IS DISTINCT FROM $2
+                         OR monthly_token_budget IS DISTINCT FROM $3
+                         OR revoked IS DISTINCT FROM $4) AS changed
+                FROM virtual_keys WHERE name = $1
+            ),
+            updated AS (
+                UPDATE virtual_keys SET
+                    allowed_models = $2,
+                    monthly_token_budget = $3,
+                    revoked = $4
+                FROM existing
+                WHERE virtual_keys.id = existing.id AND existing.changed
+                RETURNING virtual_keys.id
+            )
+            SELECT
+                EXISTS (SELECT 1 FROM existing) AS "found!",
+                EXISTS (SELECT 1 FROM updated) AS "changed!"
+            "#,
             name,
             allowed_models,
             monthly_token_budget,
             revoked
         )
-        .execute(&self.pool)
-        .await?
-        .rows_affected();
+        .fetch_one(&self.pool)
+        .await?;
 
-        if affected > 0 {
-            self.cache.invalidate_all();
+        if row.changed {
+            self.invalidate_keys().await;
         }
-        Ok(affected > 0)
+        Ok(row.found)
     }
 
     pub async fn list(&self) -> Result<Vec<KeyInfo>> {
         let rows = sqlx::query_as!(
             KeyRow,
-            "SELECT id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at \
+            "SELECT id, name, allowed_models, monthly_token_budget, revoked, created_at \
              FROM virtual_keys ORDER BY created_at DESC",
         )
         .fetch_all(&self.pool)
@@ -231,7 +219,7 @@ impl KeyStore {
             .await?
             .rows_affected();
         if affected > 0 {
-            self.cache.invalidate_all();
+            self.invalidate_keys().await;
         }
         Ok(affected > 0)
     }
@@ -250,7 +238,7 @@ impl KeyStore {
                 monthly_token_budget = COALESCE($4::bigint, monthly_token_budget),
                 revoked = COALESCE($5::boolean, revoked)
             WHERE id = $1::uuid
-            RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at
+            RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at
             "#,
             id,
             fields.name,
@@ -263,44 +251,9 @@ impl KeyStore {
         .map(Into::into);
 
         if info.is_some() {
-            self.cache.invalidate_all();
+            self.invalidate_keys().await;
         }
         Ok(info)
-    }
-}
-
-/// Partial update payload; absent fields are left unchanged. `monthly_token_budget`
-/// can only be set, not cleared back to null, through this path.
-#[derive(Debug, Default, Deserialize)]
-pub struct UpdateKey {
-    pub name: Option<String>,
-    pub allowed_models: Option<Vec<String>>,
-    pub monthly_token_budget: Option<i64>,
-    pub revoked: Option<bool>,
-}
-
-#[derive(sqlx::FromRow)]
-struct KeyRow {
-    id: Uuid,
-    name: String,
-    allowed_models: Vec<String>,
-    monthly_token_budget: Option<i64>,
-    revoked: bool,
-    created_at: DateTime<Utc>,
-    last_used_at: Option<DateTime<Utc>>,
-}
-
-impl From<KeyRow> for KeyInfo {
-    fn from(r: KeyRow) -> Self {
-        KeyInfo {
-            id: r.id,
-            name: r.name,
-            allowed_models: r.allowed_models,
-            monthly_token_budget: r.monthly_token_budget,
-            revoked: r.revoked,
-            created_at: r.created_at,
-            last_used_at: r.last_used_at,
-        }
     }
 }
 
@@ -323,28 +276,5 @@ mod tests {
         assert!(a.starts_with(KEY_PREFIX));
         assert_eq!(a.len(), KEY_PREFIX.len() + KEY_BYTES);
         assert_ne!(a, b);
-    }
-
-    #[test]
-    fn empty_allowlist_permits_any_model() {
-        let key = VirtualKey {
-            id: Uuid::nil(),
-            name: "t".into(),
-            allowed_models: vec![],
-            monthly_token_budget: None,
-        };
-        assert!(key.allows("anything"));
-    }
-
-    #[test]
-    fn allowlist_restricts_models() {
-        let key = VirtualKey {
-            id: Uuid::nil(),
-            name: "t".into(),
-            allowed_models: vec!["claude-fable-5".into()],
-            monthly_token_budget: None,
-        };
-        assert!(key.allows("claude-fable-5"));
-        assert!(!key.allows("gpt-4o"));
     }
 }

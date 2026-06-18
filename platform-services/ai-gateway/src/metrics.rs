@@ -21,13 +21,12 @@ pub fn render() -> String {
         .render()
 }
 
-/// Records a completed proxy request: latency, token counters, and cache outcome,
-/// all labelled by virtual key, resolved model and status class.
+/// Records a completed proxy request: latency and token counters, all labelled by
+/// virtual key, resolved model and status class.
 pub fn record_request(
     key_name: &str,
     model: &str,
     status: u16,
-    cache_hit: bool,
     input_tokens: u64,
     output_tokens: u64,
     elapsed: Duration,
@@ -38,8 +37,7 @@ pub fn record_request(
         "ai_gateway_requests_total",
         "key" => key_name.to_owned(),
         "model" => model.to_owned(),
-        "status" => status_class.clone(),
-        "cache" => if cache_hit { "hit" } else { "miss" },
+        "status" => status_class,
     )
     .increment(1);
 

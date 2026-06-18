@@ -18,7 +18,6 @@ pub struct AppState {
     pub pool: PgPool,
     pub keys: KeyStore,
     pub features: FeatureFlagClient,
-    pub cache: Option<CacheClient>,
     pub http: reqwest::Client,
 }
 
@@ -39,12 +38,11 @@ impl AppState {
             .expect("failed to build http client");
 
         Self {
-            keys: KeyStore::new(pool.clone()),
+            keys: KeyStore::new(pool.clone(), cache),
             config,
             providers,
             pool,
             features,
-            cache,
             http,
         }
     }

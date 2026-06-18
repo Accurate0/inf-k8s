@@ -8,7 +8,7 @@ spec:
   selector:
     matchLabels:
       app: ai-gateway
-  replicas: 1
+  replicas: 2
   strategy:
     type: RollingUpdate
     rollingUpdate:
@@ -19,6 +19,20 @@ spec:
       labels:
         app: ai-gateway
     spec:
+      topologySpreadConstraints:
+        - topologyKey: inf-k8s.net/location
+          maxSkew: 1
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ai-gateway
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: ai-gateway
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001

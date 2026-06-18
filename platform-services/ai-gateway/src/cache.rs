@@ -1,20 +1,11 @@
 use redis::AsyncCommands;
 use redis::aio::ConnectionManager;
-use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
+use serde::Serialize;
+use serde::de::DeserializeOwned;
 
-/// A cached non-streaming upstream response, including the token usage parsed from it
-/// so cache hits still produce accurate (zero-cost) usage rows.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct CachedResponse {
-    pub status: u16,
-    pub body: Vec<u8>,
-    pub input_tokens: i64,
-    pub output_tokens: i64,
-}
-
-/// Thin wrapper over a Dragonfly (redis-protocol) connection. Optional: when
-/// `REDIS_URL` is unset the gateway runs with caching disabled.
+/// Thin wrapper over a Dragonfly (redis-protocol) connection, shared by every replica so
+/// cached keys, budgets and throttles stay consistent across the fleet. Optional: when
+/// `REDIS_URL` is unset the gateway runs uncached and falls back to Postgres per request.
 #[derive(Clone)]
 pub struct CacheClient {
     conn: ConnectionManager,
@@ -38,31 +29,71 @@ impl CacheClient {
         }
     }
 
-    pub async fn get(&self, key: &str) -> Option<CachedResponse> {
+    pub async fn get_json<T: DeserializeOwned>(&self, key: &str) -> Option<T> {
         let mut conn = self.conn.clone();
         let raw: Option<Vec<u8>> = conn.get(key).await.ok().flatten();
         raw.and_then(|bytes| serde_json::from_slice(&bytes).ok())
     }
 
-    pub async fn put(&self, key: &str, ttl_secs: u64, value: &CachedResponse) {
+    pub async fn set_json<T: Serialize>(&self, key: &str, ttl_secs: u64, value: &T) {
         let Ok(bytes) = serde_json::to_vec(value) else {
             return;
         };
         let mut conn = self.conn.clone();
         let _: Result<(), _> = conn.set_ex(key, bytes, ttl_secs).await;
     }
-}
 
-/// Deterministic cache key over the route, client endpoint, and request body. The
-/// endpoint matters because the cached body is in the client's dialect.
-pub fn cache_key(provider: &str, model: &str, endpoint: &str, body: &[u8]) -> String {
-    let mut hasher = Sha256::new();
-    hasher.update(provider.as_bytes());
-    hasher.update(b"|");
-    hasher.update(model.as_bytes());
-    hasher.update(b"|");
-    hasher.update(endpoint.as_bytes());
-    hasher.update(b"|");
-    hasher.update(body);
-    format!("aig:cache:{}", hex::encode(hasher.finalize()))
+    pub async fn get_i64(&self, key: &str) -> Option<i64> {
+        let mut conn = self.conn.clone();
+        conn.get(key).await.ok().flatten()
+    }
+
+    pub async fn set_i64(&self, key: &str, ttl_secs: u64, value: i64) {
+        let mut conn = self.conn.clone();
+        let _: Result<(), _> = conn.set_ex(key, value, ttl_secs).await;
+    }
+
+    /// `SET key NX EX ttl`. Returns true only if the key was absent and is now set, giving
+    /// callers a fleet-wide "once per ttl" throttle. Treats redis errors as not-claimed.
+    pub async fn claim_throttle(&self, key: &str, ttl_secs: u64) -> bool {
+        let mut conn = self.conn.clone();
+        let res: Option<String> = redis::cmd("SET")
+            .arg(key)
+            .arg(1)
+            .arg("NX")
+            .arg("EX")
+            .arg(ttl_secs)
+            .query_async(&mut conn)
+            .await
+            .ok()
+            .flatten();
+        res.as_deref() == Some("OK")
+    }
+
+    /// Deletes every key matching `pattern` via SCAN, used to flush cached keys after a
+    /// mutation so the change takes effect immediately rather than waiting out the TTL.
+    pub async fn invalidate(&self, pattern: &str) {
+        let mut conn = self.conn.clone();
+        let mut cursor: u64 = 0;
+        loop {
+            let res: Result<(u64, Vec<String>), _> = redis::cmd("SCAN")
+                .arg(cursor)
+                .arg("MATCH")
+                .arg(pattern)
+                .arg("COUNT")
+                .arg(100)
+                .query_async(&mut conn)
+                .await;
+            let Ok((next, keys)) = res else {
+                return;
+            };
+            if !keys.is_empty() {
+                let _: Result<(), _> = conn.del(keys).await;
+            }
+            if next == 0 {
+                break;
+            }
+            cursor = next;
+        }
+    }
 }

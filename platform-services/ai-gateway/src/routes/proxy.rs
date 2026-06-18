@@ -12,7 +12,6 @@ use serde_json::Value;
 use tracing::{Instrument, Span, field};
 
 use crate::{
-    cache::{self, CachedResponse},
     error::{GatewayError, Result},
     keys::VirtualKey,
     metrics,
@@ -26,7 +25,6 @@ use crate::{
 
 const ENABLED_FLAG: &str = "ai-gateway-enabled";
 const MODEL_OVERRIDE_FLAG: &str = "ai-gateway-model-override";
-const CACHE_HEADER: &str = "x-aig-cache";
 const STREAM_USAGE_CAP: usize = 8 * 1024 * 1024;
 
 /// Per-provider attempts before failing over to the next provider (1 initial + retries).
@@ -81,7 +79,6 @@ struct RequestContext {
         resolved_model = field::Empty,
         provider = field::Empty,
         stream = field::Empty,
-        cache_hit = field::Empty,
         upstream.status = field::Empty,
         input_tokens = field::Empty,
         output_tokens = field::Empty,
@@ -151,12 +148,8 @@ async fn proxy(
 
     span.record("provider", primary.name());
 
-    let primary_outbound = outbound_for(&request, client_dialect, primary.dialect())?;
-
     let streaming = request.is_stream();
     span.record("stream", streaming);
-
-    let cache_ttl = cache_ttl(&headers).filter(|ttl| *ttl > 0);
 
     let mut ctx = RequestContext {
         key,
@@ -164,14 +157,6 @@ async fn proxy(
         requested_model,
         resolved_model,
     };
-
-    if !streaming && let (Some(_), Some(client)) = (cache_ttl, &state.cache) {
-        let key = cache::cache_key(primary.name(), &ctx.resolved_model, sub_path, &primary_outbound);
-
-        if let Some(hit) = client.get(&key).await {
-            return Ok(serve_cache_hit(&state, &ctx, hit, started).await);
-        }
-    }
 
     // `fallback` keeps the last retryable response so an exhausted failover still returns
     // a real upstream status rather than a synthetic error.
@@ -258,26 +243,7 @@ async fn proxy(
             )
         };
 
-        if let (Some(ttl), Some(client)) = (cache_ttl, &state.cache)
-            && status.is_success()
-        {
-            let key =
-                cache::cache_key(primary.name(), &ctx.resolved_model, sub_path, &primary_outbound);
-            client
-                .put(
-                    &key,
-                    ttl,
-                    &CachedResponse {
-                        status: status.as_u16(),
-                        body: client_bytes.to_vec(),
-                        input_tokens: usage.input,
-                        output_tokens: usage.output,
-                    },
-                )
-                .await;
-        }
-
-        record(&state, &ctx, usage, false, status.as_u16(), started).await;
+        record(&state, &ctx, usage, status.as_u16(), started).await;
 
         Ok(Response::builder()
             .status(status)
@@ -388,7 +354,7 @@ fn stream_response(
             }
 
             let usage = ctx.provider.parse_stream_usage(&raw);
-            record(&state, &ctx, usage, false, outcome, started).await;
+            record(&state, &ctx, usage, outcome, started).await;
         }
         .instrument(stream_span),
     );
@@ -400,27 +366,10 @@ fn stream_response(
         .unwrap()
 }
 
-async fn serve_cache_hit(
-    state: &AppState,
-    ctx: &RequestContext,
-    hit: CachedResponse,
-    started: Instant,
-) -> Response {
-    record(state, ctx, Usage::default(), true, hit.status, started).await;
-
-    Response::builder()
-        .status(StatusCode::from_u16(hit.status).unwrap_or(StatusCode::OK))
-        .header("content-type", "application/json")
-        .header("x-aig-cache", "hit")
-        .body(Body::from(hit.body))
-        .unwrap()
-}
-
 async fn record(
     state: &AppState,
     ctx: &RequestContext,
     usage: Usage,
-    cache_hit: bool,
     status: u16,
     started: Instant,
 ) {
@@ -428,7 +377,6 @@ async fn record(
 
     let span = Span::current();
     span.record("upstream.status", status);
-    span.record("cache_hit", cache_hit);
     span.record("input_tokens", usage.input);
     span.record("output_tokens", usage.output);
 
@@ -438,7 +386,6 @@ async fn record(
         requested_model = %ctx.requested_model,
         resolved_model = %ctx.resolved_model,
         status,
-        cache_hit,
         input_tokens = usage.input,
         output_tokens = usage.output,
         latency_ms = elapsed.as_millis(),
@@ -449,7 +396,6 @@ async fn record(
         &ctx.key.name,
         &ctx.resolved_model,
         status,
-        cache_hit,
         usage.input.max(0) as u64,
         usage.output.max(0) as u64,
         elapsed,
@@ -464,7 +410,6 @@ async fn record(
             resolved_model: ctx.resolved_model.clone(),
             input_tokens: usage.input,
             output_tokens: usage.output,
-            cache_hit,
             latency_ms: elapsed.as_millis() as i64,
             status: status as i32,
         },
@@ -479,11 +424,4 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
         .map(str::trim)
         .filter(|s| !s.is_empty())
-}
-
-fn cache_ttl(headers: &HeaderMap) -> Option<u64> {
-    headers
-        .get(CACHE_HEADER)
-        .and_then(|v| v.to_str().ok())
-        .and_then(|v| v.trim().parse::<u64>().ok())
 }

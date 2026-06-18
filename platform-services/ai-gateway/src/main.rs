@@ -1,15 +1,10 @@
-use std::time::Duration;
-
 use ai_gateway::{
     cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, metrics,
-    providers::Registry, state::AppState, tracing_setup, usage,
+    providers::Registry, state::AppState, tracing_setup,
 };
 use anyhow::Context;
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
-
-/// How often `usage_daily` is refreshed from `usage_events`.
-const ROLLUP_INTERVAL: Duration = Duration::from_secs(300);
 
 fn env_u32(name: &str, default: u32) -> u32 {
     std::env::var(name)
@@ -50,7 +45,7 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("dragonfly cache enabled");
     }
 
-    let state = AppState::new(config, providers, pool.clone(), features, cache);
+    let state = AppState::new(config, providers, pool, features, cache);
 
     for key in &state.config.keys {
         let claimed = state
@@ -71,17 +66,6 @@ async fn main() -> anyhow::Result<()> {
             );
         }
     }
-
-    // Background rollup so Grafana queries hit the small usage_daily table.
-    tokio::spawn(async move {
-        let mut ticker = tokio::time::interval(ROLLUP_INTERVAL);
-        loop {
-            ticker.tick().await;
-            if let Err(e) = usage::refresh_rollup(&pool).await {
-                tracing::error!("usage rollup failed: {e}");
-            }
-        }
-    });
 
     let app = ai_gateway::server::router(state);
 

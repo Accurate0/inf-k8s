@@ -7,7 +7,6 @@ use sqlx::PgPool;
 use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-use ai_gateway::cache::CacheClient;
 use ai_gateway::config::{Config, ProviderConfig};
 use ai_gateway::feature_flag::FeatureFlagClient;
 use ai_gateway::providers::{Dialect, Registry};
@@ -169,7 +168,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     // client at a bogus URL would instead block ~120s per test on a connect timeout before
     // falling back to the same defaults.
     let features = FeatureFlagClient::new(None).await;
-    let state = AppState::new(config, registry, pool, features, None::<CacheClient>);
+    let state = AppState::new(config, registry, pool, features, None);
 
     let token = match fixture.key.auth.as_str() {
         "valid" => {

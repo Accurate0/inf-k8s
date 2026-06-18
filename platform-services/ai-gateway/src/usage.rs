@@ -15,7 +15,6 @@ pub struct UsageEvent {
     pub resolved_model: String,
     pub input_tokens: i64,
     pub output_tokens: i64,
-    pub cache_hit: bool,
     pub latency_ms: i64,
     pub status: i32,
 }
@@ -27,8 +26,8 @@ pub async fn record(pool: &PgPool, event: &UsageEvent) {
     let result = sqlx::query!(
         r#"INSERT INTO usage_events
          (key_id, key_name, provider, requested_model, resolved_model,
-          input_tokens, output_tokens, cache_hit, latency_ms, status)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)"#,
+          input_tokens, output_tokens, latency_ms, status)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)"#,
         event.key_id,
         &event.key_name,
         &event.provider,
@@ -36,7 +35,6 @@ pub async fn record(pool: &PgPool, event: &UsageEvent) {
         &event.resolved_model,
         event.input_tokens,
         event.output_tokens,
-        event.cache_hit,
         event.latency_ms,
         event.status,
     )
@@ -59,7 +57,7 @@ pub struct UsageRow {
 }
 
 /// Live per-day usage for `/admin/usage`, bounded to the last 30 days to keep the
-/// hypertable scan cheap. Grafana's longer history comes from the `usage_daily` rollup.
+/// hypertable scan cheap.
 pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
     let rows = sqlx::query_as!(
         UsageRow,
@@ -77,24 +75,4 @@ pub async fn summary(pool: &PgPool) -> Result<Vec<UsageRow>> {
     .fetch_all(pool)
     .await?;
     Ok(rows)
-}
-
-/// Refreshes `usage_daily` from `usage_events`, re-aggregating only the last few days so
-/// the cost stays constant as history grows.
-pub async fn refresh_rollup(pool: &PgPool) -> Result<()> {
-    sqlx::query!(
-        "INSERT INTO usage_daily (key_name, model, day, input_tokens, output_tokens, requests) \
-         SELECT key_name, resolved_model, date_trunc('day', created_at)::date, \
-                SUM(input_tokens), SUM(output_tokens), COUNT(*) \
-         FROM usage_events \
-         WHERE created_at >= date_trunc('day', now() - interval '2 days') \
-         GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date \
-         ON CONFLICT (key_name, model, day) DO UPDATE SET \
-            input_tokens = EXCLUDED.input_tokens, \
-            output_tokens = EXCLUDED.output_tokens, \
-            requests = EXCLUDED.requests",
-    )
-    .execute(pool)
-    .await?;
-    Ok(())
 }

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at FROM virtual_keys ORDER BY created_at DESC",
+  "query": "INSERT INTO virtual_keys (name, key_hash, allowed_models, monthly_token_budget) VALUES ($1, $2, $3, $4) RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at",
   "describe": {
     "columns": [
       {
@@ -68,21 +68,15 @@
             "name": "created_at"
           }
         }
-      },
-      {
-        "ordinal": 6,
-        "name": "last_used_at",
-        "type_info": "Timestamptz",
-        "origin": {
-          "Table": {
-            "table": "virtual_keys",
-            "name": "last_used_at"
-          }
-        }
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Text",
+        "Text",
+        "TextArray",
+        "Int8"
+      ]
     },
     "nullable": [
       false,
@@ -90,9 +84,8 @@
       false,
       true,
       false,
-      false,
-      true
+      false
     ]
   },
-  "hash": "f9a7b2e7059a5389fcae77e55ea459b0e5565bc77437e75a7652a937803135b9"
+  "hash": "bf1ef82ff2947ac3770148ee073a4f8bfdf64879e1dea1181c3e5d75866afc8a"
 }

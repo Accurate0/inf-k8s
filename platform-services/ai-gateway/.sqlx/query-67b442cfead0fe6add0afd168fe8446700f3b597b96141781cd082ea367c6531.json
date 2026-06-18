@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO virtual_keys (name, key_hash, allowed_models, monthly_token_budget) VALUES ($1, $2, $3, $4) RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at, last_used_at",
+  "query": "\n            UPDATE virtual_keys SET\n                name = COALESCE($2::text, name),\n                allowed_models = COALESCE($3::text[], allowed_models),\n                monthly_token_budget = COALESCE($4::bigint, monthly_token_budget),\n                revoked = COALESCE($5::boolean, revoked)\n            WHERE id = $1::uuid\n            RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at\n            ",
   "describe": {
     "columns": [
       {
@@ -68,25 +68,15 @@
             "name": "created_at"
           }
         }
-      },
-      {
-        "ordinal": 6,
-        "name": "last_used_at",
-        "type_info": "Timestamptz",
-        "origin": {
-          "Table": {
-            "table": "virtual_keys",
-            "name": "last_used_at"
-          }
-        }
       }
     ],
     "parameters": {
       "Left": [
-        "Text",
+        "Uuid",
         "Text",
         "TextArray",
-        "Int8"
+        "Int8",
+        "Bool"
       ]
     },
     "nullable": [
@@ -95,9 +85,8 @@
       false,
       true,
       false,
-      false,
-      true
+      false
     ]
   },
-  "hash": "ecf9978bf8debaddb96d4f452b8717ba8ab8307e60abe1ce5c2fb776f54a0de2"
+  "hash": "67b442cfead0fe6add0afd168fe8446700f3b597b96141781cd082ea367c6531"
 }
