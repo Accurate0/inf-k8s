@@ -6,8 +6,8 @@ resources:
   - secret.yaml
   - secretstore.yaml
 commonAnnotations:
-  inf-k8s.net/repository: "https://github.com/Accurate0/tldr-bot"
-  inf-k8s.net/app: "tldr-bot"
+  inf-k8s.net/app: tldr-bot
+  inf-k8s.net/repository: https://github.com/Accurate0/tldr-bot
 images:
   - name: ghcr.io/accurate0/tldr-bot
-    newTag: 2f2037c52b711094864762b7905e760275d23618
+    newTag: 5075ec0fc39464d2454f68aaffcce94d8c7b23f0
