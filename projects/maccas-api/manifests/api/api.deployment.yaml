@@ -71,7 +71,7 @@ spec:
             timeoutSeconds: 1
           env:
             - name: OPENAI_BASE_URL
-              value: http://api.ai-gateway.svc.cluster.local/v1
+              value: http://api.litellm.svc.cluster.local/v1
             - name: RECOMMENDATIONS_API_BASE
               value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
             - name: SENSORDATA_API_BASE

@@ -11,6 +11,7 @@ namespaces:
     ingress:
       - envoy-gateway-system
       - tldr-bot
+      - maccas-api
       - monitoring
   ai-gateway:
     ingress:
