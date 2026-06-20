@@ -4,6 +4,7 @@ resources:
   - namespace.yaml
   - database.yaml
   - kanidmoauth2client.yaml
+  - service.yaml
   - secret.yaml
   - secretstore.yaml
 commonAnnotations:
