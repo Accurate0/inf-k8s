@@ -38,7 +38,7 @@ spec:
                         type: PathPrefix
                         value: /
     - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: platform-services/ai-gateway/manifests
+      path: platform-services/ai-gateway
       kustomize: {}
   destination:
     server: https://kubernetes.default.svc

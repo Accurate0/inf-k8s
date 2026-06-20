@@ -39,6 +39,10 @@ spec:
         runAsGroup: 10001
         seccompProfile:
           type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: ai-gateway-config
       containers:
         - name: ai-gateway
           image: ghcr.io/accurate0/ai-gateway
@@ -49,6 +53,10 @@ spec:
             capabilities:
               drop:
                 - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ai-gateway
+              readOnly: true
           ports:
             - containerPort: 3000
           resources:
@@ -71,6 +79,8 @@ spec:
             - secretRef:
                 name: ai-gateway-managed-secrets
           env:
+            - name: CONFIG_PATH
+              value: /etc/ai-gateway/config.yaml
             # Credentials come from the pg-db-controller-provisioned secret, but the
             # host is the CNPG pgbouncer pooler rather than the direct cluster service.
             - name: PGUSER

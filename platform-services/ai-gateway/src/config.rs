@@ -4,9 +4,19 @@ use serde::Deserialize;
 
 use crate::providers::Dialect;
 
-/// Providers and their model routing are compiled in from `config.yaml`; the admin token
-/// comes from the environment.
+/// Providers and their model routing are baked in from `config.yaml`; the admin token
+/// comes from the environment. The baked-in copy is the always-available fallback when
+/// no ConfigMap is mounted (see [`Config::load`]).
 const CONFIG_YAML: &str = include_str!("../config.yaml");
+
+/// When set, the config file at this path (a mounted ConfigMap) is preferred over the
+/// baked-in copy, provided its `version` matches [`CONFIG_SCHEMA_VERSION`].
+const CONFIG_PATH_ENV: &str = "CONFIG_PATH";
+
+/// Config-format version this binary understands. Bump on any breaking change to the
+/// config schema. A ConfigMap whose `version` differs is rejected in favour of the
+/// baked-in config. See [`Config::load`].
+pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Default)]
 pub struct Config {
@@ -17,6 +27,8 @@ pub struct Config {
 
 #[derive(Debug, Default, Deserialize)]
 struct FileConfig {
+    #[serde(default)]
+    version: u32,
     #[serde(default)]
     providers: HashMap<String, ProviderConfig>,
     #[serde(default)]
@@ -65,15 +77,48 @@ pub struct KeyConfig {
 }
 
 impl Config {
+    /// Load the active config. When `CONFIG_PATH` is set, the ConfigMap at that path
+    /// wins, provided its `version` matches [`CONFIG_SCHEMA_VERSION`]; a version
+    /// mismatch (breaking schema change) falls back to the baked-in config, while a
+    /// missing or malformed ConfigMap errors so the pod fails to start and the
+    /// previous ReplicaSet keeps running. When unset, uses the baked-in config.
     pub fn load() -> anyhow::Result<Self> {
-        let file: FileConfig = serde_yaml::from_str(CONFIG_YAML)
-            .map_err(|e| anyhow::anyhow!("failed to parse config.yaml: {e}"))?;
+        let file = Self::load_file()?;
 
         Ok(Self {
             admin_token: std::env::var("ADMIN_TOKEN").unwrap_or_default(),
             providers: file.providers,
             keys: file.keys,
         })
+    }
+
+    fn load_file() -> anyhow::Result<FileConfig> {
+        let Ok(path) = std::env::var(CONFIG_PATH_ENV) else {
+            tracing::info!("{CONFIG_PATH_ENV} unset; using baked-in config");
+            return Self::baked_in_config();
+        };
+
+        let contents = std::fs::read_to_string(&path)
+            .map_err(|e| anyhow::anyhow!("failed to read config ConfigMap at {path}: {e}"))?;
+        let file: FileConfig = serde_yaml::from_str(&contents)
+            .map_err(|e| anyhow::anyhow!("failed to parse config ConfigMap at {path}: {e}"))?;
+
+        if file.version != CONFIG_SCHEMA_VERSION {
+            tracing::warn!(
+                configmap_version = file.version,
+                code_version = CONFIG_SCHEMA_VERSION,
+                "config ConfigMap version incompatible with this binary (breaking change); using baked-in config"
+            );
+            return Self::baked_in_config();
+        }
+
+        tracing::info!(path, version = file.version, "loaded config from ConfigMap");
+        Ok(file)
+    }
+
+    fn baked_in_config() -> anyhow::Result<FileConfig> {
+        serde_yaml::from_str(CONFIG_YAML)
+            .map_err(|e| anyhow::anyhow!("failed to parse baked-in config.yaml: {e}"))
     }
 }
 
