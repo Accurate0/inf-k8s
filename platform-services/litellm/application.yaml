@@ -41,7 +41,7 @@ spec:
                         type: PathPrefix
                         value: /
     - chart: litellm-helm
-      repoURL: oci://ghcr.io/berriai
+      repoURL: oci://ghcr.io/berriai/litellm-helm
       targetRevision: 1.89.2
       helm:
         valuesObject:
