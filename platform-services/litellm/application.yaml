@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: litellm
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: platform-services
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: platform-services/litellm
+      kustomize: {}
+    - chart: k8s-http-routes
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      targetRevision: 2.2.0
+      helm:
+        valuesObject:
+          routes:
+            - name: litellm
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - litellm.inf-k8s.net
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: litellm
+                      port: 4000
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+    - chart: litellm-helm
+      repoURL: oci://ghcr.io/berriai
+      targetRevision: 1.89.2
+      helm:
+        valuesObject:
+          fullnameOverride: litellm
+          masterkeySecretName: litellm-managed-secrets
+          masterkeySecretKey: PROXY_MASTER_KEY
+          environmentSecrets:
+            - litellm-managed-secrets
+            - kanidm-litellm-oidc
+          db:
+            useExisting: true
+            deployStandalone: false
+            endpoint: cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432
+            database: litellm
+            secret:
+              name: litellm-database-secret
+              usernameKey: PGUSER
+              passwordKey: PGPASSWORD
+          serviceMonitor:
+            enabled: true
+          envVars:
+            PROXY_BASE_URL: https://litellm.inf-k8s.net
+            GENERIC_AUTHORIZATION_ENDPOINT: https://idm.anurag.sh/ui/oauth2
+            GENERIC_TOKEN_ENDPOINT: https://idm.anurag.sh/oauth2/token
+            GENERIC_USERINFO_ENDPOINT: https://idm.anurag.sh/oauth2/openid/litellm/userinfo
+            GENERIC_SCOPE: openid profile email groups
+          proxy_config:
+            model_list:
+              - model_name: claude-fable-5
+                litellm_params:
+                  model: anthropic/claude-fable-5
+                  api_key: os.environ/ANTHROPIC_API_KEY
+              - model_name: claude-opus-4-8
+                litellm_params:
+                  model: anthropic/claude-opus-4-8
+                  api_key: os.environ/ANTHROPIC_API_KEY
+              - model_name: claude-sonnet-4-6
+                litellm_params:
+                  model: anthropic/claude-sonnet-4-6
+                  api_key: os.environ/ANTHROPIC_API_KEY
+              - model_name: claude-haiku-4-5-20251001
+                litellm_params:
+                  model: anthropic/claude-haiku-4-5-20251001
+                  api_key: os.environ/ANTHROPIC_API_KEY
+              - model_name: claude-haiku-4-5
+                litellm_params:
+                  model: anthropic/claude-haiku-4-5
+                  api_key: os.environ/ANTHROPIC_API_KEY
+              - model_name: gpt-4o
+                litellm_params:
+                  model: openai/gpt-4o
+                  api_key: os.environ/OPENAI_API_KEY
+              - model_name: gpt-5.4-mini
+                litellm_params:
+                  model: openai/gpt-5.4-mini
+                  api_key: os.environ/OPENAI_API_KEY
+              - model_name: gpt-5.4
+                litellm_params:
+                  model: openai/gpt-5.4
+                  api_key: os.environ/OPENAI_API_KEY
+              - model_name: text-embedding-3-large
+                litellm_params:
+                  model: openai/text-embedding-3-large
+                  api_key: os.environ/OPENAI_API_KEY
+              - model_name: gemini-2.5-pro
+                litellm_params:
+                  model: openai/gemini-2.5-pro
+                  api_base: https://generativelanguage.googleapis.com/v1beta/openai
+                  api_key: os.environ/GEMINI_API_KEY
+            general_settings:
+              master_key: os.environ/PROXY_MASTER_KEY
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: litellm
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    prune: true
+    syncStrategy:
+      hook: {}
