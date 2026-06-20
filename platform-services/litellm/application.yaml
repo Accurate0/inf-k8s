@@ -46,6 +46,7 @@ spec:
       helm:
         valuesObject:
           fullnameOverride: litellm
+          replicaCount: 2
           masterkeySecretName: litellm-managed-secrets
           masterkeySecretKey: PROXY_MASTER_KEY
           environmentSecrets:
@@ -69,6 +70,8 @@ spec:
             GENERIC_USERINFO_ENDPOINT: https://idm.anurag.sh/oauth2/openid/litellm/userinfo
             GENERIC_SCOPE: openid profile email groups
             PROXY_ADMIN_ID: anurag
+            REDIS_HOST: dragonfly.dragonfly-system.svc.cluster.local
+            REDIS_PORT: "6379"
           proxy_config:
             model_list:
               - model_name: claude-fable-5
@@ -115,6 +118,15 @@ spec:
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
               default_team_disabled: true
+            router_settings:
+              redis_host: os.environ/REDIS_HOST
+              redis_port: os.environ/REDIS_PORT
+            litellm_settings:
+              cache: true
+              cache_params:
+                type: redis
+                host: os.environ/REDIS_HOST
+                port: os.environ/REDIS_PORT
   destination:
     server: https://kubernetes.default.svc
     namespace: litellm

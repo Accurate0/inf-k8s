@@ -8,6 +8,10 @@ spec:
   selector:
     app.kubernetes.io/name: litellm
     app.kubernetes.io/instance: litellm
+  trafficDistribution: PreferSameNode
   ports:
-    - port: 80
+    - name: http
+      protocol: TCP
+      port: 80
       targetPort: http
+      appProtocol: http
