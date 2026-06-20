@@ -68,6 +68,7 @@ spec:
             GENERIC_TOKEN_ENDPOINT: https://idm.anurag.sh/oauth2/token
             GENERIC_USERINFO_ENDPOINT: https://idm.anurag.sh/oauth2/openid/litellm/userinfo
             GENERIC_SCOPE: openid profile email groups
+            PROXY_ADMIN_ID: anurag
           proxy_config:
             model_list:
               - model_name: claude-fable-5
@@ -113,6 +114,7 @@ spec:
                   api_key: os.environ/GEMINI_API_KEY
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
+              default_team_disabled: true
   destination:
     server: https://kubernetes.default.svc
     namespace: litellm
