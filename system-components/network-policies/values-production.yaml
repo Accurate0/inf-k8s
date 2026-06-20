@@ -7,6 +7,11 @@ namespaces:
       - maccas-api
       - janitor-bot
   tldr-bot: {}
+  litellm:
+    ingress:
+      - envoy-gateway-system
+      - tldr-bot
+      - monitoring
   ai-gateway:
     ingress:
       - envoy-gateway-system
