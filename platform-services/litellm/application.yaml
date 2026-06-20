@@ -74,8 +74,8 @@ spec:
             AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"
             REDIS_HOST: dragonfly.dragonfly-system.svc.cluster.local
             REDIS_PORT: "6379"
-            OTEL_EXPORTER: otlp_http
-            OTEL_ENDPOINT: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+            OTEL_EXPORTER_OTLP_ENDPOINT: http://monitoring-tempo.monitoring.svc.cluster.local:4317
+            OTEL_EXPORTER_OTLP_PROTOCOL: grpc
           proxy_config:
             model_list:
               - model_name: claude-fable-5
