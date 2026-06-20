@@ -71,6 +71,7 @@ spec:
             GENERIC_SCOPE: openid profile email groups
             GENERIC_USER_ID_ATTRIBUTE: preferred_username
             PROXY_ADMIN_ID: anurag
+            AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"
             REDIS_HOST: dragonfly.dragonfly-system.svc.cluster.local
             REDIS_PORT: "6379"
           proxy_config:
@@ -113,8 +114,7 @@ spec:
                   api_key: os.environ/OPENAI_API_KEY
               - model_name: gemini-2.5-pro
                 litellm_params:
-                  model: openai/gemini-2.5-pro
-                  api_base: https://generativelanguage.googleapis.com/v1beta/openai
+                  model: gemini/gemini-2.5-pro
                   api_key: os.environ/GEMINI_API_KEY
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
