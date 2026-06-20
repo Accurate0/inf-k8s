@@ -2,7 +2,6 @@ namespaces:
   feature-flags:
     ingress:
       - envoy-gateway-system
-      - ai-gateway
       - home-gateway
       - maccas-api
       - janitor-bot
@@ -12,12 +11,6 @@ namespaces:
       - envoy-gateway-system
       - tldr-bot
       - maccas-api
-      - monitoring
-  ai-gateway:
-    ingress:
-      - envoy-gateway-system
-      - maccas-api
-      - tldr-bot
       - monitoring
   janitor-bot:
     ingress:

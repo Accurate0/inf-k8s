@@ -1,8 +1,0 @@
-endpoint: /v1/embeddings
-provider:
-  dialect: openai
-  models:
-    - gpt-4o
-request:
-  model: gpt-4o
-  input: hello world
