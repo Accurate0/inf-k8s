@@ -69,6 +69,7 @@ spec:
             GENERIC_TOKEN_ENDPOINT: https://idm.anurag.sh/oauth2/token
             GENERIC_USERINFO_ENDPOINT: https://idm.anurag.sh/oauth2/openid/litellm/userinfo
             GENERIC_SCOPE: openid profile email groups
+            GENERIC_USER_ID_ATTRIBUTE: preferred_username
             PROXY_ADMIN_ID: anurag
             REDIS_HOST: dragonfly.dragonfly-system.svc.cluster.local
             REDIS_PORT: "6379"
