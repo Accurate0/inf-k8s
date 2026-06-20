@@ -131,6 +131,7 @@ spec:
             litellm_settings:
               callbacks: ["prometheus", "otel"]
               require_auth_for_metrics_endpoint: false
+              enable_redis_auth_cache: true
               cache: true
               cache_params:
                 type: redis
