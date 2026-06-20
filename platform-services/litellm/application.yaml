@@ -72,6 +72,8 @@ spec:
             GENERIC_USER_ID_ATTRIBUTE: preferred_username
             PROXY_ADMIN_ID: anurag
             AUTO_REDIRECT_UI_LOGIN_TO_SSO: "true"
+            DOCS_URL: /docs
+            ROOT_REDIRECT_URL: /ui
             REDIS_HOST: dragonfly.dragonfly-system.svc.cluster.local
             REDIS_PORT: "6379"
             OTEL_EXPORTER_OTLP_ENDPOINT: http://monitoring-tempo.monitoring.svc.cluster.local:4317
