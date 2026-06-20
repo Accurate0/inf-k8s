@@ -119,6 +119,8 @@ spec:
             general_settings:
               master_key: os.environ/PROXY_MASTER_KEY
               default_team_disabled: true
+              store_model_in_db: true
+              store_prompts_in_spend_logs: true
             router_settings:
               redis_host: os.environ/REDIS_HOST
               redis_port: os.environ/REDIS_PORT
