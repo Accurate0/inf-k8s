@@ -122,6 +122,8 @@ spec:
               redis_host: os.environ/REDIS_HOST
               redis_port: os.environ/REDIS_PORT
             litellm_settings:
+              callbacks: ["prometheus"]
+              require_auth_for_metrics_endpoint: false
               cache: true
               cache_params:
                 type: redis
