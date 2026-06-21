@@ -34,6 +34,10 @@ const STREAM_USAGE_CAP: usize = 8 * 1024 * 1024;
 const MAX_ATTEMPTS_PER_PROVIDER: u32 = 3;
 const RETRY_BASE_DELAY: Duration = Duration::from_millis(100);
 
+/// Longest `Retry-After` we'll wait in-loop; beyond this, fail over to the next provider
+/// rather than stall the request behind one provider's rate limit.
+const MAX_RETRY_AFTER: Duration = Duration::from_secs(2);
+
 /// Total deadline for a non-streaming upstream request. Streaming has no total deadline
 /// and relies on the client's idle (read) timeout instead.
 const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
@@ -42,6 +46,23 @@ const REQUEST_TIMEOUT: Duration = Duration::from_secs(300);
 /// faults. Client errors (4xx other than 429) are returned as-is.
 fn is_retryable(status: StatusCode) -> bool {
     status == StatusCode::TOO_MANY_REQUESTS || status.is_server_error()
+}
+
+/// The delay from an upstream `Retry-After` header, if present and parseable.
+fn retry_after_delay(resp: &reqwest::Response) -> Option<Duration> {
+    parse_retry_after(resp.headers().get("retry-after")?.to_str().ok()?)
+}
+
+/// Parses a `Retry-After` value. Supports both the delta-seconds (`30`) and HTTP-date
+/// forms; a date in the past yields zero.
+fn parse_retry_after(value: &str) -> Option<Duration> {
+    let value = value.trim();
+    if let Ok(secs) = value.parse::<u64>() {
+        return Some(Duration::from_secs(secs));
+    }
+    let when = chrono::DateTime::parse_from_rfc2822(value).ok()?;
+    let secs = (when.with_timezone(&chrono::Utc) - chrono::Utc::now()).num_seconds();
+    Some(Duration::from_secs(secs.max(0) as u64))
 }
 
 pub async fn messages(state: State<AppState>, headers: HeaderMap, body: Bytes) -> Result<Response> {
@@ -177,7 +198,7 @@ async fn proxy(
     };
 
     let cache_key = if !streaming
-        && request.is_cacheable()
+        && request.is_cacheable(kind)
         && state.cache.is_some()
         && state
             .features
@@ -214,9 +235,14 @@ async fn proxy(
 
     'failover: for provider in &candidates {
         let outbound = outbound_for(&request, client_dialect, provider.dialect())?;
+        // Carries an upstream `Retry-After` from the previous attempt to the next sleep.
+        let mut retry_after: Option<Duration> = None;
         for attempt in 0..MAX_ATTEMPTS_PER_PROVIDER {
             if attempt > 0 {
-                tokio::time::sleep(RETRY_BASE_DELAY * (1 << (attempt - 1))).await;
+                let delay = retry_after
+                    .take()
+                    .unwrap_or(RETRY_BASE_DELAY * (1 << (attempt - 1)));
+                tokio::time::sleep(delay).await;
             }
             let upstream_span = tracing::info_span!(
                 "upstream.request",
@@ -232,7 +258,17 @@ async fn proxy(
             match request.send().instrument(upstream_span).await {
                 Ok(resp) if is_retryable(resp.status()) => {
                     metrics::record_upstream_error(provider.name());
+                    // Honor Retry-After on 429: a short wait retries this provider, a long
+                    // one abandons its remaining attempts and fails over immediately.
+                    let wait = (resp.status() == StatusCode::TOO_MANY_REQUESTS)
+                        .then(|| retry_after_delay(&resp))
+                        .flatten();
                     fallback = Some((provider.clone(), resp));
+                    match wait {
+                        Some(d) if d > MAX_RETRY_AFTER => continue 'failover,
+                        Some(d) => retry_after = Some(d),
+                        None => {}
+                    }
                 }
                 Ok(resp) => {
                     served = Some((provider.clone(), resp));
@@ -504,4 +540,29 @@ fn bearer(headers: &HeaderMap) -> Option<&str> {
         .and_then(|v| v.strip_prefix("Bearer "))
         .map(str::trim)
         .filter(|s| !s.is_empty())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_delta_seconds_retry_after() {
+        assert_eq!(parse_retry_after("30"), Some(Duration::from_secs(30)));
+        assert_eq!(parse_retry_after("  0 "), Some(Duration::ZERO));
+        assert_eq!(parse_retry_after("garbage"), None);
+    }
+
+    #[test]
+    fn parses_http_date_retry_after() {
+        // A date far in the past resolves to zero rather than a negative wait.
+        assert_eq!(
+            parse_retry_after("Wed, 21 Oct 2015 07:28:00 GMT"),
+            Some(Duration::ZERO)
+        );
+        // A date well in the future yields a positive wait.
+        let future = (chrono::Utc::now() + chrono::Duration::seconds(120)).to_rfc2822();
+        let delay = parse_retry_after(&future).unwrap();
+        assert!(delay > Duration::from_secs(60), "got {delay:?}");
+    }
 }

@@ -7,3 +7,11 @@ configMapGenerator:
     namespace: ai-gateway
     files:
       - config.yaml
+  - name: ai-gateway-dashboard
+    namespace: ai-gateway
+    files:
+      - dashboards/ai-gateway.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        inf-k8s.net/grafana-dashboard: "true"

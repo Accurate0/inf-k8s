@@ -1,0 +1,45 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 200
+  body:
+    - choices:
+        - delta:
+            role: assistant
+          finish_reason: ~
+          index: 0
+      created: "[created]"
+      id: "[id]"
+      model: gpt-4o
+      object: chat.completion.chunk
+    - choices:
+        - delta:
+            content: Hi there
+          finish_reason: ~
+          index: 0
+      created: "[created]"
+      id: "[id]"
+      model: gpt-4o
+      object: chat.completion.chunk
+    - choices:
+        - delta: {}
+          finish_reason: stop
+          index: 0
+      created: "[created]"
+      id: "[id]"
+      model: gpt-4o
+      object: chat.completion.chunk
+      usage:
+        completion_tokens: 2
+        prompt_tokens: 3
+upstream_requests:
+  - method: POST
+    path: /chat/completions
+    body:
+      messages:
+        - content: hello
+          role: user
+      model: gpt-4o
+      stream: true

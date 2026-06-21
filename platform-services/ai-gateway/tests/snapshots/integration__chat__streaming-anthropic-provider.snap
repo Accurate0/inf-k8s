@@ -1,0 +1,48 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 200
+  body:
+    - choices:
+        - delta:
+            role: assistant
+          index: 0
+      id: "[id]"
+      model: claude-opus-4-8
+      object: chat.completion.chunk
+    - choices:
+        - delta:
+            content: Hi there
+          index: 0
+      id: "[id]"
+      model: claude-opus-4-8
+      object: chat.completion.chunk
+    - choices:
+        - delta: {}
+          finish_reason: stop
+          index: 0
+      id: "[id]"
+      model: claude-opus-4-8
+      object: chat.completion.chunk
+      usage:
+        completion_tokens: 7
+        completion_tokens_details:
+          reasoning_tokens: 0
+        prompt_tokens: 5
+        prompt_tokens_details:
+          cached_tokens: 0
+        total_tokens: 12
+upstream_requests:
+  - method: POST
+    path: /v1/messages
+    body:
+      max_tokens: 4096
+      messages:
+        - content:
+            - text: hello
+              type: text
+          role: user
+      model: claude-opus-4-8
+      stream: true

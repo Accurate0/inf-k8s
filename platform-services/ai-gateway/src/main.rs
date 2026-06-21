@@ -13,7 +13,6 @@ fn env_u32(name: &str, default: u32) -> u32 {
         .unwrap_or(default)
 }
 
-// TODO: add a way to check responses vs openai expected + anthropic
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let tracer_provider = tracing_setup::init();
@@ -113,5 +112,3 @@ async fn shutdown_signal() {
         _ = terminate => {}
     }
 }
-
-// FIXME: streaming integration testing

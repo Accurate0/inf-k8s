@@ -1,0 +1,27 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Anthropic Message (buffered)",
+  "type": "object",
+  "required": ["type", "role", "model", "content", "usage"],
+  "properties": {
+    "type": { "const": "message" },
+    "role": { "type": "string" },
+    "model": { "type": "string" },
+    "content": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["type"],
+        "properties": { "type": { "type": "string" } }
+      }
+    },
+    "usage": {
+      "type": "object",
+      "required": ["input_tokens", "output_tokens"],
+      "properties": {
+        "input_tokens": { "type": "integer" },
+        "output_tokens": { "type": "integer" }
+      }
+    }
+  }
+}

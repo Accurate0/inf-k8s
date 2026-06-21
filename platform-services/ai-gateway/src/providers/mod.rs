@@ -130,10 +130,14 @@ impl ProxyRequest {
             .unwrap_or(false)
     }
 
-    /// Only deterministic requests are cacheable: an explicit `temperature` of 0, so a
-    /// replayed response can't mask intended sampling variance.
-    pub fn is_cacheable(&self) -> bool {
-        self.json.get("temperature").and_then(Value::as_f64) == Some(0.0)
+    /// Whether a response may be cached. Embeddings are deterministic, so always cacheable;
+    /// chat is only cacheable at an explicit `temperature` of 0, so a replayed response
+    /// can't mask intended sampling variance.
+    pub fn is_cacheable(&self, kind: ModelKind) -> bool {
+        match kind {
+            ModelKind::Embedding => true,
+            ModelKind::Chat => self.json.get("temperature").and_then(Value::as_f64) == Some(0.0),
+        }
     }
 
     pub fn set_model(&mut self, model: &str) {
@@ -183,5 +187,21 @@ mod tests {
         let req = ProxyRequest::from_slice(br#"{}"#).unwrap();
         assert!(req.model().is_err());
         assert!(!req.is_stream());
+    }
+
+    #[test]
+    fn embeddings_always_cacheable_chat_requires_zero_temp() {
+        let no_temp = ProxyRequest::from_slice(br#"{"model":"m"}"#).unwrap();
+        let zero_temp = ProxyRequest::from_slice(br#"{"model":"m","temperature":0}"#).unwrap();
+        let warm = ProxyRequest::from_slice(br#"{"model":"m","temperature":0.7}"#).unwrap();
+
+        // Embeddings are deterministic regardless of any temperature field.
+        assert!(no_temp.is_cacheable(ModelKind::Embedding));
+        assert!(warm.is_cacheable(ModelKind::Embedding));
+
+        // Chat is cacheable only at an explicit temperature of 0.
+        assert!(zero_temp.is_cacheable(ModelKind::Chat));
+        assert!(!no_temp.is_cacheable(ModelKind::Chat));
+        assert!(!warm.is_cacheable(ModelKind::Chat));
     }
 }

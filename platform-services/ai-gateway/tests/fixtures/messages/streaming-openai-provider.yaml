@@ -1,0 +1,23 @@
+endpoint: /v1/messages
+provider:
+  name: openai
+  dialect: openai
+  models:
+    - gpt-4o
+request:
+  model: gpt-4o
+  max_tokens: 64
+  stream: true
+  messages:
+    - role: user
+      content: hello
+upstream:
+  status: 200
+  sse: |
+    data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"gpt-4o","choices":[{"index":0,"delta":{"role":"assistant"},"finish_reason":null}]}
+
+    data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"gpt-4o","choices":[{"index":0,"delta":{"content":"Hi there"},"finish_reason":null}]}
+
+    data: {"id":"chatcmpl-1","object":"chat.completion.chunk","created":1,"model":"gpt-4o","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}
+
+    data: [DONE]

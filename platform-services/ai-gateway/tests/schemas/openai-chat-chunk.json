@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "OpenAI Chat Completion chunk (streamed)",
+  "type": "object",
+  "required": ["object", "model", "choices"],
+  "properties": {
+    "object": { "const": "chat.completion.chunk" },
+    "model": { "type": "string" },
+    "choices": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["index", "delta"],
+        "properties": {
+          "index": { "type": "integer" },
+          "delta": { "type": "object" }
+        }
+      }
+    },
+    "usage": {
+      "type": ["object", "null"],
+      "properties": {
+        "prompt_tokens": { "type": "integer" },
+        "completion_tokens": { "type": "integer" }
+      }
+    }
+  }
+}

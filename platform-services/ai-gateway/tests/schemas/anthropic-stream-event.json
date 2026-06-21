@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Anthropic streaming event",
+  "type": "object",
+  "required": ["type"],
+  "properties": {
+    "type": {
+      "enum": [
+        "message_start",
+        "content_block_start",
+        "content_block_delta",
+        "content_block_stop",
+        "message_delta",
+        "message_stop",
+        "ping"
+      ]
+    }
+  },
+  "allOf": [
+    {
+      "if": { "properties": { "type": { "const": "message_start" } } },
+      "then": { "required": ["message"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "content_block_delta" } } },
+      "then": { "required": ["index", "delta"] }
+    },
+    {
+      "if": { "properties": { "type": { "const": "message_delta" } } },
+      "then": { "required": ["delta"] }
+    }
+  ]
+}

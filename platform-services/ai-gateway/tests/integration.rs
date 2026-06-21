@@ -65,7 +65,12 @@ impl Default for KeyDef {
 struct Upstream {
     #[serde(default = "default_status")]
     status: u16,
-    body: Value,
+    /// JSON body for a buffered response.
+    #[serde(default)]
+    body: Option<Value>,
+    /// Raw `text/event-stream` body for a streamed response.
+    #[serde(default)]
+    sse: Option<String>,
 }
 
 fn default_status() -> u16 {
@@ -137,6 +142,22 @@ fixture_test!(
 fixture_test!(messages_model_override, "messages", "model-override");
 fixture_test!(messages_model_denied, "messages", "model-denied");
 fixture_test!(messages_route_pinned, "messages", "route-pinned");
+fixture_test!(
+    messages_anthropic_streaming,
+    "messages",
+    "anthropic-streaming"
+);
+fixture_test!(
+    messages_streaming_openai_provider,
+    "messages",
+    "streaming-openai-provider"
+);
+fixture_test!(chat_openai_streaming, "chat", "openai-streaming");
+fixture_test!(
+    chat_streaming_anthropic_provider,
+    "chat",
+    "streaming-anthropic-provider"
+);
 fixture_test!(chat_openai_happy_path, "chat", "openai-happy-path");
 fixture_test!(chat_no_provider_for_model, "chat", "no-provider-for-model");
 fixture_test!(
@@ -162,8 +183,16 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
 
     let upstream = MockServer::start().await;
     if let Some(up) = &fixture.upstream {
+        let template = ResponseTemplate::new(up.status);
+        let template = match (&up.sse, &up.body) {
+            (Some(sse), _) => template
+                .insert_header("content-type", "text/event-stream")
+                .set_body_string(sse.clone()),
+            (None, Some(body)) => template.set_body_json(body),
+            (None, None) => template,
+        };
         Mock::given(method("POST"))
-            .respond_with(ResponseTemplate::new(up.status).set_body_json(&up.body))
+            .respond_with(template)
             .mount(&upstream)
             .await;
     }
@@ -230,8 +259,25 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     }
     let resp = req.send().await.expect("request failed");
 
+    let streaming = fixture
+        .request
+        .get("stream")
+        .and_then(Value::as_bool)
+        .unwrap_or(false);
+
     let status = resp.status().as_u16();
-    let body: Value = resp.json().await.unwrap_or(Value::Null);
+    let body = if streaming {
+        // The forwarded SSE is snapshotted as the ordered list of its `data:` payloads.
+        sse_events(&resp.text().await.unwrap_or_default())
+    } else {
+        resp.json().await.unwrap_or(Value::Null)
+    };
+
+    // Successful responses must conform to the client dialect's published schema, so a
+    // translation change that breaks API compatibility fails even if its snapshot is accepted.
+    if status == 200 {
+        validate_schema(&fixture.endpoint, streaming, &body);
+    }
 
     server_handle.abort();
 
@@ -243,7 +289,62 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
         upstream_requests,
     };
 
+    // Translated streams synthesize ids and timestamps; redact them so snapshots stay stable.
     assert_yaml_snapshot!(snapshot_name, snapshot, {
-        ".response.body.created" => "[created]"
+        ".response.body.created" => "[created]",
+        ".response.body[].id" => "[id]",
+        ".response.body[].created" => "[created]",
+        ".response.body[].message.id" => "[id]",
     });
+}
+
+/// Asserts the response conforms to the client dialect's published JSON Schema. Buffered
+/// responses are validated whole; streamed responses validate each SSE event. Runs on the
+/// real body, before snapshot redaction, so schema breaks surface independently of snapshots.
+fn validate_schema(endpoint: &str, streaming: bool, body: &Value) {
+    let schema_src = if endpoint.ends_with("/messages") {
+        if streaming {
+            include_str!("schemas/anthropic-stream-event.json")
+        } else {
+            include_str!("schemas/anthropic-message.json")
+        }
+    } else if endpoint.ends_with("/embeddings") {
+        include_str!("schemas/openai-embeddings.json")
+    } else if streaming {
+        include_str!("schemas/openai-chat-chunk.json")
+    } else {
+        include_str!("schemas/openai-chat.json")
+    };
+
+    let schema: Value = serde_json::from_str(schema_src).unwrap();
+    let validator = jsonschema::validator_for(&schema).expect("invalid test schema");
+
+    let instances: Vec<&Value> = match body {
+        Value::Array(events) if streaming => events.iter().collect(),
+        other => vec![other],
+    };
+    for instance in instances {
+        let errors: Vec<String> = validator
+            .iter_errors(instance)
+            .map(|e| format!("  {} at {}", e, e.instance_path))
+            .collect();
+        assert!(
+            errors.is_empty(),
+            "{endpoint} response violates schema:\n{}\ninstance: {instance}",
+            errors.join("\n"),
+        );
+    }
+}
+
+/// Parses an SSE body into the ordered list of its `data:` JSON payloads, dropping the
+/// terminal `[DONE]` marker and any `event:` lines.
+fn sse_events(body: &str) -> Value {
+    let events: Vec<Value> = body
+        .lines()
+        .filter_map(|line| line.strip_prefix("data:"))
+        .map(str::trim)
+        .filter(|data| !data.is_empty() && *data != "[DONE]")
+        .filter_map(|data| serde_json::from_str(data).ok())
+        .collect();
+    Value::Array(events)
 }

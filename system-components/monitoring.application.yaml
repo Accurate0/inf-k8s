@@ -218,6 +218,12 @@ spec:
                     - discord-config
           grafana:
             envFromSecret: "monitoring-managed-secrets"
+            sidecar:
+              dashboards:
+                enabled: true
+                label: inf-k8s.net/grafana-dashboard
+                labelValue: "true"
+                searchNamespace: ALL
             envValueFrom:
               GF_AUTH_GENERIC_OAUTH_CLIENT_ID:
                 secretKeyRef:
