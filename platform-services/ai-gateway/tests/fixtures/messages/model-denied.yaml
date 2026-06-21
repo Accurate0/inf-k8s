@@ -1,0 +1,15 @@
+endpoint: /v1/messages
+provider:
+  dialect: anthropic
+  models:
+    - claude-fable-5
+rules:
+  - match:
+      model: claude-fable-5
+    deny: true
+request:
+  model: claude-fable-5
+  max_tokens: 64
+  messages:
+    - role: user
+      content: hello

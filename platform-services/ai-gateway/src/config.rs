@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use serde::Deserialize;
 
@@ -16,16 +16,16 @@ const CONFIG_PATH_ENV: &str = "CONFIG_PATH";
 /// Config-format version this binary understands. Bump on any breaking change to the
 /// config schema. A ConfigMap whose `version` differs is rejected in favour of the
 /// baked-in config. See [`Config::load`].
-pub const CONFIG_SCHEMA_VERSION: u32 = 1;
+pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 
 #[derive(Clone, Debug, Default)]
 pub struct Config {
     pub admin_token: String,
     pub providers: HashMap<String, ProviderConfig>,
     pub keys: Vec<KeyConfig>,
-    /// Global requested-model -> resolved-model remapping, applied to every key. A
-    /// per-key entry in [`KeyConfig::model_overrides`] takes precedence.
-    pub model_overrides: HashMap<String, String>,
+    /// Ordered model-resolution rules, evaluated first-match-wins per request. Subsumes
+    /// global/per-key overrides, provider reroutes, and model denial. See [`Config::resolve`].
+    pub rules: Vec<Rule>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -37,7 +37,7 @@ struct FileConfig {
     #[serde(default)]
     keys: Vec<KeyConfig>,
     #[serde(default)]
-    model_overrides: HashMap<String, String>,
+    rules: Vec<Rule>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -46,8 +46,10 @@ pub struct ProviderConfig {
     pub base_url: String,
     #[serde(default)]
     pub api_key_env: Option<String>,
+    /// Chat model ids this provider actually serves.
     #[serde(default)]
     pub models: Vec<String>,
+    /// Embedding model ids this provider actually serves.
     #[serde(default)]
     pub embedding_models: Vec<String>,
     /// Failover order among providers that serve the same model: lower is tried first.
@@ -68,6 +70,78 @@ impl ProviderConfig {
     }
 }
 
+/// One model-resolution rule: when `match` matches the request, its action applies and
+/// evaluation stops. Exactly one action should be set; if several are, `deny` wins, then
+/// `route`, then `set_model`.
+///
+/// ```yaml
+/// rules:
+///   - match:                  # per-key override
+///       key: tldr-bot
+///       model: gpt-4o
+///     set_model: gpt-5.4-mini
+///   - match:                  # global override
+///       model: gpt-4o
+///     set_model: gpt-5.4
+///   - match:                  # same-provider reroute
+///       model: claude-fable-5
+///     route:
+///       provider: anthropic
+///       as: claude-opus-4-8
+///   - match:                  # deny
+///       model: claude-haiku-4-5
+///     deny: true
+/// ```
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct Rule {
+    #[serde(default, rename = "match")]
+    pub matcher: RuleMatch,
+    #[serde(default)]
+    pub set_model: Option<String>,
+    #[serde(default)]
+    pub route: Option<RouteAction>,
+    #[serde(default)]
+    pub deny: bool,
+}
+
+/// Conditions a rule matches on; absent fields match anything, all present fields must
+/// match (AND). An empty matcher is a catch-all.
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct RuleMatch {
+    #[serde(default)]
+    pub key: Option<String>,
+    #[serde(default)]
+    pub model: Option<String>,
+}
+
+impl RuleMatch {
+    fn matches(&self, key: &str, model: &str) -> bool {
+        self.key.as_deref().is_none_or(|k| k == key)
+            && self.model.as_deref().is_none_or(|m| m == model)
+    }
+}
+
+/// Pins the request to a specific provider, sending it `as` (defaulting to the requested
+/// model). Unlike `set_model`, routing does not fall through to other providers.
+#[derive(Clone, Debug, Deserialize)]
+pub struct RouteAction {
+    pub provider: String,
+    #[serde(default, rename = "as")]
+    pub as_model: Option<String>,
+}
+
+/// Outcome of resolving a request against the rules.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Resolved {
+    /// Route to `model`, optionally pinned to a single `provider`.
+    Route {
+        model: String,
+        provider: Option<String>,
+    },
+    /// A `deny` rule matched; the request is rejected.
+    Denied,
+}
+
 /// Claims an existing key (minted via the admin API) by name and manages its allowed
 /// models and budget; config is the source of truth for those fields.
 #[derive(Clone, Debug, Deserialize)]
@@ -79,10 +153,6 @@ pub struct KeyConfig {
     pub monthly_token_budget: Option<i64>,
     #[serde(default)]
     pub revoked: bool,
-    /// Per-key requested-model -> resolved-model remapping; takes precedence over
-    /// [`Config::model_overrides`].
-    #[serde(default)]
-    pub model_overrides: HashMap<String, String>,
 }
 
 impl Config {
@@ -98,19 +168,63 @@ impl Config {
             admin_token: std::env::var("ADMIN_TOKEN").unwrap_or_default(),
             providers: file.providers,
             keys: file.keys,
-            model_overrides: file.model_overrides,
+            rules: file.rules,
         })
     }
 
-    /// Config-driven override of the requested model: the per-key map wins, falling
-    /// back to the global map. Returns `None` when no override applies.
-    pub fn override_model(&self, key_name: &str, requested: &str) -> Option<&str> {
-        self.keys
-            .iter()
-            .find(|k| k.name == key_name)
-            .and_then(|k| k.model_overrides.get(requested))
-            .or_else(|| self.model_overrides.get(requested))
-            .map(String::as_str)
+    /// Adjusts the provider-served `models` map (model id -> owner) by the globally-scoped
+    /// rules (those without a `key` condition), for advertising via `/v1/models`: a `deny`
+    /// removes a model, and a keyless `route`/`set_model` adds the request-facing id it
+    /// matches on (owned by the route's provider, or the target's owner for `set_model`).
+    pub fn advertise(&self, models: &mut BTreeMap<String, String>) {
+        for rule in &self.rules {
+            if rule.matcher.key.is_some() {
+                continue;
+            }
+            let Some(model) = rule.matcher.model.clone() else {
+                continue;
+            };
+            if rule.deny {
+                models.remove(&model);
+            } else if let Some(route) = &rule.route {
+                models.insert(model, route.provider.clone());
+            } else if let Some(target) = &rule.set_model {
+                let owner = models.get(target).cloned().unwrap_or_default();
+                models.insert(model, owner);
+            }
+        }
+    }
+
+    /// Resolves `requested` for `key_name` against the rules, first match wins. With no
+    /// matching rule the request routes unchanged.
+    pub fn resolve(&self, key_name: &str, requested: &str) -> Resolved {
+        for rule in &self.rules {
+            if !rule.matcher.matches(key_name, requested) {
+                continue;
+            }
+            if rule.deny {
+                return Resolved::Denied;
+            }
+            if let Some(route) = &rule.route {
+                return Resolved::Route {
+                    model: route
+                        .as_model
+                        .clone()
+                        .unwrap_or_else(|| requested.to_owned()),
+                    provider: Some(route.provider.clone()),
+                };
+            }
+            if let Some(model) = &rule.set_model {
+                return Resolved::Route {
+                    model: model.clone(),
+                    provider: None,
+                };
+            }
+        }
+        Resolved::Route {
+            model: requested.to_owned(),
+            provider: None,
+        }
     }
 
     fn load_file() -> anyhow::Result<FileConfig> {
@@ -153,38 +267,84 @@ mod tests {
         assert!(!config.providers.is_empty());
     }
 
-    #[test]
-    fn model_overrides_resolve_per_key_then_global() {
-        let yaml = r#"
-version: 1
-model_overrides:
-  claude-fable-5: claude-opus-4-8
-  gpt-4o: gpt-5.4
-keys:
-  - name: tldr-bot
-    model_overrides:
-      gpt-4o: gpt-5.4-mini
-"#;
+    fn config_from(yaml: &str) -> Config {
         let file: FileConfig = serde_yaml::from_str(yaml).unwrap();
-        let config = Config {
+        Config {
             keys: file.keys,
-            model_overrides: file.model_overrides,
+            rules: file.rules,
             ..Default::default()
-        };
+        }
+    }
 
-        // Per-key entry wins over the global map.
-        assert_eq!(
-            config.override_model("tldr-bot", "gpt-4o"),
-            Some("gpt-5.4-mini")
+    #[test]
+    fn rules_resolve_first_match_wins() {
+        let config = config_from(
+            r#"
+version: 2
+rules:
+  - match: { key: tldr-bot, model: gpt-4o }
+    set_model: gpt-5.4-mini
+  - match: { model: gpt-4o }
+    set_model: gpt-5.4
+"#,
         );
-        // Falls back to the global map when the key has no entry.
+
+        // The more specific keyed rule precedes the global one, so it wins.
         assert_eq!(
-            config.override_model("tldr-bot", "claude-fable-5"),
-            Some("claude-opus-4-8")
+            config.resolve("tldr-bot", "gpt-4o"),
+            Resolved::Route {
+                model: "gpt-5.4-mini".into(),
+                provider: None
+            }
         );
-        // Unknown key still gets the global map.
-        assert_eq!(config.override_model("other", "gpt-4o"), Some("gpt-5.4"));
-        // No override configured.
-        assert_eq!(config.override_model("tldr-bot", "claude-sonnet-4-6"), None);
+        // Other keys fall through to the global rule.
+        assert_eq!(
+            config.resolve("other", "gpt-4o"),
+            Resolved::Route {
+                model: "gpt-5.4".into(),
+                provider: None
+            }
+        );
+        // No rule matches: routes unchanged.
+        assert_eq!(
+            config.resolve("other", "claude-sonnet-4-6"),
+            Resolved::Route {
+                model: "claude-sonnet-4-6".into(),
+                provider: None
+            }
+        );
+    }
+
+    #[test]
+    fn route_rule_pins_provider_and_deny_rejects() {
+        let config = config_from(
+            r#"
+version: 2
+rules:
+  - match: { model: claude-fable-5 }
+    route: { provider: anthropic, as: claude-opus-4-8 }
+  - match: { model: legacy-model }
+    route: { provider: openrouter }
+  - match: { model: blocked }
+    deny: true
+"#,
+        );
+
+        assert_eq!(
+            config.resolve("any", "claude-fable-5"),
+            Resolved::Route {
+                model: "claude-opus-4-8".into(),
+                provider: Some("anthropic".into())
+            }
+        );
+        // `as` defaults to the requested model.
+        assert_eq!(
+            config.resolve("any", "legacy-model"),
+            Resolved::Route {
+                model: "legacy-model".into(),
+                provider: Some("openrouter".into())
+            }
+        );
+        assert_eq!(config.resolve("any", "blocked"), Resolved::Denied);
     }
 }

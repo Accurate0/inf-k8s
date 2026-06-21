@@ -1,4 +1,4 @@
-version: 1
+version: 2
 
 providers:
   anthropic:
@@ -36,8 +36,10 @@ providers:
     models:
       - gemini-2.5-pro
 
-model_overrides:
-  gpt-4o: gpt-5.4-mini
+rules:
+  - match:
+      model: gpt-4o
+    set_model: gpt-5.4-mini
 
 keys:
   - name: maccas-api

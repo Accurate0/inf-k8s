@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use axum::{
     Json,
     extract::{Path, State},
@@ -35,11 +37,14 @@ pub async fn metrics_handler() -> impl IntoResponse {
 }
 
 pub async fn list_models(State(state): State<AppState>) -> impl IntoResponse {
-    let data: Vec<_> = state
-        .providers
-        .models()
+    let mut models: BTreeMap<String, String> = state.providers.models().into_iter().collect();
+    state.config.advertise(&mut models);
+
+    let data: Vec<_> = models
         .into_iter()
-        .map(|(id, provider)| json!({ "id": id, "object": "model", "provider": provider }))
+        .map(|(id, provider)| {
+            json!({ "id": id, "object": "model", "created": 0, "owned_by": provider })
+        })
         .collect();
     Json(json!({ "object": "list", "data": data }))
 }

@@ -13,6 +13,8 @@ pub enum GatewayError {
     InvalidKey,
     #[error("key {0} is not allowed to use model {1}")]
     ModelNotAllowed(String, String),
+    #[error("model {0} is denied by config")]
+    ModelDenied(String),
     #[error("key {0} has exceeded its monthly token budget")]
     BudgetExceeded(String),
     #[error("no provider configured for model {0}")]
@@ -43,7 +45,9 @@ impl GatewayError {
     fn status(&self) -> StatusCode {
         match self {
             GatewayError::MissingKey | GatewayError::InvalidKey => StatusCode::UNAUTHORIZED,
-            GatewayError::ModelNotAllowed(..) => StatusCode::FORBIDDEN,
+            GatewayError::ModelNotAllowed(..) | GatewayError::ModelDenied(_) => {
+                StatusCode::FORBIDDEN
+            }
             GatewayError::BudgetExceeded(_) => StatusCode::TOO_MANY_REQUESTS,
             GatewayError::NoProvider(_) | GatewayError::BadRequest(_) => StatusCode::BAD_REQUEST,
             GatewayError::Disabled => StatusCode::SERVICE_UNAVAILABLE,

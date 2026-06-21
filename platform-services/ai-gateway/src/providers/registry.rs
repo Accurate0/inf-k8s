@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use super::{Anthropic, Dialect, ModelKind, OpenAiCompatible, Provider};
@@ -89,10 +89,19 @@ impl Registry {
         self.providers.keys().cloned().collect()
     }
 
+    /// Unique routable models, each paired with the provider serving its highest-priority
+    /// route, sorted by model id. A model reachable through several providers or endpoint
+    /// kinds appears once.
     pub fn models(&self) -> Vec<(String, String)> {
-        self.routes
-            .iter()
-            .flat_map(|((m, _), names)| names.iter().map(move |n| (m.clone(), n.clone())))
+        let mut by_model: BTreeMap<&str, &str> = BTreeMap::new();
+        for ((model, _), names) in &self.routes {
+            if let Some(primary) = names.first() {
+                by_model.entry(model).or_insert(primary);
+            }
+        }
+        by_model
+            .into_iter()
+            .map(|(m, p)| (m.to_owned(), p.to_owned()))
             .collect()
     }
 }

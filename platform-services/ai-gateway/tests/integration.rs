@@ -7,7 +7,7 @@ use sqlx::PgPool;
 use wiremock::matchers::method;
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-use ai_gateway::config::{Config, ProviderConfig};
+use ai_gateway::config::{Config, ProviderConfig, Rule};
 use ai_gateway::feature_flag::FeatureFlagClient;
 use ai_gateway::pricing::Pricing;
 use ai_gateway::providers::{Dialect, Registry};
@@ -25,7 +25,7 @@ struct Fixture {
     request: Value,
     upstream: Option<Upstream>,
     #[serde(default)]
-    model_overrides: HashMap<String, String>,
+    rules: Vec<Rule>,
 }
 
 #[derive(Deserialize)]
@@ -135,6 +135,8 @@ fixture_test!(
     "endpoint-to-openai-provider"
 );
 fixture_test!(messages_model_override, "messages", "model-override");
+fixture_test!(messages_model_denied, "messages", "model-denied");
+fixture_test!(messages_route_pinned, "messages", "route-pinned");
 fixture_test!(chat_openai_happy_path, "chat", "openai-happy-path");
 fixture_test!(chat_no_provider_for_model, "chat", "no-provider-for-model");
 fixture_test!(
@@ -184,7 +186,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
         admin_token: String::new(),
         providers,
         keys: vec![],
-        model_overrides: fixture.model_overrides.clone(),
+        rules: fixture.rules.clone(),
     };
     let registry = Registry::from_config(&config);
 

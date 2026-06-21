@@ -1,0 +1,11 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 403
+  body:
+    error:
+      message: model claude-fable-5 is denied by config
+      type: ai_gateway_error
+upstream_requests: []

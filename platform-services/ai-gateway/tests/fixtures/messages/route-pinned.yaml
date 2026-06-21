@@ -1,12 +1,15 @@
 endpoint: /v1/messages
 provider:
+  name: anthropic
   dialect: anthropic
   models:
     - claude-opus-4-8
 rules:
   - match:
       model: claude-fable-5
-    set_model: claude-opus-4-8
+    route:
+      provider: anthropic
+      as: claude-opus-4-8
 request:
   model: claude-fable-5
   max_tokens: 64

@@ -12,6 +12,7 @@ use open_feature::EvaluationContext;
 use tracing::{Instrument, Span, field};
 
 use crate::{
+    config::Resolved,
     error::{GatewayError, Result},
     keys::VirtualKey,
     metrics,
@@ -130,19 +131,19 @@ async fn proxy(
         }
     }
 
+    // The runtime flag wins as a global override; otherwise the config rules resolve the
+    // model and may pin a provider or deny the request outright.
     let override_model = state
         .features
         .string_flag(MODEL_OVERRIDE_FLAG, evaluation_context.clone(), "")
         .await;
-    let resolved_model = if !override_model.is_empty() {
-        override_model
+    let (resolved_model, pinned_provider) = if !override_model.is_empty() {
+        (override_model, None)
     } else {
-        // Flag (runtime) wins; config override is the fallback when it's empty.
-        state
-            .config
-            .override_model(&key.name, &requested_model)
-            .map(str::to_owned)
-            .unwrap_or_else(|| requested_model.clone())
+        match state.config.resolve(&key.name, &requested_model) {
+            Resolved::Route { model, provider } => (model, provider),
+            Resolved::Denied => return Err(GatewayError::ModelDenied(requested_model)),
+        }
     };
 
     span.record("resolved_model", resolved_model.as_str());
@@ -154,7 +155,10 @@ async fn proxy(
         request.set_model(&resolved_model);
     }
 
-    let candidates = state.providers.providers_for_model(&resolved_model, kind);
+    let candidates = match &pinned_provider {
+        Some(name) => state.providers.get(name).into_iter().collect(),
+        None => state.providers.providers_for_model(&resolved_model, kind),
+    };
 
     let Some(primary) = candidates.first().cloned() else {
         return Err(GatewayError::NoProvider(resolved_model));
