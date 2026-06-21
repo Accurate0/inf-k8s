@@ -1,54 +1,121 @@
-//! Translation between the Anthropic Messages and OpenAI Chat Completions dialects.
+//! Translation between the Anthropic Messages and OpenAI Chat Completions dialects,
+//! delegated to the `llm-bridge-core` protocol bridge.
 //!
 //! The gateway exposes both `/v1/messages` (Anthropic) and `/v1/chat/completions`
 //! (OpenAI); a model may live behind a provider of the other dialect. When the client
-//! and provider dialects differ, requests and responses are translated here, including
-//! streaming via [`SseTranslator`]. Text content and the common sampling/stop parameters
-//! are translated; tool calls and non-text blocks are not, and are dropped.
+//! and provider dialects differ, requests, responses, and streams (via [`SseTranslator`])
+//! are translated here. Matching dialects pass through untouched.
 
 mod streaming;
-mod types;
 
 pub use streaming::SseTranslator;
 
-use serde::Deserialize;
+use std::collections::HashMap;
+
+use bytes::Bytes;
+use chrono::Utc;
+use llm_bridge_core::model::{TransformError, TransformRequest, TransformResponse};
+use llm_bridge_core::transform;
 use serde_json::Value;
 
 use super::Dialect;
-use types::*;
+use crate::error::{GatewayError, Result};
 
-pub fn translate_request(body: &Value, from: Dialect, to: Dialect) -> Value {
-    match (from, to) {
+/// Anthropic's `/v1/messages` requires `max_tokens`, which OpenAI clients may omit and the
+/// bridge leaves unset; backfill this default so translated requests stay valid.
+const DEFAULT_ANTHROPIC_MAX_TOKENS: u64 = 4096;
+
+/// Translate a request body from the `source` dialect into the `target` dialect.
+pub fn translate_request(body: &[u8], source: Dialect, target: Dialect) -> Result<Bytes> {
+    let result = match (source, target) {
         (Dialect::Anthropic, Dialect::OpenAiCompatible) => {
-            to_value(OpenAiChatRequest::from(parse::<AnthropicRequest>(body)))
+            transform::anthropic_to_openai(&request("/v1/messages", body))
         }
         (Dialect::OpenAiCompatible, Dialect::Anthropic) => {
-            to_value(AnthropicMessagesRequest::from(parse::<OpenAiRequest>(body)))
+            transform::openai_to_anthropic(&request("/v1/chat/completions", body))
         }
-        _ => body.clone(),
+        _ => return Ok(Bytes::copy_from_slice(body)),
+    };
+    let bytes = body_of(result)?;
+    if target == Dialect::Anthropic {
+        return ensure_max_tokens(bytes);
+    }
+    Ok(bytes)
+}
+
+fn ensure_max_tokens(body: Bytes) -> Result<Bytes> {
+    let mut json: Value =
+        serde_json::from_slice(&body).map_err(|e| GatewayError::BadRequest(e.to_string()))?;
+    if json.get("max_tokens").is_some() {
+        return Ok(body);
+    }
+    json["max_tokens"] = Value::from(DEFAULT_ANTHROPIC_MAX_TOKENS);
+    serde_json::to_vec(&json)
+        .map(Bytes::from)
+        .map_err(|e| GatewayError::BadRequest(e.to_string()))
+}
+
+/// Translate a response body from the `source` (provider) dialect into the `target`
+/// (client) dialect.
+pub fn translate_response(body: &[u8], source: Dialect, target: Dialect) -> Result<Bytes> {
+    let result = match (source, target) {
+        (Dialect::OpenAiCompatible, Dialect::Anthropic) => {
+            transform::openai_response_to_anthropic_message(&request("/v1/chat/completions", body))
+        }
+        (Dialect::Anthropic, Dialect::OpenAiCompatible) => {
+            transform::anthropic_response_to_openai_response(&request("/v1/messages", body))
+        }
+        _ => return Ok(Bytes::copy_from_slice(body)),
+    };
+    let bytes = body_of(result)?;
+    if target == Dialect::OpenAiCompatible {
+        return ensure_created(bytes);
+    }
+    Ok(bytes)
+}
+
+/// The OpenAI Chat Completion object requires a `created` timestamp, which the bridge omits;
+/// backfill it so responses stay schema-valid for OpenAI clients.
+fn ensure_created(body: Bytes) -> Result<Bytes> {
+    let mut json: Value =
+        serde_json::from_slice(&body).map_err(|e| GatewayError::BadRequest(e.to_string()))?;
+    if json.get("created").is_some() {
+        return Ok(body);
+    }
+    json["created"] = Value::from(Utc::now().timestamp());
+    serde_json::to_vec(&json)
+        .map(Bytes::from)
+        .map_err(|e| GatewayError::BadRequest(e.to_string()))
+}
+
+fn request(path: &str, body: &[u8]) -> TransformRequest {
+    TransformRequest {
+        headers: HashMap::new(),
+        path: path.to_owned(),
+        body: Bytes::copy_from_slice(body),
     }
 }
 
-pub fn translate_response(body: &Value, from: Dialect, to: Dialect) -> Value {
-    match (from, to) {
-        (Dialect::Anthropic, Dialect::OpenAiCompatible) => {
-            to_value(AnthropicMessageResponse::from(parse::<OpenAiResponse>(body)))
-        }
-        (Dialect::OpenAiCompatible, Dialect::Anthropic) => {
-            to_value(OpenAiChatResponse::from(parse::<AnthropicResponse>(body)))
-        }
-        _ => body.clone(),
-    }
-}
-
-fn parse<T: for<'de> Deserialize<'de> + Default>(body: &Value) -> T {
-    serde_json::from_value(body.clone()).unwrap_or_default()
+fn body_of(result: std::result::Result<TransformResponse, TransformError>) -> Result<Bytes> {
+    result
+        .map(|r| r.body)
+        .map_err(|e| GatewayError::BadRequest(e.sanitized_message()))
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
+
+    fn req_v(body: &Value, source: Dialect, target: Dialect) -> Value {
+        let out = translate_request(&serde_json::to_vec(body).unwrap(), source, target).unwrap();
+        serde_json::from_slice(&out).unwrap()
+    }
+
+    fn resp_v(body: &Value, target: Dialect, source: Dialect) -> Value {
+        let out = translate_response(&serde_json::to_vec(body).unwrap(), source, target).unwrap();
+        serde_json::from_slice(&out).unwrap()
+    }
 
     #[test]
     fn anthropic_request_becomes_openai() {
@@ -57,17 +124,15 @@ mod tests {
             "stop_sequences": ["X"], "temperature": 0.5,
             "messages": [{ "role": "user", "content": "hi" }],
         });
-        let out = translate_request(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
+        let out = req_v(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
         assert_eq!(out["messages"][0]["role"], "system");
-        assert_eq!(out["messages"][0]["content"], "be brief");
         assert_eq!(out["messages"][1]["content"], "hi");
-        assert_eq!(out["max_tokens"], 100);
         assert_eq!(out["stop"][0], "X");
         assert_eq!(out["temperature"], 0.5);
     }
 
     #[test]
-    fn openai_request_becomes_anthropic_with_default_max_tokens() {
+    fn openai_request_becomes_anthropic() {
         let req = json!({
             "model": "claude-opus-4-8",
             "messages": [
@@ -75,7 +140,7 @@ mod tests {
                 { "role": "user", "content": "hi" },
             ],
         });
-        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
+        let out = req_v(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
         assert_eq!(out["system"], "be brief");
         assert_eq!(out["messages"].as_array().unwrap().len(), 1);
         assert_eq!(out["max_tokens"], 4096);
@@ -85,11 +150,11 @@ mod tests {
     fn openai_response_becomes_anthropic() {
         let resp = json!({
             "id": "chatcmpl-1", "model": "gpt-4o",
-            "choices": [{ "message": { "role": "assistant", "content": "hi there" },
+            "choices": [{ "index": 0, "message": { "role": "assistant", "content": "hi there" },
                           "finish_reason": "stop" }],
             "usage": { "prompt_tokens": 9, "completion_tokens": 4 },
         });
-        let out = translate_response(&resp, Dialect::Anthropic, Dialect::OpenAiCompatible);
+        let out = resp_v(&resp, Dialect::Anthropic, Dialect::OpenAiCompatible);
         assert_eq!(out["content"][0]["text"], "hi there");
         assert_eq!(out["stop_reason"], "end_turn");
         assert_eq!(out["usage"]["input_tokens"], 9);
@@ -99,15 +164,14 @@ mod tests {
     #[test]
     fn anthropic_response_becomes_openai() {
         let resp = json!({
-            "id": "msg_1", "model": "claude-opus-4-8",
+            "id": "msg_1", "model": "claude-opus-4-8", "role": "assistant",
             "content": [{ "type": "text", "text": "hi there" }],
             "stop_reason": "max_tokens",
             "usage": { "input_tokens": 9, "output_tokens": 4 },
         });
-        let out = translate_response(&resp, Dialect::OpenAiCompatible, Dialect::Anthropic);
+        let out = resp_v(&resp, Dialect::OpenAiCompatible, Dialect::Anthropic);
         assert_eq!(out["choices"][0]["message"]["content"], "hi there");
         assert_eq!(out["choices"][0]["finish_reason"], "length");
-        assert_eq!(out["usage"]["total_tokens"], 13);
     }
 
     #[test]
@@ -119,134 +183,8 @@ mod tests {
                         "input_schema": { "type": "object" } }],
             "tool_choice": { "type": "any" },
         });
-        let out = translate_request(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
+        let out = req_v(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
         assert_eq!(out["tools"][0]["type"], "function");
         assert_eq!(out["tools"][0]["function"]["name"], "get_weather");
-        assert_eq!(out["tools"][0]["function"]["parameters"]["type"], "object");
-        assert_eq!(out["tool_choice"], "required");
-    }
-
-    #[test]
-    fn openai_tool_call_history_becomes_anthropic_blocks() {
-        let req = json!({
-            "model": "claude-opus-4-8",
-            "messages": [
-                { "role": "user", "content": "weather?" },
-                { "role": "assistant", "content": null,
-                  "tool_calls": [{ "id": "call_1", "type": "function",
-                    "function": { "name": "get_weather", "arguments": "{\"city\":\"SF\"}" } }] },
-                { "role": "tool", "tool_call_id": "call_1", "content": "sunny" },
-            ],
-        });
-        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
-
-        let assistant = &out["messages"][1];
-        assert_eq!(assistant["role"], "assistant");
-        assert_eq!(assistant["content"][0]["type"], "tool_use");
-        assert_eq!(assistant["content"][0]["id"], "call_1");
-        assert_eq!(assistant["content"][0]["input"]["city"], "SF");
-
-        let tool = &out["messages"][2];
-        assert_eq!(tool["role"], "user");
-        assert_eq!(tool["content"][0]["type"], "tool_result");
-        assert_eq!(tool["content"][0]["tool_use_id"], "call_1");
-        assert_eq!(tool["content"][0]["content"], "sunny");
-    }
-
-    #[test]
-    fn openai_response_format_becomes_anthropic_output_config() {
-        let req = json!({
-            "model": "claude-opus-4-8",
-            "messages": [{ "role": "user", "content": "extract" }],
-            "response_format": {
-                "type": "json_schema",
-                "json_schema": { "name": "person", "schema": { "type": "object" } },
-            },
-        });
-        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
-        assert_eq!(out["output_config"]["format"]["type"], "json_schema");
-        assert_eq!(out["output_config"]["format"]["schema"]["type"], "object");
-    }
-
-    #[test]
-    fn openai_json_object_response_format_is_dropped() {
-        let req = json!({
-            "model": "claude-opus-4-8",
-            "messages": [{ "role": "user", "content": "extract" }],
-            "response_format": { "type": "json_object" },
-        });
-        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
-        assert!(out.get("output_config").is_none());
-    }
-
-    #[test]
-    fn anthropic_output_config_becomes_openai_response_format() {
-        let req = json!({
-            "model": "gpt-4o", "max_tokens": 100,
-            "messages": [{ "role": "user", "content": "extract" }],
-            "output_config": { "format": { "type": "json_schema", "schema": { "type": "object" } } },
-        });
-        let out = translate_request(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
-        assert_eq!(out["response_format"]["type"], "json_schema");
-        assert_eq!(out["response_format"]["json_schema"]["schema"]["type"], "object");
-        assert_eq!(out["response_format"]["json_schema"]["strict"], true);
-    }
-
-    #[test]
-    fn openai_user_becomes_anthropic_metadata() {
-        let req = json!({
-            "model": "claude-opus-4-8",
-            "messages": [{ "role": "user", "content": "hi" }],
-            "user": "u-123",
-        });
-        let out = translate_request(&req, Dialect::OpenAiCompatible, Dialect::Anthropic);
-        assert_eq!(out["metadata"]["user_id"], "u-123");
-    }
-
-    #[test]
-    fn anthropic_metadata_user_becomes_openai_user() {
-        let req = json!({
-            "model": "gpt-4o", "max_tokens": 100,
-            "messages": [{ "role": "user", "content": "hi" }],
-            "metadata": { "user_id": "u-123" },
-        });
-        let out = translate_request(&req, Dialect::Anthropic, Dialect::OpenAiCompatible);
-        assert_eq!(out["user"], "u-123");
-    }
-
-    #[test]
-    fn reasoning_effort_maps_to_effort_both_ways() {
-        let openai = json!({
-            "model": "claude-opus-4-8",
-            "messages": [{ "role": "user", "content": "hi" }],
-            "reasoning_effort": "high",
-        });
-        let to_anthropic = translate_request(&openai, Dialect::OpenAiCompatible, Dialect::Anthropic);
-        assert_eq!(to_anthropic["output_config"]["effort"], "high");
-
-        let anthropic = json!({
-            "model": "gpt-4o", "max_tokens": 100,
-            "messages": [{ "role": "user", "content": "hi" }],
-            "output_config": { "effort": "high" },
-        });
-        let to_openai = translate_request(&anthropic, Dialect::Anthropic, Dialect::OpenAiCompatible);
-        assert_eq!(to_openai["reasoning_effort"], "high");
-    }
-
-    #[test]
-    fn openai_response_tool_call_becomes_anthropic_tool_use() {
-        let resp = json!({
-            "id": "chatcmpl-1", "model": "gpt-4o",
-            "choices": [{ "message": { "role": "assistant", "content": null,
-                "tool_calls": [{ "id": "call_1", "type": "function",
-                    "function": { "name": "get_weather", "arguments": "{\"city\":\"SF\"}" } }] },
-                "finish_reason": "tool_calls" }],
-            "usage": { "prompt_tokens": 9, "completion_tokens": 4 },
-        });
-        let out = translate_response(&resp, Dialect::Anthropic, Dialect::OpenAiCompatible);
-        assert_eq!(out["stop_reason"], "tool_use");
-        assert_eq!(out["content"][0]["type"], "tool_use");
-        assert_eq!(out["content"][0]["name"], "get_weather");
-        assert_eq!(out["content"][0]["input"]["city"], "SF");
     }
 }

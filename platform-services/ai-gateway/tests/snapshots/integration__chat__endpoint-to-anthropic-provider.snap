@@ -17,7 +17,11 @@ response:
     object: chat.completion
     usage:
       completion_tokens: 7
+      completion_tokens_details:
+        reasoning_tokens: 0
       prompt_tokens: 12
+      prompt_tokens_details:
+        cached_tokens: 0
       total_tokens: 19
 upstream_requests:
   - method: POST

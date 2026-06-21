@@ -8,6 +8,7 @@ pub use openai::OpenAiCompatible;
 pub use registry::Registry;
 
 use bytes::Bytes;
+use llm_bridge_core::model::ApiFormat;
 use reqwest::{Client, RequestBuilder};
 use serde_json::Value;
 
@@ -29,6 +30,14 @@ impl Dialect {
             Dialect::Anthropic
         } else {
             Dialect::OpenAiCompatible
+        }
+    }
+
+    /// The `llm-bridge-core` protocol format this dialect maps to.
+    pub fn api_format(self) -> ApiFormat {
+        match self {
+            Dialect::Anthropic => ApiFormat::AnthropicMessages,
+            Dialect::OpenAiCompatible => ApiFormat::OpenaiChat,
         }
     }
 }
@@ -90,11 +99,6 @@ impl ProxyRequest {
             .get("model")
             .and_then(Value::as_str)
             .ok_or_else(|| GatewayError::BadRequest("missing model".into()))
-    }
-
-    /// The parsed request body, for dialect translation.
-    pub fn body(&self) -> &Value {
-        &self.json
     }
 
     pub fn is_stream(&self) -> bool {

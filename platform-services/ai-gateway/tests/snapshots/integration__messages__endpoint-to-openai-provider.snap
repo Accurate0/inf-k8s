@@ -15,6 +15,8 @@ response:
     stop_sequence: ~
     type: message
     usage:
+      cache_creation_input_tokens: 0
+      cache_read_input_tokens: 0
       input_tokens: 9
       output_tokens: 4
 upstream_requests:

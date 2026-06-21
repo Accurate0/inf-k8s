@@ -9,7 +9,6 @@ use axum::{
 };
 use futures::{SinkExt, StreamExt, channel::mpsc};
 use open_feature::EvaluationContext;
-use serde_json::Value;
 use tracing::{Instrument, Span, field};
 
 use crate::{
@@ -249,12 +248,7 @@ async fn proxy(
         let client_bytes = if provider.dialect() == client_dialect || !status.is_success() {
             bytes.clone()
         } else {
-            let v: Value = serde_json::from_slice(&bytes).unwrap_or(Value::Null);
-            let translated = translate::translate_response(&v, client_dialect, provider.dialect());
-            Bytes::from(
-                serde_json::to_vec(&translated)
-                    .map_err(|e| GatewayError::BadRequest(e.to_string()))?,
-            )
+            translate::translate_response(&bytes, provider.dialect(), client_dialect)?
         };
 
         record(&state, &ctx, usage, status.as_u16(), started).await;
@@ -273,10 +267,7 @@ fn outbound_for(request: &ProxyRequest, client: Dialect, provider: Dialect) -> R
     if client == provider {
         request.to_bytes()
     } else {
-        let translated = translate::translate_request(request.body(), client, provider);
-        serde_json::to_vec(&translated)
-            .map(Bytes::from)
-            .map_err(|e| GatewayError::BadRequest(e.to_string()))
+        translate::translate_request(&request.to_bytes()?, client, provider)
     }
 }
 

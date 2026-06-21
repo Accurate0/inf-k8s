@@ -25,6 +25,7 @@ dependencies = [
  "hex",
  "http",
  "insta",
+ "llm-bridge-core",
  "metrics",
  "metrics-exporter-prometheus",
  "open-feature",
@@ -1579,6 +1580,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
+name = "llm-bridge-core"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ce274ae539134bd6b77a02e5b8ea6a4c2c787193c349747fc9b0030430a0dd9"
+dependencies = [
+ "anyhow",
+ "bytes",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tracing",
+ "typed-builder 0.20.1",
+]
+
+[[package]]
 name = "lock_api"
 version = "0.4.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1827,7 +1843,7 @@ dependencies = [
  "mockall",
  "time",
  "tokio",
- "typed-builder",
+ "typed-builder 0.22.0",
 ]
 
 [[package]]
@@ -3551,11 +3567,31 @@ checksum = "e421abadd41a4225275504ea4d6566923418b7f05506fbc9c0fe86ba7396114b"
 
 [[package]]
 name = "typed-builder"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd9d30e3a08026c78f246b173243cf07b3696d274debd26680773b6773c2afc7"
+dependencies = [
+ "typed-builder-macro 0.20.1",
+]
+
+[[package]]
+name = "typed-builder"
 version = "0.22.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "398a3a3c918c96de527dc11e6e846cd549d4508030b8a33e1da12789c856b81a"
 dependencies = [
- "typed-builder-macro",
+ "typed-builder-macro 0.22.0",
+]
+
+[[package]]
+name = "typed-builder-macro"
+version = "0.20.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3c36781cc0e46a83726d9879608e4cf6c2505237e263a8eb8c24502989cfdb28"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
