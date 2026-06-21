@@ -76,8 +76,8 @@ spec:
               value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
             - name: SENSORDATA_API_BASE
               value: http://maccas-sensordata.maccas-api.svc.cluster.local
-            - name: FLIPT_URL
-              value: http://flipt-v2.flipt-v2.svc.cluster.local:8080
+            - name: FEATURE_FLAGS_URL
+              value: http://api.feature-flags.svc.cluster.local:50051
             - name: REDIS_CONNECTION_STRING
               value: redis://dragonfly.dragonfly-system.svc.cluster.local
             - name: OTEL_TRACING_URL
