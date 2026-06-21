@@ -1,0 +1,108 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ai-gateway
+  namespace: ai-gateway
+spec:
+  selector:
+    matchLabels:
+      app: ai-gateway
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: ai-gateway
+    spec:
+      topologySpreadConstraints:
+        - topologyKey: inf-k8s.net/location
+          maxSkew: 1
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: ai-gateway
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: ai-gateway
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: ai-gateway-config
+      containers:
+        - name: ai-gateway
+          image: ghcr.io/accurate0/ai-gateway
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/ai-gateway
+              readOnly: true
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          envFrom:
+            - secretRef:
+                name: ai-gateway-managed-secrets
+          env:
+            - name: CONFIG_PATH
+              value: /etc/ai-gateway/config.yaml
+            # Credentials come from the pg-db-controller-provisioned secret, but the
+            # host is the CNPG pgbouncer pooler rather than the direct cluster service.
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-database-secret
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-database-secret
+                  key: PGPASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: ai-gateway-database-secret
+                  key: PGDATABASE
+            - name: DATABASE_URL
+              value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+            - name: FEATURE_FLAGS_URL
+              value: http://api.feature-flags.svc.cluster.local:50051
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+            - name: REDIS_URL
+              value: redis://dragonfly.dragonfly-system.svc.cluster.local

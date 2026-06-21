@@ -1,0 +1,66 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT key_name, resolved_model AS model, date_trunc('day', created_at)::date AS day, SUM(input_tokens)::bigint AS input_tokens, SUM(output_tokens)::bigint AS output_tokens, COUNT(*)::bigint AS requests FROM usage_events WHERE created_at >= now() - interval '30 days' GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date ORDER BY day DESC, key_name, model LIMIT 1000",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "key_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "usage_events",
+            "name": "key_name"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "model",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "usage_events",
+            "name": "resolved_model"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "day",
+        "type_info": "Date",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 3,
+        "name": "input_tokens",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 4,
+        "name": "output_tokens",
+        "type_info": "Int8",
+        "origin": "Expression"
+      },
+      {
+        "ordinal": 5,
+        "name": "requests",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      null,
+      null,
+      null,
+      null
+    ]
+  },
+  "hash": "911d6a65a6e77ab2bba0ebe943a177fa5208b9b0fc179637dfdadb0b1d00cea7"
+}

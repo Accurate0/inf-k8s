@@ -1,0 +1,26 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 200
+  body:
+    content:
+      - text: hi there
+        type: text
+    id: msg_01
+    model: claude-fable-5
+    role: assistant
+    type: message
+    usage:
+      input_tokens: 12
+      output_tokens: 7
+upstream_requests:
+  - method: POST
+    path: /v1/messages
+    body:
+      max_tokens: 64
+      messages:
+        - content: hello
+          role: user
+      model: claude-fable-5

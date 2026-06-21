@@ -1,0 +1,8 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/namespace_v1.json
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: ai-gateway
+  labels:
+    inf-k8s.net/infisical-secrets: "true"
+    internal-gateway-access: "true"

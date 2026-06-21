@@ -1,0 +1,43 @@
+version: 1
+
+providers:
+  anthropic:
+    dialect: anthropic
+    base_url: https://api.anthropic.com
+    api_key_env: ANTHROPIC_API_KEY
+    models:
+      - claude-fable-5
+      - claude-opus-4-8
+      - claude-sonnet-4-6
+      - claude-haiku-4-5-20251001
+      - claude-haiku-4-5
+
+  openai:
+    dialect: openai
+    base_url: https://api.openai.com/v1
+    api_key_env: OPENAI_API_KEY
+    models:
+      - gpt-4o
+      - gpt-5.4-mini
+      - gpt-5.4
+    embedding_models:
+      - text-embedding-3-large
+
+  openrouter:
+    dialect: openai
+    base_url: https://openrouter.ai/api/v1
+    api_key_env: OPENROUTER_API_KEY
+    models: []
+
+  gemini:
+    dialect: openai
+    base_url: https://generativelanguage.googleapis.com/v1beta/openai
+    api_key_env: GEMINI_API_KEY
+    models:
+      - gemini-2.5-pro
+
+keys:
+  - name: maccas-api
+    allowed_models: []
+  - name: tldr-bot
+    allowed_models: []

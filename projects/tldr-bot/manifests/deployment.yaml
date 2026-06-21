@@ -39,4 +39,4 @@ spec:
                 name: tldr-bot-managed-secrets
           env:
             - name: OPENAI_API_BASE
-              value: http://api.litellm.svc.cluster.local/v1
+              value: http://api.ai-gateway.svc.cluster.local/v1

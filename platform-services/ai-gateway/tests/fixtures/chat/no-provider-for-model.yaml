@@ -1,0 +1,10 @@
+endpoint: /v1/chat/completions
+provider:
+  dialect: openai
+  models:
+    - gpt-4o
+request:
+  model: some-unconfigured-model
+  messages:
+    - role: user
+      content: hello

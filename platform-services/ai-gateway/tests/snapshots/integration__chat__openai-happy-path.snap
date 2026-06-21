@@ -1,0 +1,28 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 200
+  body:
+    choices:
+      - finish_reason: stop
+        index: 0
+        message:
+          content: hi there
+          role: assistant
+    id: chatcmpl-01
+    model: gpt-4o
+    object: chat.completion
+    usage:
+      completion_tokens: 4
+      prompt_tokens: 9
+      total_tokens: 13
+upstream_requests:
+  - method: POST
+    path: /chat/completions
+    body:
+      messages:
+        - content: hello
+          role: user
+      model: gpt-4o

@@ -1,0 +1,23 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT COALESCE(SUM(input_tokens + output_tokens), 0)::bigint FROM usage_events WHERE key_id = $1 AND created_at >= date_trunc('month', now())",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "coalesce",
+        "type_info": "Int8",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      null
+    ]
+  },
+  "hash": "6b170f0a698cf69d2ca5cf671b921900c177a2011c9104670671ebb0c614aa66"
+}

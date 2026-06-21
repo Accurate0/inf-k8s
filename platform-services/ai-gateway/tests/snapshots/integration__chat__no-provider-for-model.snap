@@ -1,0 +1,11 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 400
+  body:
+    error:
+      message: no provider configured for model some-unconfigured-model
+      type: ai_gateway_error
+upstream_requests: []

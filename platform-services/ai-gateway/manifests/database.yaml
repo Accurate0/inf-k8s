@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/postgresdatabase_v1.json
+apiVersion: inf-k8s.net/v1
+kind: PostgresDatabase
+metadata:
+  name: ai-gateway-database
+  namespace: ai-gateway
+spec:
+  databaseName: ai_gateway
+  secretName: ai-gateway-database-secret
+  secretNamespace: ai-gateway
