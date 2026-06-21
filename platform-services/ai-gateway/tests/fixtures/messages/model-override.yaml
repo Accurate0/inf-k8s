@@ -1,0 +1,26 @@
+endpoint: /v1/messages
+provider:
+  dialect: anthropic
+  models:
+    - claude-opus-4-8
+model_overrides:
+  claude-fable-5: claude-opus-4-8
+request:
+  model: claude-fable-5
+  max_tokens: 64
+  messages:
+    - role: user
+      content: hello
+upstream:
+  status: 200
+  body:
+    id: msg_01
+    type: message
+    role: assistant
+    model: claude-opus-4-8
+    content:
+      - type: text
+        text: hi there
+    usage:
+      input_tokens: 12
+      output_tokens: 7

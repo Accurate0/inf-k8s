@@ -133,10 +133,15 @@ async fn proxy(
         .features
         .string_flag(MODEL_OVERRIDE_FLAG, evaluation_context, "")
         .await;
-    let resolved_model = if override_model.is_empty() {
-        requested_model.clone()
-    } else {
+    let resolved_model = if !override_model.is_empty() {
         override_model
+    } else {
+        // Flag (runtime) wins; config override is the fallback when it's empty.
+        state
+            .config
+            .override_model(&key.name, &requested_model)
+            .map(str::to_owned)
+            .unwrap_or_else(|| requested_model.clone())
     };
 
     span.record("resolved_model", resolved_model.as_str());

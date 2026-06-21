@@ -36,6 +36,9 @@ providers:
     models:
       - gemini-2.5-pro
 
+model_overrides:
+  gpt-4o: gpt-5.4-mini
+
 keys:
   - name: maccas-api
     allowed_models: []

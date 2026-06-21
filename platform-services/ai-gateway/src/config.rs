@@ -23,6 +23,9 @@ pub struct Config {
     pub admin_token: String,
     pub providers: HashMap<String, ProviderConfig>,
     pub keys: Vec<KeyConfig>,
+    /// Global requested-model -> resolved-model remapping, applied to every key. A
+    /// per-key entry in [`KeyConfig::model_overrides`] takes precedence.
+    pub model_overrides: HashMap<String, String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -33,6 +36,8 @@ struct FileConfig {
     providers: HashMap<String, ProviderConfig>,
     #[serde(default)]
     keys: Vec<KeyConfig>,
+    #[serde(default)]
+    model_overrides: HashMap<String, String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -74,6 +79,10 @@ pub struct KeyConfig {
     pub monthly_token_budget: Option<i64>,
     #[serde(default)]
     pub revoked: bool,
+    /// Per-key requested-model -> resolved-model remapping; takes precedence over
+    /// [`Config::model_overrides`].
+    #[serde(default)]
+    pub model_overrides: HashMap<String, String>,
 }
 
 impl Config {
@@ -89,7 +98,19 @@ impl Config {
             admin_token: std::env::var("ADMIN_TOKEN").unwrap_or_default(),
             providers: file.providers,
             keys: file.keys,
+            model_overrides: file.model_overrides,
         })
+    }
+
+    /// Config-driven override of the requested model: the per-key map wins, falling
+    /// back to the global map. Returns `None` when no override applies.
+    pub fn override_model(&self, key_name: &str, requested: &str) -> Option<&str> {
+        self.keys
+            .iter()
+            .find(|k| k.name == key_name)
+            .and_then(|k| k.model_overrides.get(requested))
+            .or_else(|| self.model_overrides.get(requested))
+            .map(String::as_str)
     }
 
     fn load_file() -> anyhow::Result<FileConfig> {
@@ -130,5 +151,37 @@ mod tests {
     fn embedded_config_parses() {
         let config = Config::load().unwrap();
         assert!(!config.providers.is_empty());
+    }
+
+    #[test]
+    fn model_overrides_resolve_per_key_then_global() {
+        let yaml = r#"
+version: 1
+model_overrides:
+  claude-fable-5: claude-opus-4-8
+  gpt-4o: gpt-5.4
+keys:
+  - name: tldr-bot
+    model_overrides:
+      gpt-4o: gpt-5.4-mini
+"#;
+        let file: FileConfig = serde_yaml::from_str(yaml).unwrap();
+        let config = Config {
+            keys: file.keys,
+            model_overrides: file.model_overrides,
+            ..Default::default()
+        };
+
+        // Per-key entry wins over the global map.
+        assert_eq!(config.override_model("tldr-bot", "gpt-4o"), Some("gpt-5.4-mini"));
+        // Falls back to the global map when the key has no entry.
+        assert_eq!(
+            config.override_model("tldr-bot", "claude-fable-5"),
+            Some("claude-opus-4-8")
+        );
+        // Unknown key still gets the global map.
+        assert_eq!(config.override_model("other", "gpt-4o"), Some("gpt-5.4"));
+        // No override configured.
+        assert_eq!(config.override_model("tldr-bot", "claude-sonnet-4-6"), None);
     }
 }

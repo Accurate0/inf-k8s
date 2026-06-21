@@ -23,6 +23,8 @@ struct Fixture {
     key: KeyDef,
     request: Value,
     upstream: Option<Upstream>,
+    #[serde(default)]
+    model_overrides: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
@@ -123,6 +125,7 @@ fixture_test!(messages_invalid_key, "messages", "invalid-key");
 fixture_test!(messages_missing_key, "messages", "missing-key");
 fixture_test!(messages_model_not_allowed, "messages", "model-not-allowed");
 fixture_test!(messages_endpoint_to_openai_provider, "messages", "endpoint-to-openai-provider");
+fixture_test!(messages_model_override, "messages", "model-override");
 fixture_test!(chat_openai_happy_path, "chat", "openai-happy-path");
 fixture_test!(chat_no_provider_for_model, "chat", "no-provider-for-model");
 fixture_test!(chat_endpoint_to_anthropic_provider, "chat", "endpoint-to-anthropic-provider");
@@ -160,6 +163,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
         admin_token: String::new(),
         providers,
         keys: vec![],
+        model_overrides: fixture.model_overrides.clone(),
     };
     let registry = Registry::from_config(&config);
 
