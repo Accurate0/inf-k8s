@@ -3,6 +3,15 @@
   "version": "0.1.0",
   "description": "Node gRPC client for the feature-flags service Admin and Evaluation APIs.",
   "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Accurate0/inf-k8s.git",
+    "directory": "platform-services/feature-flags/web/client"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
   "exports": {
