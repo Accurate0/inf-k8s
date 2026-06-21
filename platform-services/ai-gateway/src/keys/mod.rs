@@ -199,6 +199,33 @@ impl KeyStore {
         Ok(row.found)
     }
 
+    /// Mints a fresh token for an existing key, replacing its hash, and returns the one-time
+    /// plaintext alongside the row. The old token stops authenticating immediately once the
+    /// cache is flushed. Returns `None` if no key has that id.
+    pub async fn regenerate(&self, id: Uuid) -> Result<Option<(String, KeyInfo)>> {
+        let raw = generate_token();
+        let hash = Self::hash(&raw);
+
+        let info = sqlx::query_as!(
+            KeyRow,
+            "UPDATE virtual_keys SET key_hash = $2 WHERE id = $1 \
+             RETURNING id, name, allowed_models, monthly_token_budget, revoked, created_at",
+            id,
+            hash,
+        )
+        .fetch_optional(&self.pool)
+        .await?
+        .map(KeyInfo::from);
+
+        match info {
+            Some(info) => {
+                self.invalidate_keys().await;
+                Ok(Some((raw, info)))
+            }
+            None => Ok(None),
+        }
+    }
+
     pub async fn list(&self) -> Result<Vec<KeyInfo>> {
         let rows = sqlx::query_as!(
             KeyRow,

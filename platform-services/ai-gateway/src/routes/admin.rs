@@ -96,6 +96,21 @@ pub async fn revoke_key(
     })
 }
 
+pub async fn regenerate_key(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Path(id): Path<Uuid>,
+) -> Result<Response> {
+    if let Err(resp) = authorize(&state, &headers) {
+        return Ok(resp);
+    }
+    Ok(match state.keys.regenerate(id).await? {
+        // The plaintext token is returned exactly once, here.
+        Some((token, info)) => Json(json!({ "key": token, "info": info })).into_response(),
+        None => StatusCode::NOT_FOUND.into_response(),
+    })
+}
+
 pub async fn update_key(
     State(state): State<AppState>,
     headers: HeaderMap,

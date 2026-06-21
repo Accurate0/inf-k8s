@@ -62,6 +62,8 @@ enum KeyAction {
     },
     /// Revoke a key by id
     Revoke { id: String },
+    /// Mint a fresh token for an existing key (the old one stops working immediately)
+    Regenerate { id: String },
 }
 
 #[tokio::main]
@@ -105,6 +107,9 @@ async fn main() -> anyhow::Result<()> {
                 http.patch(format!("{base}/admin/keys/{id}")).json(&body)
             }
             KeyAction::Revoke { id } => http.delete(format!("{base}/admin/keys/{id}")),
+            KeyAction::Regenerate { id } => {
+                http.post(format!("{base}/admin/keys/{id}/regenerate"))
+            }
         },
         Command::Usage => http.get(format!("{base}/admin/usage")),
         Command::Models => http.get(format!("{base}/v1/models")),

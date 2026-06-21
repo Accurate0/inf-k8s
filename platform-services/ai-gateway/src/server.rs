@@ -23,6 +23,10 @@ pub fn router(state: AppState) -> Router {
             "/admin/keys/{id}",
             delete(routes::admin::revoke_key).patch(routes::admin::update_key),
         )
+        .route(
+            "/admin/keys/{id}/regenerate",
+            post(routes::admin::regenerate_key),
+        )
         .route("/admin/usage", get(routes::admin::usage_summary))
         .layer(OtelInResponseLayer)
         .layer(OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/admin/metrics")))
