@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: ai-gateway-pricing-sync
+  namespace: ai-gateway
+spec:
+  schedule: "17 4 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: pricing-sync
+              image: ghcr.io/accurate0/ai-gateway
+              imagePullPolicy: Always
+              command:
+                - aig
+                - prices
+                - sync
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: AIG_URL
+                  value: http://api.ai-gateway.svc.cluster.local
+                - name: AIG_ADMIN_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-gateway-managed-secrets
+                      key: ADMIN_TOKEN
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi

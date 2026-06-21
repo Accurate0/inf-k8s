@@ -63,6 +63,22 @@ pub fn record_request(
     .increment(output_tokens);
 }
 
+/// Records the estimated cost of a request, labelled by virtual key and resolved model.
+/// Tracked in micro-USD because Prometheus counters are integers; divide by 1e6 for
+/// dollars. Skipped when zero (cache hits, unpriced models) to avoid no-op series.
+pub fn record_cost(key_name: &str, model: &str, cost_usd: f64) {
+    let micro = (cost_usd * 1_000_000.0).round();
+    if micro <= 0.0 {
+        return;
+    }
+    counter!(
+        "ai_gateway_cost_microusd_total",
+        "key" => key_name.to_owned(),
+        "model" => model.to_owned(),
+    )
+    .increment(micro as u64);
+}
+
 pub fn record_upstream_error(provider: &str) {
     counter!("ai_gateway_upstream_errors_total", "provider" => provider.to_owned()).increment(1);
 }

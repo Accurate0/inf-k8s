@@ -117,7 +117,9 @@ impl KeyStore {
         .unwrap_or(0);
 
         if let Some(cache) = &self.cache {
-            cache.set_i64(&budget_key(id), BUDGET_CACHE_TTL, total).await;
+            cache
+                .set_i64(&budget_key(id), BUDGET_CACHE_TTL, total)
+                .await;
         }
         Ok(total)
     }
@@ -257,7 +259,7 @@ impl KeyStore {
     pub async fn update(&self, id: Uuid, fields: &UpdateKey) -> Result<Option<KeyInfo>> {
         // keep as runtime because of COALESCE type inference
         let info = sqlx::query_as!(
-           KeyRow,
+            KeyRow,
             r#"
             UPDATE virtual_keys SET
                 name = COALESCE($2::text, name),

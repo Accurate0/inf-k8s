@@ -4,7 +4,7 @@ use sqlx::PgPool;
 
 use crate::{
     cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, keys::KeyStore,
-    providers::Registry,
+    pricing::Pricing, providers::Registry,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -18,6 +18,10 @@ pub struct AppState {
     pub pool: PgPool,
     pub keys: KeyStore,
     pub features: FeatureFlagClient,
+    pub pricing: Pricing,
+    /// Shared response/cache store, also handed to [`KeyStore`]. `None` when `REDIS_URL`
+    /// is unset, in which case response caching is off and lookups hit Postgres.
+    pub cache: Option<CacheClient>,
     pub http: reqwest::Client,
 }
 
@@ -27,6 +31,7 @@ impl AppState {
         providers: Registry,
         pool: PgPool,
         features: FeatureFlagClient,
+        pricing: Pricing,
         cache: Option<CacheClient>,
     ) -> Self {
         // No total deadline (streams run long), but a stalled connection — no bytes for
@@ -38,11 +43,13 @@ impl AppState {
             .expect("failed to build http client");
 
         Self {
-            keys: KeyStore::new(pool.clone(), cache),
+            keys: KeyStore::new(pool.clone(), cache.clone()),
             config,
             providers,
             pool,
             features,
+            pricing,
+            cache,
             http,
         }
     }

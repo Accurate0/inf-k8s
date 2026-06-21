@@ -8,7 +8,9 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use crate::{error::Result, keys::UpdateKey, metrics, state::AppState, usage};
+use crate::{
+    error::Result, keys::UpdateKey, metrics, pricing, pricing::ModelPrice, state::AppState, usage,
+};
 
 /// Guards `/admin/*`. Requires the bearer to equal the configured admin token; when no
 /// token is configured admin endpoints are closed entirely.
@@ -131,4 +133,17 @@ pub async fn usage_summary(State(state): State<AppState>, headers: HeaderMap) ->
         return Ok(resp);
     }
     Ok(Json(usage::summary(&state.pool).await?).into_response())
+}
+
+pub async fn sync_prices(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(prices): Json<Vec<ModelPrice>>,
+) -> Result<Response> {
+    if let Err(resp) = authorize(&state, &headers) {
+        return Ok(resp);
+    }
+    let written = pricing::upsert(&state.pool, &prices).await?;
+    state.pricing.refresh(&state.pool).await?;
+    Ok(Json(json!({ "upserted": written })).into_response())
 }

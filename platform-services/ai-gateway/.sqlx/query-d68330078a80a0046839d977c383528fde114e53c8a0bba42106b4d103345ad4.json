@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, input_usd_per_mtok, output_usd_per_mtok, cached_usd_per_mtok FROM model_prices",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "model_prices",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "input_usd_per_mtok",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "model_prices",
+            "name": "input_usd_per_mtok"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "output_usd_per_mtok",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "model_prices",
+            "name": "output_usd_per_mtok"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "cached_usd_per_mtok",
+        "type_info": "Float8",
+        "origin": {
+          "Table": {
+            "table": "model_prices",
+            "name": "cached_usd_per_mtok"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "d68330078a80a0046839d977c383528fde114e53c8a0bba42106b4d103345ad4"
+}

@@ -1,8 +1,8 @@
 use bytes::Bytes;
-use reqwest::{Client, RequestBuilder};
+use reqwest::{Client, RequestBuilder, header::HeaderMap};
 use serde_json::Value;
 
-use super::{Dialect, ModelKind, Provider, Usage, for_each_sse_event};
+use super::{Dialect, ModelKind, Provider, Usage, for_each_sse_event, forward_headers};
 
 pub struct Anthropic {
     name: String,
@@ -31,13 +31,26 @@ impl Provider for Anthropic {
         Dialect::Anthropic
     }
 
-    fn build_request(&self, http: &Client, _kind: ModelKind, body: Bytes) -> RequestBuilder {
-        // Anthropic only serves chat-style traffic; embedding models never route here.
-        http.post(format!("{}/v1/messages", self.base_url))
+    fn build_request(
+        &self,
+        http: &Client,
+        _kind: ModelKind,
+        body: Bytes,
+        client_headers: &HeaderMap,
+    ) -> RequestBuilder {
+        // Anthropic only serves chat-style traffic; embedding models never route here. The
+        // client may override anthropic-version and opt into betas; auth is always ours.
+        let version = client_headers
+            .get("anthropic-version")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or(&self.version);
+        let req = http
+            .post(format!("{}/v1/messages", self.base_url))
             .header("content-type", "application/json")
             .header("x-api-key", &self.api_key)
-            .header("anthropic-version", &self.version)
-            .body(body)
+            .header("anthropic-version", version)
+            .body(body);
+        forward_headers(req, client_headers, &["anthropic-beta"])
     }
 
     fn parse_usage(&self, body: &[u8]) -> Usage {

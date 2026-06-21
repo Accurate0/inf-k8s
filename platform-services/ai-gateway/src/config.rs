@@ -173,7 +173,10 @@ keys:
         };
 
         // Per-key entry wins over the global map.
-        assert_eq!(config.override_model("tldr-bot", "gpt-4o"), Some("gpt-5.4-mini"));
+        assert_eq!(
+            config.override_model("tldr-bot", "gpt-4o"),
+            Some("gpt-5.4-mini")
+        );
         // Falls back to the global map when the key has no entry.
         assert_eq!(
             config.override_model("tldr-bot", "claude-fable-5"),

@@ -19,11 +19,11 @@ impl Registry {
         let mut routes: HashMap<(String, ModelKind), Vec<String>> = HashMap::new();
 
         for (name, pc) in &config.providers {
-            let declared = pc
-                .models
-                .iter()
-                .map(|m| (m, ModelKind::Chat))
-                .chain(pc.embedding_models.iter().map(|m| (m, ModelKind::Embedding)));
+            let declared = pc.models.iter().map(|m| (m, ModelKind::Chat)).chain(
+                pc.embedding_models
+                    .iter()
+                    .map(|m| (m, ModelKind::Embedding)),
+            );
             for (model, kind) in declared {
                 routes
                     .entry((model.clone(), kind))
@@ -54,8 +54,16 @@ impl Registry {
         // Lowest priority first, name as a deterministic tiebreaker.
         for names in routes.values_mut() {
             names.sort_by(|a, b| {
-                let pa = config.providers.get(a).map(|p| p.priority).unwrap_or(i32::MAX);
-                let pb = config.providers.get(b).map(|p| p.priority).unwrap_or(i32::MAX);
+                let pa = config
+                    .providers
+                    .get(a)
+                    .map(|p| p.priority)
+                    .unwrap_or(i32::MAX);
+                let pb = config
+                    .providers
+                    .get(b)
+                    .map(|p| p.priority)
+                    .unwrap_or(i32::MAX);
                 pa.cmp(&pb).then_with(|| a.cmp(b))
             });
         }

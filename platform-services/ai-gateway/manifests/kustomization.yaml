@@ -4,6 +4,7 @@ resources:
   - namespace.yaml
   - database.yaml
   - deployment.yaml
+  - pricing-cronjob.yaml
   - secret.yaml
   - secretstore.yaml
   - service.yaml

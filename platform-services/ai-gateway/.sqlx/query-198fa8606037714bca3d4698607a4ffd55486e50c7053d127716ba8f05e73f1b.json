@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO model_prices (id, input_usd_per_mtok, output_usd_per_mtok, cached_usd_per_mtok, updated_at) VALUES ($1, $2, $3, $4, now()) ON CONFLICT (id) DO UPDATE SET input_usd_per_mtok = EXCLUDED.input_usd_per_mtok, output_usd_per_mtok = EXCLUDED.output_usd_per_mtok, cached_usd_per_mtok = EXCLUDED.cached_usd_per_mtok, updated_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Float8",
+        "Float8",
+        "Float8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "198fa8606037714bca3d4698607a4ffd55486e50c7053d127716ba8f05e73f1b"
+}

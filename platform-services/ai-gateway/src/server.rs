@@ -11,7 +11,10 @@ pub fn router(state: AppState) -> Router {
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/v1/messages", post(routes::proxy::messages))
-        .route("/v1/chat/completions", post(routes::proxy::chat_completions))
+        .route(
+            "/v1/chat/completions",
+            post(routes::proxy::chat_completions),
+        )
         .route("/v1/embeddings", post(routes::proxy::embeddings))
         .route("/v1/models", get(routes::admin::list_models))
         .route("/admin/metrics", get(routes::admin::metrics_handler))
@@ -28,7 +31,10 @@ pub fn router(state: AppState) -> Router {
             post(routes::admin::regenerate_key),
         )
         .route("/admin/usage", get(routes::admin::usage_summary))
+        .route("/admin/prices", post(routes::admin::sync_prices))
         .layer(OtelInResponseLayer)
-        .layer(OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/admin/metrics")))
+        .layer(
+            OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/admin/metrics")),
+        )
         .with_state(state)
 }

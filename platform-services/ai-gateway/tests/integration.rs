@@ -9,6 +9,7 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 use ai_gateway::config::{Config, ProviderConfig};
 use ai_gateway::feature_flag::FeatureFlagClient;
+use ai_gateway::pricing::Pricing;
 use ai_gateway::providers::{Dialect, Registry};
 use ai_gateway::server;
 use ai_gateway::state::AppState;
@@ -119,18 +120,38 @@ macro_rules! fixture_test {
     };
 }
 
-fixture_test!(messages_anthropic_happy_path, "messages", "anthropic-happy-path");
+fixture_test!(
+    messages_anthropic_happy_path,
+    "messages",
+    "anthropic-happy-path"
+);
 fixture_test!(messages_budget_exceeded, "messages", "budget-exceeded");
 fixture_test!(messages_invalid_key, "messages", "invalid-key");
 fixture_test!(messages_missing_key, "messages", "missing-key");
 fixture_test!(messages_model_not_allowed, "messages", "model-not-allowed");
-fixture_test!(messages_endpoint_to_openai_provider, "messages", "endpoint-to-openai-provider");
+fixture_test!(
+    messages_endpoint_to_openai_provider,
+    "messages",
+    "endpoint-to-openai-provider"
+);
 fixture_test!(messages_model_override, "messages", "model-override");
 fixture_test!(chat_openai_happy_path, "chat", "openai-happy-path");
 fixture_test!(chat_no_provider_for_model, "chat", "no-provider-for-model");
-fixture_test!(chat_endpoint_to_anthropic_provider, "chat", "endpoint-to-anthropic-provider");
-fixture_test!(embeddings_openai_happy_path, "embeddings", "openai-happy-path");
-fixture_test!(embeddings_no_provider_for_model, "embeddings", "no-provider-for-model");
+fixture_test!(
+    chat_endpoint_to_anthropic_provider,
+    "chat",
+    "endpoint-to-anthropic-provider"
+);
+fixture_test!(
+    embeddings_openai_happy_path,
+    "embeddings",
+    "openai-happy-path"
+);
+fixture_test!(
+    embeddings_no_provider_for_model,
+    "embeddings",
+    "no-provider-for-model"
+);
 
 async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     let snapshot_name = format!("{dir}__{file}");
@@ -172,7 +193,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     // client at a bogus URL would instead block ~120s per test on a connect timeout before
     // falling back to the same defaults.
     let features = FeatureFlagClient::new(None).await;
-    let state = AppState::new(config, registry, pool, features, None);
+    let state = AppState::new(config, registry, pool, features, Pricing::default(), None);
 
     let token = match fixture.key.auth.as_str() {
         "valid" => {

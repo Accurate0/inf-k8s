@@ -29,6 +29,34 @@ enum Command {
     Usage,
     /// List routable providers
     Models,
+    /// Manage model pricing
+    Prices {
+        #[command(subcommand)]
+        action: PriceAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum PriceAction {
+    /// Fetch current prices from llm-prices.com and upsert them into the gateway
+    Sync {
+        #[arg(long, default_value = "https://www.llm-prices.com/current-v1.json")]
+        source: String,
+    },
+}
+
+/// One entry from llm-prices.com `current-v1.json`. Rates are USD per million tokens.
+#[derive(serde::Deserialize)]
+struct UpstreamPrice {
+    id: String,
+    input: Option<f64>,
+    output: Option<f64>,
+    input_cached: Option<f64>,
+}
+
+#[derive(serde::Deserialize)]
+struct UpstreamPrices {
+    prices: Vec<UpstreamPrice>,
 }
 
 #[derive(Subcommand)]
@@ -107,12 +135,30 @@ async fn main() -> anyhow::Result<()> {
                 http.patch(format!("{base}/admin/keys/{id}")).json(&body)
             }
             KeyAction::Revoke { id } => http.delete(format!("{base}/admin/keys/{id}")),
-            KeyAction::Regenerate { id } => {
-                http.post(format!("{base}/admin/keys/{id}/regenerate"))
-            }
+            KeyAction::Regenerate { id } => http.post(format!("{base}/admin/keys/{id}/regenerate")),
         },
         Command::Usage => http.get(format!("{base}/admin/usage")),
         Command::Models => http.get(format!("{base}/v1/models")),
+        Command::Prices { action } => match action {
+            PriceAction::Sync { source } => {
+                let upstream: UpstreamPrices = http.get(source).send().await?.json().await?;
+                let prices: Vec<_> = upstream
+                    .prices
+                    .into_iter()
+                    .filter_map(|p| match (p.input, p.output) {
+                        (Some(input), Some(output)) => Some(json!({
+                            "id": p.id,
+                            "input_usd_per_mtok": input,
+                            "output_usd_per_mtok": output,
+                            "cached_usd_per_mtok": p.input_cached,
+                        })),
+                        _ => None,
+                    })
+                    .collect();
+                eprintln!("fetched {} priced models from {source}", prices.len());
+                http.post(format!("{base}/admin/prices")).json(&prices)
+            }
+        },
     };
 
     send(request.bearer_auth(&cli.token)).await

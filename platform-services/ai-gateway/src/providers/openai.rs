@@ -1,8 +1,8 @@
 use bytes::Bytes;
-use reqwest::{Client, RequestBuilder};
+use reqwest::{Client, RequestBuilder, header::HeaderMap};
 use serde_json::Value;
 
-use super::{Dialect, ModelKind, Provider, Usage, for_each_sse_event};
+use super::{Dialect, ModelKind, Provider, Usage, for_each_sse_event, forward_headers};
 
 /// OpenAI-compatible upstream: OpenAI, OpenRouter, Gemini's compat endpoint, etc.
 pub struct OpenAiCompatible {
@@ -30,15 +30,27 @@ impl Provider for OpenAiCompatible {
         Dialect::OpenAiCompatible
     }
 
-    fn build_request(&self, http: &Client, kind: ModelKind, body: Bytes) -> RequestBuilder {
+    fn build_request(
+        &self,
+        http: &Client,
+        kind: ModelKind,
+        body: Bytes,
+        client_headers: &HeaderMap,
+    ) -> RequestBuilder {
         let path = match kind {
             ModelKind::Chat => "/chat/completions",
             ModelKind::Embedding => "/embeddings",
         };
-        http.post(format!("{}{path}", self.base_url))
+        let req = http
+            .post(format!("{}{path}", self.base_url))
             .header("content-type", "application/json")
             .bearer_auth(&self.api_key)
-            .body(body)
+            .body(body);
+        forward_headers(
+            req,
+            client_headers,
+            &["openai-beta", "openai-organization", "openai-project"],
+        )
     }
 
     fn parse_usage(&self, body: &[u8]) -> Usage {

@@ -1,5 +1,5 @@
 use ai_gateway::{
-    cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, metrics,
+    cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, metrics, pricing::Pricing,
     providers::Registry, state::AppState, tracing_setup,
 };
 use anyhow::Context;
@@ -46,7 +46,10 @@ async fn main() -> anyhow::Result<()> {
         tracing::info!("dragonfly cache enabled");
     }
 
-    let state = AppState::new(config, providers, pool, features, cache);
+    let pricing = Pricing::load(&pool).await;
+    pricing.spawn_refresh(pool.clone());
+
+    let state = AppState::new(config, providers, pool, features, pricing, cache);
 
     for key in &state.config.keys {
         let claimed = state

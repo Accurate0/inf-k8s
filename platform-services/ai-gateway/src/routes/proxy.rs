@@ -19,12 +19,14 @@ use crate::{
         Dialect, ModelKind, Provider, ProxyRequest, Usage,
         translate::{self, SseTranslator},
     },
+    response_cache::{self, CachedResponse},
     state::AppState,
     usage::{self, UsageEvent},
 };
 
 const ENABLED_FLAG: &str = "ai-gateway-enabled";
 const MODEL_OVERRIDE_FLAG: &str = "ai-gateway-model-override";
+const RESPONSE_CACHE_FLAG: &str = "ai-gateway-response-cache";
 const STREAM_USAGE_CAP: usize = 8 * 1024 * 1024;
 
 /// Per-provider attempts before failing over to the next provider (1 initial + retries).
@@ -130,7 +132,7 @@ async fn proxy(
 
     let override_model = state
         .features
-        .string_flag(MODEL_OVERRIDE_FLAG, evaluation_context, "")
+        .string_flag(MODEL_OVERRIDE_FLAG, evaluation_context.clone(), "")
         .await;
     let resolved_model = if !override_model.is_empty() {
         override_model
@@ -170,6 +172,36 @@ async fn proxy(
         resolved_model,
     };
 
+    let cache_key = if !streaming
+        && request.is_cacheable()
+        && state.cache.is_some()
+        && state
+            .features
+            .bool_flag(RESPONSE_CACHE_FLAG, evaluation_context, true)
+            .await
+    {
+        Some(response_cache::key(
+            client_dialect,
+            sub_path,
+            &request.to_bytes()?,
+        ))
+    } else {
+        None
+    };
+
+    if let (Some(cache), Some(k)) = (&state.cache, &cache_key)
+        && let Some(hit) = response_cache::get(cache, k).await
+    {
+        span.record("provider", "cache");
+        let usage = Usage {
+            input: hit.input_tokens,
+            output: hit.output_tokens,
+        };
+        let status = hit.status;
+        record(&state, &ctx, usage, status, started, true).await;
+        return Ok(hit.into_response());
+    }
+
     // `fallback` keeps the last retryable response so an exhausted failover still returns
     // a real upstream status rather than a synthetic error.
     let mut served: Option<(Arc<dyn Provider>, reqwest::Response)> = None;
@@ -188,7 +220,7 @@ async fn proxy(
                 model = %ctx.resolved_model,
                 attempt = attempt + 1,
             );
-            let mut request = provider.build_request(&state.http, kind, outbound.clone());
+            let mut request = provider.build_request(&state.http, kind, outbound.clone(), &headers);
             if !streaming {
                 request = request.timeout(REQUEST_TIMEOUT);
             }
@@ -251,11 +283,39 @@ async fn proxy(
             translate::translate_response(&bytes, provider.dialect(), client_dialect)?
         };
 
-        record(&state, &ctx, usage, status.as_u16(), started).await;
+        if let (Some(cache), Some(k)) = (&state.cache, &cache_key)
+            && status.is_success()
+        {
+            response_cache::put(
+                cache,
+                k,
+                &CachedResponse {
+                    status: status.as_u16(),
+                    content_type: content_type
+                        .to_str()
+                        .unwrap_or("application/json")
+                        .to_owned(),
+                    body: client_bytes.to_vec(),
+                    input_tokens: usage.input,
+                    output_tokens: usage.output,
+                },
+            )
+            .await;
+        }
+
+        record(&state, &ctx, usage, status.as_u16(), started, false).await;
 
         Ok(Response::builder()
             .status(status)
             .header("content-type", content_type)
+            .header(
+                "x-cache",
+                if cache_key.is_some() {
+                    "MISS"
+                } else {
+                    "BYPASS"
+                },
+            )
             .body(Body::from(client_bytes))
             .unwrap())
     }
@@ -359,7 +419,7 @@ fn stream_response(
             }
 
             let usage = ctx.provider.parse_stream_usage(&raw);
-            record(&state, &ctx, usage, outcome, started).await;
+            record(&state, &ctx, usage, outcome, started, false).await;
         }
         .instrument(stream_span),
     );
@@ -377,8 +437,14 @@ async fn record(
     usage: Usage,
     status: u16,
     started: Instant,
+    cache_hit: bool,
 ) {
     let elapsed = started.elapsed();
+    let cost_usd = if cache_hit {
+        0.0
+    } else {
+        state.pricing.cost(&ctx.resolved_model, usage)
+    };
 
     let span = Span::current();
     span.record("upstream.status", status);
@@ -393,6 +459,8 @@ async fn record(
         status,
         input_tokens = usage.input,
         output_tokens = usage.output,
+        cost_usd,
+        cache_hit,
         latency_ms = elapsed.as_millis(),
         "request completed"
     );
@@ -405,6 +473,7 @@ async fn record(
         usage.output.max(0) as u64,
         elapsed,
     );
+    metrics::record_cost(&ctx.key.name, &ctx.resolved_model, cost_usd);
     usage::record(
         &state.pool,
         &UsageEvent {
@@ -417,6 +486,8 @@ async fn record(
             output_tokens: usage.output,
             latency_ms: elapsed.as_millis() as i64,
             status: status as i32,
+            cost_usd,
+            cache_hit,
         },
     )
     .await;

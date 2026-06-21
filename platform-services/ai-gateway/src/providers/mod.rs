@@ -9,7 +9,7 @@ pub use registry::Registry;
 
 use bytes::Bytes;
 use llm_bridge_core::model::ApiFormat;
-use reqwest::{Client, RequestBuilder};
+use reqwest::{Client, RequestBuilder, header::HeaderMap};
 use serde_json::Value;
 
 use crate::error::{GatewayError, Result};
@@ -75,10 +75,32 @@ pub trait Provider: Send + Sync {
     /// for the given model kind (e.g. an OpenAI provider always posts to
     /// `/chat/completions`, never the inbound `/v1/messages`). The caller drives
     /// `.send()`, keeping the trait object-safe.
-    fn build_request(&self, http: &Client, kind: ModelKind, body: Bytes) -> RequestBuilder;
+    fn build_request(
+        &self,
+        http: &Client,
+        kind: ModelKind,
+        body: Bytes,
+        client_headers: &HeaderMap,
+    ) -> RequestBuilder;
 
     fn parse_usage(&self, body: &[u8]) -> Usage;
     fn parse_stream_usage(&self, body: &[u8]) -> Usage;
+}
+
+/// Copies any of `names` present in `client_headers` onto the outbound request, letting
+/// dialect-specific client headers (beta opt-ins, org/project routing) reach upstream
+/// without forwarding auth or hop-by-hop headers.
+fn forward_headers(
+    mut req: RequestBuilder,
+    client_headers: &HeaderMap,
+    names: &[&str],
+) -> RequestBuilder {
+    for name in names {
+        if let Some(value) = client_headers.get(*name) {
+            req = req.header(*name, value);
+        }
+    }
+    req
 }
 
 /// A parsed chat/messages request body, with the helpers the proxy needs to route and
@@ -106,6 +128,12 @@ impl ProxyRequest {
             .get("stream")
             .and_then(Value::as_bool)
             .unwrap_or(false)
+    }
+
+    /// Only deterministic requests are cacheable: an explicit `temperature` of 0, so a
+    /// replayed response can't mask intended sampling variance.
+    pub fn is_cacheable(&self) -> bool {
+        self.json.get("temperature").and_then(Value::as_f64) == Some(0.0)
     }
 
     pub fn set_model(&mut self, model: &str) {

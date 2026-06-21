@@ -11,8 +11,9 @@ COPY . .
 RUN \
     --mount=type=cache,target=/app/${BINARY_NAME}-build/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    cargo build --locked --release --bin ${BINARY_NAME} && \
-    cp ./target/release/${BINARY_NAME} /app
+    cargo build --locked --release --bin ${BINARY_NAME} --bin aig && \
+    cp ./target/release/${BINARY_NAME} /app && \
+    cp ./target/release/aig /app/aig
 
 FROM debian:bookworm-slim AS final
 ARG BINARY_NAME
@@ -29,7 +30,8 @@ RUN adduser \
     appuser
 
 COPY --from=builder /app/${BINARY_NAME} /usr/local/bin/${BINARY_NAME}
-RUN chown appuser /usr/local/bin/${BINARY_NAME}
+COPY --from=builder /app/aig /usr/local/bin/aig
+RUN chown appuser /usr/local/bin/${BINARY_NAME} /usr/local/bin/aig
 
 USER appuser
 
