@@ -7,7 +7,26 @@ import {
   type ResolutionDetails,
 } from "@openfeature/server-sdk";
 import { FeatureFlagClient } from "./index.js";
-import { ValueType } from "./model.js";
+import { Reason, ValueType } from "./model.js";
+
+function reasonToOpenFeature(reason: Reason | undefined): string {
+  switch (reason) {
+    case Reason.REASON_STATIC:
+      return StandardResolutionReasons.STATIC;
+    case Reason.REASON_DEFAULT:
+      return StandardResolutionReasons.DEFAULT;
+    case Reason.REASON_TARGETING_MATCH:
+      return StandardResolutionReasons.TARGETING_MATCH;
+    case Reason.REASON_SPLIT:
+      return StandardResolutionReasons.SPLIT;
+    case Reason.REASON_DISABLED:
+      return StandardResolutionReasons.DISABLED;
+    case Reason.REASON_ERROR:
+      return StandardResolutionReasons.ERROR;
+    default:
+      return StandardResolutionReasons.UNKNOWN;
+  }
+}
 
 /**
  * OpenFeature server provider backed by the feature-flags gRPC service. Each evaluation is
@@ -48,7 +67,7 @@ export class FeatureFlagProvider implements Provider {
         return { value: defaultValue, reason: StandardResolutionReasons.DEFAULT };
       }
 
-      return { value: result.value as T, reason: result.meta?.reason };
+      return { value: result.value as T, reason: reasonToOpenFeature(result.meta?.reason) };
     } catch (error) {
       return {
         value: defaultValue,
