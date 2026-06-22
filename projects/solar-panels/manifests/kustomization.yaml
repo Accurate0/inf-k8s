@@ -14,6 +14,6 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/solar-panels
 images:
   - name: ghcr.io/accurate0/solar
-    newTag: af8545086efc0d78f49fcbcaf0791d0c27a4df0d
+    newTag: f7189e04d7860f4be6855697b6ffe66b18ff2f51
   - name: ghcr.io/accurate0/solar-web
-    newTag: af8545086efc0d78f49fcbcaf0791d0c27a4df0d
+    newTag: f7189e04d7860f4be6855697b6ffe66b18ff2f51
