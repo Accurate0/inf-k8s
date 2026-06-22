@@ -26,6 +26,7 @@ namespaces:
     ingress:
       - envoy-gateway-system
       - solar-panels
+      - monitoring
   solar-panels:
     ingress:
       - envoy-gateway-system
