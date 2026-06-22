@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: home-gateway
+  namespace: home-gateway
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: home-gateway
+  namespaceSelector:
+    matchNames:
+      - home-gateway
+  endpoints:
+    - port: api
+      path: /v1/metrics
+      interval: 30s
+      scrapeTimeout: 10s

@@ -4,6 +4,8 @@ kind: Service
 metadata:
   name: home-gateway
   namespace: home-gateway
+  labels:
+    app: home-gateway
 spec:
   selector:
     app: home-gateway

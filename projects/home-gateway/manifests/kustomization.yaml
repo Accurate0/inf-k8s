@@ -5,6 +5,7 @@ resources:
   - home-gateway.secretstore.yaml
   - home-gateway/home-gateway.deployment.yaml
   - home-gateway/home-gateway.service.yaml
+  - home-gateway/home-gateway.servicemonitor.yaml
   - namespace.yaml
   - database.yaml
 commonAnnotations:
