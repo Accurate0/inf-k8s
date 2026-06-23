@@ -326,7 +326,7 @@ fn validate_schema(endpoint: &str, streaming: bool, body: &Value) {
     for instance in instances {
         let errors: Vec<String> = validator
             .iter_errors(instance)
-            .map(|e| format!("  {} at {}", e, e.instance_path))
+            .map(|e| format!("  {} at {}", e, e.instance_path()))
             .collect();
         assert!(
             errors.is_empty(),
