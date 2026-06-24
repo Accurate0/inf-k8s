@@ -32,7 +32,7 @@ jobs:
         run: |
           curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
           chmod +x /usr/local/bin/argocd
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
         with:
           path: platform-services/janitor-bot/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
