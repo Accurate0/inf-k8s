@@ -36,12 +36,12 @@ spec:
                 path: config.yaml
               - key: manage-ci-image-updater.yaml
                 path: rules/manage-ci-image-updater.yaml
-              - key: manage-renovate.yaml
-                path: rules/manage-renovate.yaml
+              - key: manage-renovate-workflows.yaml
+                path: rules/manage-renovate-workflows.yaml
+              - key: manage-renovate-dockerfiles.yaml
+                path: rules/manage-renovate-dockerfiles.yaml
               - key: automerge-renovate-terraform.yaml
                 path: rules/automerge-renovate-terraform.yaml
-              - key: manage-github-workflow.yaml
-                path: rules/manage-github-workflow.yaml
               - key: retry-renovate-workflow.yaml
                 path: rules/retry-renovate-workflow.yaml
               - key: argocd-diff-renovate.yaml
