@@ -8,9 +8,9 @@ configMapGenerator:
     files:
       - config.yaml
       - rules/manage-ci-image-updater.yaml
-      - rules/manage-renovate.yaml
+      - rules/manage-renovate-workflows.yaml
+      - rules/manage-renovate-dockerfiles.yaml
       - rules/automerge-renovate-terraform.yaml
-      - rules/manage-github-workflow.yaml
       - rules/retry-renovate-workflow.yaml
       - rules/argocd-diff-renovate.yaml
       - rules/mirror-commit-status.yaml
