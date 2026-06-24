@@ -4,13 +4,6 @@ expression: snapshot
 ---
 response:
   - actions:
-      - action: create_issue
-        ran: false
-      - action: close_issue
-        ran: false
-    dry_run: false
-    name: manage-github-workflow
-  - actions:
       - action: retry_workflow
         ran: true
     dry_run: false

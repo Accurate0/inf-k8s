@@ -15,7 +15,7 @@ response:
       - action: add_labels
         ran: false
     dry_run: false
-    name: manage-renovate
+    name: manage-renovate-dockerfiles
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
@@ -57,7 +57,7 @@ external_requests:
   - method: POST
     path: /api/v1/repos/anurag/k8s/pulls/100/reviews
     body:
-      body: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
+      body: "Auto-approved: Renovate PR targeting Dockerfiles"
       comments: ~
       commit_id: ~
       event: APPROVED

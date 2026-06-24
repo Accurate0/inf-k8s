@@ -1,0 +1,106 @@
+now: "2026-01-07T10:00:00Z"
+type: pr
+payload:
+  action: synchronized
+  pull_request:
+    number: 220
+    title: Update Rust crate serde to v1.0.210
+    labels:
+      - id: 1
+        name: renovate
+        color: "#1a7f37"
+        url: ""
+    base:
+      ref: main
+    diff_url: ""
+    html_url: ""
+    patch_url: ""
+    url: ""
+  sender:
+    login: renovate
+  repository:
+    full_name: anurag/k8s
+mocks:
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/220/files
+    status: 200
+    body:
+      - filename: platform-services/janitor-bot/Cargo.toml
+        contents_url: ""
+        html_url: ""
+        raw_url: ""
+      - filename: platform-services/janitor-bot/Cargo.lock
+        contents_url: ""
+        html_url: ""
+        raw_url: ""
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/220
+    status: 200
+    body:
+      number: 220
+      title: Update Rust crate serde to v1.0.210
+      user:
+        login: renovate
+        avatar_url: ""
+        html_url: ""
+        created: "2020-01-01T00:00:00Z"
+        last_login: "2020-01-01T00:00:00Z"
+      labels:
+        - id: 1
+          name: renovate
+          color: "#1a7f37"
+          url: ""
+      base:
+        ref: main
+      head:
+        ref: renovate/serde-1.x
+        sha: def0000000000000000000000000000000000000
+      mergeable: true
+      state: open
+      merged: false
+      diff_url: ""
+      html_url: ""
+      patch_url: ""
+      url: ""
+      requested_reviewers: []
+      closed_at: null
+      created_at: "2020-01-01T00:00:00Z"
+      due_date: null
+      merged_at: null
+      updated_at: "2020-01-01T00:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/220/reviews
+    status: 200
+    body: []
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
+    status: 200
+    body:
+      state: success
+      total_count: 1
+      sha: def0000000000000000000000000000000000000
+      commit_url: ""
+      url: ""
+      statuses:
+        - context: "Build / cargo build (pull_request)"
+          status: success
+          description: ""
+          target_url: ""
+          url: ""
+          id: 1
+          created_at: "2026-01-07T09:00:00Z"
+          updated_at: "2026-01-07T09:30:00Z"
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/220/reviews
+    status: 200
+    body: {}
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/220/merge
+    status: 200
+    body: {}

@@ -22,10 +22,6 @@ mocks:
     path: /api/v1/repos/anurag/k8s/pulls/100/files
     status: 200
     body:
-      - filename: .github/workflows/test.yml
-        contents_url: ""
-        html_url: ""
-        raw_url: ""
       - filename: system-components/foo/Dockerfile
         contents_url: ""
         html_url: ""

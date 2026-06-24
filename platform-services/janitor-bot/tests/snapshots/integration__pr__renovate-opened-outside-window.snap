@@ -15,7 +15,7 @@ response:
       - action: add_labels
         ran: true
     dry_run: false
-    name: manage-renovate
+    name: manage-renovate-dockerfiles
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files

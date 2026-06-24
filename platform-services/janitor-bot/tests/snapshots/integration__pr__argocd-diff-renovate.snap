@@ -46,5 +46,5 @@ external_requests:
       updated_at: ~
     service: forgejo
   - method: POST
-    path: /application.ApplicationService/Get
+    path: /cluster.SettingsService/Get
     service: argocd
