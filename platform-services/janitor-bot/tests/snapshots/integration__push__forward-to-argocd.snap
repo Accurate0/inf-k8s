@@ -10,7 +10,7 @@ response:
     name: forward-push-to-argocd
 external_requests:
   - method: POST
-    path: "[redacted]"
+    path: /api/webhook
     body:
       ref: refs/heads/main
       repository:

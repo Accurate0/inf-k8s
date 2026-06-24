@@ -104,9 +104,10 @@ fn capture_requests(requests: &[Request], service: &str) -> Vec<CapturedRequest>
             } else {
                 format!("{path}?{query}")
             };
-            // For argocd only the fact that the service was called matters, not
-            // the exact gRPC path, which varies across argocd versions.
-            let path_with_query = if service == "argocd" {
+            // argocd gRPC paths (`/<package>.<Service>/<Method>`) vary across
+            // argocd versions, so only the fact that the service was called
+            // matters. The REST webhook (`/api/...`) is stable, so keep it.
+            let path_with_query = if service == "argocd" && !path_with_query.starts_with("/api/") {
                 "[redacted]".to_string()
             } else {
                 path_with_query
