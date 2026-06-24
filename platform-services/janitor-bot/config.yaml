@@ -18,14 +18,28 @@ checks:
     before: "22:00"
 label_colors:
   automated: "#e4e669"
-  image-update: "#0075ca"
-  janitor/queued: "#fbca04"
+  conflicts: "#e11d48"
   github-ci-failure: "#d73a4a"
+  image-update: "#0075ca"
+  janitor/ignore: "#cccccc"
+  janitor/queued: "#fbca04"
+  postgres: "#6f42c1"
+  renovate: "#0e8a16"
+  renovate/bump: "#1d76db"
+  renovate/critical: "#2da44e"
+  renovate/digest: "#f9d0c4"
+  renovate/lockfile: "#79b8ff"
+  renovate/major: "#2ea043"
+  renovate/minor: "#2188ff"
+  renovate/patch: "#8957e5"
+  renovate/pin: "#c0d3eb"
+  renovate/rollback: "#e11d48"
 rules:
   - !include rules/manage-ci-image-updater.yaml
   - !include rules/manage-renovate-workflows.yaml
   - !include rules/manage-renovate-dockerfiles.yaml
   - !include rules/automerge-renovate-terraform.yaml
+  - !include rules/automerge-renovate-rust.yaml
   - !include rules/retry-renovate-workflow.yaml
   - !include rules/argocd-diff-renovate.yaml
   - !include rules/mirror-commit-status.yaml

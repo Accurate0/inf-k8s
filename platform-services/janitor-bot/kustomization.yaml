@@ -11,6 +11,7 @@ configMapGenerator:
       - rules/manage-renovate-workflows.yaml
       - rules/manage-renovate-dockerfiles.yaml
       - rules/automerge-renovate-terraform.yaml
+      - rules/automerge-renovate-rust.yaml
       - rules/retry-renovate-workflow.yaml
       - rules/argocd-diff-renovate.yaml
       - rules/mirror-commit-status.yaml

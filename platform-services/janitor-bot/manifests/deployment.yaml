@@ -42,6 +42,8 @@ spec:
                 path: rules/manage-renovate-dockerfiles.yaml
               - key: automerge-renovate-terraform.yaml
                 path: rules/automerge-renovate-terraform.yaml
+              - key: automerge-renovate-rust.yaml
+                path: rules/automerge-renovate-rust.yaml
               - key: retry-renovate-workflow.yaml
                 path: rules/retry-renovate-workflow.yaml
               - key: argocd-diff-renovate.yaml

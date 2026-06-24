@@ -198,6 +198,11 @@ impl RulesOrchestrator {
         self.eval_log.lock().await.iter().cloned().collect()
     }
 
+    /// Registry of label name -> hex color the bot manages.
+    pub fn label_colors(&self) -> &HashMap<String, String> {
+        &self.rules.label_colors
+    }
+
     /// Watched repos as `(owner, repo)` pairs, parsed from `owner/repo` slugs.
     pub fn watch_repos(&self) -> impl Iterator<Item = (&str, &str)> {
         self.rules

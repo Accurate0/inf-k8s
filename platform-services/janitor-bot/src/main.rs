@@ -68,6 +68,30 @@ async fn evaluate_open_prs(state: &AppState) {
     metrics::record_cron_run(cron_start.elapsed(), total_prs);
 }
 
+async fn ensure_repo_labels(state: &AppState) {
+    let labels: Vec<(String, String)> = state
+        .orchestrator
+        .label_colors()
+        .iter()
+        .map(|(name, color)| (name.clone(), color.clone()))
+        .collect();
+
+    if labels.is_empty() {
+        return;
+    }
+
+    for (owner, repo) in state.orchestrator.watch_repos() {
+        if let Err(e) = state
+            .clients
+            .forgejo
+            .ensure_labels(owner, repo, labels.clone())
+            .await
+        {
+            tracing::error!(owner, repo, "failed to ensure labels: {e}");
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let tracer_provider = tracing_setup::init();
@@ -85,6 +109,8 @@ async fn main() -> anyhow::Result<()> {
         argocd_webhook_secret: std::env::var("ARGOCD_WEBHOOK_SECRET").unwrap_or_default(),
         orchestrator: RulesOrchestrator::new(),
     });
+
+    ensure_repo_labels(&state).await;
 
     let scheduler = JobScheduler::new().await?;
 
