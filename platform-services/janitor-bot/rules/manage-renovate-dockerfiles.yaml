@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=./rule.schema.json
+name: manage-renovate-dockerfiles
+when:
+  all:
+    - type: event
+      kind: pr
+      source: forgejo
+    - any:
+        - type: repository
+          value: anurag/home-gateway
+        - type: repository
+          value: anurag/k8s
+        - type: repository
+          value: anurag/solar-panels
+    - type: feature_flag
+      name: janitor-bot-allow-automerging-rules
+      default: true
+    - type: target_branch
+      value: main
+    - type: author
+      value: renovate
+    - type: has_changed_files
+    - type: changed_files_all_match
+      patterns:
+        - "**/Dockerfile*"
+    - type: changed_files_none_match
+      patterns:
+        - "system-components/postgres-cluster/container/Dockerfile"
+    - not:
+        type: has_label
+        value: renovate/major
+    - not:
+        type: has_conflicts
+    - any:
+        - not:
+            type: has_status_checks
+        - type: all_status_checks_passed
+    - type: is_open
+actions:
+  - when:
+      all:
+        - ref: global.perth_day
+        - not:
+            type: bot.has_approved
+    run:
+      - type: remove_labels
+        labels: [janitor/queued]
+      - type: add_labels
+        labels: [automated]
+      - type: approve
+        comment: "Auto-approved: Renovate PR targeting Dockerfiles"
+      - type: merge
+        strategy: squash
+        delete_branch: true
+  - when:
+      all:
+        - not:
+            ref: global.perth_day
+        - not:
+            type: has_label
+            value: janitor/queued
+    run:
+      - type: add_labels
+        labels: [janitor/queued]

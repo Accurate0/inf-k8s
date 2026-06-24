@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=./rule.schema.json
-name: manage-renovate
+name: manage-renovate-workflows
 when:
   all:
     - type: event
@@ -24,13 +24,6 @@ when:
       patterns:
         - ".github/workflows/**"
         - ".forgejo/workflows/**"
-        - "**/Dockerfile*"
-    - type: changed_files_none_match
-      patterns:
-        - "system-components/postgres-cluster/container/Dockerfile"
-    - not:
-        type: has_label
-        value: renovate/major
     - not:
         type: has_conflicts
     - any:
@@ -50,7 +43,7 @@ actions:
       - type: add_labels
         labels: [automated]
       - type: approve
-        comment: "Auto-approved: Renovate PR targeting workflows/Dockerfiles"
+        comment: "Auto-approved: Renovate PR targeting workflows"
       - type: merge
         strategy: squash
         delete_branch: true

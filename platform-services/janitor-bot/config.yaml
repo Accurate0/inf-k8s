@@ -23,9 +23,9 @@ label_colors:
   github-ci-failure: "#d73a4a"
 rules:
   - !include rules/manage-ci-image-updater.yaml
-  - !include rules/manage-renovate.yaml
+  - !include rules/manage-renovate-workflows.yaml
+  - !include rules/manage-renovate-dockerfiles.yaml
   - !include rules/automerge-renovate-terraform.yaml
-  - !include rules/manage-github-workflow.yaml
   - !include rules/retry-renovate-workflow.yaml
   - !include rules/argocd-diff-renovate.yaml
   - !include rules/mirror-commit-status.yaml
