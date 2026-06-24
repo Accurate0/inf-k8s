@@ -104,6 +104,13 @@ fn capture_requests(requests: &[Request], service: &str) -> Vec<CapturedRequest>
             } else {
                 format!("{path}?{query}")
             };
+            // For argocd only the fact that the service was called matters, not
+            // the exact gRPC path, which varies across argocd versions.
+            let path_with_query = if service == "argocd" {
+                "[redacted]".to_string()
+            } else {
+                path_with_query
+            };
             CapturedRequest {
                 method: r.method.to_string(),
                 path: path_with_query,
