@@ -20,7 +20,7 @@ spec:
         kubernetes.io/hostname: k8s-optiplex-4
       containers:
         - name: photon
-          image: rtuszik/photon-docker:latest
+          image: rtuszik/photon-docker:2.3.0@sha256:827cedf9fa3337e657611d62ada669def75dff61c56b51ae55056155d1a9b236
           imagePullPolicy: IfNotPresent
           env:
             - name: UPDATE_STRATEGY
@@ -55,7 +55,7 @@ spec:
             timeoutSeconds: 5
           volumeMounts:
             - name: photon-data
-              mountPath: /photon/photon_data
+              mountPath: /photon/data
       volumes:
         - name: photon-data
           persistentVolumeClaim:
