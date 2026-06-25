@@ -16,6 +16,9 @@ RUN set -xe ;\
     apt update;\
     apt-get install -y --no-install-recommends timescaledb-2-postgresql-18
 
+RUN set -xe ;\
+    apt-get install -y --no-install-recommends postgresql-18-postgis-3
+
 RUN pgxn install pgmq==1.11.1
 
 RUN usermod -u 26 postgres

@@ -45,7 +45,7 @@ jobs:
           context: system-components/postgres-cluster/container
           push: true
           tags: |
-            ghcr.io/accurate0/cnpg-postgresql:18.4-trixie
+            ghcr.io/accurate0/cnpg-postgresql:18.4.1-trixie
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
 

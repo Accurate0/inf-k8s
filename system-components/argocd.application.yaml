@@ -101,6 +101,8 @@ spec:
                 p, github-actions, applications, get, platform-services/*, allow
                 p, github-actions, applications, sync, projects/*, allow
                 p, github-actions, applications, get, projects/*, allow
+                p, github-actions, applications, sync, selfhosted/*, allow
+                p, github-actions, applications, get, selfhosted/*, allow
                 p, github-actions, projects, get, *, allow
                 p, janitor, applications, get, bootstrap/*, allow
                 p, janitor, applications, sync, bootstrap/*, allow
@@ -110,6 +112,8 @@ spec:
                 p, janitor, applications, sync, platform-services/*, allow
                 p, janitor, applications, get, projects/*, allow
                 p, janitor, applications, sync, projects/*, allow
+                p, janitor, applications, get, selfhosted/*, allow
+                p, janitor, applications, sync, selfhosted/*, allow
                 p, janitor, projects, get, *, allow
             params:
               server.insecure: true
