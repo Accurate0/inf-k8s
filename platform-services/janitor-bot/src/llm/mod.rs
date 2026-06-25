@@ -98,7 +98,7 @@ impl LlmClient {
 
     /// Sends one chat-completion turn and returns the assistant message.
     ///
-    /// The request is wrapped in a client span (`gen_ai.*` attributes) whose
+    /// The request is wrapped in a client span (`llm.*` attributes) whose
     /// trace context is propagated to the AI gateway via `traceparent`, so the
     /// gateway-side spans link back into this trace.
     #[tracing::instrument(
@@ -107,13 +107,13 @@ impl LlmClient {
         fields(
             otel.name = format!("chat {model}"),
             otel.kind = "client",
-            gen_ai.system = "openai",
-            gen_ai.request.model = model,
-            gen_ai.request.message_count = messages.len(),
-            gen_ai.response.finish_reason = tracing::field::Empty,
-            gen_ai.response.tool_call_count = tracing::field::Empty,
-            gen_ai.usage.input_tokens = tracing::field::Empty,
-            gen_ai.usage.output_tokens = tracing::field::Empty,
+            llm.system = "openai",
+            llm.request.model = model,
+            llm.request.message_count = messages.len(),
+            llm.response.finish_reason = tracing::field::Empty,
+            llm.response.tool_call_count = tracing::field::Empty,
+            llm.usage.input_tokens = tracing::field::Empty,
+            llm.usage.output_tokens = tracing::field::Empty,
         )
     )]
     pub async fn chat(
@@ -124,7 +124,6 @@ impl LlmClient {
     ) -> anyhow::Result<ChatCompletionResponseMessage> {
         let request = CreateChatCompletionRequestArgs::default()
             .model(model)
-            .temperature(0.0)
             .tools(tools)
             .messages(messages)
             .build()?;
@@ -133,8 +132,8 @@ impl LlmClient {
 
         let span = tracing::Span::current();
         if let Some(usage) = resp.usage.as_ref() {
-            span.record("gen_ai.usage.input_tokens", usage.prompt_tokens);
-            span.record("gen_ai.usage.output_tokens", usage.completion_tokens);
+            span.record("llm.usage.input_tokens", usage.prompt_tokens);
+            span.record("llm.usage.output_tokens", usage.completion_tokens);
         }
 
         let choice = resp
@@ -144,10 +143,10 @@ impl LlmClient {
             .context("LLM returned no choices")?;
 
         if let Some(reason) = choice.finish_reason {
-            span.record("gen_ai.response.finish_reason", format!("{reason:?}"));
+            span.record("llm.response.finish_reason", format!("{reason:?}"));
         }
         span.record(
-            "gen_ai.response.tool_call_count",
+            "llm.response.tool_call_count",
             choice.message.tool_calls.as_ref().map_or(0, Vec::len),
         );
 

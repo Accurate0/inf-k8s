@@ -84,13 +84,16 @@ impl<'a> LlmAutofixClient<'a> {
         model: &str,
     ) -> anyhow::Result<Vec<FileEdit>> {
         let tools = Self::tool_defs();
+        let user_prompt = Self::user_prompt(meta, failure_logs);
+        tracing::info!("user prompt: {user_prompt}");
+
         let mut messages: Vec<ChatCompletionRequestMessage> = vec![
             ChatCompletionRequestSystemMessageArgs::default()
                 .content(SYSTEM_PROMPT)
                 .build()?
                 .into(),
             ChatCompletionRequestUserMessageArgs::default()
-                .content(Self::user_prompt(meta, failure_logs))
+                .content(user_prompt)
                 .build()?
                 .into(),
         ];
