@@ -20,7 +20,8 @@ spec:
         - name: app
           image: freikin/dawarich:1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
           imagePullPolicy: IfNotPresent
-          command: ["bin/rails", "server", "-p", "3000", "-b", "::"]
+          command: ["web-entrypoint.sh"]
+          args: ["bin/rails", "server", "-p", "3000", "-b", "::"]
           ports:
             - name: http
               containerPort: 3000
@@ -93,7 +94,8 @@ spec:
         - name: sidekiq
           image: freikin/dawarich:1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
           imagePullPolicy: IfNotPresent
-          command: ["sidekiq"]
+          command: ["sidekiq-entrypoint.sh"]
+          args: ["sidekiq"]
           envFrom:
             - configMapRef:
                 name: dawarich-config
