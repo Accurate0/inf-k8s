@@ -20,6 +20,7 @@ providers:
       - gpt-4o
       - gpt-5.4-mini
       - gpt-5.4
+      - gpt-5.5
     embedding_models:
       - text-embedding-3-large
 
