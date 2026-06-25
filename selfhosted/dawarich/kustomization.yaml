@@ -11,4 +11,7 @@ resources:
   - ./pvc.yaml
   - ./deployment.yaml
   - ./service.yaml
+  - ./photon-pvc.yaml
+  - ./photon-deployment.yaml
+  - ./photon-service.yaml
   - ./httproute.yaml

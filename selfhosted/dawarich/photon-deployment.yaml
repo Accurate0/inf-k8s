@@ -1,0 +1,57 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dawarich-photon
+  namespace: dawarich
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: photon
+  template:
+    metadata:
+      labels:
+        app: photon
+    spec:
+      nodeSelector:
+        kubernetes.io/hostname: k8s-optiplex-4
+      containers:
+        - name: photon
+          image: rtuszik/photon-docker:latest
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: UPDATE_STRATEGY
+              value: DISABLED
+          ports:
+            - name: http
+              containerPort: 2322
+          resources:
+            requests:
+              cpu: 250m
+              memory: 1Gi
+            limits:
+              memory: 4Gi
+          readinessProbe:
+            httpGet:
+              path: /status
+              port: http
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /status
+              port: http
+            initialDelaySeconds: 120
+            periodSeconds: 60
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: photon-data
+              mountPath: /photon/photon_data
+      volumes:
+        - name: photon-data
+          persistentVolumeClaim:
+            claimName: dawarich-photon-data

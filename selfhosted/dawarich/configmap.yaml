@@ -22,5 +22,5 @@ data:
   OIDC_PKCE_ENABLED: "true"
   ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
   ALLOW_EMAIL_PASSWORD_LOGIN: "false"
-  PHOTON_API_USE_HTTPS: "true"
-  PHOTON_API_HOST: "https://app.chibigeo.com"
+  PHOTON_API_USE_HTTPS: "false"
+  PHOTON_API_HOST: "photon.dawarich.svc.cluster.local:2322"
