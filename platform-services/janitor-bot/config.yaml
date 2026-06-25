@@ -21,6 +21,7 @@ label_colors:
   conflicts: "#e11d48"
   github-ci-failure: "#d73a4a"
   image-update: "#0075ca"
+  janitor/autofix: "#1f6feb"
   janitor/ignore: "#cccccc"
   janitor/queued: "#fbca04"
   postgres: "#6f42c1"

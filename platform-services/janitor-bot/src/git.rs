@@ -1,4 +1,87 @@
+use crate::autofix::FileEdit;
 use crate::forgejo::BOT_USERNAME;
+use tempfile::TempDir;
+
+/// Clones `branch` into a fresh temp directory and returns the `TempDir`. The
+/// checkout lives for as long as the returned handle; the agentic fix loop
+/// reads from it and `commit_and_push` later writes/commits/pushes from it.
+pub fn clone_branch(clone_url: &str, token: &str, branch: &str) -> Result<TempDir, anyhow::Error> {
+    let tmp = tempfile::tempdir()?;
+
+    let mut callbacks = git2::RemoteCallbacks::new();
+    callbacks
+        .credentials(|_url, _username, _allowed| git2::Cred::userpass_plaintext("oauth2", token));
+
+    let mut fetch_opts = git2::FetchOptions::new();
+    fetch_opts.remote_callbacks(callbacks);
+
+    let mut builder = git2::build::RepoBuilder::new();
+    builder.fetch_options(fetch_opts);
+    builder.branch(branch);
+    builder.clone(clone_url, tmp.path())?;
+
+    Ok(tmp)
+}
+
+/// Opens the clone at `repo_path`, overwrites the given files with their new
+/// contents, commits onto HEAD, creates `branch_name`, and pushes it.
+pub fn commit_and_push(
+    repo_path: &std::path::Path,
+    token: &str,
+    branch_name: &str,
+    commit_msg: &str,
+    edits: &[FileEdit],
+) -> Result<(), anyhow::Error> {
+    if edits.is_empty() {
+        anyhow::bail!("no edits to apply");
+    }
+
+    let repo = git2::Repository::open(repo_path)?;
+    let workdir = repo
+        .workdir()
+        .ok_or_else(|| anyhow::anyhow!("repository has no working directory"))?
+        .to_owned();
+
+    let mut index = repo.index()?;
+    for edit in edits {
+        let rel = std::path::Path::new(&edit.path);
+        if rel.is_absolute()
+            || rel
+                .components()
+                .any(|c| c == std::path::Component::ParentDir)
+        {
+            anyhow::bail!("refusing to write unsafe path: {}", edit.path);
+        }
+        let abs = workdir.join(rel);
+        if let Some(parent) = abs.parent() {
+            std::fs::create_dir_all(parent)?;
+        }
+        std::fs::write(&abs, &edit.content)?;
+        index.add_path(rel)?;
+    }
+    index.write()?;
+
+    let tree_oid = index.write_tree()?;
+    let tree = repo.find_tree(tree_oid)?;
+    let head_commit = repo.head()?.peel_to_commit()?;
+    let sig = git2::Signature::now(BOT_USERNAME, "janitor@git.anurag.sh")?;
+    let commit_oid = repo.commit(None, &sig, &sig, commit_msg, &tree, &[&head_commit])?;
+
+    let commit = repo.find_commit(commit_oid)?;
+    repo.branch(branch_name, &commit, false)?;
+
+    let mut remote = repo.find_remote("origin")?;
+    let mut push_callbacks = git2::RemoteCallbacks::new();
+    push_callbacks
+        .credentials(|_url, _username, _allowed| git2::Cred::userpass_plaintext("oauth2", token));
+    let mut push_opts = git2::PushOptions::new();
+    push_opts.remote_callbacks(push_callbacks);
+    let refspec = format!("refs/heads/{branch_name}:refs/heads/{branch_name}");
+
+    remote.push(&[&refspec], Some(&mut push_opts))?;
+
+    Ok(())
+}
 
 pub fn revert_and_push(
     clone_url: &str,

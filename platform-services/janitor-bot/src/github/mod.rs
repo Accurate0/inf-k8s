@@ -135,6 +135,22 @@ impl GitHubClient {
         }
     }
 
+    /// Fetches failed-job logs for a workflow run identified by its API base
+    /// (`owner`/`repo`/`run_id`), reusing [`fetch_failed_jobs`].
+    #[tracing::instrument(skip_all)]
+    pub async fn failed_logs_for_run(
+        &self,
+        owner: &str,
+        repo: &str,
+        run_id: u64,
+    ) -> FailedJobsResult {
+        let jobs_url = format!(
+            "{}/repos/{owner}/{repo}/actions/runs/{run_id}/jobs",
+            self.base_url
+        );
+        self.fetch_failed_jobs(&jobs_url).await
+    }
+
     #[tracing::instrument(skip_all)]
     pub async fn fetch_failed_jobs(&self, jobs_url: &str) -> FailedJobsResult {
         let empty = FailedJobsResult::default();

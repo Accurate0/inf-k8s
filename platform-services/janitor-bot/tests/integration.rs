@@ -6,6 +6,7 @@ use std::sync::Arc;
 use insta::assert_yaml_snapshot;
 use insta::internals::Content;
 use janitor_bot::feature_flag::FeatureFlagClient;
+use janitor_bot::llm::LlmClient;
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -132,6 +133,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     let forgejo_server = MockServer::start().await;
     let github_server = MockServer::start().await;
     let argocd_server = MockServer::start().await;
+    let llm_server = MockServer::start().await;
 
     let payload_str = serde_json::to_string(&fixture.payload)
         .unwrap()
@@ -143,6 +145,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             "github" => setup_mocks(&github_server, slice::from_ref(mock_def)).await,
             "argocd" => setup_mocks(&argocd_server, slice::from_ref(mock_def)).await,
             "forgejo" => setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await,
+            "llm" => setup_mocks(&llm_server, slice::from_ref(mock_def)).await,
             _ => unreachable!(),
         }
     }
@@ -153,6 +156,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             GitHubClient::new(github_server.uri(), "test-token".into()),
             ArgocdClient::new(argocd_server.uri(), "test-token".into()),
             FeatureFlagClient::new(None).await,
+            Some(LlmClient::new(llm_server.uri(), "test-token".into())),
         ),
         orchestrator: rules::RulesOrchestrator::new(),
     });

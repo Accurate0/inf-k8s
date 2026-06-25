@@ -41,6 +41,7 @@ metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 clap = { version = "4", features = ["derive", "env"] }
 yaml-include = "0.8.1"
+async-openai = { version = "0.41.1", default-features = false, features = ["chat-completion", "rustls"] }
 
 [build-dependencies]
 jsonschema = { version = "0.46", default-features = false }

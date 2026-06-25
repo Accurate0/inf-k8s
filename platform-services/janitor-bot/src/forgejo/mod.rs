@@ -675,6 +675,8 @@ impl ForgejoClient {
                 Some(PrStatusEntry {
                     context: s.context?,
                     state: s.status?,
+                    description: s.description.unwrap_or_default(),
+                    target_url: s.target_url.map(|u| u.to_string()).unwrap_or_default(),
                 })
             })
             .collect();
@@ -725,6 +727,8 @@ impl ForgejoClient {
                 Some(PrStatusEntry {
                     context: s.context?,
                     state: s.status?,
+                    description: s.description.unwrap_or_default(),
+                    target_url: s.target_url.unwrap_or_default(),
                 })
             })
             .collect();

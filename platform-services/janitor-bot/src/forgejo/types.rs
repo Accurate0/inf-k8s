@@ -11,6 +11,8 @@ pub struct PrCombinedStatus {
 pub struct PrStatusEntry {
     pub context: String,
     pub state: CommitStatusState,
+    pub description: String,
+    pub target_url: String,
 }
 
 pub struct BotComment {
@@ -44,4 +46,8 @@ pub(super) struct RawStatusEntry {
     pub context: Option<String>,
     #[serde(default)]
     pub status: Option<CommitStatusState>,
+    #[serde(default)]
+    pub description: Option<String>,
+    #[serde(default)]
+    pub target_url: Option<String>,
 }

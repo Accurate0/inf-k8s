@@ -17,6 +17,7 @@ pub enum PrCommand {
     Ignore,
     Explain,
     RunRule { name: String },
+    Fix { model: Option<String> },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -84,6 +85,10 @@ pub fn parse_pr_command(body: &str) -> Option<PrCommand> {
         "reopen" => Some(PrCommand::Reopen),
         "ignore" => Some(PrCommand::Ignore),
         "explain" => Some(PrCommand::Explain),
+        "fix" => {
+            let model = words.next().map(|m| m.to_owned());
+            Some(PrCommand::Fix { model })
+        }
         "run" => {
             if words.next()? != "rule" {
                 return None;
@@ -256,6 +261,9 @@ pub async fn handle_pr_command(
                     tracing::error!("failed to comment: {e}");
                 }
             }
+        }
+        PrCommand::Fix { model } => {
+            crate::autofix::autofix_pr(clients, &cmd.owner, &cmd.repo, pr, model).await;
         }
         PrCommand::Recheck => {
             let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
@@ -550,6 +558,22 @@ mod tests {
             parse_pr_command("@janitor revert").unwrap(),
             PrCommand::Revert
         ));
+    }
+
+    #[test]
+    fn parse_fix_no_model() {
+        match parse_pr_command("@janitor fix").unwrap() {
+            PrCommand::Fix { model } => assert!(model.is_none()),
+            _ => panic!("expected Fix"),
+        }
+    }
+
+    #[test]
+    fn parse_fix_with_model() {
+        match parse_pr_command("@janitor fix claude-opus-4-8").unwrap() {
+            PrCommand::Fix { model } => assert_eq!(model.as_deref(), Some("claude-opus-4-8")),
+            _ => panic!("expected Fix"),
+        }
     }
 
     #[test]

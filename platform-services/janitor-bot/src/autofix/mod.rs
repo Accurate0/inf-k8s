@@ -1,0 +1,303 @@
+mod client;
+mod workspace;
+
+pub use client::{DEFAULT_MODEL, FileEdit, LlmAutofixClient, PrMeta};
+pub use workspace::Workspace;
+
+use crate::clients::Clients;
+use crate::git;
+use crate::marker::Marker;
+use forgejo_api::structs::CommitStatusState;
+use std::sync::LazyLock;
+use std::time::{SystemTime, UNIX_EPOCH};
+
+const AUTOFIX_LABEL: &str = "janitor/autofix";
+static AUTOFIX_MARKER: LazyLock<Marker> = LazyLock::new(|| Marker::feature("autofix"));
+
+/// Runs the LLM autofix flow for a failing renovate PR: clones the head branch,
+/// lets the model explore it + the failing CI logs via tools, applies the
+/// returned edits, and opens a PR targeting the original renovate branch.
+pub async fn autofix_pr(
+    clients: &Clients,
+    owner: &str,
+    repo: &str,
+    pr: i64,
+    model: Option<String>,
+) {
+    let client = &clients.forgejo;
+
+    let Some(llm) = clients.llm.as_ref() else {
+        let _ = client
+            .comment(
+                owner,
+                repo,
+                pr,
+                "Autofix is not configured (no AI gateway token).",
+            )
+            .await;
+        return;
+    };
+
+    let api_pr = match client.get_pr(owner, repo, pr).await {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("autofix: failed to fetch PR: {e}");
+            return;
+        }
+    };
+
+    let author = api_pr
+        .user
+        .as_ref()
+        .and_then(|u| u.login.as_deref())
+        .unwrap_or_default();
+    if !author.to_lowercase().contains("renovate") {
+        let _ = client
+            .comment(owner, repo, pr, "Autofix only runs on renovate PRs.")
+            .await;
+        return;
+    }
+
+    let head_branch = api_pr.head.as_ref().and_then(|h| h.r#ref.clone());
+    let base_branch = api_pr.base.as_ref().and_then(|b| b.r#ref.clone());
+    let (Some(head_branch), Some(base_branch)) = (head_branch, base_branch) else {
+        tracing::warn!(pr, "autofix: PR missing head/base branch info");
+        return;
+    };
+    let title = api_pr.title.clone().unwrap_or_default();
+
+    let failure_logs = collect_failure_logs(clients, owner, repo, pr).await;
+    if failure_logs.is_empty() {
+        let _ = client
+            .comment(owner, repo, pr, "No failing checks to fix.")
+            .await;
+        return;
+    }
+
+    let clone_url = client.clone_url(owner, repo);
+    let token = client.token.clone();
+
+    let tmp = {
+        let clone_url = clone_url.clone();
+        let token = token.clone();
+        let branch = head_branch.clone();
+        match tokio::task::spawn_blocking(move || git::clone_branch(&clone_url, &token, &branch))
+            .await
+            .unwrap_or_else(|e| Err(anyhow::anyhow!("join error: {e}")))
+        {
+            Ok(t) => t,
+            Err(e) => {
+                tracing::error!("autofix: clone failed: {e}");
+                let _ = client
+                    .comment(owner, repo, pr, &format!("Autofix clone failed: {e}"))
+                    .await;
+                return;
+            }
+        }
+    };
+
+    let workspace = Workspace::new(tmp.path());
+    let model = model.unwrap_or_else(|| DEFAULT_MODEL.to_owned());
+    let meta = PrMeta {
+        pr_title: title,
+        base_branch,
+        head_branch: head_branch.clone(),
+    };
+
+    let fixer = LlmAutofixClient::new(llm);
+    let edits = match fixer
+        .propose_fix(&workspace, &failure_logs, &meta, &model)
+        .await
+    {
+        Ok(e) if !e.is_empty() => e,
+        Ok(_) => {
+            let _ = client
+                .comment(owner, repo, pr, "The model could not determine a fix.")
+                .await;
+            return;
+        }
+        Err(e) => {
+            tracing::error!("autofix: LLM call failed: {e}");
+            let _ = client
+                .comment(owner, repo, pr, &format!("Autofix failed: {e}"))
+                .await;
+            return;
+        }
+    };
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_secs();
+    let fix_branch = format!("janitor/autofix-{pr}-{timestamp}");
+    let commit_msg = format!("fix: autofix CI for #{pr}");
+    let branch = fix_branch.clone();
+    let edits_for_git = edits.clone();
+
+    if let Err(e) = tokio::task::spawn_blocking(move || {
+        let repo_path = tmp.path().to_owned();
+        git::commit_and_push(&repo_path, &token, &branch, &commit_msg, &edits_for_git)
+    })
+    .await
+    .unwrap_or_else(|e| Err(anyhow::anyhow!("join error: {e}")))
+    {
+        tracing::error!("autofix: push failed: {e}");
+        let _ = client
+            .comment(owner, repo, pr, &format!("Autofix push failed: {e}"))
+            .await;
+        return;
+    }
+
+    let rows: String = edits
+        .iter()
+        .map(|e| format!("| `{}` |\n", e.path))
+        .collect();
+    let body = format!(
+        "{}\nAutomated fix for #{pr} produced by `{model}`.\n\n\
+         Merging this PR updates the renovate branch `{head_branch}`.\n\n\
+         | Files changed |\n| --- |\n{rows}",
+        *AUTOFIX_MARKER
+    );
+
+    let new_pr = match client
+        .create_pull_request(
+            owner,
+            repo,
+            &format!("LLM autofix for #{pr}"),
+            &body,
+            &fix_branch,
+            &head_branch,
+        )
+        .await
+    {
+        Ok(p) => p,
+        Err(e) => {
+            tracing::error!("autofix: failed to open PR: {e}");
+            return;
+        }
+    };
+
+    let new_number = new_pr.number.unwrap_or(0);
+    if let Err(e) = client
+        .ensure_labels(
+            owner,
+            repo,
+            vec![(AUTOFIX_LABEL.to_owned(), "#1f6feb".to_owned())],
+        )
+        .await
+    {
+        tracing::warn!("autofix: ensure label failed: {e}");
+    } else if let Err(e) = client
+        .add_labels_by_name(owner, repo, new_number, vec![AUTOFIX_LABEL.to_owned()])
+        .await
+    {
+        tracing::warn!("autofix: add label failed: {e}");
+    }
+
+    let comment = format!(
+        "{}\nOpened autofix PR #{new_number} with a proposed fix from `{model}`.",
+        *AUTOFIX_MARKER
+    );
+    if let Err(e) = client
+        .comment_or_update(owner, repo, pr, &AUTOFIX_MARKER, &comment)
+        .await
+    {
+        tracing::error!("autofix: comment failed: {e}");
+    }
+}
+
+/// Builds the failing-check log text. For checks reported by GitHub Actions
+/// (context prefixed `GitHub Actions`), pulls the failed-job logs from the
+/// mirror; otherwise falls back to the status description.
+async fn collect_failure_logs(clients: &Clients, owner: &str, repo: &str, pr: i64) -> String {
+    let Some(status) = clients
+        .forgejo
+        .get_pr_combined_status(owner, repo, pr)
+        .await
+    else {
+        return String::new();
+    };
+
+    let mut out = String::new();
+    for entry in &status.statuses {
+        if !matches!(
+            entry.state,
+            CommitStatusState::Failure | CommitStatusState::Error
+        ) {
+            continue;
+        }
+
+        out.push_str(&format!("### {}\n", entry.context));
+
+        let gh_logs = if entry.context.starts_with("GitHub Actions") {
+            github_logs_from_url(clients, &entry.target_url).await
+        } else {
+            None
+        };
+
+        match gh_logs {
+            Some(logs) if !logs.is_empty() => {
+                out.push_str(&logs);
+                out.push('\n');
+            }
+            _ => {
+                if !entry.description.is_empty() {
+                    out.push_str(&entry.description);
+                    out.push('\n');
+                }
+                if !entry.target_url.is_empty() {
+                    out.push_str(&format!("(see {})\n", entry.target_url));
+                }
+            }
+        }
+        out.push('\n');
+    }
+
+    out.trim().to_owned()
+}
+
+/// Fetches a GitHub Actions run's failed-job logs from the mirror, given the
+/// status `target_url`.
+async fn github_logs_from_url(clients: &Clients, url: &str) -> Option<String> {
+    let (owner, repo, run_id) = parse_github_run_url(url)?;
+    let result = clients
+        .github
+        .failed_logs_for_run(owner, repo, run_id)
+        .await;
+    Some(result.logs)
+}
+
+/// Parses `https://github.com/<owner>/<repo>/actions/runs/<id>/...` into its
+/// `(owner, repo, run_id)` parts.
+fn parse_github_run_url(url: &str) -> Option<(&str, &str, u64)> {
+    let rest = url.split("github.com/").nth(1)?;
+    let mut parts = rest.split('/');
+    let owner = parts.next()?;
+    let repo = parts.next()?;
+    if parts.next()? != "actions" || parts.next()? != "runs" {
+        return None;
+    }
+    let run_id: u64 = parts.next()?.parse().ok()?;
+    Some((owner, repo, run_id))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parses_github_run_url() {
+        let (owner, repo, run_id) = parse_github_run_url(
+            "https://github.com/Accurate0/inf-k8s/actions/runs/123456/job/789",
+        )
+        .unwrap();
+        assert_eq!(owner, "Accurate0");
+        assert_eq!(repo, "inf-k8s");
+        assert_eq!(run_id, 123456);
+    }
+
+    #[test]
+    fn rejects_non_actions_url() {
+        assert!(parse_github_run_url("https://git.anurag.sh/anurag/k8s/pulls/5").is_none());
+    }
+}
