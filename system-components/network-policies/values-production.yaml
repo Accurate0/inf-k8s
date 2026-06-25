@@ -12,6 +12,7 @@ namespaces:
       - envoy-gateway-system
       - maccas-api
       - tldr-bot
+      - janitor-bot
       - monitoring
   janitor-bot:
     ingress:

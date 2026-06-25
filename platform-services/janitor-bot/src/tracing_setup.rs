@@ -12,13 +12,21 @@ use opentelemetry_semantic_conventions::resource::{
 };
 use std::time::Duration;
 use tracing::Level;
-use tracing_subscriber::{filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
+use tracing_subscriber::{
+    Layer, filter::Targets, layer::SubscriberExt, util::SubscriberInitExt,
+};
 
 const SERVICE: &str = "janitor-bot";
 
-fn default_targets() -> Targets {
+fn otel_targets() -> Targets {
     Targets::default()
         .with_target("janitor_bot", Level::DEBUG)
+        .with_target("otel::tracing", Level::TRACE)
+        .with_default(Level::INFO)
+}
+
+fn console_targets() -> Targets {
+    Targets::default()
         .with_target("otel::tracing", Level::TRACE)
         .with_default(Level::INFO)
 }
@@ -84,9 +92,12 @@ pub fn init() -> Option<SdkTracerProvider> {
     global::set_tracer_provider(provider.clone());
 
     tracing_subscriber::registry()
-        .with(default_targets())
-        .with(tracing_subscriber::fmt::layer())
-        .with(tracing_opentelemetry::layer().with_tracer(tracer))
+        .with(tracing_subscriber::fmt::layer().with_filter(console_targets()))
+        .with(
+            tracing_opentelemetry::layer()
+                .with_tracer(tracer)
+                .with_filter(otel_targets()),
+        )
         .init();
 
     Some(provider)
