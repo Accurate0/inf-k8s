@@ -11,7 +11,7 @@ data:
   STORE_GEODATA: "true"
   APPLICATION_HOSTS: timeline.anurag.sh
   DATABASE_HOST: cloudnative-pg-cluster-pooler-rw.cnpg-system
-  APPLICATION_PROTOCOL: https
+  APPLICATION_PROTOCOL: http
   TIME_ZONE: Australia/Perth
   REDIS_URL: redis://dragonfly.dragonfly-system.svc.cluster.local:6379/0
   RAILS_JOB_QUEUE_DB: "1"

@@ -7,6 +7,7 @@ resources:
   - httproute.yaml
   - backendtlspolicy.yaml
   - groups/argocd-users.yaml
+  - groups/dawarich-users.yaml
   - groups/flipt-users.yaml
   - groups/forgejo-users.yaml
   - groups/grafana-users.yaml

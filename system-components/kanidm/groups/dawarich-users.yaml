@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmgroup_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmGroup
+metadata:
+  name: dawarich-users
+  namespace: kanidm
+spec:
+  name: dawarich_users
+  members:
+    - platform_admins
