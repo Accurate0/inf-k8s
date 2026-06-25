@@ -865,7 +865,9 @@ impl ForgejoClient {
             "pending" => CommitStatusState::Pending,
             _ => CommitStatusState::Warning,
         };
-        let parsed_url = url::Url::parse(params.target_url).ok();
+        let parsed_url = url::Url::parse(params.target_url)
+            .ok()
+            .map(|url| url.to_string());
 
         self.api
             .repo_create_status(
