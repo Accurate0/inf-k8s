@@ -30,12 +30,7 @@ pub async fn autofix_pr(
 
     let Some(llm) = clients.llm.as_ref() else {
         let _ = client
-            .comment(
-                owner,
-                repo,
-                pr,
-                "Autofix is not configured (no AI gateway token).",
-            )
+            .comment(owner, repo, pr, "Autofix is not configured")
             .await;
         return;
     };
@@ -267,16 +262,16 @@ async fn collect_failure_logs(
 
         match gh_logs {
             Some(logs) if !logs.is_empty() => {
-                out.push_str(&logs);
+                // keep last 40 lines of the log
+                // just assuming that the error is towards the end
+                let logs_kept = logs.lines().rev().take(40).collect::<String>();
+                out.push_str(&logs_kept);
                 out.push('\n');
             }
             _ => {
                 if !entry.description.is_empty() {
                     out.push_str(&entry.description);
                     out.push('\n');
-                }
-                if !entry.target_url.is_empty() {
-                    out.push_str(&format!("(see {})\n", entry.target_url));
                 }
             }
         }

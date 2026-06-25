@@ -10,10 +10,10 @@ use async_openai::types::chat::{
 use serde::Deserialize;
 use serde_json::json;
 
-pub const DEFAULT_MODEL: &str = "claude-sonnet-4-6";
+pub const DEFAULT_MODEL: &str = "gpt-5.4";
 
 /// Maximum tool-calling round-trips before we give up.
-const MAX_STEPS: usize = 25;
+const MAX_STEPS: usize = 10;
 
 /// A single file the model wants to rewrite in full.
 #[derive(Debug, Clone, Deserialize)]
