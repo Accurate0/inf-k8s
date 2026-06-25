@@ -223,14 +223,14 @@ async fn proxy(
             output: hit.output_tokens,
         };
         let status = hit.status;
-        record(&state, &ctx, usage, status, started, true).await;
+        record(&state, &ctx, usage, status, started, true, None, None).await;
         return Ok(hit.into_response());
     }
 
     // `fallback` keeps the last retryable response so an exhausted failover still returns
     // a real upstream status rather than a synthetic error.
-    let mut served: Option<(Arc<dyn Provider>, reqwest::Response)> = None;
-    let mut fallback: Option<(Arc<dyn Provider>, reqwest::Response)> = None;
+    let mut served: Option<(Arc<dyn Provider>, reqwest::Response, Bytes)> = None;
+    let mut fallback: Option<(Arc<dyn Provider>, reqwest::Response, Bytes)> = None;
     let mut last_err: Option<GatewayError> = None;
 
     'failover: for provider in &candidates {
@@ -263,7 +263,7 @@ async fn proxy(
                     let wait = (resp.status() == StatusCode::TOO_MANY_REQUESTS)
                         .then(|| retry_after_delay(&resp))
                         .flatten();
-                    fallback = Some((provider.clone(), resp));
+                    fallback = Some((provider.clone(), resp, outbound.clone()));
                     match wait {
                         Some(d) if d > MAX_RETRY_AFTER => continue 'failover,
                         Some(d) => retry_after = Some(d),
@@ -271,7 +271,7 @@ async fn proxy(
                     }
                 }
                 Ok(resp) => {
-                    served = Some((provider.clone(), resp));
+                    served = Some((provider.clone(), resp, outbound.clone()));
                     break 'failover;
                 }
                 Err(e) => {
@@ -282,7 +282,7 @@ async fn proxy(
         }
     }
 
-    let (provider, response) = match served.or(fallback) {
+    let (provider, response, request_body) = match served.or(fallback) {
         Some(v) => v,
         None => {
             return Err(
@@ -310,6 +310,7 @@ async fn proxy(
             content_type,
             response,
             started,
+            request_body,
         ))
     } else {
         let bytes = response.bytes().await?;
@@ -343,7 +344,17 @@ async fn proxy(
             .await;
         }
 
-        record(&state, &ctx, usage, status.as_u16(), started, false).await;
+        record(
+            &state,
+            &ctx,
+            usage,
+            status.as_u16(),
+            started,
+            false,
+            Some(String::from_utf8_lossy(&request_body).into_owned()),
+            Some(String::from_utf8_lossy(&bytes).into_owned()),
+        )
+        .await;
 
         Ok(Response::builder()
             .status(status)
@@ -382,6 +393,7 @@ fn stream_response(
     content_type: HeaderValue,
     upstream: reqwest::Response,
     started: Instant,
+    request_body: Bytes,
 ) -> Response {
     let (mut tx, rx) = mpsc::channel::<std::result::Result<Bytes, std::io::Error>>(16);
 
@@ -459,7 +471,17 @@ fn stream_response(
             }
 
             let usage = ctx.provider.parse_stream_usage(&raw);
-            record(&state, &ctx, usage, outcome, started, false).await;
+            record(
+                &state,
+                &ctx,
+                usage,
+                outcome,
+                started,
+                false,
+                Some(String::from_utf8_lossy(&request_body).into_owned()),
+                Some(String::from_utf8_lossy(&raw).into_owned()),
+            )
+            .await;
         }
         .instrument(stream_span),
     );
@@ -478,6 +500,8 @@ async fn record(
     status: u16,
     started: Instant,
     cache_hit: bool,
+    request_body: Option<String>,
+    response_body: Option<String>,
 ) {
     let elapsed = started.elapsed();
     let cost_usd = if cache_hit {
@@ -528,6 +552,8 @@ async fn record(
             status: status as i32,
             cost_usd,
             cache_hit,
+            request_body,
+            response_body,
         },
     )
     .await;

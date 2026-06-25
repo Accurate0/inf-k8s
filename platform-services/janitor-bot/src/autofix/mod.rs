@@ -99,7 +99,12 @@ pub async fn autofix_pr(
             Err(e) => {
                 tracing::error!("autofix: clone failed: {e}");
                 let _ = client
-                    .comment(owner, repo, pr, "Autofix failed while preparing the workspace.")
+                    .comment(
+                        owner,
+                        repo,
+                        pr,
+                        "Autofix failed while preparing the workspace.",
+                    )
                     .await;
                 return;
             }
@@ -160,7 +165,12 @@ pub async fn autofix_pr(
     {
         tracing::error!("autofix: push failed: {e}");
         let _ = client
-            .comment(owner, repo, pr, "Autofix failed while pushing the proposed fix.")
+            .comment(
+                owner,
+                repo,
+                pr,
+                "Autofix failed while pushing the proposed fix.",
+            )
             .await;
         return;
     }

@@ -12,9 +12,7 @@ use opentelemetry_semantic_conventions::resource::{
 };
 use std::time::Duration;
 use tracing::Level;
-use tracing_subscriber::{
-    Layer, filter::Targets, layer::SubscriberExt, util::SubscriberInitExt,
-};
+use tracing_subscriber::{Layer, filter::Targets, layer::SubscriberExt, util::SubscriberInitExt};
 
 const SERVICE: &str = "janitor-bot";
 

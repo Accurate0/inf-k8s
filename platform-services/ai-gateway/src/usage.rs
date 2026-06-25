@@ -21,6 +21,10 @@ pub struct UsageEvent {
     pub cost_usd: f64,
     /// True when served from the response cache without an upstream call.
     pub cache_hit: bool,
+    /// Provider-native request body sent upstream; None on cache hits.
+    pub request_body: Option<String>,
+    /// Provider-native response body received from upstream; None on cache hits.
+    pub response_body: Option<String>,
 }
 
 /// Inserts a usage row. Logged-and-swallowed on failure: telemetry must never break
@@ -30,8 +34,9 @@ pub async fn record(pool: &PgPool, event: &UsageEvent) {
     let result = sqlx::query!(
         r#"INSERT INTO usage_events
          (key_id, key_name, provider, requested_model, resolved_model,
-          input_tokens, output_tokens, latency_ms, status, cost_usd, cache_hit)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)"#,
+          input_tokens, output_tokens, latency_ms, status, cost_usd, cache_hit,
+          request_body, response_body)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)"#,
         event.key_id,
         &event.key_name,
         &event.provider,
@@ -43,6 +48,8 @@ pub async fn record(pool: &PgPool, event: &UsageEvent) {
         event.status,
         event.cost_usd,
         event.cache_hit,
+        event.request_body.as_deref(),
+        event.response_body.as_deref(),
     )
     .execute(pool)
     .await;
