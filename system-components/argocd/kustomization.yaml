@@ -7,9 +7,11 @@ resources:
   - ./default.appproject.yaml
   - ./platform-services.appproject.yaml
   - ./projects.appproject.yaml
+  - ./selfhosted.appproject.yaml
   - ./system-components.appproject.yaml
   - ./platform-services-apps.application.yaml
   - ./projects-apps.application.yaml
+  - ./selfhosted-apps.application.yaml
   - ./system-components-apps.application.yaml
   - ./kanidmoauth2client.yaml
 configMapGenerator:

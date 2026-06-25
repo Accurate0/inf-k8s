@@ -27,7 +27,7 @@ spec:
     automated:
       prune: true
       selfHeal: true
-  project: system-components
+  project: selfhosted
   sources:
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
@@ -586,7 +586,7 @@ spec:
                 - path: /tmp
                   subPath: tmp
     - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: system-components/forgejo
+      path: selfhosted/forgejo
       kustomize: {}
 
   destination:
