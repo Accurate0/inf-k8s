@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/configmap_v1.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: dawarich-config
+  namespace: dawarich
+data:
+  RAILS_ENV: production
+  RAILS_LOG_TO_STDOUT: "true"
+  SELF_HOSTED: "true"
+  STORE_GEODATA: "true"
+  APPLICATION_HOSTS: timeline.anurag.sh
+  DATABASE_HOST: cloudnative-pg-cluster-pooler-rw.cnpg-system
+  APPLICATION_PROTOCOL: https
+  TIME_ZONE: Australia/Perth
+  REDIS_URL: redis://dragonfly.dragonfly-system.svc.cluster.local:6379/0
+  RAILS_JOB_QUEUE_DB: "1"
+  OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/dawarich
+  OIDC_REDIRECT_URI: https://timeline.anurag.sh/users/auth/openid_connect/callback
+  OIDC_PROVIDER_NAME: Kanidm
+  OIDC_AUTO_REGISTER: "true"
+  OIDC_PKCE_ENABLED: "true"
+  ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
+  ALLOW_EMAIL_PASSWORD_LOGIN: "false"
+  PHOTON_API_USE_HTTPS: "true"
+  PHOTON_API_HOST: "https://app.chibigeo.com"

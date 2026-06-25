@@ -1,0 +1,23 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: dawarich
+  namespace: dawarich
+spec:
+  name: dawarich
+  displayName: Dawarich
+  origin: https://timeline.anurag.sh/
+  redirectUrls:
+    - https://timeline.anurag.sh/users/auth/openid_connect/callback
+  preferShortUsername: true
+  secretKeys:
+    clientId: client-id
+    clientSecret: client-secret
+  scopeMaps:
+    dawarich_users:
+      - openid
+      - email
+      - profile
+  secretName: kanidm-dawarich-oidc
+  secretNamespace: dawarich

@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: dawarich
+  namespace: dawarich
+  annotations:
+    external-dns.alpha.kubernetes.io/managed: "true"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: public-gateway
+      namespace: envoy-gateway-system
+      sectionName: wildcard-anurag-sh-https
+  hostnames:
+    - timeline.anurag.sh
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      timeouts:
+        request: 90s
+        backendRequest: 90s
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: dawarich
+          port: 80
+          weight: 1

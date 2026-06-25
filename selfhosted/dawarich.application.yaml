@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: dawarich
+  namespace: argocd
+spec:
+  syncPolicy:
+    managedNamespaceMetadata:
+      labels:
+        inf-k8s.net/infisical-secrets: "true"
+        gateway.inf-k8s.net/anurag-sh: "true"
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: selfhosted
+  source:
+    repoURL: https://github.com/Accurate0/inf-k8s.git
+    path: selfhosted/dawarich
+    kustomize: {}
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: dawarich
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}

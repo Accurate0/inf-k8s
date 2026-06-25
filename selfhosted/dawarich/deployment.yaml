@@ -1,0 +1,153 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dawarich
+  namespace: dawarich
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: dawarich
+  template:
+    metadata:
+      labels:
+        app: dawarich
+    spec:
+      containers:
+        - name: app
+          image: freikin/dawarich:1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
+          imagePullPolicy: IfNotPresent
+          command: ["bin/rails", "server", "-p", "3000", "-b", "::"]
+          ports:
+            - name: http
+              containerPort: 3000
+          envFrom:
+            - configMapRef:
+                name: dawarich-config
+          env:
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGPORT
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGUSER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGPASSWORD
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGDATABASE
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-managed-secrets
+                  key: SECRET_KEY_BASE
+            - name: OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: kanidm-dawarich-oidc
+                  key: client-id
+            - name: OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kanidm-dawarich-oidc
+                  key: client-secret
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 30
+            timeoutSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+            initialDelaySeconds: 60
+            periodSeconds: 60
+            timeoutSeconds: 5
+          volumeMounts:
+            - name: storage
+              mountPath: /var/app/storage
+            - name: public
+              mountPath: /var/app/public
+            - name: watched
+              mountPath: /var/app/tmp/imports/watched
+        - name: sidekiq
+          image: freikin/dawarich:1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
+          imagePullPolicy: IfNotPresent
+          command: ["sidekiq"]
+          envFrom:
+            - configMapRef:
+                name: dawarich-config
+          env:
+            - name: BACKGROUND_PROCESSING_CONCURRENCY
+              value: "5"
+            - name: DATABASE_PORT
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGPORT
+            - name: DATABASE_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGUSER
+            - name: DATABASE_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGPASSWORD
+            - name: DATABASE_NAME
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-database-secret
+                  key: PGDATABASE
+            - name: SECRET_KEY_BASE
+              valueFrom:
+                secretKeyRef:
+                  name: dawarich-managed-secrets
+                  key: SECRET_KEY_BASE
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
+            limits:
+              memory: 2Gi
+          livenessProbe:
+            exec:
+              command: ["sh", "-c", "pgrep -f sidekiq"]
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          volumeMounts:
+            - name: storage
+              mountPath: /var/app/storage
+            - name: public
+              mountPath: /var/app/public
+            - name: watched
+              mountPath: /var/app/tmp/imports/watched
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: dawarich-storage
+        - name: public
+          emptyDir: {}
+        - name: watched
+          emptyDir: {}
