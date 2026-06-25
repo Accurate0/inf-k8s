@@ -64,15 +64,20 @@ pub async fn autofix_pr(
         tracing::warn!(pr, "autofix: PR missing head/base branch info");
         return;
     };
-    let title = api_pr.title.clone().unwrap_or_default();
 
-    let failure_logs = collect_failure_logs(clients, owner, repo, pr).await;
-    if failure_logs.is_empty() {
+    let title = api_pr.title.clone().unwrap_or_default();
+    let head_sha = api_pr.head.as_ref().and_then(|h| h.sha.clone());
+    let Some(head_sha) = head_sha else {
+        tracing::warn!(pr, "autofix: PR missing head sha");
+        return;
+    };
+
+    let Some(failure_logs) = collect_failure_logs(clients, owner, repo, &head_sha).await else {
         let _ = client
             .comment(owner, repo, pr, "No failing checks to fix.")
             .await;
         return;
-    }
+    };
 
     let clone_url = client.clone_url(owner, repo);
     let token = client.token.clone();
@@ -209,14 +214,16 @@ pub async fn autofix_pr(
 /// Builds the failing-check log text. For checks reported by GitHub Actions
 /// (context prefixed `GitHub Actions`), pulls the failed-job logs from the
 /// mirror; otherwise falls back to the status description.
-async fn collect_failure_logs(clients: &Clients, owner: &str, repo: &str, pr: i64) -> String {
-    let Some(status) = clients
+async fn collect_failure_logs(
+    clients: &Clients,
+    owner: &str,
+    repo: &str,
+    sha: &str,
+) -> Option<String> {
+    let status = clients
         .forgejo
-        .get_pr_combined_status(owner, repo, pr)
-        .await
-    else {
-        return String::new();
-    };
+        .get_combined_status_by_ref(owner, repo, sha)
+        .await?;
 
     let mut out = String::new();
     for entry in &status.statuses {
@@ -253,7 +260,12 @@ async fn collect_failure_logs(clients: &Clients, owner: &str, repo: &str, pr: i6
         out.push('\n');
     }
 
-    out.trim().to_owned()
+    let out = out.trim();
+    if out.is_empty() {
+        None
+    } else {
+        Some(out.to_owned())
+    }
 }
 
 /// Fetches a GitHub Actions run's failed-job logs from the mirror, given the

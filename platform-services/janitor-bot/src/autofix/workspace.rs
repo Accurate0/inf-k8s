@@ -104,7 +104,12 @@ impl Workspace {
         Ok(())
     }
 
-    fn grep_file(&self, re: &regex::Regex, file: &Path, out: &mut Vec<String>) -> anyhow::Result<()> {
+    fn grep_file(
+        &self,
+        re: &regex::Regex,
+        file: &Path,
+        out: &mut Vec<String>,
+    ) -> anyhow::Result<()> {
         let Ok(bytes) = std::fs::read(file) else {
             return Ok(());
         };

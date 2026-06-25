@@ -119,7 +119,8 @@ impl<'a> LlmAutofixClient<'a> {
                 let ChatCompletionMessageToolCalls::Function(call) = call else {
                     continue;
                 };
-                match Self::dispatch_tool(workspace, &call.function.name, &call.function.arguments) {
+                match Self::dispatch_tool(workspace, &call.function.name, &call.function.arguments)
+                {
                     ToolOutcome::Done(edits) => return Ok(edits),
                     ToolOutcome::Result(text) => {
                         messages.push(
@@ -155,7 +156,11 @@ impl<'a> LlmAutofixClient<'a> {
     }
 
     fn tool_defs() -> Vec<ChatCompletionTools> {
-        fn tool(name: &str, description: &str, parameters: serde_json::Value) -> ChatCompletionTools {
+        fn tool(
+            name: &str,
+            description: &str,
+            parameters: serde_json::Value,
+        ) -> ChatCompletionTools {
             ChatCompletionTools::Function(ChatCompletionTool {
                 function: FunctionObject {
                     name: name.to_owned(),
@@ -227,13 +232,15 @@ impl<'a> LlmAutofixClient<'a> {
         match name {
             "read_file" => match serde_json::from_str::<PathArg>(arguments) {
                 Ok(a) => ToolOutcome::Result(
-                    ws.read_file(&a.path).unwrap_or_else(|e| format!("error: {e}")),
+                    ws.read_file(&a.path)
+                        .unwrap_or_else(|e| format!("error: {e}")),
                 ),
                 Err(e) => ToolOutcome::Result(format!("error: invalid arguments: {e}")),
             },
             "list_dir" => match serde_json::from_str::<PathArg>(arguments) {
                 Ok(a) => ToolOutcome::Result(
-                    ws.list_dir(&a.path).unwrap_or_else(|e| format!("error: {e}")),
+                    ws.list_dir(&a.path)
+                        .unwrap_or_else(|e| format!("error: {e}")),
                 ),
                 Err(e) => ToolOutcome::Result(format!("error: invalid arguments: {e}")),
             },

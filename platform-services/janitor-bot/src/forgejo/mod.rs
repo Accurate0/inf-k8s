@@ -645,48 +645,6 @@ impl ForgejoClient {
         Ok(resp)
     }
 
-    #[tracing::instrument(skip_all)]
-    pub async fn get_pr_combined_status(
-        &self,
-        owner: &str,
-        repo: &str,
-        pr: i64,
-    ) -> Option<PrCombinedStatus> {
-        let pr_data = self
-            .api
-            .repo_get_pull_request(owner, repo, pr)
-            .send()
-            .await
-            .ok()?;
-
-        let sha = pr_data.head.and_then(|h| h.sha)?;
-        let (_, combined) = self
-            .api
-            .repo_get_combined_status_by_ref(owner, repo, &sha)
-            .send()
-            .await
-            .ok()?;
-
-        let statuses = combined
-            .statuses
-            .unwrap_or_default()
-            .into_iter()
-            .filter_map(|s| {
-                Some(PrStatusEntry {
-                    context: s.context?,
-                    state: s.status?,
-                    description: s.description.unwrap_or_default(),
-                    target_url: s.target_url.map(|u| u.to_string()).unwrap_or_default(),
-                })
-            })
-            .collect();
-        Some(PrCombinedStatus {
-            state: combined.state.unwrap_or(CommitStatusState::Pending),
-            total_count: combined.total_count.unwrap_or(0),
-            statuses,
-        })
-    }
-
     #[tracing::instrument(skip_all, fields(owner, repo, sha))]
     pub async fn get_combined_status_by_ref(
         &self,
