@@ -27,6 +27,8 @@ upstream_requests:
   - method: POST
     path: /v1/messages
     body:
+      cache_control:
+        type: ephemeral
       max_tokens: 4096
       messages:
         - content:

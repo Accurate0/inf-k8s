@@ -36,20 +36,27 @@ pub fn translate_request(body: &[u8], source: Dialect, target: Dialect) -> Resul
         }
         _ => return Ok(Bytes::copy_from_slice(body)),
     };
+
     let bytes = body_of(result)?;
     if target == Dialect::Anthropic {
-        return ensure_max_tokens(bytes);
+        return ensure_max_tokens_and_caching(bytes);
     }
+
     Ok(bytes)
 }
 
-fn ensure_max_tokens(body: Bytes) -> Result<Bytes> {
+fn ensure_max_tokens_and_caching(body: Bytes) -> Result<Bytes> {
     let mut json: Value =
         serde_json::from_slice(&body).map_err(|e| GatewayError::BadRequest(e.to_string()))?;
+
     if json.get("max_tokens").is_some() {
         return Ok(body);
     }
+
     json["max_tokens"] = Value::from(DEFAULT_ANTHROPIC_MAX_TOKENS);
+    // openai does automatic prompt caching, anthropic does not
+    json["cache_control"] = serde_json::json!({"type": "ephemeral"});
+
     serde_json::to_vec(&json)
         .map(Bytes::from)
         .map_err(|e| GatewayError::BadRequest(e.to_string()))
