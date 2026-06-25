@@ -101,6 +101,9 @@ impl<'a> LlmAutofixClient<'a> {
                 .chat(model, messages.clone(), tools.clone())
                 .await?;
 
+            tracing::info!("llm response: {:?}", msg.content);
+            tracing::info!("tool calls: {:?}", msg.tool_calls);
+
             let Some(tool_calls) = msg.tool_calls.clone() else {
                 bail!(
                     "model stopped without calling submit_fix: {}",
