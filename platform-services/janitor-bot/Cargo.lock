@@ -1657,6 +1657,7 @@ dependencies = [
  "reqwest 0.13.4",
  "rstest",
  "schemars",
+ "secrecy",
  "serde",
  "serde_json",
  "serial_test",

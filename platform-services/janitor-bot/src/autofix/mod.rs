@@ -17,6 +17,7 @@ static AUTOFIX_MARKER: LazyLock<Marker> = LazyLock::new(|| Marker::feature("auto
 /// Runs the LLM autofix flow for a failing renovate PR: clones the head branch,
 /// lets the model explore it + the failing CI logs via tools, applies the
 /// returned edits, and opens a PR targeting the original renovate branch.
+#[tracing::instrument(skip(clients, model), fields(%owner, %repo, pr))]
 pub async fn autofix_pr(
     clients: &Clients,
     owner: &str,
@@ -24,6 +25,7 @@ pub async fn autofix_pr(
     pr: i64,
     model: Option<String>,
 ) {
+    tracing::info!("autofix: starting");
     let client = &clients.forgejo;
 
     let Some(llm) = clients.llm.as_ref() else {
@@ -73,12 +75,15 @@ pub async fn autofix_pr(
     };
 
     let Some(failure_logs) = collect_failure_logs(clients, owner, repo, &head_sha).await else {
+        tracing::info!("autofix: no failing checks to fix");
         let _ = client
             .comment(owner, repo, pr, "No failing checks to fix.")
             .await;
         return;
     };
+    tracing::debug!(%head_branch, %head_sha, "autofix: collected failure logs ({} bytes)", failure_logs.len());
 
+    tracing::info!(%head_branch, "autofix: cloning head branch");
     let clone_url = client.clone_url(owner, repo);
     let token = client.token.clone();
 
@@ -109,13 +114,19 @@ pub async fn autofix_pr(
         head_branch: head_branch.clone(),
     };
 
+    tracing::info!(%model, "autofix: requesting fix from model");
     let fixer = LlmAutofixClient::new(llm);
     let edits = match fixer
         .propose_fix(&workspace, &failure_logs, &meta, &model)
         .await
     {
-        Ok(e) if !e.is_empty() => e,
+        Ok(e) if !e.is_empty() => {
+            tracing::info!("autofix: model proposed {} file edit(s)", e.len());
+            tracing::debug!(paths = ?e.iter().map(|f| &f.path).collect::<Vec<_>>(), "autofix: proposed edits");
+            e
+        }
         Ok(_) => {
+            tracing::info!("autofix: model could not determine a fix");
             let _ = client
                 .comment(owner, repo, pr, "The model could not determine a fix.")
                 .await;
@@ -136,6 +147,7 @@ pub async fn autofix_pr(
         .as_secs();
     let fix_branch = format!("janitor/autofix-{pr}-{timestamp}");
     let commit_msg = format!("fix: autofix CI for #{pr}");
+    tracing::info!(%fix_branch, "autofix: committing and pushing fix");
     let branch = fix_branch.clone();
     let edits_for_git = edits.clone();
 
@@ -199,6 +211,7 @@ pub async fn autofix_pr(
         tracing::warn!("autofix: add label failed: {e}");
     }
 
+    tracing::info!(new_pr = new_number, "autofix: opened fix PR");
     let comment = format!(
         "{}\nOpened autofix PR #{new_number} with a proposed fix from `{model}`.",
         *AUTOFIX_MARKER
