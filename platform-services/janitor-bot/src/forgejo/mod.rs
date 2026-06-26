@@ -13,6 +13,13 @@ pub(crate) const BOT_USERNAME: &str = "janitor";
 pub struct ForgejoClient {
     api: Forgejo,
     http: reqwest::Client,
+    /// Optional shared secret for the Anubis `X-Bypass-Key` allow rule. Sent on
+    /// web-UI requests (the Actions log download) so they skip the challenge on
+    /// the Anubis-fronted public host. reqwest forwards it across the Actions
+    /// log redirect (it 302s to Forgejo's public ROOT_URL), so following the
+    /// redirect is fine. Unused for `/api` and git paths, which Anubis already
+    /// allows.
+    anubis_bypass_key: Option<String>,
     pub base_url: String,
     pub token: String,
 }
@@ -31,9 +38,14 @@ impl ForgejoClient {
             .user_agent(concat!("janitor-bot/", env!("CARGO_PKG_VERSION")))
             .build()?;
 
+        let anubis_bypass_key = std::env::var("ANUBIS_BYPASS_KEY")
+            .ok()
+            .filter(|k| !k.is_empty());
+
         Ok(Self {
             api,
             http,
+            anubis_bypass_key,
             base_url,
             token,
         })
@@ -645,27 +657,35 @@ impl ForgejoClient {
         Ok(resp)
     }
 
+    /// Builds a web-UI GET carrying the token and, when configured, the Anubis
+    /// `X-Bypass-Key` so the request skips the challenge on the public host.
+    fn web_get(&self, url: &str) -> reqwest::RequestBuilder {
+        let mut req = self
+            .http
+            .get(url)
+            .header("Authorization", format!("token {}", self.token));
+        if let Some(key) = &self.anubis_bypass_key {
+            req = req.header("X-Bypass-Key", key);
+        }
+        req
+    }
+
     /// Downloads the plaintext logs for a Forgejo Actions job from a commit
     /// status `target_url`, which is site-relative (e.g.
-    /// `/anurag/k8s/actions/runs/561/jobs/0`). The bare job URL renders (newer
-    /// Forgejo) or 302-redirects to the latest attempt; the `/logs` download
-    /// hangs off whatever attempt-qualified URL we land on, so we resolve the
-    /// redirect first and then append `/logs`.
+    /// `/anurag/k8s/actions/runs/561/jobs/0`). The bare job URL 302-redirects to
+    /// the latest attempt; we follow it and download `{attempt}/logs`.
     ///
     /// This goes through the web UI (no API equivalent exists on our Forgejo
-    /// version), so it must hit Forgejo directly — `base_url` is the in-cluster
-    /// service that bypasses the Anubis challenge fronting the public host.
+    /// version). Forgejo builds the redirect from its public ROOT_URL, so this
+    /// only works against the Anubis-fronted public host if the `X-Bypass-Key`
+    /// header is configured (`ANUBIS_BYPASS_KEY`) — reqwest forwards it across
+    /// the redirect.
     #[tracing::instrument(skip_all)]
     pub async fn get_action_logs(&self, target_url: &str) -> Option<String> {
-        let job_url = format!("{}{}", self.base_url.trim_end_matches('/'), target_url);
-        let attempt_url = match self
-            .http
-            .get(&job_url)
-            .header("Authorization", format!("token {}", self.token))
-            .send()
-            .await
-            .and_then(|r| r.error_for_status())
-        {
+        let base = self.base_url.trim_end_matches('/');
+        let job_url = format!("{base}{target_url}");
+
+        let attempt_url = match self.web_get(&job_url).send().await {
             Ok(r) => r.url().as_str().trim_end_matches('/').to_owned(),
             Err(e) => {
                 tracing::warn!(job_url, "forgejo action page fetch failed: {e}");
@@ -675,21 +695,38 @@ impl ForgejoClient {
 
         let logs_url = format!("{attempt_url}/logs");
         match self
-            .http
-            .get(&logs_url)
-            .header("Authorization", format!("token {}", self.token))
+            .web_get(&logs_url)
             .send()
             .await
             .and_then(|r| r.error_for_status())
         {
-            Ok(r) => match r.text().await {
-                Ok(t) if !t.trim().is_empty() => Some(t),
-                Ok(_) => None,
-                Err(e) => {
-                    tracing::warn!(logs_url, "forgejo action logs read failed: {e}");
-                    None
+            Ok(r) => {
+                // The real download is `text/plain`. An HTML body means we hit
+                // the Anubis challenge page instead — i.e. the `X-Bypass-Key`
+                // wasn't accepted (unset/mismatched `ANUBIS_BYPASS_KEY`). Don't
+                // feed that HTML to the model.
+                let is_html = r
+                    .headers()
+                    .get(reqwest::header::CONTENT_TYPE)
+                    .and_then(|v| v.to_str().ok())
+                    .is_some_and(|ct| ct.contains("text/html"));
+                if is_html {
+                    tracing::warn!(
+                        logs_url,
+                        "forgejo action logs returned HTML (Anubis challenge); \
+                         check the ANUBIS_BYPASS_KEY matches the Anubis allow rule"
+                    );
+                    return None;
                 }
-            },
+                match r.text().await {
+                    Ok(t) if !t.trim().is_empty() => Some(t),
+                    Ok(_) => None,
+                    Err(e) => {
+                        tracing::warn!(logs_url, "forgejo action logs read failed: {e}");
+                        None
+                    }
+                }
+            }
             Err(e) => {
                 tracing::warn!(logs_url, "forgejo action logs fetch failed: {e}");
                 None
@@ -987,9 +1024,50 @@ impl ForgejoClient {
     }
 }
 
+/// Infers the `X-Forgejo-Event` header (and optional `X-Forgejo-Event-Type`)
+/// from a raw Forgejo webhook body, mirroring the dispatch in
+/// `handle_forgejo_webhook`. Forgejo reports a comment on a PR as event
+/// `issue_comment` with event-type `pull_request_comment`; a comment on a plain
+/// issue has `issue.pull_request` null. Returns `None` if the shape matches none
+/// of the handled events.
+pub fn infer_event(body: &[u8]) -> Option<(&'static str, Option<&'static str>)> {
+    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let obj = v.as_object()?;
+
+    if obj.contains_key("comment") {
+        let on_pr = obj
+            .get("issue")
+            .and_then(|i| i.get("pull_request"))
+            .is_some_and(|pr| !pr.is_null());
+        Some(("issue_comment", on_pr.then_some("pull_request_comment")))
+    } else if obj.get("pull_request").is_some_and(|p| p.is_object()) {
+        Some(("pull_request", None))
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn infer_event_distinguishes_comment_targets() {
+        assert_eq!(
+            infer_event(br#"{"action":"created","issue":{"pull_request":{}},"comment":{"body":"@janitor merge"}}"#),
+            Some(("issue_comment", Some("pull_request_comment")))
+        );
+        assert_eq!(
+            infer_event(br#"{"action":"created","issue":{"pull_request":null},"comment":{"body":"@janitor ack"}}"#),
+            Some(("issue_comment", None))
+        );
+        assert_eq!(
+            infer_event(br#"{"action":"opened","pull_request":{"number":5}}"#),
+            Some(("pull_request", None))
+        );
+        assert_eq!(infer_event(br#"{"action":"deleted"}"#), None);
+        assert_eq!(infer_event(b"not json"), None);
+    }
 
     #[test]
     fn commit_deserialization_with_files() {

@@ -212,6 +212,38 @@ pub fn verify_signature(secret: &str, signature: &str, body: &[u8]) -> bool {
     mac.verify_slice(&decoded).is_ok()
 }
 
+/// Computes the `X-Hub-Signature-256` header value for `body`, as GitHub sends
+/// it: `sha256=<hex HMAC-SHA256(secret, body)>`. Inverse of [`verify_signature`];
+/// used by the `janitor replay` tool to sign saved payloads.
+pub fn sign_payload(secret: &str, body: &[u8]) -> String {
+    let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())
+        .expect("HMAC accepts keys of any size");
+    mac.update(body);
+    format!("sha256={}", hex::encode(mac.finalize().into_bytes()))
+}
+
+/// Infers the `X-GitHub-Event` header from a raw webhook body by detecting
+/// marker keys, mirroring the dispatch in `handle_github_webhook`. Returns
+/// `None` if the shape matches none of the handled events.
+pub fn infer_event(body: &[u8]) -> Option<&'static str> {
+    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
+    let obj = v.as_object()?;
+
+    if obj.get("workflow_run").is_some_and(|w| w.is_object()) {
+        Some("workflow_run")
+    } else if obj.get("check_run").is_some_and(|c| c.is_object()) {
+        Some("check_run")
+    } else if obj.contains_key("ref")
+        && (obj.contains_key("pusher") || obj.contains_key("commits"))
+    {
+        Some("push")
+    } else if obj.contains_key("context") && obj.contains_key("state") && obj.contains_key("sha") {
+        Some("status")
+    } else {
+        None
+    }
+}
+
 fn extract_run_id(url: &str) -> Option<u64> {
     url.split("/actions/runs/")
         .nth(1)?
@@ -301,4 +333,41 @@ pub fn parse_workflow_event(body: &[u8]) -> Option<WorkflowEvent> {
         created_at: run.created_at.unwrap_or_default(),
         updated_at: run.updated_at.unwrap_or_default(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sign_payload_round_trips_with_verify() {
+        let secret = "s3cr3t";
+        let body = br#"{"hello":"world"}"#;
+        let sig = sign_payload(secret, body);
+        assert!(sig.starts_with("sha256="));
+        assert!(verify_signature(secret, &sig, body));
+        assert!(!verify_signature("wrong", &sig, body));
+    }
+
+    #[test]
+    fn infer_event_detects_each_type() {
+        assert_eq!(
+            infer_event(br#"{"workflow_run":{"id":1},"action":"completed"}"#),
+            Some("workflow_run")
+        );
+        assert_eq!(
+            infer_event(br#"{"check_run":{"id":1},"action":"completed"}"#),
+            Some("check_run")
+        );
+        assert_eq!(
+            infer_event(br#"{"ref":"refs/heads/main","pusher":{"name":"x"}}"#),
+            Some("push")
+        );
+        assert_eq!(
+            infer_event(br#"{"sha":"abc","state":"failure","context":"ci/test"}"#),
+            Some("status")
+        );
+        assert_eq!(infer_event(br#"{"unrelated":true}"#), None);
+        assert_eq!(infer_event(b"not json"), None);
+    }
 }

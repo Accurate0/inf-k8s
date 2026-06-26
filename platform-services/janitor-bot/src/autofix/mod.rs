@@ -264,10 +264,10 @@ async fn collect_failure_logs(
 
         match ci_logs {
             Some(logs) if !logs.is_empty() => {
-                // keep last 40 lines of the log
-                // just assuming that the error is towards the end
-                let logs_kept = logs.lines().rev().take(40).collect::<String>();
-                out.push_str(&logs_kept);
+                // keep the last 40 lines, in order — the error is usually at the end
+                let lines: Vec<&str> = logs.lines().collect();
+                let start = lines.len().saturating_sub(40);
+                out.push_str(&lines[start..].join("\n"));
                 out.push('\n');
             }
             _ => {

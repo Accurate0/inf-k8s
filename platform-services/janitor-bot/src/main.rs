@@ -113,31 +113,38 @@ async fn main() -> anyhow::Result<()> {
         orchestrator: RulesOrchestrator::new(),
     });
 
-    ensure_repo_labels(&state).await;
+    // Debug builds (local dev / webhook replay) skip the startup label sync and
+    // the open-PR poll cron so a local run makes no unsolicited writes to the
+    // repo. The deployed release image keeps both.
+    if cfg!(debug_assertions) {
+        tracing::warn!("debug build: skipping label sync and cron PR poll");
+    } else {
+        ensure_repo_labels(&state).await;
 
-    let scheduler = JobScheduler::new().await?;
+        let scheduler = JobScheduler::new().await?;
 
-    let poll_state = Arc::clone(&state);
-    let job = JobBuilder::new()
-        .with_timezone(Australia::Perth)
-        .with_cron_job_type()
-        .with_schedule("every 10 minutes")?
-        .with_run_async(Box::new(move |uuid, mut _lock| {
-            let state = Arc::clone(&poll_state);
-            Box::pin(async move {
-                let span = tracing::info_span!(parent: None, "cron.evaluate_open_prs", job = %uuid);
-                async move {
-                    tracing::info!("running PR poll: {uuid}");
-                    evaluate_open_prs(&state).await;
-                }
-                .instrument(span)
-                .await;
-            })
-        }))
-        .build()?;
+        let poll_state = Arc::clone(&state);
+        let job = JobBuilder::new()
+            .with_timezone(Australia::Perth)
+            .with_cron_job_type()
+            .with_schedule("every 10 minutes")?
+            .with_run_async(Box::new(move |uuid, mut _lock| {
+                let state = Arc::clone(&poll_state);
+                Box::pin(async move {
+                    let span = tracing::info_span!(parent: None, "cron.evaluate_open_prs", job = %uuid);
+                    async move {
+                        tracing::info!("running PR poll: {uuid}");
+                        evaluate_open_prs(&state).await;
+                    }
+                    .instrument(span)
+                    .await;
+                })
+            }))
+            .build()?;
 
-    scheduler.add(job).await?;
-    scheduler.start().await?;
+        scheduler.add(job).await?;
+        scheduler.start().await?;
+    }
 
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))

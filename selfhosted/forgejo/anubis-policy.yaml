@@ -1,4 +1,5 @@
 bots:
+  - import: /data/cfg/anubis-bypass.yaml
   - name: well-known
     path_regex: ^/\.well-known/.*$
     action: ALLOW

@@ -24,10 +24,32 @@ cargo run --bin gen-schema     # regenerate rule.schema.json + rules.schema.json
 
 Required env vars to run: `FORGEJO_INSTANCE_URL`, `FORGEJO_ACCESS_KEY`, `GITHUB_TOKEN`,
 `FORGEJO_INCOMING_WEBHOOK_AUTH`, `GITHUB_WEBHOOK_SECRET`. Optional: `ARGOCD_WEBHOOK_SECRET`,
-`FEATURE_FLAGS_URL` (feature flags; falls back to a NoOp provider when unset).
+`FEATURE_FLAGS_URL` (feature flags; falls back to a NoOp provider when unset). `.env.local`
+(gitignored) holds local values. Debug builds (`cargo run`) skip the startup label sync and
+the open-PR poll cron so a local run makes no unsolicited writes to the repo; the deployed
+release image keeps both.
 
 Snapshot tests: review/accept changes with `cargo insta review` (snapshots in
 `tests/snapshots/`, fixtures in `tests/fixtures/<event_type>/*.yaml`).
+
+### Webhook replay (local dev)
+
+To drive a locally-running bot with a real event, save a webhook payload (the "Payload" tab
+of a GitHub/Forgejo "recent deliveries" entry) into `payloads/` (gitignored) and replay it
+through the real signed endpoint with the `janitor` CLI:
+
+```
+janitor --url http://localhost:3000 replay github  payloads/status.json
+janitor --url http://localhost:3000 replay forgejo payloads/pr-comment.json
+janitor --url http://localhost:3000 replay argocd  payloads/sync.json
+```
+
+The CLI infers the `X-GitHub-Event` / `X-Forgejo-Event(-Type)` header from the payload shape
+(override with `--event` / `--event-type`) and signs/authorizes the request using the same
+secret env vars the bot reads (`GITHUB_WEBHOOK_SECRET` → HMAC `X-Hub-Signature-256`,
+`FORGEJO_INCOMING_WEBHOOK_AUTH` / `ARGOCD_WEBHOOK_SECRET` → `Authorization`), so it passes the
+exact signature check in `routes.rs`. Handlers return `200` immediately and process in a
+background task — watch the bot's logs for the result.
 
 ## Architecture
 

@@ -85,6 +85,17 @@ spec:
                     includeAllSecrets: false
                     data:
                       ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"
+                - secretName: forgejo-anubis-bypass
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      anubis-bypass.yaml: |
+                        - name: janitor-bypass
+                          action: ALLOW
+                          expression:
+                            all:
+                              - '"X-Bypass-Key" in headers'
+                              - 'headers["X-Bypass-Key"] == "{{ .ANUBIS_BYPASS_KEY }}"'
     - chart: forgejo
       repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
       targetRevision: 17.1.1
@@ -104,6 +115,9 @@ spec:
             - name: anubis-policy
               configMap:
                 name: forgejo-anubis-policy
+            - name: anubis-bypass
+              secret:
+                secretName: forgejo-anubis-bypass
 
           extraContainers:
             - name: anubis
@@ -140,6 +154,10 @@ spec:
                 - name: anubis-policy
                   mountPath: /data/cfg/botPolicies.yaml
                   subPath: botPolicies.yaml
+                  readOnly: true
+                - name: anubis-bypass
+                  mountPath: /data/cfg/anubis-bypass.yaml
+                  subPath: anubis-bypass.yaml
                   readOnly: true
               resources:
                 requests:
