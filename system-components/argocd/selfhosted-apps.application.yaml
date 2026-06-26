@@ -17,8 +17,8 @@ spec:
     repoURL: https://github.com/Accurate0/inf-k8s.git
     path: selfhosted
     directory:
-      recurse: false
       include: "*.application.yaml"
+      recurse: false
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
