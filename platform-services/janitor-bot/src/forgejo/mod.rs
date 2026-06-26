@@ -645,48 +645,55 @@ impl ForgejoClient {
         Ok(resp)
     }
 
-    /// Returns the concatenated plaintext logs of the failed job(s) in a Forgejo
-    /// Actions run. `run_id` is the per-repo run index (as it appears in the
-    /// run's web URL). Fetches the latest attempt of each failed job.
-    #[tracing::instrument(skip_all, fields(owner, repo, run_id))]
-    pub async fn get_failed_action_logs(
-        &self,
-        owner: &str,
-        repo: &str,
-        run_id: i64,
-    ) -> Option<String> {
-        let jobs = match self.api.list_action_run_jobs(owner, repo, run_id).send().await {
-            Ok(jobs) => jobs,
+    /// Downloads the plaintext logs for a Forgejo Actions job from a commit
+    /// status `target_url`, which is site-relative (e.g.
+    /// `/anurag/k8s/actions/runs/561/jobs/0`). The bare job URL renders (newer
+    /// Forgejo) or 302-redirects to the latest attempt; the `/logs` download
+    /// hangs off whatever attempt-qualified URL we land on, so we resolve the
+    /// redirect first and then append `/logs`.
+    ///
+    /// This goes through the web UI (no API equivalent exists on our Forgejo
+    /// version), so it must hit Forgejo directly — `base_url` is the in-cluster
+    /// service that bypasses the Anubis challenge fronting the public host.
+    #[tracing::instrument(skip_all)]
+    pub async fn get_action_logs(&self, target_url: &str) -> Option<String> {
+        let job_url = format!("{}{}", self.base_url.trim_end_matches('/'), target_url);
+        let attempt_url = match self
+            .http
+            .get(&job_url)
+            .header("Authorization", format!("token {}", self.token))
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+        {
+            Ok(r) => r.url().as_str().trim_end_matches('/').to_owned(),
             Err(e) => {
-                tracing::warn!(owner, repo, run_id, "failed to list action run jobs: {e}");
+                tracing::warn!(job_url, "forgejo action page fetch failed: {e}");
                 return None;
             }
         };
 
-        let mut out = String::new();
-        for job in &jobs {
-            if job.status.as_deref() != Some("failure") {
-                continue;
-            }
-            let Some(job_id) = job.id else { continue };
-            match self
-                .api
-                .repo_get_action_job_logs(owner, repo, job_id, RepoGetActionJobLogsQuery::default())
-                .send()
-                .await
-            {
-                Ok(logs) => out.push_str(&logs),
+        let logs_url = format!("{attempt_url}/logs");
+        match self
+            .http
+            .get(&logs_url)
+            .header("Authorization", format!("token {}", self.token))
+            .send()
+            .await
+            .and_then(|r| r.error_for_status())
+        {
+            Ok(r) => match r.text().await {
+                Ok(t) if !t.trim().is_empty() => Some(t),
+                Ok(_) => None,
                 Err(e) => {
-                    tracing::warn!(owner, repo, job_id, "failed to fetch action job logs: {e}");
+                    tracing::warn!(logs_url, "forgejo action logs read failed: {e}");
+                    None
                 }
+            },
+            Err(e) => {
+                tracing::warn!(logs_url, "forgejo action logs fetch failed: {e}");
+                None
             }
-        }
-
-        let out = out.trim();
-        if out.is_empty() {
-            None
-        } else {
-            Some(out.to_owned())
         }
     }
 

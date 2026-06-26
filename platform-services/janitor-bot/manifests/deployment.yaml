@@ -106,6 +106,5 @@ spec:
               value: http://api.ai-gateway.svc.cluster.local
             - name: OTEL_TRACING_URL
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
-              # FIXME: use cluster local address
             - name: FORGEJO_INSTANCE_URL
-              value: https://git.anurag.sh
+              value: http://forgejo-http.forgejo.svc.cluster.local:3000
