@@ -264,9 +264,9 @@ async fn collect_failure_logs(
 
         match ci_logs {
             Some(logs) if !logs.is_empty() => {
-                // keep the last 40 lines, in order — the error is usually at the end
+                // keep the last 200 lines, in order — the error is usually at the end
                 let lines: Vec<&str> = logs.lines().collect();
-                let start = lines.len().saturating_sub(40);
+                let start = lines.len().saturating_sub(200);
                 out.push_str(&lines[start..].join("\n"));
                 out.push('\n');
             }
