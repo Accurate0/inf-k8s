@@ -15,6 +15,14 @@ misconfigurations:
   - id: AVD-KSV-0011
   - id: AVD-KSV-0018
 
+  # ALLOW_EMAIL_PASSWORD_LOGIN/REGISTRATION are boolean feature flags, not secrets.
+  - id: AVD-KSV-0109
+    paths:
+      - "selfhosted/dawarich/configmap.yaml"
+  - id: AVD-KSV-01010
+    paths:
+      - "selfhosted/dawarich/configmap.yaml"
+
   # home-gateway + solar-web run with default security context (reverted hardening).
   - id: AVD-KSV-0001
     paths:

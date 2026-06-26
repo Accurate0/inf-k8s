@@ -1,0 +1,45 @@
+pre-commit:
+  parallel: true
+  commands:
+    yamllint:
+      glob: "*.{yml,yaml}"
+      run: yamllint {staged_files}
+
+    shellcheck:
+      glob: "*.sh"
+      run: shellcheck {staged_files}
+
+    actionlint:
+      glob: "{.github,.forgejo}/workflows/*.{yml,yaml}"
+      run: actionlint
+
+    typos:
+      run: typos
+
+    gitleaks:
+      run: gitleaks protect --staged --redact --no-banner
+
+    helmlint:
+      glob: "**/Chart.yaml"
+      run: 'printf "%s\n" {staged_files} | xargs -n1 dirname | sort -u | xargs -r -n1 helm lint'
+
+    tofu-fmt:
+      glob: "*.tf"
+      run: tofu fmt -check -diff {staged_files}
+
+    tofu-validate:
+      glob: "*.tf"
+      run: tofu -chdir=terraform validate
+
+    validate-manifests:
+      glob: "{**/application.yaml,**/manifests/*.{yml,yaml},**/kustomization.{yml,yaml}}"
+      run: scripts/validate-manifests.sh {staged_files}
+
+    trivy-config:
+      run: trivy config --config trivy.yaml --severity HIGH,CRITICAL --exit-code 1 --ignorefile .trivyignore.yaml --quiet --skip-version-check --table-mode detailed .
+
+    trivy-fs:
+      run: trivy fs --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --ignorefile .trivyignore.yaml --quiet --skip-version-check --table-mode detailed .
+
+    check-merge-conflict:
+      run: 'git diff --cached --check'
