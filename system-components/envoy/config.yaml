@@ -6,12 +6,6 @@ metadata:
   namespace: envoy-gateway-system
 spec:
   mergeGateways: true
-  bootstrap:
-    type: JSONPatch
-    jsonPatches:
-      - op: add
-        path: /tracing/spawn_upstream_span
-        value: true
   provider:
     type: "Kubernetes"
     kubernetes:
