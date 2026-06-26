@@ -84,6 +84,7 @@ spec:
           tempo:
             reportingEnabled: false
             retention: 336h
+            stream_over_http_enabled: true
             metricsGenerator:
               enabled: true
               remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
@@ -249,6 +250,8 @@ spec:
                     datasourceUid: prometheus
                   nodeGraph:
                     enabled: true
+                  streamingEnabled:
+                    search: true
             grafana.ini:
               auth:
                 disable_login_form: true
