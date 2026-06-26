@@ -50,7 +50,7 @@ spec:
             - name: EVENT_BASE_URL
               value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
             - name: FEATURE_FLAGS_URL
-              value: http://api.feature-flags.svc.cluster.local:50051
+              value: api.feature-flags.svc.cluster.local:50051
             - name: OTEL_TRACING_URL
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
           envFrom:
