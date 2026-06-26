@@ -18,6 +18,10 @@ spec:
     spec:
       nodeSelector:
         kubernetes.io/hostname: k8s-optiplex-4
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: photon
           image: rtuszik/photon-docker:2.3.0@sha256:827cedf9fa3337e657611d62ada669def75dff61c56b51ae55056155d1a9b236
@@ -53,6 +57,11 @@ spec:
               port: http
             periodSeconds: 60
             timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: photon-data
               mountPath: /photon/data

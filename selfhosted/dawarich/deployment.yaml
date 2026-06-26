@@ -16,6 +16,10 @@ spec:
       labels:
         app: dawarich
     spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: app
           image: freikin/dawarich:1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
@@ -64,6 +68,10 @@ spec:
                 secretKeyRef:
                   name: kanidm-dawarich-oidc
                   key: client-secret
+            - name: ALLOW_EMAIL_PASSWORD_REGISTRATION
+              value: "false"
+            - name: ALLOW_EMAIL_PASSWORD_LOGIN
+              value: "false"
           resources:
             requests:
               cpu: 100m
@@ -84,6 +92,11 @@ spec:
             initialDelaySeconds: 60
             periodSeconds: 60
             timeoutSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: storage
               mountPath: /var/app/storage
@@ -127,6 +140,10 @@ spec:
                 secretKeyRef:
                   name: dawarich-managed-secrets
                   key: SECRET_KEY_BASE
+            - name: ALLOW_EMAIL_PASSWORD_REGISTRATION
+              value: "false"
+            - name: ALLOW_EMAIL_PASSWORD_LOGIN
+              value: "false"
           resources:
             requests:
               cpu: 100m
@@ -138,6 +155,11 @@ spec:
               command: ["sh", "-c", "pgrep -f sidekiq"]
             initialDelaySeconds: 60
             periodSeconds: 60
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
           volumeMounts:
             - name: storage
               mountPath: /var/app/storage
