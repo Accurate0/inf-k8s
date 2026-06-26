@@ -1697,9 +1697,9 @@ checksum = "92daf443525c4cce67b150400bc2316076100ce0b3686209eb8cf3c31612e6f0"
 
 [[package]]
 name = "llm-bridge-core"
-version = "0.2.6"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8ce274ae539134bd6b77a02e5b8ea6a4c2c787193c349747fc9b0030430a0dd9"
+checksum = "36d01ab05a7e3fbf09d98775c20c9ec8cd65024b04b386050c84fc5afb52cb24"
 dependencies = [
  "anyhow",
  "bytes",
@@ -3403,7 +3403,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
