@@ -97,7 +97,7 @@ spec:
                     - local-blocks
             metricsGenerator:
               enabled: true
-              remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
+              remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090/api/v1/write
               processor:
                 local_blocks:
                   flush_to_storage: true
