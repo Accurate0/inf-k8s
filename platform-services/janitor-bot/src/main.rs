@@ -175,7 +175,8 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/health/deep", get(routes::handle_admin_health_deep))
         .layer(OtelInResponseLayer)
         .layer(
-            OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/admin/metrics")),
+            OtelAxumLayer::default()
+                .filter(|path| !matches!(path, "/health" | "/admin/metrics" | "/argocd/webhook")),
         )
         .with_state(state);
 
