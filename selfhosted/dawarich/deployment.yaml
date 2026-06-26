@@ -68,6 +68,10 @@ spec:
                 secretKeyRef:
                   name: kanidm-dawarich-oidc
                   key: client-secret
+            - name: ALLOW_EMAIL_PASSWORD_REGISTRATION
+              value: "false"
+            - name: ALLOW_EMAIL_PASSWORD_LOGIN
+              value: "false"
           resources:
             requests:
               cpu: 100m
@@ -136,6 +140,10 @@ spec:
                 secretKeyRef:
                   name: dawarich-managed-secrets
                   key: SECRET_KEY_BASE
+            - name: ALLOW_EMAIL_PASSWORD_REGISTRATION
+              value: "false"
+            - name: ALLOW_EMAIL_PASSWORD_LOGIN
+              value: "false"
           resources:
             requests:
               cpu: 100m
