@@ -88,6 +88,13 @@ spec:
             server:
               grpc_server_max_recv_msg_size: 16777216
               grpc_server_max_send_msg_size: 16777216
+            overrides:
+              defaults:
+                metrics_generator:
+                  processors:
+                    - service-graphs
+                    - span-metrics
+                    - local-blocks
             metricsGenerator:
               enabled: true
               remoteWriteUrl: http://monitoring-kube-prometheus-prometheus.monitoring.svc.cluster.local:9090
