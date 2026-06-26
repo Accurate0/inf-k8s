@@ -14,16 +14,16 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/maccas-api
 images:
   - name: ghcr.io/accurate0/maccas-api
-    newTag: 16e930735deb19d862df7238f9dabf83d3092e60
+    newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
   - name: ghcr.io/accurate0/maccas-clustering
-    newTag: 16e930735deb19d862df7238f9dabf83d3092e60
+    newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
   - name: ghcr.io/accurate0/maccas-migration
-    newTag: 16e930735deb19d862df7238f9dabf83d3092e60
+    newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
   - name: ghcr.io/accurate0/maccas-recommendations
-    newTag: 16e930735deb19d862df7238f9dabf83d3092e60
+    newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
   - name: ghcr.io/accurate0/maccas-scheduler
-    newTag: 16e930735deb19d862df7238f9dabf83d3092e60
+    newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
   - name: ghcr.io/accurate0/maccas-sensordata
-    newTag: 16e930735deb19d862df7238f9dabf83d3092e60
+    newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
   - name: ghcr.io/accurate0/maccas-web
     newTag: b39ed34ce9e46e6571ef3a9ab8e4036398fcec4a
