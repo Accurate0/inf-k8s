@@ -19,7 +19,6 @@ spec:
       nodeSelector:
         kubernetes.io/hostname: k8s-optiplex-4
       securityContext:
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:

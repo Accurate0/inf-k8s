@@ -17,7 +17,6 @@ spec:
         app: dawarich
     spec:
       securityContext:
-        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       containers:
