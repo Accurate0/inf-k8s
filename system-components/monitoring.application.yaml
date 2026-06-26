@@ -150,6 +150,7 @@ spec:
               tsdb:
                 outOfOrderTimeWindow: 30m
               enableOTLPReceiver: true
+              enableRemoteWriteReceiver: true
               additionalScrapeConfigs:
                 - job_name: "haproxy-metrics"
                   static_configs:
@@ -235,6 +236,21 @@ spec:
                   key: clientSecret
             deploymentStrategy:
               type: Recreate
+            additionalDataSources:
+              - name: Tempo
+                type: tempo
+                uid: tempo
+                access: proxy
+                url: http://monitoring-tempo.monitoring.svc.cluster.local:3100
+                jsonData:
+                  serviceMap:
+                    datasourceUid: prometheus
+                  tracesToMetrics:
+                    datasourceUid: prometheus
+                  nodeGraph:
+                    enabled: true
+                  streamingEnabled:
+                    search: true
             grafana.ini:
               auth:
                 disable_login_form: true
