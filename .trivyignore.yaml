@@ -23,7 +23,7 @@ misconfigurations:
     paths:
       - "selfhosted/dawarich/configmap.yaml"
 
-  # home-gateway + solar-web run with default security context (reverted hardening).
+  # home-gateway + solar-web + dawarich run with default security context (reverted hardening).
   - id: AVD-KSV-0001
     paths:
       - "projects/home-gateway/manifests/home-gateway/**"
@@ -55,7 +55,6 @@ misconfigurations:
       - "projects/maccas-api/manifests/web/**"
       - "projects/solar-panels/manifests/solar-web/**"
       - "selfhosted/dawarich/photon-deployment.yaml"
-      - "selfhosted/dawarich/deployment.yaml"
       - "selfhosted/dawarich/deployment.yaml"
   - id: AVD-KSV-0014
     paths:
