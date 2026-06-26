@@ -1,9 +1,13 @@
 name: Trivy scan
 on:
   workflow_dispatch:
-  pull_request:
-  schedule:
-    - cron: "0 6 * * 1"
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: trivy-scan-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   scan:

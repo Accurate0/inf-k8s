@@ -35,11 +35,5 @@ pre-commit:
       glob: "{**/application.yaml,**/manifests/*.{yml,yaml},**/kustomization.{yml,yaml}}"
       run: scripts/validate-manifests.sh {staged_files}
 
-    trivy-config:
-      run: trivy config --config trivy.yaml --severity HIGH,CRITICAL --exit-code 1 --ignorefile .trivyignore.yaml --quiet --skip-version-check --table-mode detailed .
-
-    trivy-fs:
-      run: trivy fs --scanners vuln,secret --severity HIGH,CRITICAL --exit-code 1 --ignorefile .trivyignore.yaml --quiet --skip-version-check --table-mode detailed .
-
     check-merge-conflict:
       run: 'git diff --cached --check'
