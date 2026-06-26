@@ -245,7 +245,7 @@ spec:
                 type: tempo
                 uid: tempo
                 access: proxy
-                url: http://monitoring-tempo.monitoring.svc.cluster.local:3100
+                url: http://monitoring-tempo.monitoring.svc.cluster.local:3200
                 jsonData:
                   serviceMap:
                     datasourceUid: prometheus
