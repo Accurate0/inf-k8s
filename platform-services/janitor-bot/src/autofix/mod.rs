@@ -254,13 +254,23 @@ async fn collect_failure_logs(
 
         out.push_str(&format!("### {}\n", entry.context));
 
-        let gh_logs = if entry.context.starts_with("GitHub Actions") {
+        let ci_logs = if entry.context.starts_with("GitHub Actions") {
             github_logs_from_url(clients, &entry.target_url).await
+        } else if is_forgejo_action_url(&clients.forgejo.base_url, &entry.target_url) {
+            match parse_forgejo_run_id(&entry.target_url) {
+                Some(run_id) => {
+                    clients
+                        .forgejo
+                        .get_failed_action_logs(owner, repo, run_id)
+                        .await
+                }
+                None => None,
+            }
         } else {
             None
         };
 
-        match gh_logs {
+        match ci_logs {
             Some(logs) if !logs.is_empty() => {
                 // keep last 40 lines of the log
                 // just assuming that the error is towards the end
@@ -311,6 +321,24 @@ fn parse_github_run_url(url: &str) -> Option<(&str, &str, u64)> {
     Some((owner, repo, run_id))
 }
 
+/// Whether `url` points at an Actions run on our own Forgejo instance, i.e. a
+/// commit status reported by Forgejo Actions (`.forgejo/workflows`) rather than
+/// the GitHub mirror.
+fn is_forgejo_action_url(base_url: &str, url: &str) -> bool {
+    !url.is_empty() && url.starts_with(base_url) && url.contains("/actions/runs/")
+}
+
+/// Extracts the run index from a Forgejo Actions URL of the form
+/// `.../actions/runs/{run}/jobs/{job}`.
+fn parse_forgejo_run_id(url: &str) -> Option<i64> {
+    url.split("/actions/runs/")
+        .nth(1)?
+        .split('/')
+        .next()?
+        .parse()
+        .ok()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -329,5 +357,34 @@ mod tests {
     #[test]
     fn rejects_non_actions_url() {
         assert!(parse_github_run_url("https://git.anurag.sh/anurag/k8s/pulls/5").is_none());
+    }
+
+    #[test]
+    fn detects_forgejo_action_url() {
+        let base = "https://git.anurag.sh";
+        assert!(is_forgejo_action_url(
+            base,
+            "https://git.anurag.sh/anurag/k8s/actions/runs/42/jobs/0"
+        ));
+        // GitHub mirror runs live on a different host
+        assert!(!is_forgejo_action_url(
+            base,
+            "https://github.com/Accurate0/inf-k8s/actions/runs/456"
+        ));
+        // non-actions Forgejo URLs (e.g. argocd status) don't carry logs
+        assert!(!is_forgejo_action_url(
+            base,
+            "https://git.anurag.sh/anurag/k8s/pulls/5"
+        ));
+        assert!(!is_forgejo_action_url(base, ""));
+    }
+
+    #[test]
+    fn parses_forgejo_run_id() {
+        assert_eq!(
+            parse_forgejo_run_id("https://git.anurag.sh/anurag/k8s/actions/runs/561/jobs/0"),
+            Some(561)
+        );
+        assert_eq!(parse_forgejo_run_id("https://git.anurag.sh/anurag/k8s/pulls/5"), None);
     }
 }

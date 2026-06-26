@@ -645,6 +645,51 @@ impl ForgejoClient {
         Ok(resp)
     }
 
+    /// Returns the concatenated plaintext logs of the failed job(s) in a Forgejo
+    /// Actions run. `run_id` is the per-repo run index (as it appears in the
+    /// run's web URL). Fetches the latest attempt of each failed job.
+    #[tracing::instrument(skip_all, fields(owner, repo, run_id))]
+    pub async fn get_failed_action_logs(
+        &self,
+        owner: &str,
+        repo: &str,
+        run_id: i64,
+    ) -> Option<String> {
+        let jobs = match self.api.list_action_run_jobs(owner, repo, run_id).send().await {
+            Ok(jobs) => jobs,
+            Err(e) => {
+                tracing::warn!(owner, repo, run_id, "failed to list action run jobs: {e}");
+                return None;
+            }
+        };
+
+        let mut out = String::new();
+        for job in &jobs {
+            if job.status.as_deref() != Some("failure") {
+                continue;
+            }
+            let Some(job_id) = job.id else { continue };
+            match self
+                .api
+                .repo_get_action_job_logs(owner, repo, job_id, RepoGetActionJobLogsQuery::default())
+                .send()
+                .await
+            {
+                Ok(logs) => out.push_str(&logs),
+                Err(e) => {
+                    tracing::warn!(owner, repo, job_id, "failed to fetch action job logs: {e}");
+                }
+            }
+        }
+
+        let out = out.trim();
+        if out.is_empty() {
+            None
+        } else {
+            Some(out.to_owned())
+        }
+    }
+
     #[tracing::instrument(skip_all, fields(owner, repo, sha))]
     pub async fn get_combined_status_by_ref(
         &self,
