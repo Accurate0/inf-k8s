@@ -17,7 +17,10 @@ pub enum PrCommand {
     Ignore,
     Explain,
     RunRule { name: String },
-    Fix { model: Option<String> },
+    Fix {
+        model: Option<String>,
+        instructions: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -87,7 +90,12 @@ pub fn parse_pr_command(body: &str) -> Option<PrCommand> {
         "explain" => Some(PrCommand::Explain),
         "fix" => {
             let model = words.next().map(|m| m.to_owned());
-            Some(PrCommand::Fix { model })
+            let rest: Vec<&str> = words.collect();
+            let instructions = (!rest.is_empty()).then(|| rest.join(" "));
+            Some(PrCommand::Fix {
+                model,
+                instructions,
+            })
         }
         "run" => {
             if words.next()? != "rule" {
@@ -262,8 +270,12 @@ pub async fn handle_pr_command(
                 }
             }
         }
-        PrCommand::Fix { model } => {
-            crate::autofix::autofix_pr(clients, &cmd.owner, &cmd.repo, pr, model).await;
+        PrCommand::Fix {
+            model,
+            instructions,
+        } => {
+            crate::autofix::autofix_pr(clients, &cmd.owner, &cmd.repo, pr, model, instructions)
+                .await;
         }
         PrCommand::Recheck => {
             let api_pr = match client.get_pr(&cmd.owner, &cmd.repo, pr).await {
@@ -563,7 +575,13 @@ mod tests {
     #[test]
     fn parse_fix_no_model() {
         match parse_pr_command("@janitor fix").unwrap() {
-            PrCommand::Fix { model } => assert!(model.is_none()),
+            PrCommand::Fix {
+                model,
+                instructions,
+            } => {
+                assert!(model.is_none());
+                assert!(instructions.is_none());
+            }
             _ => panic!("expected Fix"),
         }
     }
@@ -571,7 +589,27 @@ mod tests {
     #[test]
     fn parse_fix_with_model() {
         match parse_pr_command("@janitor fix claude-opus-4-8").unwrap() {
-            PrCommand::Fix { model } => assert_eq!(model.as_deref(), Some("claude-opus-4-8")),
+            PrCommand::Fix {
+                model,
+                instructions,
+            } => {
+                assert_eq!(model.as_deref(), Some("claude-opus-4-8"));
+                assert!(instructions.is_none());
+            }
+            _ => panic!("expected Fix"),
+        }
+    }
+
+    #[test]
+    fn parse_fix_with_model_and_instructions() {
+        match parse_pr_command("@janitor fix claude-opus-4-8 pin serde to 1.0").unwrap() {
+            PrCommand::Fix {
+                model,
+                instructions,
+            } => {
+                assert_eq!(model.as_deref(), Some("claude-opus-4-8"));
+                assert_eq!(instructions.as_deref(), Some("pin serde to 1.0"));
+            }
             _ => panic!("expected Fix"),
         }
     }

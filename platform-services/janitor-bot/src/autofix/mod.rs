@@ -17,13 +17,14 @@ static AUTOFIX_MARKER: LazyLock<Marker> = LazyLock::new(|| Marker::feature("auto
 /// Runs the LLM autofix flow for a failing renovate PR: clones the head branch,
 /// lets the model explore it + the failing CI logs via tools, applies the
 /// returned edits, and opens a PR targeting the original renovate branch.
-#[tracing::instrument(skip(clients, model), fields(%owner, %repo, pr))]
+#[tracing::instrument(skip(clients, model, instructions), fields(%owner, %repo, pr))]
 pub async fn autofix_pr(
     clients: &Clients,
     owner: &str,
     repo: &str,
     pr: i64,
     model: Option<String>,
+    instructions: Option<String>,
 ) {
     tracing::info!("autofix: starting");
     let client = &clients.forgejo;
@@ -117,7 +118,7 @@ pub async fn autofix_pr(
     tracing::info!(%model, "autofix: requesting fix from model");
     let fixer = LlmAutofixClient::new(llm);
     let edits = match fixer
-        .propose_fix(&workspace, &failure_logs, &meta, &model)
+        .propose_fix(&workspace, &failure_logs, &meta, &model, instructions.as_deref())
         .await
     {
         Ok(e) if !e.is_empty() => {

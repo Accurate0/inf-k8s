@@ -82,9 +82,10 @@ impl<'a> LlmAutofixClient<'a> {
         failure_logs: &str,
         meta: &PrMeta,
         model: &str,
+        instructions: Option<&str>,
     ) -> anyhow::Result<Vec<FileEdit>> {
         let tools = Self::tool_defs();
-        let user_prompt = Self::user_prompt(meta, failure_logs);
+        let user_prompt = Self::user_prompt(meta, failure_logs, instructions);
         tracing::info!("user prompt: {user_prompt}");
 
         let mut messages: Vec<ChatCompletionRequestMessage> = vec![
@@ -144,13 +145,18 @@ impl<'a> LlmAutofixClient<'a> {
         bail!("autofix exceeded {MAX_STEPS} steps without producing a fix");
     }
 
-    fn user_prompt(meta: &PrMeta, failure_logs: &str) -> String {
+    fn user_prompt(meta: &PrMeta, failure_logs: &str, instructions: Option<&str>) -> String {
         let mut user = String::new();
         user.push_str(&format!("PR title: {}\n", meta.pr_title));
         user.push_str(&format!(
             "Branch: {} (targets {})\n\n",
             meta.head_branch, meta.base_branch
         ));
+        if let Some(instructions) = instructions.map(str::trim).filter(|s| !s.is_empty()) {
+            user.push_str("## Extra instructions from the maintainer\n\n");
+            user.push_str(instructions);
+            user.push_str("\n\n");
+        }
         user.push_str("## Failing CI logs\n\n");
         if failure_logs.is_empty() {
             user.push_str("(no logs available)\n");
@@ -331,9 +337,26 @@ mod tests {
             base_branch: "main".into(),
             head_branch: "renovate/serde".into(),
         };
-        let prompt = LlmAutofixClient::user_prompt(&meta, "error[E0432]: unresolved import");
+        let prompt = LlmAutofixClient::user_prompt(&meta, "error[E0432]: unresolved import", None);
         assert!(prompt.contains("Bump serde to 2.0"));
         assert!(prompt.contains("renovate/serde"));
         assert!(prompt.contains("E0432"));
+        assert!(!prompt.contains("Extra instructions"));
+    }
+
+    #[test]
+    fn user_prompt_includes_extra_instructions() {
+        let meta = PrMeta {
+            pr_title: "Bump serde to 2.0".into(),
+            base_branch: "main".into(),
+            head_branch: "renovate/serde".into(),
+        };
+        let prompt = LlmAutofixClient::user_prompt(
+            &meta,
+            "error[E0432]: unresolved import",
+            Some("prefer the derive feature"),
+        );
+        assert!(prompt.contains("Extra instructions"));
+        assert!(prompt.contains("prefer the derive feature"));
     }
 }
