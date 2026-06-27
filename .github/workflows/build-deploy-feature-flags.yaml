@@ -39,7 +39,7 @@ jobs:
     runs-on: ubuntu-latest
     services:
       db:
-        image: postgres:18@sha256:1a5b3e745bbd82d6deb146505e504da3c2f248cac15e431951b148fbe4f8613a
+        image: postgres:18@sha256:4aabea78cf39b90e834caf3af7d602a18565f6fe2508705c8d01aa63245c2e20
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
@@ -57,7 +57,7 @@ jobs:
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7
       - run: sudo apt-get update && sudo apt-get install -y protobuf-compiler libprotobuf-dev
-      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
         with:
           path: platform-services/feature-flags/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-feature-flags
