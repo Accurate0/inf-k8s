@@ -33,6 +33,7 @@ providers:
       - z-ai/glm-5.1
       - deepseek/deepseek-v4-pro
       - deepseek/deepseek-v4-flash
+      - minimax/minimax-m3
 
   gemini:
     dialect: openai
