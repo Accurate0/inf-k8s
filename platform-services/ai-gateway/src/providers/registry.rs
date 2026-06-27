@@ -11,14 +11,20 @@ use crate::config::Config;
 pub struct Registry {
     providers: HashMap<String, Arc<dyn Provider>>,
     routes: HashMap<(String, ModelKind), Vec<String>>,
+    /// Providers serving any otherwise-unrouted model, in failover order.
+    fallbacks: Vec<String>,
 }
 
 impl Registry {
     pub fn from_config(config: &Config) -> Self {
         let mut providers: HashMap<String, Arc<dyn Provider>> = HashMap::new();
         let mut routes: HashMap<(String, ModelKind), Vec<String>> = HashMap::new();
+        let mut fallbacks: Vec<String> = Vec::new();
 
         for (name, pc) in &config.providers {
+            if pc.fallback {
+                fallbacks.push(name.clone());
+            }
             let declared = pc.models.iter().map(|m| (m, ModelKind::Chat)).chain(
                 pc.embedding_models
                     .iter()
@@ -52,23 +58,29 @@ impl Registry {
         }
 
         // Lowest priority first, name as a deterministic tiebreaker.
+        let by_priority = |a: &String, b: &String| {
+            let pa = config
+                .providers
+                .get(a)
+                .map(|p| p.priority)
+                .unwrap_or(i32::MAX);
+            let pb = config
+                .providers
+                .get(b)
+                .map(|p| p.priority)
+                .unwrap_or(i32::MAX);
+            pa.cmp(&pb).then_with(|| a.cmp(b))
+        };
         for names in routes.values_mut() {
-            names.sort_by(|a, b| {
-                let pa = config
-                    .providers
-                    .get(a)
-                    .map(|p| p.priority)
-                    .unwrap_or(i32::MAX);
-                let pb = config
-                    .providers
-                    .get(b)
-                    .map(|p| p.priority)
-                    .unwrap_or(i32::MAX);
-                pa.cmp(&pb).then_with(|| a.cmp(b))
-            });
+            names.sort_by(&by_priority);
         }
+        fallbacks.sort_by(&by_priority);
 
-        Self { providers, routes }
+        Self {
+            providers,
+            routes,
+            fallbacks,
+        }
     }
 
     pub fn get(&self, name: &str) -> Option<Arc<dyn Provider>> {
@@ -76,11 +88,20 @@ impl Registry {
     }
 
     /// Enabled providers that can serve `model` on this endpoint kind, in failover order.
+    /// When no provider explicitly declares the model, the fallback providers are returned.
     pub fn providers_for_model(&self, model: &str, kind: ModelKind) -> Vec<Arc<dyn Provider>> {
-        self.routes
+        let declared: Vec<_> = self
+            .routes
             .get(&(model.to_owned(), kind))
             .into_iter()
             .flatten()
+            .filter_map(|name| self.get(name))
+            .collect();
+        if !declared.is_empty() {
+            return declared;
+        }
+        self.fallbacks
+            .iter()
             .filter_map(|name| self.get(name))
             .collect()
     }
@@ -167,6 +188,34 @@ openai:
                 .providers_for_model("text-embedding-3-large", ModelKind::Chat)
                 .is_empty()
         );
+    }
+
+    #[test]
+    fn unrouted_models_fall_back_to_fallback_providers() {
+        let yaml = r#"
+openai:
+  dialect: openai
+  base_url: https://openai.test
+  api_key_env: TEST_FALLBACK_KEY
+  models:
+    - gpt-4o
+openrouter:
+  dialect: openai
+  base_url: https://openrouter.test
+  api_key_env: TEST_FALLBACK_KEY
+  fallback: true
+"#;
+        let registry = registry_from_yaml(yaml, "TEST_FALLBACK_KEY");
+
+        // Declared models still route to their own provider.
+        let providers = registry.providers_for_model("gpt-4o", ModelKind::Chat);
+        let names: Vec<_> = providers.iter().map(|p| p.name()).collect();
+        assert_eq!(names, ["openai"]);
+
+        // An unknown model falls back to the fallback provider.
+        let providers = registry.providers_for_model("some-new-model", ModelKind::Chat);
+        let names: Vec<_> = providers.iter().map(|p| p.name()).collect();
+        assert_eq!(names, ["openrouter"]);
     }
 
     #[test]

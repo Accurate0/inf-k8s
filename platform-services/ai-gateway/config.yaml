@@ -28,6 +28,7 @@ providers:
     dialect: openai
     base_url: https://openrouter.ai/api/v1
     api_key_env: OPENROUTER_API_KEY
+    fallback: true
     models:
       - z-ai/glm-5.2
       - z-ai/glm-5.1

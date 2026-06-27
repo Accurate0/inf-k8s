@@ -209,6 +209,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
             models: fixture.provider.models.clone(),
             embedding_models: fixture.provider.embedding_models.clone(),
             priority: 100,
+            fallback: false,
         },
     );
     let config = Config {

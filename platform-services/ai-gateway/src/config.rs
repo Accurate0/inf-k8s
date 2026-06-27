@@ -55,6 +55,11 @@ pub struct ProviderConfig {
     /// Failover order among providers that serve the same model: lower is tried first.
     #[serde(default = "default_priority")]
     pub priority: i32,
+    /// When set, this provider serves any model that no provider explicitly declares,
+    /// passing the requested model through unchanged. Multiple fallbacks are tried in
+    /// `priority` order.
+    #[serde(default)]
+    pub fallback: bool,
 }
 
 fn default_priority() -> i32 {
