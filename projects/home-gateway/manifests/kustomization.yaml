@@ -13,4 +13,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
 images:
   - name: ghcr.io/accurate0/home-gateway
-    newTag: 727e9082dd0d1ab4f916248d26868c04f36d3d1a
+    newTag: 8c60893889dfe0280a3ef79762ef67fed24c56f2
