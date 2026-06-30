@@ -1,7 +1,7 @@
 mod client;
 mod workspace;
 
-pub use client::{DEFAULT_MODEL, FileEdit, LlmAutofixClient, PrMeta};
+pub use client::{DEFAULT_MODEL, FileEdit, LlmAutofixClient, PrMeta, ProposedFix};
 pub use workspace::Workspace;
 
 use crate::clients::Clients;
@@ -117,14 +117,14 @@ pub async fn autofix_pr(
 
     tracing::info!(%model, "autofix: requesting fix from model");
     let fixer = LlmAutofixClient::new(llm);
-    let edits = match fixer
+    let ProposedFix { title: fix_title, files: edits } = match fixer
         .propose_fix(&workspace, &failure_logs, &meta, &model, instructions.as_deref())
         .await
     {
-        Ok(e) if !e.is_empty() => {
-            tracing::info!("autofix: model proposed {} file edit(s)", e.len());
-            tracing::debug!(paths = ?e.iter().map(|f| &f.path).collect::<Vec<_>>(), "autofix: proposed edits");
-            e
+        Ok(f) if !f.files.is_empty() => {
+            tracing::info!("autofix: model proposed {} file edit(s)", f.files.len());
+            tracing::debug!(paths = ?f.files.iter().map(|e| &e.path).collect::<Vec<_>>(), "autofix: proposed edits");
+            f
         }
         Ok(_) => {
             tracing::info!("autofix: model could not determine a fix");
@@ -186,7 +186,7 @@ pub async fn autofix_pr(
         .create_pull_request(
             owner,
             repo,
-            &format!("LLM autofix for #{pr}"),
+            &format!("[LLM autofix #{pr}] {fix_title}"),
             &body,
             &fix_branch,
             &head_branch,

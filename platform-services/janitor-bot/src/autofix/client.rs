@@ -24,7 +24,16 @@ pub struct FileEdit {
 
 #[derive(Debug, Deserialize)]
 struct SubmitFixArgs {
+    title: String,
     files: Vec<FileEdit>,
+}
+
+/// The model's proposed fix: a short human-readable title for the change plus
+/// the full new contents of each file it wants to rewrite.
+#[derive(Debug, Clone)]
+pub struct ProposedFix {
+    pub title: String,
+    pub files: Vec<FileEdit>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -50,7 +59,7 @@ pub struct PrMeta {
 /// model, or the final set of edits when the model calls `submit_fix`.
 enum ToolOutcome {
     Result(String),
-    Done(Vec<FileEdit>),
+    Done(ProposedFix),
 }
 
 const SYSTEM_PROMPT: &str = "You are an automated dependency-upgrade fixer for a GitOps repository. \
@@ -58,9 +67,11 @@ A Renovate pull request bumped one or more dependencies and CI is now failing. \
 You are given the failing CI logs and a checkout of the repository at the PR's head. \
 The bumped dependency usually breaks code in files the PR never touched, so use the \
 `read_file`, `list_dir`, and `grep` tools to follow the errors to the real source files. \
-When you have determined the fix, call `submit_fix` with the COMPLETE new contents of every \
-file you change (full file, not a diff). Keep the change minimal and do not touch lockfiles \
-you were not asked about. If you cannot determine a fix, call `submit_fix` with an empty list.";
+When you have determined the fix, call `submit_fix` with a short imperative `title` \
+summarising the change (e.g. \"Update deprecated serde derive attribute\") and the COMPLETE \
+new contents of every file you change (full file, not a diff). Keep the change minimal and do \
+not touch lockfiles you were not asked about. If you cannot determine a fix, call `submit_fix` \
+with an empty file list.";
 
 /// Drives the agentic autofix loop on top of a generic [`LlmClient`]: it owns
 /// the prompts, tool definitions, and tool dispatch against a [`Workspace`].
@@ -83,7 +94,7 @@ impl<'a> LlmAutofixClient<'a> {
         meta: &PrMeta,
         model: &str,
         instructions: Option<&str>,
-    ) -> anyhow::Result<Vec<FileEdit>> {
+    ) -> anyhow::Result<ProposedFix> {
         let tools = Self::tool_defs();
         let user_prompt = Self::user_prompt(meta, failure_logs, instructions);
         tracing::info!("user prompt: {user_prompt}");
@@ -128,7 +139,7 @@ impl<'a> LlmAutofixClient<'a> {
                 };
                 match Self::dispatch_tool(workspace, &call.function.name, &call.function.arguments)
                 {
-                    ToolOutcome::Done(edits) => return Ok(edits),
+                    ToolOutcome::Done(fix) => return Ok(fix),
                     ToolOutcome::Result(text) => {
                         messages.push(
                             ChatCompletionRequestToolMessageArgs::default()
@@ -220,6 +231,7 @@ impl<'a> LlmAutofixClient<'a> {
                 json!({
                     "type": "object",
                     "properties": {
+                        "title": { "type": "string", "description": "Short imperative summary of the change, used as the fix PR title." },
                         "files": {
                             "type": "array",
                             "items": {
@@ -232,7 +244,7 @@ impl<'a> LlmAutofixClient<'a> {
                             }
                         }
                     },
-                    "required": ["files"]
+                    "required": ["title", "files"]
                 }),
             ),
         ]
@@ -264,7 +276,10 @@ impl<'a> LlmAutofixClient<'a> {
                 Err(e) => ToolOutcome::Result(format!("error: invalid arguments: {e}")),
             },
             "submit_fix" => match serde_json::from_str::<SubmitFixArgs>(arguments) {
-                Ok(a) => ToolOutcome::Done(a.files),
+                Ok(a) => ToolOutcome::Done(ProposedFix {
+                    title: a.title,
+                    files: a.files,
+                }),
                 Err(e) => ToolOutcome::Result(format!("error: invalid submit_fix arguments: {e}")),
             },
             other => ToolOutcome::Result(format!("error: unknown tool {other}")),
@@ -301,12 +316,14 @@ mod tests {
     #[test]
     fn submit_fix_parses_edits() {
         let (_d, ws) = workspace_with(&[]);
-        let args = r#"{"files":[{"path":"a.rs","content":"fn main() {}"}]}"#;
+        let args =
+            r#"{"title":"Fix main","files":[{"path":"a.rs","content":"fn main() {}"}]}"#;
         match LlmAutofixClient::dispatch_tool(&ws, "submit_fix", args) {
-            ToolOutcome::Done(edits) => {
-                assert_eq!(edits.len(), 1);
-                assert_eq!(edits[0].path, "a.rs");
-                assert_eq!(edits[0].content, "fn main() {}");
+            ToolOutcome::Done(fix) => {
+                assert_eq!(fix.title, "Fix main");
+                assert_eq!(fix.files.len(), 1);
+                assert_eq!(fix.files[0].path, "a.rs");
+                assert_eq!(fix.files[0].content, "fn main() {}");
             }
             _ => panic!("expected Done"),
         }
