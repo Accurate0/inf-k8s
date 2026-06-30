@@ -8,6 +8,7 @@ expression: names
 - manage-renovate-dockerfiles
 - automerge-renovate-terraform
 - automerge-renovate-rust
+- automerge-autofix
 - retry-renovate-workflow
 - mirror-commit-status
 - argocd-sync-status
