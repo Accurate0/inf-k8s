@@ -44,6 +44,8 @@ spec:
                 path: rules/automerge-renovate-terraform.yaml
               - key: automerge-renovate-rust.yaml
                 path: rules/automerge-renovate-rust.yaml
+              - key: automerge-autofix.yaml
+                path: rules/automerge-autofix.yaml
               - key: retry-renovate-workflow.yaml
                 path: rules/retry-renovate-workflow.yaml
               - key: argocd-diff-renovate.yaml

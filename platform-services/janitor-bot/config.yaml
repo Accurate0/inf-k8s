@@ -41,6 +41,7 @@ rules:
   - !include rules/manage-renovate-dockerfiles.yaml
   - !include rules/automerge-renovate-terraform.yaml
   - !include rules/automerge-renovate-rust.yaml
+  - !include rules/automerge-autofix.yaml
   - !include rules/retry-renovate-workflow.yaml
   - !include rules/argocd-diff-renovate.yaml
   - !include rules/mirror-commit-status.yaml

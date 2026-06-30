@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=./rule.schema.json
+name: automerge-autofix
+when:
+  all:
+    - type: event
+      kind: pr
+      source: forgejo
+    - any:
+        - type: repository
+          value: anurag/home-gateway
+        - type: repository
+          value: anurag/k8s
+        - type: repository
+          value: anurag/solar-panels
+    - type: feature_flag
+      name: janitor-bot-allow-automerging-rules
+      default: true
+    - type: has_label
+      value: janitor/autofix
+    - not:
+        type: has_conflicts
+    - type: has_status_checks
+    - type: all_status_checks_passed
+    - type: is_open
+    - not:
+        type: bot.has_approved
+actions:
+  - run:
+      - type: approve
+      - type: merge
+        strategy: squash
+        delete_branch: true
