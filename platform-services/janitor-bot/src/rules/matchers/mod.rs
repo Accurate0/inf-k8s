@@ -123,10 +123,12 @@ impl Matcher {
                         otel.name = format!("matcher: {}", leaf.kind()),
                         matcher = leaf.kind(),
                         rule = rule.name,
+                        result = tracing::field::Empty,
                     );
                     let result = eval_leaf(leaf, ev, rule, clients, cache, now)
-                        .instrument(span)
+                        .instrument(span.clone())
                         .await;
+                    span.record("result", result);
                     tracing::debug!(
                         matcher = leaf.kind(),
                         rule = rule.name,

@@ -87,6 +87,11 @@
       "matchPackageNames": ["ghcr.io/accurate0/cnpg-postgresql"],
       "labels": ["postgres"],
       "minimumReleaseAge": "0 days"
+    },
+    {
+      "matchDatasources": ["helm"],
+      "matchPackageNames": ["kube-prometheus-stack"],
+      "schedule": ["* * * * 1"]
     }
   ]
 }
