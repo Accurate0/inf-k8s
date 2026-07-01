@@ -215,6 +215,10 @@ pub enum ActionDef {
         match_metadata_fields: Vec<String>,
         #[serde(default)]
         order_by_metadata_field: Option<String>,
+        #[serde(default = "default_images_field")]
+        images_metadata_field: String,
+        #[serde(default = "default_tag_field")]
+        tag_metadata_field: String,
         #[serde(default)]
         delete_branch: bool,
         #[serde(default)]
@@ -222,10 +226,19 @@ pub enum ActionDef {
     },
 }
 
+fn default_images_field() -> String {
+    "images".to_string()
+}
+
+fn default_tag_field() -> String {
+    "tag".to_string()
+}
+
 #[derive(Debug, Deserialize, JsonSchema, Clone)]
 #[serde(rename_all = "snake_case")]
 pub enum CloseOtherPrsCriteria {
     Older,
+    OlderPublishedImage,
 }
 
 fn default_true() -> bool {
@@ -379,6 +392,8 @@ impl ActionDef {
                 criteria,
                 match_metadata_fields,
                 order_by_metadata_field,
+                images_metadata_field,
+                tag_metadata_field,
                 delete_branch,
                 comment,
             } => Action::CloseOtherPrs {
@@ -386,6 +401,8 @@ impl ActionDef {
                 criteria: criteria.clone(),
                 match_metadata_fields: match_metadata_fields.clone(),
                 order_by_metadata_field: order_by_metadata_field.clone(),
+                images_metadata_field: images_metadata_field.clone(),
+                tag_metadata_field: tag_metadata_field.clone(),
                 delete_branch: *delete_branch,
                 comment: comment.clone(),
             },

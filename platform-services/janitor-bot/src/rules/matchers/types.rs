@@ -159,6 +159,28 @@ pub enum LeafMatcher {
         #[serde(default)]
         order_by_metadata_field: Option<String>,
     },
+
+    #[serde(rename = "is_latest_published_image")]
+    IsLatestPublishedImage {
+        #[serde(default = "default_images_field")]
+        images_metadata_field: String,
+        #[serde(default = "default_tag_field")]
+        tag_metadata_field: String,
+        #[serde(default = "default_path_field")]
+        path_metadata_field: String,
+    },
+}
+
+fn default_images_field() -> String {
+    "images".to_string()
+}
+
+fn default_tag_field() -> String {
+    "tag".to_string()
+}
+
+fn default_path_field() -> String {
+    "path".to_string()
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq, Hash)]
@@ -259,6 +281,7 @@ impl LeafMatcher {
             LeafMatcher::AllStatusChecksPassed => "all_status_checks_passed",
             LeafMatcher::StatusChecks { .. } => "status_checks",
             LeafMatcher::IsLatestByMetadata { .. } => "is_latest_by_metadata",
+            LeafMatcher::IsLatestPublishedImage { .. } => "is_latest_published_image",
         }
     }
 
@@ -274,6 +297,7 @@ impl LeafMatcher {
             LeafMatcher::IsLatestByMetadata { .. } => {
                 [Resource::PullRequest, Resource::OpenPrs].into()
             }
+            LeafMatcher::IsLatestPublishedImage { .. } => [Resource::PullRequest].into(),
             LeafMatcher::HasChangedFiles
             | LeafMatcher::ChangedFilesAllMatch { .. }
             | LeafMatcher::ChangedFilesAnyMatch { .. }

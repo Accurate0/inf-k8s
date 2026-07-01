@@ -352,6 +352,10 @@
               "type": "boolean",
               "default": false
             },
+            "images_metadata_field": {
+              "type": "string",
+              "default": "images"
+            },
             "match_metadata_fields": {
               "type": "array",
               "items": {
@@ -364,6 +368,10 @@
                 "null"
               ],
               "default": null
+            },
+            "tag_metadata_field": {
+              "type": "string",
+              "default": "tag"
             },
             "type": {
               "type": "string",
@@ -406,7 +414,8 @@
     "CloseOtherPrsCriteria": {
       "type": "string",
       "enum": [
-        "older"
+        "older",
+        "older_published_image"
       ]
     },
     "Combinator": {
@@ -966,6 +975,30 @@
             "type",
             "match_metadata_fields"
           ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "images_metadata_field": {
+              "type": "string",
+              "default": "images"
+            },
+            "path_metadata_field": {
+              "type": "string",
+              "default": "path"
+            },
+            "tag_metadata_field": {
+              "type": "string",
+              "default": "tag"
+            },
+            "type": {
+              "type": "string",
+              "const": "is_latest_published_image"
+            }
+          },
+          "required": [
+            "type"
+          ]
         }
       ],
       "required": [
@@ -1397,6 +1430,30 @@
           "required": [
             "type",
             "match_metadata_fields"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "images_metadata_field": {
+              "type": "string",
+              "default": "images"
+            },
+            "path_metadata_field": {
+              "type": "string",
+              "default": "path"
+            },
+            "tag_metadata_field": {
+              "type": "string",
+              "default": "tag"
+            },
+            "type": {
+              "type": "string",
+              "const": "is_latest_published_image"
+            }
+          },
+          "required": [
+            "type"
           ]
         }
       ]

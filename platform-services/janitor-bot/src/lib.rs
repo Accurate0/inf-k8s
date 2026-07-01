@@ -10,6 +10,7 @@ pub mod github;
 pub mod llm;
 pub mod marker;
 pub mod metrics;
+pub mod registry;
 pub mod rules;
 pub mod server;
 pub mod tracing_setup;

@@ -33,7 +33,7 @@ mocks:
     body:
       number: 102
       title: "[skip ci] Update janitor-bot images to def456"
-      body: '<!-- metadata:{"service":"janitor-bot","tag":"def456"} -->'
+      body: '<!-- metadata:{"service":"janitor-bot","tag":"def456","images":"ghcr.io/accurate0/janitor-bot","path":"platform-services/janitor-bot"} -->'
       user:
         login: ci-image-updater
         avatar_url: ""
@@ -61,7 +61,6 @@ mocks:
     path: /api/v1/repos/anurag/k8s/pulls/102/reviews
     status: 200
     body: []
-  # list_open_prs: returns older PR #99 (same service), PR #101 (different service)
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/pulls
@@ -71,7 +70,7 @@ mocks:
     body:
       - number: 99
         title: "[skip ci] Update janitor-bot images to abc123"
-        body: '<!-- metadata:{"service":"janitor-bot","tag":"abc123"} -->'
+        body: '<!-- metadata:{"service":"janitor-bot","tag":"abc123","images":"ghcr.io/accurate0/janitor-bot","path":"platform-services/janitor-bot"} -->'
         user:
           login: ci-image-updater
           avatar_url: ""
@@ -133,7 +132,7 @@ mocks:
         updated_at: "2026-01-07T08:30:00Z"
       - number: 102
         title: "[skip ci] Update janitor-bot images to def456"
-        body: '<!-- metadata:{"service":"janitor-bot","tag":"def456"} -->'
+        body: '<!-- metadata:{"service":"janitor-bot","tag":"def456","images":"ghcr.io/accurate0/janitor-bot","path":"platform-services/janitor-bot"} -->'
         user:
           login: ci-image-updater
           avatar_url: ""
@@ -160,13 +159,72 @@ mocks:
         due_date: null
         merged_at: null
         updated_at: "2026-01-07T09:00:00Z"
-  # remove janitor/* labels from superseded PR (GET labels to find IDs, then DELETE)
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/raw/platform-services/janitor-bot/kustomization.yaml
+    query:
+      ref: main
+    status: 200
+    body_text: |
+      images:
+        - name: ghcr.io/accurate0/janitor-bot
+          newTag: old000
+  - service: registry
+    method: GET
+    path: /token
+    status: 200
+    body:
+      token: test-pull-token
+  - service: registry
+    method: GET
+    path: /v2/accurate0/janitor-bot/manifests/def456
+    status: 200
+    body:
+      config:
+        digest: "sha256:configdef"
+  - service: registry
+    method: GET
+    path: /v2/accurate0/janitor-bot/manifests/abc123
+    status: 200
+    body:
+      config:
+        digest: "sha256:configabc"
+  - service: registry
+    method: GET
+    path: /v2/accurate0/janitor-bot/manifests/old000
+    status: 200
+    body:
+      config:
+        digest: "sha256:configold"
+  - service: registry
+    method: GET
+    path: "/v2/accurate0/janitor-bot/blobs/sha256:configdef"
+    status: 200
+    body:
+      config:
+        Labels:
+          net.inf-k8s.committed-at: "3000"
+  - service: registry
+    method: GET
+    path: "/v2/accurate0/janitor-bot/blobs/sha256:configabc"
+    status: 200
+    body:
+      config:
+        Labels:
+          net.inf-k8s.committed-at: "2000"
+  - service: registry
+    method: GET
+    path: "/v2/accurate0/janitor-bot/blobs/sha256:configold"
+    status: 200
+    body:
+      config:
+        Labels:
+          net.inf-k8s.committed-at: "500"
   - service: forgejo
     method: DELETE
     path: /api/v1/repos/anurag/k8s/issues/99/labels/10
     status: 204
     body: {}
-  # comment on superseded PR
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/issues/99/comments
@@ -179,7 +237,6 @@ mocks:
       html_url: ""
       issue_url: ""
       pull_request_url: ""
-  # close superseded PR
   - service: forgejo
     method: PATCH
     path: /api/v1/repos/anurag/k8s/issues/99
@@ -191,13 +248,11 @@ mocks:
       updated_at: null
       html_url: ""
       url: ""
-  # delete branch of superseded PR
   - service: forgejo
     method: DELETE
     path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-abc123
     status: 204
     body: {}
-  # ensure_labels_exist + remove_labels_by_name both use GET /labels
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/labels
@@ -215,19 +270,16 @@ mocks:
         name: janitor/queued
         color: "#fbca04"
         url: ""
-  # add labels
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/issues/102/labels
     status: 200
     body: []
-  # approve
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/pulls/102/reviews
     status: 200
     body: {}
-  # merge
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/pulls/102/merge

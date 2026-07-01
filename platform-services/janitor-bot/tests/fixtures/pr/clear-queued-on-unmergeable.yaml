@@ -33,11 +33,6 @@ mocks:
     body: []
   - service: forgejo
     method: GET
-    path: /api/v1/repos/anurag/k8s/pulls
-    status: 200
-    body: []
-  - service: forgejo
-    method: GET
     path: /api/v1/repos/anurag/k8s/commits/abc1000000000000000000000000000000000000/status
     status: 200
     body:

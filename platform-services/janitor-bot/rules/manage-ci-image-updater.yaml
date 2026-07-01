@@ -17,16 +17,13 @@ when:
     - not:
         type: has_conflicts
     - type: is_open
-    - type: is_latest_by_metadata
-      match_metadata_fields: [service]
-      order_by_metadata_field: committed_at
+    - type: is_latest_published_image
 actions:
   - run:
       - type: close_other_prs
         author: ci-image-updater
-        criteria: older
+        criteria: older_published_image
         match_metadata_fields: [service]
-        order_by_metadata_field: committed_at
         delete_branch: true
         comment: "Superseded by #{forgejo_pr.pr_number}"
   - when:

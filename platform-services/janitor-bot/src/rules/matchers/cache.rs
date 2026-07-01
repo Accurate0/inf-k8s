@@ -205,6 +205,132 @@ pub(super) async fn combined_status_cached(
         .await
 }
 
+#[derive(serde::Deserialize)]
+struct Kustomization {
+    #[serde(default)]
+    images: Vec<KustomizeImage>,
+}
+
+#[derive(serde::Deserialize)]
+struct KustomizeImage {
+    name: String,
+    #[serde(rename = "newTag")]
+    new_tag: Option<String>,
+}
+
+pub(crate) async fn image_committed_at_cached(
+    clients: &Clients,
+    cache: &ResourceCache,
+    image: &str,
+    tag: &str,
+) -> Option<i64> {
+    let key = format!("img_committed_at:{image}:{tag}");
+    cache
+        .get_or_compute(&key, || async {
+            match clients.registry.committed_at(image, tag).await {
+                Ok(ts) => Some(ts),
+                Err(e) => {
+                    tracing::warn!(image, tag, "failed to read image committed_at: {e}");
+                    None
+                }
+            }
+        })
+        .await
+}
+
+pub(crate) async fn pr_image_committed_at(
+    clients: &Clients,
+    cache: &ResourceCache,
+    meta: &serde_json::Map<String, serde_json::Value>,
+    images_field: &str,
+    tag_field: &str,
+) -> Option<i64> {
+    let images = meta.get(images_field).and_then(|v| v.as_str())?;
+    let tag = meta.get(tag_field).and_then(|v| v.as_str())?;
+    let image = images.split(',').map(str::trim).find(|s| !s.is_empty())?;
+    image_committed_at_cached(clients, cache, image, tag).await
+}
+
+pub(super) async fn is_latest_published_image(
+    clients: &Clients,
+    cache: &ResourceCache,
+    pr: &PrEvent,
+    images_field: &str,
+    tag_field: &str,
+    path_field: &str,
+) -> bool {
+    let Some(current) = get_pr_cached(clients, cache, pr).await else {
+        return true;
+    };
+    let Some(meta) = parse_pr_metadata(current.body.as_deref().unwrap_or("")) else {
+        return true;
+    };
+
+    let (Some(images), Some(tag), Some(path)) = (
+        meta.get(images_field).and_then(|v| v.as_str()),
+        meta.get(tag_field).and_then(|v| v.as_str()),
+        meta.get(path_field).and_then(|v| v.as_str()),
+    ) else {
+        tracing::debug!(pr = pr.pr_number, "missing image metadata fields");
+        return true;
+    };
+
+    let kustomization_path = format!("{}/kustomization.yaml", path.trim_end_matches('/'));
+    let raw = match clients
+        .forgejo
+        .get_raw_file(&pr.owner, &pr.repo, &kustomization_path, &pr.target_branch)
+        .await
+    {
+        Ok(raw) => raw,
+        Err(e) => {
+            tracing::warn!(pr = pr.pr_number, "failed to read deployed kustomization: {e}");
+            return true;
+        }
+    };
+
+    let deployed: std::collections::HashMap<String, String> = match yaml_serde::from_str::<
+        Kustomization,
+    >(&raw)
+    {
+        Ok(k) => k
+            .images
+            .into_iter()
+            .filter_map(|i| i.new_tag.map(|t| (i.name, t)))
+            .collect(),
+        Err(e) => {
+            tracing::warn!(pr = pr.pr_number, "failed to parse kustomization: {e}");
+            return true;
+        }
+    };
+
+    for image in images.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let Some(deployed_tag) = deployed.get(image) else {
+            tracing::warn!(image, "image not present in deployed kustomization");
+            continue;
+        };
+        if deployed_tag == tag {
+            continue;
+        }
+        let (Some(pr_ts), Some(deployed_ts)) = (
+            image_committed_at_cached(clients, cache, image, tag).await,
+            image_committed_at_cached(clients, cache, image, deployed_tag).await,
+        ) else {
+            continue;
+        };
+        if pr_ts < deployed_ts {
+            tracing::info!(
+                image,
+                pr_tag = tag,
+                deployed_tag,
+                "PR image is older than deployed image; would roll back"
+            );
+            return false;
+        }
+    }
+
+    true
+}
+
 async fn fetch_open_prs(clients: &Clients, cache: &ResourceCache, pr: &PrEvent) {
     let key = format!("open_prs:{}/{}", pr.owner, pr.repo);
 

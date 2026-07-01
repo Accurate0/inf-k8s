@@ -6,7 +6,7 @@ use crate::command::ACK_LABEL;
 use crate::event::{BotEvent, RawRequest};
 use crate::forgejo::CommitStatusParams;
 use crate::rules::matchers::ResourceCache;
-use crate::rules::matchers::cache::get_changed_files_cached;
+use crate::rules::matchers::cache::{get_changed_files_cached, pr_image_committed_at};
 use crate::rules::matchers::{metadata_order_key, parse_pr_metadata};
 use crate::rules::schema::{CloseOtherPrsCriteria, LabelSpec, TemplateString};
 use forgejo_api::structs::MergePullRequestOptionDo;
@@ -84,6 +84,8 @@ pub enum Action {
         criteria: CloseOtherPrsCriteria,
         match_metadata_fields: Vec<String>,
         order_by_metadata_field: Option<String>,
+        images_metadata_field: String,
+        tag_metadata_field: String,
         delete_branch: bool,
         comment: Option<TemplateString>,
     },
@@ -446,6 +448,8 @@ impl Action {
                 criteria,
                 match_metadata_fields,
                 order_by_metadata_field,
+                images_metadata_field,
+                tag_metadata_field,
                 delete_branch,
                 comment,
             } => {
@@ -492,7 +496,20 @@ impl Action {
                         .as_deref()
                         .and_then(|f| metadata_order_key(&current_meta, f));
 
-                    // List all open PRs
+                    let current_image_ts =
+                        if matches!(criteria, CloseOtherPrsCriteria::OlderPublishedImage) {
+                            pr_image_committed_at(
+                                clients,
+                                cache,
+                                &current_meta,
+                                images_metadata_field,
+                                tag_metadata_field,
+                            )
+                            .await
+                        } else {
+                            None
+                        };
+
                     let open_prs = client.list_open_prs(&pr.owner, &pr.repo).await?;
 
                     for other in &open_prs {
@@ -526,7 +543,6 @@ impl Action {
                             continue;
                         }
 
-                        // Apply criteria
                         let should_close = match criteria {
                             CloseOtherPrsCriteria::Older => {
                                 match (order_by_metadata_field.as_deref(), current_order_key) {
@@ -537,6 +553,20 @@ impl Action {
                                         }
                                     }
                                     _ => other.created_at < current_created,
+                                }
+                            }
+                            CloseOtherPrsCriteria::OlderPublishedImage => {
+                                let other_ts = pr_image_committed_at(
+                                    clients,
+                                    cache,
+                                    &other_meta,
+                                    images_metadata_field,
+                                    tag_metadata_field,
+                                )
+                                .await;
+                                match (current_image_ts, other_ts) {
+                                    (Some(cur), Some(other_key)) => other_key < cur,
+                                    _ => false,
                                 }
                             }
                         };

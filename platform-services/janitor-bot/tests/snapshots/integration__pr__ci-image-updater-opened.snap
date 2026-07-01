@@ -29,7 +29,7 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/pulls/104/reviews
     service: forgejo
   - method: GET
-    path: /api/v1/repos/anurag/k8s/pulls?state=open
+    path: /api/v1/repos/anurag/k8s/raw/platform-services/janitor-bot/kustomization.yaml?ref=main
     service: forgejo
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/104

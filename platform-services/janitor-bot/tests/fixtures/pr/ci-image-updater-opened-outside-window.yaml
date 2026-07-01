@@ -33,7 +33,7 @@ mocks:
     body:
       number: 104
       title: "[skip ci] Update janitor-bot images to abc123"
-      body: "<!-- metadata:{\"service\":\"janitor-bot\",\"tag\":\"abc123\"} -->"
+      body: "<!-- metadata:{\"service\":\"janitor-bot\",\"tag\":\"abc123\",\"images\":\"ghcr.io/accurate0/janitor-bot\",\"path\":\"platform-services/janitor-bot\"} -->"
       user:
         login: ci-image-updater
         avatar_url: ""
@@ -68,6 +68,52 @@ mocks:
       state: open
     status: 200
     body: []
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/raw/platform-services/janitor-bot/kustomization.yaml
+    query:
+      ref: main
+    status: 200
+    body_text: |
+      images:
+        - name: ghcr.io/accurate0/janitor-bot
+          newTag: old000
+  - service: registry
+    method: GET
+    path: /token
+    status: 200
+    body:
+      token: test-pull-token
+  - service: registry
+    method: GET
+    path: /v2/accurate0/janitor-bot/manifests/abc123
+    status: 200
+    body:
+      config:
+        digest: "sha256:configabc"
+  - service: registry
+    method: GET
+    path: /v2/accurate0/janitor-bot/manifests/old000
+    status: 200
+    body:
+      config:
+        digest: "sha256:configold"
+  - service: registry
+    method: GET
+    path: "/v2/accurate0/janitor-bot/blobs/sha256:configabc"
+    status: 200
+    body:
+      config:
+        Labels:
+          net.inf-k8s.committed-at: "2000"
+  - service: registry
+    method: GET
+    path: "/v2/accurate0/janitor-bot/blobs/sha256:configold"
+    status: 200
+    body:
+      config:
+        Labels:
+          net.inf-k8s.committed-at: "1000"
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/labels

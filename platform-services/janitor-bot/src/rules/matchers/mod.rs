@@ -8,7 +8,7 @@ pub use types::*;
 pub use cache::ResourceCache;
 use cache::{
     bot_comment_contains, combined_status_cached, get_changed_files_cached, get_pr_cached,
-    get_reviews_cached, is_latest_by_metadata,
+    get_reviews_cached, is_latest_by_metadata, is_latest_published_image,
 };
 
 use crate::clients::Clients;
@@ -409,6 +409,25 @@ fn eval_leaf<'a>(
                         pr,
                         match_metadata_fields,
                         order_by_metadata_field.as_deref(),
+                    )
+                    .await
+                }
+                _ => false,
+            },
+
+            LeafMatcher::IsLatestPublishedImage {
+                images_metadata_field,
+                tag_metadata_field,
+                path_metadata_field,
+            } => match ev {
+                BotEvent::ForgejoPr(pr) => {
+                    is_latest_published_image(
+                        clients,
+                        cache,
+                        pr,
+                        images_metadata_field,
+                        tag_metadata_field,
+                        path_metadata_field,
                     )
                     .await
                 }
