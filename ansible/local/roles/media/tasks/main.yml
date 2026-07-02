@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Media stack
+  become: true
+  become_user: root
+  block:
+    - name: Create compose project directory
+      ansible.builtin.file:
+        path: "{{ media_config_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Template docker compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ media_config_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart media stack
+
+    - name: Bring up the media stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ media_config_root }}"
+        state: present
+        pull: missing

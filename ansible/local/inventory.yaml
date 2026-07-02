@@ -1,0 +1,17 @@
+all:
+  children:
+    media_servers: {}
+
+media_servers:
+  hosts:
+    media:
+      ansible_host: media.local
+      ansible_user: janitor
+
+      media_drives:
+        - name: disk1
+          device: /dev/disk/by-label/media1
+          fstype: ext4
+
+      media_pool_mount: /data/media
+      media_config_root: /opt/media

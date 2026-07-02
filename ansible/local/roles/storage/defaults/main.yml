@@ -1,0 +1,18 @@
+media_drives: []
+media_pool_mount: /data/media
+media_config_root: /opt/media
+
+media_disks_root: /data/disks
+media_pool_options: >-
+  defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs
+
+media_puid: 1000
+media_pgid: 1000
+
+media_apps:
+  - jellyfin
+  - sonarr
+  - radarr
+  - transmission
+  - jackett
+  - bazarr

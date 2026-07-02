@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Nginx reverse proxy
+  become: true
+  become_user: root
+  block:
+    - name: Install nginx
+      community.general.pacman:
+        name: nginx
+        state: present
+
+    - name: Create conf.d directory
+      ansible.builtin.file:
+        path: /etc/nginx/conf.d
+        state: directory
+        mode: "0755"
+
+    - name: Ensure conf.d is included from the http block
+      ansible.builtin.lineinfile:
+        path: /etc/nginx/nginx.conf
+        insertafter: '^\s*http\s*{'
+        line: "    include /etc/nginx/conf.d/*.conf;"
+        regexp: '^\s*include /etc/nginx/conf\.d/\*\.conf;'
+        validate: nginx -t -c %s
+
+    - name: Template media reverse proxy sites
+      ansible.builtin.template:
+        src: site.conf.j2
+        dest: /etc/nginx/conf.d/media.conf
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Enable and start nginx
+      ansible.builtin.service:
+        name: nginx
+        enabled: true
+        state: started

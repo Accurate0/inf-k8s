@@ -1,0 +1,10 @@
+nginx_domain: media.internal
+
+nginx_sites:
+  - {name: jellyfin, port: 8096}
+  - {name: sonarr, port: 8989}
+  - {name: radarr, port: 7878}
+  - {name: transmission, port: 9091}
+  - {name: jackett, port: 9117}
+  - {name: bazarr, port: 6767}
+  - {name: flaresolverr, port: 8191}

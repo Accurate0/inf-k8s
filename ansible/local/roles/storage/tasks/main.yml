@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Storage
+  become: true
+  become_user: root
+  block:
+    - name: Install mergerfs
+      community.general.pacman:
+        name: mergerfs
+        state: present
+
+    - name: Create per-drive mount points
+      ansible.builtin.file:
+        path: "{{ media_disks_root }}/{{ item.name }}"
+        state: directory
+        mode: "0755"
+      loop: "{{ media_drives }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Mount media drives
+      ansible.posix.mount:
+        src: "{{ item.device }}"
+        path: "{{ media_disks_root }}/{{ item.name }}"
+        fstype: "{{ item.fstype | default('ext4') }}"
+        opts: "{{ item.opts | default('defaults,noatime') }}"
+        state: mounted
+      loop: "{{ media_drives }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Create mergerfs pool mount point
+      ansible.builtin.file:
+        path: "{{ media_pool_mount }}"
+        state: directory
+        mode: "0755"
+
+    - name: Mount mergerfs pool
+      ansible.posix.mount:
+        src: "{{ media_disks_root }}/*"
+        path: "{{ media_pool_mount }}"
+        fstype: fuse.mergerfs
+        opts: "{{ media_pool_options }},x-systemd.requires={{ media_disks_root }}"
+        state: mounted
+
+    - name: Create media library directories
+      ansible.builtin.file:
+        path: "{{ media_pool_mount }}/{{ item }}"
+        state: directory
+        owner: "{{ media_puid }}"
+        group: "{{ media_pgid }}"
+        mode: "0775"
+      loop:
+        - tv
+        - movies
+        - downloads
+
+    - name: Create app config directories
+      ansible.builtin.file:
+        path: "{{ media_config_root }}/config/{{ item }}"
+        state: directory
+        owner: "{{ media_puid }}"
+        group: "{{ media_pgid }}"
+        mode: "0775"
+      loop: "{{ media_apps }}"

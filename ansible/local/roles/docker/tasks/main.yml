@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Docker
+  become: true
+  become_user: root
+  block:
+    - name: Install docker
+      community.general.pacman:
+        name:
+          - docker
+          - docker-compose
+        state: present
+
+    - name: Enable and start docker
+      ansible.builtin.service:
+        name: docker
+        enabled: true
+        state: started
+
+    - name: Add janitor to the docker group
+      ansible.builtin.user:
+        name: janitor
+        groups: docker
+        append: true

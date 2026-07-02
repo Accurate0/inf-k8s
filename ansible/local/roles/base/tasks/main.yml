@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT-0
+---
+- ansible.builtin.import_tasks: packages.yml
+- ansible.builtin.import_tasks: users.yml
+- ansible.builtin.import_tasks: ssh.yml

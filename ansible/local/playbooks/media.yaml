@@ -1,0 +1,11 @@
+- name: Media server
+  hosts: media_servers
+  become: true
+  gather_facts: true
+
+  roles:
+    - base
+    - storage
+    - docker
+    - media
+    - nginx

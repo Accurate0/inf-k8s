@@ -26,8 +26,8 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/ansible/roles/k3s/vars/main\\.yml$/",
-        "/ansible/playbooks/k3s-upgrade\\.yaml$/"
+        "/ansible/kubernetes/roles/k3s/vars/main\\.yml$/",
+        "/ansible/kubernetes/playbooks/k3s-upgrade\\.yaml$/"
       ],
       "matchStrings": ["k3s_version:\\s*\"(?<currentValue>[^\"]+)\""],
       "depNameTemplate": "k3s-io/k3s",
@@ -55,6 +55,16 @@
       ],
       "datasourceTemplate": "docker",
       "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)(-(?<compatibility>.+))?$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/ansible/local/roles/media/defaults/main\\.yml$/"
+      ],
+      "matchStrings": [
+        "(?<depName>(lscr\\.io|ghcr\\.io)/[^\\s:]+):(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "docker"
     }
   ],
   "packageRules": [
@@ -92,6 +102,13 @@
       "matchDatasources": ["helm"],
       "matchPackageNames": ["kube-prometheus-stack"],
       "schedule": ["* * * * 1"]
+    },
+    {
+      "matchFileNames": ["ansible/local/roles/media/defaults/main.yml"],
+      "matchDatasources": ["docker"],
+      "groupName": "media stack",
+      "commitMessageTopic": "media stack",
+      "automerge": false
     }
   ]
 }

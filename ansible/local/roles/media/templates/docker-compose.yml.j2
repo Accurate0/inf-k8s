@@ -1,0 +1,95 @@
+name: media
+
+x-env: &env
+  PUID: "{{ media_puid }}"
+  PGID: "{{ media_pgid }}"
+  TZ: "{{ media_timezone }}"
+
+networks:
+  media:
+    name: {{ media_network }}
+
+services:
+  jellyfin:
+    image: {{ media_images.jellyfin }}
+    container_name: jellyfin
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.jellyfin }}:8096"
+    volumes:
+      - {{ media_config_root }}/config/jellyfin:/config
+      - {{ media_pool_mount }}:/media
+
+  sonarr:
+    image: {{ media_images.sonarr }}
+    container_name: sonarr
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.sonarr }}:8989"
+    volumes:
+      - {{ media_config_root }}/config/sonarr:/config
+      - {{ media_pool_mount }}:/media
+
+  radarr:
+    image: {{ media_images.radarr }}
+    container_name: radarr
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.radarr }}:7878"
+    volumes:
+      - {{ media_config_root }}/config/radarr:/config
+      - {{ media_pool_mount }}:/media
+
+  transmission:
+    image: {{ media_images.transmission }}
+    container_name: transmission
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.transmission }}:9091"
+      - "51413:51413"
+      - "51413:51413/udp"
+    volumes:
+      - {{ media_config_root }}/config/transmission:/config
+      - {{ media_downloads_dir }}:/downloads
+
+  jackett:
+    image: {{ media_images.jackett }}
+    container_name: jackett
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.jackett }}:9117"
+    volumes:
+      - {{ media_config_root }}/config/jackett:/config
+
+  bazarr:
+    image: {{ media_images.bazarr }}
+    container_name: bazarr
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.bazarr }}:6767"
+    volumes:
+      - {{ media_config_root }}/config/bazarr:/config
+      - {{ media_pool_mount }}:/media
+
+  flaresolverr:
+    image: {{ media_images.flaresolverr }}
+    container_name: flaresolverr
+    restart: unless-stopped
+    networks: [media]
+    environment:
+      LOG_LEVEL: info
+      TZ: "{{ media_timezone }}"
+    ports:
+      - "{{ media_ports.flaresolverr }}:8191"

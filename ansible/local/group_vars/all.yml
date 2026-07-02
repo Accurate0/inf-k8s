@@ -1,0 +1,7 @@
+media_puid: 1000
+media_pgid: 1000
+media_timezone: Australia/Perth
+
+media_downloads_dir: "{{ media_pool_mount }}/downloads"
+media_tv_dir: "{{ media_pool_mount }}/tv"
+media_movies_dir: "{{ media_pool_mount }}/movies"
