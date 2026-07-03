@@ -2,7 +2,7 @@
 default:
     @just --list ansible::local
 
-ansible_dir := justfile_directory()
+ansible_dir := source_directory()
 
 # Run an ansible playbook (e.g. just ansible local run media media)
 run playbook group:

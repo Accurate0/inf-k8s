@@ -9,6 +9,7 @@
         name:
           - docker
           - docker-compose
+          - python-docker
         state: present
 
     - name: Enable and start docker

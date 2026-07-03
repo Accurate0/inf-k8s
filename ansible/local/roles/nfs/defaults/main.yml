@@ -1,0 +1,5 @@
+nfs_export_path: /data/media
+nfs_clients:
+  - 192.168.0.104
+nfs_fsid: e9c7d30d-2378-469e-a1c3-bd95706e5390
+nfs_options: rw,fsid={{ nfs_fsid }},no_subtree_check,sync,no_root_squash

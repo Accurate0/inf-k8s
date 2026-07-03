@@ -4,10 +4,16 @@
   become: true
   become_user: root
   block:
+    - name: Check if mergerfs is installed
+      ansible.builtin.command: pacman -Q mergerfs
+      register: mergerfs_query
+      changed_when: false
+      failed_when: false
+
     - name: Install mergerfs
-      community.general.pacman:
-        name: mergerfs
-        state: present
+      become: false
+      ansible.builtin.command: paru -S --needed --noconfirm mergerfs
+      when: mergerfs_query.rc != 0
 
     - name: Create per-drive mount points
       ansible.builtin.file:
@@ -39,9 +45,16 @@
       ansible.posix.mount:
         src: "{{ media_disks_root }}/*"
         path: "{{ media_pool_mount }}"
-        fstype: fuse.mergerfs
-        opts: "{{ media_pool_options }},x-systemd.requires={{ media_disks_root }}"
+        fstype: mergerfs
+        opts: "{{ media_pool_options }}{% for drive in media_drives %},x-systemd.requires={{ media_disks_root }}/{{ drive.name }}{% endfor %}"
         state: mounted
+      register: mergerfs_mount
+      notify: Remount mergerfs pool
+
+    - name: Reload systemd for regenerated mount units
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: mergerfs_mount is changed
 
     - name: Create media library directories
       ansible.builtin.file:
@@ -53,6 +66,7 @@
       loop:
         - tv
         - movies
+        - anime
         - downloads
 
     - name: Create app config directories

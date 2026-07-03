@@ -1,0 +1,11 @@
+#!/bin/sh
+port="$1"
+host="127.0.0.1:9091"
+url="http://$host/transmission/rpc"
+
+sid=$(wget -q -S -O /dev/null "$url" 2>&1 | sed -n 's/.*X-Transmission-Session-Id: //Ip' | tr -d '\r')
+
+wget -q -O /dev/null \
+  --header="X-Transmission-Session-Id: $sid" \
+  --post-data="{\"method\":\"session-set\",\"arguments\":{\"peer-port\":$port}}" \
+  "$url"

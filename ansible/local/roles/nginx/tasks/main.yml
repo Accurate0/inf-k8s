@@ -21,7 +21,6 @@
         insertafter: '^\s*http\s*{'
         line: "    include /etc/nginx/conf.d/*.conf;"
         regexp: '^\s*include /etc/nginx/conf\.d/\*\.conf;'
-        validate: nginx -t -c %s
 
     - name: Template media reverse proxy sites
       ansible.builtin.template:
@@ -29,6 +28,10 @@
         dest: /etc/nginx/conf.d/media.conf
         mode: "0644"
       notify: Reload nginx
+
+    - name: Validate nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
 
     - name: Enable and start nginx
       ansible.builtin.service:

@@ -4,7 +4,7 @@ media_config_root: /opt/media
 
 media_disks_root: /data/disks
 media_pool_options: >-
-  defaults,allow_other,use_ino,cache.files=partial,dropcacheonclose=true,category.create=mfs
+  defaults,allow_other,cache.files=partial,dropcacheonclose=true,category.create=mfs,never-forget-nodes=true,inodecalc=path-hash,lazy-umount-mountpoint=false
 
 media_puid: 1000
 media_pgid: 1000
@@ -14,5 +14,6 @@ media_apps:
   - sonarr
   - radarr
   - transmission
-  - jackett
+  - flood
+  - prowlarr
   - bazarr

@@ -1,27 +1,38 @@
 media_config_root: /opt/media
 media_pool_mount: /data/media
-media_downloads_dir: "{{ media_pool_mount }}/downloads"
 
 media_puid: 1000
 media_pgid: 1000
 media_timezone: Australia/Perth
 
 media_network: media
+media_lan_subnet: 192.168.0.0/16
+media_vpn_server_countries: Australia
+media_recyclarr_cron: "0 3 * * *"
+
+media_transmission_settings:
+  download-dir: /data/downloads
+  incomplete-dir: /data/downloads/incomplete
+  incomplete-dir-enabled: true
 
 media_images:
   jellyfin: lscr.io/linuxserver/jellyfin:10.11.11
   sonarr: lscr.io/linuxserver/sonarr:4.0.19
   radarr: lscr.io/linuxserver/radarr:6.2.1
   transmission: lscr.io/linuxserver/transmission:4.1.3
-  jackett: lscr.io/linuxserver/jackett:0.24.2158
+  prowlarr: lscr.io/linuxserver/prowlarr:2.4.0
   bazarr: lscr.io/linuxserver/bazarr:1.5.6
   flaresolverr: ghcr.io/flaresolverr/flaresolverr:v3.5.0
+  gluetun: qmcgaw/gluetun:v3.41.1
+  recyclarr: ghcr.io/recyclarr/recyclarr:8.6.0
+  flood: jesec/flood:4.14.3
 
 media_ports:
   jellyfin: 8096
   sonarr: 8989
   radarr: 7878
   transmission: 9091
-  jackett: 9117
+  prowlarr: 9696
   bazarr: 6767
   flaresolverr: 8191
+  flood: 3000

@@ -5,7 +5,7 @@ all:
 media_servers:
   hosts:
     media:
-      ansible_host: media.local
+      ansible_host: media.internal
       ansible_user: janitor
 
       media_drives:

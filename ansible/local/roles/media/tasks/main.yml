@@ -17,8 +17,110 @@
         mode: "0644"
       notify: Restart media stack
 
+    - name: Create gluetun config directory
+      ansible.builtin.file:
+        path: "{{ media_config_root }}/config/gluetun"
+        state: directory
+        mode: "0755"
+
+    - name: Set wireguard private key from environment
+      ansible.builtin.set_fact:
+        wireguard_private_key: "{{ lookup('env', 'PROTON_VPN_WIREGUARD_PRIVATE_KEY') }}"
+
+    - name: Ensure wireguard private key is provided
+      ansible.builtin.assert:
+        that: wireguard_private_key | length > 0
+        fail_msg: PROTON_VPN_WIREGUARD_PRIVATE_KEY environment variable is not set
+
+    - name: Template gluetun environment file
+      ansible.builtin.template:
+        src: gluetun.env.j2
+        dest: "{{ media_config_root }}/config/gluetun/gluetun.env"
+        mode: "0600"
+      notify: Restart media stack
+
+    - name: Template transmission port-forward update script
+      ansible.builtin.template:
+        src: transmission-port.sh.j2
+        dest: "{{ media_config_root }}/config/gluetun/transmission-port.sh"
+        mode: "0755"
+
+    - name: Create recyclarr config directory
+      ansible.builtin.file:
+        path: "{{ media_config_root }}/config/recyclarr"
+        state: directory
+        owner: "{{ media_puid }}"
+        group: "{{ media_pgid }}"
+        mode: "0755"
+
+    - name: Set recyclarr api keys from environment
+      ansible.builtin.set_fact:
+        recyclarr_sonarr_api_key: "{{ lookup('env', 'SONARR_API_KEY') }}"
+        recyclarr_radarr_api_key: "{{ lookup('env', 'RADARR_API_KEY') }}"
+
+    - name: Ensure recyclarr api keys are provided
+      ansible.builtin.assert:
+        that:
+          - recyclarr_sonarr_api_key | length > 0
+          - recyclarr_radarr_api_key | length > 0
+        fail_msg: SONARR_API_KEY and RADARR_API_KEY environment variables must be set
+
+    - name: Template recyclarr config
+      ansible.builtin.template:
+        src: recyclarr.yml.j2
+        dest: "{{ media_config_root }}/config/recyclarr/recyclarr.yml"
+        mode: "0644"
+      notify: Restart media stack
+
+    - name: Template recyclarr environment file
+      ansible.builtin.template:
+        src: recyclarr.env.j2
+        dest: "{{ media_config_root }}/config/recyclarr/recyclarr.env"
+        mode: "0600"
+      notify: Restart media stack
+
     - name: Bring up the media stack
       community.docker.docker_compose_v2:
         project_src: "{{ media_config_root }}"
         state: present
         pull: missing
+
+    - name: Wait for transmission settings file
+      ansible.builtin.wait_for:
+        path: "{{ media_config_root }}/config/transmission/settings.json"
+        timeout: 60
+
+    - name: Read transmission settings
+      ansible.builtin.slurp:
+        src: "{{ media_config_root }}/config/transmission/settings.json"
+      register: transmission_settings_raw
+
+    - name: Configure transmission download directories
+      when: >-
+        (transmission_settings_raw.content | b64decode | from_json)
+        | combine(media_transmission_settings)
+        != (transmission_settings_raw.content | b64decode | from_json)
+      block:
+        - name: Stop transmission
+          community.docker.docker_container:
+            name: transmission
+            state: stopped
+
+        - name: Write transmission settings
+          ansible.builtin.copy:
+            content: >-
+              {{ (transmission_settings_raw.content | b64decode | from_json)
+                 | combine(media_transmission_settings) | to_nice_json }}
+            dest: "{{ media_config_root }}/config/transmission/settings.json"
+            mode: "0644"
+
+        - name: Start transmission
+          community.docker.docker_container:
+            name: transmission
+            state: started
+
+    - name: Run initial recyclarr sync
+      community.docker.docker_container_exec:
+        container: recyclarr
+        command: recyclarr sync
+      changed_when: true

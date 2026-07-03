@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Remount mergerfs pool
+  become: true
+  become_user: root
+  vars:
+    compose_file: "{{ media_config_root }}/docker-compose.yml"
+  ansible.builtin.shell: |
+    set -e
+    if [ -f {{ compose_file }} ]; then
+      docker compose -f {{ compose_file }} stop
+    fi
+    umount {{ media_pool_mount }} || umount -l {{ media_pool_mount }}
+    mount {{ media_pool_mount }}
+    if [ -f {{ compose_file }} ]; then
+      docker compose -f {{ compose_file }} start
+    fi
+    exportfs -ra 2>/dev/null || true
+  changed_when: true

@@ -1,0 +1,23 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: NFS server
+  become: true
+  become_user: root
+  block:
+    - name: Install nfs-utils
+      community.general.pacman:
+        name: nfs-utils
+        state: present
+
+    - name: Template exports
+      ansible.builtin.template:
+        src: exports.j2
+        dest: /etc/exports
+        mode: "0644"
+      notify: Reload nfs exports
+
+    - name: Enable and start nfs-server
+      ansible.builtin.service:
+        name: nfs-server
+        enabled: true
+        state: started

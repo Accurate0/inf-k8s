@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Reload nfs exports
+  become: true
+  become_user: root
+  ansible.builtin.command: exportfs -ra
+  changed_when: true
