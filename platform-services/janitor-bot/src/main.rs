@@ -155,11 +155,7 @@ async fn main() -> anyhow::Result<()> {
         .route("/health", get(|| async { StatusCode::OK }))
         .route(
             "/renovate/dashboard",
-            get(routes::handle_renovate_dashboard),
-        )
-        .route(
-            "/renovate/dashboard/refresh",
-            post(routes::handle_renovate_dashboard_refresh),
+            get(routes::handle_renovate_dashboard).post(routes::handle_renovate_dashboard_refresh),
         )
         .nest_service("/static", ServeDir::new("static"))
         .route("/forgejo/webhook", post(routes::handle_forgejo_webhook))

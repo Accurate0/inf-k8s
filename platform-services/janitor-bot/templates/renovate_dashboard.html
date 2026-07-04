@@ -6,6 +6,7 @@
     <title>Renovate Dashboard</title>
     <link rel="stylesheet" href="/static/sakura.css">
     <style>
+        body { max-width: 1200px; }
         .badge {
             display: inline-block;
             padding: 0.1em 0.5em;
@@ -29,7 +30,8 @@
             color: #24292f;
             margin-right: 0.2em;
         }
-        .checks a { margin-right: 0.4em; font-size: 0.8em; }
+        td.checks { display: flex; flex-wrap: wrap; gap: 0.3em; max-width: 40em; }
+        .checks a { font-size: 0.8em; }
         .repo-error { color: #cf222e; }
         td.title { max-width: 32em; }
         .toolbar { display: flex; align-items: center; gap: 1em; }
@@ -38,7 +40,8 @@
 <body>
     <div class="toolbar">
         <h1>Renovate Dashboard</h1>
-        <form method="post" action="/renovate/dashboard/refresh">
+        <form method="post" action="/renovate/dashboard">
+            <input type="hidden" name="refetch" value="true">
             <button type="submit">Refresh</button>
         </form>
     </div>
