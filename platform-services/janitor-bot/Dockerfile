@@ -38,6 +38,8 @@ USER appuser
 
 WORKDIR /opt/${BINARY_NAME}
 
+COPY --from=builder /app/${BINARY_NAME}-build/static ./static
+
 RUN ln -s /usr/local/bin/${BINARY_NAME} executable
 ENTRYPOINT ["./executable"]
 EXPOSE 3000/tcp

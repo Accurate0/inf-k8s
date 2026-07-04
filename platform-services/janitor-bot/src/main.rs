@@ -8,8 +8,8 @@ use axum::{
 use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use chrono_tz::Australia;
 use janitor_bot::{
-    argocd::ArgocdClient, clients::Clients, github::GitHubClient, llm::LlmClient, metrics,
-    registry::RegistryClient,
+    argocd::ArgocdClient, cache::CacheAccessor, clients::Clients, github::GitHubClient,
+    llm::LlmClient, metrics, registry::RegistryClient,
 };
 use janitor_bot::{event, rules, tracing_setup};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
@@ -17,6 +17,7 @@ use rules::RulesOrchestrator;
 use std::sync::Arc;
 use tokio::net::TcpListener;
 use tokio_cron_scheduler::{JobBuilder, JobScheduler};
+use tower_http::services::ServeDir;
 use tracing::Instrument;
 
 const FORGEJO_OWNER: &str = "anurag";
@@ -27,6 +28,7 @@ struct AppState {
     github_webhook_secret: String,
     argocd_webhook_secret: String,
     orchestrator: RulesOrchestrator,
+    cache: CacheAccessor,
 }
 
 async fn evaluate_open_prs(state: &AppState) {
@@ -113,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
         argocd_webhook_secret: std::env::var("ARGOCD_WEBHOOK_SECRET").unwrap_or_default(),
         orchestrator: RulesOrchestrator::new(),
+        cache: CacheAccessor::new(),
     });
 
     // Debug builds (local dev / webhook replay) skip the startup label sync and
@@ -150,6 +153,15 @@ async fn main() -> anyhow::Result<()> {
 
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
+        .route(
+            "/renovate/dashboard",
+            get(routes::handle_renovate_dashboard),
+        )
+        .route(
+            "/renovate/dashboard/refresh",
+            post(routes::handle_renovate_dashboard_refresh),
+        )
+        .nest_service("/static", ServeDir::new("static"))
         .route("/forgejo/webhook", post(routes::handle_forgejo_webhook))
         .route("/github/webhook", post(routes::handle_github_webhook))
         .route("/argocd/webhook", post(routes::handle_argocd_webhook))

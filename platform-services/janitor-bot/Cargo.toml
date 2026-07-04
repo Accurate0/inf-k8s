@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 axum = "0.8"
+askama = "0.16"
 forgejo-api = "0.11"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
@@ -28,11 +29,11 @@ tempfile = "3.27.0"
 globset = "0.4.18"
 open-feature = "0.3"
 openfeature-provider = { git = "https://github.com/Accurate0/inf-k8s.git", branch = "main" }
-tower-http = { version = "0.7.0", features = ["trace"] }
+tower-http = { version = "0.7.0", features = ["trace", "fs"] }
 opentelemetry = { version = "0.32.0", features = ["trace"] }
 opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"] }
 opentelemetry-otlp = { version = "0.32.0", features = ["trace", "reqwest-blocking-client", "reqwest-rustls", "http-json"] }
-opentelemetry-semantic-conventions = { version = "0.32.0", features = ["semconv_experimental"] }
+opentelemetry-semantic-conventions = { version = "0.32.1", features = ["semconv_experimental"] }
 tracing-opentelemetry = "0.33.0"
 axum-tracing-opentelemetry = "0.38.0"
 http = "1"
@@ -52,9 +53,9 @@ yaml_serde = "0.10.4"
 
 [dev-dependencies]
 insta = { version = "1", features = ["yaml", "redactions"] }
-regex = "1.12.3"
+regex = "1.12.4"
 rstest = "0.26"
-serial_test = "3.4.0"
+serial_test = "3.5.0"
 wiremock = "0.6"
 
 [[bin]]

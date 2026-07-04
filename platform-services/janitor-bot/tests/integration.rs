@@ -4,6 +4,7 @@ use std::slice;
 use std::sync::Arc;
 
 use insta::assert_yaml_snapshot;
+use insta::assert_snapshot;
 use insta::internals::Content;
 use janitor_bot::feature_flag::FeatureFlagClient;
 use janitor_bot::llm::LlmClient;
@@ -15,6 +16,7 @@ use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
 use janitor_bot::argocd::ArgocdClient;
 use janitor_bot::clients::Clients;
+use janitor_bot::dashboard;
 use janitor_bot::forgejo::ForgejoClient;
 use janitor_bot::github::GitHubClient;
 use janitor_bot::registry::RegistryClient;
@@ -242,4 +244,118 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     settings.bind(|| {
         assert_yaml_snapshot!(snapshot_name, snapshot);
     });
+}
+
+fn renovate_pr(number: i64, author: &str, sha: &str, html_url: &str) -> Value {
+    json!({
+        "number": number,
+        "title": format!("Update dependency to v{number}"),
+        "user": {
+            "login": author,
+            "avatar_url": "",
+            "html_url": "",
+            "created": "2020-01-01T00:00:00Z",
+            "last_login": "2020-01-01T00:00:00Z",
+        },
+        "labels": [
+            {"id": 1, "name": "renovate", "color": "#1a7f37", "url": ""},
+            {"id": 2, "name": "renovate/patch", "color": "#8957e5", "url": ""},
+        ],
+        "base": {"ref": "main"},
+        "head": {"ref": "renovate/dep", "sha": sha},
+        "mergeable": true,
+        "state": "open",
+        "merged": false,
+        "diff_url": "",
+        "html_url": html_url,
+        "patch_url": "",
+        "url": "",
+        "requested_reviewers": [],
+        "closed_at": null,
+        "created_at": "2020-01-01T00:00:00Z",
+        "due_date": null,
+        "merged_at": null,
+        "updated_at": "2020-01-01T00:00:00Z",
+    })
+}
+
+#[tokio::test]
+#[serial_test::serial]
+async fn renovate_dashboard_snapshot() {
+    let forgejo_server = MockServer::start().await;
+    let unused_server = MockServer::start().await;
+
+    let sha = "def0000000000000000000000000000000000000";
+
+    // anurag/k8s: one renovate PR with a combined status (mixed checks).
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/anurag/k8s/pulls"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([renovate_pr(
+            42,
+            "renovate",
+            sha,
+            "https://forgejo.example/anurag/k8s/pulls/42"
+        )])))
+        .mount(&forgejo_server)
+        .await;
+    Mock::given(method("GET"))
+        .and(path(format!(
+            "/api/v1/repos/anurag/k8s/commits/{sha}/status"
+        )))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+            "state": "success",
+            "total_count": 2,
+            "statuses": [
+                {
+                    "context": "ci/build",
+                    "status": "success",
+                    "description": "build passed",
+                    "target_url": "https://forgejo.example/anurag/k8s/actions/runs/1",
+                },
+                {
+                    "context": "ci/lint",
+                    "status": "pending",
+                    "description": "",
+                    "target_url": "",
+                },
+            ],
+        })))
+        .mount(&forgejo_server)
+        .await;
+
+    // anurag/home-gateway: no open PRs.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/anurag/home-gateway/pulls"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&forgejo_server)
+        .await;
+
+    // anurag/solar-panels: an open PR authored by someone else, filtered out.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/anurag/solar-panels/pulls"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([renovate_pr(
+            7,
+            "anurag",
+            "aaa0000000000000000000000000000000000000",
+            "https://forgejo.example/anurag/solar-panels/pulls/7"
+        )])))
+        .mount(&forgejo_server)
+        .await;
+
+    let clients = Clients::new(
+        ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
+        GitHubClient::new(unused_server.uri(), "test-token".into()),
+        ArgocdClient::new(unused_server.uri(), "test-token".into()),
+        FeatureFlagClient::new(None).await,
+        RegistryClient::new(unused_server.uri(), None),
+        Some(LlmClient::new(unused_server.uri(), "test-token".into())),
+    );
+    let orchestrator = rules::RulesOrchestrator::new();
+
+    let html = dashboard::render_dashboard(&clients, &orchestrator).await;
+    let html = regex::Regex::new(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} UTC")
+        .unwrap()
+        .replace_all(&html, "[generated-at]");
+
+    assert_snapshot!("renovate_dashboard", html);
 }

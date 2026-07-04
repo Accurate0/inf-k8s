@@ -1,6 +1,8 @@
 pub mod argocd;
 pub mod autofix;
+pub mod cache;
 pub mod clients;
+pub mod dashboard;
 pub mod command;
 pub mod event;
 pub mod feature_flag;

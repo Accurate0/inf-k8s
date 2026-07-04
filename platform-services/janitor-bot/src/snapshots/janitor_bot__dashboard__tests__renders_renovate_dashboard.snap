@@ -1,0 +1,98 @@
+---
+source: src/dashboard.rs
+expression: dashboard.render().unwrap()
+---
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Renovate Dashboard</title>
+    <link rel="stylesheet" href="/static/sakura.css">
+    <style>
+        .badge {
+            display: inline-block;
+            padding: 0.1em 0.5em;
+            border-radius: 0.4em;
+            font-size: 0.8em;
+            color: #fff;
+            white-space: nowrap;
+        }
+        .badge.success { background: #2da44e; }
+        .badge.pending { background: #bf8700; }
+        .badge.failure { background: #cf222e; }
+        .badge.error { background: #cf222e; }
+        .badge.warning { background: #9a6700; }
+        .badge.skipped, .badge.none { background: #6e7781; }
+        .label {
+            display: inline-block;
+            padding: 0.05em 0.4em;
+            border-radius: 0.4em;
+            font-size: 0.75em;
+            background: #eaeef2;
+            color: #24292f;
+            margin-right: 0.2em;
+        }
+        .checks a { margin-right: 0.4em; font-size: 0.8em; }
+        .repo-error { color: #cf222e; }
+        td.title { max-width: 32em; }
+        .toolbar { display: flex; align-items: center; gap: 1em; }
+    </style>
+</head>
+<body>
+    <div class="toolbar">
+        <h1>Renovate Dashboard</h1>
+        <form method="post" action="/renovate/dashboard/refresh">
+            <button type="submit">Refresh</button>
+        </form>
+    </div>
+    <p><small>Generated 2026-07-04 00:00:00 UTC</small></p>
+
+<h2>anurag/k8s</h2>
+
+
+<table>
+        <thead>
+            <tr><th>PR</th><th>Title</th><th>Labels</th><th>Status</th><th>Checks</th></tr>
+        </thead>
+        <tbody>
+
+<tr>
+                <td><a href="https://git.example/anurag/k8s/pulls/42">#42</a></td>
+                <td class="title">chore(deps): update rust docker tag to v1.96.1</td>
+                <td>
+<span class="label">renovate</span><span class="label">renovate/patch</span>
+</td>
+                <td><span class="badge success">success</span></td>
+                <td class="checks">
+
+
+<a href="https://git.example/anurag/k8s/actions/runs/1"><span class="badge success">ci/build</span></a>
+
+
+
+<span class="badge pending">ci/lint</span>
+
+
+</td>
+            </tr>
+
+</tbody>
+    </table>
+
+
+
+<h2>anurag/home-gateway</h2>
+
+
+<p><em>No open Renovate PRs.</em></p>
+
+
+
+<h2>anurag/solar-panels</h2>
+
+<p class="repo-error">Failed to load: connection refused</p>
+
+
+</body>
+</html>

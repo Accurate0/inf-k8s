@@ -1,288 +1,20 @@
 use axum::{
-    body::Bytes,
     extract::{Json, Path, State},
-    http::{HeaderMap, StatusCode},
+    http::StatusCode,
 };
-use opentelemetry::trace::TraceContextExt;
 use serde::Serialize;
 use std::sync::Arc;
-use tracing::{Instrument, Span};
-use tracing_opentelemetry::OpenTelemetrySpanExt;
+use tracing::Instrument;
 
+use super::background_span;
 use crate::AppState;
-use janitor_bot::argocd::types::ArgoSyncPayload;
-use janitor_bot::{command, event, github};
-
-/// Root span for background work spawned from a webhook handler.
-///
-/// Detached from the current request span (`parent: None`) so the request span
-/// can close as soon as the HTTP handler returns. We add a span link back to
-/// the originating request so the two traces remain navigable in Tempo without
-/// the active-span leak that lets unrelated incoming requests reparent under
-/// the webhook trace.
-fn background_span(name: &'static str) -> Span {
-    let span = tracing::info_span!(parent: None, "background", task = name, otel.name = format!("background: {name}"));
-
-    let request_ctx = Span::current().context();
-    let request_span = request_ctx.span();
-    let request_sc = request_span.span_context();
-    if request_sc.is_valid() {
-        span.add_link(request_sc.clone());
-
-        let bg_sc = span.context().span().span_context().clone();
-        if bg_sc.is_valid() {
-            Span::current().add_link(bg_sc);
-        }
-    }
-    span
-}
-
-/// Headers worth forwarding when proxying a webhook downstream. Notably the
-/// GitHub event type and signature, so the downstream service can re-validate
-/// the payload against its own copy of the shared secret.
-const FORWARD_HEADERS: &[&str] = &[
-    "content-type",
-    "user-agent",
-    "x-github-event",
-    "x-github-delivery",
-    "x-hub-signature",
-    "x-hub-signature-256",
-];
-
-fn forward_headers(headers: &HeaderMap) -> Vec<(String, String)> {
-    FORWARD_HEADERS
-        .iter()
-        .filter_map(|name| {
-            headers
-                .get(*name)
-                .and_then(|v| v.to_str().ok())
-                .map(|v| ((*name).to_string(), v.to_string()))
-        })
-        .collect()
-}
-
-pub async fn handle_forgejo_webhook(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(event): Json<event::WebhookEvent>,
-) -> StatusCode {
-    let auth = headers
-        .get("Authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if auth != state.forgejo_webhook_secret {
-        return StatusCode::UNAUTHORIZED;
-    }
-
-    let forgejo_event = headers
-        .get("X-Forgejo-Event")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-    let forgejo_event_type = headers
-        .get("X-Forgejo-Event-Type")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    janitor_bot::metrics::record_webhook("forgejo");
-
-    tracing::info!(
-        action = event.action,
-        forgejo_event,
-        forgejo_event_type,
-        "received forgejo webhook event"
-    );
-
-    // Deleting (or otherwise mutating) a comment re-delivers an `issue_comment`
-    // webhook whose payload still carries the original comment body. Only act on
-    // newly created comments so removing a `janitor ...` command doesn't re-run it.
-    let comment_created = event.action == "created";
-
-    if forgejo_event == "issue_comment" && (forgejo_event_type != "pull_request_comment") {
-        if let Some(cmd) = event.into_issue_comment_event().filter(|_| comment_created)
-            && cmd.author == super::FORGEJO_OWNER
-            && let Some(parsed) = command::parse_issue_command(&cmd.comment_body)
-        {
-            tokio::spawn(
-                async move {
-                    command::handle_issue_command(&state.clients, &cmd, parsed).await;
-                }
-                .instrument(background_span("issue_command")),
-            );
-        }
-        return StatusCode::OK;
-    }
-
-    if forgejo_event == "issue_comment" && forgejo_event_type == "pull_request_comment" {
-        if let Some(cmd) = event.into_comment_event().filter(|_| comment_created)
-            && cmd.author == super::FORGEJO_OWNER
-            && let Some(parsed) = command::parse_pr_command(&cmd.body)
-        {
-            tokio::spawn(
-                async move {
-                    command::handle_pr_command(&state.clients, &state.orchestrator, &cmd, parsed)
-                        .await;
-                }
-                .instrument(background_span("pr_command")),
-            );
-        }
-        return StatusCode::OK;
-    }
-
-    if forgejo_event != "pull_request" {
-        return StatusCode::OK;
-    }
-
-    let Some(mut pr_event) = event.into_pr_event() else {
-        return StatusCode::OK;
-    };
-
-    tokio::spawn(
-        async move {
-            state
-                .orchestrator
-                .evaluate_pr(&state.clients, &mut pr_event)
-                .await;
-        }
-        .instrument(background_span("forgejo_pr_event")),
-    );
-
-    StatusCode::OK
-}
-
-pub async fn handle_github_webhook(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    body: Bytes,
-) -> StatusCode {
-    let signature = headers
-        .get("X-Hub-Signature-256")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if !github::verify_signature(&state.github_webhook_secret, signature, &body) {
-        return StatusCode::UNAUTHORIZED;
-    }
-
-    janitor_bot::metrics::record_webhook("github");
-
-    let github_event = headers
-        .get("X-GitHub-Event")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if github_event == "status" {
-        let Some(cs_event) = github::parse_commit_status_event(&body) else {
-            tracing::info!("received github status event but failed to parse");
-            return StatusCode::OK;
-        };
-
-        tracing::info!(
-            repository = cs_event.repository,
-            context = cs_event.context,
-            state = cs_event.state,
-            "received github commit status event"
-        );
-
-        tokio::spawn(
-            async move {
-                state
-                    .orchestrator
-                    .evaluate_commit_status(&state.clients, &cs_event)
-                    .await;
-            }
-            .instrument(background_span("github_status")),
-        );
-        return StatusCode::OK;
-    }
-
-    if github_event == "check_run" {
-        let Some(mut cr_event) = github::parse_check_run_event(&body) else {
-            tracing::info!(
-                "received github check_run event but not actionable (not completed or failed to parse)"
-            );
-            return StatusCode::OK;
-        };
-
-        tracing::info!(
-            repository = cr_event.repository,
-            name = cr_event.name,
-            conclusion = cr_event.conclusion,
-            "received github check_run event"
-        );
-
-        tokio::spawn(
-            async move {
-                state
-                    .orchestrator
-                    .evaluate_check_run(&state.clients, &mut cr_event)
-                    .await;
-            }
-            .instrument(background_span("github_status")),
-        );
-        return StatusCode::OK;
-    }
-
-    if github_event == "push" {
-        let Some(push_event) = github::parse_push_event(&body) else {
-            tracing::info!("received github push event but failed to parse");
-            return StatusCode::OK;
-        };
-
-        tracing::info!(
-            repository = push_event.repository,
-            branch = push_event.branch,
-            "received github push event"
-        );
-
-        // Capture the raw request so the `proxy_pass` action can forward it
-        // verbatim (preserving the signature) to a downstream service.
-        let raw = event::RawRequest {
-            body: body.to_vec(),
-            headers: forward_headers(&headers),
-        };
-
-        tokio::spawn(
-            async move {
-                state
-                    .orchestrator
-                    .evaluate_push(&state.clients, &push_event, &raw)
-                    .await;
-            }
-            .instrument(background_span("github_push")),
-        );
-        return StatusCode::OK;
-    }
-
-    let Some(mut wf_event) = github::parse_workflow_event(&body) else {
-        tracing::info!("received github webhook (not a workflow_run event, ignoring)");
-        return StatusCode::OK;
-    };
-
-    tracing::info!(
-        workflow = wf_event.workflow_name,
-        conclusion = wf_event.conclusion,
-        "received github workflow event"
-    );
-
-    tokio::spawn(
-        async move {
-            state
-                .orchestrator
-                .evaluate_workflow(&state.clients, &mut wf_event)
-                .await;
-        }
-        .instrument(background_span("github_workflow")),
-    );
-
-    StatusCode::OK
-}
+use janitor_bot::{command, event};
 
 pub async fn handle_admin_cron(State(state): State<Arc<AppState>>) -> StatusCode {
     tracing::info!("admin: triggering cron evaluation");
     tokio::spawn(
         async move {
-            super::evaluate_open_prs(&state).await;
+            crate::evaluate_open_prs(&state).await;
         }
         .instrument(background_span("cron_open_prs")),
     );
@@ -508,7 +240,7 @@ pub async fn handle_admin_command(
                 repo: req.repo,
                 pr_number: req.number as u64,
                 comment_id: 0,
-                author: super::FORGEJO_OWNER.to_string(),
+                author: crate::FORGEJO_OWNER.to_string(),
                 body: req.body.clone(),
             };
 
@@ -544,7 +276,7 @@ pub async fn handle_admin_command(
                 repo: req.repo,
                 issue_number: req.number as u64,
                 comment_id: 0,
-                author: super::FORGEJO_OWNER.to_string(),
+                author: crate::FORGEJO_OWNER.to_string(),
                 comment_body: req.body.clone(),
                 issue_body: issue.body.unwrap_or_default(),
                 issue_labels: issue
@@ -672,58 +404,4 @@ pub async fn handle_admin_health_deep(
             "services": [forgejo, github, argocd],
         })),
     )
-}
-
-pub async fn handle_argocd_webhook(
-    State(state): State<Arc<AppState>>,
-    headers: HeaderMap,
-    Json(payload): Json<ArgoSyncPayload>,
-) -> StatusCode {
-    let auth = headers
-        .get("Authorization")
-        .and_then(|v| v.to_str().ok())
-        .unwrap_or("");
-
-    if auth != state.argocd_webhook_secret {
-        return StatusCode::UNAUTHORIZED;
-    }
-
-    janitor_bot::metrics::record_webhook("argocd");
-
-    tracing::info!(
-        app_name = payload.app_name,
-        phase = payload.phase,
-        health = payload.health_status,
-        sha = payload.sha,
-        "received argocd sync event"
-    );
-
-    if payload.sha.is_empty() {
-        tracing::info!(
-            app_name = payload.app_name,
-            "skipping argocd sync event with empty sha"
-        );
-        return StatusCode::OK;
-    }
-
-    let sync_event = event::ArgoSyncEvent {
-        app_name: payload.app_name,
-        sha: payload.sha,
-        sync_status: payload.sync_status,
-        health_status: payload.health_status,
-        phase: payload.phase,
-        message: payload.message,
-    };
-
-    tokio::spawn(
-        async move {
-            state
-                .orchestrator
-                .evaluate_argocd_sync(&state.clients, &sync_event)
-                .await;
-        }
-        .instrument(background_span("argocd_sync")),
-    );
-
-    StatusCode::OK
 }
