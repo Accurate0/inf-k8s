@@ -20,25 +20,6 @@ local/
     └── nginx/      # reverse proxy for *.media.internal
 ```
 
-## Apps
-
-Each app runs as a container (linuxserver.io images, pinned versions) and keeps
-its own default SQLite/config storage under `{{ media_config_root }}` — there is
-no shared database.
-
-| App          | Port | Host                          |
-| ------------ | ---- | ----------------------------- |
-| Jellyfin     | 8096 | jellyfin.media.internal       |
-| Sonarr       | 8989 | sonarr.media.internal         |
-| Radarr       | 7878 | radarr.media.internal         |
-| Transmission | 9091 | transmission.media.internal   |
-| Jackett      | 9117 | jackett.media.internal        |
-| Bazarr       | 6767 | bazarr.media.internal         |
-| FlareSolverr | 8191 | flaresolverr.media.internal   |
-
-`*.media.internal` must resolve to the host — add a wildcard/A record on the LAN
-resolver (router / Pi-hole / Blocky) or `/etc/hosts` entries.
-
 ## Storage
 
 `media_drives` (in `inventory.yaml`) lists the physical media drives. Each is
