@@ -16,7 +16,7 @@ jobs:
     permissions:
       packages: write
 
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@d5901e9bdd4392143298bc1a85e25f33096110f9 # main
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@215c22b708b8f89e272dc5e89c10b3e96d7b4499 # main
     with:
       directory: ./platform-services/ai-gateway
       image-name: ai-gateway
@@ -58,7 +58,7 @@ jobs:
     needs:
       - build
       - test
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@d5901e9bdd4392143298bc1a85e25f33096110f9 # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@215c22b708b8f89e272dc5e89c10b3e96d7b4499 # main
     with:
       service-name: ai-gateway
       images: ghcr.io/accurate0/ai-gateway
