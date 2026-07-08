@@ -39,7 +39,7 @@ janitor *args:
 
 # Run the ffctl binary
 ffctl *args:
-    cargo run --manifest-path feature-flags/Cargo.toml --bin ffctl -- {{args}}
+    cd feature-flags && cargo run --bin ffctl -- {{args}}
 
 # Show ArgoCD applications status
 status:

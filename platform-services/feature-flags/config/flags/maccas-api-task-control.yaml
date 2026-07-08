@@ -1,0 +1,14 @@
+key: maccas-api-task-control
+type: boolean
+enabled: true
+default: on
+variants:
+  off: false
+  on: true
+rules:
+- variant: off
+  constraints:
+  - attribute: event_name
+    operator: eq
+    values:
+    - GenerateRecommendations

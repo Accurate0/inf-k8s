@@ -1,0 +1,7 @@
+key: home-gateway-notification-killswitch
+type: boolean
+enabled: true
+default: off
+variants:
+  off: false
+  on: true

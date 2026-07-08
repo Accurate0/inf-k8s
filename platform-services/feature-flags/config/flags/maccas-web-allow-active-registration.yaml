@@ -1,0 +1,7 @@
+key: maccas-web-allow-active-registration
+type: boolean
+enabled: true
+default: on
+variants:
+  off: false
+  on: true

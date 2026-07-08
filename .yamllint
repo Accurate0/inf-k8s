@@ -6,6 +6,7 @@ ignore: |
   system-components/barman-cloud-plugin/manifest.yaml
   platform-services/kanidm-sync/manifests/crd.yaml
   platform-services/pg-db-controller/manifests/crd.yaml
+  platform-services/feature-flags/config/*
 rules:
   line-length: disable
   comments:

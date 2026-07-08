@@ -1,0 +1,7 @@
+key: home-gateway-epd-clear-screen
+type: boolean
+enabled: true
+default: off
+variants:
+  off: false
+  on: true

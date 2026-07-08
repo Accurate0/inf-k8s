@@ -1,0 +1,7 @@
+key: janitor-bot-allow-automerging-rules
+type: boolean
+enabled: true
+default: on
+variants:
+  off: false
+  on: true
