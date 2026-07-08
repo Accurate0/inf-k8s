@@ -15,6 +15,7 @@ use crate::clients::Clients;
 use crate::event::BotEvent;
 use crate::rules::{expr, schema};
 use chrono::Datelike;
+use std::collections::BTreeMap;
 use std::future::Future;
 use std::pin::Pin;
 use std::sync::LazyLock;
@@ -289,10 +290,19 @@ fn eval_leaf<'a>(
                 _ => false,
             },
 
-            LeafMatcher::FeatureFlag { name, default } => {
+            LeafMatcher::FeatureFlag {
+                name,
+                default,
+                context,
+            } => {
+                let vars = ev.template_vars();
+                let rendered: BTreeMap<String, String> = context
+                    .iter()
+                    .map(|(k, v)| (k.clone(), v.render(&vars)))
+                    .collect();
                 clients
                     .feature_flag
-                    .bool_flag(name, &rule.name, *default)
+                    .bool_flag(name, &rule.name, *default, &rendered)
                     .await
             }
 

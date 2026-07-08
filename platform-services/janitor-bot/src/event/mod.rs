@@ -4,6 +4,8 @@ pub use types::*;
 
 use std::collections::HashMap;
 
+use crate::rules::matchers;
+
 impl WebhookEvent {
     pub fn into_issue_comment_event(self) -> Option<IssueCommentEvent> {
         let comment = self.comment?;
@@ -71,7 +73,29 @@ impl BotEvent<'_> {
         }
     }
 
-    pub fn template_vars(&self) -> HashMap<&'static str, String> {
+    pub fn template_vars(&self) -> HashMap<String, String> {
+        let mut vars: HashMap<String, String> = self
+            .event_vars()
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect();
+
+        if let BotEvent::ForgejoPr(pr) = self
+            && let Some(meta) = matchers::parse_pr_metadata(&pr.body)
+        {
+            for (k, v) in meta {
+                let value = match v {
+                    serde_json::Value::String(s) => s,
+                    other => other.to_string(),
+                };
+                vars.insert(format!("forgejo_pr.metadata.{k}"), value);
+            }
+        }
+
+        vars
+    }
+
+    fn event_vars(&self) -> HashMap<&'static str, String> {
         let mut vars = HashMap::new();
 
         match self {
@@ -237,10 +261,13 @@ impl BotEvent<'_> {
     }
 }
 
-pub fn render_template(template: &str, vars: &HashMap<&str, String>) -> String {
+pub fn render_template<K>(template: &str, vars: &HashMap<K, String>) -> String
+where
+    K: std::borrow::Borrow<str> + std::hash::Hash + Eq,
+{
     let mut result = template.to_owned();
     for (key, value) in vars {
-        result = result.replace(&format!("{{{key}}}"), value);
+        result = result.replace(&format!("{{{}}}", key.borrow()), value);
     }
 
     result
@@ -259,6 +286,7 @@ impl PrEvent {
             repo,
             pr_number: pr.number? as u64,
             title: pr.title.clone()?,
+            body: pr.body.clone().unwrap_or_default(),
             target_branch: pr.base.as_ref()?.r#ref.clone().unwrap_or_default(),
             labels: pr
                 .labels
@@ -296,6 +324,7 @@ impl WebhookEvent {
             repo,
             pr_number: pr.number,
             title: pr.title,
+            body: pr.body,
             target_branch: pr.base.and_then(|b| b.r#ref).unwrap_or_default(),
             labels: pr.labels,
             merged: pr.merged,
@@ -332,19 +361,19 @@ mod tests {
 
     #[test]
     fn render_template_no_vars() {
-        let vars = HashMap::new();
+        let vars: HashMap<&str, String> = HashMap::new();
         assert_eq!(render_template("no placeholders", &vars), "no placeholders");
     }
 
     #[test]
     fn render_template_missing_var_left_as_is() {
-        let vars = HashMap::new();
+        let vars: HashMap<&str, String> = HashMap::new();
         assert_eq!(render_template("{unknown}", &vars), "{unknown}");
     }
 
     #[test]
     fn render_template_empty_template() {
-        let vars = HashMap::new();
+        let vars: HashMap<&str, String> = HashMap::new();
         assert_eq!(render_template("", &vars), "");
     }
 
@@ -356,6 +385,7 @@ mod tests {
             repo: "k8s".to_string(),
             pr_number: 42,
             title: "bump stuff".to_string(),
+            body: String::new(),
             target_branch: "main".to_string(),
             labels: vec![],
             merged: false,
@@ -456,6 +486,7 @@ mod tests {
             pull_request: Some(PullRequest {
                 number: 10,
                 title: "test PR".to_string(),
+                body: String::new(),
                 labels: vec![],
                 base: Some(PrBase {
                     r#ref: Some("main".to_string()),
@@ -506,6 +537,7 @@ mod tests {
             pull_request: Some(PullRequest {
                 number: 1,
                 title: "t".to_string(),
+                body: String::new(),
                 labels: vec![],
                 base: None,
                 merged: false,
@@ -590,6 +622,7 @@ mod tests {
             pull_request: Some(PullRequest {
                 number: 1,
                 title: "t".to_string(),
+                body: String::new(),
                 labels: vec![],
                 base: None,
                 merged: false,

@@ -10,6 +10,8 @@ when:
     - type: feature_flag
       name: janitor-bot-allow-automerging-rules
       default: true
+      context:
+        service: "{forgejo_pr.metadata.service}"
     - type: target_branch
       value: main
     - type: author

@@ -798,6 +798,12 @@
         {
           "type": "object",
           "properties": {
+            "context": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
             "default": {
               "type": "boolean"
             },
@@ -1254,6 +1260,12 @@
         {
           "type": "object",
           "properties": {
+            "context": {
+              "type": "object",
+              "additionalProperties": {
+                "type": "string"
+              }
+            },
             "default": {
               "type": "boolean"
             },

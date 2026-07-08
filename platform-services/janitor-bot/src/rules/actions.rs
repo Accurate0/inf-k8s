@@ -329,7 +329,7 @@ impl Action {
                 target_url,
             } => {
                 let mut vars = event.template_vars();
-                vars.extend(extra_vars.iter().map(|(k, v)| (*k, v.clone())));
+                vars.extend(extra_vars.iter().map(|(k, v)| (k.to_string(), v.clone())));
 
                 let owner = crate::event::render_template(target_owner, &vars);
                 let repo = crate::event::render_template(target_repo, &vars);

@@ -1,5 +1,6 @@
 use open_feature::{EvaluationContext, OpenFeature, provider::NoOpProvider};
 use openfeature_provider::{EvaluationMode, FeatureFlagProvider};
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 #[derive(Clone)]
@@ -42,22 +43,33 @@ impl FeatureFlagClient {
         }
     }
 
-    fn context(&self, key_name: &str) -> EvaluationContext {
-        EvaluationContext::default()
+    fn context(&self, key_name: &str, extra: &BTreeMap<String, String>) -> EvaluationContext {
+        let mut ctx = EvaluationContext::default()
             .with_targeting_key(key_name)
             .with_custom_field("environment", self.environment)
             .with_custom_field("key", key_name)
+            .with_custom_field("rule_name", key_name);
+        for (k, v) in extra {
+            ctx = ctx.with_custom_field(k, v.clone());
+        }
+        ctx
     }
 
     #[tracing::instrument(
         skip(self),
         fields(otel.name = format!("flag {flag}"), result = tracing::field::Empty)
     )]
-    pub async fn bool_flag(&self, flag: &str, key_name: &str, default: bool) -> bool {
+    pub async fn bool_flag(
+        &self,
+        flag: &str,
+        key_name: &str,
+        default: bool,
+        context: &BTreeMap<String, String>,
+    ) -> bool {
         let span = tracing::Span::current();
         let result = match self
             .client
-            .get_bool_value(flag, Some(&self.context(key_name)), None)
+            .get_bool_value(flag, Some(&self.context(key_name, context)), None)
             .await
         {
             Ok(v) => v,

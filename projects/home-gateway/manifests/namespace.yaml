@@ -6,3 +6,6 @@ metadata:
   labels:
     inf-k8s.net/infisical-secrets: "true"
     gateway.inf-k8s.net/anurag-sh: "true"
+    # Allow HTTPRoutes in this namespace to attach to the internal gateway
+    # (home.inf-k8s.net dashboard).
+    internal-gateway-access: "true"

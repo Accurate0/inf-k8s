@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: home-web
+  namespace: home-gateway
+spec:
+  selector:
+    matchLabels:
+      app: home-web
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: home-web
+    spec:
+      containers:
+        - name: home-web
+          image: ghcr.io/accurate0/home-gateway-web
+          imagePullPolicy: Always
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+              scheme: HTTP
+            initialDelaySeconds: 3
+            periodSeconds: 30
+          ports:
+            - containerPort: 8080

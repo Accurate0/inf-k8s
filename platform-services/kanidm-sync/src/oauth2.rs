@@ -54,13 +54,28 @@ impl Reconcile for KanidmOAuth2Client {
             ensure_group(kanidm, group).await?;
         }
 
-        if kanidm
-            .idm_oauth2_rs_get(name)
-            .await
-            .map_err(kanidm_err)?
-            .is_none()
-        {
-            tracing::info!("creating oauth2 resource server {name}");
+        // kanidm has no in-place basic<->public conversion: a basic client owns a
+        // client secret and a public client is PKCE-only. If an existing client's
+        // type no longer matches spec.public, delete and recreate it so the switch
+        // actually takes effect (otherwise the CR change would be silently ignored).
+        let existing = kanidm.idm_oauth2_rs_get(name).await.map_err(kanidm_err)?;
+        let needs_recreate = existing
+            .as_ref()
+            .is_some_and(|entry| class_is_public(entry) != spec.public);
+
+        if needs_recreate {
+            tracing::info!(
+                "oauth2 client {name} type changed (public={}), deleting to recreate",
+                spec.public
+            );
+            kanidm
+                .idm_oauth2_rs_delete(name)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        if existing.is_none() || needs_recreate {
+            tracing::info!("creating oauth2 resource server {name} (public={})", spec.public);
             if spec.public {
                 kanidm
                     .idm_oauth2_rs_public_create(name, &spec.display_name, &spec.origin)
@@ -248,6 +263,13 @@ async fn ensure_group(kanidm: &kanidm_client::KanidmClient, group: &str) -> Resu
             .map_err(kanidm_err)?;
     }
     Ok(())
+}
+
+fn class_is_public(entry: &kanidm_proto::v1::Entry) -> bool {
+    entry
+        .attrs
+        .get("class")
+        .is_some_and(|classes| classes.iter().any(|c| c == "oauth2_resource_server_public"))
 }
 
 fn scope_map_groups(entry: Option<&kanidm_proto::v1::Entry>) -> BTreeSet<String> {

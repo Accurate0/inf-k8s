@@ -7,9 +7,14 @@ metadata:
 spec:
   name: home-gateway
   displayName: Home Gateway
-  origin: https://home.anurag.sh/
+  origin: https://home.inf-k8s.net/
+  # Public (PKCE-only) client: the web dashboard SPA authenticates in-browser
+  # with no client secret. The backend validates the resulting access tokens
+  # against the JWKS only, so no confidential secret is required.
+  public: true
   redirectUrls:
     - https://home.anurag.sh/v1/graphql
+    - https://home.inf-k8s.net/callback
   preferShortUsername: true
   # The API validates access tokens against the JWKS and derives scopes from the
   # caller's `groups` claim, so every mapped group must be granted the `groups`

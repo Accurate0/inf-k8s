@@ -1,6 +1,7 @@
+use crate::rules::schema::TemplateString;
 use schemars::JsonSchema;
 use serde::Deserialize;
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, Copy, PartialEq, Eq, Hash)]
 #[serde(rename_all = "snake_case")]
@@ -122,7 +123,12 @@ pub enum LeafMatcher {
     BotCommentContains { marker: String, value: String },
 
     #[serde(rename = "feature_flag")]
-    FeatureFlag { name: String, default: bool },
+    FeatureFlag {
+        name: String,
+        default: bool,
+        #[serde(default)]
+        context: BTreeMap<String, TemplateString>,
+    },
 
     #[serde(rename = "time_of_day")]
     TimeOfDay {

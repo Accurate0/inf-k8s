@@ -1,0 +1,41 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: home-web
+  namespace: home-gateway
+  annotations:
+    external-dns.alpha.kubernetes.io/managed: "true"
+    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      namespace: envoy-gateway-system
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - home.inf-k8s.net
+  rules:
+    # API + subscription websocket + schema, proxied same-origin to the backend.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /v1
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: home-gateway
+          port: 80
+          weight: 1
+    # Everything else is the SPA.
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: ""
+          kind: Service
+          name: home-web
+          port: 80
+          weight: 1

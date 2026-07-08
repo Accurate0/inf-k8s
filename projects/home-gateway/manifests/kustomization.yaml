@@ -7,6 +7,9 @@ resources:
   - home-gateway/home-gateway.kanidmoauth2client.yaml
   - home-gateway/home-gateway.service.yaml
   - home-gateway/home-gateway.servicemonitor.yaml
+  - home-gateway/home-web.deployment.yaml
+  - home-gateway/home-web.service.yaml
+  - home-gateway/home-web.httproute.yaml
   - namespace.yaml
   - database.yaml
 commonAnnotations:

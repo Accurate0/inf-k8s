@@ -7,12 +7,15 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::HashMap;
 
-#[derive(Debug, Deserialize, JsonSchema, Clone)]
+#[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]
 #[serde(transparent)]
 pub struct TemplateString(pub String);
 
 impl TemplateString {
-    pub fn render(&self, vars: &HashMap<&str, String>) -> String {
+    pub fn render<K>(&self, vars: &HashMap<K, String>) -> String
+    where
+        K: std::borrow::Borrow<str> + std::hash::Hash + Eq,
+    {
         event::render_template(&self.0, vars)
     }
 
@@ -417,7 +420,7 @@ mod tests {
     #[test]
     fn template_string_plain_passthrough() {
         let ts = TemplateString("hello".to_string());
-        let vars = HashMap::new();
+        let vars: HashMap<&str, String> = HashMap::new();
         assert_eq!(ts.render(&vars), "hello");
     }
 
