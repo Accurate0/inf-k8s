@@ -34,6 +34,34 @@ pub struct FlagChange {
     pub created_at: chrono::DateTime<chrono::Utc>,
 }
 
+/// Whether a diffed flag or segment is being created, updated, or deleted.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ChangeOp {
+    Create,
+    Update,
+    Delete,
+}
+
+/// One planned (or applied) change to a single flag or segment, as computed by
+/// [`Store::apply_config`].
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConfigChange {
+    pub target_kind: &'static str,
+    pub target_key: String,
+    pub op: ChangeOp,
+    pub detail: Json,
+}
+
+/// The result of an [`Store::apply_config`] call: the diff, plus the versions it
+/// moved between and whether it was actually written.
+#[derive(Debug)]
+pub struct ApplyOutcome {
+    pub changes: Vec<ConfigChange>,
+    pub from_version: i64,
+    pub to_version: i64,
+    pub applied: bool,
+}
+
 /// Upper bound on audit rows returned in a single request, regardless of the
 /// caller-supplied limit, to keep responses bounded.
 const MAX_CHANGES: i64 = 500;
@@ -590,6 +618,390 @@ impl Store {
         tx.commit().await?;
         Ok(())
     }
+
+    /// Reconcile live state to the declared desired set of `flags` and `segments`.
+    ///
+    /// The diff is computed against the current snapshot; flags and segments not in
+    /// the desired set are pruned. With `dry_run` the diff is returned without
+    /// writing. Otherwise every change is applied in one transaction: the version row
+    /// is locked and re-checked against `expected_version` (0 skips the check) so a
+    /// stale plan aborts rather than clobbering a concurrent write, and the config
+    /// version bumps once for the whole batch.
+    pub async fn apply_config(
+        &self,
+        actor: &str,
+        flags: &[Flag],
+        segments: &[Segment],
+        dry_run: bool,
+        expected_version: i64,
+    ) -> AppResult<ApplyOutcome> {
+        validate_desired(flags, segments)?;
+
+        let current = self.load_snapshot().await?;
+        let changes = diff_config(&current, flags, segments);
+
+        if dry_run || changes.is_empty() {
+            return Ok(ApplyOutcome {
+                from_version: current.version,
+                to_version: current.version,
+                applied: !dry_run,
+                changes,
+            });
+        }
+
+        let mut tx = self.pool.begin().await?;
+        let locked =
+            sqlx::query_scalar!("SELECT version FROM config_version WHERE id FOR UPDATE")
+                .fetch_one(&mut *tx)
+                .await?;
+        if locked != current.version || (expected_version != 0 && locked != expected_version) {
+            return Err(AppError::Aborted(
+                "configuration changed since the plan was computed; re-run plan".into(),
+            ));
+        }
+
+        // Apply in dependency-safe order: upsert segments before flags (rules
+        // reference segment keys), prune flags before segments.
+        for change in &changes {
+            let desired_flag = || flags.iter().find(|f| f.key == change.target_key);
+            let desired_segment = || segments.iter().find(|s| s.key == change.target_key);
+            match (change.target_kind, change.op) {
+                ("segment", ChangeOp::Create | ChangeOp::Update) => {
+                    Self::upsert_segment_tx(&mut tx, desired_segment().unwrap()).await?;
+                }
+                ("flag", ChangeOp::Create | ChangeOp::Update) => {
+                    Self::upsert_flag_tx(&mut tx, desired_flag().unwrap()).await?;
+                }
+                _ => {}
+            }
+        }
+        for change in &changes {
+            if change.target_kind == "flag" && change.op == ChangeOp::Delete {
+                sqlx::query!("DELETE FROM flags WHERE key = $1", change.target_key)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+        for change in &changes {
+            if change.target_kind == "segment" && change.op == ChangeOp::Delete {
+                sqlx::query!("DELETE FROM segments WHERE key = $1", change.target_key)
+                    .execute(&mut *tx)
+                    .await?;
+            }
+        }
+
+        for change in &changes {
+            Self::record_change(
+                &mut tx,
+                actor,
+                audit_action(change.target_kind, change.op),
+                change.target_kind,
+                &change.target_key,
+                change.detail.clone(),
+            )
+            .await?;
+        }
+        tx.commit().await?;
+
+        let to_version = self.config_version().await?;
+        Ok(ApplyOutcome {
+            from_version: current.version,
+            to_version,
+            applied: true,
+            changes,
+        })
+    }
+
+    /// Upsert a flag and reconcile its variants and rules within the caller's
+    /// transaction: the flag row is inserted-or-updated, variants absent from the
+    /// desired set are dropped, and the rule set is replaced wholesale.
+    async fn upsert_flag_tx(tx: &mut sqlx::PgConnection, flag: &Flag) -> AppResult<()> {
+        let flag_id = sqlx::query_scalar!(
+            "INSERT INTO flags (key, value_type, enabled, default_variant_key, archived) \
+             VALUES ($1, $2, $3, $4, $5) \
+             ON CONFLICT (key) DO UPDATE SET \
+               value_type = EXCLUDED.value_type, enabled = EXCLUDED.enabled, \
+               default_variant_key = EXCLUDED.default_variant_key, \
+               archived = EXCLUDED.archived, updated_at = now() \
+             RETURNING id",
+            flag.key,
+            value_type_to_str(flag.value_type),
+            flag.enabled,
+            flag.default_variant_key,
+            flag.archived,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+
+        let desired_keys: Vec<String> = flag.variants.iter().map(|v| v.key.clone()).collect();
+        sqlx::query!(
+            "DELETE FROM variants WHERE flag_id = $1 AND key <> ALL($2::text[])",
+            flag_id,
+            &desired_keys,
+        )
+        .execute(&mut *tx)
+        .await?;
+        for v in &flag.variants {
+            sqlx::query!(
+                "INSERT INTO variants (flag_id, key, value) VALUES ($1, $2, $3) \
+                 ON CONFLICT (flag_id, key) DO UPDATE SET value = EXCLUDED.value",
+                flag_id,
+                v.key,
+                v.value,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        Self::replace_rules_tx(tx, flag_id, &flag.rules).await
+    }
+
+    /// Replace a flag's entire ordered rule set within the caller's transaction.
+    async fn replace_rules_tx(
+        tx: &mut sqlx::PgConnection,
+        flag_id: Uuid,
+        rules: &[Rule],
+    ) -> AppResult<()> {
+        sqlx::query!("DELETE FROM flag_rules WHERE flag_id = $1", flag_id)
+            .execute(&mut *tx)
+            .await?;
+        for (rank, rule) in rules.iter().enumerate() {
+            let rule_id = sqlx::query_scalar!(
+                "INSERT INTO flag_rules (flag_id, rank, segment_key, variant_key, bucket_salt) \
+                 VALUES ($1, $2, $3, $4, $5) RETURNING id",
+                flag_id,
+                rank as i32,
+                rule.segment_key.as_deref(),
+                rule.variant_key.as_deref(),
+                rule.bucket_salt,
+            )
+            .fetch_one(&mut *tx)
+            .await?;
+            for d in &rule.distributions {
+                sqlx::query!(
+                    "INSERT INTO rule_distributions (rule_id, variant_key, weight) \
+                     VALUES ($1, $2, $3)",
+                    rule_id,
+                    d.variant_key,
+                    d.weight as i32,
+                )
+                .execute(&mut *tx)
+                .await?;
+            }
+            for (group_index, group) in rule.constraint_groups.iter().enumerate() {
+                for c in &group.constraints {
+                    sqlx::query!(
+                        "INSERT INTO rule_constraints (rule_id, group_index, attribute, operator, values) \
+                         VALUES ($1, $2, $3, $4, $5)",
+                        rule_id,
+                        group_index as i32,
+                        c.attribute,
+                        operator_to_str(c.operator),
+                        Json::Array(c.values.clone()),
+                    )
+                    .execute(&mut *tx)
+                    .await?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    /// Upsert a segment and replace its constraints within the caller's transaction.
+    async fn upsert_segment_tx(tx: &mut sqlx::PgConnection, segment: &Segment) -> AppResult<()> {
+        let segment_id = sqlx::query_scalar!(
+            "INSERT INTO segments (key, name) VALUES ($1, $2) \
+             ON CONFLICT (key) DO UPDATE SET name = EXCLUDED.name RETURNING id",
+            segment.key,
+            segment.name,
+        )
+        .fetch_one(&mut *tx)
+        .await?;
+        sqlx::query!(
+            "DELETE FROM segment_constraints WHERE segment_id = $1",
+            segment_id
+        )
+        .execute(&mut *tx)
+        .await?;
+        for c in &segment.constraints {
+            sqlx::query!(
+                "INSERT INTO segment_constraints (segment_id, attribute, operator, values) \
+                 VALUES ($1, $2, $3, $4)",
+                segment_id,
+                c.attribute,
+                operator_to_str(c.operator),
+                Json::Array(c.values.clone()),
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+        Ok(())
+    }
+}
+
+/// The audit-log action name recorded for a config-driven change, reusing the same
+/// vocabulary as the per-operation admin writes.
+fn audit_action(target_kind: &str, op: ChangeOp) -> &'static str {
+    match (target_kind, op) {
+        ("flag", ChangeOp::Create) => "create_flag",
+        ("flag", ChangeOp::Update) => "update_flag",
+        ("flag", ChangeOp::Delete) => "delete_flag",
+        ("segment", ChangeOp::Delete) => "delete_segment",
+        _ => "upsert_segment",
+    }
+}
+
+/// Validate the full desired set the way the per-operation writers would, so a plan
+/// surfaces bad input (unknown default variant, type mismatch, malformed split)
+/// before anything is written.
+fn validate_desired(flags: &[Flag], _segments: &[Segment]) -> AppResult<()> {
+    for flag in flags {
+        if flag.variants.iter().all(|v| v.key != flag.default_variant_key) {
+            return Err(AppError::Invalid(format!(
+                "flag `{}` default variant `{}` is not among its variants",
+                flag.key, flag.default_variant_key
+            )));
+        }
+        for v in &flag.variants {
+            check_variant_type(flag.value_type, v)?;
+        }
+        let variant_keys: HashSet<String> = flag.variants.iter().map(|v| v.key.clone()).collect();
+        validate_rules(&flag.key, &flag.rules, &variant_keys)?;
+    }
+    Ok(())
+}
+
+/// Compute the ordered set of changes that turn `current` into the desired
+/// `flags`/`segments`. Segment changes are emitted before flag changes.
+fn diff_config(current: &Snapshot, flags: &[Flag], segments: &[Segment]) -> Vec<ConfigChange> {
+    let mut changes = Vec::new();
+
+    for segment in segments {
+        match current.segments.get(&segment.key) {
+            None => changes.push(ConfigChange {
+                target_kind: "segment",
+                target_key: segment.key.clone(),
+                op: ChangeOp::Create,
+                detail: serde_json::json!({ "name": segment.name }),
+            }),
+            Some(live) if !segments_equal(live, segment) => changes.push(ConfigChange {
+                target_kind: "segment",
+                target_key: segment.key.clone(),
+                op: ChangeOp::Update,
+                detail: serde_json::json!({ "fields": segment_diff_fields(live, segment) }),
+            }),
+            Some(_) => {}
+        }
+    }
+    for key in current.segments.keys() {
+        if !segments.iter().any(|s| &s.key == key) {
+            changes.push(ConfigChange {
+                target_kind: "segment",
+                target_key: key.clone(),
+                op: ChangeOp::Delete,
+                detail: Json::Null,
+            });
+        }
+    }
+
+    for flag in flags {
+        match current.flags.get(&flag.key) {
+            None => changes.push(ConfigChange {
+                target_kind: "flag",
+                target_key: flag.key.clone(),
+                op: ChangeOp::Create,
+                detail: serde_json::json!({
+                    "value_type": value_type_to_str(flag.value_type),
+                    "enabled": flag.enabled,
+                    "default_variant_key": flag.default_variant_key,
+                }),
+            }),
+            Some(live) => {
+                let fields = flag_diff_fields(live, flag);
+                if !fields.is_empty() {
+                    changes.push(ConfigChange {
+                        target_kind: "flag",
+                        target_key: flag.key.clone(),
+                        op: ChangeOp::Update,
+                        detail: serde_json::json!({ "fields": fields }),
+                    });
+                }
+            }
+        }
+    }
+    for key in current.flags.keys() {
+        if !flags.iter().any(|f| &f.key == key) {
+            changes.push(ConfigChange {
+                target_kind: "flag",
+                target_key: key.clone(),
+                op: ChangeOp::Delete,
+                detail: Json::Null,
+            });
+        }
+    }
+
+    changes
+}
+
+/// Variants compared order-independently (the store has no variant ordering).
+fn variants_equal(a: &[Variant], b: &[Variant]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    let mut a: Vec<&Variant> = a.iter().collect();
+    let mut b: Vec<&Variant> = b.iter().collect();
+    a.sort_by(|x, y| x.key.cmp(&y.key));
+    b.sort_by(|x, y| x.key.cmp(&y.key));
+    a == b
+}
+
+/// Rules compared as ordered lists with `rank` normalised to position, since rank is
+/// assigned by position on write and is not part of the declared config.
+fn rules_equal(a: &[Rule], b: &[Rule]) -> bool {
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).all(|(x, y)| {
+        Rule { rank: 0, ..x.clone() } == Rule { rank: 0, ..y.clone() }
+    })
+}
+
+fn flag_diff_fields(live: &Flag, desired: &Flag) -> Vec<&'static str> {
+    let mut fields = Vec::new();
+    if live.value_type != desired.value_type {
+        fields.push("value_type");
+    }
+    if live.enabled != desired.enabled {
+        fields.push("enabled");
+    }
+    if live.default_variant_key != desired.default_variant_key {
+        fields.push("default_variant_key");
+    }
+    if live.archived != desired.archived {
+        fields.push("archived");
+    }
+    if !variants_equal(&live.variants, &desired.variants) {
+        fields.push("variants");
+    }
+    if !rules_equal(&live.rules, &desired.rules) {
+        fields.push("rules");
+    }
+    fields
+}
+
+fn segments_equal(live: &Segment, desired: &Segment) -> bool {
+    segment_diff_fields(live, desired).is_empty()
+}
+
+fn segment_diff_fields(live: &Segment, desired: &Segment) -> Vec<&'static str> {
+    let mut fields = Vec::new();
+    if live.name != desired.name {
+        fields.push("name");
+    }
+    if live.constraints != desired.constraints {
+        fields.push("constraints");
+    }
+    fields
 }
 
 /// Reject a variant whose JSON value doesn't match the flag's declared type, so the

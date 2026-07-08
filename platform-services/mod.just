@@ -37,9 +37,9 @@ aig *args:
 janitor *args:
     cargo run --manifest-path janitor-bot/Cargo.toml --bin janitor-bot -- {{args}}
 
-# Run the feature-flags binary
-ff *args:
-    cargo run --manifest-path feature-flags/Cargo.toml --bin feature-flags -- {{args}}
+# Run the ffctl binary
+ffctl *args:
+    cargo run --manifest-path feature-flags/Cargo.toml --bin ffctl -- {{args}}
 
 # Show ArgoCD applications status
 status:

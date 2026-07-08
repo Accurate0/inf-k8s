@@ -1,6 +1,7 @@
 pub mod cache;
 pub mod config;
 pub mod error;
+pub mod flag_config;
 pub mod grpc;
 pub mod snapshot;
 pub mod store;

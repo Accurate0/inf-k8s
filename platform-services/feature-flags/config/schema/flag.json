@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FlagDoc",
+  "description": "One flag file (`config/flags/<key>.yaml`). Variants are a `key: value` map; rules\nare ordered by position (their rank is assigned server-side on apply).",
+  "type": "object",
+  "properties": {
+    "default": {
+      "type": "string"
+    },
+    "enabled": {
+      "type": "boolean",
+      "default": false
+    },
+    "key": {
+      "type": "string"
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/RuleDoc"
+      }
+    },
+    "type": {
+      "type": "string"
+    },
+    "variants": {
+      "type": "object",
+      "additionalProperties": true,
+      "default": {}
+    }
+  },
+  "required": [
+    "key",
+    "type",
+    "default"
+  ],
+  "$defs": {
+    "ConstraintDoc": {
+      "type": "object",
+      "properties": {
+        "attribute": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array",
+          "items": true
+        }
+      },
+      "required": [
+        "attribute",
+        "operator"
+      ]
+    },
+    "DistDoc": {
+      "type": "object",
+      "properties": {
+        "variant": {
+          "type": "string"
+        },
+        "weight": {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0
+        }
+      },
+      "required": [
+        "variant",
+        "weight"
+      ]
+    },
+    "RuleDoc": {
+      "type": "object",
+      "properties": {
+        "bucket_salt": {
+          "type": "string"
+        },
+        "constraint_groups": {
+          "description": "CNF: outer array AND-combined, inner arrays OR-combined. Takes precedence over\n`constraints` when present.",
+          "type": "array",
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ConstraintDoc"
+            }
+          }
+        },
+        "constraints": {
+          "description": "Flat AND sugar: each constraint becomes its own single-element group.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConstraintDoc"
+          }
+        },
+        "distributions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/DistDoc"
+          }
+        },
+        "segment": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "variant": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    }
+  }
+}

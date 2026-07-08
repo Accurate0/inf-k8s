@@ -4,10 +4,19 @@
 
 use anyhow::{Context as _, bail};
 use clap::{Parser, Subcommand, ValueEnum};
+use console::style;
+use feature_flags::flag_config::{
+    ConstraintDoc, DistDoc, FlagDoc, RuleDoc, SegmentDoc, SegmentsFile,
+};
 use feature_flags::pb;
 use pb::admin_client::AdminClient;
 use prost_types::value::Kind;
 use serde_json::{Value as Json, json};
+use similar::{ChangeTag, TextDiff};
+use std::collections::BTreeMap;
+use std::fs;
+use std::path::Path;
+use tonic::Request;
 use tonic::transport::Channel;
 
 #[derive(Parser)]
@@ -40,6 +49,40 @@ enum Command {
     Rules {
         #[command(subcommand)]
         action: RulesAction,
+    },
+    /// Declarative, Terraform-style management from a config directory
+    Config {
+        #[command(subcommand)]
+        action: ConfigAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum ConfigAction {
+    /// Show the diff between the config directory and the live service without writing.
+    Plan {
+        /// Directory holding `flags/*.yaml` and `segments.yaml`.
+        #[arg(long, default_value = "config")]
+        dir: String,
+    },
+    /// Reconcile the live service to the config directory. Flags and segments absent
+    /// from the config are deleted. Prints the plan and asks to confirm.
+    Apply {
+        #[arg(long, default_value = "config")]
+        dir: String,
+        /// Identity recorded in the audit log; falls back to `$FFCTL_ACTOR` then
+        /// `git config user.email`.
+        #[arg(long, env = "FFCTL_ACTOR")]
+        actor: Option<String>,
+        /// Skip the interactive confirmation prompt.
+        #[arg(long)]
+        auto_approve: bool,
+    },
+    /// Dump the live flags and segments into the config directory layout, so current
+    /// state can be captured as code before enabling prune-on-apply.
+    Export {
+        #[arg(long, default_value = "config")]
+        dir: String,
     },
 }
 
@@ -157,6 +200,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Variant { action } => variant(&mut admin, action).await,
         Command::Segment { action } => segment(&mut admin, action).await,
         Command::Rules { action } => rules(&mut admin, action).await,
+        Command::Config { action } => config(&mut admin, action).await,
     }
 }
 
@@ -321,6 +365,490 @@ async fn rules(admin: &mut AdminClient<Channel>, action: RulesAction) -> anyhow:
         .await?
         .into_inner();
     print(flag_to_json(&flag))
+}
+
+// -- Declarative config (`ffctl config`) ------------------------------------------
+
+async fn config(admin: &mut AdminClient<Channel>, action: ConfigAction) -> anyhow::Result<()> {
+    match action {
+        ConfigAction::Plan { dir } => {
+            let (flags, segments) = load_config(&dir)?;
+            let resp = admin
+                .apply_config(pb::ApplyConfigRequest {
+                    flags: flags.clone(),
+                    segments: segments.clone(),
+                    dry_run: true,
+                    expected_version: 0,
+                })
+                .await?
+                .into_inner();
+            let live = fetch_live(admin).await?;
+            render_plan(&resp.changes, &flags, &segments, &live);
+            Ok(())
+        }
+        ConfigAction::Apply {
+            dir,
+            actor,
+            auto_approve,
+        } => {
+            let actor = resolve_actor(actor);
+            let (flags, segments) = load_config(&dir)?;
+            let plan = admin
+                .apply_config(request_with_actor(
+                    pb::ApplyConfigRequest {
+                        flags: flags.clone(),
+                        segments: segments.clone(),
+                        dry_run: true,
+                        expected_version: 0,
+                    },
+                    &actor,
+                ))
+                .await?
+                .into_inner();
+            let live = fetch_live(admin).await?;
+            render_plan(&plan.changes, &flags, &segments, &live);
+            if plan.changes.is_empty() {
+                return Ok(());
+            }
+            if !auto_approve && !confirm("Apply these changes?")? {
+                println!("Aborted.");
+                return Ok(());
+            }
+            let resp = admin
+                .apply_config(request_with_actor(
+                    pb::ApplyConfigRequest {
+                        flags,
+                        segments,
+                        dry_run: false,
+                        expected_version: plan.from_version,
+                    },
+                    &actor,
+                ))
+                .await
+                .context("apply failed (config may have drifted; re-run plan)")?
+                .into_inner();
+            println!(
+                "Applied {} change(s); config version {} -> {}.",
+                resp.changes.len(),
+                resp.from_version,
+                resp.to_version
+            );
+            Ok(())
+        }
+        ConfigAction::Export { dir } => {
+            let flags = admin
+                .list_flags(pb::ListFlagsRequest {
+                    include_archived: false,
+                })
+                .await?
+                .into_inner()
+                .flags;
+            let segments = admin
+                .list_segments(pb::ListSegmentsRequest {})
+                .await?
+                .into_inner()
+                .segments;
+            export_config(&dir, &flags, &segments)?;
+            println!(
+                "Wrote {} flag(s) and {} segment(s) to {dir}/.",
+                flags.len(),
+                segments.len()
+            );
+            Ok(())
+        }
+    }
+}
+
+/// Load every `flags/*.yaml` plus an optional `segments.yaml` from `dir` and convert
+/// them to the wire types the `ApplyConfig` RPC expects.
+fn load_config(dir: &str) -> anyhow::Result<(Vec<pb::Flag>, Vec<pb::Segment>)> {
+    let flags_dir = Path::new(dir).join("flags");
+    let mut flags = Vec::new();
+    if flags_dir.is_dir() {
+        let mut entries: Vec<_> = fs::read_dir(&flags_dir)
+            .with_context(|| format!("reading {}", flags_dir.display()))?
+            .collect::<Result<_, _>>()?;
+        entries.sort_by_key(|e| e.path());
+        for entry in entries {
+            let path = entry.path();
+            if !matches!(path.extension().and_then(|e| e.to_str()), Some("yaml" | "yml")) {
+                continue;
+            }
+            let text = fs::read_to_string(&path)?;
+            let doc: FlagDoc = serde_yaml::from_str(&text)
+                .with_context(|| format!("parsing {}", path.display()))?;
+            flags.push(flag_doc_to_pb(&doc).with_context(|| format!("in {}", path.display()))?);
+        }
+    }
+
+    let mut segments = Vec::new();
+    let segments_path = Path::new(dir).join("segments.yaml");
+    if segments_path.is_file() {
+        let text = fs::read_to_string(&segments_path)?;
+        let file: SegmentsFile = serde_yaml::from_str(&text)
+            .with_context(|| format!("parsing {}", segments_path.display()))?;
+        for doc in &file.segments {
+            segments.push(segment_doc_to_pb(doc)?);
+        }
+    }
+    Ok((flags, segments))
+}
+
+fn export_config(dir: &str, flags: &[pb::Flag], segments: &[pb::Segment]) -> anyhow::Result<()> {
+    let flags_dir = Path::new(dir).join("flags");
+    fs::create_dir_all(&flags_dir)?;
+    for flag in flags {
+        let yaml = serde_yaml::to_string(&flag_to_doc(flag))?;
+        fs::write(flags_dir.join(format!("{}.yaml", flag.key)), yaml)?;
+    }
+    let file = SegmentsFile {
+        segments: segments.iter().map(segment_to_doc).collect(),
+    };
+    fs::write(Path::new(dir).join("segments.yaml"), serde_yaml::to_string(&file)?)?;
+    Ok(())
+}
+
+fn flag_doc_to_pb(doc: &FlagDoc) -> anyhow::Result<pb::Flag> {
+    let value_type = value_type_from_name(&doc.value_type)?;
+    let variants = doc
+        .variants
+        .iter()
+        .map(|(k, v)| pb::Variant {
+            key: k.clone(),
+            value: Some(json_to_value(v)),
+        })
+        .collect();
+    let rules = doc
+        .rules
+        .iter()
+        .enumerate()
+        .map(|(i, r)| rule_doc_to_pb(i as u32, r))
+        .collect::<anyhow::Result<_>>()?;
+    Ok(pb::Flag {
+        key: doc.key.clone(),
+        value_type: value_type as i32,
+        enabled: doc.enabled,
+        default_variant_key: doc.default.clone(),
+        archived: false,
+        variants,
+        rules,
+    })
+}
+
+fn rule_doc_to_pb(rank: u32, r: &RuleDoc) -> anyhow::Result<pb::Rule> {
+    let constraint_groups = if !r.constraint_groups.is_empty() {
+        r.constraint_groups
+            .iter()
+            .map(|g| {
+                Ok(pb::ConstraintGroup {
+                    constraints: g
+                        .iter()
+                        .map(constraint_doc_to_pb)
+                        .collect::<anyhow::Result<_>>()?,
+                })
+            })
+            .collect::<anyhow::Result<_>>()?
+    } else {
+        r.constraints
+            .iter()
+            .map(|c| {
+                Ok(pb::ConstraintGroup {
+                    constraints: vec![constraint_doc_to_pb(c)?],
+                })
+            })
+            .collect::<anyhow::Result<_>>()?
+    };
+    Ok(pb::Rule {
+        rank,
+        segment_key: r.segment.clone().unwrap_or_default(),
+        variant_key: r.variant.clone().unwrap_or_default(),
+        distributions: r
+            .distributions
+            .iter()
+            .map(|d| pb::Distribution {
+                variant_key: d.variant.clone(),
+                weight: d.weight,
+            })
+            .collect(),
+        constraint_groups,
+        bucket_salt: r.bucket_salt.clone(),
+    })
+}
+
+fn constraint_doc_to_pb(c: &ConstraintDoc) -> anyhow::Result<pb::Constraint> {
+    Ok(pb::Constraint {
+        attribute: c.attribute.clone(),
+        operator: operator_from_name(&c.operator)? as i32,
+        values: c.values.iter().map(json_to_value).collect(),
+    })
+}
+
+fn segment_doc_to_pb(doc: &SegmentDoc) -> anyhow::Result<pb::Segment> {
+    Ok(pb::Segment {
+        key: doc.key.clone(),
+        name: doc.name.clone(),
+        constraints: doc
+            .constraints
+            .iter()
+            .map(constraint_doc_to_pb)
+            .collect::<anyhow::Result<_>>()?,
+    })
+}
+
+fn flag_to_doc(f: &pb::Flag) -> FlagDoc {
+    FlagDoc {
+        key: f.key.clone(),
+        value_type: value_type_name(f.value_type).to_owned(),
+        enabled: f.enabled,
+        default: f.default_variant_key.clone(),
+        variants: f
+            .variants
+            .iter()
+            .map(|v| {
+                (
+                    v.key.clone(),
+                    v.value.as_ref().map(value_to_json).unwrap_or(Json::Null),
+                )
+            })
+            .collect(),
+        rules: f.rules.iter().map(rule_to_doc).collect(),
+    }
+}
+
+fn rule_to_doc(r: &pb::Rule) -> RuleDoc {
+    // Collapse to the flat `constraints` form when every group is a single constraint
+    // (plain AND); otherwise keep the CNF `constraint_groups` form.
+    let flat = r.constraint_groups.iter().all(|g| g.constraints.len() == 1);
+    let (constraints, constraint_groups) = if flat {
+        (
+            r.constraint_groups
+                .iter()
+                .map(|g| constraint_to_doc(&g.constraints[0]))
+                .collect(),
+            Vec::new(),
+        )
+    } else {
+        (
+            Vec::new(),
+            r.constraint_groups
+                .iter()
+                .map(|g| g.constraints.iter().map(constraint_to_doc).collect())
+                .collect(),
+        )
+    };
+    RuleDoc {
+        segment: (!r.segment_key.is_empty()).then(|| r.segment_key.clone()),
+        variant: (!r.variant_key.is_empty()).then(|| r.variant_key.clone()),
+        distributions: r
+            .distributions
+            .iter()
+            .map(|d| DistDoc {
+                variant: d.variant_key.clone(),
+                weight: d.weight,
+            })
+            .collect(),
+        constraints,
+        constraint_groups,
+        bucket_salt: r.bucket_salt.clone(),
+    }
+}
+
+fn segment_to_doc(s: &pb::Segment) -> SegmentDoc {
+    SegmentDoc {
+        key: s.key.clone(),
+        name: s.name.clone(),
+        constraints: s.constraints.iter().map(constraint_to_doc).collect(),
+    }
+}
+
+fn constraint_to_doc(c: &pb::Constraint) -> ConstraintDoc {
+    ConstraintDoc {
+        attribute: c.attribute.clone(),
+        operator: operator_name(c.operator),
+        values: c.values.iter().map(value_to_json).collect(),
+    }
+}
+
+fn value_type_from_name(s: &str) -> anyhow::Result<pb::ValueType> {
+    Ok(match s {
+        "boolean" => pb::ValueType::Boolean,
+        "string" => pb::ValueType::String,
+        "integer" => pb::ValueType::Integer,
+        "float" => pb::ValueType::Float,
+        "object" => pb::ValueType::Object,
+        other => bail!("unknown flag type `{other}`"),
+    })
+}
+
+fn value_type_name(v: i32) -> &'static str {
+    match pb::ValueType::try_from(v).unwrap_or_default() {
+        pb::ValueType::Boolean => "boolean",
+        pb::ValueType::String => "string",
+        pb::ValueType::Integer => "integer",
+        pb::ValueType::Float => "float",
+        pb::ValueType::Object => "object",
+        pb::ValueType::Unspecified => "unspecified",
+    }
+}
+
+/// Resolve the short operator name (e.g. `in`, `starts_with`) to its proto enum.
+fn operator_from_name(s: &str) -> anyhow::Result<pb::ConstraintOperator> {
+    let name = format!("CONSTRAINT_OPERATOR_{}", s.to_uppercase());
+    pb::ConstraintOperator::from_str_name(&name).with_context(|| format!("unknown operator `{s}`"))
+}
+
+fn operator_name(op: i32) -> String {
+    pb::ConstraintOperator::try_from(op)
+        .unwrap_or_default()
+        .as_str_name()
+        .trim_start_matches("CONSTRAINT_OPERATOR_")
+        .to_lowercase()
+}
+
+/// Live flags and segments keyed by name, used to render before/after diffs.
+struct LiveState {
+    flags: BTreeMap<String, pb::Flag>,
+    segments: BTreeMap<String, pb::Segment>,
+}
+
+/// Fetch the full live state (including archived flags) so the plan can show a
+/// before/after diff of every changed resource.
+async fn fetch_live(admin: &mut AdminClient<Channel>) -> anyhow::Result<LiveState> {
+    let flags = admin
+        .list_flags(pb::ListFlagsRequest {
+            include_archived: true,
+        })
+        .await?
+        .into_inner()
+        .flags
+        .into_iter()
+        .map(|f| (f.key.clone(), f))
+        .collect();
+    let segments = admin
+        .list_segments(pb::ListSegmentsRequest {})
+        .await?
+        .into_inner()
+        .segments
+        .into_iter()
+        .map(|s| (s.key.clone(), s))
+        .collect();
+    Ok(LiveState { flags, segments })
+}
+
+/// Print a Terraform-style plan: one header per changed resource (`+` create, `~`
+/// update, `-` delete) followed by a unified YAML diff of its live vs desired form.
+fn render_plan(
+    changes: &[pb::ConfigChange],
+    desired_flags: &[pb::Flag],
+    desired_segments: &[pb::Segment],
+    live: &LiveState,
+) {
+    if changes.is_empty() {
+        println!("No changes. Live state already matches the config.");
+        return;
+    }
+    let desired_flags: BTreeMap<&str, &pb::Flag> =
+        desired_flags.iter().map(|f| (f.key.as_str(), f)).collect();
+    let desired_segments: BTreeMap<&str, &pb::Segment> = desired_segments
+        .iter()
+        .map(|s| (s.key.as_str(), s))
+        .collect();
+
+    let (mut create, mut update, mut delete) = (0, 0, 0);
+    for c in changes {
+        let (sym, count) = match c.op() {
+            pb::ChangeOp::Create => ("+", &mut create),
+            pb::ChangeOp::Update => ("~", &mut update),
+            pb::ChangeOp::Delete => ("-", &mut delete),
+            pb::ChangeOp::Unspecified => ("?", &mut update),
+        };
+        *count += 1;
+
+        let (before, after) = match c.target_kind.as_str() {
+            "flag" => (
+                live.flags.get(&c.target_key).map(yaml_of_flag).unwrap_or_default(),
+                desired_flags.get(c.target_key.as_str()).map(|f| yaml_of_flag(f)).unwrap_or_default(),
+            ),
+            _ => (
+                live.segments.get(&c.target_key).map(yaml_of_segment).unwrap_or_default(),
+                desired_segments.get(c.target_key.as_str()).map(|s| yaml_of_segment(s)).unwrap_or_default(),
+            ),
+        };
+
+        let header = format!("{sym} {} {}", c.target_kind, c.target_key);
+        let header = match c.op() {
+            pb::ChangeOp::Create => style(header).green(),
+            pb::ChangeOp::Delete => style(header).red(),
+            _ => style(header).yellow(),
+        };
+        println!("\n{}", header.bold());
+        print_yaml_diff(&before, &after);
+    }
+    println!(
+        "\nPlan: {} to create, {} to update, {} to delete.",
+        style(create).green(),
+        style(update).yellow(),
+        style(delete).red(),
+    );
+}
+
+fn yaml_of_flag(f: &pb::Flag) -> String {
+    serde_yaml::to_string(&flag_to_doc(f)).unwrap_or_default()
+}
+
+fn yaml_of_segment(s: &pb::Segment) -> String {
+    serde_yaml::to_string(&segment_to_doc(s)).unwrap_or_default()
+}
+
+/// Render a line-oriented unified diff, indented under the resource header.
+fn print_yaml_diff(before: &str, after: &str) {
+    let diff = TextDiff::from_lines(before, after);
+    for change in diff.iter_all_changes() {
+        let line = change.value();
+        let line = line.strip_suffix('\n').unwrap_or(line);
+        let rendered = match change.tag() {
+            ChangeTag::Delete => style(format!("  - {line}")).red(),
+            ChangeTag::Insert => style(format!("  + {line}")).green(),
+            ChangeTag::Equal => style(format!("    {line}")).dim(),
+        };
+        println!("{rendered}");
+    }
+}
+
+fn confirm(prompt: &str) -> anyhow::Result<bool> {
+    use std::io::Write as _;
+    print!("{prompt} [y/N]: ");
+    std::io::stdout().flush()?;
+    let mut line = String::new();
+    std::io::stdin().read_line(&mut line)?;
+    Ok(matches!(line.trim(), "y" | "Y" | "yes" | "Yes"))
+}
+
+/// Resolve the audit actor: explicit value (or `$FFCTL_ACTOR` via clap) first, then
+/// the local git email, falling back to a constant so an audit row is always stamped.
+fn resolve_actor(actor: Option<String>) -> String {
+    if let Some(a) = actor.filter(|s| !s.is_empty()) {
+        return a;
+    }
+    std::process::Command::new("git")
+        .args(["config", "user.email"])
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .and_then(|o| String::from_utf8(o.stdout).ok())
+        .map(|s| s.trim().to_owned())
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| "ffctl".to_owned())
+}
+
+/// Wrap a message in a request carrying the `actor` metadata header the Admin service
+/// records in the audit log.
+fn request_with_actor<T>(message: T, actor: &str) -> Request<T> {
+    let mut request = Request::new(message);
+    if let Ok(value) = actor.parse() {
+        request.metadata_mut().insert("actor", value);
+    }
+    request
 }
 
 /// Parse a `key=value` variant spec, reading `value` as JSON with a bare-string fallback.

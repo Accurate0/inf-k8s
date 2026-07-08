@@ -26,8 +26,53 @@ service Admin {
   // Replaces the full ordered rule set for a flag; ranks are assigned by position.
   rpc SetFlagRules(SetFlagRulesRequest) returns (Flag);
 
+  // Reconcile the entire flag/segment set to a declared desired state. The server
+  // diffs the request against live state and, unless dry_run, applies every
+  // create/update/delete in a single transaction with one config-version bump.
+  // Flags and segments absent from the request are deleted (the config owns them).
+  rpc ApplyConfig(ApplyConfigRequest) returns (ApplyConfigResponse);
+
   // Read the audit log of admin mutations, newest first.
   rpc ListChanges(ListChangesRequest) returns (ListChangesResponse);
+}
+
+// Whether a diffed target is being created, updated, or deleted.
+enum ChangeOp {
+  CHANGE_OP_UNSPECIFIED = 0;
+  CHANGE_OP_CREATE = 1;
+  CHANGE_OP_UPDATE = 2;
+  CHANGE_OP_DELETE = 3;
+}
+
+message ApplyConfigRequest {
+  // The complete desired set of flags and segments.
+  repeated Flag flags = 1;
+  repeated Segment segments = 2;
+  // Compute and return the diff without writing anything.
+  bool dry_run = 3;
+  // Optimistic lock: the config version the plan was computed against. The server
+  // aborts if live state has advanced past it. 0 skips the check.
+  int64 expected_version = 4;
+}
+
+// A single planned or applied change to one flag or segment.
+message ConfigChange {
+  // `flag` or `segment`.
+  string target_kind = 1;
+  string target_key = 2;
+  ChangeOp op = 3;
+  // JSON object summarising the change (e.g. the fields that differ).
+  string detail = 4;
+}
+
+message ApplyConfigResponse {
+  repeated ConfigChange changes = 1;
+  // The config version the diff was computed against.
+  int64 from_version = 2;
+  // The config version after applying; equals from_version for a dry run or no-op.
+  int64 to_version = 3;
+  // False for a dry run; true when the changes were written (or there were none).
+  bool applied = 4;
 }
 
 message CreateFlagRequest {

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM variants WHERE flag_id = $1 AND key <> ALL($2::text[])",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "TextArray"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "cfdf56687b8a3835761ab0b0d35fa14b6f6095e0a423e457444b8213b14214b2"
+}

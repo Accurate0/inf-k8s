@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SegmentsFile",
+  "description": "The `config/segments.yaml` file: all segments in one document.",
+  "type": "object",
+  "properties": {
+    "segments": {
+      "type": "array",
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SegmentDoc"
+      }
+    }
+  },
+  "$defs": {
+    "ConstraintDoc": {
+      "type": "object",
+      "properties": {
+        "attribute": {
+          "type": "string"
+        },
+        "operator": {
+          "type": "string"
+        },
+        "values": {
+          "type": "array",
+          "items": true
+        }
+      },
+      "required": [
+        "attribute",
+        "operator"
+      ]
+    },
+    "SegmentDoc": {
+      "type": "object",
+      "properties": {
+        "constraints": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/ConstraintDoc"
+          }
+        },
+        "key": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string",
+          "default": ""
+        }
+      },
+      "required": [
+        "key"
+      ]
+    }
+  }
+}

@@ -1,0 +1,32 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO flags (key, value_type, enabled, default_variant_key, archived) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (key) DO UPDATE SET value_type = EXCLUDED.value_type, enabled = EXCLUDED.enabled, default_variant_key = EXCLUDED.default_variant_key, archived = EXCLUDED.archived, updated_at = now() RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "flags",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Bool",
+        "Text",
+        "Bool"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "81d44dc7a18296292e32205113d1ec884550199422a8de39e6c7efb33cba0317"
+}

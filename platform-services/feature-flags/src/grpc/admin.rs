@@ -2,9 +2,25 @@ use crate::model::{Rule, Segment, ValueType, Variant};
 use crate::pb;
 use crate::pb::admin_server::Admin;
 use crate::snapshot::SnapshotManager;
-use crate::store::{FlagChange, Store};
+use crate::store::{ChangeOp, ConfigChange, FlagChange, Store};
 use std::sync::Arc;
 use tonic::{Request, Response, Status};
+
+impl From<&ConfigChange> for pb::ConfigChange {
+    fn from(c: &ConfigChange) -> Self {
+        let op = match c.op {
+            ChangeOp::Create => pb::ChangeOp::Create,
+            ChangeOp::Update => pb::ChangeOp::Update,
+            ChangeOp::Delete => pb::ChangeOp::Delete,
+        };
+        pb::ConfigChange {
+            target_kind: c.target_kind.to_owned(),
+            target_key: c.target_key.clone(),
+            op: op as i32,
+            detail: c.detail.to_string(),
+        }
+    }
+}
 
 impl From<&FlagChange> for pb::FlagChange {
     fn from(c: &FlagChange) -> Self {
@@ -237,6 +253,39 @@ impl Admin for AdminService {
         Ok(Response::new(pb::Flag::from(
             &self.mgr.get_flag(&req.flag_key)?,
         )))
+    }
+
+    async fn apply_config(
+        &self,
+        request: Request<pb::ApplyConfigRequest>,
+    ) -> Result<Response<pb::ApplyConfigResponse>, Status> {
+        let actor = actor_of(&request);
+        let req = request.into_inner();
+        let flags = req
+            .flags
+            .iter()
+            .map(crate::model::Flag::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        let segments = req
+            .segments
+            .iter()
+            .map(Segment::try_from)
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| Status::invalid_argument(e.to_string()))?;
+        let outcome = self
+            .store
+            .apply_config(&actor, &flags, &segments, req.dry_run, req.expected_version)
+            .await?;
+        if outcome.applied && !outcome.changes.is_empty() {
+            self.refresh().await;
+        }
+        Ok(Response::new(pb::ApplyConfigResponse {
+            changes: outcome.changes.iter().map(pb::ConfigChange::from).collect(),
+            from_version: outcome.from_version,
+            to_version: outcome.to_version,
+            applied: outcome.applied,
+        }))
     }
 
     async fn list_changes(
