@@ -1,0 +1,29 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: home-gateway
+  namespace: home-gateway
+spec:
+  name: home-gateway
+  displayName: Home Gateway
+  origin: https://home.anurag.sh/
+  redirectUrls:
+    - https://home.anurag.sh/v1/graphql
+  preferShortUsername: true
+  # The API validates access tokens against the JWKS and derives scopes from the
+  # caller's `groups` claim, so every mapped group must be granted the `groups`
+  # scope here. Group SPNs must match `oauth.group_scopes` in the app config.
+  scopeMaps:
+    home_gateway_admins:
+      - openid
+      - email
+      - profile
+      - groups
+    home_gateway_readers:
+      - openid
+      - email
+      - profile
+      - groups
+  secretName: kanidm-home-gateway-oidc
+  secretNamespace: home-gateway

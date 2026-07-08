@@ -11,5 +11,7 @@ resources:
   - groups/flipt-users.yaml
   - groups/forgejo-users.yaml
   - groups/grafana-users.yaml
+  - groups/home-gateway-admins.yaml
+  - groups/home-gateway-readers.yaml
   - groups/platform-admins.yaml
   - users/anurag.yaml
