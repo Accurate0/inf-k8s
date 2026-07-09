@@ -14,6 +14,8 @@ media_transmission_settings:
   download-dir: /data/downloads
   incomplete-dir: /data/downloads/incomplete
   incomplete-dir-enabled: true
+  ratio-limit: 0
+  ratio-limit-enabled: true
 
 media_images:
   jellyfin: lscr.io/linuxserver/jellyfin:10.11.11
