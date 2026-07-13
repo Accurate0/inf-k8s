@@ -1,0 +1,11 @@
+  sonarr:
+    image: {{ media_images.sonarr }}
+    container_name: sonarr
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.sonarr }}:8989"
+    volumes:
+      - {{ media_config_root }}/config/sonarr:/config
+      - {{ media_pool_mount }}:/data

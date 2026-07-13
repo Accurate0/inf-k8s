@@ -1,0 +1,25 @@
+  gluetun:
+    image: {{ media_images.gluetun }}
+    container_name: gluetun
+    restart: unless-stopped
+    networks: [media]
+    cap_add:
+      - NET_ADMIN
+    devices:
+      - /dev/net/tun:/dev/net/tun
+    environment:
+      VPN_SERVICE_PROVIDER: protonvpn
+      VPN_TYPE: wireguard
+      SERVER_COUNTRIES: "{{ media_vpn_server_countries }}"
+      VPN_PORT_FORWARDING: "on"
+      VPN_PORT_FORWARDING_UP_COMMAND: "/bin/sh /gluetun/transmission-port.sh {% raw %}{{PORTS}}{% endraw %}"
+      FIREWALL_OUTBOUND_SUBNETS: "{{ media_lan_subnet }}"
+      TZ: "{{ media_timezone }}"
+    env_file:
+      - {{ media_config_root }}/config/gluetun/gluetun.env
+    volumes:
+      - {{ media_config_root }}/config/gluetun:/gluetun
+    ports:
+      - "{{ media_ports.transmission }}:9091"
+      - "51413:51413"
+      - "51413:51413/udp"

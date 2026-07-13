@@ -1,0 +1,19 @@
+  flood:
+    image: {{ media_images.flood }}
+    container_name: flood
+    restart: unless-stopped
+    networks: [media]
+    user: "{{ media_puid }}:{{ media_pgid }}"
+    depends_on: [transmission]
+    environment:
+      FLOOD_OPTION_host: 0.0.0.0
+      FLOOD_OPTION_port: "3000"
+      FLOOD_OPTION_rundir: /data
+      FLOOD_OPTION_auth: none
+      FLOOD_OPTION_trurl: http://gluetun:9091/transmission/rpc
+      FLOOD_OPTION_truser: ""
+      FLOOD_OPTION_trpass: ""
+    volumes:
+      - {{ media_config_root }}/config/flood:/data
+    ports:
+      - "{{ media_ports.flood }}:3000"

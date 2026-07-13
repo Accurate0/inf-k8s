@@ -10,146 +10,24 @@ networks:
     name: {{ media_network }}
 
 services:
-  jellyfin:
-    image: {{ media_images.jellyfin }}
-    container_name: jellyfin
-    restart: unless-stopped
-    networks: [media]
-    environment: *env
-    ports:
-      - "{{ media_ports.jellyfin }}:8096"
-    volumes:
-      - {{ media_config_root }}/config/jellyfin:/config
-      - {{ media_pool_mount }}:/data
+{% include 'services/jellyfin.yml.j2' %}
 
-  sonarr:
-    image: {{ media_images.sonarr }}
-    container_name: sonarr
-    restart: unless-stopped
-    networks: [media]
-    environment: *env
-    ports:
-      - "{{ media_ports.sonarr }}:8989"
-    volumes:
-      - {{ media_config_root }}/config/sonarr:/config
-      - {{ media_pool_mount }}:/data
+{% include 'services/sonarr.yml.j2' %}
 
-  radarr:
-    image: {{ media_images.radarr }}
-    container_name: radarr
-    restart: unless-stopped
-    networks: [media]
-    environment: *env
-    ports:
-      - "{{ media_ports.radarr }}:7878"
-    volumes:
-      - {{ media_config_root }}/config/radarr:/config
-      - {{ media_pool_mount }}:/data
+{% include 'services/radarr.yml.j2' %}
 
-  gluetun:
-    image: {{ media_images.gluetun }}
-    container_name: gluetun
-    restart: unless-stopped
-    networks: [media]
-    cap_add:
-      - NET_ADMIN
-    devices:
-      - /dev/net/tun:/dev/net/tun
-    environment:
-      VPN_SERVICE_PROVIDER: protonvpn
-      VPN_TYPE: wireguard
-      SERVER_COUNTRIES: "{{ media_vpn_server_countries }}"
-      VPN_PORT_FORWARDING: "on"
-      VPN_PORT_FORWARDING_UP_COMMAND: "/bin/sh /gluetun/transmission-port.sh {% raw %}{{PORTS}}{% endraw %}"
-      FIREWALL_OUTBOUND_SUBNETS: "{{ media_lan_subnet }}"
-      TZ: "{{ media_timezone }}"
-    env_file:
-      - {{ media_config_root }}/config/gluetun/gluetun.env
-    volumes:
-      - {{ media_config_root }}/config/gluetun:/gluetun
-    ports:
-      - "{{ media_ports.transmission }}:9091"
-      - "51413:51413"
-      - "51413:51413/udp"
+{% include 'services/gluetun.yml.j2' %}
 
-  transmission:
-    image: {{ media_images.transmission }}
-    container_name: transmission
-    restart: unless-stopped
-    network_mode: "service:gluetun"
-    depends_on:
-      gluetun:
-        condition: service_healthy
-    environment: *env
-    volumes:
-      - {{ media_config_root }}/config/transmission:/config
-      - {{ media_pool_mount }}:/data
+{% include 'services/transmission.yml.j2' %}
 
-  flood:
-    image: {{ media_images.flood }}
-    container_name: flood
-    restart: unless-stopped
-    networks: [media]
-    user: "{{ media_puid }}:{{ media_pgid }}"
-    depends_on: [transmission]
-    environment:
-      FLOOD_OPTION_host: 0.0.0.0
-      FLOOD_OPTION_port: "3000"
-      FLOOD_OPTION_rundir: /data
-      FLOOD_OPTION_auth: none
-      FLOOD_OPTION_trurl: http://gluetun:9091/transmission/rpc
-      FLOOD_OPTION_truser: ""
-      FLOOD_OPTION_trpass: ""
-    volumes:
-      - {{ media_config_root }}/config/flood:/data
-    ports:
-      - "{{ media_ports.flood }}:3000"
+{% include 'services/flood.yml.j2' %}
 
-  prowlarr:
-    image: {{ media_images.prowlarr }}
-    container_name: prowlarr
-    restart: unless-stopped
-    networks: [media]
-    depends_on: [flaresolverr]
-    environment: *env
-    ports:
-      - "{{ media_ports.prowlarr }}:9696"
-    volumes:
-      - {{ media_config_root }}/config/prowlarr:/config
+{% include 'services/prowlarr.yml.j2' %}
 
-  bazarr:
-    image: {{ media_images.bazarr }}
-    container_name: bazarr
-    restart: unless-stopped
-    networks: [media]
-    environment: *env
-    ports:
-      - "{{ media_ports.bazarr }}:6767"
-    volumes:
-      - {{ media_config_root }}/config/bazarr:/config
-      - {{ media_pool_mount }}:/data
+{% include 'services/bazarr.yml.j2' %}
 
-  flaresolverr:
-    image: {{ media_images.flaresolverr }}
-    container_name: flaresolverr
-    restart: unless-stopped
-    networks: [media]
-    environment:
-      LOG_LEVEL: info
-      TZ: "{{ media_timezone }}"
-    ports:
-      - "{{ media_ports.flaresolverr }}:8191"
+{% include 'services/flaresolverr.yml.j2' %}
 
-  recyclarr:
-    image: {{ media_images.recyclarr }}
-    container_name: recyclarr
-    restart: unless-stopped
-    networks: [media]
-    depends_on: [sonarr, radarr]
-    environment:
-      TZ: "{{ media_timezone }}"
-      CRON_SCHEDULE: "{{ media_recyclarr_cron }}"
-    env_file:
-      - {{ media_config_root }}/config/recyclarr/recyclarr.env
-    volumes:
-      - {{ media_config_root }}/config/recyclarr:/config
+{% include 'services/recyclarr.yml.j2' %}
+
+{% include 'services/seerr.yml.j2' %}

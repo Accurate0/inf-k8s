@@ -1,0 +1,11 @@
+  jellyfin:
+    image: {{ media_images.jellyfin }}
+    container_name: jellyfin
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.jellyfin }}:8096"
+    volumes:
+      - {{ media_config_root }}/config/jellyfin:/config
+      - {{ media_pool_mount }}:/data

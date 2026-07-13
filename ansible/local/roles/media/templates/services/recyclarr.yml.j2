@@ -1,0 +1,13 @@
+  recyclarr:
+    image: {{ media_images.recyclarr }}
+    container_name: recyclarr
+    restart: unless-stopped
+    networks: [media]
+    depends_on: [sonarr, radarr]
+    environment:
+      TZ: "{{ media_timezone }}"
+      CRON_SCHEDULE: "{{ media_recyclarr_cron }}"
+    env_file:
+      - {{ media_config_root }}/config/recyclarr/recyclarr.env
+    volumes:
+      - {{ media_config_root }}/config/recyclarr:/config

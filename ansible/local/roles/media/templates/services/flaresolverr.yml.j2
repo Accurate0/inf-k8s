@@ -1,0 +1,10 @@
+  flaresolverr:
+    image: {{ media_images.flaresolverr }}
+    container_name: flaresolverr
+    restart: unless-stopped
+    networks: [media]
+    environment:
+      LOG_LEVEL: info
+      TZ: "{{ media_timezone }}"
+    ports:
+      - "{{ media_ports.flaresolverr }}:8191"
