@@ -501,8 +501,8 @@ spec:
               containers:
                 runner:
                   image:
-                    repository: git.erwanleboucher.dev/eleboucher/runner
-                    tag: sha-63d5504927ba6b9d511c0972beaf4ff5b3705f82@sha256:96972a9e96630a4d6114fe8afa5dc6fcb352167e44b9b23513bcc490b4ce4abe
+                    repository: registry.erwanleboucher.dev/eleboucher/runner
+                    tag: "12.13.0"
                   command:
                     - sh
                     - -ec
@@ -526,8 +526,8 @@ spec:
                         - ALL
                 k8s-plugin:
                   image:
-                    repository: git.erwanleboucher.dev/eleboucher/runner-k8s-plugin
-                    tag: sha-f7ab06b75887e5497c9f9f9bef641aafb2ae3e1c@sha256:0e70ea2c9e794c2624f506341312e4e4a92903bd9f606a926e9bb4b1dc3645c1
+                    repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
+                    tag: "12.13.0"
                   args:
                     - --listen
                     - unix:///plugin/forgejo-runner-k8s.sock
