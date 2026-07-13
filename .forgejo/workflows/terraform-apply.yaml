@@ -17,9 +17,6 @@ jobs:
   apply:
     name: tofu apply
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: terraform
     env:
       BINARYLANE_API_TOKEN: ${{ secrets.BINARYLANE_API_TOKEN }}
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -50,7 +47,7 @@ jobs:
           rm install-opentofu.sh
 
       - name: tofu init
-        run: tofu init -input=false
+        run: tofu -chdir=terraform init -input=false
 
       - name: tofu apply
-        run: tofu apply -input=false -no-color -auto-approve
+        run: tofu -chdir=terraform apply -input=false -no-color -auto-approve

@@ -15,9 +15,6 @@ jobs:
   plan:
     name: tofu plan
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: terraform
     env:
       BINARYLANE_API_TOKEN: ${{ secrets.BINARYLANE_API_TOKEN }}
       ARM_CLIENT_ID: ${{ secrets.ARM_CLIENT_ID }}
@@ -48,13 +45,13 @@ jobs:
           rm install-opentofu.sh
 
       - name: tofu init
-        run: tofu init -input=false
+        run: tofu -chdir=terraform init -input=false
 
       - name: tofu plan
         id: plan
         run: |
           set +e
-          tofu plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
+          tofu -chdir=terraform plan -input=false -no-color -out=tfplan 2>&1 | tee plan.txt
           echo "exitcode=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
       - name: Post plan as PR comment
@@ -65,7 +62,7 @@ jobs:
           SERVER_URL: ${{ github.server_url }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
-          PLAN_FILE: ${{ github.workspace }}/terraform/plan.txt
+          PLAN_FILE: ${{ github.workspace }}/plan.txt
           PLAN_EXIT_CODE: ${{ steps.plan.outputs.exitcode }}
           RUN_ID: ${{ github.run_id }}
           RUN_URL: https://git.anurag.sh/${{ github.repository }}/actions/runs/${{ github.run_number }}
