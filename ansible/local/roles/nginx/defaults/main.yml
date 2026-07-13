@@ -9,3 +9,4 @@ nginx_sites:
   - {name: prowlarr, port: 9696}
   - {name: bazarr, port: 6767}
   - {name: flaresolverr, port: 8191}
+  - {name: seerr, port: 5055}

@@ -1,0 +1,11 @@
+  transmission:
+    image: {{ media_images.transmission }}
+    container_name: transmission
+    network_mode: "service:gluetun"
+    depends_on:
+      gluetun:
+        condition: service_healthy
+    environment: *env
+    volumes:
+      - {{ media_config_root }}/config/transmission:/config
+      - {{ media_pool_mount }}:/data

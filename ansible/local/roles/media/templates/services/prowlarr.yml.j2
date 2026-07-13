@@ -1,0 +1,11 @@
+  prowlarr:
+    image: {{ media_images.prowlarr }}
+    container_name: prowlarr
+    restart: unless-stopped
+    networks: [media]
+    depends_on: [flaresolverr]
+    environment: *env
+    ports:
+      - "{{ media_ports.prowlarr }}:9696"
+    volumes:
+      - {{ media_config_root }}/config/prowlarr:/config

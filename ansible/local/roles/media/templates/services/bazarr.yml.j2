@@ -1,0 +1,11 @@
+  bazarr:
+    image: {{ media_images.bazarr }}
+    container_name: bazarr
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.bazarr }}:6767"
+    volumes:
+      - {{ media_config_root }}/config/bazarr:/config
+      - {{ media_pool_mount }}:/data

@@ -1,0 +1,14 @@
+  seerr:
+    image: {{ media_images.seerr }}
+    container_name: seerr
+    init: true
+    restart: unless-stopped
+    networks: [media]
+    environment:
+      LOG_LEVEL: info
+      TZ: "{{ media_timezone }}"
+      PORT: "5055"
+    volumes:
+      - {{ media_config_root }}/config/seerr:/app/config
+    ports:
+      - "{{ media_ports.seerr }}:5055"

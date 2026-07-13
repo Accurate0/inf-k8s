@@ -1,0 +1,11 @@
+  radarr:
+    image: {{ media_images.radarr }}
+    container_name: radarr
+    restart: unless-stopped
+    networks: [media]
+    environment: *env
+    ports:
+      - "{{ media_ports.radarr }}:7878"
+    volumes:
+      - {{ media_config_root }}/config/radarr:/config
+      - {{ media_pool_mount }}:/data
