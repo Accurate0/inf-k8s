@@ -6,6 +6,14 @@
       gluetun:
         condition: service_healthy
     environment: *env
+    labels:
+      autoheal: "true"
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:9091/transmission/web/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
     volumes:
       - {{ media_config_root }}/config/transmission:/config
       - {{ media_pool_mount }}:/data

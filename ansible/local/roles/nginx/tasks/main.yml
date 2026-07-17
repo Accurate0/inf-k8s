@@ -29,6 +29,19 @@
         mode: "0644"
       notify: Reload nginx
 
+    - name: Ensure web root exists
+      ansible.builtin.file:
+        path: /usr/share/nginx/html
+        state: directory
+        mode: "0755"
+
+    - name: Template landing page
+      ansible.builtin.template:
+        src: index.html.j2
+        dest: /usr/share/nginx/html/index.html
+        mode: "0644"
+      notify: Reload nginx
+
     - name: Validate nginx configuration
       ansible.builtin.command: nginx -t
       changed_when: false

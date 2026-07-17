@@ -1,3 +1,21 @@
+server {
+    listen 80 default_server;
+    server_name _;
+    return 404;
+}
+
+server {
+    listen 80;
+    server_name {{ nginx_domain }};
+
+    root /usr/share/nginx/html;
+    index index.html;
+
+    location / {
+        try_files $uri $uri/ =404;
+    }
+}
+
 {% for site in nginx_sites %}
 server {
     listen 80;

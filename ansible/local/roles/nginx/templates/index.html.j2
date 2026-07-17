@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{{ nginx_domain }}</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            background: #16181c;
+            color: #e6e6e6;
+            margin: 0;
+            display: flex;
+            min-height: 100vh;
+            align-items: center;
+            justify-content: center;
+        }
+        main {
+            width: 100%;
+            max-width: 480px;
+            padding: 2rem;
+        }
+        h1 {
+            font-weight: 600;
+            font-size: 1.25rem;
+            margin: 0 0 1.5rem;
+            color: #9aa0a6;
+        }
+        ul {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+        }
+        li + li {
+            margin-top: 0.5rem;
+        }
+        a {
+            display: block;
+            padding: 0.85rem 1rem;
+            border-radius: 8px;
+            background: #23262d;
+            color: #e6e6e6;
+            text-decoration: none;
+            text-transform: capitalize;
+        }
+        a:hover {
+            background: #2e323b;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <h1>{{ nginx_domain }}</h1>
+        <ul>
+{% for site in nginx_sites %}
+            <li><a href="http://{{ site.name }}.{{ nginx_domain }}">{{ site.name }}</a></li>
+{% endfor %}
+        </ul>
+    </main>
+</body>
+</html>

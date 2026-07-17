@@ -9,6 +9,8 @@ media_network: media
 media_lan_subnet: 192.168.0.0/16
 media_vpn_server_countries: Australia
 media_recyclarr_cron: "0 3 * * *"
+media_gluetun_health_vpn_duration_initial: 30s
+media_gluetun_health_vpn_duration_addition: 10s
 
 media_transmission_settings:
   download-dir: /data/downloads
@@ -28,7 +30,7 @@ media_images:
   gluetun: qmcgaw/gluetun:v3.41.1
   recyclarr: ghcr.io/recyclarr/recyclarr:8.6.0
   flood: jesec/flood:4.14.3
-  seerr: ghcr.io/seerr-team/seerr:v3.3.0
+  autoheal: willfarrell/autoheal:1.2.0
 
 media_ports:
   jellyfin: 8096

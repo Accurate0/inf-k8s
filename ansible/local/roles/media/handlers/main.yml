@@ -6,3 +6,4 @@
   community.docker.docker_compose_v2:
     project_src: "{{ media_config_root }}"
     state: restarted
+    remove_orphans: true
