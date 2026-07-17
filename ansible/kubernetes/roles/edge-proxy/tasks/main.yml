@@ -13,7 +13,7 @@
           - nginx
           - libnginx-mod-stream
       notify:
-        - Start Haproxy
+        - Start HAProxy
 
     - name: Get tailscale ip
       ansible.builtin.command: "tailscale ip -4"
@@ -29,6 +29,22 @@
         mode: "0644"
       notify:
         - Reload Haproxy
+
+    - name: Create haproxy systemd override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/haproxy.service.d
+        state: directory
+        owner: root
+        mode: "0755"
+
+    - name: Template and copy haproxy systemd override
+      ansible.builtin.template:
+        src: haproxy-override.conf
+        dest: /etc/systemd/system/haproxy.service.d/override.conf
+        owner: root
+        mode: "0644"
+      notify:
+        - Reload systemd and restart Haproxy
 
     - name: Template and copy haproxy config
       ansible.builtin.template:

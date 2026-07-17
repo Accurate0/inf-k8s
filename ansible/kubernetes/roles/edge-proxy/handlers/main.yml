@@ -18,6 +18,16 @@
     name: "haproxy"
     state: "reloaded"
 
+- name: Reload systemd and restart Haproxy
+  become: true
+  become_method: sudo
+  become_user: root
+  ansible.builtin.systemd_service:
+    name: "haproxy"
+    state: "restarted"
+    daemon_reload: true
+    enabled: true
+
 - name: Restart sshd
   service:
     name: ssh

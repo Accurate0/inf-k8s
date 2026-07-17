@@ -11,6 +11,7 @@ control:
       ansible_user: root
       tailscale_ip: 100.100.125.120
       is_api_server: true
+      proxy_enabled: false
 
     k8s-optiplex-1:
       ansible_host: k8s-optiplex-1.host.inf-k8s.net
