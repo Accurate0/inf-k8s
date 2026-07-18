@@ -1,5 +1,9 @@
 nginx_domain: media.internal
 
+# Standalone apps served at their own domain (not a *.media.internal subdomain).
+nginx_apps:
+  - {domain: home.internal, port: 8123}
+
 nginx_sites:
   - {name: jellyfin, port: 8096}
   - {name: sonarr, port: 8989}

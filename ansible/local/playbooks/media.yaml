@@ -9,4 +9,5 @@
     - nfs
     - docker
     - media
+    - homeassistant
     - nginx

@@ -11,13 +11,14 @@ local/
 ├── inventory.yaml
 ├── group_vars/all.yml
 ├── playbooks/
-│   └── media.yaml        # base → storage → docker → media → nginx
+│   └── media.yaml        # base → storage → docker → media → homeassistant → nginx
 └── roles/
-    ├── base/       # pacman packages, janitor user + sudoers, sshd hardening
-    ├── storage/    # mount media drives + pool them with mergerfs, dir tree
-    ├── docker/     # docker engine + compose
-    ├── media/      # docker compose stack (7 containers)
-    └── nginx/      # reverse proxy for *.media.internal
+    ├── base/          # pacman packages, janitor user + sudoers, sshd hardening
+    ├── storage/       # mount media drives + pool them with mergerfs, dir tree
+    ├── docker/        # docker engine + compose
+    ├── media/         # docker compose stack (7 containers)
+    ├── homeassistant/ # home assistant container, served at home.internal
+    └── nginx/         # reverse proxy for *.media.internal + home.internal
 ```
 
 ## Storage

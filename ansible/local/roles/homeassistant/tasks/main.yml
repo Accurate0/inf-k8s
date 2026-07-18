@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Home Assistant
+  become: true
+  become_user: root
+  block:
+    - name: Create compose project directory
+      ansible.builtin.file:
+        path: "{{ homeassistant_config_root }}/config"
+        state: directory
+        mode: "0755"
+
+    - name: Template docker compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ homeassistant_config_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart home assistant stack
+
+    - name: Ensure default_config is enabled
+      ansible.builtin.lineinfile:
+        path: "{{ homeassistant_config_root }}/config/configuration.yaml"
+        line: "default_config:"
+        create: true
+        mode: "0644"
+      notify: Restart home assistant stack
+
+    - name: Configure reverse proxy trust
+      ansible.builtin.blockinfile:
+        path: "{{ homeassistant_config_root }}/config/configuration.yaml"
+        marker: "# {mark} ANSIBLE MANAGED: reverse proxy"
+        block: |
+          http:
+            use_x_forwarded_for: true
+            trusted_proxies:
+          {% for proxy in homeassistant_trusted_proxies %}
+              - {{ proxy }}
+          {% endfor %}
+      notify: Restart home assistant stack
+
+    - name: Bring up the home assistant stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ homeassistant_config_root }}"
+        state: present
+        pull: missing
+        remove_orphans: true

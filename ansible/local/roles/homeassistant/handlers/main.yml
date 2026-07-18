@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Restart home assistant stack
+  become: true
+  become_user: root
+  community.docker.docker_compose_v2:
+    project_src: "{{ homeassistant_config_root }}"
+    state: restarted
+    remove_orphans: true

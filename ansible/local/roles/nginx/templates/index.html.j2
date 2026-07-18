@@ -55,6 +55,9 @@
 {% for site in nginx_sites %}
             <li><a href="http://{{ site.name }}.{{ nginx_domain }}">{{ site.name }}</a></li>
 {% endfor %}
+{% for app in nginx_apps %}
+            <li><a href="http://{{ app.domain }}">{{ app.domain }}</a></li>
+{% endfor %}
         </ul>
     </main>
 </body>
