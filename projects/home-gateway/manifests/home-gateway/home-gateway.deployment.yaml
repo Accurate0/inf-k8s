@@ -14,6 +14,10 @@ spec:
       labels:
         app: home-gateway
     spec:
+      hostAliases:
+        - ip: "10.0.2.249"
+          hostnames:
+            - home.internal
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
