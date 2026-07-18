@@ -38,6 +38,23 @@
           {% endfor %}
       notify: Restart home assistant stack
 
+    - name: Install HACS
+      when: homeassistant_hacs_enabled | bool
+      block:
+        - name: Create HACS custom component directory
+          ansible.builtin.file:
+            path: "{{ homeassistant_config_root }}/config/custom_components/hacs"
+            state: directory
+            mode: "0755"
+
+        - name: Download and extract HACS release
+          ansible.builtin.unarchive:
+            src: "https://github.com/hacs/integration/releases/download/{{ homeassistant_hacs_version }}/hacs.zip"
+            dest: "{{ homeassistant_config_root }}/config/custom_components/hacs"
+            remote_src: true
+            creates: "{{ homeassistant_config_root }}/config/custom_components/hacs/manifest.json"
+          notify: Restart home assistant stack
+
     - name: Bring up the home assistant stack
       community.docker.docker_compose_v2:
         project_src: "{{ homeassistant_config_root }}"

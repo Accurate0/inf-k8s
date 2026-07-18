@@ -10,4 +10,5 @@
       - nfs-utils
       - rsync
       - git
+      - unzip
     state: present

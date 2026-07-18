@@ -8,3 +8,7 @@ homeassistant_port: 8123
 homeassistant_trusted_proxies:
   - 127.0.0.1
   - ::1
+
+# HACS (Home Assistant Community Store) — installed as a custom component.
+homeassistant_hacs_enabled: true
+homeassistant_hacs_version: "2.0.5"
