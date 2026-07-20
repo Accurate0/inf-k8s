@@ -1,6 +1,6 @@
 # Build context is the repository root: the service is a standalone crate but depends
 # on crates/feature-flag-proto via a path dependency, so both trees must be present.
-FROM rust:1.97.0-slim-bookworm AS builder
+FROM rust:1.97.1-slim-bookworm AS builder
 
 # libprotobuf-dev ships the well-known .proto includes (google/protobuf/*) that
 # protobuf-compiler alone omits; prost-build resolves the struct.proto import from there.
