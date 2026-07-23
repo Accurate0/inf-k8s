@@ -15,7 +15,7 @@ jobs:
     permissions:
       packages: write
 
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@215c22b708b8f89e272dc5e89c10b3e96d7b4499 # main
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
     with:
       directory: ./platform-services/kanidm-sync
       image-name: kanidm-sync
@@ -26,7 +26,7 @@ jobs:
   deploy:
     needs:
       - build
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@215c22b708b8f89e272dc5e89c10b3e96d7b4499 # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
     with:
       service-name: kanidm-sync
       images: ghcr.io/accurate0/kanidm-sync
