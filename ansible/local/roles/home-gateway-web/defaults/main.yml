@@ -1,0 +1,4 @@
+home_gateway_web_root: /opt/home-gateway-web
+home_gateway_web_image: ghcr.io/accurate0/home-gateway-web
+home_gateway_web_image_tag: latest
+home_gateway_web_port: 8080

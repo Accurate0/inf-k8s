@@ -10,4 +10,5 @@
     - docker
     - media
     - homeassistant
+    - home-gateway-web
     - nginx

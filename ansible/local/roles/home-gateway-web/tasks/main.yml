@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Home Gateway Web
+  become: true
+  become_user: root
+  block:
+    - name: Create compose project directory
+      ansible.builtin.file:
+        path: "{{ home_gateway_web_root }}"
+        state: directory
+        mode: "0755"
+
+    - name: Template docker compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ home_gateway_web_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart home-gateway-web stack
+
+    - name: Bring up the home-gateway-web stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ home_gateway_web_root }}"
+        state: present
+        pull: always
+        remove_orphans: true

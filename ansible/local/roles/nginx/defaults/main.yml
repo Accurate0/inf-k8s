@@ -2,7 +2,8 @@ nginx_domain: media.internal
 
 # Standalone apps served at their own domain (not a *.media.internal subdomain).
 nginx_apps:
-  - {domain: home.internal, port: 8123}
+  - {domain: home-assistant.internal, port: 8123}
+  - {domain: home.internal, port: 8080, api_proxy: "https://home.anurag.sh"}
 
 nginx_sites:
   - {name: jellyfin, port: 8096}

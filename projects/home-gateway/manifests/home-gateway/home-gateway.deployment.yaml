@@ -17,7 +17,7 @@ spec:
       hostAliases:
         - ip: "10.0.2.249"
           hostnames:
-            - home.internal
+            - home-assistant.internal
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
@@ -55,7 +55,7 @@ spec:
             - name: OTEL_TRACING_URL
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
             - name: HOME_ASSISTANT_URL
-              value: http://home.internal
+              value: http://home-assistant.internal
           envFrom:
             - secretRef:
                 name: home-gateway-managed-secrets

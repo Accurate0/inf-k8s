@@ -1,0 +1,9 @@
+name: home-gateway-web
+
+services:
+  home-gateway-web:
+    image: {{ home_gateway_web_image }}:{{ home_gateway_web_image_tag }}
+    container_name: home-gateway-web
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:{{ home_gateway_web_port }}:8080"
