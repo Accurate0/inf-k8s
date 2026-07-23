@@ -8,6 +8,7 @@ spec:
   description: User projects
   sourceRepos:
     - https://github.com/Accurate0/inf-k8s.git
+    - https://github.com/Accurate0/home-gateway.git
     - https://git.anurag.sh/anurag/k8s.git
     - oci://ghcr.io/accurate0/charts/k8s-http-routes
     - oci://ghcr.io/accurate0/charts/k8s-secrets
