@@ -25,11 +25,6 @@ spec:
             watchGlobally: true
             deployment:
               replicas: 1
-            podMonitor:
-              enabled: true
-              namespace: reloader
-              labels:
-                release: monitoring
   destination:
     server: https://kubernetes.default.svc
     namespace: reloader

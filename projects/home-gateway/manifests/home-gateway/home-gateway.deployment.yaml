@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: home-gateway
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       hostAliases:
         - ip: "10.0.2.249"
@@ -56,6 +58,8 @@ spec:
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
             - name: HOME_ASSISTANT_URL
               value: http://home-assistant.internal
+            - name: CONFIG_DIR
+              value: /etc/home-gateway/config
           envFrom:
             - secretRef:
                 name: home-gateway-managed-secrets
@@ -63,3 +67,17 @@ spec:
                 name: home-gateway-database-secret
           ports:
             - containerPort: 8000
+          volumeMounts:
+            - name: config
+              mountPath: /etc/home-gateway/config
+              readOnly: true
+            - name: config-workflows
+              mountPath: /etc/home-gateway/config/workflows
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: home-gateway-config
+        - name: config-workflows
+          configMap:
+            name: home-gateway-config-workflows
