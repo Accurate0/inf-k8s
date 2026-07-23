@@ -1,0 +1,42 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: reloader
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: system-components
+  sources:
+    - chart: reloader
+      repoURL: https://stakater.github.io/stakater-charts
+      targetRevision: 2.2.14
+      helm:
+        valuesObject:
+          reloader:
+            watchGlobally: true
+            deployment:
+              replicas: 1
+            podMonitor:
+              enabled: true
+              namespace: reloader
+              labels:
+                release: monitoring
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: reloader
+
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    syncStrategy:
+      hook: {}
