@@ -6,8 +6,10 @@ response:
   - actions:
       - action: remove_labels
         ran: true
+      - action: delete_branch
+        ran: true
     dry_run: false
-    name: clear-janitor-labels-on-merge
+    name: cleanup-on-merge
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/pulls/100/files
@@ -25,4 +27,7 @@ external_requests:
     path: /api/v1/repos/anurag/k8s/issues/100/labels/7
     body:
       updated_at: ~
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/branches/renovate-foo-2.x
     service: forgejo

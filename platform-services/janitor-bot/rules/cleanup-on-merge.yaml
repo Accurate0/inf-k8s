@@ -1,5 +1,5 @@
 # yaml-language-server: $schema=./rule.schema.json
-name: clear-janitor-labels-on-merge
+name: cleanup-on-merge
 when:
   all:
     - type: event
@@ -19,3 +19,4 @@ actions:
   - run:
       - type: remove_labels
         prefixes: ["janitor/"]
+      - type: delete_branch

@@ -15,6 +15,7 @@ pub struct PullRequest {
     #[serde(default)]
     pub labels: Vec<Label>,
     pub base: Option<PrBase>,
+    pub head: Option<PrBase>,
     #[serde(default)]
     pub merged: bool,
     #[serde(default)]
@@ -96,6 +97,7 @@ pub struct PrEvent {
     pub title: String,
     pub body: String,
     pub target_branch: String,
+    pub source_branch: String,
     pub labels: Vec<Label>,
     pub merged: bool,
     pub merge_commit_sha: Option<String>,

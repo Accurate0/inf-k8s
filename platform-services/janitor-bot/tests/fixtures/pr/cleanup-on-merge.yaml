@@ -13,6 +13,8 @@ payload:
         name: automated
     base:
       ref: main
+    head:
+      ref: renovate-foo-2.x
     diff_url: ""
     html_url: ""
     patch_url: ""
@@ -39,4 +41,9 @@ mocks:
     method: DELETE
     path: /api/v1/repos/anurag/k8s/issues/100/labels/7
     status: 200
+    body: {}
+  - service: forgejo
+    method: DELETE
+    path: /api/v1/repos/anurag/k8s/branches/renovate-foo-2.x
+    status: 204
     body: {}

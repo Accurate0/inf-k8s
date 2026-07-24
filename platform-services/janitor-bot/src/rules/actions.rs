@@ -55,6 +55,7 @@ pub enum Action {
         title: TemplateString,
         comment: Option<TemplateString>,
     },
+    DeleteBranch,
     ArgoCdDiff,
     RetryWorkflow {
         target: RetryWorkflowTarget,
@@ -101,6 +102,7 @@ impl Action {
             Action::RemoveLabels { .. } => "remove_labels",
             Action::CreateIssue { .. } => "create_issue",
             Action::CloseIssue { .. } => "close_issue",
+            Action::DeleteBranch => "delete_branch",
             Action::ArgoCdDiff => "argocd_diff",
             Action::RetryWorkflow { .. } => "retry_workflow",
             Action::SetCommitStatus { .. } => "set_commit_status",
@@ -632,6 +634,29 @@ impl Action {
                     Ok(())
                 }
                 .await
+            }
+            Action::DeleteBranch => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+
+                if pr.source_branch.is_empty() {
+                    tracing::warn!(pr = pr.pr_number, "delete_branch: no source branch on event");
+                    return;
+                }
+
+                if let Err(e) = client
+                    .delete_branch(&pr.owner, &pr.repo, &pr.source_branch)
+                    .await
+                {
+                    tracing::warn!(
+                        branch = pr.source_branch,
+                        pr = pr.pr_number,
+                        "failed to delete branch: {e}"
+                    );
+                }
+
+                return;
             }
             Action::ArgoCdDiff => {
                 let BotEvent::ForgejoPr(pr) = event else {

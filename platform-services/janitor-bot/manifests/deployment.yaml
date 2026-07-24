@@ -56,8 +56,8 @@ spec:
                 path: rules/argocd-sync-status.yaml
               - key: forward-push-to-argocd.yaml
                 path: rules/forward-push-to-argocd.yaml
-              - key: clear-janitor-labels-on-merge.yaml
-                path: rules/clear-janitor-labels-on-merge.yaml
+              - key: cleanup-on-merge.yaml
+                path: rules/cleanup-on-merge.yaml
               - key: clear-queued-on-unmergeable.yaml
                 path: rules/clear-queued-on-unmergeable.yaml
       containers:

@@ -18,5 +18,5 @@ configMapGenerator:
       - rules/mirror-commit-status.yaml
       - rules/argocd-sync-status.yaml
       - rules/forward-push-to-argocd.yaml
-      - rules/clear-janitor-labels-on-merge.yaml
+      - rules/cleanup-on-merge.yaml
       - rules/clear-queued-on-unmergeable.yaml

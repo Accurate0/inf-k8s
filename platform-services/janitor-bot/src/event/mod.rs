@@ -288,6 +288,11 @@ impl PrEvent {
             title: pr.title.clone()?,
             body: pr.body.clone().unwrap_or_default(),
             target_branch: pr.base.as_ref()?.r#ref.clone().unwrap_or_default(),
+            source_branch: pr
+                .head
+                .as_ref()
+                .and_then(|h| h.r#ref.clone())
+                .unwrap_or_default(),
             labels: pr
                 .labels
                 .as_ref()
@@ -326,6 +331,7 @@ impl WebhookEvent {
             title: pr.title,
             body: pr.body,
             target_branch: pr.base.and_then(|b| b.r#ref).unwrap_or_default(),
+            source_branch: pr.head.and_then(|h| h.r#ref).unwrap_or_default(),
             labels: pr.labels,
             merged: pr.merged,
             merge_commit_sha: pr.merge_commit_sha,
@@ -387,6 +393,7 @@ mod tests {
             title: "bump stuff".to_string(),
             body: String::new(),
             target_branch: "main".to_string(),
+            source_branch: "renovate/foo".to_string(),
             labels: vec![],
             merged: false,
             merge_commit_sha: None,
@@ -491,6 +498,7 @@ mod tests {
                 base: Some(PrBase {
                     r#ref: Some("main".to_string()),
                 }),
+                head: None,
                 merged: false,
                 merge_commit_sha: None,
             }),
@@ -540,6 +548,7 @@ mod tests {
                 body: String::new(),
                 labels: vec![],
                 base: None,
+                head: None,
                 merged: false,
                 merge_commit_sha: None,
             }),
@@ -625,6 +634,7 @@ mod tests {
                 body: String::new(),
                 labels: vec![],
                 base: None,
+                head: None,
                 merged: false,
                 merge_commit_sha: None,
             }),

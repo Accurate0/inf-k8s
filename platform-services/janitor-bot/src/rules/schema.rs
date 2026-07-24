@@ -185,6 +185,10 @@ pub enum ActionDef {
         #[serde(default)]
         comment: Option<TemplateString>,
     },
+    /// Delete the PR's source (head) branch. Used to tidy up branches after a
+    /// PR is closed or merged.
+    #[serde(rename = "delete_branch")]
+    DeleteBranch,
     #[serde(rename = "argocd_diff")]
     ArgoCdDiff,
     #[serde(rename = "retry_workflow")]
@@ -351,6 +355,7 @@ impl ActionDef {
                 title: title.clone(),
                 comment: comment.clone(),
             },
+            ActionDef::DeleteBranch => Action::DeleteBranch,
             ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
             ActionDef::RetryWorkflow {
                 target,
