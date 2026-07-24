@@ -1,6 +1,6 @@
 homeassistant_config_root: /opt/homeassistant
 homeassistant_timezone: "{{ media_timezone }}"
-homeassistant_image: ghcr.io/home-assistant/home-assistant:2025.7
+homeassistant_image: ghcr.io/home-assistant/home-assistant:2026.7
 homeassistant_port: 8123
 
 # Trusted reverse proxy sources (the local nginx). Home Assistant rejects
