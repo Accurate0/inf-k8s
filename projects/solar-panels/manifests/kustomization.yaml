@@ -16,4 +16,4 @@ images:
   - name: ghcr.io/accurate0/solar
     newTag: a3e081621dca1f89694c6165e2c15cc8c5eaf00b
   - name: ghcr.io/accurate0/solar-web
-    newTag: f71a114cf72eee1b3de84c224d467590db059e10
+    newTag: 8de71601dcd2ef8fff7169c4169c9836fd080c88
