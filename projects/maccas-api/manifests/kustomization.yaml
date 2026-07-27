@@ -26,4 +26,4 @@ images:
   - name: ghcr.io/accurate0/maccas-sensordata
     newTag: d867ea3cde9775e644eef271535f86e2689c8aab
   - name: ghcr.io/accurate0/maccas-web
-    newTag: d867ea3cde9775e644eef271535f86e2689c8aab
+    newTag: af9a420d6415973309850e2064837fce8267497e
