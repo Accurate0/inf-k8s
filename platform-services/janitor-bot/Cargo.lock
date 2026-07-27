@@ -891,7 +891,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -936,7 +936,7 @@ checksum = "9f1f227452a390804cdb637b74a86990f2a7d7ba4b7d5693aac9b4dd6defd8d6"
 [[package]]
 name = "feature-flag-client"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#41d28d66fa413be49b8d17867cccef4a3b4a8110"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#94e1a4bc85b8816b1270f4803834340d9c457e81"
 dependencies = [
  "arc-swap",
  "feature-flag-engine",
@@ -953,7 +953,7 @@ dependencies = [
 [[package]]
 name = "feature-flag-engine"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#41d28d66fa413be49b8d17867cccef4a3b4a8110"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#94e1a4bc85b8816b1270f4803834340d9c457e81"
 dependencies = [
  "feature-flag-proto",
  "moka",
@@ -968,7 +968,7 @@ dependencies = [
 [[package]]
 name = "feature-flag-proto"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#41d28d66fa413be49b8d17867cccef4a3b4a8110"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#94e1a4bc85b8816b1270f4803834340d9c457e81"
 dependencies = [
  "prost",
  "prost-types",
@@ -2261,7 +2261,7 @@ dependencies = [
 [[package]]
 name = "openfeature-provider"
 version = "0.1.0"
-source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#41d28d66fa413be49b8d17867cccef4a3b4a8110"
+source = "git+https://github.com/Accurate0/inf-k8s.git?branch=main#94e1a4bc85b8816b1270f4803834340d9c457e81"
 dependencies = [
  "async-trait",
  "feature-flag-client",
@@ -3058,7 +3058,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3115,7 +3115,7 @@ dependencies = [
  "security-framework",
  "security-framework-sys",
  "webpki-root-certs",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -3602,10 +3602,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.4.2",
+ "getrandom 0.3.4",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4393,7 +4393,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
