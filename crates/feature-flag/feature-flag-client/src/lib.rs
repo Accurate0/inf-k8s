@@ -20,11 +20,12 @@ use feature_flag_proto::{
 };
 use local::LocalEvaluator;
 use std::sync::Arc;
+use std::time::Duration;
 use tonic::Streaming;
 use tonic::metadata::{Ascii, MetadataValue};
 use tonic::service::Interceptor;
 use tonic::service::interceptor::InterceptedService;
-use tonic::transport::Channel;
+use tonic::transport::{Channel, Endpoint};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
@@ -108,9 +109,11 @@ impl FeatureFlagClient {
         client_id: impl Into<String>,
         mode: EvaluationMode,
     ) -> Result<Self, Error> {
-        let channel = Channel::from_shared(endpoint.into())
-            .map_err(|e| Error::InvalidEndpoint(e.to_string()))?
-            .connect_lazy();
+        let channel = keepalive(
+            Channel::from_shared(endpoint.into())
+                .map_err(|e| Error::InvalidEndpoint(e.to_string()))?,
+        )
+        .connect_lazy();
         Self::from_channel(channel, client_id, mode).await
     }
 
@@ -257,6 +260,18 @@ impl FeatureFlagClient {
             .await?
             .into_inner())
     }
+}
+
+/// Configures HTTP/2 keepalive so a half-open connection (e.g. the server pod is
+/// killed abruptly on redeploy, sending no FIN/RST) is detected instead of leaving
+/// streaming reads blocked forever. `keep_alive_while_idle` is essential: the local
+/// snapshot stream is idle between config changes, so pings must fire without traffic.
+fn keepalive(endpoint: Endpoint) -> Endpoint {
+    endpoint
+        .http2_keep_alive_interval(Duration::from_secs(20))
+        .keep_alive_timeout(Duration::from_secs(10))
+        .keep_alive_while_idle(true)
+        .tcp_keepalive(Some(Duration::from_secs(30)))
 }
 
 fn request(flag_key: String, context: EvaluationContext) -> ResolveRequest {

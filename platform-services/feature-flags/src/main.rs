@@ -7,6 +7,7 @@ use feature_flags::snapshot::SnapshotManager;
 use feature_flags::store::Store;
 use feature_flags::tracing_setup;
 use sqlx::postgres::PgPoolOptions;
+use std::time::Duration;
 use tonic::codec::CompressionEncoding;
 use tonic::transport::Server;
 
@@ -45,6 +46,9 @@ async fn main() -> anyhow::Result<()> {
     tracing::info!("feature-flags gRPC listening on {addr}");
 
     Server::builder()
+        .http2_keepalive_interval(Some(Duration::from_secs(20)))
+        .http2_keepalive_timeout(Some(Duration::from_secs(10)))
+        .tcp_keepalive(Some(Duration::from_secs(30)))
         .trace_fn(feature_flags::grpc::grpc_span)
         .add_service(health_service)
         .add_service(reflection)
