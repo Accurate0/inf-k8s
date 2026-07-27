@@ -31,6 +31,3 @@ external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/branches/renovate-foo-2.x
     service: forgejo
-  - method: DELETE
-    path: /api/v1/repos/anurag/k8s/branches/renovate-foo-2.x
-    service: forgejo

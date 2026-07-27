@@ -52,6 +52,9 @@ external_requests:
       unset_due_date: ~
       updated_at: ~
     service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-xyz789
+    service: forgejo
   - method: DELETE
     path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-xyz789
     service: forgejo

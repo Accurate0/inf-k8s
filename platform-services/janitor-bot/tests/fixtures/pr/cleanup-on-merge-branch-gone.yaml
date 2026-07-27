@@ -42,13 +42,13 @@ mocks:
     path: /api/v1/repos/anurag/k8s/issues/100/labels/7
     status: 200
     body: {}
+  # Branch already deleted at merge time (delete_branch_after_merge): the
+  # existence check 404s, so the delete_branch action must skip the DELETE
+  # (no DELETE mock below — the test would fail if one were sent).
   - service: forgejo
     method: GET
     path: /api/v1/repos/anurag/k8s/branches/renovate-foo-2.x
-    status: 200
-    body: {}
-  - service: forgejo
-    method: DELETE
-    path: /api/v1/repos/anurag/k8s/branches/renovate-foo-2.x
-    status: 204
-    body: {}
+    status: 404
+    body:
+      message: branch does not exist
+      url: ""

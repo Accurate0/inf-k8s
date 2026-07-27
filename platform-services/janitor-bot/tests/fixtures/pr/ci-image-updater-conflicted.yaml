@@ -82,6 +82,11 @@ mocks:
       html_url: ""
       url: ""
   - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-xyz789
+    status: 200
+    body: {}
+  - service: forgejo
     method: DELETE
     path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-xyz789
     status: 204

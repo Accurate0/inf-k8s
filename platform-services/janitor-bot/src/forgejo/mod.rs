@@ -500,6 +500,17 @@ impl ForgejoClient {
         repo: &str,
         branch: &str,
     ) -> Result<(), forgejo_api::ForgejoError> {
+        // The merge action can already delete the source branch
+        // (`delete_branch_after_merge`), after which a follow-up delete makes
+        // Forgejo answer 500. Skip the delete when the branch is already gone.
+        if let Err(ForgejoError::ApiError(e)) =
+            self.api.repo_get_branch(owner, repo, branch).send().await
+            && matches!(e.kind, ApiErrorKind::NotFound { .. })
+        {
+            tracing::info!(owner, repo, branch, "branch already gone, skipping delete");
+            return Ok(());
+        }
+
         self.api
             .repo_delete_branch(owner, repo, branch)
             .send()
