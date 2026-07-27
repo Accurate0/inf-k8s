@@ -352,6 +352,29 @@
           ]
         },
         {
+          "description": "Close the current PR (optionally commenting and deleting its head branch).",
+          "type": "object",
+          "properties": {
+            "comment": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "delete_branch": {
+              "type": "boolean",
+              "default": true
+            },
+            "type": {
+              "type": "string",
+              "const": "close"
+            }
+          },
+          "required": [
+            "type"
+          ]
+        },
+        {
           "type": "object",
           "properties": {
             "author": {
@@ -413,6 +436,13 @@
           "items": {
             "$ref": "#/$defs/ActionDef"
           }
+        },
+        "serial": {
+          "description": "When set, this group runs under a global lock keyed by the rendered value,\nso concurrent evaluations resolving to the same key execute it one at a\ntime. Before running, the group's gate is re-checked against freshly\nfetched state; if it no longer holds, the group is dropped. Use this to\nserialize mutually-exclusive actions (e.g. merging deploy PRs for the same\nservice) and to avoid acting on state that went stale while waiting.",
+          "type": [
+            "string",
+            "null"
+          ]
         },
         "when": {
           "anyOf": [

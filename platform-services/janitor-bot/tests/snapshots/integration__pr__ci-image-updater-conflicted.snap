@@ -1,0 +1,57 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - action: remove_labels
+        ran: true
+      - action: close
+        ran: true
+      - action: close_other_prs
+        ran: false
+      - action: remove_labels
+        ran: false
+      - action: add_labels
+        ran: false
+      - action: approve
+        ran: false
+      - action: merge
+        ran: false
+      - action: add_labels
+        ran: false
+    dry_run: false
+    name: manage-ci-image-updater
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/105/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/105
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/105/reviews
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/issues/105/comments
+    body:
+      body: "Closing: superseded by a newer deploy on `main` (had conflicts)."
+      updated_at: ~
+    service: forgejo
+  - method: PATCH
+    path: /api/v1/repos/anurag/k8s/issues/105
+    body:
+      assignee: ~
+      assignees: ~
+      body: ~
+      due_date: ~
+      milestone: ~
+      ref: ~
+      state: closed
+      title: ~
+      unset_due_date: ~
+      updated_at: ~
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/branches/ci-image-updater-janitor-bot-xyz789
+    service: forgejo

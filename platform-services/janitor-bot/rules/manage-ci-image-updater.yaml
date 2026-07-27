@@ -16,12 +16,22 @@ when:
       value: main
     - type: author
       value: ci-image-updater
-    - not:
-        type: has_conflicts
     - type: is_open
-    - type: is_latest_published_image
 actions:
-  - run:
+  - when:
+      type: has_conflicts
+    run:
+      - type: remove_labels
+        prefixes: [janitor/]
+      - type: close
+        comment: "Closing: superseded by a newer deploy on `main` (had conflicts)."
+        delete_branch: true
+  - when:
+      all:
+        - not:
+            type: has_conflicts
+        - type: is_latest_published_image
+    run:
       - type: close_other_prs
         author: ci-image-updater
         criteria: older_published_image
@@ -32,7 +42,11 @@ actions:
       all:
         - ref: global.perth_day
         - not:
+            type: has_conflicts
+        - type: is_latest_published_image
+        - not:
             type: bot.has_approved
+    serial: "merge-ci-image-updater:{forgejo_pr.metadata.service}"
     run:
       - type: remove_labels
         labels: [janitor/queued]
@@ -47,6 +61,9 @@ actions:
       all:
         - not:
             ref: global.perth_day
+        - not:
+            type: has_conflicts
+        - type: is_latest_published_image
         - not:
             type: has_label
             value: janitor/queued

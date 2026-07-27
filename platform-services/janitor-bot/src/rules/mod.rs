@@ -104,9 +104,23 @@ pub struct RuleSummary {
 
 pub type ClockFn = Arc<dyn Fn() -> chrono::DateTime<chrono::Utc> + Send + Sync>;
 
+/// Invariants shared across every action group in a single `execute_actions`
+/// call. Bundled so the per-group helpers stay small.
+struct ActionContext<'a> {
+    rule: &'a schema::RuleDef,
+    clients: &'a Clients,
+    event: &'a BotEvent<'a>,
+    dry_run: bool,
+    raw: Option<&'a RawRequest>,
+    extra_vars: HashMap<&'static str, String>,
+}
+
 pub struct RulesOrchestrator {
     rules: RulesFile,
     pr_locks: Cache<(String, String, u64), Arc<Mutex<()>>>,
+    /// Global locks keyed by a rendered `serial` key, serializing execution of
+    /// `serial` action groups across concurrent evaluations of different PRs.
+    serial_locks: Cache<String, Arc<Mutex<()>>>,
     workflow_lock: Mutex<()>,
     clock: ClockFn,
     eval_log: Mutex<VecDeque<EvalLogEntry>>,
@@ -169,6 +183,9 @@ impl RulesOrchestrator {
         Self {
             rules,
             pr_locks: Cache::builder()
+                .time_to_idle(Duration::from_secs(10 * 60))
+                .build(),
+            serial_locks: Cache::builder()
                 .time_to_idle(Duration::from_secs(10 * 60))
                 .build(),
             workflow_lock: Mutex::new(()),
@@ -641,67 +658,19 @@ impl RulesOrchestrator {
         raw: Option<&RawRequest>,
     ) -> Vec<ExplainAction> {
         let rule_start = Instant::now();
-        let now = self.now();
         let mut log = Vec::new();
-        let extra_vars = self.mirror_vars(event);
+
+        let ctx = ActionContext {
+            rule,
+            clients,
+            event,
+            dry_run,
+            raw,
+            extra_vars: self.mirror_vars(event),
+        };
 
         for group in &rule.actions {
-            let gate_ok = match &group.when {
-                None => true,
-                Some(when) => when.matches(event, rule, clients, cache, now).await,
-            };
-
-            if !gate_ok {
-                tracing::debug!(rule = rule.name, "skipping action group: when: not met");
-                for action_def in &group.run {
-                    log.push(ExplainAction {
-                        action: action_def.to_action().kind(),
-                        ran: false,
-                    });
-                }
-                continue;
-            }
-
-            for action_def in &group.run {
-                let action = action_def.to_action();
-
-                if dry_run {
-                    tracing::info!(
-                        rule = rule.name,
-                        action = action.kind(),
-                        "[dry-run] would execute action"
-                    );
-                    log.push(ExplainAction {
-                        action: action.kind(),
-                        ran: true,
-                    });
-                    continue;
-                }
-
-                let action_start = Instant::now();
-                let action_span = tracing::info_span!(
-                    "action.execute",
-                    otel.name = format!("action: {}", action.kind()),
-                    rule = rule.name,
-                    action = action.kind(),
-                );
-                action
-                    .execute(clients, event, cache, raw, &extra_vars)
-                    .instrument(action_span)
-                    .await;
-                let action_elapsed = action_start.elapsed();
-                metrics::record_action(&rule.name, action.kind(), true);
-                tracing::info!(
-                    rule = rule.name,
-                    action = action.kind(),
-                    elapsed_ms = action_elapsed.as_millis(),
-                    "action executed"
-                );
-                log.push(ExplainAction {
-                    action: action.kind(),
-                    ran: true,
-                });
-            }
+            self.run_action_group(&ctx, group, cache, &mut log).await;
         }
 
         tracing::info!(
@@ -711,6 +680,129 @@ impl RulesOrchestrator {
         );
 
         log
+    }
+
+    /// Evaluate one action group's gate and run it. A `serial` group runs under
+    /// a global lock keyed by the rendered value, so concurrent evaluations
+    /// resolving to the same key execute it one at a time; once the lock is held
+    /// the rule and group gate are re-checked against freshly fetched state and
+    /// the group is dropped if it no longer holds — this eliminates work that
+    /// went stale while waiting (e.g. merging a PR that another PR's merge just
+    /// made conflicting). Non-serial groups run against the shared dedup cache.
+    async fn run_action_group(
+        &self,
+        ctx: &ActionContext<'_>,
+        group: &schema::ActionGroup,
+        cache: &ResourceCache,
+        log: &mut Vec<ExplainAction>,
+    ) {
+        let gate_ok = match &group.when {
+            None => true,
+            Some(when) => {
+                when.matches(ctx.event, ctx.rule, ctx.clients, cache, self.now())
+                    .await
+            }
+        };
+
+        if !gate_ok {
+            tracing::debug!(rule = ctx.rule.name, "skipping action group: when: not met");
+            Self::push_skipped(log, &group.run);
+            return;
+        }
+
+        let Some(key_tmpl) = &group.serial else {
+            self.dispatch_actions(ctx, group, cache, log).await;
+            return;
+        };
+
+        let key = key_tmpl.render(&ctx.event.template_vars());
+        let _guard = self.serial_lock(&key).lock_owned().await;
+
+        let recheck_cache = ResourceCache::new();
+
+        let rule_ok = self
+            .match_rule(ctx.rule, ctx.event, ctx.clients, &recheck_cache)
+            .await;
+
+        let group_ok = match &group.when {
+            None => true,
+            Some(when) => {
+                when.matches(ctx.event, ctx.rule, ctx.clients, &recheck_cache, self.now())
+                    .await
+            }
+        };
+
+        if !rule_ok || !group_ok {
+            tracing::info!(
+                rule = ctx.rule.name,
+                serial_key = key,
+                "serial revalidation failed — dropping group"
+            );
+            Self::push_skipped(log, &group.run);
+            return;
+        }
+
+        self.dispatch_actions(ctx, group, &recheck_cache, log).await;
+    }
+
+    /// Run every action in the group against `cache`, recording each in `log`.
+    async fn dispatch_actions(
+        &self,
+        ctx: &ActionContext<'_>,
+        group: &schema::ActionGroup,
+        cache: &ResourceCache,
+        log: &mut Vec<ExplainAction>,
+    ) {
+        for action_def in &group.run {
+            let action = action_def.to_action();
+
+            if ctx.dry_run {
+                tracing::info!(
+                    rule = ctx.rule.name,
+                    action = action.kind(),
+                    "[dry-run] would execute action"
+                );
+                log.push(ExplainAction {
+                    action: action.kind(),
+                    ran: true,
+                });
+                continue;
+            }
+
+            let action_start = Instant::now();
+            let action_span = tracing::info_span!(
+                "action.execute",
+                otel.name = format!("action: {}", action.kind()),
+                rule = ctx.rule.name,
+                action = action.kind(),
+            );
+            action
+                .execute(ctx.clients, ctx.event, cache, ctx.raw, &ctx.extra_vars)
+                .instrument(action_span)
+                .await;
+            let action_elapsed = action_start.elapsed();
+
+            metrics::record_action(&ctx.rule.name, action.kind(), true);
+            tracing::info!(
+                rule = ctx.rule.name,
+                action = action.kind(),
+                elapsed_ms = action_elapsed.as_millis(),
+                "action executed"
+            );
+            log.push(ExplainAction {
+                action: action.kind(),
+                ran: true,
+            });
+        }
+    }
+
+    fn push_skipped(log: &mut Vec<ExplainAction>, run: &[schema::ActionDef]) {
+        for action_def in run {
+            log.push(ExplainAction {
+                action: action_def.to_action().kind(),
+                ran: false,
+            });
+        }
     }
 
     async fn explain_action_runs<'a>(
@@ -832,6 +924,11 @@ impl RulesOrchestrator {
             .get_with((owner.to_owned(), repo.to_owned(), pr), || {
                 Arc::new(Mutex::new(()))
             })
+    }
+
+    fn serial_lock(&self, key: &str) -> Arc<Mutex<()>> {
+        self.serial_locks
+            .get_with(key.to_owned(), || Arc::new(Mutex::new(())))
     }
 }
 

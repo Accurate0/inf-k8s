@@ -81,6 +81,14 @@ pub struct RuleDef {
 pub struct ActionGroup {
     #[serde(default)]
     pub when: Option<Matcher>,
+    /// When set, this group runs under a global lock keyed by the rendered value,
+    /// so concurrent evaluations resolving to the same key execute it one at a
+    /// time. Before running, the group's gate is re-checked against freshly
+    /// fetched state; if it no longer holds, the group is dropped. Use this to
+    /// serialize mutually-exclusive actions (e.g. merging deploy PRs for the same
+    /// service) and to avoid acting on state that went stale while waiting.
+    #[serde(default)]
+    pub serial: Option<TemplateString>,
     pub run: Vec<ActionDef>,
 }
 
@@ -215,6 +223,14 @@ pub enum ActionDef {
     },
     #[serde(rename = "proxy_pass")]
     ProxyPass { service: ProxyServiceDef },
+    /// Close the current PR (optionally commenting and deleting its head branch).
+    #[serde(rename = "close")]
+    Close {
+        #[serde(default)]
+        comment: Option<TemplateString>,
+        #[serde(default = "default_true")]
+        delete_branch: bool,
+    },
     #[serde(rename = "close_other_prs")]
     CloseOtherPrs {
         author: String,
@@ -394,6 +410,13 @@ impl ActionDef {
             },
             ActionDef::ProxyPass { service } => Action::ProxyPass {
                 service: (*service).into(),
+            },
+            ActionDef::Close {
+                comment,
+                delete_branch,
+            } => Action::Close {
+                comment: comment.clone(),
+                delete_branch: *delete_branch,
             },
             ActionDef::CloseOtherPrs {
                 author,

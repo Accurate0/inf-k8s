@@ -80,6 +80,10 @@ pub enum Action {
     ProxyPass {
         service: ProxyService,
     },
+    Close {
+        comment: Option<TemplateString>,
+        delete_branch: bool,
+    },
     CloseOtherPrs {
         author: String,
         criteria: CloseOtherPrsCriteria,
@@ -108,6 +112,7 @@ impl Action {
             Action::SetCommitStatus { .. } => "set_commit_status",
             Action::WaitForGithubSync { .. } => "wait_for_github_sync",
             Action::ProxyPass { .. } => "proxy_pass",
+            Action::Close { .. } => "close",
             Action::CloseOtherPrs { .. } => "close_other_prs",
         }
     }
@@ -443,6 +448,49 @@ impl Action {
                     tracing::error!("proxy_pass to argocd failed: {e}");
                 }
 
+                return;
+            }
+            Action::Close {
+                comment,
+                delete_branch,
+            } => {
+                let BotEvent::ForgejoPr(pr) = event else {
+                    return;
+                };
+
+                if let Some(tmpl) = comment {
+                    let vars = event.template_vars();
+                    let rendered = tmpl.render(&vars);
+                    if let Err(e) = client
+                        .comment_on_issue(&pr.owner, &pr.repo, pr.pr_number as i64, &rendered)
+                        .await
+                    {
+                        tracing::warn!(pr = pr.pr_number, "close: failed to comment: {e}");
+                    }
+                }
+
+                if let Err(e) = client
+                    .set_pr_state(&pr.owner, &pr.repo, pr.pr_number as i64, "closed")
+                    .await
+                {
+                    tracing::warn!(pr = pr.pr_number, "close: failed to close PR: {e}");
+                    return;
+                }
+
+                if *delete_branch
+                    && !pr.source_branch.is_empty()
+                    && let Err(e) = client
+                        .delete_branch(&pr.owner, &pr.repo, &pr.source_branch)
+                        .await
+                {
+                    tracing::warn!(
+                        branch = pr.source_branch,
+                        pr = pr.pr_number,
+                        "close: failed to delete branch: {e}"
+                    );
+                }
+
+                tracing::info!(closed = pr.pr_number, "closed PR");
                 return;
             }
             Action::CloseOtherPrs {

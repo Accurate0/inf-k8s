@@ -4,6 +4,10 @@ expression: snapshot
 ---
 response:
   - actions:
+      - action: remove_labels
+        ran: false
+      - action: close
+        ran: false
       - action: close_other_prs
         ran: true
       - action: remove_labels
