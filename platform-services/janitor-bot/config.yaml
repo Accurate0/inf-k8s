@@ -14,8 +14,8 @@ checks:
   perth_day:
     type: time_of_day
     tz: Australia/Perth
-    after: "11:00"
-    before: "22:00"
+    after: "9:00"
+    before: "23:59"
 label_colors:
   automated: "#e4e669"
   conflicts: "#e11d48"
