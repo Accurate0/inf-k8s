@@ -41,7 +41,7 @@ clap = { version = "4", features = ["derive", "env"] }
 [dev-dependencies]
 insta = { version = "1", features = ["yaml", "redactions"] }
 jsonschema = { version = "0.49", default-features = false }
-serial_test = "3"
+serial_test = "4"
 wiremock = "0.6"
 
 [[bin]]
