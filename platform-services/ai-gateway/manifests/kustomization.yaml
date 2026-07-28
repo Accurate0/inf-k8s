@@ -14,4 +14,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/ai-gateway
-    newTag: 3ee2f5b8178a4b4b025be6a9b30f7be5ef642353
+    newTag: d2e6c919c76ede6d8fce0a6f0951901fa7ca581a
