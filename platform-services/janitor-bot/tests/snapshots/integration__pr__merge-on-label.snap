@@ -1,0 +1,55 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - action: approve
+        ran: true
+      - action: merge
+        ran: true
+      - action: remove_labels
+        ran: true
+    dry_run: false
+    name: merge-on-label
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/300/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/300
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/pulls/300/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/commits/def0000000000000000000000000000000000000/status
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/300/reviews
+    body:
+      body: ~
+      comments: ~
+      commit_id: ~
+      event: APPROVED
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/k8s/pulls/300/merge
+    body:
+      Do: squash
+      MergeCommitID: ~
+      MergeMessageField: ~
+      MergeTitleField: ~
+      delete_branch_after_merge: true
+      force_merge: ~
+      head_commit_id: ~
+      merge_when_checks_succeed: ~
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/k8s/labels
+    service: forgejo
+  - method: DELETE
+    path: /api/v1/repos/anurag/k8s/issues/300/labels/5
+    body:
+      updated_at: ~
+    service: forgejo

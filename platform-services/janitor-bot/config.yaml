@@ -23,6 +23,7 @@ label_colors:
   image-update: "#0075ca"
   janitor/autofix: "#1f6feb"
   janitor/ignore: "#cccccc"
+  janitor/merge: "#0e8a16"
   janitor/queued: "#fbca04"
   postgres: "#6f42c1"
   renovate: "#0e8a16"
@@ -48,4 +49,5 @@ rules:
   - !include rules/argocd-sync-status.yaml
   - !include rules/forward-push-to-argocd.yaml
   - !include rules/cleanup-on-merge.yaml
+  - !include rules/merge-on-label.yaml
   - !include rules/clear-queued-on-unmergeable.yaml

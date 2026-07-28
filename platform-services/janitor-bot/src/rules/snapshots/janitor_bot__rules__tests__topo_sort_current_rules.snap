@@ -1,5 +1,6 @@
 ---
 source: src/rules/mod.rs
+assertion_line: 1057
 expression: names
 ---
 - argocd-diff-renovate
@@ -14,4 +15,5 @@ expression: names
 - argocd-sync-status
 - forward-push-to-argocd
 - cleanup-on-merge
+- merge-on-label
 - clear-queued-on-unmergeable
