@@ -1,0 +1,9 @@
+[Unit]
+Description=Automount for the local media server NFS share (@MOUNTPOINT@)
+
+[Automount]
+Where=@MOUNTPOINT@
+TimeoutIdleSec=600
+
+[Install]
+WantedBy=multi-user.target

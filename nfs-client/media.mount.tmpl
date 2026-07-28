@@ -1,0 +1,15 @@
+[Unit]
+Description=NFS mount for the local media server (@SERVER@:@EXPORT@)
+Documentation=file://@REPO@/nfs-client/README.md
+Requires=network-online.target
+After=network-online.target
+
+[Mount]
+What=@SERVER@:@EXPORT@
+Where=@MOUNTPOINT@
+Type=nfs
+Options=rw,vers=4,_netdev,nofail,noatime,soft,timeo=150,retrans=3
+TimeoutSec=30
+
+[Install]
+WantedBy=multi-user.target

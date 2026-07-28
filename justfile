@@ -9,6 +9,7 @@ mod ansible  'ansible/mod.just'
 mod tf       'terraform/mod.just'
 mod cluster  'charts/mod.just'
 mod ops      'scripts/mod.just'
+mod nfs      'nfs-client/mod.just'
 
 # List available recipes
 default:
