@@ -58,6 +58,8 @@ spec:
                 path: rules/forward-push-to-argocd.yaml
               - key: cleanup-on-merge.yaml
                 path: rules/cleanup-on-merge.yaml
+              - key: merge-on-label.yaml
+                path: rules/merge-on-label.yaml
               - key: clear-queued-on-unmergeable.yaml
                 path: rules/clear-queued-on-unmergeable.yaml
       containers:
