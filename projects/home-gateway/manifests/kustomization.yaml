@@ -19,4 +19,4 @@ images:
   - name: ghcr.io/accurate0/home-gateway
     newTag: edf2c5d01aaf8c984718972bd40baf3f1c3ccb2e
   - name: ghcr.io/accurate0/home-gateway-web
-    newTag: fefba9002e9165852003ee8e57d41efd24d3065e
+    newTag: 088f814e026f8fce83bf0bed124d66c399791b22
