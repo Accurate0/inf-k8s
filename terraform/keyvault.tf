@@ -5,11 +5,12 @@ data "azurerm_resource_group" "general-api-group" {
 }
 
 resource "azurerm_key_vault" "k8s-shared-vault" {
-  name                = "k8s-shared-vault"
-  location            = data.azurerm_resource_group.general-api-group.location
-  resource_group_name = data.azurerm_resource_group.general-api-group.name
-  tenant_id           = data.azurerm_client_config.current.tenant_id
-  sku_name            = "standard"
+  name                         = "k8s-shared-vault"
+  location                     = data.azurerm_resource_group.general-api-group.location
+  resource_group_name          = data.azurerm_resource_group.general-api-group.name
+  tenant_id                    = data.azurerm_client_config.current.tenant_id
+  sku_name                     = "standard"
+  rbac_authorization_enabled   = false
 
   # the identity running terraform manages secrets in the vault
   access_policy {
