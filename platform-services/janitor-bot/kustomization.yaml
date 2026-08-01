@@ -21,3 +21,4 @@ configMapGenerator:
       - rules/cleanup-on-merge.yaml
       - rules/merge-on-label.yaml
       - rules/clear-queued-on-unmergeable.yaml
+      - rules/label-eink-firmware-update.yaml

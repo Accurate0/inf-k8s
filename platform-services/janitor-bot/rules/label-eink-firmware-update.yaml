@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=./rule.schema.json
+name: label-eink-firmware-update
+when:
+  all:
+    - type: event
+      kind: pr
+      source: forgejo
+    - type: repository
+      value: anurag/home-gateway
+    - type: target_branch
+      value: main
+    - type: author
+      value: ci-image-updater
+    - type: title_matches
+      value: "update eink-display-firmware to"
+      mode: contains
+    - type: changed_files_all_match
+      patterns:
+        - "config/devices.yaml"
+    - type: is_open
+    - not:
+        type: has_label
+        value: eink-display-firmware-update
+actions:
+  - run:
+      - type: add_labels
+        labels: [eink-display-firmware-update]

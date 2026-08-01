@@ -1,6 +1,5 @@
 ---
 source: src/rules/mod.rs
-assertion_line: 1057
 expression: names
 ---
 - argocd-diff-renovate
@@ -17,3 +16,4 @@ expression: names
 - cleanup-on-merge
 - merge-on-label
 - clear-queued-on-unmergeable
+- label-eink-firmware-update

@@ -62,6 +62,8 @@ spec:
                 path: rules/merge-on-label.yaml
               - key: clear-queued-on-unmergeable.yaml
                 path: rules/clear-queued-on-unmergeable.yaml
+              - key: label-eink-firmware-update.yaml
+                path: rules/label-eink-firmware-update.yaml
       containers:
         - name: janitor-bot
           image: ghcr.io/accurate0/janitor-bot

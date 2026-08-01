@@ -1,0 +1,33 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  - actions:
+      - action: add_labels
+        ran: true
+    dry_run: false
+    name: label-eink-firmware-update
+external_requests:
+  - method: GET
+    path: /api/v1/repos/anurag/home-gateway/pulls/410/files
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/home-gateway/pulls/410
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/home-gateway/pulls/410/reviews
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/home-gateway/commits/abc1234000000000000000000000000000000000/status
+    service: forgejo
+  - method: GET
+    path: /api/v1/repos/anurag/home-gateway/labels
+    service: forgejo
+  - method: POST
+    path: /api/v1/repos/anurag/home-gateway/issues/410/labels
+    body:
+      labels:
+        - eink-display-firmware-update
+      updated_at: ~
+    service: forgejo

@@ -1,0 +1,80 @@
+now: "2026-01-07T10:00:00Z"
+type: pr
+payload:
+  action: opened
+  pull_request:
+    number: 410
+    title: "chore(deploy): update eink-display-firmware to v0.2.0-abc1234 [skip ci]"
+    labels: []
+    base:
+      ref: main
+    diff_url: ""
+    html_url: ""
+    patch_url: ""
+    url: ""
+  sender:
+    login: ci-image-updater
+  repository:
+    full_name: anurag/home-gateway
+mocks:
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/home-gateway/pulls/410
+    status: 200
+    body:
+      number: 410
+      title: "chore(deploy): update eink-display-firmware to v0.2.0-abc1234 [skip ci]"
+      user:
+        login: ci-image-updater
+        avatar_url: ""
+        html_url: ""
+        created: "2020-01-01T00:00:00Z"
+        last_login: "2020-01-01T00:00:00Z"
+      labels: []
+      base:
+        ref: main
+      head:
+        ref: ci/update-eink-firmware-v0.2.0-abc1234
+        sha: abc1234000000000000000000000000000000000
+      mergeable: true
+      state: open
+      merged: false
+      diff_url: ""
+      html_url: ""
+      patch_url: ""
+      url: ""
+      requested_reviewers: []
+      closed_at: null
+      created_at: "2020-01-01T00:00:00Z"
+      due_date: null
+      merged_at: null
+      updated_at: "2020-01-01T00:00:00Z"
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/home-gateway/pulls/410/files
+    status: 200
+    body:
+      - filename: config/devices.yaml
+        status: modified
+        additions: 2
+        deletions: 2
+        changes: 4
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/home-gateway/pulls/410/reviews
+    status: 200
+    body: []
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/home-gateway/labels
+    status: 200
+    body:
+      - id: 21
+        name: eink-display-firmware-update
+        color: "#5319e7"
+        url: ""
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/home-gateway/issues/410/labels
+    status: 200
+    body: {}

@@ -19,6 +19,7 @@ checks:
 label_colors:
   automated: "#e4e669"
   conflicts: "#e11d48"
+  eink-display-firmware-update: "#5319e7"
   github-ci-failure: "#d73a4a"
   image-update: "#0075ca"
   janitor/autofix: "#1f6feb"
@@ -51,3 +52,4 @@ rules:
   - !include rules/cleanup-on-merge.yaml
   - !include rules/merge-on-label.yaml
   - !include rules/clear-queued-on-unmergeable.yaml
+  - !include rules/label-eink-firmware-update.yaml
