@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/service_v1.json
+#
+# Partial manifest, applied server-side so that only spec.trafficDistribution is
+# owned here — clusterIP, ports and selector stay owned by the k3s addon.
+#
+# Without this the kube-dns Service round-robins across every CoreDNS endpoint,
+# so a perth pod still resolves via australind roughly half the time (~106ms of
+# Tailscale WAN RTT). PreferSameZone keeps traffic inside the client's own
+# topology.kubernetes.io/zone, falling back cluster-wide when that zone has no
+# healthy endpoint. (PreferClose is the deprecated spelling of this.)
+apiVersion: v1
+kind: Service
+metadata:
+  name: kube-dns
+  namespace: kube-system
+  annotations:
+    # This is the k3s addon's Service, not ours — we only contribute one field.
+    # Without this, pruning the app would delete cluster DNS outright.
+    argocd.argoproj.io/sync-options: Prune=false
+spec:
+  trafficDistribution: PreferSameZone
