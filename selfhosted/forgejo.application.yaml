@@ -247,6 +247,10 @@ spec:
                 STORAGE_TYPE: minio
                 MINIO_BUCKET: forgejo-storage
                 MINIO_USE_SSL: "true"
+              storage.avatars:
+                STORAGE_TYPE: local
+              storage.repo-avatars:
+                STORAGE_TYPE: local
               database:
                 DB_TYPE: postgres
               queue:
