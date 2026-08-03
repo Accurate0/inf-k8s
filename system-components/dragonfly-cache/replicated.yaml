@@ -1,0 +1,33 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/dragonflydb.io/dragonfly_v1alpha1.json
+apiVersion: dragonflydb.io/v1alpha1
+kind: Dragonfly
+metadata:
+  name: replicated
+spec:
+  replicas: 2
+  args:
+    - --maxmemory=$(MAX_MEMORY)Mi
+    - --proactor_threads=2
+    - --cluster_mode=emulated
+    - --lock_on_hashtags
+    - --default_lua_flags=allow-undeclared-keys
+  networkPolicyEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+    limits:
+      memory: 512Mi
+  topologySpreadConstraints:
+    - topologyKey: inf-k8s.net/location
+      labelSelector:
+        matchLabels:
+          app: replicated
+      whenUnsatisfiable: ScheduleAnyway
+      maxSkew: 1
+  memcachedPort: 11211
+  env:
+    - name: MAX_MEMORY
+      valueFrom:
+        resourceFieldRef:
+          resource: limits.memory
+          divisor: 1Mi

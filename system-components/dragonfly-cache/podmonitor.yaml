@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/monitoring.coreos.com/podmonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: dragonfly-cache
+  labels:
+    metrics: dragonfly
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: dragonfly
+  podTargetLabels:
+    - app
+    - role
+    - inf-k8s.net/dragonfly-cache-tier
+  podMetricsEndpoints:
+    - port: admin

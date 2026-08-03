@@ -75,4 +75,4 @@ spec:
             - name: OTEL_TRACING_URL
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
             - name: REDIS_URL
-              value: redis://dragonfly.dragonfly-system.svc.cluster.local
+              value: redis://replicated.dragonfly.svc.cluster.local

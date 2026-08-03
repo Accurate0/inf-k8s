@@ -257,16 +257,16 @@ spec:
                 DB_TYPE: postgres
               queue:
                 TYPE: redis
-                CONN_STR: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+                CONN_STR: redis://replicated.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
               session:
                 COOKIE_NAME: "git_session"
                 PROVIDER: redis
-                PROVIDER_CONFIG: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+                PROVIDER_CONFIG: redis://replicated.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
                 SESSION_LIFE_TIME: "1209600"
               cache:
                 ENABLED: true
                 ADAPTER: redis
-                HOST: redis://dragonfly.dragonfly-system.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+                HOST: redis://cache.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
               repository:
                 DISABLE_DOWNLOAD_SOURCE_ARCHIVES: "true"
               repository.signing:

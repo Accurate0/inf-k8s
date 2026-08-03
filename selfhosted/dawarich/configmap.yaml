@@ -13,7 +13,7 @@ data:
   DATABASE_HOST: cloudnative-pg-cluster-pooler-rw.cnpg-system
   APPLICATION_PROTOCOL: http
   TIME_ZONE: Australia/Perth
-  REDIS_URL: redis://dragonfly.dragonfly-system.svc.cluster.local:6379/0
+  REDIS_URL: redis://replicated.dragonfly.svc.cluster.local:6379/0
   RAILS_JOB_QUEUE_DB: "1"
   OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/dawarich
   OIDC_REDIRECT_URI: https://timeline.anurag.sh/users/auth/openid_connect/callback

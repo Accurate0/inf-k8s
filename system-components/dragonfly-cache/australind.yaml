@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/dragonflydb.io/dragonfly_v1alpha1.json
+apiVersion: dragonflydb.io/v1alpha1
+kind: Dragonfly
+metadata:
+  name: australind
+spec:
+  replicas: 2
+  args:
+    - --maxmemory=$(MAX_MEMORY)Mi
+    - --proactor_threads=2
+    - --cluster_mode=emulated
+    - --lock_on_hashtags
+    - --default_lua_flags=allow-undeclared-keys
+  networkPolicyEnabled: false
+  resources:
+    requests:
+      cpu: 100m
+    limits:
+      memory: 512Mi
+  memcachedPort: 11211
+  podMetadata:
+    labels:
+      inf-k8s.net/dragonfly-cache-tier: local
+  topologySpreadConstraints:
+    - topologyKey: kubernetes.io/hostname
+      labelSelector:
+        matchLabels:
+          app: australind
+      whenUnsatisfiable: ScheduleAnyway
+      maxSkew: 1
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: inf-k8s.net/location
+                operator: In
+                values:
+                  - australind
+  env:
+    - name: MAX_MEMORY
+      valueFrom:
+        resourceFieldRef:
+          resource: limits.memory
+          divisor: 1Mi
