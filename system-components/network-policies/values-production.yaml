@@ -38,6 +38,15 @@ namespaces:
   bom:
     ingress:
       - home-gateway
+  dragonfly:
+    ingress:
+      - dragonfly-system
+      - monitoring
+      - forgejo
+      - dawarich
+      - maccas-api
+      - feature-flags
+      - ai-gateway
   ozbargain: {}
   pg-db-controller: {}
   kanidm-sync: {}
