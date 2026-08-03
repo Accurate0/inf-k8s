@@ -10,10 +10,33 @@ spec:
   instances: 3
   monitoring:
     enablePodMonitor: false
+  template:
+    spec:
+      containers: []
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - australind
+                      - perth
+      topologySpreadConstraints:
+        - labelSelector:
+            matchLabels:
+              cnpg.io/poolerName: cloudnative-pg-cluster-pooler-rw
+          maxSkew: 1
+          topologyKey: inf-k8s.net/location
+          whenUnsatisfiable: DoNotSchedule
+  serviceTemplate:
+    spec:
+      trafficDistribution: PreferSameZone
   pgbouncer:
     parameters:
       default_pool_size: "25"
       max_client_conn: "1000"
-      max_prepared_statements: "10"
+      max_prepared_statements: "500"
     poolMode: session
   type: rw
