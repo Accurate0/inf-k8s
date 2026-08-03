@@ -249,8 +249,10 @@ spec:
                 MINIO_USE_SSL: "true"
               storage.avatars:
                 STORAGE_TYPE: local
+                PATH: /data/avatars
               storage.repo-avatars:
                 STORAGE_TYPE: local
+                PATH: /data/repo-avatars
               database:
                 DB_TYPE: postgres
               queue:
