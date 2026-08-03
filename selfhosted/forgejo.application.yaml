@@ -260,8 +260,7 @@ spec:
                 CONN_STR: redis://replicated.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
               session:
                 COOKIE_NAME: "git_session"
-                PROVIDER: redis
-                PROVIDER_CONFIG: redis://replicated.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+                PROVIDER: memory
                 SESSION_LIFE_TIME: "1209600"
               cache:
                 ENABLED: true
