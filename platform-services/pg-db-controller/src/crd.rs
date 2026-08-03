@@ -25,6 +25,10 @@ pub struct PgDatabaseSpec {
     #[schemars(regex(pattern = r"^[A-Za-z_][A-Za-z0-9_]*$"))]
     pub role_name: Option<String>,
 
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    #[schemars(inner(regex(pattern = r"^[A-Za-z_][A-Za-z0-9_]*$")))]
+    pub additional_databases: Option<Vec<String>>,
+
     pub secret_name: String,
 
     pub secret_namespace: String,

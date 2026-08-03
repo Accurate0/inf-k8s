@@ -59,6 +59,13 @@ fn validate(obj: &PostgresDatabase) -> Result<(), String> {
             return Err(format!("invalid roleName: {role:?}"));
         }
     }
+
+    for db in obj.spec.additional_databases.iter().flatten() {
+        if !is_valid_ident(db) {
+            return Err(format!("invalid additionalDatabases entry: {db:?}"));
+        }
+    }
+
     Ok(())
 }
 
@@ -179,6 +186,8 @@ async fn provision(obj: &PostgresDatabase, ctx: &Context) -> Result<()> {
         .await?;
     }
 
+    grant_additional(obj, ctx, role_raw, &role).await?;
+
     if let Some(password) = password {
         let secret = build_secret(obj, role_raw, &password, ctx);
         secrets
@@ -189,6 +198,47 @@ async fn provision(obj: &PostgresDatabase, ctx: &Context) -> Result<()> {
             )
             .await?;
         tracing::info!("wrote secret {}/{}", obj.spec.secret_namespace, obj.spec.secret_name);
+    }
+
+    Ok(())
+}
+
+async fn grant_additional(
+    obj: &PostgresDatabase,
+    ctx: &Context,
+    role_raw: &str,
+    role: &str,
+) -> Result<()> {
+    for name in obj.spec.additional_databases.iter().flatten() {
+        let owner: Option<String> = sqlx::query_scalar(
+            "SELECT pg_get_userbyid(datdba) FROM pg_database WHERE lower(datname) = lower($1)",
+        )
+        .bind(name)
+        .fetch_optional(&ctx.db)
+        .await?;
+
+        let Some(owner) = owner else {
+            tracing::warn!("additional database {name:?} does not exist, skipping grant");
+            continue;
+        };
+
+        if owner == role_raw {
+            continue;
+        }
+
+        let database = quote_ident(name)?;
+        sqlx::query(AssertSqlSafe(format!(
+            "GRANT ALL PRIVILEGES ON DATABASE {database} TO {role}"
+        )))
+        .execute(&ctx.db)
+        .await?;
+
+        let owner = quote_ident(&owner)?;
+        sqlx::query(AssertSqlSafe(format!("GRANT {owner} TO {role}")))
+            .execute(&ctx.db)
+            .await?;
+
+        tracing::info!("granted {role} admin on additional database {database}");
     }
 
     Ok(())

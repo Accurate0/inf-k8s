@@ -32,6 +32,12 @@ spec:
         properties:
           spec:
             properties:
+              additionalDatabases:
+                items:
+                  pattern: ^[A-Za-z_][A-Za-z0-9_]*$
+                  type: string
+                nullable: true
+                type: array
               databaseName:
                 pattern: ^[A-Za-z_][A-Za-z0-9_]*$
                 type: string
