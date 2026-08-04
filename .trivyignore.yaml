@@ -106,6 +106,7 @@ misconfigurations:
       - "selfhosted/dawarich/deployment.yaml"
   - id: AVD-KSV-0118
     paths:
+      - "system-components/coredns-local/deployment.yaml"
       - "projects/home-gateway/manifests/home-gateway/**"
       - "projects/home-gateway/manifests/selfbot/**"
       - "projects/maccas-api/manifests/web/**"
