@@ -5,8 +5,11 @@ when:
     - type: event
       kind: push
       source: github
-    - type: repository
-      value: Accurate0/inf-k8s
+    - any:
+        - type: repository
+          value: Accurate0/inf-k8s
+        - type: repository
+          value: Accurate0/home-gateway
 actions:
   - run:
       - type: proxy_pass
