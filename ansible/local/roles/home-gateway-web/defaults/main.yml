@@ -1,4 +1,4 @@
 home_gateway_web_root: /opt/home-gateway-web
 home_gateway_web_image: ghcr.io/accurate0/home-gateway-web
-home_gateway_web_image_tag: no-oauth-5286b7455d09bdd34960035e7853002077e3bd61
+home_gateway_web_image_tag: no-oauth-16f4ffec75b63175a6e8650a9c3eac703cf35e1b
 home_gateway_web_port: 8080
