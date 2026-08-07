@@ -9,6 +9,7 @@ COPY . .
 
 RUN pnpm install --frozen-lockfile
 RUN pnpm --filter @accurate0/feature-flag-client build
+RUN pnpm install --frozen-lockfile
 RUN pnpm --filter feature-flags-frontend build
 RUN pnpm --filter feature-flags-frontend deploy --prod /app/deploy
 
