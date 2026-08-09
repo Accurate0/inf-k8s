@@ -50,6 +50,36 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /v1
+            - name: solar-panels-route
+              gateway:
+                name: public-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.alpha.kubernetes.io/managed: "true"
+                external-dns.alpha.kubernetes.io/cloudflare-proxied: "true"
+              hostnames:
+                - solar-panels.anurag.sh
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: solar-web
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: home-gateway
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /v1
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/home-gateway/manifests

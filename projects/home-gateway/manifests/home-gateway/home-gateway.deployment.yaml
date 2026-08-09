@@ -50,8 +50,6 @@ spec:
           env:
             - name: FEATURE_FLAGS_URL
               value: http://api.feature-flags.svc.cluster.local:50051
-            - name: SOLAR_API_BASE
-              value: http://solar-panel-api.solar-panels.svc.cluster.local:8000/api
             - name: BOM_API_BASE
               value: http://bom-api.bom.svc.cluster.local:8000
             - name: OTEL_TRACING_URL
