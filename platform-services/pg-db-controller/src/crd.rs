@@ -19,12 +19,22 @@ pub const IDENT_PATTERN: &str = r"^[A-Za-z_][A-Za-z0-9_]*$";
     printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#
 )]
 pub struct PgDatabaseSpec {
+    /// The database this resource owns. It is created if missing, and its owner is
+    /// set to this resource's role on every reconcile - so two PostgresDatabase
+    /// resources must never name the same database here, or they will flap
+    /// ownership between their roles. To share an existing database, list it under
+    /// additionalDatabases instead.
     #[schemars(regex(pattern = r"^[A-Za-z_][A-Za-z0-9_]*$"))]
     pub database_name: String,
 
     #[schemars(regex(pattern = r"^[A-Za-z_][A-Za-z0-9_]*$"))]
     pub role_name: Option<String>,
 
+    /// Existing databases this role should also get access to. The role is granted
+    /// ALL PRIVILEGES on each one plus membership in that database's owning role, so
+    /// it can act with owner rights via SET ROLE. Ownership itself is never
+    /// reassigned - a Postgres database has exactly one owner, and it stays with
+    /// whichever role already holds it. Databases that do not exist are skipped.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     #[schemars(inner(regex(pattern = r"^[A-Za-z_][A-Za-z0-9_]*$")))]
     pub additional_databases: Option<Vec<String>>,

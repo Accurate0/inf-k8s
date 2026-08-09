@@ -233,12 +233,15 @@ async fn grant_additional(
         .execute(&ctx.db)
         .await?;
 
-        let owner = quote_ident(&owner)?;
-        sqlx::query(AssertSqlSafe(format!("GRANT {owner} TO {role}")))
+        let owner_role = quote_ident(&owner)?;
+        sqlx::query(AssertSqlSafe(format!("GRANT {owner_role} TO {role}")))
             .execute(&ctx.db)
             .await?;
 
-        tracing::info!("granted {role} admin on additional database {database}");
+        tracing::info!(
+            "granted {role} privileges on additional database {database} \
+             and membership in its owner {owner_role}; ownership is unchanged"
+        );
     }
 
     Ok(())
