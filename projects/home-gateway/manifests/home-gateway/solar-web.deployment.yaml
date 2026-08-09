@@ -3,32 +3,40 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: solar-web
-  namespace: solar-panels
+  namespace: home-gateway
 spec:
   selector:
     matchLabels:
       app: solar-web
-  replicas: 0
+  replicas: 1
   template:
     metadata:
       labels:
         app: solar-web
     spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - perth
       containers:
         - name: solar-web
-          image: ghcr.io/accurate0/solar-web
+          image: ghcr.io/accurate0/home-gateway-solar-web
           imagePullPolicy: Always
           resources:
             requests:
               cpu: 10m
-              memory: 16Mi
-          livenessProbe:
-            failureThreshold: 3
+              memory: 32Mi
+          readinessProbe:
             httpGet:
               path: /
-              port: 3000
+              port: 8080
               scheme: HTTP
             initialDelaySeconds: 3
             periodSeconds: 30
-            successThreshold: 1
-            timeoutSeconds: 1
+          ports:
+            - containerPort: 8080

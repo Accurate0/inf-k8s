@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/service_v1.json
+apiVersion: v1
+kind: Service
+metadata:
+  name: solar-web
+  namespace: home-gateway
+  labels:
+    app: solar-web
+spec:
+  selector:
+    app: solar-web
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
