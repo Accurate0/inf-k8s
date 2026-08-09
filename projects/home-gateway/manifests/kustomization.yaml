@@ -20,7 +20,7 @@ commonAnnotations:
 images:
   - name: ghcr.io/accurate0/home-gateway
     newTag: cf822adc68538024f866a7619851b155425d5a91
+  - name: ghcr.io/accurate0/home-gateway-solar-web
+    newTag: ef0cbaf81554f53d61e700e90cecda65196073b8
   - name: ghcr.io/accurate0/home-gateway-web
     newTag: 29128933f63c5f381c59d2abdd798c4651d642ef
-  - name: ghcr.io/accurate0/home-gateway-solar-web
-    newTag: latest
