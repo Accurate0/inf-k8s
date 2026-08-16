@@ -75,12 +75,8 @@ spec:
           env:
             - name: FEATURE_FLAGS_URL
               value: http://api.feature-flags.svc.cluster.local:50051
-            - name: BOM_API_BASE
-              value: http://bom-api.bom.svc.cluster.local:8000
             - name: OTEL_TRACING_URL
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
-            - name: HOME_ASSISTANT_URL
-              value: http://home-assistant.internal
             - name: CONFIG_DIR
               value: /etc/home-gateway/config
           envFrom:
