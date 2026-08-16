@@ -35,6 +35,7 @@
   "scripts": {
     "gen": "mkdir -p ./src/gen && grpc_tools_node_protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/gen --ts_proto_opt=outputServices=grpc-js,esModuleInterop=true,useOptionals=messages,outputJsonMethods=false -I ../../../../crates/feature-flag/feature-flag-proto/proto featureflag/v1/common.proto featureflag/v1/evaluation.proto featureflag/v1/admin.proto",
     "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit"
   },
   "dependencies": {
