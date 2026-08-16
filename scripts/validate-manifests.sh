@@ -24,7 +24,15 @@ kc=(kubeconform -strict -summary -ignore-missing-schemas -cache "$cache"
 
 if [[ "${1:-}" == "__worker" ]]; then
   path="$3"
-  if out="$(kustomize build "$path" 2>&1 | "${kc[@]}" - 2>&1)"; then
+
+  # A directory holding partial manifests (server-side-apply patches that
+  # deliberately contribute only a few fields to an object someone else owns)
+  # can't satisfy -strict schema validation, since the fields it omits are
+  # required. Such a dir drops a .kubeconform-flags file naming the flags to
+  # add, e.g. "-skip Deployment".
+  read -r -a dir_flags <<<"$(cat "$path/.kubeconform-flags" 2>/dev/null || true)"
+
+  if out="$(kustomize build "$path" 2>&1 | "${kc[@]}" "${dir_flags[@]}" - 2>&1)"; then
     printf '  %s✓%s kustomize %s\n' "$green" "$reset" "$path"
   else
     printf '  %s✗ kustomize %s%s\n%s\n' "$red" "$path" "$reset" "$out"; exit 1

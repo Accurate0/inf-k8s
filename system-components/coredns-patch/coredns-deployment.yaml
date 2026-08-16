@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+#
+# Partial manifest, applied server-side so that only spec.replicas and the pod
+# nodeAffinity are owned here — the Corefile, image, tolerations,
+# priorityClassName and topologySpreadConstraints stay owned by the k3s addon.
+#
+# k3s ships CoreDNS as a static manifest addon rather than a Helm chart, so
+# there is no HelmChartConfig to override. It applies that manifest with a
+# three-way merge against objectset.rio.cattle.io/applied, and that applied set
+# contains neither replicas nor affinity — which is what makes owning those two
+# fields from here survive a k3s upgrade re-applying the addon.
+#
+# Two replicas rather than one so cluster DNS survives losing a node, spread one
+# per location by the zone topologySpreadConstraint k3s already sets. The
+# affinity keeps them off oracle-sydney, which sits behind ~106ms of Tailscale
+# WAN RTT, and off k8s-control-1, which carries no location label at all.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: coredns
+  namespace: kube-system
+  annotations:
+    # Prune=false: this is the k3s addon's Deployment, not ours — we only
+    # contribute two fields. Without it, pruning the app would delete cluster
+    # DNS outright.
+    #
+    # Force=true: k3s's deploy controller holds spec.replicas as an SSA field
+    # manager even though the field is absent from its objectset, so applying
+    # without --force-conflicts fails on that one field. Taking ownership is the
+    # point. If a k3s upgrade re-asserts replicas=1, selfHeal puts it back.
+    argocd.argoproj.io/sync-options: Prune=false,Force=true
+spec:
+  replicas: 2
+  template:
+    spec:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - australind
+                      - perth

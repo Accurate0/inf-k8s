@@ -2,7 +2,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: coredns-local
+  name: coredns-patch
   namespace: argocd
 spec:
   syncPolicy:
@@ -14,7 +14,7 @@ spec:
   project: system-components
   source:
     repoURL: https://github.com/Accurate0/inf-k8s.git
-    path: system-components/coredns-local
+    path: system-components/coredns-patch
     targetRevision: HEAD
     kustomize: {}
   destination:
