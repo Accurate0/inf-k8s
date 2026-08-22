@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Assert the UniFi API key is available
+  ansible.builtin.assert:
+    that:
+      - unifi_api_key | default('', true) | length > 0
+    fail_msg: UNIFI_API_KEY is not set. Create one under Settings > Admins > API Key.
+
+- name: Fetch known clients
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/api/s/{{ unifi_site }}/rest/user"
+    method: GET
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    validate_certs: "{{ unifi_validate_certs }}"
+  register: unifi_clients
+
+- name: Index clients by mac
+  ansible.builtin.set_fact:
+    unifi_client_ids: >-
+      {{ dict(unifi_clients.json.data | map(attribute='mac')
+              | zip(unifi_clients.json.data | map(attribute='_id'))) }}
+    unifi_client_names: >-
+      {{ dict(unifi_clients.json.data | map(attribute='mac')
+              | zip(unifi_clients.json.data | map(attribute='name', default=''))) }}
+
+- name: Create client entries that do not exist yet
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/api/s/{{ unifi_site }}/rest/user"
+    method: POST
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    body_format: json
+    body:
+      mac: "{{ item.mac }}"
+      name: "{{ item.name }}"
+    validate_certs: "{{ unifi_validate_certs }}"
+    status_code: [200, 201]
+  loop: "{{ unifi_client_aliases }}"
+  loop_control:
+    label: "{{ item.mac }} -> {{ item.name }}"
+  when: item.mac not in unifi_client_ids
+
+- name: Rename clients whose alias is wrong
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/api/s/{{ unifi_site }}/rest/user/{{ unifi_client_ids[item.mac] }}"
+    method: PUT
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    body_format: json
+    body:
+      name: "{{ item.name }}"
+    validate_certs: "{{ unifi_validate_certs }}"
+    status_code: [200, 201]
+  loop: "{{ unifi_client_aliases }}"
+  loop_control:
+    label: "{{ item.mac }}: {{ unifi_client_names[item.mac] | default('') }} -> {{ item.name }}"
+  when:
+    - item.mac in unifi_client_ids
+    - unifi_client_names[item.mac] | default('') != item.name

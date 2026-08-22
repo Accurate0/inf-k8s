@@ -4,60 +4,32 @@
   become: true
   become_user: root
   block:
-    - name: Create compose project directory
+    - name: Create the config directory
       ansible.builtin.file:
-        path: "{{ homeassistant_config_root }}/config"
+        path: "{{ homeassistant_root }}/config"
         state: directory
         mode: "0755"
 
-    - name: Template docker compose file
-      ansible.builtin.template:
-        src: docker-compose.yml.j2
-        dest: "{{ homeassistant_config_root }}/docker-compose.yml"
-        mode: "0644"
-      notify: Restart home assistant stack
-
-    - name: Ensure default_config is enabled
-      ansible.builtin.lineinfile:
-        path: "{{ homeassistant_config_root }}/config/configuration.yaml"
-        line: "default_config:"
-        create: true
-        mode: "0644"
-      notify: Restart home assistant stack
-
-    - name: Configure reverse proxy trust
+    - name: Set the listen port
       ansible.builtin.blockinfile:
-        path: "{{ homeassistant_config_root }}/config/configuration.yaml"
+        path: "{{ homeassistant_root }}/config/configuration.yaml"
         marker: "# {mark} ANSIBLE MANAGED: reverse proxy"
         block: |
           http:
-            use_x_forwarded_for: true
-            trusted_proxies:
-          {% for proxy in homeassistant_trusted_proxies %}
-              - {{ proxy }}
-          {% endfor %}
-      notify: Restart home assistant stack
+            server_port: {{ homeassistant_port }}
+        create: false
+      notify: Restart home assistant
 
-    - name: Install HACS
-      when: homeassistant_hacs_enabled | bool
-      block:
-        - name: Create HACS custom component directory
-          ansible.builtin.file:
-            path: "{{ homeassistant_config_root }}/config/custom_components/hacs"
-            state: directory
-            mode: "0755"
+    - name: Template the compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ homeassistant_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart home assistant
 
-        - name: Download and extract HACS release
-          ansible.builtin.unarchive:
-            src: "https://github.com/hacs/integration/releases/download/{{ homeassistant_hacs_version }}/hacs.zip"
-            dest: "{{ homeassistant_config_root }}/config/custom_components/hacs"
-            remote_src: true
-            creates: "{{ homeassistant_config_root }}/config/custom_components/hacs/manifest.json"
-          notify: Restart home assistant stack
-
-    - name: Bring up the home assistant stack
+    - name: Bring up the stack
       community.docker.docker_compose_v2:
-        project_src: "{{ homeassistant_config_root }}"
+        project_src: "{{ homeassistant_root }}"
         state: present
         pull: missing
         remove_orphans: true

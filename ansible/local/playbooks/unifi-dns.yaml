@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: UniFi DNS and client aliases
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    unifi_api_key: "{{ lookup('ansible.builtin.env', 'UNIFI_API_KEY') }}"
+
+  roles:
+    - role: unifi-dns
+      tags: [unifi, dns]
+    - role: unifi-clients
+      tags: [unifi, clients]

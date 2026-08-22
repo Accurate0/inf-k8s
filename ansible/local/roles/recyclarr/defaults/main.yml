@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT-0
+---
+recyclarr_user: media
+recyclarr_group: media
+recyclarr_version: "8.7.0"
+recyclarr_install_root: /opt/recyclarr
+recyclarr_config_root: /var/lib/recyclarr
+
+recyclarr_url: "https://github.com/recyclarr/recyclarr/releases/download/v{{ recyclarr_version }}/recyclarr-linux-x64.tar.xz"
+
+recyclarr_on_calendar: "*-*-* 03:00:00"
+
+recyclarr_sonarr_url: http://sonarr.media.internal:8989
+recyclarr_radarr_url: http://radarr.media.internal:7878
+recyclarr_sonarr_api_key: "{{ lookup('ansible.builtin.env', 'SONARR_API_KEY') }}"
+recyclarr_radarr_api_key: "{{ lookup('ansible.builtin.env', 'RADARR_API_KEY') }}"

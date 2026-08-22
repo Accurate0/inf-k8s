@@ -1,0 +1,99 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Servarr apps
+  become: true
+  become_user: root
+  block:
+    - name: Install dependencies
+      ansible.builtin.apt:
+        name: "{{ arr_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Create the media group
+      ansible.builtin.group:
+        name: "{{ arr_group }}"
+        gid: "{{ media_gid }}"
+        state: present
+
+    - name: Create the media user
+      ansible.builtin.user:
+        name: "{{ arr_user }}"
+        uid: "{{ media_uid }}"
+        group: "{{ arr_group }}"
+        shell: /usr/sbin/nologin
+        create_home: false
+        system: true
+
+    - name: Create config directories
+      ansible.builtin.file:
+        path: "{{ arr_config_root }}/{{ item.name }}"
+        state: directory
+        owner: "{{ arr_user }}"
+        group: "{{ arr_group }}"
+        mode: "0755"
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Download and unpack releases
+      ansible.builtin.unarchive:
+        src: "{{ item.url }}"
+        dest: "{{ arr_install_root }}"
+        remote_src: true
+        owner: "{{ arr_user }}"
+        group: "{{ arr_group }}"
+        creates: "{{ arr_install_root }}/{{ item.binary }}/{{ item.binary }}"
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Install systemd units
+      ansible.builtin.template:
+        src: arr.service.j2
+        dest: "/etc/systemd/system/{{ item.name }}.service"
+        mode: "0644"
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+      notify: Reload systemd
+
+    - name: Flush handlers so units exist before starting
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start
+      ansible.builtin.systemd_service:
+        name: "{{ item.name }}"
+        enabled: true
+        state: started
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+
+    - name: Remove the Debian default site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Template name-based routing for each app
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/conf.d/arr.conf
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Validate nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Enable and start nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        enabled: true
+        state: started

@@ -1,0 +1,12 @@
+[Unit]
+Description=Recyclarr sync
+After=network-online.target sonarr.service radarr.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User={{ recyclarr_user }}
+Group={{ recyclarr_group }}
+EnvironmentFile={{ recyclarr_config_root }}/recyclarr.env
+Environment=RECYCLARR_APP_DATA={{ recyclarr_config_root }}
+ExecStart={{ recyclarr_install_root }}/recyclarr sync

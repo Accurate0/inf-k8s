@@ -1,17 +1,32 @@
 all:
   children:
+    proxmox: {}
     media_servers: {}
+    gateway: {}
+    home_automation: {}
+
+proxmox:
+  hosts:
+    pve:
+      ansible_host: 10.0.2.249
 
 media_servers:
   hosts:
-    media:
-      ansible_host: media.internal
-      ansible_user: janitor
+    jellyfin:
+      ansible_host: 10.0.2.11
+    media-apps:
+      ansible_host: 10.0.2.12
+    transmission:
+      ansible_host: 10.0.2.13
+  vars:
+    media_pool_mount: /data
 
-      media_drives:
-        - name: disk1
-          device: /dev/disk/by-label/media1
-          fstype: ext4
+gateway:
+  hosts:
+    home-gateway-web:
+      ansible_host: 10.0.2.14
 
-      media_pool_mount: /data/media
-      media_config_root: /opt/media
+home_automation:
+  hosts:
+    homeassistant:
+      ansible_host: 10.0.2.15

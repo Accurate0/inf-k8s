@@ -1,0 +1,22 @@
+[Unit]
+Description=FlareSolverr
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ flaresolverr_user }}
+Group={{ flaresolverr_group }}
+WorkingDirectory={{ flaresolverr_install_root }}
+Environment=HOME={{ flaresolverr_home }}
+Environment=XDG_CONFIG_HOME={{ flaresolverr_home }}/.config
+Environment=XDG_CACHE_HOME={{ flaresolverr_home }}/.cache
+Environment=LOG_LEVEL={{ flaresolverr_log_level }}
+Environment=PORT={{ flaresolverr_port }}
+Environment=HOST=0.0.0.0
+ExecStart={{ flaresolverr_install_root }}/flaresolverr
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

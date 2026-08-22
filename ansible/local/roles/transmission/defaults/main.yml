@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT-0
+---
+media_pool_mount: /data
+media_uid: 1000
+media_gid: 1000
+
+transmission_user: debian-transmission
+transmission_config_root: /var/lib/transmission-daemon/.config/transmission-daemon
+transmission_rpc_port: 80
+transmission_peer_port: 51413
+
+transmission_download_dir: "{{ media_pool_mount }}/downloads"
+transmission_incomplete_dir: "{{ media_pool_mount }}/downloads/incomplete"
+
+transmission_settings:
+  download-dir: "{{ transmission_download_dir }}"
+  incomplete-dir: "{{ transmission_incomplete_dir }}"
+  incomplete-dir-enabled: true
+  ratio-limit: 0
+  ratio-limit-enabled: true
+  rpc-bind-address: 0.0.0.0
+  rpc-port: "{{ transmission_rpc_port }}"
+  rpc-whitelist-enabled: false
+  rpc-host-whitelist-enabled: false
+  peer-port: "{{ transmission_peer_port }}"
+  umask: 2
+  watch-dir-enabled: false

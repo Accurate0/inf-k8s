@@ -1,0 +1,18 @@
+[Unit]
+Description=Bazarr
+After=network-online.target sonarr.service radarr.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ bazarr_user }}
+Group={{ bazarr_group }}
+UMask=0002
+WorkingDirectory={{ bazarr_install_root }}
+ExecStart={{ bazarr_venv }}/bin/python {{ bazarr_install_root }}/bazarr.py --no-update --config {{ bazarr_config_root }}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

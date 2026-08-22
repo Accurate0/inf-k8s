@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Reload systemd for recyclarr
+  ansible.builtin.systemd_service:
+    daemon_reload: true

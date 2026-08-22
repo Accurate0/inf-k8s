@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: MIT-0
+---
+
+- ansible.builtin.import_playbook: proxmox-guests.yaml
+
+- ansible.builtin.import_playbook: unifi-dns.yaml
+
+- name: Wait for guests to accept SSH
+  hosts: media_servers:gateway:home_automation
+  gather_facts: false
+
+  tasks:
+    - name: Wait for port 22
+      ansible.builtin.wait_for_connection:
+        delay: 15
+        sleep: 5
+        timeout: 300
+
+- name: Base configuration
+  hosts: media_servers:gateway:home_automation
+  gather_facts: true
+
+  roles:
+    - base
+
+- name: Jellyfin
+  hosts: jellyfin
+  gather_facts: true
+
+  roles:
+    - jellyfin
+
+- name: Media apps
+  hosts: media-apps
+  gather_facts: true
+
+  roles:
+    - arr
+    - bazarr
+    - flaresolverr
+    - recyclarr
+
+- name: Transmission
+  hosts: transmission
+  gather_facts: true
+
+  roles:
+    - transmission
+
+- name: Home gateway web
+  hosts: gateway
+  gather_facts: true
+
+  roles:
+    - docker
+    - home-gateway-web
+
+- name: Home Assistant
+  hosts: home_automation
+  gather_facts: true
+
+  roles:
+    - docker
+    - homeassistant

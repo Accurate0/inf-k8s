@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: FlareSolverr
+  become: true
+  become_user: root
+  block:
+    - name: Install runtime dependencies
+      ansible.builtin.apt:
+        name:
+          - xvfb
+          - libnss3
+          - libgbm1
+          - libasound2t64
+          - libatk-bridge2.0-0
+          - libatk1.0-0
+          - libcups2
+          - libdrm2
+          - libxkbcommon0
+          - libxcomposite1
+          - libxdamage1
+          - libxfixes3
+          - libxrandr2
+          - libpango-1.0-0
+          - libcairo2
+        state: present
+        update_cache: true
+
+    - name: Create the install and home directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ flaresolverr_user }}"
+        group: "{{ flaresolverr_group }}"
+        mode: "0755"
+      loop:
+        - "{{ flaresolverr_install_root }}"
+        - "{{ flaresolverr_home }}"
+
+    - name: Download and unpack flaresolverr
+      ansible.builtin.unarchive:
+        src: "{{ flaresolverr_url }}"
+        dest: "{{ flaresolverr_install_root }}"
+        remote_src: true
+        owner: "{{ flaresolverr_user }}"
+        group: "{{ flaresolverr_group }}"
+        extra_opts: [--strip-components=1]
+        creates: "{{ flaresolverr_install_root }}/flaresolverr"
+
+    - name: Install the systemd unit
+      ansible.builtin.template:
+        src: flaresolverr.service.j2
+        dest: /etc/systemd/system/flaresolverr.service
+        mode: "0644"
+      notify: Reload systemd for flaresolverr
+
+    - name: Flush handlers so the unit exists before starting
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start flaresolverr
+      ansible.builtin.systemd_service:
+        name: flaresolverr
+        enabled: true
+        state: started

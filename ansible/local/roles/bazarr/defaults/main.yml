@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT-0
+---
+media_uid: 1000
+media_gid: 1000
+
+bazarr_user: media
+bazarr_group: media
+bazarr_port: 6767
+bazarr_install_root: /opt/bazarr
+bazarr_config_root: /var/lib/bazarr
+bazarr_version: 1.6.0
+
+bazarr_venv: "{{ bazarr_install_root }}/venv"
+bazarr_url: "https://github.com/morpheus65535/bazarr/releases/download/v{{ bazarr_version }}/bazarr.zip"
+
+bazarr_packages:
+  - python3
+  - python3-venv
+  - python3-pip
+  - unzip
+  - ffmpeg

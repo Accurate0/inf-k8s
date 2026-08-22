@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: MIT-0
+---
+media_pool_mount: /data
+media_uid: 1000
+media_gid: 1000
+
+arr_user: media
+arr_group: media
+
+arr_install_root: /opt
+arr_config_root: /var/lib
+
+arr_domain: media.internal
+
+arr_nginx_sites: "{{ arr_apps + arr_nginx_extra_sites }}"
+
+arr_nginx_extra_sites:
+  - {name: bazarr, port: 6767}
+  - {name: flaresolverr, port: 8191}
+
+arr_sonarr_version: 4.0.19.2979
+arr_radarr_version: 6.3.0.10514
+arr_prowlarr_version: 2.5.2.5491
+
+arr_apps:
+  - name: sonarr
+    port: 8989
+    binary: Sonarr
+    url: "https://github.com/Sonarr/Sonarr/releases/download/v{{ arr_sonarr_version }}/Sonarr.main.{{ arr_sonarr_version }}.linux-x64.tar.gz"
+
+  - name: radarr
+    port: 7878
+    binary: Radarr
+    url: "https://github.com/Radarr/Radarr/releases/download/v{{ arr_radarr_version }}/Radarr.master.{{ arr_radarr_version }}.linux-core-x64.tar.gz"
+
+  - name: prowlarr
+    port: 9696
+    binary: Prowlarr
+    url: "https://github.com/Prowlarr/Prowlarr/releases/download/v{{ arr_prowlarr_version }}/Prowlarr.master.{{ arr_prowlarr_version }}.linux-core-x64.tar.gz"
+
+arr_packages:
+  - curl
+  - sqlite3
+  - libicu-dev

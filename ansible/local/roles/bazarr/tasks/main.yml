@@ -1,0 +1,53 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Bazarr
+  become: true
+  become_user: root
+  block:
+    - name: Install dependencies
+      ansible.builtin.apt:
+        name: "{{ bazarr_packages }}"
+        state: present
+        update_cache: true
+
+    - name: Create directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ bazarr_user }}"
+        group: "{{ bazarr_group }}"
+        mode: "0755"
+      loop:
+        - "{{ bazarr_install_root }}"
+        - "{{ bazarr_config_root }}"
+
+    - name: Download and unpack bazarr
+      ansible.builtin.unarchive:
+        src: "{{ bazarr_url }}"
+        dest: "{{ bazarr_install_root }}"
+        remote_src: true
+        owner: "{{ bazarr_user }}"
+        group: "{{ bazarr_group }}"
+        creates: "{{ bazarr_install_root }}/bazarr.py"
+
+    - name: Create the virtualenv and install requirements
+      ansible.builtin.pip:
+        requirements: "{{ bazarr_install_root }}/requirements.txt"
+        virtualenv: "{{ bazarr_venv }}"
+        virtualenv_command: python3 -m venv
+
+    - name: Install the systemd unit
+      ansible.builtin.template:
+        src: bazarr.service.j2
+        dest: /etc/systemd/system/bazarr.service
+        mode: "0644"
+      notify: Reload systemd for bazarr
+
+    - name: Flush handlers so the unit exists before starting
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable and start bazarr
+      ansible.builtin.systemd_service:
+        name: bazarr
+        enabled: true
+        state: started

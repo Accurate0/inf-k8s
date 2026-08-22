@@ -1,0 +1,89 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Jellyfin
+  become: true
+  become_user: root
+  block:
+    - name: Ensure the keyring directory exists
+      ansible.builtin.file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Add the jellyfin apt key
+      ansible.builtin.get_url:
+        url: https://repo.jellyfin.org/jellyfin_team.gpg.key
+        dest: "{{ jellyfin_keyring }}"
+        mode: "0644"
+
+    - name: Add the jellyfin repository
+      ansible.builtin.deb822_repository:
+        name: jellyfin
+        types: [deb]
+        uris: "{{ jellyfin_repo_uri }}"
+        suites: ["{{ ansible_distribution_release }}"]
+        components: [main]
+        architectures: [amd64]
+        signed_by: "{{ jellyfin_keyring }}"
+        state: present
+
+    - name: Install jellyfin
+      ansible.builtin.apt:
+        name: "{{ ['jellyfin-server', 'jellyfin-web'] | map('regex_replace', '$', jellyfin_version | ternary('=' + jellyfin_version + '*', '')) | list }}"
+        state: present
+        update_cache: true
+
+    - name: Hold jellyfin at the pinned version
+      ansible.builtin.dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop: [jellyfin-server, jellyfin-web]
+      when: jellyfin_version | length > 0
+
+    - name: Create the media group
+      ansible.builtin.group:
+        name: media
+        gid: "{{ media_gid }}"
+        state: present
+
+    - name: Add jellyfin to the media group
+      ansible.builtin.user:
+        name: "{{ jellyfin_user }}"
+        groups: media
+        append: true
+      notify: Restart jellyfin
+
+    - name: Create the systemd drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/jellyfin.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Allow jellyfin to bind privileged ports
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+          CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+        dest: /etc/systemd/system/jellyfin.service.d/bind-privileged-port.conf
+        mode: "0644"
+      when: jellyfin_port | int < 1024
+      notify: Restart jellyfin
+
+    - name: Set the listen port
+      ansible.builtin.lineinfile:
+        path: "{{ jellyfin_config_root }}/network.xml"
+        regexp: "^\\s*<{{ item }}>.*</{{ item }}>"
+        line: "  <{{ item }}>{{ jellyfin_port }}</{{ item }}>"
+        backrefs: false
+      loop:
+        - InternalHttpPort
+        - PublicHttpPort
+      notify: Restart jellyfin
+
+    - name: Enable and start jellyfin
+      ansible.builtin.systemd_service:
+        name: jellyfin
+        enabled: true
+        state: started
+        daemon_reload: true

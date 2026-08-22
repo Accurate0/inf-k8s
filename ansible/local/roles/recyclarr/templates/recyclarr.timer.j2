@@ -1,0 +1,9 @@
+[Unit]
+Description=Run recyclarr sync daily
+
+[Timer]
+OnCalendar={{ recyclarr_on_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

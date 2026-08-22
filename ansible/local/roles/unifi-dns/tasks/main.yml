@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Assert the UniFi API key is available
+  ansible.builtin.assert:
+    that:
+      - unifi_api_key | default('', true) | length > 0
+    fail_msg: UNIFI_API_KEY is not set. Create one under Settings > Admins > API Key.
+
+- name: Fetch existing static DNS records
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/v2/api/site/{{ unifi_site }}/static-dns"
+    method: GET
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    validate_certs: "{{ unifi_validate_certs }}"
+    return_content: true
+  register: unifi_existing
+
+- name: Index existing records by name
+  ansible.builtin.set_fact:
+    unifi_existing_by_key: "{{ unifi_existing.json | items2dict(key_name='key', value_name='_id') }}"
+    unifi_existing_values: "{{ unifi_existing.json | items2dict(key_name='key', value_name='value') }}"
+
+- name: Create missing records
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/v2/api/site/{{ unifi_site }}/static-dns"
+    method: POST
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    body_format: json
+    body:
+      record_type: "{{ item.record_type | default('A') }}"
+      key: "{{ item.key }}"
+      value: "{{ item.value }}"
+      enabled: true
+    validate_certs: "{{ unifi_validate_certs }}"
+    status_code: [200, 201]
+  loop: "{{ unifi_dns_records }}"
+  loop_control:
+    label: "{{ item.key }} -> {{ item.value }}"
+  when: item.key not in unifi_existing_by_key
+
+- name: Correct records pointing at the wrong address
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/v2/api/site/{{ unifi_site }}/static-dns/{{ unifi_existing_by_key[item.key] }}"
+    method: PUT
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    body_format: json
+    body:
+      _id: "{{ unifi_existing_by_key[item.key] }}"
+      record_type: "{{ item.record_type | default('A') }}"
+      key: "{{ item.key }}"
+      value: "{{ item.value }}"
+      enabled: true
+    validate_certs: "{{ unifi_validate_certs }}"
+    status_code: [200, 201]
+  loop: "{{ unifi_dns_records }}"
+  loop_control:
+    label: "{{ item.key }}: {{ unifi_existing_values[item.key] | default('?') }} -> {{ item.value }}"
+  when:
+    - item.key in unifi_existing_by_key
+    - unifi_existing_values[item.key] != item.value

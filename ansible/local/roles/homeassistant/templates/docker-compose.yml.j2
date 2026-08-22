@@ -2,13 +2,12 @@ name: homeassistant
 
 services:
   homeassistant:
-    image: {{ homeassistant_image }}
+    image: {{ homeassistant_image }}:{{ homeassistant_image_tag }}
     container_name: homeassistant
     restart: unless-stopped
-    privileged: true
     network_mode: host
     environment:
       TZ: "{{ homeassistant_timezone }}"
     volumes:
-      - {{ homeassistant_config_root }}/config:/config
+      - {{ homeassistant_root }}/config:/config
       - /run/dbus:/run/dbus:ro

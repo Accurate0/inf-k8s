@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Transmission
+  become: true
+  become_user: root
+  block:
+    - name: Install transmission
+      ansible.builtin.apt:
+        name: transmission-daemon
+        state: present
+        update_cache: true
+
+    - name: Create the systemd drop-in directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/transmission-daemon.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Allow transmission to bind privileged ports
+      ansible.builtin.copy:
+        content: |
+          [Service]
+          CapabilityBoundingSet=CAP_NET_BIND_SERVICE
+          AmbientCapabilities=CAP_NET_BIND_SERVICE
+        dest: /etc/systemd/system/transmission-daemon.service.d/bind-privileged-port.conf
+        mode: "0644"
+      when: transmission_rpc_port | int < 1024
+      notify: Restart transmission
+
+    - name: Create the media group
+      ansible.builtin.group:
+        name: media
+        gid: "{{ media_gid }}"
+        state: present
+
+    - name: Add transmission to the media group
+      ansible.builtin.user:
+        name: "{{ transmission_user }}"
+        groups: media
+        append: true
+      notify: Restart transmission
+
+    - name: Ensure download directories exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: "{{ media_uid }}"
+        group: "{{ media_gid }}"
+        mode: "0775"
+      loop:
+        - "{{ transmission_download_dir }}"
+        - "{{ transmission_incomplete_dir }}"
+
+    - name: Stop transmission before editing settings
+      ansible.builtin.systemd_service:
+        name: transmission-daemon
+        state: stopped
+
+    - name: Read the existing settings
+      ansible.builtin.slurp:
+        src: "{{ transmission_config_root }}/settings.json"
+      register: transmission_existing
+
+    - name: Merge our settings in
+      ansible.builtin.copy:
+        content: >-
+          {{ transmission_existing.content | b64decode | from_json
+             | combine(transmission_settings) | to_nice_json }}
+        dest: "{{ transmission_config_root }}/settings.json"
+        owner: "{{ transmission_user }}"
+        group: "{{ transmission_user }}"
+        mode: "0600"
+
+    - name: Enable and start transmission
+      ansible.builtin.systemd_service:
+        name: transmission-daemon
+        enabled: true
+        state: started
+        daemon_reload: true
+
+    - name: Check the egress address
+      ansible.builtin.uri:
+        url: https://api.ipify.org?format=json
+        return_content: true
+        timeout: 20
+      register: transmission_egress
+      changed_when: false
+      failed_when: false
+
+    - name: Report the egress address
+      ansible.builtin.debug:
+        msg: "egress: {{ transmission_egress.json.ip | default('unknown') }}"

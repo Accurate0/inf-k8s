@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: MIT-0
+---
+unifi_host: 10.0.2.1
+unifi_site: default
+unifi_validate_certs: false
+
+unifi_client_aliases:
+  - {mac: "bc:24:11:00:00:ca", name: jellyfin}
+  - {mac: "bc:24:11:00:00:cb", name: media-apps}
+  - {mac: "bc:24:11:00:00:cc", name: transmission}
+  - {mac: "bc:24:11:00:00:cd", name: home-gateway-web}
+  - {mac: "bc:24:11:00:00:ce", name: homeassistant}

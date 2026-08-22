@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: MIT-0
+---
+media_pool_mount: /data
+media_uid: 1000
+media_gid: 1000
+
+jellyfin_user: jellyfin
+
+jellyfin_port: 80
+jellyfin_config_root: /etc/jellyfin
+jellyfin_data_root: /var/lib/jellyfin
+
+jellyfin_keyring: /etc/apt/keyrings/jellyfin.gpg
+jellyfin_repo_uri: https://repo.jellyfin.org/debian
+
+jellyfin_version: "10.11.11"

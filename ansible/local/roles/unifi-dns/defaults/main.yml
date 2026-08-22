@@ -1,0 +1,32 @@
+# SPDX-License-Identifier: MIT-0
+---
+unifi_host: 10.0.2.1
+unifi_site: default
+unifi_validate_certs: false
+
+unifi_jellyfin_ip: 10.0.2.11
+unifi_arr_ip: 10.0.2.12
+unifi_transmission_ip: 10.0.2.13
+unifi_gateway_ip: 10.0.2.14
+unifi_node_ip: 10.0.2.249
+
+unifi_homeassistant_ip: 10.0.2.15
+
+unifi_dns_records:
+  - {key: jellyfin.media.internal, value: "{{ unifi_jellyfin_ip }}"}
+  - {key: media.internal, value: "{{ unifi_jellyfin_ip }}"}
+
+  - {key: sonarr.media.internal, value: "{{ unifi_arr_ip }}"}
+  - {key: radarr.media.internal, value: "{{ unifi_arr_ip }}"}
+  - {key: prowlarr.media.internal, value: "{{ unifi_arr_ip }}"}
+  - {key: bazarr.media.internal, value: "{{ unifi_arr_ip }}"}
+  - {key: flaresolverr.media.internal, value: "{{ unifi_arr_ip }}"}
+
+  - {key: transmission.media.internal, value: "{{ unifi_transmission_ip }}"}
+  - {key: flood.media.internal, value: "{{ unifi_transmission_ip }}"}
+
+  - {key: home.internal, value: "{{ unifi_gateway_ip }}"}
+  - {key: home-assistant.internal, value: "{{ unifi_homeassistant_ip }}"}
+
+  - {key: pve.internal, value: "{{ unifi_node_ip }}"}
+  - {key: nas.internal, value: "{{ unifi_node_ip }}"}

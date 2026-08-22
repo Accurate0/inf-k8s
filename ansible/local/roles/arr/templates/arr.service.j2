@@ -1,0 +1,17 @@
+[Unit]
+Description={{ item.binary }}
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ arr_user }}
+Group={{ arr_group }}
+UMask=0002
+ExecStart={{ arr_install_root }}/{{ item.binary }}/{{ item.binary }} -nobrowser -data={{ arr_config_root }}/{{ item.name }}
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

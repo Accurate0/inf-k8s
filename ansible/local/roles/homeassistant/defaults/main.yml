@@ -1,14 +1,7 @@
-homeassistant_config_root: /opt/homeassistant
-homeassistant_timezone: "{{ media_timezone }}"
-homeassistant_image: ghcr.io/home-assistant/home-assistant:2026.7
-homeassistant_port: 8123
-
-# Trusted reverse proxy sources (the local nginx). Home Assistant rejects
-# forwarded requests unless the proxy is listed here.
-homeassistant_trusted_proxies:
-  - 127.0.0.1
-  - ::1
-
-# HACS (Home Assistant Community Store) — installed as a custom component.
-homeassistant_hacs_enabled: true
-homeassistant_hacs_version: "2.0.5"
+# SPDX-License-Identifier: MIT-0
+---
+homeassistant_root: /opt/homeassistant
+homeassistant_image: ghcr.io/home-assistant/home-assistant
+homeassistant_image_tag: "2026.7"
+homeassistant_port: 80
+homeassistant_timezone: Australia/Perth

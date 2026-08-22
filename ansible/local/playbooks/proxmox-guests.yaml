@@ -1,0 +1,209 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Proxmox LXC guests
+  hosts: proxmox
+  gather_facts: false
+  connection: local
+
+  vars:
+    proxmox_node: pve
+    proxmox_api_host: "{{ hostvars['pve'].ansible_host }}"
+    proxmox_api_user: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_USER') | default('root@pam', true) }}"
+    proxmox_api_token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_TOKEN_ID') | default('ansible', true) }}"
+    proxmox_api_token_secret: "{{ lookup('ansible.builtin.env', 'PROMOX_API_KEY') }}"
+    proxmox_api_password: "{{ lookup('ansible.builtin.env', 'PROXMOX_PASSWORD') }}"
+    proxmox_validate_certs: "{{ lookup('ansible.builtin.env', 'PROXMOX_VALIDATE_CERTS') | default('false', true) | bool }}"
+
+    proxmox_lxc_storage: local-zfs
+    proxmox_lxc_template_storage: local
+    proxmox_lxc_template: debian-13-standard_13.6-1_amd64.tar.zst
+
+    proxmox_lxc_bridge: vmbr0
+    proxmox_lxc_mac_prefix: "BC:24:11:00"
+    proxmox_lxc_gateway: 10.0.2.1
+    proxmox_lxc_nameserver: 10.0.2.1
+    proxmox_lxc_searchdomain: internal
+    proxmox_lxc_timezone: Australia/Perth
+
+    proxmox_lxc_guests:
+      - name: jellyfin
+        vmid: 202
+        ip: 10.0.2.11/24
+        cores: 4
+        memory: 4096
+        disk: 16
+        unprivileged: true
+        features: [nesting=1]
+        mounts:
+          mp0: "/data/media,mp=/data,idmap=passthrough"
+
+      - name: media-apps
+        vmid: 203
+        ip: 10.0.2.12/24
+        cores: 2
+        memory: 4096
+        disk: 16
+        unprivileged: true
+        features: [nesting=1]
+        mounts:
+          mp0: "/data/media,mp=/data,idmap=passthrough"
+
+      - name: transmission
+        vmid: 204
+        ip: 10.0.2.13/24
+        cores: 2
+        memory: 2048
+        disk: 16
+        unprivileged: true
+        features: [nesting=1]
+        mounts:
+          mp0: "/data/media,mp=/data,idmap=passthrough"
+
+      - name: home-gateway-web
+        vmid: 205
+        ip: 10.0.2.14/24
+        cores: 1
+        memory: 512
+        disk: 8
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+
+      - name: homeassistant
+        vmid: 206
+        ip: 10.0.2.15/24
+        cores: 2
+        memory: 2048
+        disk: 16
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+
+  tasks:
+    - name: Assert the API token is available
+      ansible.builtin.assert:
+        that:
+          - (proxmox_api_password | length > 0) or (proxmox_api_token_secret | length > 0)
+        fail_msg: >-
+          No credentials. Export PROXMOX_PASSWORD for {{ proxmox_api_user }}
+          (required - API tokens cannot create privileged containers), or
+          PROMOX_API_KEY to use the token for unprivileged guests only.
+
+    - name: Download the container template
+      community.proxmox.proxmox_template:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        storage: "{{ proxmox_lxc_template_storage }}"
+        template: "{{ proxmox_lxc_template }}"
+        content_type: vztmpl
+        timeout: 600
+        state: present
+
+    - name: Gather existing containers
+      community.proxmox.proxmox_vm_info:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        type: lxc
+      register: proxmox_existing
+
+    - name: Index existing vmids
+      ansible.builtin.set_fact:
+        proxmox_existing_vmids: "{{ proxmox_existing.proxmox_vms | map(attribute='vmid') | map('int') | list }}"
+
+    - name: Create containers
+      community.proxmox.proxmox:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ item.vmid }}"
+        hostname: "{{ item.name }}"
+        ostemplate: "{{ proxmox_lxc_template_storage }}:vztmpl/{{ proxmox_lxc_template }}"
+        storage: "{{ proxmox_lxc_storage }}"
+        disk: "{{ item.disk }}"
+        cores: "{{ item.cores }}"
+        memory: "{{ item.memory }}"
+        swap: 512
+        cmode: tty
+        unprivileged: "{{ item.unprivileged }}"
+        features: "{{ item.features | default([]) }}"
+        mounts: "{{ item.mounts | default(omit) }}"
+        netif:
+          net0: "name=eth0,bridge={{ proxmox_lxc_bridge }},hwaddr={{ proxmox_lxc_mac_prefix }}:{{ '%02X' % (item.vmid // 256) }}:{{ '%02X' % (item.vmid % 256) }},ip={{ item.ip }},gw={{ proxmox_lxc_gateway }},firewall=0"
+        nameserver: "{{ proxmox_lxc_nameserver }}"
+        searchdomain: "{{ proxmox_lxc_searchdomain }}"
+        timezone: "{{ proxmox_lxc_timezone }}"
+        pubkey: "{{ lookup('ansible.builtin.file', playbook_dir + '/../roles/base/files/instance_key.pub') }}"
+        onboot: true
+        tags: [migrated]
+        update: false
+        timeout: 300
+        state: present
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+
+    - name: Update existing containers
+      community.proxmox.proxmox:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ item.vmid }}"
+        hostname: "{{ item.name }}"
+        cores: "{{ item.cores }}"
+        memory: "{{ item.memory }}"
+        swap: 512
+        cmode: tty
+        features: "{{ item.features | default([]) }}"
+        mounts: "{{ item.mounts | default(omit) }}"
+        netif:
+          net0: "name=eth0,bridge={{ proxmox_lxc_bridge }},hwaddr={{ proxmox_lxc_mac_prefix }}:{{ '%02X' % (item.vmid // 256) }}:{{ '%02X' % (item.vmid % 256) }},ip={{ item.ip }},gw={{ proxmox_lxc_gateway }},firewall=0"
+        nameserver: "{{ proxmox_lxc_nameserver }}"
+        searchdomain: "{{ proxmox_lxc_searchdomain }}"
+        timezone: "{{ proxmox_lxc_timezone }}"
+        onboot: true
+        tags: [migrated]
+        update: true
+        timeout: 300
+        state: present
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+      when: item.vmid in proxmox_existing_vmids
+
+    - name: Start containers
+      community.proxmox.proxmox:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ item.vmid }}"
+        hostname: "{{ item.name }}"
+        state: started
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ proxmox_lxc_guests | map(attribute='name') | join(', ') }}
+          created and started on {{ proxmox_node }}.

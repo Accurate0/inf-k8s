@@ -5,24 +5,39 @@ default:
 dir := source_directory()
 
 # NFS server + export to mount, and where to mount it locally.
-server     := env_var_or_default("MEDIA_NFS_SERVER", "media.internal")
+server     := env_var_or_default("MEDIA_NFS_SERVER", "nas.internal")
 export     := env_var_or_default("MEDIA_NFS_EXPORT", "/data/media")
-mountpoint := env_var_or_default("MEDIA_NFS_MOUNTPOINT", "/media/nfs/media")
+mountpoint := env_var_or_default("MEDIA_NFS_MOUNTPOINT", "/media/nfs/nas")
+
+# Mountpoints from earlier revisions, removed by `install` so a rename does not
+# leave a second automount pointing at the old server.
+legacy_mountpoints := "/media/nfs/media"
 
 # Install & enable the media NFS share as an on-demand systemd automount
 install:
     #!/usr/bin/env bash
     set -euo pipefail
     command -v mount.nfs4 >/dev/null 2>&1 || { echo "nfs-utils not installed (Arch: sudo pacman -S nfs-utils)"; exit 1; }
+    for old in {{legacy_mountpoints}}; do
+        [ "$old" = "{{mountpoint}}" ] && continue
+        oldunit="$(systemd-escape -p --suffix=mount "$old")"
+        oldauto="$(systemd-escape -p --suffix=automount "$old")"
+        if [ -e "/etc/systemd/system/$oldunit" ] || [ -e "/etc/systemd/system/$oldauto" ]; then
+            echo "Removing legacy mount at $old"
+            sudo systemctl disable --now "$oldauto" "$oldunit" 2>/dev/null || true
+            sudo rm -f "/etc/systemd/system/$oldunit" "/etc/systemd/system/$oldauto"
+            sudo rmdir "$old" 2>/dev/null || true
+        fi
+    done
     unit="$(systemd-escape -p --suffix=mount "{{mountpoint}}")"
     auto="$(systemd-escape -p --suffix=automount "{{mountpoint}}")"
     tmp="$(mktemp -d)"
     trap 'rm -rf "$tmp"' EXIT
     sed -e 's#@SERVER@#{{server}}#g' -e 's#@EXPORT@#{{export}}#g' \
         -e 's#@MOUNTPOINT@#{{mountpoint}}#g' -e 's#@REPO@#{{justfile_directory()}}#g' \
-        "{{dir}}/media.mount.tmpl" > "$tmp/$unit"
+        "{{dir}}/nas.mount.tmpl" > "$tmp/$unit"
     sed -e 's#@MOUNTPOINT@#{{mountpoint}}#g' \
-        "{{dir}}/media.automount.tmpl" > "$tmp/$auto"
+        "{{dir}}/nas.automount.tmpl" > "$tmp/$auto"
     sudo mkdir -p "{{mountpoint}}"
     sudo install -m0644 "$tmp/$unit" "/etc/systemd/system/$unit"
     sudo install -m0644 "$tmp/$auto" "/etc/systemd/system/$auto"
