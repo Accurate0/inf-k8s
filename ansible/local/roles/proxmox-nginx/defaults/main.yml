@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_nginx_domain: pve.internal
+proxmox_nginx_upstream_port: 8006
+proxmox_nginx_bind_pveproxy_localhost: false
+
+proxmox_nginx_ssl_certificate: /etc/pve/local/pve-ssl.pem
+proxmox_nginx_ssl_certificate_key: /etc/pve/local/pve-ssl.key

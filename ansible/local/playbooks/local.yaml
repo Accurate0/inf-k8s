@@ -5,6 +5,17 @@
 
 - ansible.builtin.import_playbook: unifi-dns.yaml
 
+- name: Proxmox host
+  hosts: proxmox
+  gather_facts: true
+
+  vars:
+    proxmox_oidc_client_secret: "{{ lookup('ansible.builtin.env', 'PVE_OIDC_CLIENT_SECRET') }}"
+
+  roles:
+    - proxmox-nginx
+    - proxmox-oidc
+
 - name: Wait for guests to accept SSH
   hosts: media_servers:gateway:home_automation
   gather_facts: false

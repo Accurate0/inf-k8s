@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_oidc_realm: kanidm
+proxmox_oidc_issuer_url: https://idm.anurag.sh/oauth2/openid/pve
+proxmox_oidc_client_id: pve
+proxmox_oidc_username_claim: username
+proxmox_oidc_scopes: openid email profile
+proxmox_oidc_groups_claim: pve_groups
+
+proxmox_oidc_admin_groups:
+  - admins

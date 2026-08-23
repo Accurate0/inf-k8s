@@ -1,0 +1,65 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Proxmox OpenID realm
+  become: true
+  become_user: root
+  block:
+    - name: Assert the OIDC client secret is available
+      ansible.builtin.assert:
+        that:
+          - proxmox_oidc_client_secret | default('', true) | length > 0
+        fail_msg: >-
+          PVE_OIDC_CLIENT_SECRET is not set. Read it with:
+          kubectl -n kanidm get secret kanidm-pve-oidc -o jsonpath='{.data.clientSecret}' | base64 -d
+
+    - name: List the configured realms
+      ansible.builtin.command: pveum realm list --output-format json
+      changed_when: false
+      register: proxmox_oidc_realms
+
+    - name: Create the realm
+      ansible.builtin.command:
+        argv: >-
+          {{ ['pveum', 'realm', 'add', proxmox_oidc_realm, '--type', 'openid']
+             + proxmox_oidc_realm_flags }}
+      no_log: true
+      when: proxmox_oidc_realm not in (proxmox_oidc_realms.stdout | from_json | map(attribute='realm') | list)
+      register: proxmox_oidc_created
+
+    - name: Update the realm
+      ansible.builtin.command:
+        argv: >-
+          {{ ['pveum', 'realm', 'modify', proxmox_oidc_realm]
+             + proxmox_oidc_realm_flags }}
+      no_log: true
+      changed_when: false
+      when: proxmox_oidc_created is skipped
+
+    - name: List the configured groups
+      ansible.builtin.command: pveum group list --output-format json
+      changed_when: false
+      register: proxmox_oidc_groups
+
+    - name: Create the admin groups
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - group
+          - add
+          - "{{ item }}"
+      loop: "{{ proxmox_oidc_admin_groups }}"
+      when: item not in (proxmox_oidc_groups.stdout | from_json | map(attribute='groupid') | list)
+
+    - name: Grant the admin groups the Administrator role
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - acl
+          - modify
+          - /
+          - --groups
+          - "{{ item }}"
+          - --roles
+          - Administrator
+      loop: "{{ proxmox_oidc_admin_groups }}"
+      changed_when: false

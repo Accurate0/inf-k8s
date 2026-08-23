@@ -1,0 +1,55 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Proxmox web interface via nginx
+  become: true
+  become_user: root
+  block:
+    - name: Install nginx
+      ansible.builtin.apt:
+        name: nginx
+        state: present
+        update_cache: true
+
+    - name: Remove the Debian default site
+      ansible.builtin.file:
+        path: /etc/nginx/sites-enabled/default
+        state: absent
+      notify: Reload nginx
+
+    - name: Check the TLS certificate is present
+      ansible.builtin.stat:
+        path: "{{ proxmox_nginx_ssl_certificate }}"
+      register: proxmox_nginx_cert
+
+    - name: Assert the TLS certificate is present
+      ansible.builtin.assert:
+        that:
+          - proxmox_nginx_cert.stat.exists
+        fail_msg: "{{ proxmox_nginx_ssl_certificate }} is missing. Set proxmox_nginx_ssl_certificate to a certificate nginx can read."
+
+    - name: Template the reverse proxy site
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/conf.d/proxmox.conf
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Validate nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Enable and start nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        enabled: true
+        state: started
+
+    - name: Bind pveproxy to localhost only
+      ansible.builtin.lineinfile:
+        path: /etc/default/pveproxy
+        regexp: ^LISTEN_IP=
+        line: LISTEN_IP="127.0.0.1"
+        create: true
+        mode: "0644"
+      when: proxmox_nginx_bind_pveproxy_localhost
+      notify: Restart pveproxy

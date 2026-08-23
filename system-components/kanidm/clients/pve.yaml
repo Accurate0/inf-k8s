@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: pve
+  namespace: kanidm
+spec:
+  name: pve
+  displayName: Proxmox VE
+  origin: https://pve.internal/
+  redirectUrls:
+    - https://pve.internal/
+    - https://pve.internal:8006/
+  preferShortUsername: true
+  allowInsecureClientDisablePkce: true
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+  claimMaps:
+    pve_groups:
+      join: array
+      valuesByGroup:
+        platform_admins:
+          - admins
+  secretName: kanidm-pve-oidc
+  secretNamespace: kanidm
