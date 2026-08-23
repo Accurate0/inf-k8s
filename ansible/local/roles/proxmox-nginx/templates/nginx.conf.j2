@@ -1,18 +1,19 @@
-upstream proxmox {
-    server 127.0.0.1:{{ proxmox_nginx_upstream_port }};
+{% for site in proxmox_nginx_sites %}
+upstream {{ site.name }} {
+    server {{ site.upstream }};
 }
 
 server {
-    listen 80 default_server;
-    server_name {{ proxmox_nginx_domain }};
+    listen 80{% if site.default | default(false) %} default_server{% endif %};
+    server_name {{ site.domain }};
 
     return 301 https://$host$request_uri;
 }
 
 server {
-    listen 443 ssl default_server;
+    listen 443 ssl{% if site.default | default(false) %} default_server{% endif %};
     http2 on;
-    server_name {{ proxmox_nginx_domain }};
+    server_name {{ site.domain }};
 
     ssl_certificate {{ proxmox_nginx_ssl_certificate }};
     ssl_certificate_key {{ proxmox_nginx_ssl_certificate_key }};
@@ -20,7 +21,7 @@ server {
     proxy_redirect off;
 
     location / {
-        proxy_pass https://proxmox;
+        proxy_pass https://{{ site.name }};
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -38,3 +39,7 @@ server {
         send_timeout 3600s;
     }
 }
+{% if not loop.last %}
+
+{% endif %}
+{% endfor %}

@@ -1,0 +1,102 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: API access for Proxmox VE
+  become: true
+  become_user: root
+  block:
+    - name: List the configured users
+      ansible.builtin.command: proxmox-backup-manager user list --output-format json
+      changed_when: false
+      register: pbs_users
+
+    - name: Create the Proxmox VE user
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - user
+          - create
+          - "{{ pbs_pve_user }}"
+      when: pbs_pve_user not in (pbs_users.stdout | from_json | map(attribute='userid') | list)
+
+    - name: List the issued tokens
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - user
+          - list-tokens
+          - "{{ pbs_pve_user }}"
+          - --output-format
+          - json
+      changed_when: false
+      register: pbs_tokens
+
+    - name: Check for a stored token secret
+      ansible.builtin.stat:
+        path: "{{ pbs_pve_token_file }}"
+      register: pbs_token_secret_file
+
+    - name: Drop a token whose secret was lost
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - user
+          - delete-token
+          - "{{ pbs_pve_user }}"
+          - "{{ pbs_pve_token_name }}"
+      when:
+        - not pbs_token_secret_file.stat.exists
+        - pbs_pve_user + '!' + pbs_pve_token_name in (pbs_tokens.stdout | from_json | map(attribute='tokenid') | list)
+
+    - name: Generate the token
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - user
+          - generate-token
+          - "{{ pbs_pve_user }}"
+          - "{{ pbs_pve_token_name }}"
+      no_log: "{{ pbs_no_log }}"
+      when: not pbs_token_secret_file.stat.exists
+      register: pbs_generated_token
+
+    - name: Store the token secret
+      ansible.builtin.copy:
+        dest: "{{ pbs_pve_token_file }}"
+        content: "{{ (pbs_generated_token.stdout | regex_replace('^Result:\\s*', '') | from_json).value }}"
+        mode: "0600"
+      no_log: "{{ pbs_no_log }}"
+      when: not pbs_token_secret_file.stat.exists
+
+    - name: Read the token secret
+      ansible.builtin.slurp:
+        src: "{{ pbs_pve_token_file }}"
+      no_log: "{{ pbs_no_log }}"
+      register: pbs_stored_token
+
+    - name: Grant the user and the token backup access to both datastores
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - acl
+          - update
+          - "/datastore/{{ item.0 }}"
+          - DatastoreBackup
+          - --auth-id
+          - "{{ item.1 }}"
+      loop: >-
+        {{ [pbs_local_datastore, pbs_b2_datastore]
+           | product([pbs_pve_user, pbs_pve_user ~ '!' ~ pbs_pve_token_name]) | list }}
+      loop_control:
+        label: "{{ item.1 }} -> /datastore/{{ item.0 }}"
+      changed_when: false
+
+    - name: Read the TLS fingerprint
+      ansible.builtin.command: proxmox-backup-manager cert info
+      changed_when: false
+      register: pbs_cert
+
+    - name: Publish the connection details
+      ansible.builtin.set_fact:
+        pbs_pve_token_secret: "{{ pbs_stored_token.content | b64decode | trim }}"
+        pbs_fingerprint: "{{ pbs_cert.stdout | regex_search('Fingerprint \\(sha256\\):\\s*([0-9a-f:]+)', '\\1') | first }}"
+      no_log: "{{ pbs_no_log }}"

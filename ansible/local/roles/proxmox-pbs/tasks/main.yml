@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Proxmox Backup Server storage and jobs
+  become: true
+  become_user: root
+  block:
+    - name: Assert the PBS connection details are available
+      ansible.builtin.assert:
+        that:
+          - proxmox_pbs_token_secret | default('', true) | length > 0
+          - proxmox_pbs_fingerprint | default('', true) | length > 0
+        fail_msg: >-
+          No PBS credentials. Run the pbs play first so it can issue the
+          {{ proxmox_pbs_username }} token.
+
+    - name: List the configured storages
+      ansible.builtin.command: pvesh get /storage --output-format json
+      changed_when: false
+      register: proxmox_pbs_storages
+
+    - name: Add the PBS storage
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - add
+          - pbs
+          - "{{ proxmox_pbs_storage }}"
+          - --server
+          - "{{ proxmox_pbs_server }}"
+          - --datastore
+          - "{{ proxmox_pbs_datastore }}"
+          - --username
+          - "{{ proxmox_pbs_username }}"
+          - --password
+          - "{{ proxmox_pbs_token_secret }}"
+          - --fingerprint
+          - "{{ proxmox_pbs_fingerprint }}"
+          - --content
+          - backup
+      no_log: "{{ proxmox_pbs_no_log }}"
+      when: proxmox_pbs_storage not in (proxmox_pbs_storages.stdout | from_json | map(attribute='storage') | list)
+
+    - name: Update the PBS storage
+      ansible.builtin.command:
+        argv:
+          - pvesm
+          - set
+          - "{{ proxmox_pbs_storage }}"
+          - --password
+          - "{{ proxmox_pbs_token_secret }}"
+          - --fingerprint
+          - "{{ proxmox_pbs_fingerprint }}"
+      no_log: "{{ proxmox_pbs_no_log }}"
+      changed_when: false
+      when: proxmox_pbs_storage in (proxmox_pbs_storages.stdout | from_json | map(attribute='storage') | list)
+
+    - name: List the configured backup jobs
+      ansible.builtin.command: pvesh get /cluster/backup --output-format json
+      changed_when: false
+      register: proxmox_pbs_jobs
+
+    - name: Create the nightly backup job
+      ansible.builtin.command:
+        argv: >-
+          {{ ['pvesh', 'create', '/cluster/backup',
+              '--id', proxmox_pbs_job_id,
+              '--storage', proxmox_pbs_storage,
+              '--schedule', proxmox_pbs_job_schedule,
+              '--mode', proxmox_pbs_job_mode,
+              '--notes-template', proxmox_pbs_job_notes,
+              '--all', '1',
+              '--enabled', '1',
+              '--exclude', proxmox_pbs_exclude_vmids | join(',')]
+             + proxmox_pbs_exclude_paths | map('regex_replace', '^', '--exclude-path=') | list }}
+      when: proxmox_pbs_job_id not in (proxmox_pbs_jobs.stdout | from_json | map(attribute='id') | list)
+
+    - name: Update the nightly backup job
+      ansible.builtin.command:
+        argv: >-
+          {{ ['pvesh', 'set', '/cluster/backup/' + proxmox_pbs_job_id,
+              '--storage', proxmox_pbs_storage,
+              '--schedule', proxmox_pbs_job_schedule,
+              '--mode', proxmox_pbs_job_mode,
+              '--notes-template', proxmox_pbs_job_notes,
+              '--all', '1',
+              '--enabled', '1',
+              '--exclude', proxmox_pbs_exclude_vmids | join(',')]
+             + proxmox_pbs_exclude_paths | map('regex_replace', '^', '--exclude-path=') | list }}
+      changed_when: false
+      when: proxmox_pbs_job_id in (proxmox_pbs_jobs.stdout | from_json | map(attribute='id') | list)

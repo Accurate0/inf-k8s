@@ -4,5 +4,18 @@ proxmox_nginx_domain: pve.internal
 proxmox_nginx_upstream_port: 8006
 proxmox_nginx_bind_pveproxy_localhost: false
 
+proxmox_nginx_pbs_domain: pbs.internal
+proxmox_nginx_pbs_upstream: 10.0.2.16:8007
+
+proxmox_nginx_sites:
+  - name: proxmox
+    domain: "{{ proxmox_nginx_domain }}"
+    upstream: "127.0.0.1:{{ proxmox_nginx_upstream_port }}"
+    default: true
+
+  - name: pbs
+    domain: "{{ proxmox_nginx_pbs_domain }}"
+    upstream: "{{ proxmox_nginx_pbs_upstream }}"
+
 proxmox_nginx_ssl_certificate: /etc/pve/local/pve-ssl.pem
 proxmox_nginx_ssl_certificate_key: /etc/pve/local/pve-ssl.key

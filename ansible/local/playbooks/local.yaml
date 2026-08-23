@@ -17,7 +17,7 @@
     - proxmox-oidc
 
 - name: Wait for guests to accept SSH
-  hosts: media_servers:gateway:home_automation
+  hosts: media_servers:gateway:home_automation:backup
   gather_facts: false
 
   tasks:
@@ -28,7 +28,7 @@
         timeout: 300
 
 - name: Base configuration
-  hosts: media_servers:gateway:home_automation
+  hosts: media_servers:gateway:home_automation:backup
   gather_facts: true
 
   roles:
@@ -73,3 +73,28 @@
   roles:
     - docker
     - homeassistant
+
+- name: Proxmox Backup Server
+  hosts: backup
+  gather_facts: true
+
+  vars:
+    pbs_b2_bucket: "{{ lookup('ansible.builtin.env', 'B2_BUCKET') }}"
+    pbs_b2_access_key: "{{ lookup('ansible.builtin.env', 'B2_APPLICATION_KEY_ID') }}"
+    pbs_b2_secret_key: "{{ lookup('ansible.builtin.env', 'B2_APPLICATION_KEY') }}"
+    pbs_oidc_client_secret: "{{ lookup('ansible.builtin.env', 'PBS_OIDC_CLIENT_SECRET') }}"
+
+  roles:
+    - pbs
+
+- name: Proxmox backup jobs
+  hosts: proxmox
+  gather_facts: false
+
+  vars:
+    proxmox_pbs_server: "{{ hostvars['pbs'].ansible_host }}"
+    proxmox_pbs_token_secret: "{{ hostvars['pbs'].pbs_pve_token_secret }}"
+    proxmox_pbs_fingerprint: "{{ hostvars['pbs'].pbs_fingerprint }}"
+
+  roles:
+    - proxmox-pbs

@@ -1,0 +1,113 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Datastores
+  become: true
+  become_user: root
+  block:
+    - name: Assert the Backblaze credentials are available
+      ansible.builtin.assert:
+        that:
+          - pbs_b2_bucket | default('', true) | length > 0
+          - pbs_b2_access_key | default('', true) | length > 0
+          - pbs_b2_secret_key | default('', true) | length > 0
+        fail_msg: >-
+          Set B2_BUCKET, B2_APPLICATION_KEY_ID and B2_APPLICATION_KEY. Create an
+          application key scoped to the bucket in the Backblaze console.
+
+    - name: Create the datastore directories
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        owner: backup
+        group: backup
+        mode: "0755"
+      loop:
+        - "{{ pbs_local_path }}"
+        - "{{ pbs_b2_cache_path }}"
+
+    - name: List the configured S3 endpoints
+      ansible.builtin.command: proxmox-backup-manager s3 endpoint list --output-format json
+      changed_when: false
+      register: pbs_endpoints
+
+    - name: Create the Backblaze endpoint
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - s3
+          - endpoint
+          - create
+          - "{{ pbs_b2_endpoint_id }}"
+          - --endpoint
+          - "{{ pbs_b2_endpoint }}"
+          - --region
+          - "{{ pbs_b2_region }}"
+          - --access-key
+          - "{{ pbs_b2_access_key }}"
+          - --secret-key
+          - "{{ pbs_b2_secret_key }}"
+          - --path-style
+          - "{{ pbs_b2_path_style | string | lower }}"
+          - --provider-quirks
+          - "{{ pbs_b2_provider_quirks }}"
+      no_log: "{{ pbs_no_log }}"
+      when: pbs_b2_endpoint_id not in (pbs_endpoints.stdout | from_json | map(attribute='id') | list)
+
+    - name: Update the Backblaze endpoint
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - s3
+          - endpoint
+          - update
+          - "{{ pbs_b2_endpoint_id }}"
+          - --endpoint
+          - "{{ pbs_b2_endpoint }}"
+          - --region
+          - "{{ pbs_b2_region }}"
+          - --access-key
+          - "{{ pbs_b2_access_key }}"
+          - --secret-key
+          - "{{ pbs_b2_secret_key }}"
+          - --path-style
+          - "{{ pbs_b2_path_style | string | lower }}"
+          - --provider-quirks
+          - "{{ pbs_b2_provider_quirks }}"
+      no_log: "{{ pbs_no_log }}"
+      changed_when: false
+      when: pbs_b2_endpoint_id in (pbs_endpoints.stdout | from_json | map(attribute='id') | list)
+
+    - name: List the configured datastores
+      ansible.builtin.command: proxmox-backup-manager datastore list --output-format json
+      changed_when: false
+      register: pbs_datastores
+
+    - name: Index the configured datastores
+      ansible.builtin.set_fact:
+        pbs_existing_datastores: "{{ pbs_datastores.stdout | from_json | map(attribute='name') | list }}"
+
+    - name: Create the local datastore
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - datastore
+          - create
+          - "{{ pbs_local_datastore }}"
+          - "{{ pbs_local_path }}"
+          - --gc-schedule
+          - "{{ pbs_gc_schedule }}"
+      when: pbs_local_datastore not in pbs_existing_datastores
+
+    - name: Create the Backblaze datastore
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - datastore
+          - create
+          - "{{ pbs_b2_datastore }}"
+          - "{{ pbs_b2_cache_path }}"
+          - --backend
+          - "type=s3,client={{ pbs_b2_endpoint_id }},bucket={{ pbs_b2_bucket }}"
+          - --gc-schedule
+          - "{{ pbs_gc_schedule }}"
+      when: pbs_b2_datastore not in pbs_existing_datastores

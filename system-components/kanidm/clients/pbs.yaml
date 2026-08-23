@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/kanidmoauth2client_v1.json
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: pbs
+  namespace: kanidm
+spec:
+  name: pbs
+  displayName: Proxmox Backup Server
+  origin: https://pbs.internal/
+  redirectUrls:
+    - https://pbs.internal/
+    - https://pbs.internal:8007/
+  preferShortUsername: true
+  allowInsecureClientDisablePkce: true
+  scopeMaps:
+    platform_admins:
+      - openid
+      - email
+      - profile
+  secretName: kanidm-pbs-oidc
+  secretNamespace: kanidm

@@ -28,5 +28,7 @@ unifi_dns_records:
   - {key: home.internal, value: "{{ unifi_gateway_ip }}"}
   - {key: home-assistant.internal, value: "{{ unifi_homeassistant_ip }}"}
 
+  - {key: pbs.internal, value: "{{ unifi_node_ip }}"}
+
   - {key: pve.internal, value: "{{ unifi_node_ip }}"}
   - {key: nas.internal, value: "{{ unifi_node_ip }}"}

@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT-0
+---
+pbs_oidc_realm_flags:
+  - --issuer-url
+  - "{{ pbs_oidc_issuer_url }}"
+  - --client-id
+  - "{{ pbs_oidc_client_id }}"
+  - --client-key
+  - "{{ pbs_oidc_client_secret }}"
+  - --scopes
+  - "{{ pbs_oidc_scopes }}"
+  - --autocreate
+  - "true"
+
+pbs_oidc_realm_create_flags:
+  - --username-claim
+  - "{{ pbs_oidc_username_claim }}"

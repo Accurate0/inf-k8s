@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Proxmox Backup Server packages
+  become: true
+  become_user: root
+  block:
+    - name: Install the Proxmox archive keyring
+      ansible.builtin.get_url:
+        url: "https://enterprise.proxmox.com/debian/proxmox-archive-keyring-{{ pbs_release }}.gpg"
+        dest: /usr/share/keyrings/proxmox-archive-keyring.gpg
+        checksum: "{{ pbs_keyring_checksum }}"
+        mode: "0644"
+
+    - name: Add the no-subscription repository
+      ansible.builtin.copy:
+        dest: /etc/apt/sources.list.d/pbs-no-subscription.sources
+        mode: "0644"
+        content: |
+          Types: deb
+          URIs: http://download.proxmox.com/debian/pbs
+          Suites: {{ pbs_release }}
+          Components: pbs-no-subscription
+          Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg
+
+    - name: Remove the enterprise repository
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ pbs_enterprise_sources }}"
+
+    - name: Install proxmox-backup-server
+      ansible.builtin.apt:
+        name: proxmox-backup-server
+        state: present
+        update_cache: true
+
+    - name: Remove the enterprise repository the package reinstates
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ pbs_enterprise_sources }}"
+
+    - name: Enable and start the services
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop:
+        - proxmox-backup
+        - proxmox-backup-proxy

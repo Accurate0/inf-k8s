@@ -8,4 +8,4 @@ proxmox_oidc_scopes: openid email profile
 proxmox_oidc_groups_claim: pve_groups
 
 proxmox_oidc_admin_groups:
-  - admins
+  - "admins-{{ proxmox_oidc_realm }}"

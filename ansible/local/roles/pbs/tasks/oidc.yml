@@ -1,0 +1,64 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: OpenID realm
+  become: true
+  become_user: root
+  block:
+    - name: Assert the OIDC client secret is available
+      ansible.builtin.assert:
+        that:
+          - pbs_oidc_client_secret | default('', true) | length > 0
+        fail_msg: >-
+          PBS_OIDC_CLIENT_SECRET is not set. Read it with:
+          kubectl -n kanidm get secret kanidm-pbs-oidc -o jsonpath='{.data.clientSecret}' | base64 -d
+
+    - name: List the configured realms
+      ansible.builtin.command: proxmox-backup-manager openid list --output-format json
+      changed_when: false
+      register: pbs_oidc_realms
+
+    - name: Create the realm
+      ansible.builtin.command:
+        argv: >-
+          {{ ['proxmox-backup-manager', 'openid', 'create', pbs_oidc_realm]
+             + pbs_oidc_realm_flags + pbs_oidc_realm_create_flags }}
+      no_log: "{{ pbs_no_log }}"
+      when: pbs_oidc_realm not in (pbs_oidc_realms.stdout | from_json | map(attribute='realm') | list)
+      register: pbs_oidc_created
+
+    - name: Update the realm
+      ansible.builtin.command:
+        argv: >-
+          {{ ['proxmox-backup-manager', 'openid', 'update', pbs_oidc_realm]
+             + pbs_oidc_realm_flags }}
+      no_log: "{{ pbs_no_log }}"
+      changed_when: false
+      when: pbs_oidc_created is skipped
+
+    - name: List the configured users
+      ansible.builtin.command: proxmox-backup-manager user list --output-format json
+      changed_when: false
+      register: pbs_oidc_users
+
+    - name: Create the admin users
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - user
+          - create
+          - "{{ item }}@{{ pbs_oidc_realm }}"
+      loop: "{{ pbs_oidc_admin_users }}"
+      when: item ~ '@' ~ pbs_oidc_realm not in (pbs_oidc_users.stdout | from_json | map(attribute='userid') | list)
+
+    - name: Grant the admin users the Admin role
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - acl
+          - update
+          - /
+          - Admin
+          - --auth-id
+          - "{{ item }}@{{ pbs_oidc_realm }}"
+      loop: "{{ pbs_oidc_admin_users }}"
+      changed_when: false

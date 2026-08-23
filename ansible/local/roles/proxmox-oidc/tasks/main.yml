@@ -21,7 +21,7 @@
       ansible.builtin.command:
         argv: >-
           {{ ['pveum', 'realm', 'add', proxmox_oidc_realm, '--type', 'openid']
-             + proxmox_oidc_realm_flags }}
+             + proxmox_oidc_realm_flags + proxmox_oidc_realm_create_flags }}
       no_log: true
       when: proxmox_oidc_realm not in (proxmox_oidc_realms.stdout | from_json | map(attribute='realm') | list)
       register: proxmox_oidc_created

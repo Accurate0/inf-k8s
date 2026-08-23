@@ -7,8 +7,6 @@ proxmox_oidc_realm_flags:
   - "{{ proxmox_oidc_client_id }}"
   - --client-key
   - "{{ proxmox_oidc_client_secret }}"
-  - --username-claim
-  - "{{ proxmox_oidc_username_claim }}"
   - --scopes
   - "{{ proxmox_oidc_scopes }}"
   - --groups-claim
@@ -19,3 +17,7 @@ proxmox_oidc_realm_flags:
   - "1"
   - --autocreate
   - "1"
+
+proxmox_oidc_realm_create_flags:
+  - --username-claim
+  - "{{ proxmox_oidc_username_claim }}"

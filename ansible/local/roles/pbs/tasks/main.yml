@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT-0
+---
+- ansible.builtin.import_tasks: install.yml
+
+- ansible.builtin.import_tasks: datastores.yml
+
+- ansible.builtin.import_tasks: jobs.yml
+
+- ansible.builtin.import_tasks: access.yml
+
+- ansible.builtin.import_tasks: oidc.yml

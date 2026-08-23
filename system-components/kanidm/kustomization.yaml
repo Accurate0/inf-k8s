@@ -6,6 +6,7 @@ resources:
   - certificate.yaml
   - httproute.yaml
   - backendtlspolicy.yaml
+  - clients/pbs.yaml
   - clients/pve.yaml
   - groups/argocd-users.yaml
   - groups/dawarich-users.yaml

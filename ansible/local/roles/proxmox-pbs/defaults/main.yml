@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_pbs_no_log: true
+
+proxmox_pbs_storage: pbs
+proxmox_pbs_server: 10.0.2.16
+proxmox_pbs_datastore: local
+proxmox_pbs_username: pve@pbs!pve
+
+proxmox_pbs_job_id: nightly
+proxmox_pbs_job_schedule: "00:30"
+proxmox_pbs_job_mode: snapshot
+proxmox_pbs_job_notes: "{{ '{{guestname}}' }}"
+
+proxmox_pbs_exclude_vmids: [207]
+proxmox_pbs_exclude_paths:
+  - /data

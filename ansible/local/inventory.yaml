@@ -4,6 +4,7 @@ all:
     media_servers: {}
     gateway: {}
     home_automation: {}
+    backup: {}
 
 proxmox:
   hosts:
@@ -30,3 +31,8 @@ home_automation:
   hosts:
     homeassistant:
       ansible_host: 10.0.2.15
+
+backup:
+  hosts:
+    pbs:
+      ansible_host: 10.0.2.16

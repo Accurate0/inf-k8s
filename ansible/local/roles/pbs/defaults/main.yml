@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: MIT-0
+---
+pbs_no_log: true
+
+pbs_release: trixie
+pbs_enterprise_sources:
+  - /etc/apt/sources.list.d/pbs-enterprise.sources
+  - /etc/apt/sources.list.d/pbs-enterprise.list
+pbs_keyring_checksum: sha256:136673be77aba35dcce385b28737689ad64fd785a797e57897589aed08db6e45
+pbs_root: /pbs
+
+pbs_local_datastore: local
+pbs_local_path: "{{ pbs_root }}/{{ pbs_local_datastore }}"
+
+pbs_b2_datastore: backblaze
+pbs_b2_cache_path: "{{ pbs_root }}/{{ pbs_b2_datastore }}-cache"
+pbs_b2_endpoint_id: backblaze
+pbs_b2_region: us-west-004
+pbs_b2_endpoint: "s3.{{ pbs_b2_region }}.backblazeb2.com"
+pbs_b2_path_style: true
+pbs_b2_provider_quirks: skip-if-none-match-header
+
+pbs_oidc_realm: kanidm
+pbs_oidc_issuer_url: https://idm.anurag.sh/oauth2/openid/pbs
+pbs_oidc_client_id: pbs
+pbs_oidc_username_claim: username
+pbs_oidc_scopes: openid email profile
+
+pbs_oidc_admin_users:
+  - anurag
+
+pbs_pve_user: pve@pbs
+pbs_pve_token_name: pve
+pbs_pve_token_file: /etc/proxmox-backup/.pve-token
+
+pbs_keep_daily: 7
+pbs_keep_weekly: 4
+pbs_keep_monthly: 6
+
+pbs_gc_schedule: "sat 02:00"
+pbs_prune_schedule: "01:00"
+pbs_verify_schedule: "sun 03:00"
+pbs_sync_schedule: "04:00"

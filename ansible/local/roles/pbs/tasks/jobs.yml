@@ -1,0 +1,74 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Prune, verify and sync jobs
+  become: true
+  become_user: root
+  block:
+    - name: List the prune jobs
+      ansible.builtin.command: proxmox-backup-manager prune-job list --output-format json
+      changed_when: false
+      register: pbs_prune_jobs
+
+    - name: Create the prune jobs
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - prune-job
+          - create
+          - "prune-{{ item }}"
+          - --store
+          - "{{ item }}"
+          - --schedule
+          - "{{ pbs_prune_schedule }}"
+          - --keep-daily
+          - "{{ pbs_keep_daily }}"
+          - --keep-weekly
+          - "{{ pbs_keep_weekly }}"
+          - --keep-monthly
+          - "{{ pbs_keep_monthly }}"
+      loop:
+        - "{{ pbs_local_datastore }}"
+        - "{{ pbs_b2_datastore }}"
+      when: "'prune-' + item not in (pbs_prune_jobs.stdout | from_json | map(attribute='id') | list)"
+
+    - name: List the verify jobs
+      ansible.builtin.command: proxmox-backup-manager verify-job list --output-format json
+      changed_when: false
+      register: pbs_verify_jobs
+
+    - name: Create the local verify job
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - verify-job
+          - create
+          - "verify-{{ pbs_local_datastore }}"
+          - --store
+          - "{{ pbs_local_datastore }}"
+          - --schedule
+          - "{{ pbs_verify_schedule }}"
+          - --ignore-verified
+          - "true"
+      when: "'verify-' + pbs_local_datastore not in (pbs_verify_jobs.stdout | from_json | map(attribute='id') | list)"
+
+    - name: List the sync jobs
+      ansible.builtin.command: proxmox-backup-manager sync-job list --output-format json
+      changed_when: false
+      register: pbs_sync_jobs
+
+    - name: Create the offsite sync job
+      ansible.builtin.command:
+        argv:
+          - proxmox-backup-manager
+          - sync-job
+          - create
+          - offsite
+          - --store
+          - "{{ pbs_b2_datastore }}"
+          - --remote-store
+          - "{{ pbs_local_datastore }}"
+          - --schedule
+          - "{{ pbs_sync_schedule }}"
+          - --remove-vanished
+          - "true"
+      when: "'offsite' not in (pbs_sync_jobs.stdout | from_json | map(attribute='id') | list)"

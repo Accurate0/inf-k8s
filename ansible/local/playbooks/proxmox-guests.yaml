@@ -1,5 +1,34 @@
 # SPDX-License-Identifier: MIT-0
 ---
+- name: Proxmox host datasets
+  hosts: proxmox
+  gather_facts: false
+
+  vars:
+    proxmox_pbs_dataset: rpool/pbs
+    proxmox_pbs_mountpoint: /pbs
+
+  tasks:
+    - name: Create the backup dataset
+      become: true
+      become_user: root
+      community.general.zfs:
+        name: "{{ proxmox_pbs_dataset }}"
+        state: present
+        extra_zfs_properties:
+          mountpoint: "{{ proxmox_pbs_mountpoint }}"
+          compression: zstd
+
+    - name: Hand the dataset to the unprivileged container root
+      become: true
+      become_user: root
+      ansible.builtin.file:
+        path: "{{ proxmox_pbs_mountpoint }}"
+        state: directory
+        owner: "100000"
+        group: "100000"
+        mode: "0755"
+
 - name: Proxmox LXC guests
   hosts: proxmox
   gather_facts: false
@@ -76,6 +105,17 @@
         disk: 16
         unprivileged: true
         features: [nesting=1, keyctl=1]
+
+      - name: pbs
+        vmid: 207
+        ip: 10.0.2.16/24
+        cores: 2
+        memory: 4096
+        disk: 16
+        unprivileged: true
+        features: [nesting=1]
+        mounts:
+          mp0: "/pbs,mp=/pbs"
 
   tasks:
     - name: Assert the API token is available
