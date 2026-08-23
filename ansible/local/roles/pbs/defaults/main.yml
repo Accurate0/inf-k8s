@@ -19,6 +19,7 @@ pbs_b2_region: us-west-004
 pbs_b2_endpoint: "s3.{{ pbs_b2_region }}.backblazeb2.com"
 pbs_b2_path_style: true
 pbs_b2_provider_quirks: skip-if-none-match-header
+pbs_b2_rate_out: 50MB
 
 pbs_oidc_realm: kanidm
 pbs_oidc_issuer_url: https://idm.anurag.sh/oauth2/openid/pbs

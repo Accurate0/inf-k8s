@@ -1,5 +1,21 @@
 # SPDX-License-Identifier: MIT-0
 ---
+pbs_b2_endpoint_flags:
+  - --endpoint
+  - "{{ pbs_b2_endpoint }}"
+  - --region
+  - "{{ pbs_b2_region }}"
+  - --access-key
+  - "{{ pbs_b2_access_key }}"
+  - --secret-key
+  - "{{ pbs_b2_secret_key }}"
+  - --path-style
+  - "{{ pbs_b2_path_style | string | lower }}"
+  - --provider-quirks
+  - "{{ pbs_b2_provider_quirks }}"
+  - --rate-out
+  - "{{ pbs_b2_rate_out }}"
+
 pbs_oidc_realm_flags:
   - --issuer-url
   - "{{ pbs_oidc_issuer_url }}"

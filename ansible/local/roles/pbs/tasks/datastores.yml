@@ -32,47 +32,17 @@
 
     - name: Create the Backblaze endpoint
       ansible.builtin.command:
-        argv:
-          - proxmox-backup-manager
-          - s3
-          - endpoint
-          - create
-          - "{{ pbs_b2_endpoint_id }}"
-          - --endpoint
-          - "{{ pbs_b2_endpoint }}"
-          - --region
-          - "{{ pbs_b2_region }}"
-          - --access-key
-          - "{{ pbs_b2_access_key }}"
-          - --secret-key
-          - "{{ pbs_b2_secret_key }}"
-          - --path-style
-          - "{{ pbs_b2_path_style | string | lower }}"
-          - --provider-quirks
-          - "{{ pbs_b2_provider_quirks }}"
+        argv: >-
+          {{ ['proxmox-backup-manager', 's3', 'endpoint', 'create', pbs_b2_endpoint_id]
+             + pbs_b2_endpoint_flags }}
       no_log: "{{ pbs_no_log }}"
       when: pbs_b2_endpoint_id not in (pbs_endpoints.stdout | from_json | map(attribute='id') | list)
 
     - name: Update the Backblaze endpoint
       ansible.builtin.command:
-        argv:
-          - proxmox-backup-manager
-          - s3
-          - endpoint
-          - update
-          - "{{ pbs_b2_endpoint_id }}"
-          - --endpoint
-          - "{{ pbs_b2_endpoint }}"
-          - --region
-          - "{{ pbs_b2_region }}"
-          - --access-key
-          - "{{ pbs_b2_access_key }}"
-          - --secret-key
-          - "{{ pbs_b2_secret_key }}"
-          - --path-style
-          - "{{ pbs_b2_path_style | string | lower }}"
-          - --provider-quirks
-          - "{{ pbs_b2_provider_quirks }}"
+        argv: >-
+          {{ ['proxmox-backup-manager', 's3', 'endpoint', 'update', pbs_b2_endpoint_id]
+             + pbs_b2_endpoint_flags }}
       no_log: "{{ pbs_no_log }}"
       changed_when: false
       when: pbs_b2_endpoint_id in (pbs_endpoints.stdout | from_json | map(attribute='id') | list)

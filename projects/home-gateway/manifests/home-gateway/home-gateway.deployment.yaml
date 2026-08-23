@@ -24,7 +24,7 @@ spec:
         reloader.stakater.com/auto: "true"
     spec:
       hostAliases:
-        - ip: "10.0.2.249"
+        - ip: "10.0.2.15"
           hostnames:
             - home-assistant.internal
       affinity:
