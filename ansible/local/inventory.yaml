@@ -5,6 +5,7 @@ all:
     gateway: {}
     home_automation: {}
     backup: {}
+    mirror: {}
 
 proxmox:
   hosts:
@@ -36,3 +37,8 @@ backup:
   hosts:
     pbs:
       ansible_host: 10.0.2.16
+
+mirror:
+  hosts:
+    mirror:
+      ansible_host: 10.0.2.17

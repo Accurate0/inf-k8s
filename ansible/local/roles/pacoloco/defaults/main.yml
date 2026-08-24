@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: MIT-0
+---
+pacoloco_cache_dir: /var/cache/pacoloco
+pacoloco_port: 9129
+pacoloco_domain: mirror.internal
+pacoloco_repo_name: archlinux
+pacoloco_purge_files_after: 2592000
+pacoloco_download_timeout: 3600
+pacoloco_http_proxy: ""
+
+pacoloco_prefetch: true
+pacoloco_prefetch_cron: "0 0 3 * * * *"
+pacoloco_prefetch_ttl_unaccessed_in_days: 30
+pacoloco_prefetch_ttl_unupdated_in_days: 300
+
+pacoloco_reflector_mirrorlist: /etc/pacman.d/reflector_mirrorlist
+pacoloco_reflector_schedule: daily
+pacoloco_reflector_args:
+  - --country Australia
+  - --protocol https
+  - --latest 10
+  - --sort rate
+
+pacoloco_repos:
+  - name: "{{ pacoloco_repo_name }}"
+    mirrorlist: "{{ pacoloco_reflector_mirrorlist }}"

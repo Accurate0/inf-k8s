@@ -12,6 +12,6 @@ proxmox_pbs_job_schedule: "00:30"
 proxmox_pbs_job_mode: snapshot
 proxmox_pbs_job_notes: "{{ '{{guestname}}' }}"
 
-proxmox_pbs_exclude_vmids: [207]
+proxmox_pbs_exclude_vmids: [207, 208]
 proxmox_pbs_exclude_paths:
   - /data

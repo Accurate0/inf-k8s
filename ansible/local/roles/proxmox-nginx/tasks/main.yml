@@ -38,6 +38,27 @@
       ansible.builtin.command: nginx -t
       changed_when: false
 
+    - name: Create the nginx systemd override directory
+      ansible.builtin.file:
+        path: /etc/systemd/system/nginx.service.d
+        state: directory
+        mode: "0755"
+
+    - name: Order nginx after pve-cluster so the certificates exist
+      ansible.builtin.copy:
+        dest: /etc/systemd/system/nginx.service.d/override.conf
+        mode: "0644"
+        content: |
+          [Unit]
+          Requires=pve-cluster.service
+          After=pve-cluster.service
+      register: proxmox_nginx_override
+
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: proxmox_nginx_override.changed
+
     - name: Enable and start nginx
       ansible.builtin.systemd_service:
         name: nginx

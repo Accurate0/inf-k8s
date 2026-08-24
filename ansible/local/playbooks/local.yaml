@@ -17,7 +17,7 @@
     - proxmox-oidc
 
 - name: Wait for guests to accept SSH
-  hosts: media_servers:gateway:home_automation:backup
+  hosts: media_servers:gateway:home_automation:backup:mirror
   gather_facts: false
 
   tasks:
@@ -28,7 +28,7 @@
         timeout: 300
 
 - name: Base configuration
-  hosts: media_servers:gateway:home_automation:backup
+  hosts: media_servers:gateway:home_automation:backup:mirror
   gather_facts: true
 
   roles:
@@ -73,6 +73,13 @@
   roles:
     - docker
     - homeassistant
+
+- name: Arch mirror cache
+  hosts: mirror
+  gather_facts: true
+
+  roles:
+    - pacoloco
 
 - name: Proxmox Backup Server
   hosts: backup

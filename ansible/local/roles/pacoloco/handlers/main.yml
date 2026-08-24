@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Restart pacoloco
+  become: true
+  become_user: root
+  ansible.builtin.systemd_service:
+    name: pacoloco
+    state: restarted
+
+- name: Refresh the reflector mirrorlist
+  become: true
+  become_user: root
+  ansible.builtin.systemd_service:
+    name: reflector.service
+    state: started
+
+- name: Reload nginx
+  become: true
+  become_user: root
+  ansible.builtin.systemd_service:
+    name: nginx
+    state: reloaded

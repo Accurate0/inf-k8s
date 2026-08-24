@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+base_console_autologin: true
+base_console_autologin_user: root
+base_console_getty_units:
+  - container-getty@.service
+  - console-getty.service

@@ -1,0 +1,32 @@
+cache_dir: {{ pacoloco_cache_dir }}
+port: {{ pacoloco_port }}
+purge_files_after: {{ pacoloco_purge_files_after }}
+download_timeout: {{ pacoloco_download_timeout }}
+{% if pacoloco_http_proxy %}
+http_proxy: {{ pacoloco_http_proxy }}
+{% endif %}
+{% if pacoloco_prefetch %}
+
+prefetch:
+  cron: "{{ pacoloco_prefetch_cron }}"
+  ttl_unaccessed_in_days: {{ pacoloco_prefetch_ttl_unaccessed_in_days }}
+  ttl_unupdated_in_days: {{ pacoloco_prefetch_ttl_unupdated_in_days }}
+{% endif %}
+
+repos:
+{% for repo in pacoloco_repos %}
+  {{ repo.name }}:
+{% if repo.http_proxy is defined %}
+    http_proxy: {{ repo.http_proxy }}
+{% endif %}
+{% if repo.mirrorlist is defined %}
+    mirrorlist: {{ repo.mirrorlist }}
+{% elif repo.url is defined %}
+    url: {{ repo.url }}
+{% else %}
+    urls:
+{% for url in repo.urls %}
+      - {{ url }}
+{% endfor %}
+{% endif %}
+{% endfor %}

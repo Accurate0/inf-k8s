@@ -1,0 +1,3 @@
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin {{ base_console_autologin_user }} --noclear --keep-baud - 115200,38400,9600 $TERM

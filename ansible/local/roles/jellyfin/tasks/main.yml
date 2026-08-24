@@ -21,7 +21,7 @@
         name: jellyfin
         types: [deb]
         uris: "{{ jellyfin_repo_uri }}"
-        suites: ["{{ ansible_distribution_release }}"]
+        suites: ["{{ ansible_facts['distribution_release'] }}"]
         components: [main]
         architectures: [amd64]
         signed_by: "{{ jellyfin_keyring }}"

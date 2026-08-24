@@ -11,6 +11,7 @@ unifi_gateway_ip: 10.0.2.14
 unifi_node_ip: 10.0.2.249
 
 unifi_homeassistant_ip: 10.0.2.15
+unifi_mirror_ip: 10.0.2.17
 
 unifi_dns_records:
   - {key: jellyfin.media.internal, value: "{{ unifi_jellyfin_ip }}"}
@@ -23,10 +24,11 @@ unifi_dns_records:
   - {key: flaresolverr.media.internal, value: "{{ unifi_arr_ip }}"}
 
   - {key: transmission.media.internal, value: "{{ unifi_transmission_ip }}"}
-  - {key: flood.media.internal, value: "{{ unifi_transmission_ip }}"}
 
   - {key: home.internal, value: "{{ unifi_gateway_ip }}"}
   - {key: home-assistant.internal, value: "{{ unifi_homeassistant_ip }}"}
+
+  - {key: mirror.internal, value: "{{ unifi_mirror_ip }}"}
 
   - {key: pbs.internal, value: "{{ unifi_node_ip }}"}
 

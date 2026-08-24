@@ -11,3 +11,4 @@ unifi_client_aliases:
   - {mac: "bc:24:11:00:00:cd", name: home-gateway-web}
   - {mac: "bc:24:11:00:00:ce", name: homeassistant}
   - {mac: "bc:24:11:00:00:cf", name: pbs}
+  - {mac: "bc:24:11:00:00:d0", name: mirror}

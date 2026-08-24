@@ -1,0 +1,98 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Pacoloco pacman cache
+  become: true
+  become_user: root
+  block:
+    - name: Install pacoloco and nginx
+      community.general.pacman:
+        name:
+          - pacoloco
+          - nginx
+          - reflector
+        state: present
+        update_cache: true
+
+    - name: Create the package cache directory
+      ansible.builtin.file:
+        path: "{{ pacoloco_cache_dir }}"
+        state: directory
+        owner: pacoloco
+        group: pacoloco
+        mode: "0755"
+
+    - name: Template the reflector configuration
+      ansible.builtin.template:
+        src: reflector.conf.j2
+        dest: /etc/xdg/reflector/reflector.conf
+        mode: "0644"
+      notify: Refresh the reflector mirrorlist
+
+    - name: Create the reflector override directories
+      ansible.builtin.file:
+        path: "/etc/systemd/system/{{ item }}.d"
+        state: directory
+        mode: "0755"
+      loop:
+        - reflector.service
+        - reflector.timer
+
+    - name: Restart pacoloco after each reflector run
+      ansible.builtin.template:
+        src: reflector-override.conf.j2
+        dest: /etc/systemd/system/reflector.service.d/pacoloco.conf
+        mode: "0644"
+      register: pacoloco_reflector_service_override
+
+    - name: Template the reflector timer schedule
+      ansible.builtin.template:
+        src: reflector-timer.conf.j2
+        dest: /etc/systemd/system/reflector.timer.d/schedule.conf
+        mode: "0644"
+      register: pacoloco_reflector_timer_override
+
+    - name: Reload systemd
+      ansible.builtin.systemd_service:
+        daemon_reload: true
+      when: pacoloco_reflector_service_override.changed or pacoloco_reflector_timer_override.changed
+
+    - name: Generate the mirrorlist before pacoloco needs it
+      ansible.builtin.command: reflector {{ pacoloco_reflector_args | join(' ') }} --save {{ pacoloco_reflector_mirrorlist }}
+      args:
+        creates: "{{ pacoloco_reflector_mirrorlist }}"
+
+    - name: Enable the reflector timer
+      ansible.builtin.systemd_service:
+        name: reflector.timer
+        enabled: true
+        state: started
+
+    - name: Template the pacoloco configuration
+      ansible.builtin.template:
+        src: pacoloco.yaml.j2
+        dest: /etc/pacoloco.yaml
+        mode: "0644"
+      notify: Restart pacoloco
+
+    - name: Enable and start pacoloco
+      ansible.builtin.systemd_service:
+        name: pacoloco
+        enabled: true
+        state: started
+
+    - name: Template the reverse proxy configuration
+      ansible.builtin.template:
+        src: nginx.conf.j2
+        dest: /etc/nginx/nginx.conf
+        mode: "0644"
+      notify: Reload nginx
+
+    - name: Validate nginx configuration
+      ansible.builtin.command: nginx -t
+      changed_when: false
+
+    - name: Enable and start nginx
+      ansible.builtin.systemd_service:
+        name: nginx
+        enabled: true
+        state: started

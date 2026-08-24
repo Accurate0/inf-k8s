@@ -46,6 +46,11 @@
     proxmox_lxc_storage: local-zfs
     proxmox_lxc_template_storage: local
     proxmox_lxc_template: debian-13-standard_13.6-1_amd64.tar.zst
+    proxmox_lxc_arch_template: archlinux-base_20260420-1_amd64.tar.zst
+
+    proxmox_lxc_templates:
+      - "{{ proxmox_lxc_template }}"
+      - "{{ proxmox_lxc_arch_template }}"
 
     proxmox_lxc_bridge: vmbr0
     proxmox_lxc_mac_prefix: "BC:24:11:00"
@@ -106,6 +111,16 @@
         unprivileged: true
         features: [nesting=1, keyctl=1]
 
+      - name: mirror
+        vmid: 208
+        ip: 10.0.2.17/24
+        cores: 2
+        memory: 2048
+        disk: 64
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+        template: "{{ proxmox_lxc_arch_template }}"
+
       - name: pbs
         vmid: 207
         ip: 10.0.2.16/24
@@ -127,7 +142,7 @@
           (required - API tokens cannot create privileged containers), or
           PROMOX_API_KEY to use the token for unprivileged guests only.
 
-    - name: Download the container template
+    - name: Download the container templates
       community.proxmox.proxmox_template:
         api_host: "{{ proxmox_api_host }}"
         api_user: "{{ proxmox_api_user }}"
@@ -137,10 +152,11 @@
         validate_certs: "{{ proxmox_validate_certs }}"
         node: "{{ proxmox_node }}"
         storage: "{{ proxmox_lxc_template_storage }}"
-        template: "{{ proxmox_lxc_template }}"
+        template: "{{ item }}"
         content_type: vztmpl
         timeout: 600
         state: present
+      loop: "{{ proxmox_lxc_templates }}"
 
     - name: Gather existing containers
       community.proxmox.proxmox_vm_info:
@@ -169,7 +185,7 @@
         node: "{{ proxmox_node }}"
         vmid: "{{ item.vmid }}"
         hostname: "{{ item.name }}"
-        ostemplate: "{{ proxmox_lxc_template_storage }}:vztmpl/{{ proxmox_lxc_template }}"
+        ostemplate: "{{ proxmox_lxc_template_storage }}:vztmpl/{{ item.template | default(proxmox_lxc_template) }}"
         storage: "{{ proxmox_lxc_storage }}"
         disk: "{{ item.disk }}"
         cores: "{{ item.cores }}"
@@ -186,7 +202,6 @@
         timezone: "{{ proxmox_lxc_timezone }}"
         pubkey: "{{ lookup('ansible.builtin.file', playbook_dir + '/../roles/base/files/instance_key.pub') }}"
         onboot: true
-        tags: [migrated]
         update: false
         timeout: 300
         state: present
@@ -217,7 +232,7 @@
         searchdomain: "{{ proxmox_lxc_searchdomain }}"
         timezone: "{{ proxmox_lxc_timezone }}"
         onboot: true
-        tags: [migrated]
+        tags: []
         update: true
         timeout: 300
         state: present
@@ -241,6 +256,68 @@
       loop: "{{ proxmox_lxc_guests }}"
       loop_control:
         label: "{{ item.name }} ({{ item.vmid }})"
+
+    - name: Disable the pacman sandbox inside the Arch guests
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: >-
+        pct exec {{ item.vmid }} -- bash -c
+        "grep -qxF DisableSandbox /etc/pacman.conf ||
+         sed -i '/^\[options\]/a DisableSandbox' /etc/pacman.conf"
+      register: proxmox_lxc_sandbox
+      changed_when: false
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+      when: item.template | default(proxmox_lxc_template) == proxmox_lxc_arch_template
+
+    - name: Initialise the pacman keyring inside the Arch guests
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: >-
+        pct exec {{ item.vmid }} -- bash -c
+        "test -f /etc/pacman.d/gnupg/pubring.gpg ||
+         { pacman-key --init && pacman-key --populate archlinux; }"
+      register: proxmox_lxc_keyring
+      changed_when: proxmox_lxc_keyring.stdout | length > 0
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+      when: item.template | default(proxmox_lxc_template) == proxmox_lxc_arch_template
+
+    - name: Install python inside the Arch guests
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: pct exec {{ item.vmid }} -- pacman -Syu --needed --noconfirm python
+      register: proxmox_lxc_python
+      changed_when: "'there is nothing to do' not in proxmox_lxc_python.stdout"
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+      when: item.template | default(proxmox_lxc_template) == proxmox_lxc_arch_template
+
+    - name: Enable sshd inside the Arch guests
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: pct exec {{ item.vmid }} -- systemctl enable --now sshd
+      register: proxmox_lxc_sshd
+      changed_when: "'Created symlink' in proxmox_lxc_sshd.stderr"
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+      when: item.template | default(proxmox_lxc_template) == proxmox_lxc_arch_template
 
     - name: Summary
       ansible.builtin.debug:
