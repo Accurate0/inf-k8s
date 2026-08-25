@@ -1,0 +1,72 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Install the NFS client
+  ansible.builtin.apt:
+    name: nfs-common
+    state: present
+
+- name: Look for the export on the NFS server
+  ansible.builtin.command: showmount -e {{ proxmox_nfs_server }}
+  register: proxmox_nfs_exports
+  changed_when: false
+  failed_when: false
+
+- name: Report an unreachable export
+  ansible.builtin.debug:
+    msg: >-
+      {{ proxmox_nfs_server }} is not exporting {{ proxmox_nfs_export }} yet -
+      skipping the {{ proxmox_nfs_id }} storage. Enable NFS in the Unraid
+      webgui (Settings -> NFS) and export the share, then rerun.
+  when: proxmox_nfs_export not in proxmox_nfs_exports.stdout
+
+- name: Read the storage configuration
+  ansible.builtin.command: pvesm status --storage {{ proxmox_nfs_id }}
+  register: proxmox_nfs_status
+  changed_when: false
+  failed_when: false
+  when: proxmox_nfs_export in proxmox_nfs_exports.stdout
+
+- name: Add the storage
+  ansible.builtin.command: >-
+    pvesm add nfs {{ proxmox_nfs_id }}
+    --server {{ proxmox_nfs_server }}
+    --export {{ proxmox_nfs_export }}
+    --content {{ proxmox_nfs_content }}
+    --options {{ proxmox_nfs_options }}
+    --create-base-path 1
+    --create-subdirs 0
+  when:
+    - proxmox_nfs_export in proxmox_nfs_exports.stdout
+    - proxmox_nfs_status.rc != 0
+
+- name: Converge the storage options
+  ansible.builtin.command: >-
+    pvesm set {{ proxmox_nfs_id }}
+    --content {{ proxmox_nfs_content }}
+    --options {{ proxmox_nfs_options }}
+    --create-base-path 1
+    --create-subdirs 0
+  register: proxmox_nfs_set
+  changed_when: false
+  when:
+    - proxmox_nfs_export in proxmox_nfs_exports.stdout
+    - proxmox_nfs_status.rc == 0
+
+- name: Wait for the mount
+  ansible.builtin.command: findmnt --mountpoint /mnt/pve/{{ proxmox_nfs_id }}
+  register: proxmox_nfs_mount
+  changed_when: false
+  retries: 6
+  delay: 5
+  until: proxmox_nfs_mount.rc == 0
+  when: proxmox_nfs_export in proxmox_nfs_exports.stdout
+
+- name: Create the media directories
+  ansible.builtin.file:
+    path: /mnt/pve/{{ proxmox_nfs_id }}/{{ item }}
+    state: directory
+    owner: "{{ proxmox_nfs_lxc_uid_offset + media_puid | int }}"
+    group: "{{ proxmox_nfs_lxc_uid_offset + media_pgid | int }}"
+    mode: "02775"
+  loop: "{{ proxmox_nfs_media_dirs }}"
+  when: proxmox_nfs_export in proxmox_nfs_exports.stdout

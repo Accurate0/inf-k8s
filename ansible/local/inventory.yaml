@@ -6,6 +6,7 @@ all:
     home_automation: {}
     backup: {}
     mirror: {}
+    nas: {}
 
 proxmox:
   hosts:
@@ -42,3 +43,8 @@ mirror:
   hosts:
     mirror:
       ansible_host: 10.0.2.17
+
+nas:
+  hosts:
+    unraid:
+      ansible_host: 10.0.2.25

@@ -25,3 +25,8 @@ transmission_settings:
   peer-port: "{{ transmission_peer_port }}"
   umask: 2
   watch-dir-enabled: false
+  download-queue-enabled: true
+  download-queue-size: 12
+  peer-limit-global: 400
+  peer-limit-per-torrent: 60
+  cache-size-mb: 128

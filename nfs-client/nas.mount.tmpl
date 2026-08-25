@@ -8,7 +8,7 @@ After=network-online.target
 What=@SERVER@:@EXPORT@
 Where=@MOUNTPOINT@
 Type=nfs
-Options=rw,vers=4,_netdev,nofail,noatime,soft,timeo=150,retrans=3
+Options=rw,vers=4.2,_netdev,nofail,noatime,hard,timeo=600,retrans=2,nconnect=4
 TimeoutSec=30
 
 [Install]

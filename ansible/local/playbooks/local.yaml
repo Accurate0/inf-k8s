@@ -1,6 +1,14 @@
 # SPDX-License-Identifier: MIT-0
 ---
 
+- name: Storage on the Proxmox host
+  hosts: proxmox
+  gather_facts: true
+
+  roles:
+    - storage-teardown
+    - proxmox-nfs
+
 - ansible.builtin.import_playbook: proxmox-guests.yaml
 
 - ansible.builtin.import_playbook: unifi-dns.yaml

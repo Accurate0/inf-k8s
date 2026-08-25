@@ -46,20 +46,16 @@
         gid: "{{ media_gid }}"
         state: present
 
-    - name: Add transmission to the media group
+    - name: Make media transmission's primary group
       ansible.builtin.user:
         name: "{{ transmission_user }}"
-        groups: media
-        append: true
+        group: media
       notify: Restart transmission
 
     - name: Ensure download directories exist
       ansible.builtin.file:
         path: "{{ item }}"
         state: directory
-        owner: "{{ media_uid }}"
-        group: "{{ media_gid }}"
-        mode: "0775"
       loop:
         - "{{ transmission_download_dir }}"
         - "{{ transmission_incomplete_dir }}"

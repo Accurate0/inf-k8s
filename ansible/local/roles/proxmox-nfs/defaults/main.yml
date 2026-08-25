@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_nfs_id: unraid
+proxmox_nfs_server: 10.0.2.25
+proxmox_nfs_export: /mnt/user/media
+proxmox_nfs_content: iso
+proxmox_nfs_options: vers=4.2,hard,noatime,nconnect=4
+
+proxmox_nfs_lxc_uid_offset: 100000
+
+proxmox_nfs_media_dirs:
+  - anime
+  - downloads
+  - downloads/incomplete
+  - downloads/radarr
+  - movies
+  - tv

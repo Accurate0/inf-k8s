@@ -6,12 +6,12 @@ dir := source_directory()
 
 # NFS server + export to mount, and where to mount it locally.
 server     := env_var_or_default("MEDIA_NFS_SERVER", "nas.internal")
-export     := env_var_or_default("MEDIA_NFS_EXPORT", "/data/media")
-mountpoint := env_var_or_default("MEDIA_NFS_MOUNTPOINT", "/media/nfs/nas")
+export     := env_var_or_default("MEDIA_NFS_EXPORT", "/mnt/user/media")
+mountpoint := env_var_or_default("MEDIA_NFS_MOUNTPOINT", "/nfs/nas/media")
 
 # Mountpoints from earlier revisions, removed by `install` so a rename does not
 # leave a second automount pointing at the old server.
-legacy_mountpoints := "/media/nfs/media"
+legacy_mountpoints := "/media/nfs/media /media/nfs/nas"
 
 # Install & enable the media NFS share as an on-demand systemd automount
 install:

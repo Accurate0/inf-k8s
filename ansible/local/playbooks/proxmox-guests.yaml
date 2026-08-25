@@ -52,6 +52,8 @@
       - "{{ proxmox_lxc_template }}"
       - "{{ proxmox_lxc_arch_template }}"
 
+    proxmox_media_source: /mnt/pve/unraid
+
     proxmox_lxc_bridge: vmbr0
     proxmox_lxc_mac_prefix: "BC:24:11:00"
     proxmox_lxc_gateway: 10.0.2.1
@@ -69,7 +71,7 @@
         unprivileged: true
         features: [nesting=1]
         mounts:
-          mp0: "/data/media,mp=/data,idmap=passthrough"
+          mp0: "{{ proxmox_media_source }},mp=/data"
 
       - name: media-apps
         vmid: 203
@@ -80,18 +82,18 @@
         unprivileged: true
         features: [nesting=1, keyctl=1]
         mounts:
-          mp0: "/data/media,mp=/data,idmap=passthrough"
+          mp0: "{{ proxmox_media_source }},mp=/data"
 
       - name: transmission
         vmid: 204
         ip: 10.0.2.13/24
-        cores: 2
-        memory: 2048
+        cores: 4
+        memory: 6144
         disk: 16
         unprivileged: true
         features: [nesting=1]
         mounts:
-          mp0: "/data/media,mp=/data,idmap=passthrough"
+          mp0: "{{ proxmox_media_source }},mp=/data"
 
       - name: home-gateway-web
         vmid: 205
@@ -324,3 +326,197 @@
         msg: >-
           {{ proxmox_lxc_guests | map(attribute='name') | join(', ') }}
           created and started on {{ proxmox_node }}.
+
+- name: Proxmox VM guests
+  hosts: proxmox
+  gather_facts: false
+  connection: local
+
+  vars:
+    proxmox_node: pve
+    proxmox_api_host: "{{ hostvars['pve'].ansible_host }}"
+    proxmox_api_user: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_USER') | default('root@pam', true) }}"
+    proxmox_api_token_id: "{{ lookup('ansible.builtin.env', 'PROXMOX_API_TOKEN_ID') | default('ansible', true) }}"
+    proxmox_api_token_secret: "{{ lookup('ansible.builtin.env', 'PROMOX_API_KEY') }}"
+    proxmox_api_password: "{{ lookup('ansible.builtin.env', 'PROXMOX_PASSWORD') }}"
+    proxmox_validate_certs: "{{ lookup('ansible.builtin.env', 'PROXMOX_VALIDATE_CERTS') | default('false', true) | bool }}"
+
+    proxmox_vm_bridge: vmbr0
+    proxmox_vm_mac_prefix: "BC:24:11:00"
+    proxmox_vm_storage: local-zfs
+
+    proxmox_unraid_name: unraid
+    proxmox_unraid_vmid: 209
+    proxmox_unraid_ip: 10.0.2.25
+    proxmox_unraid_cores: 4
+    proxmox_unraid_memory: 8192
+    proxmox_unraid_balloon: 4096
+    proxmox_unraid_usb: "{{ lookup('ansible.builtin.env', 'UNRAID_USB_ID') }}"
+    proxmox_unraid_boot_disk: 32
+    proxmox_unraid_disks:
+      - /dev/disk/by-id/ata-ST4000VN006-3CW104_ZW6464KJ
+      - /dev/disk/by-id/ata-WDC_WD20EZAZ-00GGJB0_WD-WX72A70242TP
+
+  tasks:
+    - name: Assert the API token is available
+      ansible.builtin.assert:
+        that:
+          - (proxmox_api_password | length > 0) or (proxmox_api_token_secret | length > 0)
+        fail_msg: >-
+          No credentials. Export PROXMOX_PASSWORD for {{ proxmox_api_user }}, or
+          PROMOX_API_KEY to use an API token.
+
+    - name: Assert the Unraid boot flash is identified
+      ansible.builtin.assert:
+        that:
+          - proxmox_unraid_usb | length > 0
+        fail_msg: >-
+          Unraid anchors its licence to the USB flash drive, which a VM cannot
+          replace with a TPM. Export UNRAID_USB_ID with the vendor:product id
+          of the stick plugged into {{ proxmox_node }} (lsusb), e.g.
+          UNRAID_USB_ID=0781:5583.
+
+    - name: Gather existing VMs
+      community.proxmox.proxmox_vm_info:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        type: qemu
+      register: proxmox_existing_vms
+
+    - name: Index existing vmids
+      ansible.builtin.set_fact:
+        proxmox_existing_vmids: "{{ proxmox_existing_vms.proxmox_vms | map(attribute='vmid') | map('int') | list }}"
+
+    - name: Create the Unraid VM
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ proxmox_unraid_vmid }}"
+        name: "{{ proxmox_unraid_name }}"
+        machine: q35
+        bios: ovmf
+        efidisk0:
+          storage: "{{ proxmox_vm_storage }}"
+          format: raw
+          efitype: 4m
+          pre_enrolled_keys: false
+        ostype: l26
+        cpu: host
+        cores: "{{ proxmox_unraid_cores }}"
+        sockets: 1
+        memory: "{{ proxmox_unraid_memory }}"
+        balloon: "{{ proxmox_unraid_balloon }}"
+        vga: virtio
+        scsihw: virtio-scsi-single
+        scsi:
+          scsi0: "{{ proxmox_vm_storage }}:{{ proxmox_unraid_boot_disk }},discard=on,ssd=1"
+        tpmstate0:
+          storage: "{{ proxmox_vm_storage }}"
+          version: v2.0
+        boot: order=scsi0;usb0
+        usb:
+          usb0: "host={{ proxmox_unraid_usb }},usb3=1"
+        net:
+          net0: "virtio={{ proxmox_vm_mac_prefix }}:{{ '%02X' % (proxmox_unraid_vmid // 256) }}:{{ '%02X' % (proxmox_unraid_vmid % 256) }},bridge={{ proxmox_vm_bridge }},firewall=0"
+        onboot: true
+        agent: false
+        timeout: 300
+        state: present
+      when: proxmox_unraid_vmid | int not in proxmox_existing_vmids
+
+    - name: Update the Unraid VM
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ proxmox_unraid_vmid }}"
+        name: "{{ proxmox_unraid_name }}"
+        machine: q35
+        ostype: l26
+        cpu: host
+        cores: "{{ proxmox_unraid_cores }}"
+        sockets: 1
+        memory: "{{ proxmox_unraid_memory }}"
+        balloon: "{{ proxmox_unraid_balloon }}"
+        vga: virtio
+        scsihw: virtio-scsi-single
+        boot: order=scsi0;usb0
+        usb:
+          usb0: "host={{ proxmox_unraid_usb }},usb3=1"
+        net:
+          net0: "virtio={{ proxmox_vm_mac_prefix }}:{{ '%02X' % (proxmox_unraid_vmid // 256) }}:{{ '%02X' % (proxmox_unraid_vmid % 256) }},bridge={{ proxmox_vm_bridge }},firewall=0"
+        onboot: true
+        agent: false
+        update: true
+        timeout: 300
+        state: present
+      when: proxmox_unraid_vmid | int in proxmox_existing_vmids
+
+    - name: Add the vTPM to an existing VM
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.shell: |
+        set -o pipefail
+        qm config {{ proxmox_unraid_vmid }} --current | grep -q '^tpmstate0:' && exit 0
+        qm set {{ proxmox_unraid_vmid }} \
+          -tpmstate0 {{ proxmox_vm_storage }}:4,version=v2.0
+      args:
+        executable: /bin/bash
+      register: proxmox_unraid_tpm
+      changed_when: "'update VM' in proxmox_unraid_tpm.stderr"
+      when: proxmox_unraid_vmid | int in proxmox_existing_vmids
+
+    - name: Attach the passthrough array disks
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: >-
+        qm set {{ proxmox_unraid_vmid }}
+        -scsi{{ index + 1 }} {{ item }},scsiblock=1,backup=0
+      register: proxmox_unraid_disk
+      changed_when: "'update VM' in proxmox_unraid_disk.stderr"
+      loop: "{{ proxmox_unraid_disks }}"
+      loop_control:
+        index_var: index
+        label: "scsi{{ index + 1 }} -> {{ item }}"
+
+    - name: Start the Unraid VM
+      community.proxmox.proxmox_kvm:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ proxmox_unraid_vmid }}"
+        name: "{{ proxmox_unraid_name }}"
+        state: started
+
+    - name: Summary
+      ansible.builtin.debug:
+        msg: >-
+          {{ proxmox_unraid_name }} ({{ proxmox_unraid_vmid }}) started on
+          {{ proxmox_node }}, booting from the flash until you run
+          Settings -> Onboarding Wizard and pick internal boot (scsi0). Keep
+          the flash attached - it stays the licence anchor. Set the static
+          address to {{ proxmox_unraid_ip }} in Settings -> Network.

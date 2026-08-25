@@ -12,6 +12,7 @@ unifi_node_ip: 10.0.2.249
 
 unifi_homeassistant_ip: 10.0.2.15
 unifi_mirror_ip: 10.0.2.17
+unifi_unraid_ip: 10.0.2.25
 
 unifi_dns_records:
   - {key: jellyfin.media.internal, value: "{{ unifi_jellyfin_ip }}"}
@@ -34,4 +35,6 @@ unifi_dns_records:
   - {key: pbs.internal, value: "{{ unifi_node_ip }}"}
 
   - {key: pve.internal, value: "{{ unifi_node_ip }}"}
-  - {key: nas.internal, value: "{{ unifi_node_ip }}"}
+
+  - {key: unraid.internal, value: "{{ unifi_unraid_ip }}"}
+  - {key: nas.internal, value: "{{ unifi_unraid_ip }}"}

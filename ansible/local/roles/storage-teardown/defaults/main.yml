@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT-0
+---
+mergerfs_pool_mount: /data/media
+mergerfs_unit_name: data-media.mount
+
+mergerfs_packages:
+  - mergerfs
+  - mergerfs-tools
+
+storage_member_mount_pattern: ^/data/disks/
