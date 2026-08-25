@@ -5,7 +5,7 @@ unifi_site: default
 unifi_validate_certs: false
 
 unifi_jellyfin_ip: 10.0.2.11
-unifi_arr_ip: 10.0.2.12
+unifi_media_apps_ip: 10.0.2.12
 unifi_transmission_ip: 10.0.2.13
 unifi_gateway_ip: 10.0.2.14
 unifi_node_ip: 10.0.2.249
@@ -17,11 +17,12 @@ unifi_dns_records:
   - {key: jellyfin.media.internal, value: "{{ unifi_jellyfin_ip }}"}
   - {key: media.internal, value: "{{ unifi_jellyfin_ip }}"}
 
-  - {key: sonarr.media.internal, value: "{{ unifi_arr_ip }}"}
-  - {key: radarr.media.internal, value: "{{ unifi_arr_ip }}"}
-  - {key: prowlarr.media.internal, value: "{{ unifi_arr_ip }}"}
-  - {key: bazarr.media.internal, value: "{{ unifi_arr_ip }}"}
-  - {key: flaresolverr.media.internal, value: "{{ unifi_arr_ip }}"}
+  - {key: sonarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
+  - {key: radarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
+  - {key: prowlarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
+  - {key: bazarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
+  - {key: flaresolverr.media.internal, value: "{{ unifi_media_apps_ip }}"}
+  - {key: seerr.media.internal, value: "{{ unifi_media_apps_ip }}"}
 
   - {key: transmission.media.internal, value: "{{ unifi_transmission_ip }}"}
 

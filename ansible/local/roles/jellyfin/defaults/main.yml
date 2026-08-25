@@ -14,3 +14,14 @@ jellyfin_keyring: /etc/apt/keyrings/jellyfin.gpg
 jellyfin_repo_uri: https://repo.jellyfin.org/debian
 
 jellyfin_version: "10.11.11"
+
+# network.xml is templated in full rather than patched. The config migrated
+# from the docker install carried a bare PublishedServerUriBySubnet entry,
+# which Jellyfin cannot parse ("Unable to parse bind override"), and pinned
+# LocalNetworkAddresses to "::" - between them the server fell back to ::1
+# as its bind address and handed clients unreachable stream URLs.
+jellyfin_published_uri: "all=http://jellyfin.media.internal"
+jellyfin_enable_ipv6: false
+jellyfin_local_network_subnets:
+  - 10.0.2.0/24
+  - 192.168.0.0/24

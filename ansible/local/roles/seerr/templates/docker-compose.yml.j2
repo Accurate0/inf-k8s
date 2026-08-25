@@ -1,0 +1,22 @@
+name: seerr
+
+services:
+  seerr:
+    image: {{ seerr_image }}:{{ seerr_image_tag }}
+    container_name: seerr
+    init: true
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:{{ seerr_port }}:5055"
+    environment:
+      LOG_LEVEL: "{{ seerr_log_level }}"
+      TZ: "{{ seerr_timezone }}"
+      PORT: "5055"
+    volumes:
+      - {{ seerr_root }}/config:/app/config
+    healthcheck:
+      test: wget --no-verbose --tries=1 --spider http://localhost:5055/api/v1/settings/public || exit 1
+      start_period: 20s
+      timeout: 3s
+      interval: 15s
+      retries: 3

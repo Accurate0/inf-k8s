@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT-0
+---
+seerr_uid: 1000
+seerr_gid: 1000
+
+seerr_root: /opt/seerr
+seerr_image: ghcr.io/seerr-team/seerr
+seerr_image_tag: v3.4.1
+seerr_port: 5055
+seerr_log_level: info
+seerr_timezone: Australia/Perth

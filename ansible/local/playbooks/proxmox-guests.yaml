@@ -64,7 +64,7 @@
         vmid: 202
         ip: 10.0.2.11/24
         cores: 4
-        memory: 4096
+        memory: 8192
         disk: 16
         unprivileged: true
         features: [nesting=1]
@@ -78,7 +78,7 @@
         memory: 4096
         disk: 16
         unprivileged: true
-        features: [nesting=1]
+        features: [nesting=1, keyctl=1]
         mounts:
           mp0: "/data/media,mp=/data,idmap=passthrough"
 

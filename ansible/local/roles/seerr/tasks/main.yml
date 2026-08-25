@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Seerr
+  become: true
+  become_user: root
+  block:
+    - name: Create the config directory
+      ansible.builtin.file:
+        path: "{{ seerr_root }}/config"
+        state: directory
+        owner: "{{ seerr_uid }}"
+        group: "{{ seerr_gid }}"
+        mode: "0755"
+
+    - name: Template the compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ seerr_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart seerr
+
+    - name: Bring up the stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ seerr_root }}"
+        state: present
+        pull: missing
+        remove_orphans: true

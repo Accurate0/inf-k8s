@@ -17,6 +17,7 @@ arr_nginx_sites: "{{ arr_apps + arr_nginx_extra_sites }}"
 arr_nginx_extra_sites:
   - {name: bazarr, port: 6767}
   - {name: flaresolverr, port: 8191}
+  - {name: seerr, port: 5055}
 
 arr_sonarr_version: 4.0.19.2979
 arr_radarr_version: 6.3.0.10514

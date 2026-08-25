@@ -173,15 +173,6 @@ spec:
               probeSelectorNilUsesHelmValues: false
               ruleSelectorNilUsesHelmValues: false
               serviceMonitorSelectorNilUsesHelmValues: false
-              affinity:
-                nodeAffinity:
-                  requiredDuringSchedulingIgnoredDuringExecution:
-                    nodeSelectorTerms:
-                      - matchExpressions:
-                          - key: inf-k8s.net/location
-                            operator: In
-                            values:
-                              - oracle-sydney
               tolerations:
                 - key: "inf-k8s.net/architecture"
                   operator: "Equal"

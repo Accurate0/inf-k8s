@@ -70,15 +70,13 @@
       when: jellyfin_port | int < 1024
       notify: Restart jellyfin
 
-    - name: Set the listen port
-      ansible.builtin.lineinfile:
-        path: "{{ jellyfin_config_root }}/network.xml"
-        regexp: "^\\s*<{{ item }}>.*</{{ item }}>"
-        line: "  <{{ item }}>{{ jellyfin_port }}</{{ item }}>"
-        backrefs: false
-      loop:
-        - InternalHttpPort
-        - PublicHttpPort
+    - name: Configure networking
+      ansible.builtin.template:
+        src: network.xml.j2
+        dest: "{{ jellyfin_config_root }}/network.xml"
+        owner: "{{ jellyfin_user }}"
+        group: "{{ jellyfin_user }}"
+        mode: "0640"
       notify: Restart jellyfin
 
     - name: Enable and start jellyfin

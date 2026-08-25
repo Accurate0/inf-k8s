@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<NetworkConfiguration xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <BaseUrl />
+  <EnableHttps>false</EnableHttps>
+  <RequireHttps>false</RequireHttps>
+  <InternalHttpPort>{{ jellyfin_port }}</InternalHttpPort>
+  <InternalHttpsPort>8920</InternalHttpsPort>
+  <PublicHttpPort>{{ jellyfin_port }}</PublicHttpPort>
+  <PublicHttpsPort>8920</PublicHttpsPort>
+  <AutoDiscovery>true</AutoDiscovery>
+  <EnableIPv4>true</EnableIPv4>
+  <EnableIPv6>{{ jellyfin_enable_ipv6 | lower }}</EnableIPv6>
+  <EnableRemoteAccess>true</EnableRemoteAccess>
+  <LocalNetworkSubnets>
+{% for subnet in jellyfin_local_network_subnets %}
+    <string>{{ subnet }}</string>
+{% endfor %}
+  </LocalNetworkSubnets>
+  <LocalNetworkAddresses />
+  <KnownProxies />
+  <IgnoreVirtualInterfaces>true</IgnoreVirtualInterfaces>
+  <VirtualInterfaceNames>
+    <string>veth</string>
+  </VirtualInterfaceNames>
+  <EnablePublishedServerUriByRequest>false</EnablePublishedServerUriByRequest>
+  <PublishedServerUriBySubnet>
+{% if jellyfin_published_uri | length > 0 %}
+    <string>{{ jellyfin_published_uri }}</string>
+{% endif %}
+  </PublishedServerUriBySubnet>
+  <RemoteIPFilter />
+  <IsRemoteIPFilterBlacklist>false</IsRemoteIPFilterBlacklist>
+</NetworkConfiguration>

@@ -50,6 +50,8 @@
     - bazarr
     - flaresolverr
     - recyclarr
+    - docker
+    - seerr
 
 - name: Transmission
   hosts: transmission
