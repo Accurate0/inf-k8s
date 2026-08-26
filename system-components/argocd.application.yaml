@@ -161,6 +161,12 @@ spec:
                 - when: app.status.operationState.phase in ['Failed', 'Error']
                   send: [sync-status]
 
+          dex:
+            livenessProbe:
+              enabled: true
+            readinessProbe:
+              enabled: true
+
           server:
             ingress:
               enabled: false
