@@ -11,5 +11,7 @@ resources:
   - internal/tailscale-client-ip.securitypolicy.yaml
   - public/backend.policy.yaml
   - public/gateway.yaml
+  - public/waf.extensionpolicy.yaml
   - public/client-policy
   - public/client-policy-git
+  - waf-dashboard.configmap.yaml

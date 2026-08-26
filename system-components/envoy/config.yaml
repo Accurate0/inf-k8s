@@ -17,6 +17,26 @@ spec:
                 spec:
                   nodeSelector:
                     inf-k8s.net/proxy: "true"
+        pod:
+          volumes:
+            - name: dynamic-modules
+              image:
+                reference: ghcr.io/tetratelabs/built-on-envoy/composer:0.11.0
+        container:
+          env:
+            - name: GODEBUG
+              value: "cgocheck=0"
+          volumeMounts:
+            - name: dynamic-modules
+              mountPath: /etc/envoy/dynamic-modules
+  dynamicModules:
+    - name: composer
+      source:
+        type: Local
+        local:
+          path: /etc/envoy/dynamic-modules/libcomposer.so
+      doNotClose: true
+      loadGlobally: false
   telemetry:
     metrics:
       prometheus: {}

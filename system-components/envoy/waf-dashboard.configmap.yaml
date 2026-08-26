@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: envoy-waf-dashboard
+  namespace: envoy-gateway-system
+  labels:
+    inf-k8s.net/grafana-dashboard: "true"
+data:
+  envoy-coraza-waf.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "schemaVersion": 39,
+      "tags": ["envoy", "waf", "coraza"],
+      "title": "Envoy Coraza WAF",
+      "uid": "envoy-coraza-waf",
+      "time": { "from": "now-6h", "to": "now" },
+      "templating": { "list": [] },
+      "panels": [
+        {
+          "type": "timeseries",
+          "title": "Transactions / sec",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "sum(rate(waf_tx_total[5m]))", "legendFormat": "total" },
+            { "refId": "B", "expr": "sum by (authority) (rate(waf_tx_total[5m]))", "legendFormat": "{{authority}}" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "WAF processing latency (ms)",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+          "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p50" },
+            { "refId": "B", "expr": "histogram_quantile(0.95, sum(rate(waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p95" },
+            { "refId": "C", "expr": "histogram_quantile(0.99, sum(rate(waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p99" }
+          ]
+        },
+        {
+          "type": "timeseries",
+          "title": "Blocked transactions / sec",
+          "description": "Populated only when SecRuleEngine is On; stays at 0 in DetectionOnly.",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+          "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "sum(rate(waf_tx_blocked[5m]))", "legendFormat": "blocked" },
+            { "refId": "B", "expr": "sum by (authority) (rate(waf_tx_blocked[5m]))", "legendFormat": "{{authority}}" }
+          ]
+        },
+        {
+          "type": "table",
+          "title": "Top matched rules",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+          "targets": [
+            { "refId": "A", "format": "table", "instant": true, "expr": "topk(10, sum by (rule_id, phase) (rate(waf_tx_blocked[5m])))" }
+          ]
+        }
+      ]
+    }
