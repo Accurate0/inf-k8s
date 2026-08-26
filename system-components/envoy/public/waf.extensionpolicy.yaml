@@ -17,5 +17,10 @@ spec:
           - Include @coraza.conf
           - SecRuleEngine DetectionOnly
           - SecResponseBodyAccess Off
+          - SecAuditEngine RelevantOnly
+          - SecAuditLogParts ABIJDEFHZ
+          - SecAuditLogType Serial
+          - SecAuditLog /dev/stdout
+          - SecAuditLogFormat JSON
           - Include @crs-setup.conf
           - Include @owasp_crs/*.conf
