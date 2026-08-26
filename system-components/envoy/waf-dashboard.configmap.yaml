@@ -24,8 +24,8 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
           "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
           "targets": [
-            { "refId": "A", "expr": "sum(rate(waf_tx_total[5m]))", "legendFormat": "total" },
-            { "refId": "B", "expr": "sum by (authority) (rate(waf_tx_total[5m]))", "legendFormat": "{{authority}}" }
+            { "refId": "A", "expr": "sum(rate(envoy_dynamicmodulescustom_waf_tx_total[5m]))", "legendFormat": "total" },
+            { "refId": "B", "expr": "sum by (authority) (rate(envoy_dynamicmodulescustom_waf_tx_total[5m]))", "legendFormat": "{{authority}}" }
           ]
         },
         {
@@ -35,9 +35,9 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
           "fieldConfig": { "defaults": { "unit": "ms" }, "overrides": [] },
           "targets": [
-            { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p50" },
-            { "refId": "B", "expr": "histogram_quantile(0.95, sum(rate(waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p95" },
-            { "refId": "C", "expr": "histogram_quantile(0.99, sum(rate(waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p99" }
+            { "refId": "A", "expr": "histogram_quantile(0.50, sum(rate(envoy_dynamicmodulescustom_waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p50" },
+            { "refId": "B", "expr": "histogram_quantile(0.95, sum(rate(envoy_dynamicmodulescustom_waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p95" },
+            { "refId": "C", "expr": "histogram_quantile(0.99, sum(rate(envoy_dynamicmodulescustom_waf_tx_duration_bucket[5m])) by (le))", "legendFormat": "p99" }
           ]
         },
         {
@@ -48,8 +48,8 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
           "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
           "targets": [
-            { "refId": "A", "expr": "sum(rate(waf_tx_blocked[5m]))", "legendFormat": "blocked" },
-            { "refId": "B", "expr": "sum by (authority) (rate(waf_tx_blocked[5m]))", "legendFormat": "{{authority}}" }
+            { "refId": "A", "expr": "sum(rate(envoy_dynamicmodulescustom_waf_tx_blocked[5m]))", "legendFormat": "blocked" },
+            { "refId": "B", "expr": "sum by (authority) (rate(envoy_dynamicmodulescustom_waf_tx_blocked[5m]))", "legendFormat": "{{authority}}" }
           ]
         },
         {
@@ -58,7 +58,7 @@ data:
           "datasource": { "type": "prometheus", "uid": "prometheus" },
           "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
           "targets": [
-            { "refId": "A", "format": "table", "instant": true, "expr": "topk(10, sum by (rule_id, phase) (rate(waf_tx_blocked[5m])))" }
+            { "refId": "A", "format": "table", "instant": true, "expr": "topk(10, sum by (rule_id, phase) (rate(envoy_dynamicmodulescustom_waf_tx_blocked[5m])))" }
           ]
         }
       ]
