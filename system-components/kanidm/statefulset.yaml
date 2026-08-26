@@ -7,7 +7,8 @@ metadata:
     app.kubernetes.io/name: kanidm
 spec:
   replicas: 1
-  serviceName: kanidm
+  serviceName: kanidm-headless
+  podManagementPolicy: Parallel
   selector:
     matchLabels:
       app.kubernetes.io/name: kanidm
@@ -16,6 +17,7 @@ spec:
       labels:
         app.kubernetes.io/name: kanidm
     spec:
+      serviceAccountName: kanidm-repl
       automountServiceAccountToken: false
       securityContext:
         fsGroup: 1000
@@ -23,31 +25,76 @@ spec:
         runAsGroup: 1000
         runAsNonRoot: true
         runAsUser: 1000
-      containers:
-        - name: kanidm
-          image: docker.io/kanidm/server:1.10.3
+      topologySpreadConstraints:
+        - topologyKey: inf-k8s.net/location
+          maxSkew: 1
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: kanidm
+      initContainers:
+        - name: repl-bootstrap
+          image: ghcr.io/accurate0/kanidm-repl-coordinator:1.10.3
+          command: ["/bin/sh", "/scripts/bootstrap.sh"]
           env:
-            - name: KANIDM_BINDADDRESS
-              value: "[::]:8443"
-            - name: KANIDM_LDAPBINDADDRESS
-              value: "[::]:3636"
-            - name: KANIDM_DB_PATH
-              value: /data/kanidm.db
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+            - name: HEADLESS_SVC
+              value: kanidm-headless
+            - name: KANIDM_REPLICAS
+              value: "1"
             - name: KANIDM_DOMAIN
               value: idm.anurag.sh
             - name: KANIDM_ORIGIN
               value: https://idm.anurag.sh
-            - name: KANIDM_TLS_CHAIN
-              value: /certs/tls.crt
-            - name: KANIDM_TLS_KEY
-              value: /certs/tls.key
-            - name: KANIDM_ADMIN_BIND_PATH
-              value: /var/run/kanidmd.sock
+            - name: HOME
+              value: /tmp
+            - name: KUBECACHEDIR
+              value: /tmp/.kube
+          resources:
+            requests:
+              cpu: 10m
+            limits:
+              memory: 384Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: certs
+              mountPath: /certs
+              readOnly: true
+            - name: shared
+              mountPath: /shared
+            - name: scripts
+              mountPath: /scripts
+              readOnly: true
+            - name: sa-token
+              mountPath: /var/run/secrets/kubernetes.io/serviceaccount
+              readOnly: true
+            - name: tmp
+              mountPath: /tmp
+      containers:
+        - name: kanidm
+          image: docker.io/kanidm/server:1.10.3
+          command: ["/sbin/kanidmd", "server", "-c", "/shared/server.toml"]
           ports:
             - name: https
               containerPort: 8443
             - name: ldaps
               containerPort: 3636
+            - name: replication
+              containerPort: 8444
           livenessProbe:
             httpGet:
               path: /status
@@ -70,7 +117,7 @@ spec:
             requests:
               cpu: 10m
             limits:
-              memory: 144Mi
+              memory: 384Mi
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
@@ -83,6 +130,9 @@ spec:
             - name: certs
               mountPath: /certs
               readOnly: true
+            - name: shared
+              mountPath: /shared
+              readOnly: true
             - name: run
               mountPath: /var/run
       volumes:
@@ -90,8 +140,31 @@ spec:
           secret:
             secretName: idm-anurag-sh-tls
             defaultMode: 0440
+        - name: shared
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
         - name: run
           emptyDir: {}
+        - name: scripts
+          configMap:
+            name: kanidm-coordinator
+        - name: sa-token
+          projected:
+            sources:
+              - serviceAccountToken:
+                  path: token
+                  expirationSeconds: 3600
+              - configMap:
+                  name: kube-root-ca.crt
+                  items:
+                    - key: ca.crt
+                      path: ca.crt
+              - downwardAPI:
+                  items:
+                    - path: namespace
+                      fieldRef:
+                        fieldPath: metadata.namespace
   volumeClaimTemplates:
     - apiVersion: v1
       kind: PersistentVolumeClaim

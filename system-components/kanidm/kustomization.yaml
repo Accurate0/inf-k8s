@@ -3,6 +3,10 @@ kind: Kustomization
 resources:
   - statefulset.yaml
   - service.yaml
+  - service-headless.yaml
+  - serviceaccount.yaml
+  - rbac.role.yaml
+  - rbac.rolebinding.yaml
   - certificate.yaml
   - httproute.yaml
   - backendtlspolicy.yaml
@@ -17,3 +21,10 @@ resources:
   - groups/home-gateway-readers.yaml
   - groups/platform-admins.yaml
   - users/anurag.yaml
+
+configMapGenerator:
+  - name: kanidm-coordinator
+    files:
+      - coordinator/bootstrap.sh
+    options:
+      disableNameSuffixHash: true
