@@ -7,6 +7,7 @@ resources:
   - serviceaccount.yaml
   - rbac.role.yaml
   - rbac.rolebinding.yaml
+  - pdb.yaml
   - certificate.yaml
   - httproute.yaml
   - backendtlspolicy.yaml

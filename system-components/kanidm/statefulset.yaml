@@ -6,8 +6,9 @@ metadata:
   labels:
     app.kubernetes.io/name: kanidm
 spec:
-  replicas: 1
-  serviceName: kanidm
+  replicas: 3
+  serviceName: kanidm-headless
+  podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
     whenDeleted: Retain
     whenScaled: Retain
@@ -50,7 +51,7 @@ spec:
             - name: HEADLESS_SVC
               value: kanidm-headless
             - name: KANIDM_REPLICAS
-              value: "1"
+              value: "3"
             - name: KANIDM_DOMAIN
               value: idm.anurag.sh
             - name: KANIDM_ORIGIN
