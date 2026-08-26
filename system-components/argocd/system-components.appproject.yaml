@@ -17,6 +17,7 @@ spec:
     - https://cloudnative-pg.github.io/charts
     - https://dl.cloudsmith.io/public/infisical/helm-charts/helm/charts
     - https://grafana-community.github.io/helm-charts
+    - https://grafana.github.io/helm-charts
     - https://helm.flipt.io
     - https://kubernetes-sigs.github.io/descheduler/
     - https://kubernetes-sigs.github.io/external-dns/
