@@ -8,6 +8,9 @@ metadata:
 spec:
   replicas: 1
   serviceName: kanidm
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
   selector:
     matchLabels:
       app.kubernetes.io/name: kanidm
@@ -33,7 +36,7 @@ spec:
               app.kubernetes.io/name: kanidm
       initContainers:
         - name: repl-bootstrap
-          image: ghcr.io/accurate0/kanidm-repl-coordinator:1.10.3
+          image: ghcr.io/accurate0/kanidm-repl-coordinator:1.10.3-1
           command: ["/bin/sh", "/scripts/bootstrap.sh"]
           env:
             - name: POD_NAME

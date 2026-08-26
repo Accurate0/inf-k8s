@@ -14,5 +14,6 @@ RUN set -eux; \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=kanidm /sbin/kanidmd /sbin/kanidmd
+COPY --from=kanidm /hpkg /hpkg
 
 USER 1000
