@@ -153,6 +153,7 @@ spec:
                     period: 24h
             limits_config:
               retention_period: 336h
+              reject_old_samples: false
             compactor:
               retention_enabled: true
               delete_request_store: s3
