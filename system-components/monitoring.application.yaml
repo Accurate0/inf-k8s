@@ -76,6 +76,16 @@ spec:
               secretPath: /
               managedSecrets:
                 - secretName: monitoring-managed-secrets
+            - name: loki-s3-secrets
+              secretPath: /
+              managedSecrets:
+                - secretName: loki-s3-credentials
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      S3_ACCESS_KEY_ID: "{{ .S3_ACCESS_KEY_ID }}"
+                      S3_SECRET_ACCESS_KEY: "{{ .S3_SECRET_ACCESS_KEY }}"
+                      S3_ENDPOINT: "{{ .S3_ENDPOINT }}"
     - chart: tempo
       repoURL: https://grafana-community.github.io/helm-charts
       targetRevision: 2.2.3
@@ -119,6 +129,122 @@ spec:
             accessModes:
               - ReadWriteOnce
             size: 100Gi
+    - chart: loki
+      repoURL: https://grafana.github.io/helm-charts
+      targetRevision: 7.3.0
+      helm:
+        valuesObject:
+          deploymentMode: SingleBinary
+          loki:
+            auth_enabled: false
+            commonConfig:
+              replication_factor: 1
+            schemaConfig:
+              configs:
+                - from: "2024-04-01"
+                  store: tsdb
+                  object_store: s3
+                  schema: v13
+                  index:
+                    prefix: index_
+                    period: 24h
+            limits_config:
+              retention_period: 336h
+            compactor:
+              retention_enabled: true
+              delete_request_store: s3
+            storage:
+              type: s3
+              bucketNames:
+                chunks: loki-data
+                ruler: loki-data
+              s3:
+                endpoint: "${S3_ENDPOINT}"
+                region: auto
+                accessKeyId: "${S3_ACCESS_KEY_ID}"
+                secretAccessKey: "${S3_SECRET_ACCESS_KEY}"
+                s3ForcePathStyle: true
+          singleBinary:
+            replicas: 1
+            extraArgs:
+              - "-config.expand-env=true"
+            extraEnvFrom:
+              - secretRef:
+                  name: loki-s3-credentials
+            persistence:
+              enabled: true
+              storageClass: longhorn-local-wait
+              size: 10Gi
+          chunksCache:
+            enabled: false
+          resultsCache:
+            enabled: false
+          memcached:
+            enabled: false
+          lokiCanary:
+            enabled: false
+          test:
+            enabled: false
+          gateway:
+            enabled: false
+          backend:
+            replicas: 0
+          read:
+            replicas: 0
+          write:
+            replicas: 0
+    - chart: alloy
+      repoURL: https://grafana.github.io/helm-charts
+      targetRevision: 1.12.0
+      helm:
+        valuesObject:
+          controller:
+            type: daemonset
+            tolerations:
+              - key: inf-k8s.net/architecture
+                operator: Equal
+                value: arm64
+                effect: NoSchedule
+          alloy:
+            clustering:
+              enabled: true
+            configMap:
+              content: |
+                discovery.kubernetes "pods" {
+                  role = "pod"
+                }
+
+                discovery.relabel "pods" {
+                  targets = discovery.kubernetes.pods.targets
+
+                  rule {
+                    source_labels = ["__meta_kubernetes_namespace"]
+                    target_label  = "namespace"
+                  }
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_name"]
+                    target_label  = "pod"
+                  }
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_container_name"]
+                    target_label  = "container"
+                  }
+                  rule {
+                    source_labels = ["__meta_kubernetes_pod_label_app_kubernetes_io_name"]
+                    target_label  = "app"
+                  }
+                }
+
+                loki.source.kubernetes "pods" {
+                  targets    = discovery.relabel.pods.output
+                  forward_to = [loki.write.default.receiver]
+                }
+
+                loki.write "default" {
+                  endpoint {
+                    url = "http://loki.monitoring.svc.cluster.local:3100/loki/api/v1/push"
+                  }
+                }
     - chart: kube-prometheus-stack
       repoURL: https://prometheus-community.github.io/helm-charts
       targetRevision: 87.20.0
@@ -253,6 +379,24 @@ spec:
                     enabled: true
                   streamingEnabled:
                     search: true
+                  tracesToLogsV2:
+                    datasourceUid: loki
+                    spanStartTimeShift: -1h
+                    spanEndTimeShift: 1h
+                    filterByTraceID: false
+                    filterBySpanID: false
+              - name: Loki
+                type: loki
+                uid: loki
+                access: proxy
+                url: http://loki.monitoring.svc.cluster.local:3100
+                jsonData:
+                  derivedFields:
+                    - name: TraceID
+                      matcherType: regex
+                      matcherRegex: '"unique_id":"(\w+)"'
+                      url: '$${__value.raw}'
+                      datasourceUid: tempo
             grafana.ini:
               auth:
                 disable_login_form: true
