@@ -1,18 +1,19 @@
 use askama::Template;
 use axum::extract::{Path, State};
-use axum::http::StatusCode;
+use axum::http::{HeaderMap, StatusCode};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Router};
 use ipnet::IpNet;
+use kube::Resource;
 use kube::ResourceExt;
-use kube::api::{DeleteParams, ListParams, PostParams};
+use kube::api::{DeleteParams, ListParams, ObjectMeta, PostParams};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use waf_manager::compositor::Conflict;
 use waf_manager::controller::Context;
-use waf_manager::crd::{WafBlock, WafBlockSpec};
+use waf_manager::crd::{WafBlock, WafBlockSpec, WafPolicy};
 use waf_manager::metrics::Metrics;
 use waf_manager::{Error, Loki};
 
@@ -86,6 +87,7 @@ impl Routes {
                 cidr: b.spec.cidr.clone(),
                 gateway: b.spec.gateway.clone(),
                 reason: b.spec.reason.clone().unwrap_or_default(),
+                created_by: b.spec.created_by.clone().unwrap_or_default(),
                 expires_at: b.spec.expires_at.clone().unwrap_or_default(),
                 enforced: b
                     .status
@@ -131,6 +133,7 @@ impl Routes {
 
     async fn create_block(
         State(state): State<Arc<AppState>>,
+        headers: HeaderMap,
         Form(form): Form<BlockForm>,
     ) -> Result<Redirect, AppError> {
         let net = state.ctx.allowlist.parse_and_check(&form.cidr)?;
@@ -140,17 +143,25 @@ impl Routes {
                 .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
         });
 
+        let gateway = form
+            .gateway
+            .unwrap_or_else(|| waf_manager::crd::DEFAULT_GATEWAY.to_string());
+
         let spec = WafBlockSpec {
             cidr: net.to_string(),
-            gateway: form
-                .gateway
-                .unwrap_or_else(|| waf_manager::crd::DEFAULT_GATEWAY.to_string()),
+            gateway: gateway.clone(),
             reason: form.reason.filter(|r| !r.trim().is_empty()),
             rule_ids: None,
             expires_at,
+            created_by: Self::user(&headers),
         };
 
-        let block = WafBlock::new(&Self::resource_name(&net), spec);
+        let mut block = WafBlock::new(&Self::resource_name(&net), spec);
+        block.metadata = ObjectMeta {
+            owner_references: Self::owner_for(&state, &gateway).await?.map(|o| vec![o]),
+            ..block.metadata
+        };
+
         state
             .ctx
             .blocks()
@@ -159,6 +170,53 @@ impl Routes {
             .map_err(Error::from)?;
 
         Ok(Redirect::to("/blocks"))
+    }
+
+    /// Envoy injects this from the OIDC `preferred_username` claim; it never
+    /// reaches here from the client, because the gateway sets it.
+    fn user(headers: &HeaderMap) -> Option<String> {
+        headers
+            .get("x-waf-user")
+            .and_then(|v| v.to_str().ok())
+            .map(str::trim)
+            .filter(|v| !v.is_empty())
+            .map(str::to_string)
+    }
+
+    /// Owned by the WafPolicy for the same gateway, so a UI-created block shows up
+    /// under it in the ArgoCD resource tree and is collected when it goes away.
+    /// Blocks for a gateway with no WafPolicy are created unowned - and are also
+    /// not enforced until one exists.
+    async fn owner_for(
+        state: &AppState,
+        gateway: &str,
+    ) -> Result<Option<k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference>, AppError>
+    {
+        let mut policies: Vec<WafPolicy> = state
+            .ctx
+            .policies()
+            .list(&ListParams::default())
+            .await
+            .map_err(Error::from)?
+            .items
+            .into_iter()
+            .filter(|p| p.spec.gateway == gateway)
+            .collect();
+
+        // Same ordering the compositor uses, so the choice is stable.
+        policies.sort_by(|a, b| {
+            a.spec
+                .priority
+                .cmp(&b.spec.priority)
+                .then_with(|| a.name_any().cmp(&b.name_any()))
+        });
+
+        Ok(policies.first().and_then(|p| {
+            let mut owner = p.owner_ref(&())?;
+            owner.block_owner_deletion = Some(false);
+            owner.controller = Some(false);
+            Some(owner)
+        }))
     }
 
     async fn delete_block(
@@ -266,6 +324,7 @@ pub struct BlockRow {
     pub cidr: String,
     pub gateway: String,
     pub reason: String,
+    pub created_by: String,
     pub expires_at: String,
     pub enforced: bool,
 }

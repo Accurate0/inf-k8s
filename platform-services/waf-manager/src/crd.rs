@@ -20,6 +20,7 @@ pub const DEFAULT_GATEWAY: &str = "public-gateway";
     printcolumn = r#"{"name":"Gateway","type":"string","jsonPath":".spec.gateway"}"#,
     printcolumn = r#"{"name":"Accepted","type":"string","jsonPath":".status.conditions[?(@.type==\"Accepted\")].status"}"#,
     printcolumn = r#"{"name":"Expires","type":"string","jsonPath":".spec.expiresAt"}"#,
+    printcolumn = r#"{"name":"By","type":"string","jsonPath":".spec.createdBy"}"#,
     printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#
 )]
 pub struct WafBlockSpec {
@@ -43,6 +44,11 @@ pub struct WafBlockSpec {
     /// permanent block.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub expires_at: Option<String>,
+
+    /// Who created the block, from the OIDC `preferred_username` claim that Envoy
+    /// injects. Empty for blocks applied from git.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub created_by: Option<String>,
 }
 
 /// A contribution to the SecurityPolicy waf-manager compiles for a gateway.

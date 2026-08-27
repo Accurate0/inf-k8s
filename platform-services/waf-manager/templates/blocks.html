@@ -26,6 +26,7 @@
             <th>CIDR</th>
             <th>Gateway</th>
             <th>Reason</th>
+            <th>By</th>
             <th>Expires</th>
             <th>State</th>
             <th></th>
@@ -37,6 +38,7 @@
             <td><code>{{ row.cidr }}</code></td>
             <td>{{ row.gateway }}</td>
             <td>{{ row.reason }}</td>
+            <td>{% if row.created_by.is_empty() %}<span class="muted">git</span>{% else %}{{ row.created_by }}{% endif %}</td>
             <td>{% if row.expires_at.is_empty() %}<span class="muted">never</span>{% else %}{{ row.expires_at }}{% endif %}</td>
             <td>
                 {% if row.enforced %}

@@ -29,3 +29,6 @@ spec:
         remoteJWKS:
           cacheDuration: 3600s
           uri: https://idm.anurag.sh/oauth2/openid/waf-manager/public_key.jwk
+        claimToHeaders:
+          - claim: preferred_username
+            header: x-waf-user

@@ -254,6 +254,7 @@ mod tests {
                 reason: None,
                 rule_ids: None,
                 expires_at: None,
+                created_by: None,
             },
         )
     }

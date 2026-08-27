@@ -28,6 +28,9 @@ spec:
     - jsonPath: .spec.expiresAt
       name: Expires
       type: string
+    - jsonPath: .spec.createdBy
+      name: By
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -45,6 +48,12 @@ spec:
                 description: |-
                   A bare address is widened to /32 or /128. Blocks overlapping the tailnet,
                   private ranges, or Cloudflare's ranges are rejected.
+                type: string
+              createdBy:
+                description: |-
+                  Who created the block, from the OIDC `preferred_username` claim that Envoy
+                  injects. Empty for blocks applied from git.
+                nullable: true
                 type: string
               expiresAt:
                 description: |-
