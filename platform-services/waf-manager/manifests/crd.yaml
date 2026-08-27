@@ -1,0 +1,211 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apiextensions.k8s.io/customresourcedefinition_v1.json
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: wafblocks.inf-k8s.net
+spec:
+  group: inf-k8s.net
+  names:
+    categories:
+    - waf
+    kind: WafBlock
+    plural: wafblocks
+    shortNames:
+    - wafb
+    singular: wafblock
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.cidr
+      name: CIDR
+      type: string
+    - jsonPath: .spec.gateway
+      name: Gateway
+      type: string
+    - jsonPath: .status.conditions[?(@.type=="Accepted")].status
+      name: Accepted
+      type: string
+    - jsonPath: .spec.expiresAt
+      name: Expires
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for WafBlockSpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              A client CIDR denied at a gateway. Every WafBlock for a gateway is folded
+              into one Deny rule in the compiled SecurityPolicy.
+            properties:
+              cidr:
+                description: |-
+                  A bare address is widened to /32 or /128. Blocks overlapping the tailnet,
+                  private ranges, or Cloudflare's ranges are rejected.
+                type: string
+              expiresAt:
+                description: |-
+                  RFC 3339. Once passed the controller deletes this resource. Omit for a
+                  permanent block.
+                nullable: true
+                type: string
+              gateway:
+                default: public-gateway
+                description: Must match a WafPolicy's gateway for the block to have anywhere to land.
+                type: string
+              reason:
+                description: Free text, not interpreted.
+                nullable: true
+                type: string
+              ruleIds:
+                description: Coraza rule ids that motivated the block, for context only.
+                items:
+                  type: string
+                nullable: true
+                type: array
+            required:
+            - cidr
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        title: WafBlock
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: wafpolicies.inf-k8s.net
+spec:
+  group: inf-k8s.net
+  names:
+    categories:
+    - waf
+    kind: WafPolicy
+    plural: wafpolicies
+    shortNames:
+    - wafp
+    singular: wafpolicy
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .spec.gateway
+      name: Gateway
+      type: string
+    - jsonPath: .spec.priority
+      name: Priority
+      type: integer
+    - jsonPath: .status.conditions[?(@.type=="Accepted")].status
+      name: Accepted
+      type: string
+    - jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
+    schema:
+      openAPIV3Schema:
+        description: Auto-generated derived type for WafPolicySpec via `CustomResource`
+        properties:
+          spec:
+            description: |-
+              A contribution to the SecurityPolicy waf-manager compiles for a gateway.
+
+              Envoy Gateway allows only one SecurityPolicy per Gateway and
+              `authorization.rules` is an atomic list, so the real resource cannot be
+              co-edited. waf-manager owns it and merges these templates instead.
+            properties:
+              gateway:
+                default: public-gateway
+                description: Gateway in `gatewayNamespace` whose SecurityPolicy this contributes to.
+                type: string
+              gatewayNamespace:
+                default: envoy-gateway-system
+                type: string
+              priority:
+                default: 0
+                description: |-
+                  Lower merges first. Envoy evaluates authorization rules first-match-wins,
+                  so order matters. Generated block rules always precede template rules.
+                format: int32
+                type: integer
+              template:
+                description: |-
+                  A SecurityPolicy `spec`. Setting `targetRefs`, `targetRef`,
+                  `targetSelectors` or `mergeType` is reported as a conflict. Single-valued
+                  blocks (`oidc`, `jwt`, `basicAuth`, `cors`, `extAuth`, `apiKeyAuth`) may be
+                  set by one WafPolicy per gateway; `authorization.rules` are concatenated.
+                type: object
+                x-kubernetes-preserve-unknown-fields: true
+            type: object
+          status:
+            nullable: true
+            properties:
+              conditions:
+                items:
+                  properties:
+                    lastTransitionTime:
+                      type: string
+                    message:
+                      type: string
+                    observedGeneration:
+                      format: int64
+                      type: integer
+                    reason:
+                      type: string
+                    status:
+                      type: string
+                    type:
+                      type: string
+                  required:
+                  - lastTransitionTime
+                  - message
+                  - observedGeneration
+                  - reason
+                  - status
+                  - type
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        title: WafPolicy
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

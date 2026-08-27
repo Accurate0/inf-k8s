@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+
+{% block title %}WAF blocks{% endblock %}
+
+{% block content %}
+<h1>Active blocks</h1>
+
+{% if !conflicts.is_empty() %}
+<div class="conflicts">
+    <h3>Policy conflicts</h3>
+    <ul>
+    {% for conflict in conflicts %}
+        <li><code>{{ conflict.source }}</code>: {{ conflict.message }}</li>
+    {% endfor %}
+    </ul>
+</div>
+{% endif %}
+
+{% if rows.is_empty() %}
+<p>Nothing is blocked. No SecurityPolicy is written while the blocklist is empty
+   and no WafPolicy contributes anything.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>CIDR</th>
+            <th>Gateway</th>
+            <th>Reason</th>
+            <th>Expires</th>
+            <th>State</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td><code>{{ row.cidr }}</code></td>
+            <td>{{ row.gateway }}</td>
+            <td>{{ row.reason }}</td>
+            <td>{% if row.expires_at.is_empty() %}<span class="muted">never</span>{% else %}{{ row.expires_at }}{% endif %}</td>
+            <td>
+                {% if row.enforced %}
+                <span class="badge enforced">enforced</span>
+                {% else %}
+                <span class="badge pending">pending</span>
+                {% endif %}
+            </td>
+            <td>
+                <form class="inline" method="post" action="/unblock">
+                    <input type="hidden" name="name" value="{{ row.name }}">
+                    <button type="submit">Unblock</button>
+                </form>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

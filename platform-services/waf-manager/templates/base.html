@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>{% block title %}WAF Manager{% endblock %}</title>
+    <link rel="stylesheet" href="/static/sakura.css">
+    <style>
+        body { max-width: 1200px; }
+        nav { display: flex; gap: 1em; margin-bottom: 1.5em; }
+        table { font-size: 0.9em; }
+        td.num { text-align: right; font-variant-numeric: tabular-nums; }
+        code, pre { font-size: 0.85em; }
+        pre.lines { max-height: 32em; overflow: auto; white-space: pre-wrap; word-break: break-all; }
+        form.inline { display: inline; margin: 0; }
+        form.inline input, form.inline button { margin: 0; }
+        .badge {
+            display: inline-block;
+            padding: 0.1em 0.5em;
+            border-radius: 0.4em;
+            font-size: 0.8em;
+            color: #fff;
+            white-space: nowrap;
+        }
+        .badge.blocked { background: #cf222e; }
+        .badge.enforced { background: #2da44e; }
+        .badge.pending { background: #bf8700; }
+        .badge.ignored { background: #6e7781; }
+        .badge.critical { background: #cf222e; }
+        .badge.unknown { background: #6e7781; }
+        .conflicts { border-left: 4px solid #bf8700; padding-left: 1em; }
+        .muted { color: #6e7781; }
+    </style>
+</head>
+<body>
+    <nav>
+        <a href="/">Candidates</a>
+        <a href="/blocks">Blocks</a>
+    </nav>
+    {% block content %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/rbac.authorization.k8s.io/clusterrolebinding_v1.json
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: waf-manager
+  namespace: waf-manager
+subjects:
+  - kind: ServiceAccount
+    name: waf-manager
+    namespace: waf-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: waf-manager-access

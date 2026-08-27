@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.envoyproxy.io/securitypolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: waf-manager-oidc
+  namespace: waf-manager
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: waf-manager-route
+  oidc:
+    provider:
+      issuer: https://idm.anurag.sh/oauth2/openid/waf-manager
+    clientIDRef:
+      name: kanidm-waf-manager-oidc
+    clientSecret:
+      name: kanidm-waf-manager-oidc
+    redirectURL: https://waf-manager.inf-k8s.net/oauth2/callback
+    scopes:
+      - openid
+      - email
+      - profile
+    forwardAccessToken: true
+  jwt:
+    providers:
+      - name: kanidm
+        issuer: https://idm.anurag.sh/oauth2/openid/waf-manager
+        remoteJWKS:
+          cacheDuration: 3600s
+          uri: https://idm.anurag.sh/oauth2/openid/waf-manager/public_key.jwk

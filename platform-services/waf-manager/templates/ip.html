@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+
+{% block title %}{{ client_ip }}{% endblock %}
+
+{% block content %}
+<h1><code>{{ client_ip }}</code></h1>
+<p class="muted">Coraza detections over the last {{ window }}.</p>
+
+<form class="inline" method="post" action="/block">
+    <input type="hidden" name="cidr" value="{{ client_ip }}">
+    <input type="text" name="reason" placeholder="reason" size="32">
+    <input type="number" name="ttl_hours" placeholder="ttl h" min="0" size="5">
+    <button type="submit">Block this client</button>
+</form>
+
+<h2>Rules matched</h2>
+{% if rules.is_empty() %}
+<p>No rule matches in this window.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Rule</th>
+            <th>Message</th>
+            <th>Severity</th>
+            <th>Count</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for rule in rules %}
+        <tr>
+            <td>
+                <code>{{ rule.rule_id }}</code>
+                {% if rule.ignored %}<span class="badge ignored">ignored</span>{% endif %}
+            </td>
+            <td>{{ rule.rule_msg }}</td>
+            <td>
+                {% if rule.severity == "critical" %}
+                <span class="badge critical">{{ rule.severity }}</span>
+                {% else %}
+                <span class="badge unknown">{{ rule.severity }}</span>
+                {% endif %}
+            </td>
+            <td class="num">{{ rule.count }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Recent detections</h2>
+{% if lines.is_empty() %}
+<p>No log lines in this window.</p>
+{% else %}
+<pre class="lines">{% for line in lines %}{{ line }}
+{% endfor %}</pre>
+{% endif %}
+{% endblock %}

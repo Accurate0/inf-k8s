@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: waf-manager
+  namespace: waf-manager
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: waf-manager
+  namespaceSelector:
+    matchNames:
+      - waf-manager
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

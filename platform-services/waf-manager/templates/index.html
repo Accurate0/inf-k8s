@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}WAF candidates{% endblock %}
+
+{% block content %}
+<h1>Detection candidates</h1>
+<p class="muted">Clients ranked by Coraza detections over the last {{ window }}.</p>
+
+{% if rows.is_empty() %}
+<p>No detections in this window.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Client IP</th>
+            <th>Detections</th>
+            <th></th>
+            <th>Block</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td><a href="/ip/{{ row.client_ip|urlencode_strict }}"><code>{{ row.client_ip }}</code></a></td>
+            <td class="num">{{ row.detections }}</td>
+            <td>
+                {% if row.already_blocked %}<span class="badge blocked">blocked</span>{% endif %}
+            </td>
+            <td>
+                {% if !row.already_blocked %}
+                <form class="inline" method="post" action="/block">
+                    <input type="hidden" name="cidr" value="{{ row.client_ip }}">
+                    <input type="text" name="reason" placeholder="reason" size="24">
+                    <input type="number" name="ttl_hours" placeholder="ttl h" min="0" size="5">
+                    <button type="submit">Block</button>
+                </form>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

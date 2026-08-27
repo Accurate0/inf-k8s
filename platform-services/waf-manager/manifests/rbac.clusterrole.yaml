@@ -1,0 +1,45 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/rbac.authorization.k8s.io/clusterrole_v1.json
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  namespace: waf-manager
+  name: waf-manager-access
+rules:
+  - apiGroups:
+      - "inf-k8s.net"
+    resources:
+      - wafblocks
+      - wafpolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - delete
+  - apiGroups:
+      - "inf-k8s.net"
+    resources:
+      - wafblocks/status
+      - wafpolicies/status
+    verbs:
+      - get
+      - update
+      - patch
+  - apiGroups:
+      - "gateway.envoyproxy.io"
+    resources:
+      - securitypolicies
+    verbs:
+      - get
+      - list
+      - watch
+      - create
+      - patch
+      - update
+      - delete
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+    verbs:
+      - get
