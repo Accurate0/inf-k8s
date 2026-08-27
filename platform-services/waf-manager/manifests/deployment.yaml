@@ -61,4 +61,4 @@ spec:
             - name: POLICY_NAMESPACE
               value: envoy-gateway-system
             - name: DETECTION_WINDOW
-              value: 1h
+              value: 12h
