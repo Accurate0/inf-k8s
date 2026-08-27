@@ -80,7 +80,7 @@ data:
           "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
           "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
           "targets": [
-            { "refId": "A", "queryType": "range", "expr": "sum by (rule_id) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= `coraza/config.go` |~ `$filter` | json | line_format `{{.msg}}` | regexp `\\[id \"(?P<rule_id>\\d+)\"\\]` [1m]))", "legendFormat": "{{rule_id}}" }
+            { "refId": "A", "queryType": "range", "expr": "sum by (rule_id, rule_msg) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= `coraza/config.go` |~ `$filter` | json | line_format `{{.msg}}` | regexp `\\[id \"(?P<rule_id>\\d+)\"\\]` | regexp `\\[msg \"(?P<rule_msg>[^\"]*)\"\\]` | label_format rule_msg=`{{ regexReplaceAll \" \\\\(Total Score: [0-9]+\\\\)\" .rule_msg \"\" }}` [1m]))", "legendFormat": "{{rule_id}} — {{rule_msg}}" }
           ]
         },
         {
@@ -88,9 +88,9 @@ data:
           "title": "Top matched rules (from logs)",
           "description": "Rule ids and messages seen over the dashboard time range.",
           "datasource": { "type": "loki", "uid": "loki" },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
           "targets": [
-            { "refId": "A", "queryType": "instant", "instant": true, "format": "table", "expr": "topk(10, sum by (rule_id, rule_msg, severity) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= `coraza/config.go` |~ `$filter` | json | line_format `{{.msg}}` | regexp `\\[id \"(?P<rule_id>\\d+)\"\\]` | regexp `\\[msg \"(?P<rule_msg>[^\"]*)\"\\]` [$__range])))" }
+            { "refId": "A", "queryType": "instant", "instant": true, "format": "table", "expr": "topk(10, sum by (rule_id, rule_msg, severity) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= `coraza/config.go` |~ `$filter` | json | line_format `{{.msg}}` | regexp `\\[id \"(?P<rule_id>\\d+)\"\\]` | regexp `\\[msg \"(?P<rule_msg>[^\"]*)\"\\]` | label_format rule_msg=`{{ regexReplaceAll \" \\\\(Total Score: [0-9]+\\\\)\" .rule_msg \"\" }}` [$__range])))" }
           ]
         },
         {
@@ -98,7 +98,7 @@ data:
           "title": "Top client IPs (from logs)",
           "description": "Clients with the most rule matches over the dashboard time range.",
           "datasource": { "type": "loki", "uid": "loki" },
-          "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
           "targets": [
             { "refId": "A", "queryType": "instant", "instant": true, "format": "table", "expr": "topk(10, sum by (client_ip) (count_over_time({namespace=\"envoy-gateway-system\", container=\"envoy\"} |= `coraza/config.go` |~ `$filter` | json | line_format `{{.msg}}` | regexp `\\[client \"(?P<client_ip>[^\"]*)\"\\]` [$__range])))" }
           ]
