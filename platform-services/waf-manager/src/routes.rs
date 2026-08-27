@@ -150,7 +150,7 @@ impl Routes {
         let spec = WafBlockSpec {
             cidr: net.to_string(),
             gateway: gateway.clone(),
-            reason: form.reason.filter(|r| !r.trim().is_empty()),
+            reason: form.reason,
             rule_ids: None,
             expires_at,
             created_by: Self::user(&headers),
@@ -282,9 +282,28 @@ impl Routes {
 #[derive(Deserialize)]
 pub struct BlockForm {
     cidr: String,
+    #[serde(default, deserialize_with = "blank_as_none")]
     gateway: Option<String>,
+    #[serde(default, deserialize_with = "blank_as_none")]
     reason: Option<String>,
+    /// An untouched number input still posts `ttl_hours=`, which is not a u32.
+    #[serde(default, deserialize_with = "blank_as_none")]
     ttl_hours: Option<u32>,
+}
+
+/// HTML forms submit every field, so an empty control arrives as an empty string
+/// rather than being absent. Serde would reject that for any non-string type.
+fn blank_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
+where
+    D: serde::Deserializer<'de>,
+    T: std::str::FromStr,
+    T::Err: std::fmt::Display,
+{
+    let raw = Option::<String>::deserialize(deserializer)?;
+    match raw.as_deref().map(str::trim) {
+        None | Some("") => Ok(None),
+        Some(value) => value.parse().map(Some).map_err(serde::de::Error::custom),
+    }
 }
 
 #[derive(Deserialize)]
@@ -358,4 +377,51 @@ struct IpTemplate {
     window: String,
     rules: Vec<RuleRow>,
     lines: Vec<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(body: &str) -> BlockForm {
+        serde_urlencoded::from_str(body).expect(body)
+    }
+
+    #[test]
+    fn blank_optional_fields_are_none() {
+        // Exactly what the form posts when reason and ttl are left untouched.
+        let form = parse("cidr=203.0.113.4&reason=&ttl_hours=");
+
+        assert_eq!(form.cidr, "203.0.113.4");
+        assert!(form.reason.is_none());
+        assert!(form.ttl_hours.is_none());
+    }
+
+    #[test]
+    fn absent_optional_fields_are_none() {
+        let form = parse("cidr=203.0.113.4");
+        assert!(form.ttl_hours.is_none());
+    }
+
+    #[test]
+    fn populated_fields_parse() {
+        let form = parse("cidr=203.0.113.4&reason=probing&ttl_hours=24");
+
+        assert_eq!(form.reason.as_deref(), Some("probing"));
+        assert_eq!(form.ttl_hours, Some(24));
+    }
+
+    #[test]
+    fn whitespace_only_counts_as_blank() {
+        let form = parse("cidr=203.0.113.4&reason=%20%20&ttl_hours=%20");
+
+        assert!(form.reason.is_none());
+        assert!(form.ttl_hours.is_none());
+    }
+
+    #[test]
+    fn a_real_non_numeric_ttl_is_still_an_error() {
+        let err = serde_urlencoded::from_str::<BlockForm>("cidr=203.0.113.4&ttl_hours=soon");
+        assert!(err.is_err());
+    }
 }
