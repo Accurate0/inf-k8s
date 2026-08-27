@@ -20,6 +20,12 @@ spec:
         - path:
             type: PathPrefix
             value: /
+      sessionPersistence:
+        sessionName: kanidm-affinity
+        type: Cookie
+        cookieConfig:
+          lifetimeType: Session
+        absoluteTimeout: 1h
       backendRefs:
         - group: ""
           kind: Service

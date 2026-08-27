@@ -11,6 +11,7 @@ resources:
   - certificate.yaml
   - httproute.yaml
   - backendtlspolicy.yaml
+  - backend.policy.yaml
   - clients/pbs.yaml
   - clients/pve.yaml
   - groups/argocd-users.yaml
