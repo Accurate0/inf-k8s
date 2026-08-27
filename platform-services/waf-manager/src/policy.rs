@@ -53,6 +53,12 @@ impl PolicyWriter {
         format!("waf-manager-{gateway}")
     }
 
+    /// The waf-manager Namespace as an owner. Cluster-scoped, so it is a legal
+    /// owner from any namespace and always exists while the service runs.
+    pub fn namespace_owner(&self) -> OwnerReference {
+        self.owner.clone()
+    }
+
     /// Enumerates what we have already written.
     pub fn api(&self) -> Api<DynamicObject> {
         self.api.clone()

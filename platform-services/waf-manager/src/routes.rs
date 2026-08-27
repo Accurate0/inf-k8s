@@ -5,15 +5,14 @@ use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
 use axum::{Form, Router};
 use ipnet::IpNet;
-use kube::Resource;
 use kube::ResourceExt;
-use kube::api::{DeleteParams, ListParams, ObjectMeta, PostParams};
+use kube::api::{DeleteParams, ListParams, PostParams};
 use serde::Deserialize;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use waf_manager::compositor::Conflict;
 use waf_manager::controller::Context;
-use waf_manager::crd::{WafBlock, WafBlockSpec, WafPolicy};
+use waf_manager::crd::{WafBlock, WafBlockSpec};
 use waf_manager::metrics::Metrics;
 use waf_manager::{Error, Loki};
 
@@ -156,12 +155,8 @@ impl Routes {
             created_by: Self::user(&headers),
         };
 
-        let mut block = WafBlock::new(&Self::resource_name(&net), spec);
-        block.metadata = ObjectMeta {
-            owner_references: Self::owner_for(&state, &gateway).await?.map(|o| vec![o]),
-            ..block.metadata
-        };
-
+        // The reconciler sets the owner, so git-applied blocks get one too.
+        let block = WafBlock::new(&Self::resource_name(&net), spec);
         state
             .ctx
             .blocks()
@@ -172,51 +167,37 @@ impl Routes {
         Ok(Redirect::to("/blocks"))
     }
 
-    /// Envoy injects this from the OIDC `preferred_username` claim; it never
-    /// reaches here from the client, because the gateway sets it.
+    /// Envoy injects these from OIDC claims; they never reach here from the
+    /// client, because the gateway sets them. `forwardAccessToken` forwards the
+    /// access token, which does not always carry `preferred_username` - `sub` is
+    /// the only claim guaranteed to be there.
     fn user(headers: &HeaderMap) -> Option<String> {
-        headers
-            .get("x-waf-user")
-            .and_then(|v| v.to_str().ok())
-            .map(str::trim)
-            .filter(|v| !v.is_empty())
-            .map(str::to_string)
-    }
+        const CLAIM_HEADERS: &[&str] = &[
+            "x-waf-user",
+            "x-waf-user-name",
+            "x-waf-user-email",
+            "x-waf-user-sub",
+        ];
 
-    /// Owned by the WafPolicy for the same gateway, so a UI-created block shows up
-    /// under it in the ArgoCD resource tree and is collected when it goes away.
-    /// Blocks for a gateway with no WafPolicy are created unowned - and are also
-    /// not enforced until one exists.
-    async fn owner_for(
-        state: &AppState,
-        gateway: &str,
-    ) -> Result<Option<k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference>, AppError>
-    {
-        let mut policies: Vec<WafPolicy> = state
-            .ctx
-            .policies()
-            .list(&ListParams::default())
-            .await
-            .map_err(Error::from)?
-            .items
-            .into_iter()
-            .filter(|p| p.spec.gateway == gateway)
-            .collect();
-
-        // Same ordering the compositor uses, so the choice is stable.
-        policies.sort_by(|a, b| {
-            a.spec
-                .priority
-                .cmp(&b.spec.priority)
-                .then_with(|| a.name_any().cmp(&b.name_any()))
+        let found = CLAIM_HEADERS.iter().find_map(|name| {
+            headers
+                .get(*name)
+                .and_then(|v| v.to_str().ok())
+                .map(str::trim)
+                .filter(|v| !v.is_empty())
+                .map(str::to_string)
         });
 
-        Ok(policies.first().and_then(|p| {
-            let mut owner = p.owner_ref(&())?;
-            owner.block_owner_deletion = Some(false);
-            owner.controller = Some(false);
-            Some(owner)
-        }))
+        if found.is_none() {
+            let seen: Vec<&str> = headers
+                .keys()
+                .map(|k| k.as_str())
+                .filter(|k| k.starts_with("x-waf-") || *k == "authorization")
+                .collect();
+            tracing::warn!("no identity claim header on request; saw {seen:?}");
+        }
+
+        found
     }
 
     async fn delete_block(

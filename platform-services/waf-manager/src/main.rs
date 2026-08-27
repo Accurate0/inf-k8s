@@ -5,6 +5,7 @@ use kube::{Api, Client, runtime::controller::Controller, runtime::watcher};
 use routes::{AppState, Routes};
 use std::collections::BTreeSet;
 use std::sync::Arc;
+use std::time::Duration;
 use tower_http::services::ServeDir;
 use waf_manager::controller::{
     Context, block_error_policy, policy_error_policy, reconcile_block, reconcile_policy,
@@ -51,6 +52,12 @@ async fn main() -> Result<()> {
                 .collect()
         });
 
+    let resync = Duration::from_secs(
+        env("RESYNC_SECONDS", "300")
+            .parse()
+            .expect("RESYNC_SECONDS must be a whole number of seconds"),
+    );
+
     let client = Client::try_default().await?;
     let writer = PolicyWriter::new(client.clone(), &policy_namespace, &namespace).await?;
     let ctx = Arc::new(Context::new(
@@ -79,6 +86,22 @@ async fn main() -> Result<()> {
         .expect("failed to bind :3000");
 
     tracing::info!("waf-manager listening on :3000, namespace {namespace}");
+
+    // Deleting the last WafBlock reconciles a cached object and then has nothing
+    // left to requeue, which can strand the SecurityPolicy still denying a CIDR
+    // whose block is gone. A periodic rebuild converges regardless of events.
+    let resync_ctx = ctx.clone();
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(resync);
+        ticker.tick().await;
+
+        loop {
+            ticker.tick().await;
+            if let Err(e) = resync_ctx.sync_all().await {
+                tracing::warn!("periodic resync failed: {e}");
+            }
+        }
+    });
 
     let blocks = Controller::new(
         Api::<WafBlock>::namespaced(client.clone(), &namespace),

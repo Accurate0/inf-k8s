@@ -4,9 +4,10 @@ use crate::crd::{Condition, WafBlock, WafPolicy};
 use crate::error::{Error, Result};
 use crate::metrics::Metrics;
 use crate::policy::PolicyWriter;
+use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{Api, DeleteParams, DynamicObject, ListParams, Patch, PatchParams};
 use kube::runtime::controller::Action;
-use kube::{Client, ResourceExt};
+use kube::{Client, Resource, ResourceExt};
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -93,6 +94,61 @@ impl Context {
         Ok(all_conflicts)
     }
 
+    /// Give a WafBlock an owner so it appears in the ArgoCD resource tree and is
+    /// collected with whatever it belongs to. Preferred owner is the WafPolicy for
+    /// the same gateway; failing that the waf-manager Namespace, which is
+    /// cluster-scoped and always exists. Blocks that already have an owner are left
+    /// alone, so one set deliberately in git is never overwritten.
+    pub async fn ensure_owner(&self, obj: &WafBlock) -> Result<()> {
+        if obj
+            .metadata
+            .owner_references
+            .as_ref()
+            .is_some_and(|refs| !refs.is_empty())
+        {
+            return Ok(());
+        }
+
+        let mut owner = self.policy_owner(&obj.spec.gateway).await?;
+        owner.controller = Some(false);
+        owner.block_owner_deletion = Some(false);
+
+        let patch = serde_json::json!({ "metadata": { "ownerReferences": [owner] } });
+        self.blocks()
+            .patch(
+                &obj.name_any(),
+                &PatchParams::default(),
+                &Patch::Merge(&patch),
+            )
+            .await?;
+
+        tracing::info!("set owner on block {}", obj.name_any());
+        Ok(())
+    }
+
+    async fn policy_owner(&self, gateway: &str) -> Result<OwnerReference> {
+        let mut policies: Vec<WafPolicy> = self
+            .policies()
+            .list(&ListParams::default())
+            .await?
+            .items
+            .into_iter()
+            .filter(|p| p.spec.gateway == gateway)
+            .collect();
+
+        // Same ordering the compositor uses, so the choice is stable.
+        policies.sort_by(|a, b| {
+            a.spec
+                .priority
+                .cmp(&b.spec.priority)
+                .then_with(|| a.name_any().cmp(&b.name_any()))
+        });
+
+        Ok(policies
+            .first()
+            .and_then(|p| p.owner_ref(&()))
+            .unwrap_or_else(|| self.writer.namespace_owner()))
+    }
     async fn adopted_gateways(&self) -> Result<Vec<String>> {
         let api: Api<DynamicObject> = self.writer.api();
 
@@ -126,6 +182,10 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
             .await?;
 
         return Ok(Action::await_change());
+    }
+
+    if let Err(e) = ctx.ensure_owner(&obj).await {
+        tracing::warn!("failed to set owner on {}: {e}", obj.name_any());
     }
 
     let accepted = ctx
@@ -332,7 +392,13 @@ async fn write_status(
     ];
 
     let body = serde_json::json!({ "status": { "conditions": conditions } });
-    if let Err(e) = target.patch(ctx, body).await {
-        tracing::warn!("failed to write status for {}: {e}", target.name());
+    match target.patch(ctx, body).await {
+        Ok(()) => {}
+        // Reconciles run against a cached object, so an unblock routinely lands
+        // here with the object already gone. Not worth a warning.
+        Err(Error::Kube(kube::Error::Api(e))) if e.code == 404 => {
+            tracing::debug!("{} deleted before status was written", target.name());
+        }
+        Err(e) => tracing::warn!("failed to write status for {}: {e}", target.name()),
     }
 }

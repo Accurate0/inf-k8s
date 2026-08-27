@@ -62,3 +62,5 @@ spec:
               value: envoy-gateway-system
             - name: DETECTION_WINDOW
               value: 12h
+            - name: RESYNC_SECONDS
+              value: "300"
