@@ -14,7 +14,7 @@
         <tr>
             <th>Client IP</th>
             <th>Detections</th>
-            <th></th>
+            <th>Status</th>
             <th>Block</th>
         </tr>
     </thead>
@@ -23,7 +23,7 @@
         <tr>
             <td><a href="/ip/{{ row.client_ip|urlencode_strict }}"><code>{{ row.client_ip }}</code></a></td>
             <td class="num">{{ row.detections }}</td>
-            <td>
+            <td class="status">
                 {% if row.already_blocked %}<span class="badge blocked">blocked</span>{% endif %}
                 {% if !row.protected.is_empty() %}<span class="badge protected">protected</span> <code class="muted">{{ row.protected }}</code>{% endif %}
             </td>
