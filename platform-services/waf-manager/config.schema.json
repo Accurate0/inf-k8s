@@ -28,7 +28,7 @@
       "$ref": "#/$defs/Span"
     },
     "never_block": {
-      "description": "Merged with the built-in protected ranges and the\n`WAF_MANAGER_ALLOWLIST` secret.",
+      "description": "Merged with the `WAF_MANAGER_ALLOWLIST` secret and the feeds below.",
       "type": "array",
       "default": [],
       "items": {
@@ -67,7 +67,6 @@
           "$ref": "#/$defs/SourceFormat"
         },
         "name": {
-          "description": "Labels the entries in the UI and in metrics.",
           "type": "string"
         },
         "url": {
@@ -147,7 +146,6 @@
           "default": "public-gateway"
         },
         "window": {
-          "description": "Lookback for the Loki queries when a workflow does not set its own.",
           "$ref": "#/$defs/Span"
         }
       },
@@ -156,27 +154,23 @@
     "Enabled": {
       "oneOf": [
         {
-          "description": "Creates blocks.",
           "type": "string",
-          "const": "active"
+          "enum": [
+            "active",
+            "disabled"
+          ]
         },
         {
           "description": "Logs what it would block and records a metric, but creates nothing.",
           "type": "string",
           "const": "dry-run"
-        },
-        {
-          "description": "Never evaluated.",
-          "type": "string",
-          "const": "disabled"
         }
       ]
     },
     "LeafMatcher": {
-      "description": "Every leaf reads one of the three fact sources gathered per candidate IP:\nthe detection total, the per-rule breakdown, or the requested URIs.",
+      "description": "Every leaf reads one of the fact sources gathered per candidate IP: the\ndetection total, the per-rule breakdown, the requested URIs, or a signal.",
       "oneOf": [
         {
-          "description": "Total Coraza detections in the window.",
           "type": "object",
           "properties": {
             "max": {
@@ -205,7 +199,6 @@
           ]
         },
         {
-          "description": "How many distinct rule ids the IP tripped; scanners fan out widely.",
           "type": "object",
           "properties": {
             "min": {
@@ -335,7 +328,6 @@
           ]
         },
         {
-          "description": "The value of one of the workflow's own `signals` queries.",
           "type": "object",
           "properties": {
             "max": {
@@ -414,7 +406,7 @@
       "type": "object",
       "properties": {
         "candidates": {
-          "description": "Replaces the built-in \"top detecting client IPs\" query. Must return series\ncarrying a `client_ip` label; the value becomes `detections`. Lets a\nworkflow draw its candidates from somewhere other than raw Coraza volume.",
+          "description": "Replaces the built-in candidate query. Must return series carrying a\n`client_ip` label; the value becomes `detections`.",
           "anyOf": [
             {
               "$ref": "#/$defs/Template"
@@ -425,7 +417,6 @@
           ]
         },
         "duration": {
-          "description": "How long the block it creates lasts.",
           "$ref": "#/$defs/BlockDuration"
         },
         "enabled": {
@@ -442,11 +433,10 @@
           "type": "string"
         },
         "reason": {
-          "description": "Recorded on the WafBlock so the dashboard says why it appeared.",
           "type": "string"
         },
         "signals": {
-          "description": "Named LogQL instant queries, evaluated per candidate IP and folded to a\nnumber the `signal` matcher compares against. This is the escape hatch for\nanything the built-in matchers do not express.",
+          "description": "LogQL instant queries evaluated per candidate IP, compared by the\n`signal` matcher.",
           "type": "object",
           "additionalProperties": {
             "$ref": "#/$defs/Template"
@@ -456,7 +446,6 @@
           "$ref": "#/$defs/Matcher"
         },
         "window": {
-          "description": "Lookback for this workflow's Loki queries. Workflows sharing a window\nshare their queries.",
           "anyOf": [
             {
               "$ref": "#/$defs/Span"
