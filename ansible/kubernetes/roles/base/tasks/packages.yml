@@ -10,5 +10,12 @@
         package:
           - curl
           - nfs-common
+          - open-iscsi
           - htop
           - zfsutils-linux
+
+    - name: Enable iscsid
+      ansible.builtin.systemd_service:
+        name: iscsid
+        enabled: true
+        state: started
