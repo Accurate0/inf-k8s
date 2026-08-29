@@ -67,6 +67,7 @@ spec:
           envFrom:
             - secretRef:
                 name: waf-manager-managed-secrets
+                optional: true
           volumeMounts:
             - name: workflows
               mountPath: /etc/waf-manager/config
