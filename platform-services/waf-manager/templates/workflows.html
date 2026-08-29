@@ -49,15 +49,17 @@
 <table>
     <thead>
         <tr>
-            <th>CIDR</th>
-            <th>Why</th>
+            <th>Source</th>
+            <th class="num">Ranges</th>
+            <th>Examples</th>
         </tr>
     </thead>
     <tbody>
     {% for row in protected %}
         <tr>
-            <td><code>{{ row.cidr }}</code></td>
-            <td>{{ row.why }}</td>
+            <td><code>{{ row.source }}</code></td>
+            <td class="num">{{ row.count }}</td>
+            <td><code>{{ row.examples }}</code></td>
         </tr>
     {% endfor %}
     </tbody>

@@ -21,11 +21,12 @@ never_block:
   - fe80::/10
 allowlist_refresh: 12h
 allowlist_sources:
-  - name: github-hooks
+  - name: github
     url: https://api.github.com/meta
     format: github_meta
     fields:
       - hooks
+      - actions
   - name: cloudflare
     url: https://api.cloudflare.com/client/v4/ips
     format: cloudflare_ips

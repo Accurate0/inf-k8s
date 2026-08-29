@@ -8,7 +8,7 @@ use ipnet::IpNet;
 use kube::ResourceExt;
 use kube::api::{DeleteParams, ListParams, PostParams};
 use serde::Deserialize;
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use waf_manager::compositor::Conflict;
 use waf_manager::controller::Context;
@@ -88,13 +88,21 @@ impl Routes {
     }
 
     async fn blocks(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
-        let blocks = state
+        let mut blocks = state
             .ctx
             .blocks()
             .list(&ListParams::default())
             .await
             .map_err(Error::from)?
             .items;
+
+        // Newest first: the block someone just added, or a workflow just made,
+        // is the one being looked for. The API lists by name, which is the CIDR.
+        blocks.sort_by(|a, b| {
+            b.creation_timestamp()
+                .cmp(&a.creation_timestamp())
+                .then_with(|| a.name_any().cmp(&b.name_any()))
+        });
 
         let rows = blocks
             .into_iter()
@@ -103,6 +111,10 @@ impl Routes {
                 cidr: b.spec.cidr.clone(),
                 gateway: b.spec.gateway.clone(),
                 reason: b.spec.reason.clone().unwrap_or_default(),
+                created_at: b
+                    .creation_timestamp()
+                    .map(|t| t.0.to_string())
+                    .unwrap_or_default(),
                 automatic: b
                     .spec
                     .created_by
@@ -172,18 +184,38 @@ impl Routes {
             rows,
             decisions: state.engine.decisions().await,
             cooldown: config.manual_unblock_cooldown.to_string(),
-            protected: state
-                .ctx
-                .allowlist
-                .entries()
-                .await
-                .iter()
-                .map(|(net, why)| ProtectedRow {
-                    cidr: net.to_string(),
-                    why: why.clone(),
-                })
-                .collect(),
+            // A feed can carry thousands of ranges, so summarise by source
+            // rather than rendering every CIDR.
+            protected: Self::protected_rows(&state.ctx.allowlist.entries().await),
         })
+    }
+
+    fn protected_rows(entries: &[(IpNet, String)]) -> Vec<ProtectedRow> {
+        let mut by_source: BTreeMap<&str, Vec<String>> = BTreeMap::new();
+        for (net, why) in entries {
+            by_source
+                .entry(why.as_str())
+                .or_default()
+                .push(net.to_string());
+        }
+
+        const SHOWN: usize = 6;
+
+        by_source
+            .into_iter()
+            .map(|(source, cidrs)| {
+                let mut examples = cidrs.iter().take(SHOWN).cloned().collect::<Vec<_>>();
+                if let Some(rest) = cidrs.len().checked_sub(SHOWN).filter(|r| *r > 0) {
+                    examples.push(format!("and {rest} more"));
+                }
+
+                ProtectedRow {
+                    source: source.to_string(),
+                    count: cidrs.len(),
+                    examples: examples.join(", "),
+                }
+            })
+            .collect()
     }
 
     async fn create_block(
@@ -378,6 +410,7 @@ pub struct CandidateRow {
 pub struct BlockRow {
     pub name: String,
     pub automatic: bool,
+    pub created_at: String,
     pub cidr: String,
     pub gateway: String,
     pub reason: String,
@@ -421,8 +454,9 @@ struct WorkflowsTemplate {
 }
 
 pub struct ProtectedRow {
-    pub cidr: String,
-    pub why: String,
+    pub source: String,
+    pub count: usize,
+    pub examples: String,
 }
 
 #[derive(Template)]

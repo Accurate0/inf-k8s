@@ -135,7 +135,6 @@
       "type": "object",
       "properties": {
         "candidate_limit": {
-          "description": "How many top-detecting client IPs to consider each tick.",
           "type": "integer",
           "format": "uint",
           "default": 50,
@@ -168,7 +167,6 @@
       ]
     },
     "LeafMatcher": {
-      "description": "Every leaf reads one of the fact sources gathered per candidate IP: the\ndetection total, the per-rule breakdown, the requested URIs, or a signal.",
       "oneOf": [
         {
           "type": "object",
@@ -399,7 +397,7 @@
       ]
     },
     "Template": {
-      "description": "A LogQL query with `{{name}}` placeholders. `{{window}}`, `{{limit}}` and the\nfragments from [`crate::loki::Loki::fragments`] are always available;\n`{{client_ip}}`, `{{prefilter}}` and `{{exact_client}}` only in a signal, which\nis evaluated against one address.",
+      "description": "A LogQL query with `{{name}}` placeholders: `{{window}}`, `{{limit}}` and the\n[`crate::loki::Loki::fragments`] everywhere, plus `{{client_ip}}`,\n`{{prefilter}}` and `{{exact_client}}` in a signal.",
       "type": "string"
     },
     "WorkflowDef": {

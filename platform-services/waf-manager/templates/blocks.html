@@ -27,6 +27,7 @@
             <th>Gateway</th>
             <th>Reason</th>
             <th>By</th>
+            <th>Created</th>
             <th>Expires</th>
             <th>State</th>
             <th></th>
@@ -47,6 +48,7 @@
                 {{ row.created_by }}
                 {% endif %}
             </td>
+            <td>{{ row.created_at }}</td>
             <td>{% if row.expires_at.is_empty() %}<span class="muted">never</span>{% else %}{{ row.expires_at }}{% endif %}</td>
             <td>
                 {% if row.enforced %}
