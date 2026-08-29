@@ -6,4 +6,9 @@ token: "{{ k3s_cluster_token }}"
 kubelet-arg:
   - "image-gc-high-threshold=50"
   - "image-gc-low-threshold=20"
-  - "maximum-dead-containers=0"
+  - "maximum-dead-containers=3"
+{% if k3s_lxc | default(false) %}
+  - "feature-gates=KubeletInUserNamespace=true"
+kube-proxy-arg:
+  - "proxy-mode=nftables"
+{% endif %}

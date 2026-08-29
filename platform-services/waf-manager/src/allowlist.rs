@@ -46,9 +46,13 @@ const PROTECTED: &[(&str, &str)] = &[
     ("2c0f:f248::/32", "cloudflare"),
 ];
 
+/// Env var holding extra never-block CIDRs, sourced from Infisical via
+/// external-secrets. Comma-, space- or newline-separated.
+const EXTRA_ENV: &str = "WAF_MANAGER_ALLOWLIST";
+
 /// Guards every CIDR entering the blocklist; parses the protected ranges once.
 pub struct Allowlist {
-    protected: Vec<(IpNet, &'static str)>,
+    protected: Vec<(IpNet, String)>,
 }
 
 impl Default for Allowlist {
@@ -65,11 +69,54 @@ impl Allowlist {
                 let net = raw
                     .parse::<IpNet>()
                     .expect("PROTECTED entries must be valid CIDRs");
-                (net, *why)
+                (net, (*why).to_string())
             })
             .collect();
 
         Self { protected }
+    }
+
+    /// The built-in ranges plus whatever the operator listed in [`EXTRA_ENV`].
+    pub fn from_env() -> Self {
+        match std::env::var(EXTRA_ENV) {
+            Ok(raw) => Self::with_extra(&raw),
+            Err(_) => {
+                tracing::info!("{EXTRA_ENV} unset; using the built-in protected ranges only");
+                Self::new()
+            }
+        }
+    }
+
+    /// A malformed entry is skipped rather than fatal, so one typo in the secret
+    /// cannot take the service down - but it is logged at error, because the
+    /// consequence is an address the operator meant to protect being blockable.
+    pub fn with_extra(raw: &str) -> Self {
+        let mut allowlist = Self::new();
+
+        for entry in raw
+            .split([',', ' ', '\t', '\n', '\r'])
+            .map(str::trim)
+            .filter(|e| !e.is_empty())
+        {
+            match Self::parse_cidr(entry) {
+                Ok(net) => allowlist
+                    .protected
+                    .push((net, format!("allowlisted ({EXTRA_ENV})"))),
+                Err(e) => tracing::error!("ignoring unparsable {EXTRA_ENV} entry {entry:?}: {e}"),
+            }
+        }
+
+        tracing::info!(
+            entries = allowlist.protected.len() - PROTECTED.len(),
+            "loaded extra allowlist entries"
+        );
+
+        allowlist
+    }
+
+    /// Never-block ranges, for the dashboard.
+    pub fn protected(&self) -> impl Iterator<Item = (&IpNet, &str)> {
+        self.protected.iter().map(|(net, why)| (net, why.as_str()))
     }
 
     /// A bare address widens to a single-host prefix, as the UI submits.
@@ -181,6 +228,33 @@ mod tests {
     #[test]
     fn ipv6_cloudflare_is_refused() {
         assert!(Allowlist::new().parse_and_check("2606:4700::1111").is_err());
+    }
+
+    #[test]
+    fn allowlisted_entries_are_refused() {
+        let allowlist = Allowlist::with_extra("203.0.113.4, 198.51.100.0/24\n2001:db8::1");
+
+        assert!(allowlist.parse_and_check("203.0.113.4").is_err());
+        assert!(allowlist.parse_and_check("198.51.100.7").is_err());
+        assert!(allowlist.parse_and_check("2001:db8::1").is_err());
+        // Neighbours of an allowlisted host are still blockable.
+        assert!(allowlist.parse_and_check("203.0.113.5").is_ok());
+    }
+
+    #[test]
+    fn a_malformed_allowlist_entry_is_skipped_not_fatal() {
+        let allowlist = Allowlist::with_extra("203.0.113.4, not-an-ip, 198.51.100.0/24");
+
+        assert!(allowlist.parse_and_check("203.0.113.4").is_err());
+        assert!(allowlist.parse_and_check("198.51.100.7").is_err());
+    }
+
+    #[test]
+    fn an_empty_allowlist_leaves_the_built_ins_intact() {
+        let allowlist = Allowlist::with_extra("  ,, \n ");
+
+        assert!(allowlist.parse_and_check("104.16.5.5").is_err());
+        assert!(allowlist.parse_and_check("203.0.113.4").is_ok());
     }
 
     #[test]

@@ -3,7 +3,6 @@ mod routes;
 use futures::StreamExt;
 use kube::{Api, Client, runtime::controller::Controller, runtime::watcher};
 use routes::{AppState, Routes};
-use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
 use tower_http::services::ServeDir;
@@ -11,14 +10,13 @@ use waf_manager::controller::{
     Context, block_error_policy, policy_error_policy, reconcile_block, reconcile_policy,
 };
 use waf_manager::metrics::Metrics;
-use waf_manager::{Allowlist, Loki, PolicyWriter, Result, WafBlock, WafPolicy};
+use waf_manager::{
+    Allowlist, Config, Loki, PolicyWriter, Result, Suppressions, WafBlock, WafPolicy,
+    WorkflowEngine,
+};
 
 const DEFAULT_LOKI: &str = "http://monitoring-loki.monitoring.svc.cluster.local:3100";
 const DEFAULT_POLICY_NAMESPACE: &str = "envoy-gateway-system";
-
-/// Anomaly-score aggregates and body-parse noise: consequences of other rules
-/// rather than findings in their own right, so they are hidden from the ranking.
-const DEFAULT_IGNORED_RULES: &[&str] = &["949110", "949111", "200002"];
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -34,23 +32,10 @@ async fn main() -> Result<()> {
     let namespace = env("POD_NAMESPACE", "waf-manager");
     let policy_namespace = env("POLICY_NAMESPACE", DEFAULT_POLICY_NAMESPACE);
     let loki_url = env("LOKI_URL", DEFAULT_LOKI);
-    let window = env("DETECTION_WINDOW", "1h");
 
-    let ignored_rules: BTreeSet<String> = std::env::var("IGNORED_RULE_IDS")
-        .ok()
-        .map(|raw| {
-            raw.split(',')
-                .map(str::trim)
-                .filter(|s| !s.is_empty())
-                .map(str::to_string)
-                .collect()
-        })
-        .unwrap_or_else(|| {
-            DEFAULT_IGNORED_RULES
-                .iter()
-                .map(|s| s.to_string())
-                .collect()
-        });
+    // Windows, ignored rules and the automatic-block workflows all live in
+    // config.yaml now, so they can change without a rebuild.
+    let config = Config::load();
 
     let resync = Duration::from_secs(
         env("RESYNC_SECONDS", "300")
@@ -63,7 +48,7 @@ async fn main() -> Result<()> {
     let ctx = Arc::new(Context::new(
         client.clone(),
         namespace.clone(),
-        Allowlist::new(),
+        Allowlist::from_env(),
         writer,
     ));
 
@@ -73,11 +58,20 @@ async fn main() -> Result<()> {
         tracing::warn!("initial sync failed: {e}");
     }
 
+    let loki = Arc::new(Loki::new(loki_url));
+    let suppressions =
+        Suppressions::new(client.clone(), &namespace, config.manual_unblock_cooldown);
+    let engine = Arc::new(WorkflowEngine::new(
+        config,
+        loki.clone(),
+        ctx.clone(),
+        suppressions,
+    ));
+
     let state = Arc::new(AppState {
         ctx: ctx.clone(),
-        loki: Loki::new(loki_url),
-        window,
-        ignored_rules,
+        loki,
+        engine: engine.clone(),
     });
 
     let app = Routes::router(state).nest_service("/static", ServeDir::new("static"));
@@ -85,12 +79,16 @@ async fn main() -> Result<()> {
         .await
         .expect("failed to bind :3000");
 
-    tracing::info!("waf-manager listening on :3000, namespace {namespace}");
+    tracing::info!(
+        workflows = engine.config().workflows.len(),
+        "waf-manager listening on :3000, namespace {namespace}"
+    );
 
     // Deleting the last WafBlock reconciles a cached object and then has nothing
     // left to requeue, which can strand the SecurityPolicy still denying a CIDR
     // whose block is gone. A periodic rebuild converges regardless of events.
     let resync_ctx = ctx.clone();
+    let resync_engine = engine.clone();
     tokio::spawn(async move {
         let mut ticker = tokio::time::interval(resync);
         ticker.tick().await;
@@ -99,6 +97,12 @@ async fn main() -> Result<()> {
             ticker.tick().await;
             if let Err(e) = resync_ctx.sync_all().await {
                 tracing::warn!("periodic resync failed: {e}");
+            }
+
+            // After the sync, so the workflows see the blocklist the compositor
+            // just applied. A Loki outage must not stall the reconcile loop.
+            if let Err(e) = resync_engine.run_once().await {
+                tracing::warn!("workflow run failed: {e}");
             }
         }
     });

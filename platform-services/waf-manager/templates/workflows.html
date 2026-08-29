@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+
+{% block title %}WAF workflows{% endblock %}
+
+{% block content %}
+<h1>Automatic block workflows</h1>
+
+<p class="muted">Evaluated on every resync. A <code>dry-run</code> workflow logs what it
+   would block without creating anything. Unblocking by hand suppresses the CIDR
+   for {{ cooldown }}.</p>
+
+{% if rows.is_empty() %}
+<p>No workflows are configured.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>Workflow</th>
+            <th>State</th>
+            <th>Window</th>
+            <th>Blocks for</th>
+            <th>Gateway</th>
+            <th>Signals</th>
+            <th>Reason</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in rows %}
+        <tr>
+            <td><code>{{ row.name }}</code></td>
+            <td><span class="badge {{ row.enabled }}">{{ row.enabled }}</span></td>
+            <td>{{ row.window }}</td>
+            <td>{{ row.duration }}</td>
+            <td>{{ row.gateway }}</td>
+            <td>{% if row.signals.is_empty() %}<span class="muted">-</span>{% else %}<code>{{ row.signals }}</code>{% endif %}</td>
+            <td>{{ row.reason }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Never blocked</h2>
+
+<p class="muted">Checked in both directions, so neither a block inside one of these
+   nor a supernet swallowing one is accepted. Entries marked
+   <code>WAF_MANAGER_ALLOWLIST</code> come from Infisical.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>CIDR</th>
+            <th>Why</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in protected %}
+        <tr>
+            <td><code>{{ row.cidr }}</code></td>
+            <td>{{ row.why }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2>Recent decisions</h2>
+
+{% if decisions.is_empty() %}
+<p class="muted">Nothing decided since this pod started.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>When</th>
+            <th>Workflow</th>
+            <th>CIDR</th>
+            <th class="num">Detections</th>
+            <th>Mode</th>
+            <th>Outcome</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for decision in decisions %}
+        <tr>
+            <td>{{ decision.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true) }}</td>
+            <td><code>{{ decision.workflow }}</code></td>
+            <td><a href="/ip/{{ decision.cidr }}"><code>{{ decision.cidr }}</code></a></td>
+            <td class="num">{{ decision.detections }}</td>
+            <td><span class="badge {{ decision.mode }}">{{ decision.mode }}</span></td>
+            <td>{{ decision.outcome }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+{% endblock %}

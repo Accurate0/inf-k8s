@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: high-volume-scanner
+enabled: dry-run
+window: 12h
+duration: 24h
+reason: "automatic: sustained detection volume"
+when:
+  all:
+    - type: detections
+      min: 500
+    - type: severity
+      values: [critical, error]
+      min_count: 100

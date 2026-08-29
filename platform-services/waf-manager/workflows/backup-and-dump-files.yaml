@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: backup-and-dump-files
+enabled: active
+window: 6h
+duration: 30d
+reason: "automatic: probing for exposed database dumps and backups"
+when:
+  type: uri_matches
+  patterns:
+    - "/backup.sql"
+    - "/database.sql"
+    - "/dump.sql"
+    - "/backup.zip"
+    - "/backup.tar.gz"
+    - "/www.zip"
+    - ".env.bak"
+    - ".env.old"
+  min_count: 1

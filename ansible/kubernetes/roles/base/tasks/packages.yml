@@ -8,6 +8,7 @@
       ansible.builtin.apt:
         update_cache: true
         package:
+          - curl
           - nfs-common
           - htop
           - zfsutils-linux

@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: directory-bruteforce
+enabled: dry-run
+window: 6h
+duration: 24h
+reason: "automatic: brute-forcing paths against the proxy"
+candidates: |
+  topk({{limit}}, sum by (client_ip) (count_over_time({{access_selector}} | response_code >= 400 | response_code < 500 {{re_xff}} [{{window}}])))
+signals:
+  distinct_paths: |
+    count(count by (path) (count_over_time({{access_selector}} {{prefilter}} | response_code >= 400 | response_code < 500 {{re_xff}} {{exact_client}} {{fmt_path}} [{{window}}])))
+when:
+  all:
+    - type: detections
+      min: 200
+    - type: signal
+      name: distinct_paths
+      min: 100

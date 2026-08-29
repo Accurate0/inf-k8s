@@ -6,6 +6,8 @@ resources:
   - serviceaccount.yaml
   - rbac.clusterrole.yaml
   - rbac.clusterrolebinding.yaml
+  - secretstore.yaml
+  - secret.yaml
   - deployment.yaml
   - service.yaml
   - servicemonitor.yaml

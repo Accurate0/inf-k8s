@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=./config.schema.json
+version: 1
+defaults:
+  gateway: public-gateway
+  window: 1h
+  candidate_limit: 50
+ignored_rule_ids:
+  - "949110"
+  - "949111"
+  - "200002"
+manual_unblock_cooldown: 7d
+workflows:
+  - !include workflows/credential-file-probes.yaml
+  - !include workflows/admin-panel-probes.yaml
+  - !include workflows/shell-and-rce-probes.yaml
+  - !include workflows/backup-and-dump-files.yaml
+  - !include workflows/java-exploit-attempts.yaml
+  - !include workflows/path-traversal.yaml
+  - !include workflows/scanner-user-agents.yaml
+  - !include workflows/repo-exposure.yaml
+  - !include workflows/known-exploit-paths.yaml
+  - !include workflows/directory-bruteforce.yaml
+  - !include workflows/high-volume-scanner.yaml
+  - !include workflows/broad-rule-fanout.yaml

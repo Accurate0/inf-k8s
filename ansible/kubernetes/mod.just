@@ -2,7 +2,7 @@
 default:
     @just --list ansible::kubernetes
 
-ansible_dir := justfile_directory()
+ansible_dir := source_directory()
 
 # Run an ansible playbook (e.g. just ansible kubernetes run cluster all)
 run playbook group:

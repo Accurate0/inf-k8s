@@ -1,0 +1,21 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - manifests
+configMapGenerator:
+  - name: waf-manager-workflows
+    namespace: waf-manager
+    files:
+      - config.yaml
+      - workflows/credential-file-probes.yaml
+      - workflows/admin-panel-probes.yaml
+      - workflows/shell-and-rce-probes.yaml
+      - workflows/backup-and-dump-files.yaml
+      - workflows/java-exploit-attempts.yaml
+      - workflows/path-traversal.yaml
+      - workflows/scanner-user-agents.yaml
+      - workflows/repo-exposure.yaml
+      - workflows/known-exploit-paths.yaml
+      - workflows/directory-bruteforce.yaml
+      - workflows/high-volume-scanner.yaml
+      - workflows/broad-rule-fanout.yaml

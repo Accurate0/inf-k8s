@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: scanner-user-agents
+enabled: dry-run
+window: 6h
+duration: 7d
+reason: "automatic: self-identifying security scanner"
+signals:
+  scanner_rules: |
+    sum(count_over_time({{selector}} {{prefilter}} {{parse}} {{re_client}} {{exact_client}} {{re_id}} | rule_id =~ `913\d+` [{{window}}]))
+when:
+  type: signal
+  name: scanner_rules
+  min: 1

@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: repo-exposure
+enabled: active
+window: 6h
+duration: 30d
+reason: "automatic: probing for an exposed source repository"
+when:
+  type: uri_matches
+  patterns:
+    - "/.git/HEAD"
+    - "/.git/index"
+    - "/.git/logs"
+    - "/.svn/entries"
+    - "/.svn/wc.db"
+    - "/.hg/"
+    - "/.bzr/"
+  min_count: 1

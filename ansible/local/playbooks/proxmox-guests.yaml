@@ -47,10 +47,12 @@
     proxmox_lxc_template_storage: local
     proxmox_lxc_template: debian-13-standard_13.6-1_amd64.tar.zst
     proxmox_lxc_arch_template: archlinux-base_20260420-1_amd64.tar.zst
+    proxmox_lxc_ubuntu_template: ubuntu-24.04-standard_24.04-2_amd64.tar.zst
 
     proxmox_lxc_templates:
       - "{{ proxmox_lxc_template }}"
       - "{{ proxmox_lxc_arch_template }}"
+      - "{{ proxmox_lxc_ubuntu_template }}"
 
     proxmox_media_source: /mnt/pve/unraid
 
@@ -134,6 +136,19 @@
         mounts:
           mp0: "/pbs,mp=/pbs"
 
+      - name: k8s-pve-1
+        vmid: 210
+        ip: 10.0.2.18/24
+        cores: 4
+        memory: 8192
+        disk: 64
+        swap: 0
+        unprivileged: true
+        features: [nesting=1, keyctl=1, fuse=1]
+        template: "{{ proxmox_lxc_ubuntu_template }}"
+        extra_config:
+          - "dev0: /dev/net/tun"
+
   tasks:
     - name: Assert the API token is available
       ansible.builtin.assert:
@@ -192,7 +207,7 @@
         disk: "{{ item.disk }}"
         cores: "{{ item.cores }}"
         memory: "{{ item.memory }}"
-        swap: 512
+        swap: "{{ item.swap | default(512) }}"
         cmode: tty
         unprivileged: "{{ item.unprivileged }}"
         features: "{{ item.features | default([]) }}"
@@ -224,7 +239,7 @@
         hostname: "{{ item.name }}"
         cores: "{{ item.cores }}"
         memory: "{{ item.memory }}"
-        swap: 512
+        swap: "{{ item.swap | default(512) }}"
         cmode: tty
         features: "{{ item.features | default([]) }}"
         mounts: "{{ item.mounts | default(omit) }}"
@@ -242,6 +257,44 @@
       loop_control:
         label: "{{ item.name }} ({{ item.vmid }})"
       when: item.vmid in proxmox_existing_vmids
+
+    - name: Apply the extra lxc config keys
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.lineinfile:
+        path: /etc/pve/lxc/{{ item.0.vmid }}.conf
+        line: "{{ item.1 }}"
+        state: present
+      register: proxmox_lxc_extra_config
+      loop: "{{ proxmox_lxc_guests | subelements('extra_config', skip_missing=True) }}"
+      loop_control:
+        label: "{{ item.0.name }} ({{ item.0.vmid }}): {{ item.1 }}"
+
+    - name: Index the guests whose raw config changed
+      ansible.builtin.set_fact:
+        proxmox_lxc_reconfigured: "{{ proxmox_lxc_extra_config.results | selectattr('changed') | map(attribute='item.0.vmid') | unique | list }}"
+
+    - name: Restart the reconfigured containers
+      community.proxmox.proxmox:
+        api_host: "{{ proxmox_api_host }}"
+        api_user: "{{ proxmox_api_user }}"
+        api_password: "{{ proxmox_api_password | default(omit, true) }}"
+        api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
+        api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
+        validate_certs: "{{ proxmox_validate_certs }}"
+        node: "{{ proxmox_node }}"
+        vmid: "{{ item.vmid }}"
+        hostname: "{{ item.name }}"
+        state: restarted
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }})"
+      when:
+        - item.vmid in proxmox_existing_vmids
+        - item.vmid in proxmox_lxc_reconfigured
 
     - name: Start containers
       community.proxmox.proxmox:

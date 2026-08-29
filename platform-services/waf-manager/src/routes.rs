@@ -14,14 +14,29 @@ use waf_manager::compositor::Conflict;
 use waf_manager::controller::Context;
 use waf_manager::crd::{WafBlock, WafBlockSpec};
 use waf_manager::metrics::Metrics;
-use waf_manager::{Error, Loki};
+use waf_manager::workflows::{Decision, WORKFLOW_AUTHOR_PREFIX};
+use waf_manager::{Error, Loki, WorkflowEngine};
 
 pub struct AppState {
     pub ctx: Arc<Context>,
-    pub loki: Loki,
-    pub window: String,
+    pub loki: Arc<Loki>,
+    pub engine: Arc<WorkflowEngine>,
+}
+
+impl AppState {
+    fn window(&self) -> String {
+        self.engine.config().defaults.window.to_logql()
+    }
+
+    /// How the window is written in config.yaml, for the page headings.
+    fn window_label(&self) -> String {
+        self.engine.config().defaults.window.to_string()
+    }
+
     /// Noise rather than findings; hidden from the ranking.
-    pub ignored_rules: BTreeSet<String>,
+    fn ignored_rules(&self) -> &BTreeSet<String> {
+        &self.engine.config().ignored_rule_ids
+    }
 }
 
 pub struct Routes;
@@ -31,6 +46,7 @@ impl Routes {
         Router::new()
             .route("/", get(Self::index))
             .route("/blocks", get(Self::blocks))
+            .route("/workflows", get(Self::workflows))
             .route("/ip/{addr}", get(Self::ip_detail))
             .route("/block", post(Self::create_block))
             .route("/unblock", post(Self::delete_block))
@@ -40,7 +56,8 @@ impl Routes {
     }
 
     async fn index(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
-        let candidates = match state.loki.top_client_ips(&state.window, 50).await {
+        let limit = state.engine.config().defaults.candidate_limit;
+        let candidates = match state.loki.top_client_ips(&state.window(), limit).await {
             Ok(c) => c,
             Err(e) => {
                 Metrics::record_loki_error();
@@ -66,7 +83,7 @@ impl Routes {
 
         Self::render(IndexTemplate {
             rows,
-            window: state.window.clone(),
+            window: state.window_label(),
         })
     }
 
@@ -86,6 +103,11 @@ impl Routes {
                 cidr: b.spec.cidr.clone(),
                 gateway: b.spec.gateway.clone(),
                 reason: b.spec.reason.clone().unwrap_or_default(),
+                automatic: b
+                    .spec
+                    .created_by
+                    .as_deref()
+                    .is_some_and(|by| by.starts_with(WORKFLOW_AUTHOR_PREFIX)),
                 created_by: b.spec.created_by.clone().unwrap_or_default(),
                 expires_at: b.spec.expires_at.clone().unwrap_or_default(),
                 enforced: b
@@ -110,16 +132,16 @@ impl Routes {
         State(state): State<Arc<AppState>>,
         Path(addr): Path<String>,
     ) -> Result<Html<String>, AppError> {
-        let rules = state.loki.rules_for_ip(&addr, &state.window).await?;
-        let lines = state.loki.recent_lines(&addr, &state.window, 100).await?;
+        let rules = state.loki.rules_for_ip(&addr, &state.window()).await?;
+        let lines = state.loki.recent_lines(&addr, &state.window(), 100).await?;
 
         Self::render(IpTemplate {
             client_ip: addr,
-            window: state.window.clone(),
+            window: state.window_label(),
             rules: rules
                 .into_iter()
                 .map(|r| RuleRow {
-                    ignored: state.ignored_rules.contains(&r.rule_id),
+                    ignored: state.ignored_rules().contains(&r.rule_id),
                     rule_id: r.rule_id,
                     rule_msg: r.rule_msg,
                     severity: r.severity,
@@ -127,6 +149,38 @@ impl Routes {
                 })
                 .collect(),
             lines,
+        })
+    }
+
+    async fn workflows(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
+        let config = state.engine.config();
+        let rows = config
+            .workflows
+            .iter()
+            .map(|w| WorkflowRow {
+                name: w.name.clone(),
+                enabled: w.enabled.as_str(),
+                window: w.window(&config.defaults).to_string(),
+                duration: w.duration.to_string(),
+                gateway: w.gateway(&config.defaults).to_string(),
+                reason: w.reason.clone(),
+                signals: w.signals.keys().cloned().collect::<Vec<_>>().join(", "),
+            })
+            .collect();
+
+        Self::render(WorkflowsTemplate {
+            rows,
+            decisions: state.engine.decisions().await,
+            cooldown: config.manual_unblock_cooldown.to_string(),
+            protected: state
+                .ctx
+                .allowlist
+                .protected()
+                .map(|(net, why)| ProtectedRow {
+                    cidr: net.to_string(),
+                    why: why.to_string(),
+                })
+                .collect(),
         })
     }
 
@@ -156,7 +210,7 @@ impl Routes {
         };
 
         // The reconciler sets the owner, so git-applied blocks get one too.
-        let block = WafBlock::new(&Self::resource_name(&net), spec);
+        let block = WafBlock::new(&WafBlock::resource_name(&net), spec);
         state
             .ctx
             .blocks()
@@ -204,12 +258,31 @@ impl Routes {
         State(state): State<Arc<AppState>>,
         Form(form): Form<UnblockForm>,
     ) -> Result<Redirect, AppError> {
+        // Read the CIDR before deleting: afterwards there is nothing left to
+        // derive it from, and without it a workflow re-creates the block the
+        // operator just removed.
+        let cidr = state
+            .ctx
+            .blocks()
+            .get_opt(&form.name)
+            .await
+            .map_err(Error::from)?
+            .and_then(|b| b.spec.cidr.parse::<IpNet>().ok());
+
         state
             .ctx
             .blocks()
             .delete(&form.name, &DeleteParams::default())
             .await
             .map_err(Error::from)?;
+
+        if let Some(net) = cidr
+            && let Err(e) = state.engine.suppress(&net).await
+        {
+            // The unblock itself succeeded; a failed suppression only risks the
+            // block coming back on the next tick.
+            tracing::warn!("recording unblock suppression for {net} failed: {e}");
+        }
 
         // The watch would catch up anyway; inline means the redirect lands on a
         // page that already reflects the change.
@@ -231,25 +304,6 @@ impl Routes {
             .iter()
             .filter_map(|b| waf_manager::Allowlist::parse_cidr(&b.spec.cidr).ok())
             .collect())
-    }
-
-    /// Derived from the CIDR so a double submit collides rather than duplicating.
-    fn resource_name(net: &IpNet) -> String {
-        let mut slug = String::new();
-        let mut last_dash = true;
-
-        for ch in net.to_string().chars() {
-            if ch.is_ascii_alphanumeric() {
-                slug.push(ch.to_ascii_lowercase());
-                last_dash = false;
-            } else if !last_dash {
-                slug.push('-');
-                last_dash = true;
-            }
-        }
-
-        let slug = slug.trim_matches('-');
-        format!("waf-block-{slug}")
     }
 
     fn render<T: Template>(template: T) -> Result<Html<String>, AppError> {
@@ -321,6 +375,7 @@ pub struct CandidateRow {
 
 pub struct BlockRow {
     pub name: String,
+    pub automatic: bool,
     pub cidr: String,
     pub gateway: String,
     pub reason: String,
@@ -342,6 +397,30 @@ pub struct RuleRow {
 struct IndexTemplate {
     rows: Vec<CandidateRow>,
     window: String,
+}
+
+pub struct WorkflowRow {
+    pub name: String,
+    pub enabled: &'static str,
+    pub window: String,
+    pub duration: String,
+    pub gateway: String,
+    pub reason: String,
+    pub signals: String,
+}
+
+#[derive(Template)]
+#[template(path = "workflows.html")]
+struct WorkflowsTemplate {
+    rows: Vec<WorkflowRow>,
+    decisions: Vec<Decision>,
+    cooldown: String,
+    protected: Vec<ProtectedRow>,
+}
+
+pub struct ProtectedRow {
+    pub cidr: String,
+    pub why: String,
 }
 
 #[derive(Template)]

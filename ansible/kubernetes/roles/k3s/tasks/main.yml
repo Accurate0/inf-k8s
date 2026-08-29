@@ -2,6 +2,8 @@
 ---
 - ansible.builtin.import_tasks: preflight.yml
 - ansible.builtin.import_tasks: multipathd.yml
+- ansible.builtin.import_tasks: lxc.yml
+  when: k3s_lxc | default(false)
 - ansible.builtin.import_tasks: install.yml
 - ansible.builtin.import_tasks: config.yml
 - ansible.builtin.import_tasks: labels.yml

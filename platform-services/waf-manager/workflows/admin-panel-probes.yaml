@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: admin-panel-probes
+enabled: active
+window: 6h
+duration: 30d
+reason: "automatic: probing for admin panels this cluster does not serve"
+when:
+  type: uri_matches
+  patterns:
+    - "/wp-admin"
+    - "/wp-login.php"
+    - "/wp-content"
+    - "/xmlrpc.php"
+    - "/phpmyadmin"
+    - "/administrator"
+    - "/admin.php"
+  min_count: 2

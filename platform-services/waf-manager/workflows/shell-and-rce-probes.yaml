@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: shell-and-rce-probes
+enabled: dry-run
+window: 6h
+duration: 30d
+reason: "automatic: probing for web shells and PHP endpoints"
+when:
+  type: uri_matches
+  patterns:
+    - "/shell.php"
+    - "/cgi-bin/"
+    - "/vendor/phpunit"
+    - "eval-stdin.php"
+    - "/invokefunction"
+    - "/think/app"
+  min_count: 1

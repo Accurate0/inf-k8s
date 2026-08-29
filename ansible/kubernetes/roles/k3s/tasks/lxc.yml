@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Accommodate an LXC guest
+  become: true
+  become_method: sudo
+  become_user: root
+  block:
+    - name: Persist the /dev/kmsg shim
+      ansible.builtin.copy:
+        content: |
+          L /dev/kmsg - - - - /dev/console
+        dest: /etc/tmpfiles.d/k3s-kmsg.conf
+        owner: root
+        mode: "0644"
+
+    - name: Create the /dev/kmsg shim for this boot
+      ansible.builtin.file:
+        src: /dev/console
+        dest: /dev/kmsg
+        state: link
+        force: true

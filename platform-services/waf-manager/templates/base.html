@@ -28,6 +28,10 @@
         .badge.ignored { background: #6e7781; }
         .badge.critical { background: #cf222e; }
         .badge.unknown { background: #6e7781; }
+        .badge.active { background: #2da44e; }
+        .badge.dry-run { background: #0969da; }
+        .badge.disabled { background: #6e7781; }
+        .badge.auto { background: #8250df; }
         .conflicts { border-left: 4px solid #bf8700; padding-left: 1em; }
         .muted { color: #6e7781; }
     </style>
@@ -36,6 +40,7 @@
     <nav>
         <a href="/">Candidates</a>
         <a href="/blocks">Blocks</a>
+        <a href="/workflows">Workflows</a>
     </nav>
     {% block content %}{% endblock %}
 </body>

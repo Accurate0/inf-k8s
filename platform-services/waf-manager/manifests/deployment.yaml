@@ -60,7 +60,45 @@ spec:
               value: http://monitoring-loki.monitoring.svc.cluster.local:3100
             - name: POLICY_NAMESPACE
               value: envoy-gateway-system
-            - name: DETECTION_WINDOW
-              value: 12h
             - name: RESYNC_SECONDS
               value: "300"
+            - name: WORKFLOWS_CONFIGMAP_PATH
+              value: /etc/waf-manager/config/config.yaml
+          envFrom:
+            - secretRef:
+                name: waf-manager-managed-secrets
+          volumeMounts:
+            - name: workflows
+              mountPath: /etc/waf-manager/config
+              readOnly: true
+      volumes:
+        - name: workflows
+          configMap:
+            name: waf-manager-workflows
+            items:
+              - key: config.yaml
+                path: config.yaml
+              - key: credential-file-probes.yaml
+                path: workflows/credential-file-probes.yaml
+              - key: admin-panel-probes.yaml
+                path: workflows/admin-panel-probes.yaml
+              - key: shell-and-rce-probes.yaml
+                path: workflows/shell-and-rce-probes.yaml
+              - key: backup-and-dump-files.yaml
+                path: workflows/backup-and-dump-files.yaml
+              - key: java-exploit-attempts.yaml
+                path: workflows/java-exploit-attempts.yaml
+              - key: path-traversal.yaml
+                path: workflows/path-traversal.yaml
+              - key: scanner-user-agents.yaml
+                path: workflows/scanner-user-agents.yaml
+              - key: repo-exposure.yaml
+                path: workflows/repo-exposure.yaml
+              - key: known-exploit-paths.yaml
+                path: workflows/known-exploit-paths.yaml
+              - key: directory-bruteforce.yaml
+                path: workflows/directory-bruteforce.yaml
+              - key: high-volume-scanner.yaml
+                path: workflows/high-volume-scanner.yaml
+              - key: broad-rule-fanout.yaml
+                path: workflows/broad-rule-fanout.yaml

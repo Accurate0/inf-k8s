@@ -8,6 +8,7 @@ ignore: |
   platform-services/pg-db-controller/manifests/crd.yaml
   platform-services/waf-manager/manifests/crd.yaml
   platform-services/feature-flags/config/*
+  ansible/*/roles/*/templates/
 rules:
   line-length: disable
   comments:

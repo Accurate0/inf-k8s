@@ -13,3 +13,4 @@ unifi_client_aliases:
   - {mac: "bc:24:11:00:00:cf", name: pbs}
   - {mac: "bc:24:11:00:00:d0", name: mirror}
   - {mac: "bc:24:11:00:00:d1", name: unraid}
+  - {mac: "bc:24:11:00:00:d2", name: k8s-pve-1}

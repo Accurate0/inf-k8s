@@ -19,9 +19,23 @@ local/
     ├── docker/             # docker engine + compose
     ├── jellyfin/ arr/ ...  # the media stack, one role per app
     ├── proxmox-nfs/        # unraid media share as proxmox-managed storage
-    ├── storage-teardown/   # retires the mergerfs pool and its member drives
     └── proxmox-*/ pbs/     # proxmox host config and backups
 ```
+
+## The k3s guest
+
+`k8s-pve-1` (vmid 210, `10.0.2.18`) is the one guest this tree creates but does not
+configure. `proxmox-guests.yaml` builds it — Ubuntu 24.04 rather than the Debian
+default, matching the rest of the cluster's nodes, with `swap: 0` because the
+kubelet refuses to start otherwise, and `keyctl=1`/`fuse=1` on top of the usual
+`nesting=1` so containerd works in an unprivileged container. Everything after that
+belongs to `ansible/kubernetes`: it is an entry in that tree's `agent` group and is
+configured by its `playbooks/cluster.yaml`. Deliberately no roles here, and no place
+in the `local.yaml` guest pipeline.
+
+It is excluded from the nightly PBS job (`proxmox_pbs_exclude_vmids`) on purpose —
+it holds no state worth restoring, and is rebuilt from `proxmox-guests.yaml` plus
+`cluster.yaml`.
 
 ## Storage
 
@@ -34,10 +48,9 @@ in `proxmox_unraid_disks` by their `/dev/disk/by-id` paths. They are attached
 with `scsiblock=1`, which builds them as QEMU `scsi-block` devices instead of
 the default emulated `scsi-hd`: SCSI commands go straight to the drive, so
 Unraid reads the real model, serial, and SMART data (ATA pass-through reaches
-the disk via the kernel's SAT layer) rather than QEMU's synthesised answers. Proxmox no longer mounts them:
-`storage-teardown` drops the `/data/disks/*` mounts and fstab entries before the
-guests play runs, which has to happen first — passing through a disk the host
-still has mounted invites two writers on one filesystem.
+the disk via the kernel's SAT layer) rather than QEMU's synthesised answers.
+Proxmox does not mount them — a disk the host still has mounted invites two
+writers on one filesystem, so keep them out of the host's fstab.
 
 This is disk-level passthrough, not controller passthrough. Handing the HBA to
 the VM with vfio would cut the host out completely, but it is not possible here:
@@ -59,10 +72,8 @@ stays on flash licensing with the stick as a licence anchor only. Back up
 `/boot` from within Unraid: it holds the array config, and PBS backups of the
 VM will not capture the passed-through flash.
 
-The old mergerfs pool is gone. `roles/storage-teardown` runs against the
-Proxmox host first on every `local.yaml` run: it unmounts any `fuse.mergerfs`
-mount, drops the fstab entry and pool unit, uninstalls the packages, and
-releases the `/data/disks/*` member drives so they can go to Unraid.
+The old mergerfs pool is gone — its member drives were released to Unraid, and
+the role that retired it has been removed now that the migration is done.
 
 The share comes back from Unraid over NFS, mounted by the Proxmox host rather
 than by the guests — unprivileged LXC cannot mount NFS in its own namespace, so

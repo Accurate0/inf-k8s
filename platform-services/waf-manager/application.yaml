@@ -15,7 +15,7 @@ spec:
   project: platform-services
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: platform-services/waf-manager/manifests
+      path: platform-services/waf-manager
       kustomize: {}
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes

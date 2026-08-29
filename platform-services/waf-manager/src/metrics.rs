@@ -42,4 +42,56 @@ impl Metrics {
     pub fn record_loki_error() {
         counter!("waf_manager_loki_errors_total").increment(1);
     }
+
+    /// Split by `mode` so the Grafana panel can show what dry-run workflows would
+    /// have blocked next to what active ones actually did.
+    pub fn record_workflow_block(workflow: &str, mode: &'static str) {
+        counter!(
+            "waf_manager_workflow_blocks_total",
+            "workflow" => workflow.to_owned(),
+            "mode" => mode,
+        )
+        .increment(1);
+    }
+
+    pub fn record_workflow_evaluation(workflow: &str) {
+        counter!(
+            "waf_manager_workflow_evaluations_total",
+            "workflow" => workflow.to_owned(),
+        )
+        .increment(1);
+    }
+
+    pub fn record_workflow_error(workflow: &str) {
+        counter!(
+            "waf_manager_workflow_errors_total",
+            "workflow" => workflow.to_owned(),
+        )
+        .increment(1);
+    }
+
+    pub fn record_workflow_skipped(reason: &'static str) {
+        counter!("waf_manager_workflow_skipped_total", "reason" => reason).increment(1);
+    }
+
+    /// How many enabled workflows exist, by mode. A workflow silently dropping to
+    /// zero here means a ConfigMap did not load as intended.
+    pub fn set_workflows(mode: &'static str, count: usize) {
+        gauge!("waf_manager_workflows", "mode" => mode).set(count as f64);
+    }
+
+    /// Active blocks split by origin, so the dashboard can show how much of the
+    /// blocklist the workflows are responsible for.
+    pub fn set_blocks_by_origin(origin: &'static str, count: usize) {
+        gauge!("waf_manager_blocks_by_origin", "origin" => origin).set(count as f64);
+    }
+
+    pub fn set_suppressions(count: usize) {
+        gauge!("waf_manager_suppressions").set(count as f64);
+    }
+
+    pub fn record_workflow_run(duration: std::time::Duration) {
+        counter!("waf_manager_workflow_runs_total").increment(1);
+        gauge!("waf_manager_workflow_run_seconds").set(duration.as_secs_f64());
+    }
 }

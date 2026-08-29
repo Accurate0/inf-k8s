@@ -12,7 +12,7 @@ ansible/
 ├── playbooks/
 │   ├── cluster.yaml       # full provision: base → tailscale → k3s → proxy
 │   ├── k3s-upgrade.yaml   # rolling k3s channel/version bump
-│   ├── proxy-only.yaml    # re-apply HAProxy edge
+│   ├── edge-proxy.yaml    # re-apply HAProxy edge
 │   └── upgrade-all.yaml   # apt safe-upgrade across all hosts
 └── roles/
     ├── base/        # apt packages, janitor user + sudoers, sshd hardening, ip-forward sysctl
@@ -42,7 +42,7 @@ The repo's `justfile` wraps the common invocations:
 ```sh
 just ansible run cluster all        # full provision
 just ansible run k3s-upgrade all    # rolling k3s upgrade
-just ansible run proxy-only proxy   # re-apply edge
+just ansible run edge-proxy proxy   # re-apply edge
 just ansible run upgrade-all all    # apt safe-upgrade
 just ansible ping all               # connectivity check
 ```

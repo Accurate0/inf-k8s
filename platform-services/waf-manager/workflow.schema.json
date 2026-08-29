@@ -1,0 +1,363 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WorkflowDef",
+  "type": "object",
+  "properties": {
+    "candidates": {
+      "description": "Replaces the built-in \"top detecting client IPs\" query. Must return series\ncarrying a `client_ip` label; the value becomes `detections`. Lets a\nworkflow draw its candidates from somewhere other than raw Coraza volume.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Template"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "duration": {
+      "description": "How long the block it creates lasts.",
+      "$ref": "#/$defs/BlockDuration"
+    },
+    "enabled": {
+      "$ref": "#/$defs/Enabled"
+    },
+    "gateway": {
+      "type": [
+        "string",
+        "null"
+      ],
+      "default": null
+    },
+    "name": {
+      "type": "string"
+    },
+    "reason": {
+      "description": "Recorded on the WafBlock so the dashboard says why it appeared.",
+      "type": "string"
+    },
+    "signals": {
+      "description": "Named LogQL instant queries, evaluated per candidate IP and folded to a\nnumber the `signal` matcher compares against. This is the escape hatch for\nanything the built-in matchers do not express.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/Template"
+      }
+    },
+    "when": {
+      "$ref": "#/$defs/Matcher"
+    },
+    "window": {
+      "description": "Lookback for this workflow's Loki queries. Workflows sharing a window\nshare their queries.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Span"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "name",
+    "duration",
+    "reason",
+    "when"
+  ],
+  "$defs": {
+    "BlockDuration": {
+      "description": "How long a block lasts: a duration such as `24h`, or `forever`.",
+      "type": "string",
+      "pattern": "^(forever|\\d+[smhd])$"
+    },
+    "Combinator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "all": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Matcher"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "all"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "any": {
+              "type": "array",
+              "items": {
+                "$ref": "#/$defs/Matcher"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "any"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "not": {
+              "$ref": "#/$defs/Matcher"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "not"
+          ]
+        }
+      ]
+    },
+    "Enabled": {
+      "oneOf": [
+        {
+          "description": "Creates blocks.",
+          "type": "string",
+          "const": "active"
+        },
+        {
+          "description": "Logs what it would block and records a metric, but creates nothing.",
+          "type": "string",
+          "const": "dry-run"
+        },
+        {
+          "description": "Never evaluated.",
+          "type": "string",
+          "const": "disabled"
+        }
+      ]
+    },
+    "LeafMatcher": {
+      "description": "Every leaf reads one of the three fact sources gathered per candidate IP:\nthe detection total, the per-rule breakdown, or the requested URIs.",
+      "oneOf": [
+        {
+          "description": "Total Coraza detections in the window.",
+          "type": "object",
+          "properties": {
+            "max": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "default": null,
+              "minimum": 0
+            },
+            "min": {
+              "type": "integer",
+              "format": "uint64",
+              "default": 0,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "detections"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type"
+          ]
+        },
+        {
+          "description": "How many distinct rule ids the IP tripped; scanners fan out widely.",
+          "type": "object",
+          "properties": {
+            "min": {
+              "type": "integer",
+              "format": "uint",
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "distinct_rules"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "min"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min_count": {
+              "type": "integer",
+              "format": "uint64",
+              "default": 1,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "rule_id"
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "values"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min_count": {
+              "type": "integer",
+              "format": "uint64",
+              "default": 1,
+              "minimum": 0
+            },
+            "mode": {
+              "$ref": "#/$defs/StringMatchMode"
+            },
+            "patterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "rule_msg_matches"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "patterns"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min_count": {
+              "type": "integer",
+              "format": "uint64",
+              "default": 1,
+              "minimum": 0
+            },
+            "type": {
+              "type": "string",
+              "const": "severity"
+            },
+            "values": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "values"
+          ]
+        },
+        {
+          "type": "object",
+          "properties": {
+            "min_count": {
+              "type": "integer",
+              "format": "uint64",
+              "default": 1,
+              "minimum": 0
+            },
+            "mode": {
+              "$ref": "#/$defs/StringMatchMode"
+            },
+            "patterns": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "type": {
+              "type": "string",
+              "const": "uri_matches"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "patterns"
+          ]
+        },
+        {
+          "description": "The value of one of the workflow's own `signals` queries.",
+          "type": "object",
+          "properties": {
+            "max": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "default": null,
+              "minimum": 0
+            },
+            "min": {
+              "type": "integer",
+              "format": "uint64",
+              "default": 0,
+              "minimum": 0
+            },
+            "name": {
+              "type": "string"
+            },
+            "type": {
+              "type": "string",
+              "const": "signal"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "type",
+            "name"
+          ]
+        }
+      ]
+    },
+    "Matcher": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/Combinator"
+        },
+        {
+          "$ref": "#/$defs/LeafMatcher"
+        }
+      ]
+    },
+    "Span": {
+      "description": "A duration such as `30m`, `12h` or `7d`.",
+      "type": "string",
+      "pattern": "^\\d+[smhd]$"
+    },
+    "StringMatchMode": {
+      "type": "string",
+      "enum": [
+        "contains",
+        "prefix",
+        "exact"
+      ]
+    },
+    "Template": {
+      "description": "A LogQL query with `{{name}}` placeholders. `{{window}}`, `{{limit}}` and the\nfragments from [`crate::loki::Loki::fragments`] are always available;\n`{{client_ip}}`, `{{prefilter}}` and `{{exact_client}}` only in a signal, which\nis evaluated against one address.",
+      "type": "string"
+    }
+  }
+}

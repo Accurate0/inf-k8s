@@ -153,6 +153,27 @@ impl WafBlock {
             Err(_) => false,
         }
     }
+
+    /// Derived from the CIDR so a double submit - or a workflow racing the
+    /// operator who is already blocking the same address - collides rather than
+    /// duplicating.
+    pub fn resource_name(net: &ipnet::IpNet) -> String {
+        let mut slug = String::new();
+        let mut last_dash = true;
+
+        for ch in net.to_string().chars() {
+            if ch.is_ascii_alphanumeric() {
+                slug.push(ch.to_ascii_lowercase());
+                last_dash = false;
+            } else if !last_dash {
+                slug.push('-');
+                last_dash = true;
+            }
+        }
+
+        let slug = slug.trim_matches('-');
+        format!("waf-block-{slug}")
+    }
 }
 
 fn default_gateway() -> String {
