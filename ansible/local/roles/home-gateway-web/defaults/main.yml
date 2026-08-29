@@ -4,3 +4,4 @@ home_gateway_web_image_tag: no-oauth-1285b5430f1704ac2c82d93b327be0a4d7d77cfc
 home_gateway_web_port: 8080
 home_gateway_web_domain: home.internal
 home_gateway_web_api_proxy: https://home.anurag.sh
+home_gateway_web_resolver: 10.0.2.1

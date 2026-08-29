@@ -3,7 +3,11 @@ server {
     server_name {{ home_gateway_web_domain }};
 
     location /v1 {
-        proxy_pass {{ home_gateway_web_api_proxy }};
+        resolver {{ home_gateway_web_resolver }} valid=30s ipv6=off;
+        resolver_timeout 5s;
+
+        set $home_gateway_web_api {{ home_gateway_web_api_proxy }};
+        proxy_pass $home_gateway_web_api$request_uri;
         proxy_set_header Host {{ home_gateway_web_api_proxy | regex_replace('^https?://', '') }};
         proxy_ssl_server_name on;
 
