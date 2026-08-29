@@ -25,9 +25,10 @@
             <td class="num">{{ row.detections }}</td>
             <td>
                 {% if row.already_blocked %}<span class="badge blocked">blocked</span>{% endif %}
+                {% if !row.protected.is_empty() %}<span class="badge protected">protected</span> <code class="muted">{{ row.protected }}</code>{% endif %}
             </td>
             <td>
-                {% if !row.already_blocked %}
+                {% if !row.already_blocked && row.protected.is_empty() %}
                 <form class="inline" method="post" action="/block">
                     <input type="hidden" name="cidr" value="{{ row.client_ip }}">
                     <input type="text" name="reason" placeholder="reason" size="24">

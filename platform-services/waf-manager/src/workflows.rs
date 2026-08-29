@@ -206,7 +206,7 @@ impl WorkflowEngine {
     fn report_workflow_counts(&self) {
         for mode in [Enabled::Active, Enabled::DryRun, Enabled::Disabled] {
             let count = self
-                .config
+                .config()
                 .workflows
                 .iter()
                 .filter(|w| w.enabled == mode)
@@ -268,7 +268,7 @@ impl WorkflowEngine {
 
         for candidate in candidates {
             let Ok(net) = self
-                .ctx
+                .inner.ctx
                 .allowlist
                 .parse_and_check(&candidate.client_ip)
                 .await
@@ -444,7 +444,7 @@ impl WorkflowEngine {
 
         let block = WafBlock::new(&WafBlock::resource_name(net), spec);
         let outcome = match self
-            .ctx
+            .inner.ctx
             .blocks()
             .create(&PostParams::default(), &block)
             .await

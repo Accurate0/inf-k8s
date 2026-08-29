@@ -66,10 +66,12 @@ impl Routes {
         };
 
         let blocked = Self::blocked_cidrs(&state).await?;
+        let protected = state.ctx.allowlist.entries().await;
         let rows = candidates
             .into_iter()
             .map(|c| {
-                let already_blocked = waf_manager::Allowlist::parse_cidr(&c.client_ip)
+                let net = waf_manager::Allowlist::parse_cidr(&c.client_ip).ok();
+                let already_blocked = net
                     .map(|net| blocked.iter().any(|b| b.contains(&net)))
                     .unwrap_or(false);
 
@@ -77,6 +79,10 @@ impl Routes {
                     client_ip: c.client_ip,
                     detections: c.detections,
                     already_blocked,
+                    // Blocking one is refused, so say so before the form is used.
+                    protected: net
+                        .and_then(|net| waf_manager::Allowlist::overlap(&protected, &net))
+                        .unwrap_or_default(),
                 }
             })
             .collect();
@@ -405,6 +411,8 @@ pub struct CandidateRow {
     pub client_ip: String,
     pub detections: u64,
     pub already_blocked: bool,
+    /// `"<cidr> (<source>)"` when the IP falls in a protected range, else empty.
+    pub protected: String,
 }
 
 pub struct BlockRow {
