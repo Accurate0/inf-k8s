@@ -43,8 +43,6 @@ impl Metrics {
         counter!("waf_manager_loki_errors_total").increment(1);
     }
 
-    /// Split by `mode` so the Grafana panel can show what dry-run workflows would
-    /// have blocked next to what active ones actually did.
     pub fn record_workflow_block(workflow: &str, mode: &'static str) {
         counter!(
             "waf_manager_workflow_blocks_total",
@@ -74,20 +72,31 @@ impl Metrics {
         counter!("waf_manager_workflow_skipped_total", "reason" => reason).increment(1);
     }
 
-    /// How many enabled workflows exist, by mode. A workflow silently dropping to
-    /// zero here means a ConfigMap did not load as intended.
+    /// Dropping to zero means a ConfigMap did not load as intended.
     pub fn set_workflows(mode: &'static str, count: usize) {
         gauge!("waf_manager_workflows", "mode" => mode).set(count as f64);
     }
 
-    /// Active blocks split by origin, so the dashboard can show how much of the
-    /// blocklist the workflows are responsible for.
     pub fn set_blocks_by_origin(origin: &'static str, count: usize) {
         gauge!("waf_manager_blocks_by_origin", "origin" => origin).set(count as f64);
     }
 
     pub fn set_suppressions(count: usize) {
         gauge!("waf_manager_suppressions").set(count as f64);
+    }
+
+    /// Per source, plus a `total` series; zero means a feed is failing.
+    pub fn set_allowlist_entries(source: &str, count: usize) {
+        gauge!("waf_manager_allowlist_entries", "source" => source.to_owned()).set(count as f64);
+    }
+
+    pub fn record_allowlist_refresh(source: &str, status: &'static str) {
+        counter!(
+            "waf_manager_allowlist_refreshes_total",
+            "source" => source.to_owned(),
+            "status" => status,
+        )
+        .increment(1);
     }
 
     pub fn record_workflow_run(duration: std::time::Duration) {

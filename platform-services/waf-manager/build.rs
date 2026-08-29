@@ -39,8 +39,6 @@ fn main() {
         println!("cargo:warning=Skipping schema validation (SKIP_SCHEMA_VALIDATION set)");
     }
 
-    // Duplicate names would make the /workflows page and the block `reason`
-    // ambiguous about which workflow fired.
     if let Some(workflows) = value.get("workflows").and_then(|w| w.as_array()) {
         let mut seen = std::collections::HashSet::new();
 
@@ -72,9 +70,8 @@ fn main() {
     println!("cargo:rerun-if-changed=workflows/");
 }
 
-/// Walks a matcher tree and fails the build on a `signal` matcher naming a query
-/// the workflow does not declare — a typo would otherwise silently evaluate to
-/// zero and the workflow would never fire.
+/// A `signal` matcher naming an undeclared query would evaluate to zero and the
+/// workflow would silently never fire.
 fn check_signal_refs(
     node: &serde_json::Value,
     workflow: &str,

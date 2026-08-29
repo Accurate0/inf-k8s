@@ -175,10 +175,12 @@ impl Routes {
             protected: state
                 .ctx
                 .allowlist
-                .protected()
+                .entries()
+                .await
+                .iter()
                 .map(|(net, why)| ProtectedRow {
                     cidr: net.to_string(),
-                    why: why.to_string(),
+                    why: why.clone(),
                 })
                 .collect(),
         })
@@ -189,7 +191,7 @@ impl Routes {
         headers: HeaderMap,
         Form(form): Form<BlockForm>,
     ) -> Result<Redirect, AppError> {
-        let net = state.ctx.allowlist.parse_and_check(&form.cidr)?;
+        let net = state.ctx.allowlist.parse_and_check(&form.cidr).await?;
 
         let expires_at = form.ttl_hours.filter(|h| *h > 0).map(|hours| {
             (chrono::Utc::now() + chrono::Duration::hours(hours as i64))

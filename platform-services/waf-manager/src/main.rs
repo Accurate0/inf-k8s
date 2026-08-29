@@ -45,10 +45,17 @@ async fn main() -> Result<()> {
 
     let client = Client::try_default().await?;
     let writer = PolicyWriter::new(client.clone(), &policy_namespace, &namespace).await?;
+
+    let allowlist = Allowlist::from_config(&config);
+
+    // Load the feeds before anything can block, so the first workflow run already
+    // knows GitHub's and Cloudflare's current ranges.
+    allowlist.refresh_or_panic().await;
+
     let ctx = Arc::new(Context::new(
         client.clone(),
         namespace.clone(),
-        Allowlist::from_env(),
+        allowlist.clone(),
         writer,
     ));
 
@@ -59,6 +66,9 @@ async fn main() -> Result<()> {
     }
 
     let loki = Arc::new(Loki::new(loki_url));
+
+    tokio::spawn(allowlist.run(config.allowlist_refresh));
+
     let suppressions =
         Suppressions::new(client.clone(), &namespace, config.manual_unblock_cooldown);
     let engine = Arc::new(WorkflowEngine::new(

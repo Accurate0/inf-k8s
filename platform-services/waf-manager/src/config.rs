@@ -3,17 +3,12 @@ use schemars::JsonSchema;
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 
-/// Baked in at build time by `build.rs`; the fallback whenever no usable
-/// ConfigMap is mounted.
 const CONFIG_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.merged.yaml"));
 
-/// Config format version this binary understands. Bump on any breaking change.
-/// A ConfigMap whose `version` differs is rejected in favour of the baked-in
-/// config. See [`Config::load`].
+/// Bump on any breaking schema change; a ConfigMap whose `version` differs is
+/// rejected in favour of the baked-in config.
 pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
-/// Env var pointing at an externally-mounted `config.yaml` (a ConfigMap volume).
-/// When unset, the baked-in config is used.
 const CONFIG_PATH_ENV: &str = "WORKFLOWS_CONFIGMAP_PATH";
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
@@ -24,35 +19,39 @@ pub struct Config {
     #[serde(default)]
     pub defaults: Defaults,
 
-    /// Anomaly-score aggregates and body-parse noise: consequences of other rules
-    /// rather than findings in their own right, so they are hidden from the
-    /// ranking and ignored by `distinct_rules`.
+    /// Noise rather than findings; ignored by the ranking and `distinct_rules`.
     #[serde(default)]
     pub ignored_rule_ids: BTreeSet<String>,
 
-    /// How long a workflow stays off a CIDR after a human unblocks it. Without
-    /// this the next tick would undo the unblock.
     #[serde(default = "default_cooldown")]
     pub manual_unblock_cooldown: Span,
+
+    /// Merged with the `WAF_MANAGER_ALLOWLIST` secret and the feeds below.
+    #[serde(default)]
+    pub never_block: Vec<String>,
+
+    #[serde(default)]
+    pub allowlist_sources: Vec<AllowlistSource>,
+
+    #[serde(default = "default_allowlist_refresh")]
+    pub allowlist_refresh: Span,
 
     #[serde(default)]
     pub workflows: Vec<WorkflowDef>,
 }
 
 impl Config {
-    /// The ConfigMap at `WORKFLOWS_CONFIGMAP_PATH` wins when its `version` matches
-    /// [`CONFIG_SCHEMA_VERSION`]; a version mismatch (breaking schema change) falls
-    /// back to the baked-in config, while a malformed ConfigMap panics so the pod
-    /// fails to start and the previous ReplicaSet keeps serving.
+    /// A version mismatch falls back to the baked-in config; a malformed
+    /// ConfigMap panics, so the pod fails to start and the previous ReplicaSet
+    /// keeps serving.
     pub fn load() -> Self {
         let Ok(path) = std::env::var(CONFIG_PATH_ENV) else {
             tracing::info!("{CONFIG_PATH_ENV} unset; using baked-in workflow config");
             return Self::baked_in();
         };
 
-        // Resolve `!include`s the same way `build.rs` does, so the ConfigMap can
-        // bundle the raw `config.yaml` + `workflows/*.yaml` rather than a
-        // pre-merged file.
+        // Resolved the same way build.rs does, so the ConfigMap can bundle the
+        // raw config.yaml + workflows/*.yaml rather than a pre-merged file.
         let merged = yaml_include::Transformer::new(path.clone().into(), true)
             .expect("failed to read workflow ConfigMap")
             .to_string();
@@ -81,8 +80,7 @@ impl Config {
         serde_yaml::from_str(CONFIG_YAML).expect("baked-in config deserialization failed")
     }
 
-    /// Workflows that may act, in file order. `disabled` ones never reach the
-    /// engine, so they cost no Loki queries.
+    /// Workflows that may act, in file order.
     pub fn active_workflows(&self) -> impl Iterator<Item = &WorkflowDef> {
         self.workflows
             .iter()
@@ -96,7 +94,6 @@ pub struct Defaults {
     #[serde(default = "default_gateway")]
     pub gateway: String,
 
-    /// Lookback for the Loki queries when a workflow does not set its own.
     #[serde(default = "default_window")]
     pub window: Span,
 
@@ -117,35 +114,53 @@ impl Default for Defaults {
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
+pub struct AllowlistSource {
+    pub name: String,
+
+    pub url: String,
+
+    pub format: SourceFormat,
+
+    /// `github_meta` only: which of the response's CIDR arrays to take.
+    #[serde(default)]
+    pub fields: Vec<String>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum SourceFormat {
+    /// `https://api.github.com/meta` - a flat object of named CIDR arrays.
+    GithubMeta,
+    /// `https://api.cloudflare.com/client/v4/ips` - `result.ipv4_cidrs` and
+    /// `result.ipv6_cidrs`.
+    CloudflareIps,
+}
+
+#[derive(Debug, Clone, Deserialize, JsonSchema)]
+#[serde(deny_unknown_fields)]
 pub struct WorkflowDef {
     pub name: String,
 
     #[serde(default)]
     pub enabled: Enabled,
 
-    /// Lookback for this workflow's Loki queries. Workflows sharing a window
-    /// share their queries.
     #[serde(default)]
     pub window: Option<Span>,
 
     #[serde(default)]
     pub gateway: Option<String>,
 
-    /// How long the block it creates lasts.
     pub duration: BlockDuration,
 
-    /// Recorded on the WafBlock so the dashboard says why it appeared.
     pub reason: String,
 
-    /// Replaces the built-in "top detecting client IPs" query. Must return series
-    /// carrying a `client_ip` label; the value becomes `detections`. Lets a
-    /// workflow draw its candidates from somewhere other than raw Coraza volume.
+    /// Replaces the built-in candidate query. Must return series carrying a
+    /// `client_ip` label; the value becomes `detections`.
     #[serde(default)]
     pub candidates: Option<Template>,
 
-    /// Named LogQL instant queries, evaluated per candidate IP and folded to a
-    /// number the `signal` matcher compares against. This is the escape hatch for
-    /// anything the built-in matchers do not express.
+    /// LogQL instant queries evaluated per candidate IP, compared by the
+    /// `signal` matcher.
     #[serde(default)]
     pub signals: BTreeMap<String, Template>,
 
@@ -171,12 +186,9 @@ impl Template {
         out
     }
 
-    /// Placeholders with no value, so a typo is reported rather than sent to Loki
-    /// as a literal `{{typo}}`.
-    ///
-    /// Only bare identifiers count. LogQL's own `label_format` templates are also
-    /// written `{{ .field }}`, and those must pass through untouched rather than
-    /// be mistaken for a missing variable.
+    /// Placeholders with no value. Only bare identifiers count: LogQL's own
+    /// `label_format` templates are also written `{{ .field }}` and must pass
+    /// through untouched.
     pub fn unresolved(&self, vars: &BTreeMap<&str, String>) -> Vec<String> {
         let mut missing = Vec::new();
         let mut rest = self.0.as_str();
@@ -211,7 +223,7 @@ impl WorkflowDef {
         self.gateway.as_deref().unwrap_or(&defaults.gateway)
     }
 
-    /// RFC 3339 expiry, or `None` for a permanent block.
+    /// `None` for a permanent block.
     pub fn expires_at(&self, now: chrono::DateTime<chrono::Utc>) -> Option<String> {
         match self.duration {
             BlockDuration::Forever => None,
@@ -227,12 +239,10 @@ impl WorkflowDef {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, JsonSchema)]
 #[serde(rename_all = "kebab-case")]
 pub enum Enabled {
-    /// Creates blocks.
     Active,
     /// Logs what it would block and records a metric, but creates nothing.
     #[default]
     DryRun,
-    /// Never evaluated.
     Disabled,
 }
 
@@ -265,8 +275,7 @@ impl Span {
         Self(std::time::Duration::from_secs(secs))
     }
 
-    /// LogQL range vectors and the `since` parameter both accept a plain second
-    /// count, so there is no need to preserve the unit the operator wrote.
+    /// LogQL accepts a plain second count, so the written unit need not survive.
     pub fn to_logql(self) -> String {
         format!("{}s", self.0.as_secs())
     }
@@ -374,12 +383,11 @@ pub enum Combinator {
     Not(Box<Matcher>),
 }
 
-/// Every leaf reads one of the three fact sources gathered per candidate IP:
-/// the detection total, the per-rule breakdown, or the requested URIs.
+/// Every leaf reads one of the fact sources gathered per candidate IP: the
+/// detection total, the per-rule breakdown, the requested URIs, or a signal.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum LeafMatcher {
-    /// Total Coraza detections in the window.
     Detections {
         #[serde(default)]
         min: u64,
@@ -387,8 +395,9 @@ pub enum LeafMatcher {
         max: Option<u64>,
     },
 
-    /// How many distinct rule ids the IP tripped; scanners fan out widely.
-    DistinctRules { min: usize },
+    DistinctRules {
+        min: usize,
+    },
 
     RuleId {
         values: Vec<String>,
@@ -418,7 +427,6 @@ pub enum LeafMatcher {
         min_count: u64,
     },
 
-    /// The value of one of the workflow's own `signals` queries.
     Signal {
         name: String,
         #[serde(default)]
@@ -439,8 +447,7 @@ pub enum StringMatchMode {
 
 impl StringMatchMode {
     pub fn matches(&self, haystack: &str, pattern: &str) -> bool {
-        // Coraza logs the URI as sent; comparing case-insensitively stops
-        // `/.ENV` from walking past a rule written in lowercase.
+        // Case-insensitive, so `/.ENV` cannot walk past a lowercase pattern.
         let haystack = haystack.to_ascii_lowercase();
         let pattern = pattern.to_ascii_lowercase();
 
@@ -452,8 +459,6 @@ impl StringMatchMode {
     }
 }
 
-/// Both duration types are strings in YAML, so their schemas are the same shape:
-/// a pattern the editor can check as you type.
 fn string_schema(pattern: &str, description: &str) -> schemars::Schema {
     serde_json::from_value(serde_json::json!({
         "type": "string",
@@ -477,6 +482,10 @@ fn default_window() -> Span {
 
 fn default_candidate_limit() -> usize {
     50
+}
+
+fn default_allowlist_refresh() -> Span {
+    Span::from_secs(12 * 60 * 60)
 }
 
 fn default_cooldown() -> Span {

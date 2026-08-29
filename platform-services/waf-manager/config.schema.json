@@ -3,11 +3,20 @@
   "title": "Config",
   "type": "object",
   "properties": {
+    "allowlist_refresh": {
+      "$ref": "#/$defs/Span"
+    },
+    "allowlist_sources": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/AllowlistSource"
+      }
+    },
     "defaults": {
       "$ref": "#/$defs/Defaults"
     },
     "ignored_rule_ids": {
-      "description": "Anomaly-score aggregates and body-parse noise: consequences of other rules\nrather than findings in their own right, so they are hidden from the\nranking and ignored by `distinct_rules`.",
+      "description": "Noise rather than findings; ignored by the ranking and `distinct_rules`.",
       "type": "array",
       "default": [],
       "items": {
@@ -16,8 +25,15 @@
       "uniqueItems": true
     },
     "manual_unblock_cooldown": {
-      "description": "How long a workflow stays off a CIDR after a human unblocks it. Without\nthis the next tick would undo the unblock.",
       "$ref": "#/$defs/Span"
+    },
+    "never_block": {
+      "description": "Merged with the built-in protected ranges and the\n`WAF_MANAGER_ALLOWLIST` secret.",
+      "type": "array",
+      "default": [],
+      "items": {
+        "type": "string"
+      }
     },
     "version": {
       "type": "integer",
@@ -36,6 +52,35 @@
     "version"
   ],
   "$defs": {
+    "AllowlistSource": {
+      "type": "object",
+      "properties": {
+        "fields": {
+          "description": "`github_meta` only: which of the response's CIDR arrays to take.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "format": {
+          "$ref": "#/$defs/SourceFormat"
+        },
+        "name": {
+          "description": "Labels the entries in the UI and in metrics.",
+          "type": "string"
+        },
+        "url": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "url",
+        "format"
+      ]
+    },
     "BlockDuration": {
       "description": "How long a block lasts: a duration such as `24h`, or `forever`.",
       "type": "string",
@@ -331,6 +376,20 @@
         },
         {
           "$ref": "#/$defs/LeafMatcher"
+        }
+      ]
+    },
+    "SourceFormat": {
+      "oneOf": [
+        {
+          "description": "`https://api.github.com/meta` - a flat object of named CIDR arrays.",
+          "type": "string",
+          "const": "github_meta"
+        },
+        {
+          "description": "`https://api.cloudflare.com/client/v4/ips` - `result.ipv4_cidrs` and\n`result.ipv6_cidrs`.",
+          "type": "string",
+          "const": "cloudflare_ips"
         }
       ]
     },

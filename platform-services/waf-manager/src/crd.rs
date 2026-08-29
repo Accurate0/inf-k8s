@@ -154,9 +154,8 @@ impl WafBlock {
         }
     }
 
-    /// Derived from the CIDR so a double submit - or a workflow racing the
-    /// operator who is already blocking the same address - collides rather than
-    /// duplicating.
+    /// Derived from the CIDR so a double submit, or a workflow racing an
+    /// operator on the same address, collides rather than duplicating.
     pub fn resource_name(net: &ipnet::IpNet) -> String {
         let mut slug = String::new();
         let mut last_dash = true;

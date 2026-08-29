@@ -9,23 +9,19 @@ use kube::api::{ListParams, PostParams};
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use std::sync::Arc;
 
-/// `createdBy` prefix that marks a block as machine-made, so the dashboard can
-/// tell it apart from one a person clicked.
-pub const WORKFLOW_AUTHOR_PREFIX: &str = "workflow/";
+/// `createdBy` prefix marking a block as machine-made.
+pub const WORKFLOW_AUTHOR_PREFIX: &str = "waf-manager.inf-k8s.net/workflow/";
 
 const DECISION_LOG_CAPACITY: usize = 200;
 
-/// Everything a matcher can read about one candidate IP, fetched on demand: a
-/// workflow that only looks at detection volume costs no extra Loki queries.
+/// Everything a matcher can read about one candidate IP, fetched on demand.
 #[derive(Debug, Default)]
 pub struct IpFacts {
     pub client_ip: String,
     pub detections: u64,
     pub rules: Option<Vec<RuleHit>>,
     pub uris: Option<Vec<UriHit>>,
-    /// Results of the workflows' own `signals` queries, keyed
-    /// `<workflow>/<signal>` so two workflows may reuse a name for different
-    /// queries.
+    /// Keyed `<workflow>/<signal>`, so two workflows may reuse a name.
     pub signals: BTreeMap<String, u64>,
 }
 
@@ -48,7 +44,6 @@ impl IpFacts {
         self.uris.as_deref().unwrap_or_default()
     }
 
-    /// Rule ids worth recording on the block, most frequent first.
     fn top_rule_ids(&self) -> Vec<String> {
         self.rules()
             .iter()
@@ -58,7 +53,6 @@ impl IpFacts {
     }
 }
 
-/// What one workflow needs fetched before it can be evaluated.
 #[derive(Debug, Default, Clone)]
 struct Needs {
     rules: bool,
@@ -103,7 +97,6 @@ impl Needs {
     }
 }
 
-/// The window and query one group of workflows draws its candidate IPs from.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CandidateSource {
     window: Span,
@@ -111,7 +104,6 @@ struct CandidateSource {
     query: Option<String>,
 }
 
-/// One thing a workflow decided, kept in memory for the `/workflows` page.
 #[derive(Debug, Clone)]
 pub struct Decision {
     pub at: chrono::DateTime<chrono::Utc>,
@@ -152,8 +144,6 @@ impl WorkflowEngine {
         &self.config
     }
 
-    /// Keep the workflows off `net` for the configured cooldown, because a human
-    /// just took its block off.
     pub async fn suppress(&self, net: &IpNet) -> Result<()> {
         self.suppressions.record(net, chrono::Utc::now()).await
     }
@@ -163,8 +153,8 @@ impl WorkflowEngine {
         log.iter().rev().cloned().collect()
     }
 
-    /// One evaluation pass over every window in use. Errors from a single window
-    /// are logged and skipped so one bad query cannot stall the rest.
+    /// One pass over every candidate source. A source failing is logged and
+    /// skipped so one bad query cannot stall the rest.
     pub async fn run_once(&self) -> Result<()> {
         let now = chrono::Utc::now();
         let started = std::time::Instant::now();
@@ -176,9 +166,6 @@ impl WorkflowEngine {
         }
 
         let suppressed = self.suppressions.active(now).await.unwrap_or_else(|e| {
-            // Failing open would re-block everything a human just released, so
-            // treat an unreadable suppression list as "suppress nothing new" by
-            // skipping the tick entirely below.
             tracing::warn!("reading suppressions failed: {e}");
             Vec::new()
         });
@@ -213,7 +200,7 @@ impl WorkflowEngine {
         }
     }
 
-    /// Splits the current blocklist by who created it, and returns it for the
+    /// Splits the blocklist by origin for metrics, and returns it for the
     /// already-blocked check so the listing is fetched once.
     async fn report_blocks(&self) -> Result<Vec<IpNet>> {
         let blocks = self.ctx.blocks().list(&ListParams::default()).await?.items;
@@ -256,9 +243,13 @@ impl WorkflowEngine {
         };
 
         for candidate in candidates {
-            let Ok(net) = self.ctx.allowlist.parse_and_check(&candidate.client_ip) else {
-                // Protected ranges and unparsable addresses are the normal case
-                // for a Cloudflare-fronted gateway, not something to alert on.
+            let Ok(net) = self
+                .ctx
+                .allowlist
+                .parse_and_check(&candidate.client_ip)
+                .await
+            else {
+                // The normal case for a Cloudflare-fronted gateway, not an alert.
                 continue;
             };
 
@@ -287,8 +278,7 @@ impl WorkflowEngine {
                 }
 
                 self.apply(workflow, &net, &facts, now).await;
-                // One block per IP per tick; a second workflow would only collide
-                // on the same resource name.
+                // One block per IP per tick.
                 break;
             }
         }
@@ -320,9 +310,8 @@ impl WorkflowEngine {
             }
 
             let Some(template) = workflow.signals.get(name) else {
-                // build.rs rejects this, so reaching it means a ConfigMap was
-                // written by hand. Treat the signal as zero rather than blocking
-                // on data that was never fetched.
+                // build.rs rejects this, so reaching it means a hand-written
+                // ConfigMap.
                 tracing::warn!(
                     workflow = workflow.name,
                     signal = name,
@@ -355,8 +344,6 @@ impl WorkflowEngine {
         Ok(())
     }
 
-    /// Two workflows may each declare a signal called `probes` meaning different
-    /// things, so the cache is keyed by both.
     fn signal_key(workflow: &str, signal: &str) -> String {
         format!("{workflow}/{signal}")
     }
@@ -467,9 +454,7 @@ impl WorkflowEngine {
         log.push_back(decision);
     }
 
-    /// Workflows grouped by the candidate query they draw from, so workflows
-    /// sharing a window and a source cost one query between them rather than one
-    /// each. A workflow with its own `candidates` query forms its own group.
+    /// Workflows sharing a window and source cost one query between them.
     fn candidate_sources(&self) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
         let mut grouped: Vec<(CandidateSource, Vec<&WorkflowDef>)> = Vec::new();
 
@@ -500,8 +485,7 @@ impl WorkflowEngine {
         grouped
     }
 
-    /// `workflow` names the signal namespace; the matcher tree is otherwise pure,
-    /// which is what makes it testable without a Loki.
+    /// `workflow` names the signal namespace.
     pub fn evaluate(
         workflow: &str,
         matcher: &Matcher,
@@ -586,8 +570,7 @@ impl WorkflowEngine {
             }
 
             LeafMatcher::Signal { name, min, max } => {
-                // A signal that never loaded is absent rather than zero, and an
-                // absent signal must not satisfy `min: 0`.
+                // Absent rather than zero, so it cannot satisfy `min: 0`.
                 let Some(value) = facts.signals.get(&Self::signal_key(workflow, name)) else {
                     return false;
                 };

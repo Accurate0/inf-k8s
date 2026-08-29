@@ -7,8 +7,6 @@ use kube::api::{Api, Patch, PatchParams};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
-/// Survives restarts, so an unblock is not undone by the pod rolling. A ConfigMap
-/// avoids introducing a database for what is a handful of short-lived entries.
 const CONFIGMAP: &str = "waf-manager-suppressions";
 const FIELD_MANAGER: &str = "waf-manager";
 
@@ -18,9 +16,7 @@ struct Entry {
     until: String,
 }
 
-/// CIDRs that workflows must leave alone for a while, because a human took the
-/// block off. Without this the next tick re-creates the block the operator just
-/// removed, and the UI button looks broken.
+/// CIDRs workflows must leave alone, because a human took the block off.
 pub struct Suppressions {
     api: Api<ConfigMap>,
     cooldown: Span,
@@ -34,8 +30,6 @@ impl Suppressions {
         }
     }
 
-    /// Live entries, expired ones dropped. Read fresh each tick: the ConfigMap is
-    /// tiny and a stale cache would re-block a CIDR another replica just released.
     pub async fn active(&self, now: chrono::DateTime<chrono::Utc>) -> Result<Vec<IpNet>> {
         Ok(self
             .entries(now)
@@ -45,7 +39,6 @@ impl Suppressions {
             .collect())
     }
 
-    /// Suppress `net` for the configured cooldown, starting now.
     pub async fn record(&self, net: &IpNet, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
         let until =
             now + chrono::Duration::from_std(self.cooldown.0).unwrap_or(chrono::Duration::zero());
@@ -60,8 +53,7 @@ impl Suppressions {
         self.write(entries).await
     }
 
-    /// Drops entries whose cooldown has passed, so the ConfigMap does not grow
-    /// without bound.
+    /// Keeps the ConfigMap from growing without bound.
     pub async fn prune(&self, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
         let before = self.raw().await?.len();
         let entries = self.entries(now).await?;
@@ -110,8 +102,8 @@ impl Suppressions {
             })
             .collect();
 
-        // Apply rather than patch: the data map is authoritative, so a removed
-        // entry has to disappear rather than linger as an unmentioned key.
+        // Apply, not patch: a pruned entry has to disappear rather than linger
+        // as an unmentioned key.
         let cm = serde_json::json!({
             "apiVersion": "v1",
             "kind": "ConfigMap",
@@ -130,8 +122,8 @@ impl Suppressions {
         Ok(())
     }
 
-    /// An unparsable timestamp counts as live; keeping a suppression too long is
-    /// the safe failure, since the cost is only a block that is not re-created.
+    /// An unparsable timestamp counts as live; the cost is only a block that is
+    /// not re-created.
     fn is_live(entry: &Entry, now: chrono::DateTime<chrono::Utc>) -> bool {
         match chrono::DateTime::parse_from_rfc3339(&entry.until) {
             Ok(until) => until.with_timezone(&chrono::Utc) > now,
@@ -139,9 +131,8 @@ impl Suppressions {
         }
     }
 
-    /// ConfigMap keys allow only `[-._a-zA-Z0-9]`, which rules out the `/` in a
-    /// prefix and the `:` in an IPv6 address. The CIDR itself is kept in the
-    /// value, so the key only has to be unique.
+    /// ConfigMap keys allow only `[-._a-zA-Z0-9]`, ruling out `/` and `:`. The
+    /// CIDR is kept in the value, so the key only has to be unique.
     fn key(cidr: &str) -> String {
         let mut key = String::with_capacity(cidr.len());
         let mut last_dash = true;

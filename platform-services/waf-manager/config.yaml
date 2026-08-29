@@ -2,13 +2,33 @@
 version: 1
 defaults:
   gateway: public-gateway
-  window: 1h
+  window: 12h
   candidate_limit: 50
 ignored_rule_ids:
   - "949110"
   - "949111"
   - "200002"
 manual_unblock_cooldown: 7d
+never_block:
+  - 100.64.0.0/10
+  - 10.0.0.0/8
+  - 172.16.0.0/12
+  - 192.168.0.0/16
+  - 127.0.0.0/8
+  - 169.254.0.0/16
+  - ::1/128
+  - fc00::/7
+  - fe80::/10
+allowlist_refresh: 12h
+allowlist_sources:
+  - name: github-hooks
+    url: https://api.github.com/meta
+    format: github_meta
+    fields:
+      - hooks
+  - name: cloudflare
+    url: https://api.cloudflare.com/client/v4/ips
+    format: cloudflare_ips
 workflows:
   - !include workflows/credential-file-probes.yaml
   - !include workflows/admin-panel-probes.yaml

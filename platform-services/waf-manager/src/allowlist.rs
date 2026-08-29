@@ -1,122 +1,239 @@
+use crate::config::{AllowlistSource, Config, SourceFormat, Span};
 use crate::error::{Error, Result};
+use crate::metrics::Metrics;
 use ipnet::IpNet;
+use std::collections::BTreeMap;
 use std::net::IpAddr;
 use std::str::FromStr;
+use std::sync::Arc;
+use tokio::sync::RwLock;
 
-/// Never blockable. Checked for overlap in either direction, so neither a block
-/// inside one of these nor a supernet swallowing one is accepted.
-///
-/// The Cloudflare entries are load-bearing: `public/client-policy/policy.yaml` reads
-/// the client IP from `CF-Connecting-IP` with `failClosed: false`, so a request
-/// without that header falls back to the socket address - a Cloudflare edge IP.
-/// Blocking one takes the whole site off the internet.
-const PROTECTED: &[(&str, &str)] = &[
-    ("100.64.0.0/10", "tailnet"),
-    ("10.0.0.0/8", "private (cluster)"),
-    ("172.16.0.0/12", "private"),
-    ("192.168.0.0/16", "private"),
-    ("127.0.0.0/8", "loopback"),
-    ("169.254.0.0/16", "link-local"),
-    ("::1/128", "loopback"),
-    ("fc00::/7", "unique local"),
-    ("fe80::/10", "link-local"),
-    // Cloudflare IPv4 - https://www.cloudflare.com/ips/
-    ("173.245.48.0/20", "cloudflare"),
-    ("103.21.244.0/22", "cloudflare"),
-    ("103.22.200.0/22", "cloudflare"),
-    ("103.31.4.0/22", "cloudflare"),
-    ("141.101.64.0/18", "cloudflare"),
-    ("108.162.192.0/18", "cloudflare"),
-    ("190.93.240.0/20", "cloudflare"),
-    ("188.114.96.0/20", "cloudflare"),
-    ("197.234.240.0/22", "cloudflare"),
-    ("198.41.128.0/17", "cloudflare"),
-    ("162.158.0.0/15", "cloudflare"),
-    ("104.16.0.0/13", "cloudflare"),
-    ("104.24.0.0/14", "cloudflare"),
-    ("172.64.0.0/13", "cloudflare"),
-    ("131.0.72.0/22", "cloudflare"),
-    // Cloudflare IPv6
-    ("2400:cb00::/32", "cloudflare"),
-    ("2606:4700::/32", "cloudflare"),
-    ("2803:f800::/32", "cloudflare"),
-    ("2405:b500::/32", "cloudflare"),
-    ("2405:8100::/32", "cloudflare"),
-    ("2a06:98c0::/29", "cloudflare"),
-    ("2c0f:f248::/32", "cloudflare"),
-];
-
-/// Env var holding extra never-block CIDRs, sourced from Infisical via
-/// external-secrets. Comma-, space- or newline-separated.
+/// Comma-, space- or newline-separated; sourced from Infisical.
 const EXTRA_ENV: &str = "WAF_MANAGER_ALLOWLIST";
 
-/// Guards every CIDR entering the blocklist; parses the protected ranges once.
+type Entries = Vec<(IpNet, String)>;
+
+/// Guards every CIDR entering the blocklist, and keeps itself current against
+/// upstream publishers.
+///
+/// Overlap is checked in either direction, so neither a block inside a protected
+/// range nor a supernet swallowing one is accepted. Nothing is hardcoded:
+/// entries come from config `never_block`, the [`EXTRA_ENV`] secret, and the
+/// configured feeds. GitHub and Cloudflare rotate their ranges, and a stale list
+/// is the dangerous direction - an address that should never be blocked becoming
+/// blockable.
+#[derive(Clone)]
 pub struct Allowlist {
-    protected: Vec<(IpNet, String)>,
+    inner: Arc<Inner>,
 }
 
-impl Default for Allowlist {
-    fn default() -> Self {
-        Self::new()
-    }
+struct Inner {
+    client: reqwest::Client,
+    sources: Vec<AllowlistSource>,
+    /// Static floor from git and the secret; feeds only ever add to it.
+    base: Entries,
+    /// Last good result per source, so a failed refresh keeps its entries.
+    fetched: RwLock<BTreeMap<String, Entries>>,
+    current: RwLock<Arc<Entries>>,
 }
 
 impl Allowlist {
-    pub fn new() -> Self {
-        let protected = PROTECTED
-            .iter()
-            .map(|(raw, why)| {
-                let net = raw
-                    .parse::<IpNet>()
-                    .expect("PROTECTED entries must be valid CIDRs");
-                (net, (*why).to_string())
-            })
-            .collect();
-
-        Self { protected }
-    }
-
-    /// The built-in ranges plus whatever the operator listed in [`EXTRA_ENV`].
-    pub fn from_env() -> Self {
-        match std::env::var(EXTRA_ENV) {
-            Ok(raw) => Self::with_extra(&raw),
-            Err(_) => {
-                tracing::info!("{EXTRA_ENV} unset; using the built-in protected ranges only");
-                Self::new()
-            }
+    pub fn new(base: Entries, sources: Vec<AllowlistSource>) -> Self {
+        Self {
+            inner: Arc::new(Inner {
+                // A feed that hangs must not wedge the refresh loop.
+                client: reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(20))
+                    .user_agent("waf-manager")
+                    .build()
+                    .unwrap_or_default(),
+                sources,
+                current: RwLock::new(Arc::new(base.clone())),
+                base,
+                fetched: RwLock::new(BTreeMap::new()),
+            }),
         }
     }
 
-    /// A malformed entry is skipped rather than fatal, so one typo in the secret
-    /// cannot take the service down - but it is logged at error, because the
-    /// consequence is an address the operator meant to protect being blockable.
-    pub fn with_extra(raw: &str) -> Self {
-        let mut allowlist = Self::new();
+    pub fn from_config(config: &Config) -> Self {
+        let mut base = Self::parse_list(&config.never_block.join(" "), "never_block");
 
-        for entry in raw
-            .split([',', ' ', '\t', '\n', '\r'])
+        match std::env::var(EXTRA_ENV) {
+            Ok(raw) => base.extend(Self::parse_list(&raw, EXTRA_ENV)),
+            Err(_) => tracing::info!("{EXTRA_ENV} unset"),
+        }
+
+        Self::new(base, config.allowlist_sources.clone())
+    }
+
+    /// A malformed entry is skipped rather than fatal, so one typo in a secret or
+    /// a feed cannot take the service down - but it is logged at error, because
+    /// the consequence is an address meant to be protected being blockable.
+    pub fn parse_list(raw: &str, source: &str) -> Entries {
+        raw.split([',', ' ', '\t', '\n', '\r'])
             .map(str::trim)
             .filter(|e| !e.is_empty())
-        {
-            match Self::parse_cidr(entry) {
-                Ok(net) => allowlist
-                    .protected
-                    .push((net, format!("allowlisted ({EXTRA_ENV})"))),
-                Err(e) => tracing::error!("ignoring unparsable {EXTRA_ENV} entry {entry:?}: {e}"),
+            .filter_map(|entry| match Self::parse_cidr(entry) {
+                Ok(net) => Some((net, source.to_string())),
+                Err(e) => {
+                    tracing::error!("ignoring unparsable {source} entry {entry:?}: {e}");
+                    None
+                }
+            })
+            .collect()
+    }
+
+    /// Never-block ranges as they stand, for the dashboard.
+    pub async fn entries(&self) -> Arc<Entries> {
+        self.inner.current.read().await.clone()
+    }
+
+    pub async fn check(&self, net: &IpNet) -> Result<()> {
+        for (protected, why) in self.entries().await.iter() {
+            if net.contains(protected) || protected.contains(net) {
+                return Err(Error::ProtectedRange(
+                    net.to_string(),
+                    format!("{protected} ({why})"),
+                ));
             }
         }
 
-        tracing::info!(
-            entries = allowlist.protected.len() - PROTECTED.len(),
-            "loaded extra allowlist entries"
-        );
-
-        allowlist
+        Ok(())
     }
 
-    /// Never-block ranges, for the dashboard.
-    pub fn protected(&self) -> impl Iterator<Item = (&IpNet, &str)> {
-        self.protected.iter().map(|(net, why)| (net, why.as_str()))
+    pub async fn parse_and_check(&self, input: &str) -> Result<IpNet> {
+        let net = Self::parse_cidr(input)?;
+        self.check(&net).await?;
+        Ok(net)
+    }
+
+    /// Sources are independent: one failing leaves the others, and its own
+    /// previous entries, intact. Returns the names that failed.
+    pub async fn refresh(&self) -> Vec<String> {
+        let mut failed = Vec::new();
+
+        for source in &self.inner.sources {
+            match self.fetch(source).await {
+                Ok(entries) => {
+                    tracing::info!(
+                        source = source.name,
+                        entries = entries.len(),
+                        "refreshed allowlist source"
+                    );
+
+                    Metrics::record_allowlist_refresh(&source.name, "success");
+                    Metrics::set_allowlist_entries(&source.name, entries.len());
+                    self.inner
+                        .fetched
+                        .write()
+                        .await
+                        .insert(source.name.clone(), entries);
+                }
+                Err(e) => {
+                    // Keeping the previous entries is the safe failure: an
+                    // allowlist behind upstream, not one that suddenly permits
+                    // blocking GitHub or Cloudflare.
+                    let held = self
+                        .inner
+                        .fetched
+                        .read()
+                        .await
+                        .get(&source.name)
+                        .map(Vec::len)
+                        .unwrap_or(0);
+
+                    tracing::warn!(
+                        source = source.name,
+                        held,
+                        "allowlist refresh failed, keeping previous entries: {e}"
+                    );
+                    Metrics::record_allowlist_refresh(&source.name, "error");
+                    failed.push(source.name.clone());
+                }
+            }
+        }
+
+        self.rebuild().await;
+        failed
+    }
+
+    /// Startup refresh. A source that has never loaded leaves its ranges
+    /// unprotected, so refuse to start rather than run a blocker that might take
+    /// Cloudflare or GitHub off the air; the previous ReplicaSet keeps serving.
+    pub async fn refresh_or_panic(&self) {
+        let failed = self.refresh().await;
+
+        assert!(
+            failed.is_empty(),
+            "allowlist sources {failed:?} could not be loaded at startup"
+        );
+    }
+
+    /// Run as a background task; it logs its own failures and never returns.
+    pub async fn run(self, interval: Span) {
+        let mut ticker = tokio::time::interval(interval.0);
+        ticker.tick().await;
+
+        loop {
+            ticker.tick().await;
+            self.refresh().await;
+        }
+    }
+
+    async fn rebuild(&self) {
+        let mut entries = self.inner.base.clone();
+        entries.extend(self.inner.fetched.read().await.values().flatten().cloned());
+
+        Metrics::set_allowlist_entries("total", entries.len());
+        *self.inner.current.write().await = Arc::new(entries);
+    }
+
+    async fn fetch(&self, source: &AllowlistSource) -> Result<Entries> {
+        let body: serde_json::Value = self
+            .inner
+            .client
+            .get(&source.url)
+            .send()
+            .await?
+            .error_for_status()?
+            .json()
+            .await?;
+
+        let raw = match source.format {
+            SourceFormat::GithubMeta => Self::github_meta(&body, &source.fields),
+            SourceFormat::CloudflareIps => Self::cloudflare_ips(&body),
+        };
+
+        if raw.is_empty() {
+            return Err(Error::Loki(format!(
+                "allowlist source {} returned no CIDRs",
+                source.name
+            )));
+        }
+
+        Ok(Self::parse_list(&raw.join(" "), &source.name))
+    }
+
+    fn github_meta(body: &serde_json::Value, fields: &[String]) -> Vec<String> {
+        fields
+            .iter()
+            .filter_map(|field| body.get(field)?.as_array())
+            .flatten()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect()
+    }
+
+    fn cloudflare_ips(body: &serde_json::Value) -> Vec<String> {
+        let Some(result) = body.get("result") else {
+            return Vec::new();
+        };
+
+        ["ipv4_cidrs", "ipv6_cidrs"]
+            .iter()
+            .filter_map(|key| result.get(*key)?.as_array())
+            .flatten()
+            .filter_map(|v| v.as_str().map(str::to_string))
+            .collect()
     }
 
     /// A bare address widens to a single-host prefix, as the UI submits.
@@ -144,36 +261,14 @@ impl Allowlist {
 
         IpNet::new(addr, prefix).map_err(|e| Error::InvalidCidr(input.to_string(), e.to_string()))
     }
-
-    /// Also called from the reconciler, since a WafBlock can be applied from git.
-    pub fn check(&self, net: &IpNet) -> Result<()> {
-        for (protected, why) in &self.protected {
-            if net.contains(protected) || protected.contains(net) {
-                return Err(Error::ProtectedRange(
-                    net.to_string(),
-                    format!("{protected} ({why})"),
-                ));
-            }
-        }
-
-        Ok(())
-    }
-
-    pub fn parse_and_check(&self, input: &str) -> Result<IpNet> {
-        let net = Self::parse_cidr(input)?;
-        self.check(&net)?;
-        Ok(net)
-    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    #[test]
-    fn protected_entries_all_parse() {
-        // new() panics on a malformed entry; fail here, not in a crash loop.
-        let _ = Allowlist::new();
+    fn allowlist(raw: &str) -> Allowlist {
+        Allowlist::new(Allowlist::parse_list(raw, "test"), Vec::new())
     }
 
     #[test]
@@ -197,70 +292,146 @@ mod tests {
     }
 
     #[test]
-    fn ordinary_public_addresses_are_allowed() {
-        let allowlist = Allowlist::new();
-        for ip in ["203.0.113.4", "209.87.162.138", "210.56.150.188"] {
-            allowlist
-                .parse_and_check(ip)
-                .unwrap_or_else(|e| panic!("{ip} should be blockable: {e}"));
-        }
-    }
-
-    #[test]
-    fn cloudflare_edge_is_refused() {
-        let err = Allowlist::new().parse_and_check("104.16.5.5").unwrap_err();
-        assert!(matches!(err, Error::ProtectedRange(..)), "got {err}");
-    }
-
-    #[test]
-    fn tailnet_is_refused() {
-        assert!(Allowlist::new().parse_and_check("100.64.1.2").is_err());
-    }
-
-    #[test]
-    fn supernet_swallowing_a_protected_range_is_refused() {
-        // A wider network must not slip through for being the larger one.
-        let allowlist = Allowlist::new();
-        assert!(allowlist.parse_and_check("0.0.0.0/0").is_err());
-        assert!(allowlist.parse_and_check("104.0.0.0/8").is_err());
-    }
-
-    #[test]
-    fn ipv6_cloudflare_is_refused() {
-        assert!(Allowlist::new().parse_and_check("2606:4700::1111").is_err());
-    }
-
-    #[test]
-    fn allowlisted_entries_are_refused() {
-        let allowlist = Allowlist::with_extra("203.0.113.4, 198.51.100.0/24\n2001:db8::1");
-
-        assert!(allowlist.parse_and_check("203.0.113.4").is_err());
-        assert!(allowlist.parse_and_check("198.51.100.7").is_err());
-        assert!(allowlist.parse_and_check("2001:db8::1").is_err());
-        // Neighbours of an allowlisted host are still blockable.
-        assert!(allowlist.parse_and_check("203.0.113.5").is_ok());
-    }
-
-    #[test]
-    fn a_malformed_allowlist_entry_is_skipped_not_fatal() {
-        let allowlist = Allowlist::with_extra("203.0.113.4, not-an-ip, 198.51.100.0/24");
-
-        assert!(allowlist.parse_and_check("203.0.113.4").is_err());
-        assert!(allowlist.parse_and_check("198.51.100.7").is_err());
-    }
-
-    #[test]
-    fn an_empty_allowlist_leaves_the_built_ins_intact() {
-        let allowlist = Allowlist::with_extra("  ,, \n ");
-
-        assert!(allowlist.parse_and_check("104.16.5.5").is_err());
-        assert!(allowlist.parse_and_check("203.0.113.4").is_ok());
-    }
-
-    #[test]
     fn garbage_is_rejected() {
         assert!(Allowlist::parse_cidr("").is_err());
         assert!(Allowlist::parse_cidr("not-an-ip").is_err());
         assert!(Allowlist::parse_cidr("203.0.113.4/99").is_err());
+    }
+
+    #[tokio::test]
+    async fn allowlisted_entries_are_refused() {
+        let allowlist = allowlist("203.0.113.4, 198.51.100.0/24\n2001:db8::1");
+
+        assert!(allowlist.parse_and_check("203.0.113.4").await.is_err());
+        assert!(allowlist.parse_and_check("198.51.100.7").await.is_err());
+        assert!(allowlist.parse_and_check("2001:db8::1").await.is_err());
+        // Neighbours of an allowlisted host are still blockable.
+        assert!(allowlist.parse_and_check("203.0.113.5").await.is_ok());
+    }
+
+    #[tokio::test]
+    async fn a_supernet_swallowing_a_protected_range_is_refused() {
+        let allowlist = allowlist("104.16.0.0/13");
+
+        assert!(allowlist.parse_and_check("0.0.0.0/0").await.is_err());
+        assert!(allowlist.parse_and_check("104.0.0.0/8").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn a_malformed_entry_is_skipped_not_fatal() {
+        let allowlist = allowlist("203.0.113.4, not-an-ip, 198.51.100.0/24");
+
+        assert!(allowlist.parse_and_check("203.0.113.4").await.is_err());
+        assert!(allowlist.parse_and_check("198.51.100.7").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn an_empty_allowlist_blocks_nothing_from_being_blocked() {
+        let allowlist = allowlist("  ,, \n ");
+
+        assert!(allowlist.parse_and_check("203.0.113.4").await.is_ok());
+    }
+
+    #[test]
+    fn github_meta_takes_only_the_named_fields() {
+        let body = serde_json::json!({
+            "hooks": ["140.82.112.0/20", "2a0a:a440::/29"],
+            "actions": ["4.148.0.0/16"],
+        });
+
+        let fields = ["hooks".to_string()];
+        assert_eq!(
+            Allowlist::github_meta(&body, &fields),
+            ["140.82.112.0/20", "2a0a:a440::/29"]
+        );
+    }
+
+    #[test]
+    fn cloudflare_ips_takes_both_families() {
+        let body = serde_json::json!({
+            "result": {
+                "ipv4_cidrs": ["104.16.0.0/13"],
+                "ipv6_cidrs": ["2606:4700::/32"],
+                "etag": "abc",
+            },
+            "success": true,
+        });
+
+        assert_eq!(
+            Allowlist::cloudflare_ips(&body),
+            ["104.16.0.0/13", "2606:4700::/32"]
+        );
+    }
+
+    #[test]
+    fn an_unexpected_body_yields_nothing_rather_than_panicking() {
+        let body = serde_json::json!({ "message": "rate limited" });
+
+        assert!(Allowlist::cloudflare_ips(&body).is_empty());
+        assert!(Allowlist::github_meta(&body, &["hooks".to_string()]).is_empty());
+    }
+
+    #[tokio::test]
+    async fn fetched_entries_join_the_base() {
+        let allowlist = allowlist("10.0.0.0/8");
+        assert!(allowlist.parse_and_check("140.82.115.33").await.is_ok());
+
+        allowlist.inner.fetched.write().await.insert(
+            "github-hooks".to_string(),
+            Allowlist::parse_list("140.82.112.0/20", "github-hooks"),
+        );
+        allowlist.rebuild().await;
+
+        assert!(allowlist.parse_and_check("140.82.115.33").await.is_err());
+        // The base survives a rebuild.
+        assert!(allowlist.parse_and_check("10.1.2.3").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn clones_share_one_snapshot() {
+        let allowlist = allowlist("");
+        let clone = allowlist.clone();
+
+        allowlist.inner.fetched.write().await.insert(
+            "github-hooks".to_string(),
+            Allowlist::parse_list("140.82.112.0/20", "github-hooks"),
+        );
+        allowlist.rebuild().await;
+
+        assert!(clone.parse_and_check("140.82.115.33").await.is_err());
+    }
+}
+
+#[cfg(test)]
+mod live {
+    use super::*;
+
+    /// Hits the real APIs; ignored by default so the suite stays offline.
+    #[tokio::test]
+    #[ignore]
+    async fn real_feeds_protect_github_and_cloudflare() {
+        let allowlist = Allowlist::new(
+            Vec::new(),
+            vec![
+                AllowlistSource {
+                    name: "github-hooks".into(),
+                    url: "https://api.github.com/meta".into(),
+                    format: SourceFormat::GithubMeta,
+                    fields: vec!["hooks".into()],
+                },
+                AllowlistSource {
+                    name: "cloudflare".into(),
+                    url: "https://api.cloudflare.com/client/v4/ips".into(),
+                    format: SourceFormat::CloudflareIps,
+                    fields: Vec::new(),
+                },
+            ],
+        );
+
+        assert!(allowlist.refresh().await.is_empty());
+
+        assert!(allowlist.parse_and_check("140.82.115.33").await.is_err());
+        assert!(allowlist.parse_and_check("104.16.5.5").await.is_err());
+        assert!(allowlist.parse_and_check("203.0.113.4").await.is_ok());
     }
 }

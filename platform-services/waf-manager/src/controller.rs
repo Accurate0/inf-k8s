@@ -191,6 +191,7 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
     let accepted = ctx
         .allowlist
         .parse_and_check(&obj.spec.cidr)
+        .await
         .map(|_| ())
         .map_err(|e| {
             Metrics::record_block_rejected(match e {
