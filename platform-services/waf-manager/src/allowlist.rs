@@ -83,16 +83,17 @@ impl Allowlist {
     }
 
     pub async fn check(&self, net: &IpNet) -> Result<()> {
-        for (protected, why) in self.entries().await.iter() {
-            if net.contains(protected) || protected.contains(net) {
-                return Err(Error::ProtectedRange(
-                    net.to_string(),
-                    format!("{protected} ({why})"),
-                ));
-            }
+        match Self::overlap(&self.entries().await, net) {
+            Some(why) => Err(Error::ProtectedRange(net.to_string(), why)),
+            None => Ok(()),
         }
+    }
 
-        Ok(())
+    pub fn overlap(entries: &[(IpNet, String)], net: &IpNet) -> Option<String> {
+        entries
+            .iter()
+            .find(|(protected, _)| net.contains(protected) || protected.contains(net))
+            .map(|(protected, why)| format!("{protected} ({why})"))
     }
 
     pub async fn parse_and_check(&self, input: &str) -> Result<IpNet> {

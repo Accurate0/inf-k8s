@@ -70,11 +70,12 @@ impl Context {
         gateways.extend(self.adopted_gateways().await?);
 
         let now = chrono::Utc::now();
+        let protected = self.allowlist.entries().await;
         let mut all_conflicts = Vec::new();
 
         for gateway in gateways {
             let compositor = Compositor::new(&gateway);
-            let cidrs = compositor.active_cidrs(&blocks, now);
+            let cidrs = compositor.active_cidrs(&blocks, now, &protected);
             let for_gateway: Vec<WafPolicy> = policies
                 .iter()
                 .filter(|p| p.spec.gateway == gateway)
@@ -188,21 +189,25 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
         tracing::warn!("failed to set owner on {}: {e}", obj.name_any());
     }
 
-    let accepted = ctx
-        .allowlist
-        .parse_and_check(&obj.spec.cidr)
-        .await
-        .map(|_| ())
-        .map_err(|e| {
-            Metrics::record_block_rejected(match e {
-                Error::ProtectedRange(..) => "protected_range",
-                _ => "invalid_cidr",
-            });
-            e.to_string()
-        });
+    let checked = ctx.allowlist.parse_and_check(&obj.spec.cidr).await;
 
-    // Rejected blocks stay put with a failing condition; deleting them would hide
-    // the mistake.
+    if let Err(Error::ProtectedRange(cidr, why)) = &checked {
+        tracing::warn!("deleting block {}: {cidr} overlaps {why}", obj.name_any());
+        Metrics::record_block_rejected("protected_range");
+
+        ctx.blocks()
+            .delete(&obj.name_any(), &DeleteParams::default())
+            .await?;
+        ctx.sync_all().await?;
+
+        return Ok(Action::await_change());
+    }
+
+    let accepted = checked.map(|_| ()).map_err(|e| {
+        Metrics::record_block_rejected("invalid_cidr");
+        e.to_string()
+    });
+
     let synced = match &accepted {
         Ok(()) => ctx.sync_all().await.map(|_| ()),
         Err(_) => Ok(()),

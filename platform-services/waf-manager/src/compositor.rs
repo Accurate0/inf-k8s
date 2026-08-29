@@ -211,17 +211,26 @@ impl Compositor {
         })
     }
 
-    /// Unexpired blocks belonging to this gateway.
+    /// Unexpired, unprotected blocks belonging to this gateway.
     pub fn active_cidrs(
         &self,
         blocks: &[WafBlock],
         now: chrono::DateTime<chrono::Utc>,
+        protected: &[(IpNet, String)],
     ) -> Vec<IpNet> {
         blocks
             .iter()
             .filter(|block| block.spec.gateway == self.gateway)
             .filter(|block| !block.is_expired(now))
             .filter_map(|block| crate::allowlist::Allowlist::parse_cidr(&block.spec.cidr).ok())
+            .filter(|net| {
+                let Some(why) = crate::allowlist::Allowlist::overlap(protected, net) else {
+                    return true;
+                };
+
+                tracing::warn!("not enforcing {net}: overlaps protected range {why}");
+                false
+            })
             .collect()
     }
 }
@@ -444,7 +453,22 @@ mod tests {
 
         let keep = block("keep", "203.0.113.4");
 
-        let cidrs = Compositor::new("public-gateway").active_cidrs(&[other, expired, keep], now);
+        let cidrs =
+            Compositor::new("public-gateway").active_cidrs(&[other, expired, keep], now, &[]);
+
+        assert_eq!(cidrs.len(), 1);
+        assert_eq!(cidrs[0].to_string(), "203.0.113.4/32");
+    }
+
+    #[test]
+    fn active_cidrs_drops_newly_protected_blocks() {
+        let now = chrono::Utc::now();
+        let protected = crate::allowlist::Allowlist::parse_list("140.82.112.0/20", "github");
+
+        let stale = block("stale", "140.82.115.33");
+        let keep = block("keep", "203.0.113.4");
+
+        let cidrs = Compositor::new("public-gateway").active_cidrs(&[stale, keep], now, &protected);
 
         assert_eq!(cidrs.len(), 1);
         assert_eq!(cidrs[0].to_string(), "203.0.113.4/32");
