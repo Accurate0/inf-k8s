@@ -100,6 +100,12 @@ async fn main() -> Result<()> {
     let resync_ctx = ctx.clone();
     let resync_engine = engine.clone();
     tokio::spawn(async move {
+        // Evaluate every workflow once at startup, so a restart does not leave
+        // the blocklist a full interval behind what Loki already shows.
+        if let Err(e) = resync_engine.run_once().await {
+            tracing::warn!("initial workflow run failed: {e}");
+        }
+
         let mut ticker = tokio::time::interval(resync);
         ticker.tick().await;
 
