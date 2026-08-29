@@ -116,7 +116,12 @@ pub struct Decision {
 
 /// Evaluates the workflows in `config.yaml` against Loki and creates WafBlocks
 /// for the IPs that match.
+#[derive(Clone)]
 pub struct WorkflowEngine {
+    inner: Arc<WorkflowEngineInner>,
+}
+
+struct WorkflowEngineInner {
     config: Config,
     loki: Arc<Loki>,
     ctx: Arc<Context>,
@@ -132,24 +137,29 @@ impl WorkflowEngine {
         suppressions: crate::suppression::Suppressions,
     ) -> Self {
         Self {
-            config,
-            loki,
-            ctx,
-            suppressions,
-            decisions: tokio::sync::RwLock::new(VecDeque::with_capacity(DECISION_LOG_CAPACITY)),
+            inner: Arc::new(WorkflowEngineInner {
+                config,
+                loki,
+                ctx,
+                suppressions,
+                decisions: tokio::sync::RwLock::new(VecDeque::with_capacity(DECISION_LOG_CAPACITY)),
+            }),
         }
     }
 
     pub fn config(&self) -> &Config {
-        &self.config
+        &self.inner.config
     }
 
     pub async fn suppress(&self, net: &IpNet) -> Result<()> {
-        self.suppressions.record(net, chrono::Utc::now()).await
+        self.inner
+            .suppressions
+            .record(net, chrono::Utc::now())
+            .await
     }
 
     pub async fn decisions(&self) -> Vec<Decision> {
-        let log = self.decisions.read().await;
+        let log = self.inner.decisions.read().await;
         log.iter().rev().cloned().collect()
     }
 
@@ -161,14 +171,19 @@ impl WorkflowEngine {
 
         self.report_workflow_counts();
 
-        if let Err(e) = self.suppressions.prune(now).await {
+        if let Err(e) = self.inner.suppressions.prune(now).await {
             tracing::warn!("pruning suppressions failed: {e}");
         }
 
-        let suppressed = self.suppressions.active(now).await.unwrap_or_else(|e| {
-            tracing::warn!("reading suppressions failed: {e}");
-            Vec::new()
-        });
+        let suppressed = self
+            .inner
+            .suppressions
+            .active(now)
+            .await
+            .unwrap_or_else(|e| {
+                tracing::warn!("reading suppressions failed: {e}");
+                Vec::new()
+            });
 
         Metrics::set_suppressions(suppressed.len());
 
@@ -202,7 +217,13 @@ impl WorkflowEngine {
 
     /// Returns the blocklist too, so it is fetched once per run.
     async fn report_blocks(&self) -> Result<Vec<IpNet>> {
-        let blocks = self.ctx.blocks().list(&ListParams::default()).await?.items;
+        let blocks = self
+            .inner
+            .ctx
+            .blocks()
+            .list(&ListParams::default())
+            .await?
+            .items;
 
         let automatic = blocks
             .iter()
@@ -233,10 +254,14 @@ impl WorkflowEngine {
     ) -> Result<()> {
         let window = source.window;
         let candidates = match &source.query {
-            Some(query) => self.loki.candidates_from(query).await?,
+            Some(query) => self.inner.loki.candidates_from(query).await?,
             None => {
-                self.loki
-                    .top_client_ips(&window.to_logql(), self.config.defaults.candidate_limit)
+                self.inner
+                    .loki
+                    .top_client_ips(
+                        &window.to_logql(),
+                        self.inner.config.defaults.candidate_limit,
+                    )
                     .await?
             }
         };
@@ -271,7 +296,7 @@ impl WorkflowEngine {
                     &workflow.name,
                     &workflow.matcher,
                     &facts,
-                    &self.config.ignored_rule_ids,
+                    &self.inner.config.ignored_rule_ids,
                 ) {
                     continue;
                 }
@@ -295,11 +320,21 @@ impl WorkflowEngine {
         let window = window.to_logql();
 
         if needs.rules && facts.rules.is_none() {
-            facts.rules = Some(self.loki.rules_for_ip(&facts.client_ip, &window).await?);
+            facts.rules = Some(
+                self.inner
+                    .loki
+                    .rules_for_ip(&facts.client_ip, &window)
+                    .await?,
+            );
         }
 
         if needs.uris && facts.uris.is_none() {
-            facts.uris = Some(self.loki.uris_for_ip(&facts.client_ip, &window).await?);
+            facts.uris = Some(
+                self.inner
+                    .loki
+                    .uris_for_ip(&facts.client_ip, &window)
+                    .await?,
+            );
         }
 
         for name in &needs.signals {
@@ -322,7 +357,7 @@ impl WorkflowEngine {
             let vars = Self::signal_vars(
                 &window,
                 &facts.client_ip,
-                self.config.defaults.candidate_limit,
+                self.inner.config.defaults.candidate_limit,
             );
             let missing = template.unresolved(&vars);
             if !missing.is_empty() {
@@ -335,7 +370,7 @@ impl WorkflowEngine {
                 continue;
             }
 
-            let value = self.loki.scalar(&template.render(&vars)).await?;
+            let value = self.inner.loki.scalar(&template.render(&vars)).await?;
             facts.signals.insert(key, value);
         }
 
@@ -400,7 +435,7 @@ impl WorkflowEngine {
 
         let spec = WafBlockSpec {
             cidr: net.to_string(),
-            gateway: workflow.gateway(&self.config.defaults).to_string(),
+            gateway: workflow.gateway(&self.inner.config.defaults).to_string(),
             reason: Some(workflow.reason.clone()),
             rule_ids: Some(facts.top_rule_ids()).filter(|ids| !ids.is_empty()),
             expires_at: workflow.expires_at(now),
@@ -444,7 +479,7 @@ impl WorkflowEngine {
     }
 
     async fn record(&self, decision: Decision) {
-        let mut log = self.decisions.write().await;
+        let mut log = self.inner.decisions.write().await;
         if log.len() >= DECISION_LOG_CAPACITY {
             log.pop_front();
         }
@@ -456,9 +491,12 @@ impl WorkflowEngine {
     fn candidate_sources(&self) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
         let mut grouped: Vec<(CandidateSource, Vec<&WorkflowDef>)> = Vec::new();
 
-        for workflow in self.config.active_workflows() {
-            let window = workflow.window(&self.config.defaults);
-            let vars = Self::base_vars(&window.to_logql(), self.config.defaults.candidate_limit);
+        for workflow in self.inner.config.active_workflows() {
+            let window = workflow.window(&self.inner.config.defaults);
+            let vars = Self::base_vars(
+                &window.to_logql(),
+                self.inner.config.defaults.candidate_limit,
+            );
 
             let query = workflow.candidates.as_ref().and_then(|template| {
                 let missing = template.unresolved(&vars);

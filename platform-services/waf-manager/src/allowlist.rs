@@ -20,10 +20,10 @@ type Entries = Vec<(IpNet, String)>;
 /// range nor a supernet swallowing one is accepted.
 #[derive(Clone)]
 pub struct Allowlist {
-    inner: Arc<Inner>,
+    inner: Arc<AllowlistInner>,
 }
 
-struct Inner {
+struct AllowlistInner {
     client: reqwest::Client,
     sources: Vec<AllowlistSource>,
     /// Static floor from git and the secret; feeds only ever add to it.
@@ -36,7 +36,7 @@ struct Inner {
 impl Allowlist {
     pub fn new(base: Entries, sources: Vec<AllowlistSource>) -> Self {
         Self {
-            inner: Arc::new(Inner {
+            inner: Arc::new(AllowlistInner {
                 // A feed that hangs must not wedge the refresh loop.
                 client: reqwest::Client::builder()
                     .timeout(std::time::Duration::from_secs(20))
@@ -155,10 +155,9 @@ impl Allowlist {
     pub async fn refresh_or_panic(&self) {
         let failed = self.refresh().await;
 
-        assert!(
-            failed.is_empty(),
-            "allowlist sources {failed:?} could not be loaded at startup"
-        );
+        if !failed.is_empty() {
+            panic!("allowlist sources {failed:?} could not be loaded at startup");
+        }
     }
 
     /// Never returns; logs its own failures.
