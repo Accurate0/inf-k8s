@@ -13,15 +13,11 @@ const EXTRA_ENV: &str = "WAF_MANAGER_ALLOWLIST";
 
 type Entries = Vec<(IpNet, String)>;
 
-/// Guards every CIDR entering the blocklist, and keeps itself current against
-/// upstream publishers.
+/// Guards every CIDR entering the blocklist, from config `never_block`, the
+/// [`EXTRA_ENV`] secret and the configured feeds.
 ///
 /// Overlap is checked in either direction, so neither a block inside a protected
-/// range nor a supernet swallowing one is accepted. Nothing is hardcoded:
-/// entries come from config `never_block`, the [`EXTRA_ENV`] secret, and the
-/// configured feeds. GitHub and Cloudflare rotate their ranges, and a stale list
-/// is the dangerous direction - an address that should never be blocked becoming
-/// blockable.
+/// range nor a supernet swallowing one is accepted.
 #[derive(Clone)]
 pub struct Allowlist {
     inner: Arc<Inner>,
@@ -66,9 +62,8 @@ impl Allowlist {
         Self::new(base, config.allowlist_sources.clone())
     }
 
-    /// A malformed entry is skipped rather than fatal, so one typo in a secret or
-    /// a feed cannot take the service down - but it is logged at error, because
-    /// the consequence is an address meant to be protected being blockable.
+    /// A malformed entry is skipped, but logged at error: the consequence is an
+    /// address meant to be protected being blockable.
     pub fn parse_list(raw: &str, source: &str) -> Entries {
         raw.split([',', ' ', '\t', '\n', '\r'])
             .map(str::trim)
@@ -83,7 +78,6 @@ impl Allowlist {
             .collect()
     }
 
-    /// Never-block ranges as they stand, for the dashboard.
     pub async fn entries(&self) -> Arc<Entries> {
         self.inner.current.read().await.clone()
     }
@@ -107,8 +101,8 @@ impl Allowlist {
         Ok(net)
     }
 
-    /// Sources are independent: one failing leaves the others, and its own
-    /// previous entries, intact. Returns the names that failed.
+    /// One source failing leaves the others, and its own previous entries,
+    /// intact. Returns the names that failed.
     pub async fn refresh(&self) -> Vec<String> {
         let mut failed = Vec::new();
 
@@ -130,9 +124,7 @@ impl Allowlist {
                         .insert(source.name.clone(), entries);
                 }
                 Err(e) => {
-                    // Keeping the previous entries is the safe failure: an
-                    // allowlist behind upstream, not one that suddenly permits
-                    // blocking GitHub or Cloudflare.
+                    // Behind upstream is the safe failure; empty is not.
                     let held = self
                         .inner
                         .fetched
@@ -157,9 +149,8 @@ impl Allowlist {
         failed
     }
 
-    /// Startup refresh. A source that has never loaded leaves its ranges
-    /// unprotected, so refuse to start rather than run a blocker that might take
-    /// Cloudflare or GitHub off the air; the previous ReplicaSet keeps serving.
+    /// A source that has never loaded leaves its ranges unprotected, so refuse to
+    /// start rather than risk blocking Cloudflare or GitHub.
     pub async fn refresh_or_panic(&self) {
         let failed = self.refresh().await;
 
@@ -169,7 +160,7 @@ impl Allowlist {
         );
     }
 
-    /// Run as a background task; it logs its own failures and never returns.
+    /// Never returns; logs its own failures.
     pub async fn run(self, interval: Span) {
         let mut ticker = tokio::time::interval(interval.0);
         ticker.tick().await;

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../workflow.schema.json
 name: scanner-user-agents
-enabled: dry-run
+enabled: active
 window: 6h
 duration: 7d
 reason: "automatic: self-identifying security scanner"

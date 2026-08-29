@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../workflow.schema.json
 name: path-traversal
-enabled: dry-run
+enabled: active
 window: 1h
 duration: 48h
 reason: "automatic: repeated path traversal attempts"

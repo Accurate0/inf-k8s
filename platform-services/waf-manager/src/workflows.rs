@@ -114,8 +114,8 @@ pub struct Decision {
     pub outcome: String,
 }
 
-/// Evaluates the declarative workflows in `config.yaml` against Loki detection
-/// data and creates WafBlocks for the IPs that match.
+/// Evaluates the workflows in `config.yaml` against Loki and creates WafBlocks
+/// for the IPs that match.
 pub struct WorkflowEngine {
     config: Config,
     loki: Arc<Loki>,
@@ -153,8 +153,8 @@ impl WorkflowEngine {
         log.iter().rev().cloned().collect()
     }
 
-    /// One pass over every candidate source. A source failing is logged and
-    /// skipped so one bad query cannot stall the rest.
+    /// A source failing is logged and skipped, so one bad query cannot stall
+    /// the rest.
     pub async fn run_once(&self) -> Result<()> {
         let now = chrono::Utc::now();
         let started = std::time::Instant::now();
@@ -200,8 +200,7 @@ impl WorkflowEngine {
         }
     }
 
-    /// Splits the blocklist by origin for metrics, and returns it for the
-    /// already-blocked check so the listing is fetched once.
+    /// Returns the blocklist too, so it is fetched once per run.
     async fn report_blocks(&self) -> Result<Vec<IpNet>> {
         let blocks = self.ctx.blocks().list(&ListParams::default()).await?.items;
 
@@ -310,8 +309,7 @@ impl WorkflowEngine {
             }
 
             let Some(template) = workflow.signals.get(name) else {
-                // build.rs rejects this, so reaching it means a hand-written
-                // ConfigMap.
+                // build.rs rejects this; reaching it means a hand-written ConfigMap.
                 tracing::warn!(
                     workflow = workflow.name,
                     signal = name,
@@ -701,7 +699,6 @@ mod tests {
 
     #[test]
     fn absent_facts_never_match() {
-        // A workflow whose facts failed to load must not block on an empty list.
         let bare = IpFacts::new("203.0.113.4", 10);
         let ignored = BTreeSet::new();
 
@@ -745,7 +742,6 @@ mod tests {
 
     #[test]
     fn signals_are_namespaced_by_workflow() {
-        // The same signal name in another workflow is a different query.
         assert!(!WorkflowEngine::evaluate(
             "other",
             &matcher("type: signal\nname: sqli\nmin: 42"),

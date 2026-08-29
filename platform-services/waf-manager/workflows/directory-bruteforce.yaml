@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../workflow.schema.json
 name: directory-bruteforce
-enabled: dry-run
+enabled: active
 window: 6h
 duration: 24h
 reason: "automatic: brute-forcing paths against the proxy"

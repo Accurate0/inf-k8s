@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=../workflow.schema.json
 name: high-volume-scanner
-enabled: dry-run
+enabled: active
 window: 12h
 duration: 24h
 reason: "automatic: sustained detection volume"

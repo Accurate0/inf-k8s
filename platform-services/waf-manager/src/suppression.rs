@@ -102,8 +102,7 @@ impl Suppressions {
             })
             .collect();
 
-        // Apply, not patch: a pruned entry has to disappear rather than linger
-        // as an unmentioned key.
+        // Apply, not patch: a pruned entry must disappear, not linger.
         let cm = serde_json::json!({
             "apiVersion": "v1",
             "kind": "ConfigMap",
@@ -131,8 +130,8 @@ impl Suppressions {
         }
     }
 
-    /// ConfigMap keys allow only `[-._a-zA-Z0-9]`, ruling out `/` and `:`. The
-    /// CIDR is kept in the value, so the key only has to be unique.
+    /// ConfigMap keys allow only `[-._a-zA-Z0-9]`, ruling out `/` and `:`; the
+    /// CIDR itself lives in the value.
     fn key(cidr: &str) -> String {
         let mut key = String::with_capacity(cidr.len());
         let mut last_dash = true;

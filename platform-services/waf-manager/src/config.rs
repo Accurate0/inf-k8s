@@ -5,8 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const CONFIG_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.merged.yaml"));
 
-/// Bump on any breaking schema change; a ConfigMap whose `version` differs is
-/// rejected in favour of the baked-in config.
+/// Bump on any breaking schema change, including a new field.
 pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 
 const CONFIG_PATH_ENV: &str = "WORKFLOWS_CONFIGMAP_PATH";
@@ -47,24 +46,22 @@ pub struct Config {
 }
 
 impl Config {
-    /// A version mismatch falls back to the baked-in config; a malformed
-    /// ConfigMap panics, so the pod fails to start and the previous ReplicaSet
-    /// keeps serving.
+    /// A malformed ConfigMap panics, so the pod fails to start and the previous
+    /// ReplicaSet keeps serving.
     pub fn load() -> Self {
         let Ok(path) = std::env::var(CONFIG_PATH_ENV) else {
             tracing::info!("{CONFIG_PATH_ENV} unset; using baked-in workflow config");
             return Self::baked_in();
         };
 
-        // Resolved the same way build.rs does, so the ConfigMap can bundle the
-        // raw config.yaml + workflows/*.yaml rather than a pre-merged file.
+        // Resolved as build.rs does, so the ConfigMap can bundle the raw
+        // config.yaml + workflows/*.yaml.
         let merged = yaml_include::Transformer::new(path.clone().into(), true)
             .expect("failed to read workflow ConfigMap")
             .to_string();
 
-        // Read the version before the rest. A ConfigMap written for a newer
-        // binary carries fields this one rejects, and deserializing first would
-        // panic on them before the version could excuse it.
+        // Before the rest: a ConfigMap written for a newer binary carries fields
+        // this one rejects, and would panic before the version could excuse it.
         let probe: Probe =
             serde_yaml::from_str(&merged).expect("workflow ConfigMap has no readable version");
 
@@ -93,7 +90,6 @@ impl Config {
         serde_yaml::from_str(CONFIG_YAML).expect("baked-in config deserialization failed")
     }
 
-    /// Workflows that may act, in file order.
     pub fn active_workflows(&self) -> impl Iterator<Item = &WorkflowDef> {
         self.workflows
             .iter()
@@ -110,7 +106,6 @@ pub struct Defaults {
     #[serde(default = "default_window")]
     pub window: Span,
 
-    /// How many top-detecting client IPs to consider each tick.
     #[serde(default = "default_candidate_limit")]
     pub candidate_limit: usize,
 }
@@ -181,10 +176,9 @@ pub struct WorkflowDef {
     pub matcher: Matcher,
 }
 
-/// A LogQL query with `{{name}}` placeholders. `{{window}}`, `{{limit}}` and the
-/// fragments from [`crate::loki::Loki::fragments`] are always available;
-/// `{{client_ip}}`, `{{prefilter}}` and `{{exact_client}}` only in a signal, which
-/// is evaluated against one address.
+/// A LogQL query with `{{name}}` placeholders: `{{window}}`, `{{limit}}` and the
+/// [`crate::loki::Loki::fragments`] everywhere, plus `{{client_ip}}`,
+/// `{{prefilter}}` and `{{exact_client}}` in a signal.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Template(pub String);
@@ -396,8 +390,6 @@ pub enum Combinator {
     Not(Box<Matcher>),
 }
 
-/// Every leaf reads one of the fact sources gathered per candidate IP: the
-/// detection total, the per-rule breakdown, the requested URIs, or a signal.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(tag = "type", rename_all = "snake_case", deny_unknown_fields)]
 pub enum LeafMatcher {
@@ -511,8 +503,6 @@ mod tests {
 
     #[test]
     fn the_version_probe_tolerates_fields_this_binary_does_not_know() {
-        // A ConfigMap written for a newer binary must be readable far enough to
-        // be rejected on version, rather than panicking on its extra fields.
         let probe: Probe = serde_yaml::from_str(
             r#"
 version: 99
@@ -527,13 +517,11 @@ workflows: []
 
     #[test]
     fn the_baked_in_config_matches_the_binary_version() {
-        // Adding a field without bumping both is what strands a rolling deploy.
         assert_eq!(Config::baked_in().version, CONFIG_SCHEMA_VERSION);
     }
 
     #[test]
     fn baked_in_config_parses() {
-        // A malformed config.yaml fails here rather than in a crash loop.
         let config = Config::baked_in();
         assert_eq!(config.version, CONFIG_SCHEMA_VERSION);
         assert!(!config.workflows.is_empty());
@@ -655,7 +643,6 @@ workflows:
 
     #[test]
     fn unknown_fields_are_rejected() {
-        // A typo in a workflow must fail the build, not silently do nothing.
         let err = serde_yaml::from_str::<WorkflowDef>(
             r#"
 name: typo
@@ -686,8 +673,7 @@ when:
 
     #[test]
     fn every_baked_in_query_renders() {
-        // A placeholder typo would otherwise reach Loki as literal `{{name}}`
-        // and the workflow would silently never fire.
+        // An unrendered placeholder reaches Loki literally and never fires.
         let config = Config::baked_in();
         let vars: BTreeMap<&str, String> = crate::loki::Loki::fragments()
             .into_iter()
