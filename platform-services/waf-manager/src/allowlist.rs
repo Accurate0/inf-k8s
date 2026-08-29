@@ -90,10 +90,17 @@ impl Allowlist {
     }
 
     pub fn overlap(entries: &[(IpNet, String)], net: &IpNet) -> Option<String> {
+        Self::matching(entries, net).map(|(protected, why)| format!("{protected} ({why})"))
+    }
+
+    /// The first protected entry overlapping `net`, in either direction.
+    pub fn matching<'a>(
+        entries: &'a [(IpNet, String)],
+        net: &IpNet,
+    ) -> Option<&'a (IpNet, String)> {
         entries
             .iter()
             .find(|(protected, _)| net.contains(protected) || protected.contains(net))
-            .map(|(protected, why)| format!("{protected} ({why})"))
     }
 
     pub async fn parse_and_check(&self, input: &str) -> Result<IpNet> {

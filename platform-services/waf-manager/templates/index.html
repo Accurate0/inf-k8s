@@ -6,37 +6,78 @@
 <h1>Detection candidates</h1>
 <p class="muted">Clients ranked by Coraza detections over the last {{ window }}.</p>
 
-{% if rows.is_empty() %}
+{% if actionable.is_empty() && protected.is_empty() && blocked.is_empty() %}
 <p>No detections in this window.</p>
-{% else %}
+{% endif %}
+
+{% if !actionable.is_empty() %}
+<h2>Actionable <span class="muted">({{ actionable.len() }})</span></h2>
 <table>
     <thead>
         <tr>
             <th>Client IP</th>
-            <th>Detections</th>
-            <th>Status</th>
+            <th class="num">Detections</th>
             <th>Block</th>
         </tr>
     </thead>
     <tbody>
-    {% for row in rows %}
+    {% for row in actionable %}
         <tr>
             <td><a href="/ip/{{ row.client_ip|urlencode_strict }}"><code>{{ row.client_ip }}</code></a></td>
             <td class="num">{{ row.detections }}</td>
-            <td class="status">
-                {% if row.already_blocked %}<span class="badge blocked">blocked</span>{% endif %}
-                {% if !row.protected.is_empty() %}<span class="badge protected">protected</span> <code class="muted">{{ row.protected }}</code>{% endif %}
-            </td>
-            <td>
-                {% if !row.already_blocked && row.protected.is_empty() %}
+            <td class="nowrap">
                 <form class="inline" method="post" action="/block">
                     <input type="hidden" name="cidr" value="{{ row.client_ip }}">
                     <input type="text" name="reason" placeholder="reason" size="24">
                     <input type="number" name="ttl_hours" placeholder="ttl h" min="0" size="5">
                     <button type="submit">Block</button>
                 </form>
-                {% endif %}
             </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if !protected.is_empty() %}
+<h2>Protected <span class="muted">({{ protected.len() }})</span></h2>
+<p class="muted">In an allowlisted range, so blocking is refused.</p>
+<table>
+    <thead>
+        <tr>
+            <th>Client IP</th>
+            <th class="num">Detections</th>
+            <th>Protected range</th>
+            <th>Source</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in protected %}
+        <tr>
+            <td><a href="/ip/{{ row.client_ip|urlencode_strict }}"><code>{{ row.client_ip }}</code></a></td>
+            <td class="num">{{ row.detections }}</td>
+            <td class="nowrap"><code>{{ row.range }}</code></td>
+            <td class="nowrap"><code class="muted">{{ row.source }}</code></td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+{% if !blocked.is_empty() %}
+<h2>Already blocked <span class="muted">({{ blocked.len() }})</span></h2>
+<table>
+    <thead>
+        <tr>
+            <th>Client IP</th>
+            <th class="num">Detections</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for row in blocked %}
+        <tr>
+            <td><a href="/ip/{{ row.client_ip|urlencode_strict }}"><code>{{ row.client_ip }}</code></a></td>
+            <td class="num">{{ row.detections }}</td>
         </tr>
     {% endfor %}
     </tbody>

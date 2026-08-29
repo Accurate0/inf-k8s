@@ -67,28 +67,36 @@ impl Routes {
 
         let blocked = Self::blocked_cidrs(&state).await?;
         let protected = state.ctx.allowlist.entries().await;
-        let rows = candidates
-            .into_iter()
-            .map(|c| {
-                let net = waf_manager::Allowlist::parse_cidr(&c.client_ip).ok();
-                let already_blocked = net
-                    .map(|net| blocked.iter().any(|b| b.contains(&net)))
-                    .unwrap_or(false);
 
-                CandidateRow {
+        // One section per outcome: only the actionable rows carry a form, and
+        // only the protected ones have a range to name.
+        let mut actionable = Vec::new();
+        let mut protected_rows = Vec::new();
+        let mut blocked_rows = Vec::new();
+
+        for c in candidates {
+            let net = waf_manager::Allowlist::parse_cidr(&c.client_ip).ok();
+
+            if net.is_some_and(|net| blocked.iter().any(|b| b.contains(&net))) {
+                blocked_rows.push(CandidateRow::new(c.client_ip, c.detections));
+                continue;
+            }
+
+            match net.and_then(|net| waf_manager::Allowlist::matching(&protected, &net)) {
+                Some((range, source)) => protected_rows.push(ProtectedCandidateRow {
                     client_ip: c.client_ip,
                     detections: c.detections,
-                    already_blocked,
-                    // Blocking one is refused, so say so before the form is used.
-                    protected: net
-                        .and_then(|net| waf_manager::Allowlist::overlap(&protected, &net))
-                        .unwrap_or_default(),
-                }
-            })
-            .collect();
+                    range: range.to_string(),
+                    source: source.clone(),
+                }),
+                None => actionable.push(CandidateRow::new(c.client_ip, c.detections)),
+            }
+        }
 
         Self::render(IndexTemplate {
-            rows,
+            actionable,
+            protected: protected_rows,
+            blocked: blocked_rows,
             window: state.window_label(),
         })
     }
@@ -410,9 +418,22 @@ impl IntoResponse for AppError {
 pub struct CandidateRow {
     pub client_ip: String,
     pub detections: u64,
-    pub already_blocked: bool,
-    /// `"<cidr> (<source>)"` when the IP falls in a protected range, else empty.
-    pub protected: String,
+}
+
+impl CandidateRow {
+    fn new(client_ip: String, detections: u64) -> Self {
+        Self {
+            client_ip,
+            detections,
+        }
+    }
+}
+
+pub struct ProtectedCandidateRow {
+    pub client_ip: String,
+    pub detections: u64,
+    pub range: String,
+    pub source: String,
 }
 
 pub struct BlockRow {
@@ -438,7 +459,9 @@ pub struct RuleRow {
 #[derive(Template)]
 #[template(path = "index.html")]
 struct IndexTemplate {
-    rows: Vec<CandidateRow>,
+    actionable: Vec<CandidateRow>,
+    protected: Vec<ProtectedCandidateRow>,
+    blocked: Vec<CandidateRow>,
     window: String,
 }
 

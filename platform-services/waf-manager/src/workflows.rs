@@ -114,6 +114,16 @@ pub struct Decision {
     pub outcome: String,
 }
 
+impl Decision {
+    /// The bare address, for the `/ip/{addr}` link: Loki is queried by address,
+    /// so a host prefix must lose its `/32` and a wider range gets no link.
+    pub fn host(&self) -> Option<&str> {
+        self.cidr
+            .strip_suffix("/32")
+            .or_else(|| self.cidr.strip_suffix("/128"))
+    }
+}
+
 /// Evaluates the workflows in `config.yaml` against Loki and creates WafBlocks
 /// for the IPs that match.
 #[derive(Clone)]

@@ -86,7 +86,14 @@
         <tr>
             <td>{{ decision.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true) }}</td>
             <td><code>{{ decision.workflow }}</code></td>
-            <td><a href="/ip/{{ decision.cidr }}"><code>{{ decision.cidr }}</code></a></td>
+            <td>
+                {% match decision.host() %}
+                {% when Some with (host) %}
+                <a href="/ip/{{ host|urlencode_strict }}"><code>{{ decision.cidr }}</code></a>
+                {% when None %}
+                <code>{{ decision.cidr }}</code>
+                {% endmatch %}
+            </td>
             <td class="num">{{ decision.detections }}</td>
             <td><span class="badge {{ decision.mode }}">{{ decision.mode }}</span></td>
             <td>{{ decision.outcome }}</td>
