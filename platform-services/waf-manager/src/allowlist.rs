@@ -8,16 +8,10 @@ use std::str::FromStr;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-/// Comma-, space- or newline-separated; sourced from Infisical.
 const EXTRA_ENV: &str = "WAF_MANAGER_ALLOWLIST";
 
 type Entries = Vec<(IpNet, String)>;
 
-/// Guards every CIDR entering the blocklist, from config `never_block`, the
-/// [`EXTRA_ENV`] secret and the configured feeds.
-///
-/// Overlap is checked in either direction, so neither a block inside a protected
-/// range nor a supernet swallowing one is accepted.
 #[derive(Clone)]
 pub struct Allowlist {
     inner: Arc<AllowlistInner>,
@@ -26,9 +20,7 @@ pub struct Allowlist {
 struct AllowlistInner {
     client: reqwest::Client,
     sources: Vec<AllowlistSource>,
-    /// Static floor from git and the secret; feeds only ever add to it.
     base: Entries,
-    /// Last good result per source, so a failed refresh keeps its entries.
     fetched: RwLock<BTreeMap<String, Entries>>,
     current: RwLock<Arc<Entries>>,
 }
@@ -37,7 +29,6 @@ impl Allowlist {
     pub fn new(base: Entries, sources: Vec<AllowlistSource>) -> Self {
         Self {
             inner: Arc::new(AllowlistInner {
-                // A feed that hangs must not wedge the refresh loop.
                 client: reqwest::Client::builder()
                     .timeout(std::time::Duration::from_secs(20))
                     .user_agent("waf-manager")
@@ -62,8 +53,6 @@ impl Allowlist {
         Self::new(base, config.allowlist_sources.clone())
     }
 
-    /// A malformed entry is skipped, but logged at error: the consequence is an
-    /// address meant to be protected being blockable.
     pub fn parse_list(raw: &str, source: &str) -> Entries {
         raw.split([',', ' ', '\t', '\n', '\r'])
             .map(str::trim)
@@ -93,7 +82,6 @@ impl Allowlist {
         Self::matching(entries, net).map(|(protected, why)| format!("{protected} ({why})"))
     }
 
-    /// The first protected entry overlapping `net`, in either direction.
     pub fn matching<'a>(
         entries: &'a [(IpNet, String)],
         net: &IpNet,
@@ -109,8 +97,6 @@ impl Allowlist {
         Ok(net)
     }
 
-    /// One source failing leaves the others, and its own previous entries,
-    /// intact. Returns the names that failed.
     pub async fn refresh(&self) -> Vec<String> {
         let mut failed = Vec::new();
 
@@ -132,7 +118,6 @@ impl Allowlist {
                         .insert(source.name.clone(), entries);
                 }
                 Err(e) => {
-                    // Behind upstream is the safe failure; empty is not.
                     let held = self
                         .inner
                         .fetched
@@ -157,8 +142,6 @@ impl Allowlist {
         failed
     }
 
-    /// A source that has never loaded leaves its ranges unprotected, so refuse to
-    /// start rather than risk blocking Cloudflare or GitHub.
     pub async fn refresh_or_panic(&self) {
         let failed = self.refresh().await;
 
@@ -167,7 +150,6 @@ impl Allowlist {
         }
     }
 
-    /// Never returns; logs its own failures.
     pub async fn run(self, interval: Span) {
         let mut ticker = tokio::time::interval(interval.0);
         ticker.tick().await;
@@ -234,7 +216,6 @@ impl Allowlist {
             .collect()
     }
 
-    /// A bare address widens to a single-host prefix, as the UI submits.
     pub fn parse_cidr(input: &str) -> Result<IpNet> {
         let input = input.trim();
         if input.is_empty() {
@@ -245,8 +226,6 @@ impl Allowlist {
         }
 
         if let Ok(net) = IpNet::from_str(input) {
-            // 203.0.113.4/24 -> 203.0.113.0/24, so host bits never imply a
-            // narrower block than is applied.
             return Ok(net.trunc());
         }
 
@@ -303,7 +282,6 @@ mod tests {
         assert!(allowlist.parse_and_check("203.0.113.4").await.is_err());
         assert!(allowlist.parse_and_check("198.51.100.7").await.is_err());
         assert!(allowlist.parse_and_check("2001:db8::1").await.is_err());
-        // Neighbours of an allowlisted host are still blockable.
         assert!(allowlist.parse_and_check("203.0.113.5").await.is_ok());
     }
 
@@ -381,7 +359,6 @@ mod tests {
         allowlist.rebuild().await;
 
         assert!(allowlist.parse_and_check("140.82.115.33").await.is_err());
-        // The base survives a rebuild.
         assert!(allowlist.parse_and_check("10.1.2.3").await.is_err());
     }
 
@@ -404,7 +381,6 @@ mod tests {
 mod live {
     use super::*;
 
-    /// Hits the real APIs; ignored by default so the suite stays offline.
     #[tokio::test]
     #[ignore]
     async fn real_feeds_protect_github_and_cloudflare() {

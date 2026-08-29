@@ -8,9 +8,12 @@ spec:
   selector:
     matchLabels:
       app: waf-manager
-  replicas: 1
+  replicas: 2
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
   template:
     metadata:
       labels:
@@ -19,6 +22,13 @@ spec:
         reloader.stakater.com/auto: "true"
     spec:
       serviceAccountName: waf-manager
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: kubernetes.io/hostname
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: waf-manager
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
@@ -58,6 +68,15 @@ spec:
               valueFrom:
                 fieldRef:
                   fieldPath: metadata.namespace
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: waf-manager-database-secret
+                  key: DATABASE_URL
             - name: LOKI_URL
               value: http://monitoring-loki.monitoring.svc.cluster.local:3100
             - name: POLICY_NAMESPACE

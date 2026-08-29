@@ -3,28 +3,31 @@ mod routes;
 use futures::StreamExt;
 use kube::{Api, Client, runtime::controller::Controller, runtime::watcher};
 use routes::{AppState, Routes};
+use sqlx::postgres::PgPoolOptions;
 use std::sync::Arc;
 use std::time::Duration;
+use tokio::signal::unix::{SignalKind, signal};
+use tokio::sync::watch;
 use tower_http::services::ServeDir;
 use waf_manager::controller::{
     Context, block_error_policy, policy_error_policy, reconcile_block, reconcile_policy,
 };
 use waf_manager::metrics::Metrics;
 use waf_manager::{
-    Allowlist, Config, Loki, PolicyWriter, Result, Suppressions, WafBlock, WafPolicy,
-    WorkflowEngine,
+    Allowlist, Config, LeaderElector, Loki, PolicyWriter, Result, Suppressions, WafBlock,
+    WafPolicy, WorkflowEngine,
 };
 
 const DEFAULT_LOKI: &str = "http://monitoring-loki.monitoring.svc.cluster.local:3100";
 const DEFAULT_POLICY_NAMESPACE: &str = "envoy-gateway-system";
+const DB_MIN_CONNECTIONS: u32 = 0;
+const DB_MAX_CONNECTIONS: u32 = 10;
 
 #[tokio::main]
 async fn main() -> Result<()> {
     tracing_subscriber::fmt().init();
     Metrics::init();
 
-    // kube and reqwest each pull in a rustls provider, so neither is installed
-    // automatically and the first TLS handshake panics. Pick one up front.
     rustls::crypto::ring::default_provider()
         .install_default()
         .expect("failed to install rustls crypto provider");
@@ -32,9 +35,8 @@ async fn main() -> Result<()> {
     let namespace = env("POD_NAMESPACE", "waf-manager");
     let policy_namespace = env("POLICY_NAMESPACE", DEFAULT_POLICY_NAMESPACE);
     let loki_url = env("LOKI_URL", DEFAULT_LOKI);
+    let identity = env("POD_NAME", "waf-manager");
 
-    // Windows, ignored rules and the automatic-block workflows all live in
-    // config.yaml now, so they can change without a rebuild.
     let config = Config::load();
 
     let resync = Duration::from_secs(
@@ -43,13 +45,20 @@ async fn main() -> Result<()> {
             .expect("RESYNC_SECONDS must be a whole number of seconds"),
     );
 
+    let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
+    let pool = PgPoolOptions::new()
+        .min_connections(DB_MIN_CONNECTIONS)
+        .max_connections(DB_MAX_CONNECTIONS)
+        .connect(&database_url)
+        .await?;
+
+    sqlx::migrate!("./migrations").run(&pool).await?;
+
     let client = Client::try_default().await?;
     let writer = PolicyWriter::new(client.clone(), &policy_namespace, &namespace).await?;
 
     let allowlist = Allowlist::from_config(&config);
 
-    // Load the feeds before anything can block, so the first workflow run already
-    // knows GitHub's and Cloudflare's current ranges.
     allowlist.refresh_or_panic().await;
 
     let ctx = Arc::new(Context::new(
@@ -57,31 +66,39 @@ async fn main() -> Result<()> {
         namespace.clone(),
         allowlist.clone(),
         writer,
+        pool.clone(),
     ));
-
-    // Converge once at startup so a restart repairs anything that drifted while
-    // no controller was running.
-    if let Err(e) = ctx.sync_all().await {
-        tracing::warn!("initial sync failed: {e}");
-    }
 
     let loki = Arc::new(Loki::new(loki_url));
 
     tokio::spawn(allowlist.run(config.allowlist_refresh));
 
-    let suppressions =
-        Suppressions::new(client.clone(), &namespace, config.manual_unblock_cooldown);
+    let suppressions = Suppressions::new(
+        pool.clone(),
+        client.clone(),
+        &namespace,
+        config.manual_unblock_cooldown,
+    );
     let engine = Arc::new(WorkflowEngine::new(
         config,
         loki.clone(),
         ctx.clone(),
         suppressions,
+        pool,
     ));
+
+    let elector = Arc::new(LeaderElector::new(
+        client.clone(),
+        &namespace,
+        identity.clone(),
+    ));
+    let leadership = elector.subscribe();
 
     let state = Arc::new(AppState {
         ctx: ctx.clone(),
         loki,
         engine: engine.clone(),
+        leadership: leadership.clone(),
     });
 
     let app = Routes::router(state).nest_service("/static", ServeDir::new("static"));
@@ -91,17 +108,86 @@ async fn main() -> Result<()> {
 
     tracing::info!(
         workflows = engine.config().workflows.len(),
-        "waf-manager listening on :3000, namespace {namespace}"
+        "waf-manager listening on :3000, namespace {namespace}, identity {identity}"
     );
 
-    // Deleting the last WafBlock reconciles a cached object and then has nothing
-    // left to requeue, which can strand the SecurityPolicy still denying a CIDR
-    // whose block is gone. A periodic rebuild converges regardless of events.
+    tokio::spawn(supervise_leader_work(
+        leadership,
+        ctx.clone(),
+        engine,
+        client,
+        namespace,
+        resync,
+    ));
+
+    let running = elector.clone();
+    tokio::spawn(async move { running.run().await });
+
+    tokio::select! {
+        result = axum::serve(listener, app) => {
+            if let Err(e) = result {
+                tracing::error!("http server stopped: {e}");
+            }
+        }
+        _ = shutdown() => tracing::info!("shutting down"),
+    }
+
+    elector.release().await;
+
+    Ok(())
+}
+
+async fn supervise_leader_work(
+    mut leadership: watch::Receiver<bool>,
+    ctx: Arc<Context>,
+    engine: Arc<WorkflowEngine>,
+    client: Client,
+    namespace: String,
+    resync: Duration,
+) {
+    let mut running: Option<tokio::task::JoinHandle<()>> = None;
+
+    loop {
+        let held = *leadership.borrow_and_update();
+
+        match (held, running.take()) {
+            (true, None) => {
+                running = Some(tokio::spawn(lead(
+                    ctx.clone(),
+                    engine.clone(),
+                    client.clone(),
+                    namespace.clone(),
+                    resync,
+                )));
+            }
+            (false, Some(handle)) => handle.abort(),
+            (_, handle) => running = handle,
+        }
+
+        if leadership.changed().await.is_err() {
+            return;
+        }
+    }
+}
+
+async fn lead(
+    ctx: Arc<Context>,
+    engine: Arc<WorkflowEngine>,
+    client: Client,
+    namespace: String,
+    resync: Duration,
+) {
+    if let Err(e) = engine.import_suppressions().await {
+        tracing::warn!("importing legacy suppressions failed: {e}");
+    }
+
+    if let Err(e) = ctx.sync_all().await {
+        tracing::warn!("initial sync failed: {e}");
+    }
+
     let resync_ctx = ctx.clone();
     let resync_engine = engine.clone();
-    tokio::spawn(async move {
-        // Evaluate every workflow once at startup, so a restart does not leave
-        // the blocklist a full interval behind what Loki already shows.
+    let ticker = async move {
         if let Err(e) = resync_engine.run_once().await {
             tracing::warn!("initial workflow run failed: {e}");
         }
@@ -115,13 +201,11 @@ async fn main() -> Result<()> {
                 tracing::warn!("periodic resync failed: {e}");
             }
 
-            // After the sync, so the workflows see the blocklist the compositor
-            // just applied. A Loki outage must not stall the reconcile loop.
             if let Err(e) = resync_engine.run_once().await {
                 tracing::warn!("workflow run failed: {e}");
             }
         }
-    });
+    };
 
     let blocks = Controller::new(
         Api::<WafBlock>::namespaced(client.clone(), &namespace),
@@ -146,16 +230,19 @@ async fn main() -> Result<()> {
     });
 
     tokio::select! {
-        result = axum::serve(listener, app) => {
-            if let Err(e) = result {
-                tracing::error!("http server stopped: {e}");
-            }
-        }
+        _ = ticker => tracing::error!("resync ticker stopped"),
         _ = blocks => tracing::error!("block controller stopped"),
         _ = policies => tracing::error!("policy controller stopped"),
     }
+}
 
-    Ok(())
+async fn shutdown() {
+    let mut term = signal(SignalKind::terminate()).expect("failed to listen for SIGTERM");
+
+    tokio::select! {
+        _ = term.recv() => {}
+        _ = tokio::signal::ctrl_c() => {}
+    }
 }
 
 fn env(key: &str, default: &str) -> String {

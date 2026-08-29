@@ -3,12 +3,11 @@ use crate::error::Result;
 use ipnet::IpNet;
 use k8s_openapi::api::core::v1::ConfigMap;
 use kube::Client;
-use kube::api::{Api, Patch, PatchParams};
+use kube::api::{Api, DeleteParams};
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeMap;
+use sqlx::postgres::PgPool;
 
 const CONFIGMAP: &str = "waf-manager-suppressions";
-const FIELD_MANAGER: &str = "waf-manager";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 struct Entry {
@@ -16,26 +15,29 @@ struct Entry {
     until: String,
 }
 
-/// CIDRs workflows must leave alone, because a human took the block off.
 pub struct Suppressions {
+    pool: PgPool,
     api: Api<ConfigMap>,
     cooldown: Span,
 }
 
 impl Suppressions {
-    pub fn new(client: Client, namespace: &str, cooldown: Span) -> Self {
+    pub fn new(pool: PgPool, client: Client, namespace: &str, cooldown: Span) -> Self {
         Self {
+            pool,
             api: Api::namespaced(client, namespace),
             cooldown,
         }
     }
 
     pub async fn active(&self, now: chrono::DateTime<chrono::Utc>) -> Result<Vec<IpNet>> {
-        Ok(self
-            .entries(now)
-            .await?
+        let rows = sqlx::query!("select cidr from suppressions where until > $1", now)
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows
             .into_iter()
-            .filter_map(|e| e.cidr.parse::<IpNet>().ok())
+            .filter_map(|row| row.cidr.parse::<IpNet>().ok())
             .collect())
     }
 
@@ -43,43 +45,23 @@ impl Suppressions {
         let until =
             now + chrono::Duration::from_std(self.cooldown.0).unwrap_or(chrono::Duration::zero());
 
-        let mut entries = self.entries(now).await?;
-        entries.retain(|e| e.cidr != net.to_string());
-        entries.push(Entry {
-            cidr: net.to_string(),
-            until: until.to_rfc3339_opts(chrono::SecondsFormat::Secs, true),
-        });
-
-        self.write(entries).await
+        self.upsert(&net.to_string(), until).await
     }
 
-    /// Keeps the ConfigMap from growing without bound.
     pub async fn prune(&self, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
-        let before = self.raw().await?.len();
-        let entries = self.entries(now).await?;
+        sqlx::query!("delete from suppressions where until <= $1", now)
+            .execute(&self.pool)
+            .await?;
 
-        if entries.len() == before {
-            return Ok(());
-        }
-
-        self.write(entries).await
+        Ok(())
     }
 
-    async fn entries(&self, now: chrono::DateTime<chrono::Utc>) -> Result<Vec<Entry>> {
-        Ok(self
-            .raw()
-            .await?
-            .into_iter()
-            .filter(|e| Self::is_live(e, now))
-            .collect())
-    }
-
-    async fn raw(&self) -> Result<Vec<Entry>> {
+    pub async fn import_configmap(&self, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
         let Some(cm) = self.api.get_opt(CONFIGMAP).await? else {
-            return Ok(Vec::new());
+            return Ok(());
         };
 
-        Ok(cm
+        let entries: Vec<Entry> = cm
             .data
             .unwrap_or_default()
             .into_values()
@@ -90,63 +72,45 @@ impl Suppressions {
                     None
                 }
             })
-            .collect())
-    }
-
-    async fn write(&self, entries: Vec<Entry>) -> Result<()> {
-        let data: BTreeMap<String, String> = entries
-            .iter()
-            .filter_map(|e| {
-                let value = serde_json::to_string(e).ok()?;
-                Some((Self::key(&e.cidr), value))
-            })
+            .filter(|entry| Self::is_live(entry, now))
             .collect();
 
-        // Apply, not patch: a pruned entry must disappear, not linger.
-        let cm = serde_json::json!({
-            "apiVersion": "v1",
-            "kind": "ConfigMap",
-            "metadata": { "name": CONFIGMAP },
-            "data": data,
-        });
+        for entry in &entries {
+            let until = match chrono::DateTime::parse_from_rfc3339(&entry.until) {
+                Ok(until) => until.with_timezone(&chrono::Utc),
+                Err(_) => {
+                    now + chrono::Duration::from_std(self.cooldown.0)
+                        .unwrap_or(chrono::Duration::zero())
+                }
+            };
 
-        self.api
-            .patch(
-                CONFIGMAP,
-                &PatchParams::apply(FIELD_MANAGER).force(),
-                &Patch::Apply(&cm),
-            )
-            .await?;
+            self.upsert(&entry.cidr, until).await?;
+        }
+
+        self.api.delete(CONFIGMAP, &DeleteParams::default()).await?;
+
+        tracing::info!("imported {} suppressions from {CONFIGMAP}", entries.len());
+        Ok(())
+    }
+
+    async fn upsert(&self, cidr: &str, until: chrono::DateTime<chrono::Utc>) -> Result<()> {
+        sqlx::query!(
+            "insert into suppressions (cidr, until) values ($1, $2)
+             on conflict (cidr) do update set until = excluded.until",
+            cidr,
+            until,
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
 
-    /// An unparsable timestamp counts as live; the cost is only a block that is
-    /// not re-created.
     fn is_live(entry: &Entry, now: chrono::DateTime<chrono::Utc>) -> bool {
         match chrono::DateTime::parse_from_rfc3339(&entry.until) {
             Ok(until) => until.with_timezone(&chrono::Utc) > now,
             Err(_) => true,
         }
-    }
-
-    /// ConfigMap keys allow only `[-._a-zA-Z0-9]`, ruling out `/` and `:`; the
-    /// CIDR itself lives in the value.
-    fn key(cidr: &str) -> String {
-        let mut key = String::with_capacity(cidr.len());
-        let mut last_dash = true;
-
-        for ch in cidr.chars() {
-            if ch.is_ascii_alphanumeric() {
-                key.push(ch.to_ascii_lowercase());
-                last_dash = false;
-            } else if !last_dash {
-                key.push('-');
-                last_dash = true;
-            }
-        }
-
-        key.trim_matches('-').to_string()
     }
 }
 
@@ -179,11 +143,5 @@ mod tests {
         };
 
         assert!(Suppressions::is_live(&entry, at("2026-01-01T00:00:00Z")));
-    }
-
-    #[test]
-    fn keys_are_valid_configmap_keys() {
-        assert_eq!(Suppressions::key("203.0.113.4/32"), "203-0-113-4-32");
-        assert_eq!(Suppressions::key("2606:4700::1/128"), "2606-4700-1-128");
     }
 }

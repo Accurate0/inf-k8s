@@ -6,22 +6,20 @@ use crate::loki::{Loki, RuleHit, UriHit};
 use crate::metrics::Metrics;
 use ipnet::IpNet;
 use kube::api::{ListParams, PostParams};
-use std::collections::{BTreeMap, BTreeSet, VecDeque};
+use sqlx::postgres::PgPool;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 
-/// `createdBy` prefix marking a block as machine-made.
 pub const WORKFLOW_AUTHOR_PREFIX: &str = "waf-manager.inf-k8s.net/workflow/";
 
-const DECISION_LOG_CAPACITY: usize = 200;
+const DECISION_PAGE_SIZE: i64 = 200;
 
-/// Everything a matcher can read about one candidate IP, fetched on demand.
 #[derive(Debug, Default)]
 pub struct IpFacts {
     pub client_ip: String,
     pub detections: u64,
     pub rules: Option<Vec<RuleHit>>,
     pub uris: Option<Vec<UriHit>>,
-    /// Keyed `<workflow>/<signal>`, so two workflows may reuse a name.
     pub signals: BTreeMap<String, u64>,
 }
 
@@ -100,7 +98,6 @@ impl Needs {
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct CandidateSource {
     window: Span,
-    /// `None` means the built-in "top detecting client IPs" query.
     query: Option<String>,
 }
 
@@ -110,13 +107,11 @@ pub struct Decision {
     pub workflow: String,
     pub cidr: String,
     pub detections: u64,
-    pub mode: &'static str,
+    pub mode: String,
     pub outcome: String,
 }
 
 impl Decision {
-    /// The bare address, for the `/ip/{addr}` link: Loki is queried by address,
-    /// so a host prefix must lose its `/32` and a wider range gets no link.
     pub fn host(&self) -> Option<&str> {
         self.cidr
             .strip_suffix("/32")
@@ -124,8 +119,6 @@ impl Decision {
     }
 }
 
-/// Evaluates the workflows in `config.yaml` against Loki and creates WafBlocks
-/// for the IPs that match.
 #[derive(Clone)]
 pub struct WorkflowEngine {
     inner: Arc<WorkflowEngineInner>,
@@ -136,7 +129,7 @@ struct WorkflowEngineInner {
     loki: Arc<Loki>,
     ctx: Arc<Context>,
     suppressions: crate::suppression::Suppressions,
-    decisions: tokio::sync::RwLock<VecDeque<Decision>>,
+    pool: PgPool,
 }
 
 impl WorkflowEngine {
@@ -145,6 +138,7 @@ impl WorkflowEngine {
         loki: Arc<Loki>,
         ctx: Arc<Context>,
         suppressions: crate::suppression::Suppressions,
+        pool: PgPool,
     ) -> Self {
         Self {
             inner: Arc::new(WorkflowEngineInner {
@@ -152,13 +146,20 @@ impl WorkflowEngine {
                 loki,
                 ctx,
                 suppressions,
-                decisions: tokio::sync::RwLock::new(VecDeque::with_capacity(DECISION_LOG_CAPACITY)),
+                pool,
             }),
         }
     }
 
     pub fn config(&self) -> &Config {
         &self.inner.config
+    }
+
+    pub async fn import_suppressions(&self) -> Result<()> {
+        self.inner
+            .suppressions
+            .import_configmap(chrono::Utc::now())
+            .await
     }
 
     pub async fn suppress(&self, net: &IpNet) -> Result<()> {
@@ -168,13 +169,28 @@ impl WorkflowEngine {
             .await
     }
 
-    pub async fn decisions(&self) -> Vec<Decision> {
-        let log = self.inner.decisions.read().await;
-        log.iter().rev().cloned().collect()
+    pub async fn decisions(&self) -> Result<Vec<Decision>> {
+        let rows = sqlx::query!(
+            "select at, workflow, cidr, detections, mode, outcome
+             from decisions order by at desc, id desc limit $1",
+            DECISION_PAGE_SIZE,
+        )
+        .fetch_all(&self.inner.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Decision {
+                at: row.at,
+                workflow: row.workflow,
+                cidr: row.cidr,
+                detections: row.detections as u64,
+                mode: row.mode,
+                outcome: row.outcome,
+            })
+            .collect())
     }
 
-    /// A source failing is logged and skipped, so one bad query cannot stall
-    /// the rest.
     pub async fn run_once(&self) -> Result<()> {
         let now = chrono::Utc::now();
         let started = std::time::Instant::now();
@@ -225,7 +241,6 @@ impl WorkflowEngine {
         }
     }
 
-    /// Returns the blocklist too, so it is fetched once per run.
     async fn report_blocks(&self) -> Result<Vec<IpNet>> {
         let blocks = self
             .inner
@@ -278,12 +293,12 @@ impl WorkflowEngine {
 
         for candidate in candidates {
             let Ok(net) = self
-                .inner.ctx
+                .inner
+                .ctx
                 .allowlist
                 .parse_and_check(&candidate.client_ip)
                 .await
             else {
-                // The normal case for a Cloudflare-fronted gateway, not an alert.
                 continue;
             };
 
@@ -312,7 +327,6 @@ impl WorkflowEngine {
                 }
 
                 self.apply(workflow, &net, &facts, now).await;
-                // One block per IP per tick.
                 break;
             }
         }
@@ -354,7 +368,6 @@ impl WorkflowEngine {
             }
 
             let Some(template) = workflow.signals.get(name) else {
-                // build.rs rejects this; reaching it means a hand-written ConfigMap.
                 tracing::warn!(
                     workflow = workflow.name,
                     signal = name,
@@ -435,7 +448,7 @@ impl WorkflowEngine {
                 workflow: workflow.name.clone(),
                 cidr: net.to_string(),
                 detections: facts.detections,
-                mode,
+                mode: mode.to_string(),
                 outcome: "would block".to_string(),
             })
             .await;
@@ -454,7 +467,8 @@ impl WorkflowEngine {
 
         let block = WafBlock::new(&WafBlock::resource_name(net), spec);
         let outcome = match self
-            .inner.ctx
+            .inner
+            .ctx
             .blocks()
             .create(&PostParams::default(), &block)
             .await
@@ -482,22 +496,31 @@ impl WorkflowEngine {
             workflow: workflow.name.clone(),
             cidr: net.to_string(),
             detections: facts.detections,
-            mode,
+            mode: mode.to_string(),
             outcome,
         })
         .await;
     }
 
     async fn record(&self, decision: Decision) {
-        let mut log = self.inner.decisions.write().await;
-        if log.len() >= DECISION_LOG_CAPACITY {
-            log.pop_front();
-        }
+        let result = sqlx::query!(
+            "insert into decisions (at, workflow, cidr, detections, mode, outcome)
+             values ($1, $2, $3, $4, $5, $6)",
+            decision.at,
+            decision.workflow,
+            decision.cidr,
+            decision.detections as i64,
+            decision.mode,
+            decision.outcome,
+        )
+        .execute(&self.inner.pool)
+        .await;
 
-        log.push_back(decision);
+        if let Err(e) = result {
+            tracing::warn!("recording decision for {} failed: {e}", decision.cidr);
+        }
     }
 
-    /// Workflows sharing a window and source cost one query between them.
     fn candidate_sources(&self) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
         let mut grouped: Vec<(CandidateSource, Vec<&WorkflowDef>)> = Vec::new();
 
@@ -531,7 +554,6 @@ impl WorkflowEngine {
         grouped
     }
 
-    /// `workflow` names the signal namespace.
     pub fn evaluate(
         workflow: &str,
         matcher: &Matcher,
@@ -616,7 +638,6 @@ impl WorkflowEngine {
             }
 
             LeafMatcher::Signal { name, min, max } => {
-                // Absent rather than zero, so it cannot satisfy `min: 0`.
                 let Some(value) = facts.signals.get(&Self::signal_key(workflow, name)) else {
                     return false;
                 };
@@ -684,7 +705,6 @@ mod tests {
 
     #[test]
     fn ignored_rules_do_not_count_towards_distinct_rules() {
-        // Three hits, but 949110 is noise, so only two are findings.
         assert!(eval("type: distinct_rules\nmin: 2"));
         assert!(!eval("type: distinct_rules\nmin: 3"));
     }
@@ -784,7 +804,6 @@ mod tests {
 
     #[test]
     fn an_unloaded_signal_never_matches() {
-        // `min: 0` would otherwise be satisfied by a query that never ran.
         assert!(!eval("type: signal\nname: never_fetched\nmin: 0"));
     }
 

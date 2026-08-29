@@ -3,21 +3,16 @@ use ipnet::IpNet;
 use kube::ResourceExt;
 use serde_json::{Map, Value, json};
 
-/// Name of the generated Deny rule inside the compiled policy.
 pub const BLOCK_RULE_NAME: &str = "waf-manager-blocklist";
 
-/// Fields waf-manager owns; a template setting one of these is a conflict.
 const RESERVED: &[&str] = &["targetRef", "targetRefs", "targetSelectors", "mergeType"];
 
-/// Fields that can only meaningfully be set once per policy.
 const SINGLE_VALUED: &[&str] = &["oidc", "jwt", "basicAuth", "cors", "extAuth", "apiKeyAuth"];
 
 #[derive(Debug, Clone)]
 pub struct Compiled {
-    /// `None` when nothing contributes and the policy should be deleted.
     pub spec: Option<Value>,
 
-    /// Problems, each naming the WafPolicy responsible.
     pub conflicts: Vec<Conflict>,
 }
 
@@ -27,7 +22,6 @@ pub struct Conflict {
     pub message: String,
 }
 
-/// Folds every WafPolicy and WafBlock for one gateway into one SecurityPolicy spec.
 pub struct Compositor {
     gateway: String,
 }
@@ -54,8 +48,6 @@ impl Compositor {
         let mut default_action: Option<(String, String)> = None;
         let mut owners: Map<String, Value> = Map::new();
 
-        // Denies go first: Envoy evaluates authorization rules in order and takes
-        // the first match, so a block placed after a broad Allow would never fire.
         if !blocked.is_empty() {
             rules.push(Self::block_rule(blocked));
         }
@@ -126,8 +118,6 @@ impl Compositor {
         );
 
         if !rules.is_empty() || default_action.is_some() {
-            // Always explicit: the CRD reads an absent value as Deny, which would
-            // black-hole every request the rules do not allow.
             let action = default_action
                 .map(|(action, _)| action)
                 .unwrap_or_else(|| "Allow".to_string());
@@ -211,7 +201,6 @@ impl Compositor {
         })
     }
 
-    /// Unexpired, unprotected blocks belonging to this gateway.
     pub fn active_cidrs(
         &self,
         blocks: &[WafBlock],
@@ -294,8 +283,6 @@ mod tests {
 
     #[test]
     fn block_rule_precedes_template_rules() {
-        // A template Allow-all placed first would shadow every deny, since Envoy
-        // takes the first matching rule.
         let p = policy(
             "allow-all",
             0,
@@ -375,8 +362,6 @@ mod tests {
             json!({ "targetRefs": [{ "name": "internal-gateway" }], "mergeType": "StrategicMerge" }),
         );
 
-        // Nothing survives the filter, so there is nothing to enforce and no
-        // policy is written - the redirect to another gateway must not happen.
         let compiled = Compositor::new("public-gateway").compile(&[p], &[]);
 
         assert!(compiled.spec.is_none());

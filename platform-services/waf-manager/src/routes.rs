@@ -10,6 +10,7 @@ use kube::api::{DeleteParams, ListParams, PostParams};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
+use tokio::sync::watch;
 use waf_manager::compositor::Conflict;
 use waf_manager::controller::Context;
 use waf_manager::crd::{WafBlock, WafBlockSpec};
@@ -21,6 +22,7 @@ pub struct AppState {
     pub ctx: Arc<Context>,
     pub loki: Arc<Loki>,
     pub engine: Arc<WorkflowEngine>,
+    pub leadership: watch::Receiver<bool>,
 }
 
 impl AppState {
@@ -28,12 +30,10 @@ impl AppState {
         self.engine.config().defaults.window.to_logql()
     }
 
-    /// How the window is written in config.yaml, for the page headings.
     fn window_label(&self) -> String {
         self.engine.config().defaults.window.to_string()
     }
 
-    /// Noise rather than findings; hidden from the ranking.
     fn ignored_rules(&self) -> &BTreeSet<String> {
         &self.engine.config().ignored_rule_ids
     }
@@ -68,8 +68,6 @@ impl Routes {
         let blocked = Self::blocked_cidrs(&state).await?;
         let protected = state.ctx.allowlist.entries().await;
 
-        // One section per outcome: only the actionable rows carry a form, and
-        // only the protected ones have a range to name.
         let mut actionable = Vec::new();
         let mut protected_rows = Vec::new();
         let mut blocked_rows = Vec::new();
@@ -110,8 +108,6 @@ impl Routes {
             .map_err(Error::from)?
             .items;
 
-        // Newest first: the block someone just added, or a workflow just made,
-        // is the one being looked for. The API lists by name, which is the CIDR.
         blocks.sort_by(|a, b| {
             b.creation_timestamp()
                 .cmp(&a.creation_timestamp())
@@ -150,7 +146,7 @@ impl Routes {
 
         Self::render(BlocksTemplate {
             rows,
-            conflicts: state.ctx.conflicts().await,
+            conflicts: state.ctx.conflicts().await?,
         })
     }
 
@@ -196,10 +192,8 @@ impl Routes {
 
         Self::render(WorkflowsTemplate {
             rows,
-            decisions: state.engine.decisions().await,
+            decisions: state.engine.decisions().await?,
             cooldown: config.manual_unblock_cooldown.to_string(),
-            // A feed can carry thousands of ranges, so summarise by source
-            // rather than rendering every CIDR.
             protected: Self::protected_rows(&state.ctx.allowlist.entries().await),
         })
     }
@@ -257,7 +251,6 @@ impl Routes {
             created_by: Self::user(&headers),
         };
 
-        // The reconciler sets the owner, so git-applied blocks get one too.
         let block = WafBlock::new(&WafBlock::resource_name(&net), spec);
         state
             .ctx
@@ -269,10 +262,6 @@ impl Routes {
         Ok(Redirect::to("/blocks"))
     }
 
-    /// Envoy injects these from OIDC claims; they never reach here from the
-    /// client, because the gateway sets them. `forwardAccessToken` forwards the
-    /// access token, which does not always carry `preferred_username` - `sub` is
-    /// the only claim guaranteed to be there.
     fn user(headers: &HeaderMap) -> Option<String> {
         const CLAIM_HEADERS: &[&str] = &[
             "x-waf-user",
@@ -306,9 +295,6 @@ impl Routes {
         State(state): State<Arc<AppState>>,
         Form(form): Form<UnblockForm>,
     ) -> Result<Redirect, AppError> {
-        // Read the CIDR before deleting: afterwards there is nothing left to
-        // derive it from, and without it a workflow re-creates the block the
-        // operator just removed.
         let cidr = state
             .ctx
             .blocks()
@@ -327,14 +313,12 @@ impl Routes {
         if let Some(net) = cidr
             && let Err(e) = state.engine.suppress(&net).await
         {
-            // The unblock itself succeeded; a failed suppression only risks the
-            // block coming back on the next tick.
             tracing::warn!("recording unblock suppression for {net} failed: {e}");
         }
 
-        // The watch would catch up anyway; inline means the redirect lands on a
-        // page that already reflects the change.
-        state.ctx.sync_all().await?;
+        if *state.leadership.borrow() {
+            state.ctx.sync_all().await?;
+        }
 
         Ok(Redirect::to("/blocks"))
     }
@@ -369,13 +353,10 @@ pub struct BlockForm {
     gateway: Option<String>,
     #[serde(default, deserialize_with = "blank_as_none")]
     reason: Option<String>,
-    /// An untouched number input still posts `ttl_hours=`, which is not a u32.
     #[serde(default, deserialize_with = "blank_as_none")]
     ttl_hours: Option<u32>,
 }
 
-/// HTML forms submit every field, so an empty control arrives as an empty string
-/// rather than being absent. Serde would reject that for any non-string type.
 fn blank_as_none<'de, D, T>(deserializer: D) -> Result<Option<T>, D::Error>
 where
     D: serde::Deserializer<'de>,
@@ -405,7 +386,6 @@ impl From<Error> for AppError {
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = match self.0 {
-            // Operator error, not a server fault.
             Error::ProtectedRange(..) | Error::InvalidCidr(..) => StatusCode::BAD_REQUEST,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
@@ -516,7 +496,6 @@ mod tests {
 
     #[test]
     fn blank_optional_fields_are_none() {
-        // Exactly what the form posts when reason and ttl are left untouched.
         let form = parse("cidr=203.0.113.4&reason=&ttl_hours=");
 
         assert_eq!(form.cidr, "203.0.113.4");

@@ -51,6 +51,13 @@ rules:
     verbs:
       - get
       - list
+      - delete
+  - apiGroups:
+      - "coordination.k8s.io"
+    resources:
+      - leases
+    verbs:
+      - get
       - create
-      - patch
       - update
+      - patch

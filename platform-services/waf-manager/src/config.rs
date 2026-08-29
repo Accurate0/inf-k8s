@@ -5,12 +5,10 @@ use std::collections::{BTreeMap, BTreeSet};
 
 const CONFIG_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.merged.yaml"));
 
-/// Bump on any breaking schema change, including a new field.
 pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 
 const CONFIG_PATH_ENV: &str = "WORKFLOWS_CONFIGMAP_PATH";
 
-/// Just enough to gate on, tolerating every field a newer binary might add.
 #[derive(Deserialize)]
 struct Probe {
     version: u32,
@@ -24,14 +22,12 @@ pub struct Config {
     #[serde(default)]
     pub defaults: Defaults,
 
-    /// Noise rather than findings; ignored by the ranking and `distinct_rules`.
     #[serde(default)]
     pub ignored_rule_ids: BTreeSet<String>,
 
     #[serde(default = "default_cooldown")]
     pub manual_unblock_cooldown: Span,
 
-    /// Merged with the `WAF_MANAGER_ALLOWLIST` secret and the feeds below.
     #[serde(default)]
     pub never_block: Vec<String>,
 
@@ -46,22 +42,16 @@ pub struct Config {
 }
 
 impl Config {
-    /// A malformed ConfigMap panics, so the pod fails to start and the previous
-    /// ReplicaSet keeps serving.
     pub fn load() -> Self {
         let Ok(path) = std::env::var(CONFIG_PATH_ENV) else {
             tracing::info!("{CONFIG_PATH_ENV} unset; using baked-in workflow config");
             return Self::baked_in();
         };
 
-        // Resolved as build.rs does, so the ConfigMap can bundle the raw
-        // config.yaml + workflows/*.yaml.
         let merged = yaml_include::Transformer::new(path.clone().into(), true)
             .expect("failed to read workflow ConfigMap")
             .to_string();
 
-        // Before the rest: a ConfigMap written for a newer binary carries fields
-        // this one rejects, and would panic before the version could excuse it.
         let probe: Probe =
             serde_yaml::from_str(&merged).expect("workflow ConfigMap has no readable version");
 
@@ -129,7 +119,6 @@ pub struct AllowlistSource {
 
     pub format: SourceFormat,
 
-    /// `github_meta` only: which of the response's CIDR arrays to take.
     #[serde(default)]
     pub fields: Vec<String>,
 }
@@ -137,10 +126,7 @@ pub struct AllowlistSource {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum SourceFormat {
-    /// `https://api.github.com/meta` - a flat object of named CIDR arrays.
     GithubMeta,
-    /// `https://api.cloudflare.com/client/v4/ips` - `result.ipv4_cidrs` and
-    /// `result.ipv6_cidrs`.
     CloudflareIps,
 }
 
@@ -162,13 +148,9 @@ pub struct WorkflowDef {
 
     pub reason: String,
 
-    /// Replaces the built-in candidate query. Must return series carrying a
-    /// `client_ip` label; the value becomes `detections`.
     #[serde(default)]
     pub candidates: Option<Template>,
 
-    /// LogQL instant queries evaluated per candidate IP, compared by the
-    /// `signal` matcher.
     #[serde(default)]
     pub signals: BTreeMap<String, Template>,
 
@@ -176,9 +158,6 @@ pub struct WorkflowDef {
     pub matcher: Matcher,
 }
 
-/// A LogQL query with `{{name}}` placeholders: `{{window}}`, `{{limit}}` and the
-/// [`crate::loki::Loki::fragments`] everywhere, plus `{{client_ip}}`,
-/// `{{prefilter}}` and `{{exact_client}}` in a signal.
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(transparent)]
 pub struct Template(pub String);
@@ -193,9 +172,6 @@ impl Template {
         out
     }
 
-    /// Placeholders with no value. Only bare identifiers count: LogQL's own
-    /// `label_format` templates are also written `{{ .field }}` and must pass
-    /// through untouched.
     pub fn unresolved(&self, vars: &BTreeMap<&str, String>) -> Vec<String> {
         let mut missing = Vec::new();
         let mut rest = self.0.as_str();
@@ -230,7 +206,6 @@ impl WorkflowDef {
         self.gateway.as_deref().unwrap_or(&defaults.gateway)
     }
 
-    /// `None` for a permanent block.
     pub fn expires_at(&self, now: chrono::DateTime<chrono::Utc>) -> Option<String> {
         match self.duration {
             BlockDuration::Forever => None,
@@ -247,7 +222,6 @@ impl WorkflowDef {
 #[serde(rename_all = "kebab-case")]
 pub enum Enabled {
     Active,
-    /// Logs what it would block and records a metric, but creates nothing.
     #[default]
     DryRun,
     Disabled,
@@ -263,7 +237,6 @@ impl Enabled {
     }
 }
 
-/// A duration like `30m`, `24h` or `7d`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Span(pub std::time::Duration);
 
@@ -282,7 +255,6 @@ impl Span {
         Self(std::time::Duration::from_secs(secs))
     }
 
-    /// LogQL accepts a plain second count, so the written unit need not survive.
     pub fn to_logql(self) -> String {
         format!("{}s", self.0.as_secs())
     }
@@ -330,7 +302,6 @@ impl<'de> Deserialize<'de> for Span {
     }
 }
 
-/// `forever` for a permanent block, otherwise a [`Span`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BlockDuration {
     Forever,
@@ -452,7 +423,6 @@ pub enum StringMatchMode {
 
 impl StringMatchMode {
     pub fn matches(&self, haystack: &str, pattern: &str) -> bool {
-        // Case-insensitive, so `/.ENV` cannot walk past a lowercase pattern.
         let haystack = haystack.to_ascii_lowercase();
         let pattern = pattern.to_ascii_lowercase();
 
@@ -660,7 +630,6 @@ when:
 
     #[test]
     fn logql_label_format_templates_are_not_mistaken_for_placeholders() {
-        // `{{ .x_envoy_origin_path }}` is LogQL's own templating, not ours.
         let template = Template(
             "{{access_selector}} | label_format path=`{{ .x_envoy_origin_path }}` {{typo}}".into(),
         );
@@ -673,7 +642,6 @@ when:
 
     #[test]
     fn every_baked_in_query_renders() {
-        // An unrendered placeholder reaches Loki literally and never fires.
         let config = Config::baked_in();
         let vars: BTreeMap<&str, String> = crate::loki::Loki::fragments()
             .into_iter()

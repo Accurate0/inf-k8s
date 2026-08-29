@@ -26,6 +26,10 @@ impl Metrics {
         gauge!("waf_manager_active_blocks", "gateway" => gateway.to_owned()).set(count as f64);
     }
 
+    pub fn set_leader(held: bool) {
+        gauge!("waf_manager_is_leader").set(if held { 1.0 } else { 0.0 });
+    }
+
     pub fn set_conflicts(count: usize) {
         gauge!("waf_manager_policy_conflicts").set(count as f64);
     }
@@ -72,7 +76,6 @@ impl Metrics {
         counter!("waf_manager_workflow_skipped_total", "reason" => reason).increment(1);
     }
 
-    /// Dropping to zero means a ConfigMap did not load as intended.
     pub fn set_workflows(mode: &'static str, count: usize) {
         gauge!("waf_manager_workflows", "mode" => mode).set(count as f64);
     }
@@ -85,7 +88,6 @@ impl Metrics {
         gauge!("waf_manager_suppressions").set(count as f64);
     }
 
-    /// Per source, plus a `total` series; zero means a feed is failing.
     pub fn set_allowlist_entries(source: &str, count: usize) {
         gauge!("waf_manager_allowlist_entries", "source" => source.to_owned()).set(count as f64);
     }

@@ -8,7 +8,9 @@ resources:
   - rbac.clusterrolebinding.yaml
   - secretstore.yaml
   - secret.yaml
+  - database.yaml
   - deployment.yaml
+  - pdb.yaml
   - service.yaml
   - servicemonitor.yaml
   - kanidmoauth2client.yaml

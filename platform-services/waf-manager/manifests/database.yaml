@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/inf-k8s.net/postgresdatabase_v1.json
+apiVersion: inf-k8s.net/v1
+kind: PostgresDatabase
+metadata:
+  name: waf-manager-database
+  namespace: waf-manager
+spec:
+  databaseName: waf_manager
+  secretName: waf-manager-database-secret
+  secretNamespace: waf-manager

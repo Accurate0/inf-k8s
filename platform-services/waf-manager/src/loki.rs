@@ -1,9 +1,6 @@
 use crate::error::{Error, Result};
 use serde::Deserialize;
 
-/// Must be `coraza/config.go` (the `caller` field), not `Coraza:` - the latter also
-/// matches the JSON audit lines, which carry no top-level `msg`, so `line_format`
-/// yields an empty line and every downstream regexp produces empty labels.
 const SELECTOR: &str =
     r#"{namespace="envoy-gateway-system", container="envoy"} |= `coraza/config.go`"#;
 
@@ -13,21 +10,13 @@ const RE_ID: &str = r#"| regexp `\[id "(?P<rule_id>\d+)"\]`"#;
 const RE_MSG: &str = r#"| regexp `\[msg "(?P<rule_msg>[^"]*)"\]`"#;
 const RE_URI: &str = r#"| regexp `\[uri "(?P<uri>[^"]*)"\]`"#;
 
-/// Anomaly-score messages embed a varying score and would otherwise fan out into
-/// one series per score.
 const STRIP_SCORE: &str =
     r#"| label_format rule_msg=`{{ regexReplaceAll " \\(Total Score: [0-9]+\\)" .rule_msg "" }}`"#;
 
-/// The proxy's JSON access log, a different stream from the Coraza detections
-/// above. Reaches requests that tripped no rule at all - directory brute-forcing
-/// being the case worth blocking.
 const ACCESS_SELECTOR: &str = r#"{namespace="envoy-gateway-system", container="envoy"} |= `x-forwarded-for` | json | __error__=``"#;
 
-/// Cloudflare appends itself to `x-forwarded-for`, so the first entry is the real
-/// client. Stopping at a comma takes it without needing a template function.
 const RE_XFF: &str = r#"| regexp `"x-forwarded-for":"(?P<client_ip>[^",]*)"`"#;
 
-/// The requested path, whose JSON key is not a valid label name on its own.
 const FMT_PATH: &str = r"| label_format path=`{{ .x_envoy_origin_path }}`";
 
 #[derive(Debug, Clone)]
@@ -50,8 +39,6 @@ pub struct RuleHit {
     pub count: u64,
 }
 
-/// Reads Coraza detections out of Loki, which runs with `auth_enabled: false`
-/// in-cluster, so there is no tenant header to set.
 pub struct Loki {
     client: reqwest::Client,
     base_url: String,
@@ -73,8 +60,6 @@ impl Loki {
         self.candidates_from(&query).await
     }
 
-    /// Any instant query whose series carry a `client_ip` label, so a workflow can
-    /// bring its own definition of "worth looking at".
     pub async fn candidates_from(&self, query: &str) -> Result<Vec<Candidate>> {
         let mut candidates: Vec<Candidate> = self
             .instant(query)
@@ -129,9 +114,6 @@ impl Loki {
         Ok(hits)
     }
 
-    /// The paths an IP requested while tripping rules, which is what identifies a
-    /// credential-file probe: the rule id says "restricted file access", the URI
-    /// says it was `/.env`.
     pub async fn uris_for_ip(&self, client_ip: &str, window: &str) -> Result<Vec<UriHit>> {
         let ip = Self::sanitise(client_ip);
         let query = format!(
@@ -215,17 +197,10 @@ impl Loki {
             .collect())
     }
 
-    /// Runs an operator-written instant query and folds it to a single number,
-    /// summing every series so a query that forgets to aggregate still yields
-    /// something sensible. An empty result is zero, not an error: "this IP did
-    /// nothing" is a normal answer.
     pub async fn scalar(&self, query: &str) -> Result<u64> {
         Ok(self.instant(query).await?.iter().map(|s| s.count).sum())
     }
 
-    /// Reusable LogQL pieces, so a workflow's custom query does not have to
-    /// restate the Coraza selector and its regexps. Values here are the same
-    /// consts the built-in queries use, so the two cannot drift.
     pub fn fragments() -> std::collections::BTreeMap<&'static str, &'static str> {
         [
             ("selector", SELECTOR),
@@ -243,9 +218,6 @@ impl Loki {
         .collect()
     }
 
-    /// The line prefilter and the exact label match for one address, both already
-    /// escaped. A workflow query interpolates these rather than splicing a raw
-    /// address into LogQL itself.
     pub fn client_filters(client_ip: &str) -> (String, String, String) {
         let ip = Self::sanitise(client_ip);
         (Self::prefilter(&ip), Self::exact_client(&ip), ip)
@@ -282,21 +254,14 @@ impl Loki {
         format!("{}/loki/api/v1/{path}?{query}", self.base_url)
     }
 
-    /// Cheap prune against the raw line. It cannot match `[client "ip"]`, because
-    /// a line filter placed before the parser sees the original JSON, where the
-    /// quotes are backslash-escaped.
     fn prefilter(ip: &str) -> String {
         format!("|= `{ip}`")
     }
 
-    /// The exact match, applied after `regexp` has extracted the label, so a
-    /// substring of a longer address cannot pass.
     fn exact_client(ip: &str) -> String {
         format!("| client_ip = `{ip}`")
     }
 
-    /// Backticks would terminate the LogQL raw strings the address is spliced
-    /// into. An IP cannot contain one, but this value arrives from a URL path.
     fn sanitise(client_ip: &str) -> String {
         client_ip.chars().filter(|c| *c != '`').collect()
     }

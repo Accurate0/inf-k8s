@@ -7,8 +7,6 @@ use serde_json::{Value, json};
 
 pub const FIELD_MANAGER: &str = "waf-manager";
 
-/// Writes the compiled SecurityPolicy. waf-manager owns these objects outright;
-/// contributions arrive as WafPolicy CRs. Never commit one to git.
 pub struct PolicyWriter {
     api: Api<DynamicObject>,
     resource: ApiResource,
@@ -17,11 +15,8 @@ pub struct PolicyWriter {
 }
 
 impl PolicyWriter {
-    /// Owned by waf-manager's Namespace: cluster-scoped, so a legal owner across
-    /// namespaces. A namespaced owner would be treated as dangling and GC'd.
     pub async fn new(client: Client, namespace: &str, owner_namespace: &str) -> Result<Self> {
         let gvk = GroupVersionKind::gvk("gateway.envoyproxy.io", "v1alpha1", "SecurityPolicy");
-        // Spelled out: a naive pluraliser gets "securitypolicy" wrong.
         let resource = ApiResource::from_gvk_with_plural(&gvk, "securitypolicies");
 
         let owner_ns = Api::<Namespace>::all(client.clone())
@@ -37,7 +32,6 @@ impl PolicyWriter {
             name: owner_namespace.to_string(),
             uid,
             controller: Some(true),
-            // Would require delete permission on the namespace's finalizers.
             block_owner_deletion: Some(false),
         };
 
@@ -53,18 +47,14 @@ impl PolicyWriter {
         format!("waf-manager-{gateway}")
     }
 
-    /// The waf-manager Namespace as an owner. Cluster-scoped, so it is a legal
-    /// owner from any namespace and always exists while the service runs.
     pub fn namespace_owner(&self) -> OwnerReference {
         self.owner.clone()
     }
 
-    /// Enumerates what we have already written.
     pub fn api(&self) -> Api<DynamicObject> {
         self.api.clone()
     }
 
-    /// Applies the spec, or deletes the policy when there is nothing to enforce.
     pub async fn reconcile(&self, gateway: &str, spec: Option<Value>) -> Result<bool> {
         let name = Self::policy_name(gateway);
 
@@ -90,7 +80,6 @@ impl PolicyWriter {
 
         let object: DynamicObject = serde_json::from_value(manifest)?;
 
-        // force: no other legitimate author, so reclaiming from a stray edit is right.
         self.api
             .patch(
                 &name,

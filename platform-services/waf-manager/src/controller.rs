@@ -8,6 +8,7 @@ use k8s_openapi::apimachinery::pkg::apis::meta::v1::OwnerReference;
 use kube::api::{Api, DeleteParams, DynamicObject, ListParams, Patch, PatchParams};
 use kube::runtime::controller::Action;
 use kube::{Client, Resource, ResourceExt};
+use sqlx::postgres::PgPool;
 use std::collections::BTreeSet;
 use std::sync::Arc;
 use std::time::Duration;
@@ -20,9 +21,8 @@ pub struct Context {
     pub namespace: String,
     pub allowlist: Allowlist,
     pub writer: PolicyWriter,
-    /// Serialises compile-and-apply against concurrent reconciles.
+    pub pool: PgPool,
     sync_lock: tokio::sync::Mutex<()>,
-    conflicts: tokio::sync::RwLock<Vec<Conflict>>,
 }
 
 impl Context {
@@ -31,14 +31,15 @@ impl Context {
         namespace: String,
         allowlist: Allowlist,
         writer: PolicyWriter,
+        pool: PgPool,
     ) -> Self {
         Self {
             client,
             namespace,
             allowlist,
             writer,
+            pool,
             sync_lock: tokio::sync::Mutex::new(()),
-            conflicts: tokio::sync::RwLock::new(Vec::new()),
         }
     }
 
@@ -50,12 +51,42 @@ impl Context {
         Api::namespaced(self.client.clone(), &self.namespace)
     }
 
-    pub async fn conflicts(&self) -> Vec<Conflict> {
-        self.conflicts.read().await.clone()
+    pub async fn conflicts(&self) -> Result<Vec<Conflict>> {
+        let rows = sqlx::query!("select source, message from conflicts order by id")
+            .fetch_all(&self.pool)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Conflict {
+                source: row.source,
+                message: row.message,
+            })
+            .collect())
     }
 
-    /// Recompile every gateway from the current CRs. A whole-world rebuild avoids
-    /// reasoning about partial updates to an atomic list, and the blocklist is small.
+    async fn store_conflicts(&self, conflicts: &[Conflict]) -> Result<()> {
+        let mut tx = self.pool.begin().await?;
+
+        sqlx::query!("delete from conflicts")
+            .execute(&mut *tx)
+            .await?;
+
+        for conflict in conflicts {
+            sqlx::query!(
+                "insert into conflicts (source, message) values ($1, $2)",
+                conflict.source,
+                conflict.message,
+            )
+            .execute(&mut *tx)
+            .await?;
+        }
+
+        tx.commit().await?;
+
+        Ok(())
+    }
+
     pub async fn sync_all(&self) -> Result<Vec<Conflict>> {
         let _guard = self.sync_lock.lock().await;
 
@@ -65,8 +96,6 @@ impl Context {
         let mut gateways: BTreeSet<String> = BTreeSet::new();
         gateways.extend(policies.iter().map(|p| p.spec.gateway.clone()));
         gateways.extend(blocks.iter().map(|b| b.spec.gateway.clone()));
-        // Revisit gateways we already wrote, or a policy lingers after its last
-        // contributor is gone.
         gateways.extend(self.adopted_gateways().await?);
 
         let now = chrono::Utc::now();
@@ -90,16 +119,11 @@ impl Context {
         }
 
         Metrics::set_conflicts(all_conflicts.len());
-        *self.conflicts.write().await = all_conflicts.clone();
+        self.store_conflicts(&all_conflicts).await?;
 
         Ok(all_conflicts)
     }
 
-    /// Give a WafBlock an owner so it appears in the ArgoCD resource tree and is
-    /// collected with whatever it belongs to. Preferred owner is the WafPolicy for
-    /// the same gateway; failing that the waf-manager Namespace, which is
-    /// cluster-scoped and always exists. Blocks that already have an owner are left
-    /// alone, so one set deliberately in git is never overwritten.
     pub async fn ensure_owner(&self, obj: &WafBlock) -> Result<()> {
         if obj
             .metadata
@@ -137,7 +161,6 @@ impl Context {
             .filter(|p| p.spec.gateway == gateway)
             .collect();
 
-        // Same ordering the compositor uses, so the choice is stable.
         policies.sort_by(|a, b| {
             a.spec
                 .priority
@@ -268,7 +291,6 @@ pub fn policy_error_policy(_obj: Arc<WafPolicy>, err: &Error, _ctx: Arc<Context>
     Action::requeue(ERROR_REQUEUE)
 }
 
-/// Wake at expiry rather than waiting out the full hour.
 fn requeue_for(obj: &WafBlock, now: chrono::DateTime<chrono::Utc>) -> Duration {
     let Some(raw) = obj.spec.expires_at.as_deref() else {
         return REQUEUE;
@@ -285,7 +307,6 @@ fn requeue_for(obj: &WafBlock, now: chrono::DateTime<chrono::Utc>) -> Duration {
         .unwrap_or(ERROR_REQUEUE)
 }
 
-/// The two CRs share a status shape but not a type.
 trait StatusTarget: Send + Sync {
     fn name(&self) -> String;
     fn generation(&self) -> i64;
@@ -400,8 +421,6 @@ async fn write_status(
     let body = serde_json::json!({ "status": { "conditions": conditions } });
     match target.patch(ctx, body).await {
         Ok(()) => {}
-        // Reconciles run against a cached object, so an unblock routinely lands
-        // here with the object already gone. Not worth a warning.
         Err(Error::Kube(kube::Error::Api(e))) if e.code == 404 => {
             tracing::debug!("{} deleted before status was written", target.name());
         }

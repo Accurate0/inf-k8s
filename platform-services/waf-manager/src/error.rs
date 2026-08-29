@@ -9,6 +9,12 @@ pub enum Error {
     #[error("serde error: {0}")]
     Serde(#[from] serde_json::Error),
 
+    #[error("database error: {0}")]
+    Database(#[from] sqlx::Error),
+
+    #[error("migration error: {0}")]
+    Migrate(#[from] sqlx::migrate::MigrateError),
+
     #[error("invalid cidr {0:?}: {1}")]
     InvalidCidr(String, String),
 
