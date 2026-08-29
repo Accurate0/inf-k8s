@@ -24,4 +24,5 @@ spec:
           - SecAuditLogFormat JSON
           - Include @crs-setup.conf
           - SecRule REQUEST_HEADERS:Host "@streq idm.anurag.sh" "id:1001,phase:1,pass,nolog,t:none,setvar:tx.allowed_methods=GET HEAD POST OPTIONS PATCH PUT DELETE"
+          - SecRule REQUEST_HEADERS:Host "@streq maccas.one" "id:1002,phase:1,pass,nolog,t:none,setvar:tx.allowed_methods=GET HEAD POST OPTIONS PATCH PUT DELETE"
           - Include @owasp_crs/*.conf
