@@ -141,7 +141,7 @@
         ip: 10.0.2.18/24
         cores: 4
         memory: 8192
-        disk: 64
+        disk: 256
         swap: 0
         unprivileged: true
         features: [nesting=1, keyctl=1, fuse=1]
@@ -256,6 +256,27 @@
       loop: "{{ proxmox_lxc_guests }}"
       loop_control:
         label: "{{ item.name }} ({{ item.vmid }})"
+      when: item.vmid in proxmox_existing_vmids
+
+    - name: Grow the container root disks
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.shell: |
+        set -o pipefail
+        current=$(pct config {{ item.vmid }} | sed -n 's/^rootfs:.*,size=\([0-9]*\)G$/\1/p')
+        test -n "$current" || exit 0
+        test "$current" -ge {{ item.disk }} && exit 0
+        pct resize {{ item.vmid }} rootfs {{ item.disk }}G
+      args:
+        executable: /bin/bash
+      register: proxmox_lxc_resize
+      changed_when: proxmox_lxc_resize.stdout | length > 0
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }}) -> {{ item.disk }}G"
       when: item.vmid in proxmox_existing_vmids
 
     - name: Apply the extra lxc config keys
