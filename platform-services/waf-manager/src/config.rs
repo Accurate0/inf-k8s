@@ -7,9 +7,15 @@ const CONFIG_YAML: &str = include_str!(concat!(env!("OUT_DIR"), "/config.merged.
 
 /// Bump on any breaking schema change; a ConfigMap whose `version` differs is
 /// rejected in favour of the baked-in config.
-pub const CONFIG_SCHEMA_VERSION: u32 = 1;
+pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 
 const CONFIG_PATH_ENV: &str = "WORKFLOWS_CONFIGMAP_PATH";
+
+/// Just enough to gate on, tolerating every field a newer binary might add.
+#[derive(Deserialize)]
+struct Probe {
+    version: u32,
+}
 
 #[derive(Debug, Clone, Deserialize, JsonSchema)]
 #[serde(deny_unknown_fields)]
@@ -55,17 +61,24 @@ impl Config {
         let merged = yaml_include::Transformer::new(path.clone().into(), true)
             .expect("failed to read workflow ConfigMap")
             .to_string();
-        let config: Config =
-            serde_yaml::from_str(&merged).expect("failed to parse workflow ConfigMap");
 
-        if config.version != CONFIG_SCHEMA_VERSION {
+        // Read the version before the rest. A ConfigMap written for a newer
+        // binary carries fields this one rejects, and deserializing first would
+        // panic on them before the version could excuse it.
+        let probe: Probe =
+            serde_yaml::from_str(&merged).expect("workflow ConfigMap has no readable version");
+
+        if probe.version != CONFIG_SCHEMA_VERSION {
             tracing::warn!(
-                configmap_version = config.version,
+                configmap_version = probe.version,
                 code_version = CONFIG_SCHEMA_VERSION,
                 "workflow ConfigMap version incompatible with this binary; using baked-in config"
             );
             return Self::baked_in();
         }
+
+        let config: Config =
+            serde_yaml::from_str(&merged).expect("failed to parse workflow ConfigMap");
 
         tracing::info!(
             path,
@@ -495,6 +508,28 @@ fn default_cooldown() -> Span {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_version_probe_tolerates_fields_this_binary_does_not_know() {
+        // A ConfigMap written for a newer binary must be readable far enough to
+        // be rejected on version, rather than panicking on its extra fields.
+        let probe: Probe = serde_yaml::from_str(
+            r#"
+version: 99
+some_field_from_the_future: true
+workflows: []
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(probe.version, 99);
+    }
+
+    #[test]
+    fn the_baked_in_config_matches_the_binary_version() {
+        // Adding a field without bumping both is what strands a rolling deploy.
+        assert_eq!(Config::baked_in().version, CONFIG_SCHEMA_VERSION);
+    }
 
     #[test]
     fn baked_in_config_parses() {
