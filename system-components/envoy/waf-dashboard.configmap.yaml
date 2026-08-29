@@ -104,76 +104,11 @@ data:
           ]
         },
         {
-          "type": "row",
-          "title": "Automatic blocking (waf-manager)",
-          "collapsed": false,
-          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 32 },
-          "panels": []
-        },
-        {
-          "type": "timeseries",
-          "title": "Workflow blocks / hour",
-          "description": "Blocks created by an automatic workflow. dry-run shows what a workflow would have blocked had it been active.",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 33 },
-          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-          "targets": [
-            { "refId": "A", "expr": "sum by (workflow, mode) (increase(waf_manager_workflow_blocks_total[1h]))", "legendFormat": "{{workflow}} ({{mode}})" }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Active blocks by origin",
-          "description": "How much of the blocklist the workflows are responsible for, against blocks a person created.",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 33 },
-          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-          "targets": [
-            { "refId": "A", "expr": "sum by (origin) (waf_manager_blocks_by_origin)", "legendFormat": "{{origin}}" },
-            { "refId": "B", "expr": "sum(waf_manager_suppressions)", "legendFormat": "suppressed (manual unblock)" }
-          ]
-        },
-        {
-          "type": "table",
-          "title": "Workflow state",
-          "description": "Configured workflows by mode. A workflow disappearing here means config.yaml did not load as intended.",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 41 },
-          "targets": [
-            { "refId": "A", "format": "table", "instant": true, "expr": "sum by (mode) (waf_manager_workflows)" }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Workflow evaluations / min",
-          "description": "Candidate IPs run past each workflow. Zero means no candidates, a failing Loki query, or a stalled run loop.",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 41 },
-          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-          "targets": [
-            { "refId": "A", "expr": "sum by (workflow) (rate(waf_manager_workflow_evaluations_total[5m])) * 60", "legendFormat": "{{workflow}}" }
-          ]
-        },
-        {
-          "type": "timeseries",
-          "title": "Workflow errors / min",
-          "description": "Failed block creations, Loki query failures and IPs skipped because a human recently unblocked them.",
-          "datasource": { "type": "prometheus", "uid": "prometheus" },
-          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 41 },
-          "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-          "targets": [
-            { "refId": "A", "expr": "sum by (workflow) (rate(waf_manager_workflow_errors_total[5m])) * 60", "legendFormat": "block failed: {{workflow}}" },
-            { "refId": "B", "expr": "sum(rate(waf_manager_loki_errors_total[5m])) * 60", "legendFormat": "loki errors" },
-            { "refId": "C", "expr": "sum by (reason) (rate(waf_manager_workflow_skipped_total[5m])) * 60", "legendFormat": "skipped: {{reason}}" },
-            { "refId": "D", "expr": "sum by (reason) (rate(waf_manager_blocks_rejected_total[5m])) * 60", "legendFormat": "rejected: {{reason}}" }
-          ]
-        },
-        {
           "type": "logs",
           "title": "Coraza detections",
           "description": "One line per matched rule, with the client, rule id, message and target URI.",
           "datasource": { "type": "loki", "uid": "loki" },
-          "gridPos": { "h": 12, "w": 24, "x": 0, "y": 48 },
+          "gridPos": { "h": 12, "w": 24, "x": 0, "y": 32 },
           "options": {
             "showTime": true,
             "wrapLogMessage": true,

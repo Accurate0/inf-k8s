@@ -1,0 +1,157 @@
+{
+  "uid": "waf-manager",
+  "title": "WAF Manager",
+  "tags": ["waf-manager", "waf"],
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-24h", "to": "now" },
+  "annotations": { "list": [] },
+  "templating": { "list": [] },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Active blocks",
+      "description": "Enforced in the compiled SecurityPolicy, split by who created them.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (origin) (waf_manager_blocks_by_origin)", "legendFormat": "{{origin}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Workflows by mode",
+      "description": "Dropping to zero means config.yaml did not load as intended and the baked-in config is in use.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (mode) (waf_manager_workflows)", "legendFormat": "{{mode}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Allowlist entries",
+      "description": "Never-block ranges per source. A source at zero means its feed is failing.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "waf_manager_allowlist_entries", "legendFormat": "{{source}}" }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Suppressed CIDRs",
+      "description": "Manually unblocked, so workflows leave them alone until the cooldown passes.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum(waf_manager_suppressions)", "legendFormat": "suppressed" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Workflow blocks / hour",
+      "description": "dry-run shows what a workflow would have blocked had it been active.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (workflow, mode) (increase(waf_manager_workflow_blocks_total[1h]))", "legendFormat": "{{workflow}} ({{mode}})" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Active blocks by origin",
+      "description": "How much of the blocklist the workflows are responsible for, against blocks a person created.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (origin) (waf_manager_blocks_by_origin)", "legendFormat": "{{origin}}" },
+        { "refId": "B", "expr": "sum(waf_manager_suppressions)", "legendFormat": "suppressed (manual unblock)" }
+      ]
+    },
+    {
+      "type": "table",
+      "title": "Blocks by workflow",
+      "description": "Which workflows are actually firing over the dashboard range.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+      "targets": [
+        { "refId": "A", "format": "table", "instant": true, "expr": "sum by (workflow, mode) (increase(waf_manager_workflow_blocks_total[$__range]))" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Workflow evaluations / min",
+      "description": "Candidate IPs run past each workflow. Zero means no candidates, a failing Loki query, or a stalled run loop.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (workflow) (rate(waf_manager_workflow_evaluations_total[5m])) * 60", "legendFormat": "{{workflow}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Errors and skips / min",
+      "description": "Failed block creations, Loki query failures, IPs skipped for a recent manual unblock, and CIDRs refused by the allowlist.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (workflow) (rate(waf_manager_workflow_errors_total[5m])) * 60", "legendFormat": "block failed: {{workflow}}" },
+        { "refId": "B", "expr": "sum(rate(waf_manager_loki_errors_total[5m])) * 60", "legendFormat": "loki errors" },
+        { "refId": "C", "expr": "sum by (reason) (rate(waf_manager_workflow_skipped_total[5m])) * 60", "legendFormat": "skipped: {{reason}}" },
+        { "refId": "D", "expr": "sum by (reason) (rate(waf_manager_blocks_rejected_total[5m])) * 60", "legendFormat": "rejected: {{reason}}" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Allowlist refreshes / hour",
+      "description": "Errors mean the feed is stale: the previous entries are kept, so coverage lags upstream rather than emptying.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 22 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (source, status) (increase(waf_manager_allowlist_refreshes_total[1h]))", "legendFormat": "{{source}} ({{status}})" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Reconcile health",
+      "description": "SecurityPolicy syncs, unresolved policy conflicts, and how long a workflow pass takes.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 22 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        { "refId": "A", "expr": "sum by (status) (rate(waf_manager_syncs_total[5m])) * 60", "legendFormat": "syncs/min ({{status}})" },
+        { "refId": "B", "expr": "sum(waf_manager_policy_conflicts)", "legendFormat": "policy conflicts" },
+        { "refId": "C", "expr": "waf_manager_workflow_run_seconds", "legendFormat": "workflow run seconds" }
+      ]
+    },
+    {
+      "type": "logs",
+      "title": "waf-manager log",
+      "description": "Blocks created, dry-run decisions, allowlist refreshes and reload failures.",
+      "datasource": { "type": "loki", "uid": "loki" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 30 },
+      "options": {
+        "showTime": true,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Descending"
+      },
+      "targets": [
+        { "refId": "A", "queryType": "range", "expr": "{namespace=\"waf-manager\", container=\"waf-manager\"}" }
+      ]
+    }
+  ]
+}

@@ -19,3 +19,11 @@ configMapGenerator:
       - workflows/directory-bruteforce.yaml
       - workflows/high-volume-scanner.yaml
       - workflows/broad-rule-fanout.yaml
+  - name: waf-manager-dashboard
+    namespace: waf-manager
+    files:
+      - dashboards/waf-manager.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        inf-k8s.net/grafana-dashboard: "true"
