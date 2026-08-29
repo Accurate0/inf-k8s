@@ -1,0 +1,12 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from conflicts",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": []
+  },
+  "hash": "8874eb6eb658c1962a8bee02154d0e9bd62cd48b01060af0748c961b0e65516b"
+}

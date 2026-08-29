@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select cidr from suppressions where until > $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cidr",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "suppressions",
+            "name": "cidr"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "f40147944107620aa9458a1d8330d2cb3cb27f9302650fea20ff448f0d4c27a1"
+}

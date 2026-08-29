@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into suppressions (cidr, until) values ($1, $2)\n             on conflict (cidr) do update set until = excluded.until",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "668110706bd41091f8ffd1a1d2a4baf6cadd6d625cdef039df5cb45c76139bd7"
+}

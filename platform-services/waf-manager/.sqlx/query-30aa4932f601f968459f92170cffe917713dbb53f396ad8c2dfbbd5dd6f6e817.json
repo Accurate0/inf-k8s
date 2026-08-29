@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select source, message from conflicts order by id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "source",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "conflicts",
+            "name": "source"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "message",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "conflicts",
+            "name": "message"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "30aa4932f601f968459f92170cffe917713dbb53f396ad8c2dfbbd5dd6f6e817"
+}
