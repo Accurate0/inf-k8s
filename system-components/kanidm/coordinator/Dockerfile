@@ -1,4 +1,4 @@
-FROM docker.io/kanidm/server:1.10.3 AS kanidm
+FROM docker.io/kanidm/server:1.11.1 AS kanidm
 
 FROM docker.io/library/debian:trixie-slim
 
