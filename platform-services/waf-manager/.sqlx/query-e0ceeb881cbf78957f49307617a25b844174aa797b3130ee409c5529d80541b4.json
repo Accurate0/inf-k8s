@@ -1,0 +1,29 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into offenses (cidr, strikes, first_seen, last_seen)\n             values ($1, 1, $2, $2)\n             on conflict (cidr) do update\n             set strikes = offenses.strikes + 1, last_seen = $2\n             returning strikes",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "strikes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "offenses",
+            "name": "strikes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e0ceeb881cbf78957f49307617a25b844174aa797b3130ee409c5529d80541b4"
+}

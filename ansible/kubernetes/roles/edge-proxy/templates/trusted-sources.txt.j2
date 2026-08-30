@@ -1,0 +1,3 @@
+{% for ip in edge_proxy_trusted_ips.split(',') | map('trim') | reject('equalto', '') %}
+{{ ip }}
+{% endfor %}

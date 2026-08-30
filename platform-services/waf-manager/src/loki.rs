@@ -1,5 +1,7 @@
 use crate::error::{Error, Result};
+use ipnet::IpNet;
 use serde::Deserialize;
+use std::str::FromStr;
 
 const SELECTOR: &str =
     r#"{namespace="envoy-gateway-system", container="envoy"} |= `coraza/config.go`"#;
@@ -83,7 +85,7 @@ impl Loki {
     }
 
     pub async fn rules_for_ip(&self, client_ip: &str, window: &str) -> Result<Vec<RuleHit>> {
-        let ip = Self::sanitise(client_ip);
+        let ip = Self::sanitise(client_ip)?;
         let query = format!(
             "topk(20, sum by (rule_id, rule_msg, severity) (count_over_time(\
              {SELECTOR} {} {PARSE} {RE_CLIENT} {} {RE_ID} {RE_MSG} {STRIP_SCORE} [{window}])))",
@@ -115,7 +117,7 @@ impl Loki {
     }
 
     pub async fn uris_for_ip(&self, client_ip: &str, window: &str) -> Result<Vec<UriHit>> {
-        let ip = Self::sanitise(client_ip);
+        let ip = Self::sanitise(client_ip)?;
         let query = format!(
             "topk(20, sum by (uri) (count_over_time(\
              {SELECTOR} {} {PARSE} {RE_CLIENT} {} {RE_URI} [{window}])))",
@@ -150,7 +152,7 @@ impl Loki {
         window: &str,
         limit: usize,
     ) -> Result<Vec<String>> {
-        let ip = Self::sanitise(client_ip);
+        let ip = Self::sanitise(client_ip)?;
         let query = format!(
             "{SELECTOR} {} {PARSE} {RE_CLIENT} {} {RE_ID} {RE_MSG} {RE_URI} \
              | line_format `[{{{{.severity}}}}] {{{{.rule_id}}}} {{{{.rule_msg}}}} {{{{.uri}}}}`",
@@ -218,9 +220,9 @@ impl Loki {
         .collect()
     }
 
-    pub fn client_filters(client_ip: &str) -> (String, String, String) {
-        let ip = Self::sanitise(client_ip);
-        (Self::prefilter(&ip), Self::exact_client(&ip), ip)
+    pub fn client_filters(client_ip: &str) -> Result<(String, String, String)> {
+        let ip = Self::sanitise(client_ip)?;
+        Ok((Self::prefilter(&ip), Self::exact_client(&ip), ip))
     }
 
     async fn instant(&self, query: &str) -> Result<Vec<Sample>> {
@@ -262,8 +264,21 @@ impl Loki {
         format!("| client_ip = `{ip}`")
     }
 
-    fn sanitise(client_ip: &str) -> String {
-        client_ip.chars().filter(|c| *c != '`').collect()
+    pub fn sanitise(client_ip: &str) -> Result<String> {
+        let trimmed = client_ip.trim();
+
+        if let Ok(addr) = std::net::IpAddr::from_str(trimmed) {
+            return Ok(addr.to_string());
+        }
+
+        if let Ok(net) = IpNet::from_str(trimmed) {
+            return Ok(net.trunc().to_string());
+        }
+
+        Err(Error::InvalidCidr(
+            client_ip.to_string(),
+            "not an ip address or cidr".to_string(),
+        ))
     }
 }
 
@@ -297,4 +312,38 @@ struct VectorSample {
 #[derive(Deserialize)]
 struct Stream {
     values: Vec<(String, String)>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanitise_accepts_plain_addresses_and_cidrs() {
+        assert_eq!(Loki::sanitise("203.0.113.4").unwrap(), "203.0.113.4");
+        assert_eq!(Loki::sanitise("  203.0.113.4  ").unwrap(), "203.0.113.4");
+        assert_eq!(Loki::sanitise("2001:db8::1").unwrap(), "2001:db8::1");
+        assert_eq!(Loki::sanitise("203.0.113.0/24").unwrap(), "203.0.113.0/24");
+        assert_eq!(Loki::sanitise("203.0.113.4/24").unwrap(), "203.0.113.0/24");
+    }
+
+    #[test]
+    fn sanitise_rejects_anything_that_could_reshape_a_query() {
+        for hostile in [
+            "",
+            "   ",
+            "203.0.113.4`",
+            "`",
+            "203.0.113.4` | drop client_ip | `",
+            "203.0.113.4\n| json",
+            "{namespace=\"kube-system\"}",
+            "}",
+            "not-an-ip",
+        ] {
+            assert!(
+                Loki::sanitise(hostile).is_err(),
+                "expected {hostile:?} to be rejected"
+            );
+        }
+    }
 }

@@ -16,10 +16,22 @@
 </div>
 {% endif %}
 
+<form class="inline" method="get" action="/blocks">
+    <input type="search" name="q" value="{{ query }}" placeholder="filter by CIDR">
+    <button type="submit">Filter</button>
+    {% if !query.is_empty() %}<a href="/blocks">clear</a>{% endif %}
+</form>
+
 {% if rows.is_empty() %}
+    {% if query.is_empty() %}
 <p>Nothing is blocked. No SecurityPolicy is written while the blocklist is empty
    and no WafPolicy contributes anything.</p>
+    {% else %}
+<p>No block matches <code>{{ query }}</code>.</p>
+    {% endif %}
 {% else %}
+<p class="muted">Showing {{ offset + 1 }}&ndash;{{ offset + rows.len() }} of {{ total }}</p>
+
 <table>
     <thead>
         <tr>
@@ -29,6 +41,7 @@
             <th>By</th>
             <th>Created</th>
             <th>Expires</th>
+            <th>Strikes</th>
             <th>State</th>
             <th></th>
         </tr>
@@ -50,6 +63,7 @@
             </td>
             <td>{{ row.created_at }}</td>
             <td>{% if row.expires_at.is_empty() %}<span class="muted">never</span>{% else %}{{ row.expires_at }}{% endif %}</td>
+            <td>{% if row.strikes == 0 %}<span class="muted">&mdash;</span>{% else %}{{ row.strikes }}{% endif %}</td>
             <td>
                 {% if row.enforced %}
                 <span class="badge enforced">enforced</span>
@@ -67,5 +81,12 @@
     {% endfor %}
     </tbody>
 </table>
+
+{% if newer.is_some() || older.is_some() %}
+<p class="pager">
+    {% if let Some(offset) = newer %}<a href="/blocks?q={{ query }}&amp;offset={{ offset }}">&larr; newer</a>{% endif %}
+    {% if let Some(offset) = older %}<a href="/blocks?q={{ query }}&amp;offset={{ offset }}">older &rarr;</a>{% endif %}
+</p>
+{% endif %}
 {% endif %}
 {% endblock %}

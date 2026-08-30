@@ -1,4 +1,5 @@
 pub mod allowlist;
+pub mod auth;
 pub mod compositor;
 pub mod config;
 pub mod controller;
@@ -7,17 +8,20 @@ pub mod error;
 pub mod lease;
 pub mod loki;
 pub mod metrics;
+pub mod offenses;
 pub mod policy;
 pub mod suppression;
 pub mod workflows;
 
 pub use allowlist::Allowlist;
+pub use auth::{Claims, Jwks};
 pub use compositor::{Compiled, Compositor, Conflict};
 pub use config::{Config, Enabled, WorkflowDef};
 pub use crd::{Condition, WafBlock, WafBlockSpec, WafPolicy, WafPolicySpec, WafStatus};
 pub use error::{Error, Result};
 pub use lease::LeaderElector;
 pub use loki::{Candidate, Loki, RuleHit, UriHit};
+pub use offenses::Offenses;
 pub use policy::PolicyWriter;
 pub use suppression::Suppressions;
 pub use workflows::{Decision, WorkflowEngine};

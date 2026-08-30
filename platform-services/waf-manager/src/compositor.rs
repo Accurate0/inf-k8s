@@ -206,11 +206,22 @@ impl Compositor {
         blocks: &[WafBlock],
         now: chrono::DateTime<chrono::Utc>,
         protected: &[(IpNet, String)],
+        max: usize,
     ) -> Vec<IpNet> {
-        blocks
+        let mut eligible: Vec<&WafBlock> = blocks
             .iter()
             .filter(|block| block.spec.gateway == self.gateway)
             .filter(|block| !block.is_expired(now))
+            .collect();
+
+        eligible.sort_by(|a, b| {
+            b.creation_timestamp()
+                .cmp(&a.creation_timestamp())
+                .then_with(|| a.name_any().cmp(&b.name_any()))
+        });
+
+        let mut cidrs: Vec<IpNet> = eligible
+            .into_iter()
             .filter_map(|block| crate::allowlist::Allowlist::parse_cidr(&block.spec.cidr).ok())
             .filter(|net| {
                 let Some(why) = crate::allowlist::Allowlist::overlap(protected, net) else {
@@ -220,7 +231,23 @@ impl Compositor {
                 tracing::warn!("not enforcing {net}: overlaps protected range {why}");
                 false
             })
-            .collect()
+            .collect();
+
+        if cidrs.len() > max {
+            let dropped = cidrs.len() - max;
+
+            tracing::error!(
+                gateway = self.gateway,
+                "blocklist holds {} cidrs, over the {max} cap; \
+                 dropping the {dropped} oldest from the policy",
+                cidrs.len()
+            );
+
+            crate::metrics::Metrics::record_blocks_dropped(&self.gateway, dropped);
+            cidrs.truncate(max);
+        }
+
+        cidrs
     }
 }
 
@@ -438,8 +465,12 @@ mod tests {
 
         let keep = block("keep", "203.0.113.4");
 
-        let cidrs =
-            Compositor::new("public-gateway").active_cidrs(&[other, expired, keep], now, &[]);
+        let cidrs = Compositor::new("public-gateway").active_cidrs(
+            &[other, expired, keep],
+            now,
+            &[],
+            usize::MAX,
+        );
 
         assert_eq!(cidrs.len(), 1);
         assert_eq!(cidrs[0].to_string(), "203.0.113.4/32");
@@ -453,10 +484,29 @@ mod tests {
         let stale = block("stale", "140.82.115.33");
         let keep = block("keep", "203.0.113.4");
 
-        let cidrs = Compositor::new("public-gateway").active_cidrs(&[stale, keep], now, &protected);
+        let cidrs = Compositor::new("public-gateway").active_cidrs(
+            &[stale, keep],
+            now,
+            &protected,
+            usize::MAX,
+        );
 
         assert_eq!(cidrs.len(), 1);
         assert_eq!(cidrs[0].to_string(), "203.0.113.4/32");
+    }
+
+    #[test]
+    fn active_cidrs_caps_the_blocklist_at_the_configured_maximum() {
+        let now = chrono::Utc::now();
+        let blocks: Vec<WafBlock> = (0..10)
+            .map(|i| block(&format!("b{i}"), &format!("203.0.113.{i}")))
+            .collect();
+
+        let capped = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 4);
+        assert_eq!(capped.len(), 4);
+
+        let uncapped = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 100);
+        assert_eq!(uncapped.len(), 10);
     }
 
     #[test]

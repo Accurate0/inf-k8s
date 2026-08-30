@@ -16,7 +16,6 @@
       "$ref": "#/$defs/Defaults"
     },
     "ignored_rule_ids": {
-      "description": "Noise rather than findings; ignored by the ranking and `distinct_rules`.",
       "type": "array",
       "default": [],
       "items": {
@@ -28,7 +27,6 @@
       "$ref": "#/$defs/Span"
     },
     "never_block": {
-      "description": "Merged with the `WAF_MANAGER_ALLOWLIST` secret and the feeds below.",
       "type": "array",
       "default": [],
       "items": {
@@ -56,7 +54,6 @@
       "type": "object",
       "properties": {
         "fields": {
-          "description": "`github_meta` only: which of the response's CIDR arrays to take.",
           "type": "array",
           "default": [],
           "items": {
@@ -140,9 +137,33 @@
           "default": 50,
           "minimum": 0
         },
+        "escalation": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/Span"
+          }
+        },
+        "escalation_decay": {
+          "$ref": "#/$defs/Span"
+        },
+        "fast_candidate_limit": {
+          "type": "integer",
+          "format": "uint",
+          "default": 10,
+          "minimum": 0
+        },
         "gateway": {
           "type": "string",
           "default": "public-gateway"
+        },
+        "max_block_duration": {
+          "$ref": "#/$defs/Span"
+        },
+        "max_blocklist_cidrs": {
+          "type": "integer",
+          "format": "uint",
+          "default": 20000,
+          "minimum": 0
         },
         "window": {
           "$ref": "#/$defs/Span"
@@ -151,19 +172,11 @@
       "additionalProperties": false
     },
     "Enabled": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "active",
-            "disabled"
-          ]
-        },
-        {
-          "description": "Logs what it would block and records a metric, but creates nothing.",
-          "type": "string",
-          "const": "dry-run"
-        }
+      "type": "string",
+      "enum": [
+        "active",
+        "dry-run",
+        "disabled"
       ]
     },
     "LeafMatcher": {
@@ -370,17 +383,10 @@
       ]
     },
     "SourceFormat": {
-      "oneOf": [
-        {
-          "description": "`https://api.github.com/meta` - a flat object of named CIDR arrays.",
-          "type": "string",
-          "const": "github_meta"
-        },
-        {
-          "description": "`https://api.cloudflare.com/client/v4/ips` - `result.ipv4_cidrs` and\n`result.ipv6_cidrs`.",
-          "type": "string",
-          "const": "cloudflare_ips"
-        }
+      "type": "string",
+      "enum": [
+        "github_meta",
+        "cloudflare_ips"
       ]
     },
     "Span": {
@@ -396,22 +402,20 @@
         "exact"
       ]
     },
-    "Template": {
-      "description": "A LogQL query with `{{name}}` placeholders: `{{window}}`, `{{limit}}` and the\n[`crate::loki::Loki::fragments`] everywhere, plus `{{client_ip}}`,\n`{{prefilter}}` and `{{exact_client}}` in a signal.",
-      "type": "string"
+    "Tier": {
+      "type": "string",
+      "enum": [
+        "fast",
+        "standard"
+      ]
     },
     "WorkflowDef": {
       "type": "object",
       "properties": {
         "candidates": {
-          "description": "Replaces the built-in candidate query. Must return series carrying a\n`client_ip` label; the value becomes `detections`.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Template"
-            },
-            {
-              "type": "null"
-            }
+          "type": [
+            "string",
+            "null"
           ]
         },
         "duration": {
@@ -434,11 +438,13 @@
           "type": "string"
         },
         "signals": {
-          "description": "LogQL instant queries evaluated per candidate IP, compared by the\n`signal` matcher.",
           "type": "object",
           "additionalProperties": {
-            "$ref": "#/$defs/Template"
+            "type": "string"
           }
+        },
+        "tier": {
+          "$ref": "#/$defs/Tier"
         },
         "when": {
           "$ref": "#/$defs/Matcher"

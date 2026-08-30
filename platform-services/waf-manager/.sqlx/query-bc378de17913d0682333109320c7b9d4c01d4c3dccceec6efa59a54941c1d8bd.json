@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from offenses where last_seen <= $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bc378de17913d0682333109320c7b9d4c01d4c3dccceec6efa59a54941c1d8bd"
+}

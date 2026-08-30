@@ -10,11 +10,12 @@ use tokio::signal::unix::{SignalKind, signal};
 use tokio::sync::watch;
 use tower_http::services::ServeDir;
 use waf_manager::controller::{
-    Context, block_error_policy, policy_error_policy, reconcile_block, reconcile_policy,
+    Context, SYNC_DEBOUNCE, block_error_policy, policy_error_policy, reconcile_block,
+    reconcile_policy,
 };
 use waf_manager::metrics::Metrics;
 use waf_manager::{
-    Allowlist, Config, LeaderElector, Loki, PolicyWriter, Result, Suppressions, WafBlock,
+    Allowlist, Config, Jwks, LeaderElector, Loki, PolicyWriter, Result, Suppressions, WafBlock,
     WafPolicy, WorkflowEngine,
 };
 
@@ -22,6 +23,8 @@ const DEFAULT_LOKI: &str = "http://monitoring-loki.monitoring.svc.cluster.local:
 const DEFAULT_POLICY_NAMESPACE: &str = "envoy-gateway-system";
 const DB_MIN_CONNECTIONS: u32 = 0;
 const DB_MAX_CONNECTIONS: u32 = 10;
+const INSECURE_NO_AUTH: &str = "WAF_MANAGER_INSECURE_NO_AUTH";
+const JWKS_REFRESH: Duration = Duration::from_secs(3600);
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -45,6 +48,12 @@ async fn main() -> Result<()> {
             .expect("RESYNC_SECONDS must be a whole number of seconds"),
     );
 
+    let fast_resync = Duration::from_secs(
+        env("FAST_RESYNC_SECONDS", "20")
+            .parse()
+            .expect("FAST_RESYNC_SECONDS must be a whole number of seconds"),
+    );
+
     let database_url = std::env::var("DATABASE_URL").expect("DATABASE_URL must be set");
     let pool = PgPoolOptions::new()
         .min_connections(DB_MIN_CONNECTIONS)
@@ -59,14 +68,13 @@ async fn main() -> Result<()> {
 
     let allowlist = Allowlist::from_config(&config);
 
-    allowlist.refresh_or_panic().await;
-
     let ctx = Arc::new(Context::new(
         client.clone(),
         namespace.clone(),
         allowlist.clone(),
         writer,
         pool.clone(),
+        config.defaults.max_blocklist_cidrs,
     ));
 
     let loki = Arc::new(Loki::new(loki_url));
@@ -94,11 +102,24 @@ async fn main() -> Result<()> {
     ));
     let leadership = elector.subscribe();
 
+    let jwks = match (Jwks::from_env(), std::env::var(INSECURE_NO_AUTH).is_ok()) {
+        (Some(jwks), _) => {
+            tokio::spawn(jwks.clone().run(JWKS_REFRESH));
+            Some(jwks)
+        }
+        (None, true) => {
+            tracing::error!("{INSECURE_NO_AUTH} is set, serving every request unauthenticated");
+            None
+        }
+        (None, false) => panic!("OIDC_ISSUER must be set, or {INSECURE_NO_AUTH} to opt out"),
+    };
+
     let state = Arc::new(AppState {
         ctx: ctx.clone(),
         loki,
         engine: engine.clone(),
         leadership: leadership.clone(),
+        jwks,
     });
 
     let app = Routes::router(state).nest_service("/static", ServeDir::new("static"));
@@ -118,6 +139,7 @@ async fn main() -> Result<()> {
         client,
         namespace,
         resync,
+        fast_resync,
     ));
 
     let running = elector.clone();
@@ -144,6 +166,7 @@ async fn supervise_leader_work(
     client: Client,
     namespace: String,
     resync: Duration,
+    fast_resync: Duration,
 ) {
     let mut running: Option<tokio::task::JoinHandle<()>> = None;
 
@@ -158,6 +181,7 @@ async fn supervise_leader_work(
                     client.clone(),
                     namespace.clone(),
                     resync,
+                    fast_resync,
                 )));
             }
             (false, Some(handle)) => handle.abort(),
@@ -176,14 +200,13 @@ async fn lead(
     client: Client,
     namespace: String,
     resync: Duration,
+    fast_resync: Duration,
 ) {
     if let Err(e) = engine.import_suppressions().await {
         tracing::warn!("importing legacy suppressions failed: {e}");
     }
 
-    if let Err(e) = ctx.sync_all().await {
-        tracing::warn!("initial sync failed: {e}");
-    }
+    ctx.request_sync();
 
     let resync_ctx = ctx.clone();
     let resync_engine = engine.clone();
@@ -197,15 +220,29 @@ async fn lead(
 
         loop {
             ticker.tick().await;
-            if let Err(e) = resync_ctx.sync_all().await {
-                tracing::warn!("periodic resync failed: {e}");
-            }
+            resync_ctx.request_sync();
 
             if let Err(e) = resync_engine.run_once().await {
                 tracing::warn!("workflow run failed: {e}");
             }
         }
     };
+
+    let fast_engine = engine.clone();
+    let fast_ticker = async move {
+        let mut ticker = tokio::time::interval(fast_resync);
+        ticker.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
+
+        loop {
+            ticker.tick().await;
+
+            if let Err(e) = fast_engine.run_fast().await {
+                tracing::warn!("fast workflow run failed: {e}");
+            }
+        }
+    };
+
+    let syncer = ctx.clone().run_syncer(SYNC_DEBOUNCE);
 
     let blocks = Controller::new(
         Api::<WafBlock>::namespaced(client.clone(), &namespace),
@@ -230,7 +267,9 @@ async fn lead(
     });
 
     tokio::select! {
+        _ = syncer => tracing::error!("syncer stopped"),
         _ = ticker => tracing::error!("resync ticker stopped"),
+        _ = fast_ticker => tracing::error!("fast ticker stopped"),
         _ = blocks => tracing::error!("block controller stopped"),
         _ = policies => tracing::error!("policy controller stopped"),
     }

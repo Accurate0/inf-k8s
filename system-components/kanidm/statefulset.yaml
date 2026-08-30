@@ -104,9 +104,9 @@ spec:
               port: 8443
               scheme: HTTPS
             initialDelaySeconds: 0
-            periodSeconds: 10
-            timeoutSeconds: 1
-            failureThreshold: 3
+            periodSeconds: 30
+            timeoutSeconds: 10
+            failureThreshold: 5
           readinessProbe:
             httpGet:
               path: /status

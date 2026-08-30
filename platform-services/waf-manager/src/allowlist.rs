@@ -23,12 +23,16 @@ struct AllowlistInner {
     base: Entries,
     fetched: RwLock<BTreeMap<String, Entries>>,
     current: RwLock<Arc<Entries>>,
+    ready: tokio::sync::watch::Sender<bool>,
 }
 
 impl Allowlist {
     pub fn new(base: Entries, sources: Vec<AllowlistSource>) -> Self {
+        let ready = tokio::sync::watch::Sender::new(sources.is_empty());
+
         Self {
             inner: Arc::new(AllowlistInner {
+                ready,
                 client: reqwest::Client::builder()
                     .timeout(std::time::Duration::from_secs(20))
                     .user_agent("waf-manager")
@@ -142,21 +146,33 @@ impl Allowlist {
         failed
     }
 
-    pub async fn refresh_or_panic(&self) {
-        let failed = self.refresh().await;
+    pub fn ready(&self) -> bool {
+        *self.inner.ready.borrow()
+    }
 
-        if !failed.is_empty() {
-            panic!("allowlist sources {failed:?} could not be loaded at startup");
-        }
+    pub fn subscribe(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.inner.ready.subscribe()
     }
 
     pub async fn run(self, interval: Span) {
         let mut ticker = tokio::time::interval(interval.0);
-        ticker.tick().await;
 
         loop {
             ticker.tick().await;
-            self.refresh().await;
+
+            let failed = self.refresh().await;
+
+            if failed.is_empty() {
+                self.inner.ready.send_replace(true);
+                continue;
+            }
+
+            if !self.ready() {
+                tracing::warn!(
+                    "allowlist sources {failed:?} have never loaded; \
+                     automated blocking stays disabled until they do"
+                );
+            }
         }
     }
 

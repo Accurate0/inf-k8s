@@ -83,8 +83,19 @@ spec:
               value: envoy-gateway-system
             - name: RESYNC_SECONDS
               value: "300"
+            - name: FAST_RESYNC_SECONDS
+              value: "20"
             - name: WORKFLOWS_CONFIGMAP_PATH
               value: /etc/waf-manager/config/config.yaml
+            - name: OIDC_ISSUER
+              value: https://idm.anurag.sh/oauth2/openid/waf-manager
+            - name: OIDC_JWKS_URI
+              value: https://idm.anurag.sh/oauth2/openid/waf-manager/public_key.jwk
+            - name: OIDC_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: kanidm-waf-manager-oidc
+                  key: client-id
           envFrom:
             - secretRef:
                 name: waf-manager-managed-secrets

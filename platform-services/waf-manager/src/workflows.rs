@@ -1,4 +1,4 @@
-use crate::config::{Combinator, Config, Enabled, LeafMatcher, Matcher, Span, WorkflowDef};
+use crate::config::{Combinator, Config, Enabled, LeafMatcher, Matcher, Span, Tier, WorkflowDef};
 use crate::controller::Context;
 use crate::crd::{WafBlock, WafBlockSpec};
 use crate::error::Result;
@@ -99,6 +99,7 @@ impl Needs {
 struct CandidateSource {
     window: Span,
     query: Option<String>,
+    limit: usize,
 }
 
 #[derive(Debug, Clone)]
@@ -129,6 +130,7 @@ struct WorkflowEngineInner {
     loki: Arc<Loki>,
     ctx: Arc<Context>,
     suppressions: crate::suppression::Suppressions,
+    offenses: crate::offenses::Offenses,
     pool: PgPool,
 }
 
@@ -140,12 +142,16 @@ impl WorkflowEngine {
         suppressions: crate::suppression::Suppressions,
         pool: PgPool,
     ) -> Self {
+        let offenses =
+            crate::offenses::Offenses::new(pool.clone(), config.defaults.escalation_decay);
+
         Self {
             inner: Arc::new(WorkflowEngineInner {
                 config,
                 loki,
                 ctx,
                 suppressions,
+                offenses,
                 pool,
             }),
         }
@@ -167,6 +173,18 @@ impl WorkflowEngine {
             .suppressions
             .record(net, chrono::Utc::now())
             .await
+    }
+
+    pub async fn forgive(&self, net: &IpNet) -> Result<()> {
+        self.inner.offenses.reset(net).await
+    }
+
+    pub async fn strikes(&self, net: &IpNet) -> Result<i32> {
+        self.inner.offenses.strikes(net).await
+    }
+
+    pub async fn all_strikes(&self) -> Result<std::collections::BTreeMap<String, i32>> {
+        self.inner.offenses.all().await
     }
 
     pub async fn decisions(&self) -> Result<Vec<Decision>> {
@@ -197,8 +215,50 @@ impl WorkflowEngine {
 
         self.report_workflow_counts();
 
+        if !self.inner.ctx.allowlist.ready() {
+            tracing::warn!("allowlist has not loaded yet, skipping this workflow run");
+            Metrics::record_workflow_skipped("allowlist-cold");
+            return Ok(());
+        }
+
         if let Err(e) = self.inner.suppressions.prune(now).await {
             tracing::warn!("pruning suppressions failed: {e}");
+        }
+
+        if let Err(e) = self.inner.offenses.prune(now).await {
+            tracing::warn!("pruning offenses failed: {e}");
+        }
+
+        if let Err(e) = self.inner.offenses.report().await {
+            tracing::warn!("counting offenses failed: {e}");
+        }
+
+        self.run_tier(Tier::Standard, now).await?;
+
+        Metrics::record_workflow_run(started.elapsed());
+        Ok(())
+    }
+
+    pub async fn run_fast(&self) -> Result<()> {
+        let now = chrono::Utc::now();
+        let started = std::time::Instant::now();
+
+        if !self.inner.ctx.allowlist.ready() {
+            Metrics::record_workflow_skipped("allowlist-cold");
+            return Ok(());
+        }
+
+        self.run_tier(Tier::Fast, now).await?;
+
+        Metrics::record_workflow_run(started.elapsed());
+        Ok(())
+    }
+
+    async fn run_tier(&self, tier: Tier, now: chrono::DateTime<chrono::Utc>) -> Result<()> {
+        let sources = self.candidate_sources(tier);
+
+        if sources.is_empty() {
+            return Ok(());
         }
 
         let suppressed = self
@@ -211,11 +271,13 @@ impl WorkflowEngine {
                 Vec::new()
             });
 
-        Metrics::set_suppressions(suppressed.len());
+        if tier == Tier::Standard {
+            Metrics::set_suppressions(suppressed.len());
+        }
 
         let blocked = self.report_blocks().await?;
 
-        for (source, workflows) in self.candidate_sources() {
+        for (source, workflows) in sources {
             if let Err(e) = self
                 .run_source(&source, &workflows, &blocked, &suppressed, now)
                 .await
@@ -225,7 +287,6 @@ impl WorkflowEngine {
             }
         }
 
-        Metrics::record_workflow_run(started.elapsed());
         Ok(())
     }
 
@@ -283,13 +344,13 @@ impl WorkflowEngine {
             None => {
                 self.inner
                     .loki
-                    .top_client_ips(
-                        &window.to_logql(),
-                        self.inner.config.defaults.candidate_limit,
-                    )
+                    .top_client_ips(&window.to_logql(), source.limit)
                     .await?
             }
         };
+
+        let total = candidates.len();
+        let mut failed = 0usize;
 
         for candidate in candidates {
             let Ok(net) = self
@@ -315,7 +376,19 @@ impl WorkflowEngine {
 
             for workflow in workflows {
                 Metrics::record_workflow_evaluation(&workflow.name);
-                self.fill_facts(&mut facts, workflow, window).await?;
+
+                if let Err(e) = self.fill_facts(&mut facts, workflow, window).await {
+                    tracing::debug!(
+                        workflow = workflow.name,
+                        cidr = %net,
+                        "gathering facts failed, skipping this candidate: {e}"
+                    );
+
+                    Metrics::record_workflow_error(&workflow.name);
+                    Metrics::record_loki_error();
+                    failed += 1;
+                    break;
+                }
 
                 if !Self::evaluate(
                     &workflow.name,
@@ -329,6 +402,13 @@ impl WorkflowEngine {
                 self.apply(workflow, &net, &facts, now).await;
                 break;
             }
+        }
+
+        if failed > 0 {
+            tracing::warn!(
+                window = %window,
+                "gathering facts failed for {failed} of {total} candidates"
+            );
         }
 
         Ok(())
@@ -381,7 +461,7 @@ impl WorkflowEngine {
                 &window,
                 &facts.client_ip,
                 self.inner.config.defaults.candidate_limit,
-            );
+            )?;
             let missing = template.unresolved(&vars);
             if !missing.is_empty() {
                 tracing::warn!(
@@ -404,14 +484,18 @@ impl WorkflowEngine {
         format!("{workflow}/{signal}")
     }
 
-    fn signal_vars<'a>(window: &str, client_ip: &str, limit: usize) -> BTreeMap<&'a str, String> {
-        let (prefilter, exact_client, sanitised) = Loki::client_filters(client_ip);
+    fn signal_vars<'a>(
+        window: &str,
+        client_ip: &str,
+        limit: usize,
+    ) -> Result<BTreeMap<&'a str, String>> {
+        let (prefilter, exact_client, sanitised) = Loki::client_filters(client_ip)?;
         let mut vars = Self::base_vars(window, limit);
 
         vars.insert("client_ip", sanitised);
         vars.insert("prefilter", prefilter);
         vars.insert("exact_client", exact_client);
-        vars
+        Ok(vars)
     }
 
     fn base_vars<'a>(window: &str, limit: usize) -> BTreeMap<&'a str, String> {
@@ -456,12 +540,20 @@ impl WorkflowEngine {
             return;
         }
 
+        let strikes = match self.inner.offenses.record(net, now).await {
+            Ok(strikes) => strikes,
+            Err(e) => {
+                tracing::warn!(cidr = %net, "recording the offense failed, treating it as a first strike: {e}");
+                1
+            }
+        };
+
         let spec = WafBlockSpec {
             cidr: net.to_string(),
             gateway: workflow.gateway(&self.inner.config.defaults).to_string(),
             reason: Some(workflow.reason.clone()),
             rule_ids: Some(facts.top_rule_ids()).filter(|ids| !ids.is_empty()),
-            expires_at: workflow.expires_at(now),
+            expires_at: workflow.expires_at(now, strikes, &self.inner.config.defaults),
             created_by: Some(format!("{WORKFLOW_AUTHOR_PREFIX}{}", workflow.name)),
         };
 
@@ -482,6 +574,11 @@ impl WorkflowEngine {
                 );
 
                 Metrics::record_workflow_block(&workflow.name, mode);
+
+                if workflow.tier == Tier::Fast {
+                    self.inner.ctx.request_sync();
+                }
+
                 "blocked".to_string()
             }
             Err(e) => {
@@ -521,15 +618,23 @@ impl WorkflowEngine {
         }
     }
 
-    fn candidate_sources(&self) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
+    fn candidate_sources(&self, tier: Tier) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
+        let defaults = &self.inner.config.defaults;
+        let limit = match tier {
+            Tier::Fast => defaults.fast_candidate_limit,
+            Tier::Standard => defaults.candidate_limit,
+        };
+
         let mut grouped: Vec<(CandidateSource, Vec<&WorkflowDef>)> = Vec::new();
 
-        for workflow in self.inner.config.active_workflows() {
+        for workflow in self
+            .inner
+            .config
+            .active_workflows()
+            .filter(|w| w.tier == tier)
+        {
             let window = workflow.window(&self.inner.config.defaults);
-            let vars = Self::base_vars(
-                &window.to_logql(),
-                self.inner.config.defaults.candidate_limit,
-            );
+            let vars = Self::base_vars(&window.to_logql(), limit);
 
             let query = workflow.candidates.as_ref().and_then(|template| {
                 let missing = template.unresolved(&vars);
@@ -544,7 +649,11 @@ impl WorkflowEngine {
                 None
             });
 
-            let source = CandidateSource { window, query };
+            let source = CandidateSource {
+                window,
+                query,
+                limit,
+            };
             match grouped.iter_mut().find(|(s, _)| *s == source) {
                 Some((_, workflows)) => workflows.push(workflow),
                 None => grouped.push((source, vec![workflow])),

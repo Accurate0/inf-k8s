@@ -26,6 +26,16 @@ impl Metrics {
         gauge!("waf_manager_active_blocks", "gateway" => gateway.to_owned()).set(count as f64);
     }
 
+    pub fn set_blocklist_size(gateway: &str, cidrs: usize, bytes: usize) {
+        gauge!("waf_manager_blocklist_cidrs", "gateway" => gateway.to_owned()).set(cidrs as f64);
+        gauge!("waf_manager_blocklist_bytes", "gateway" => gateway.to_owned()).set(bytes as f64);
+    }
+
+    pub fn record_blocks_dropped(gateway: &str, count: usize) {
+        counter!("waf_manager_blocks_dropped_total", "gateway" => gateway.to_owned())
+            .increment(count as u64);
+    }
+
     pub fn set_leader(held: bool) {
         gauge!("waf_manager_is_leader").set(if held { 1.0 } else { 0.0 });
     }
@@ -84,6 +94,10 @@ impl Metrics {
         gauge!("waf_manager_blocks_by_origin", "origin" => origin).set(count as f64);
     }
 
+    pub fn set_offenses(count: usize) {
+        gauge!("waf_manager_offenses").set(count as f64);
+    }
+
     pub fn set_suppressions(count: usize) {
         gauge!("waf_manager_suppressions").set(count as f64);
     }
@@ -99,6 +113,18 @@ impl Metrics {
             "status" => status,
         )
         .increment(1);
+    }
+
+    pub fn set_jwks_keys(count: usize) {
+        gauge!("waf_manager_jwks_keys").set(count as f64);
+    }
+
+    pub fn record_jwks_refresh(status: &'static str) {
+        counter!("waf_manager_jwks_refreshes_total", "status" => status).increment(1);
+    }
+
+    pub fn record_auth_rejected(reason: &'static str) {
+        counter!("waf_manager_auth_rejected_total", "reason" => reason).increment(1);
     }
 
     pub fn record_workflow_run(duration: std::time::Duration) {

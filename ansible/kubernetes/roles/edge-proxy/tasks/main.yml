@@ -30,6 +30,15 @@
       notify:
         - Reload Haproxy
 
+    - name: Template and copy trusted-sources.txt
+      ansible.builtin.template:
+        src: trusted-sources.txt.j2
+        dest: /etc/haproxy/trusted-sources.txt
+        owner: root
+        mode: "0644"
+      notify:
+        - Reload Haproxy
+
     - name: Create haproxy systemd override directory
       ansible.builtin.file:
         path: /etc/systemd/system/haproxy.service.d

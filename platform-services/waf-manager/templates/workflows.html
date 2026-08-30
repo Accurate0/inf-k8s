@@ -17,6 +17,7 @@
         <tr>
             <th>Workflow</th>
             <th>State</th>
+            <th>Tier</th>
             <th>Window</th>
             <th>Blocks for</th>
             <th>Gateway</th>
@@ -29,6 +30,7 @@
         <tr>
             <td><code>{{ row.name }}</code></td>
             <td><span class="badge {{ row.enabled }}">{{ row.enabled }}</span></td>
+            <td>{{ row.tier }}</td>
             <td>{{ row.window }}</td>
             <td>{{ row.duration }}</td>
             <td>{{ row.gateway }}</td>

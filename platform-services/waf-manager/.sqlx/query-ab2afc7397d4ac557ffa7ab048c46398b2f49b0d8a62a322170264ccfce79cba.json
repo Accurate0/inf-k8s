@@ -1,0 +1,28 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select strikes from offenses where cidr = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "strikes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "offenses",
+            "name": "strikes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "ab2afc7397d4ac557ffa7ab048c46398b2f49b0d8a62a322170264ccfce79cba"
+}

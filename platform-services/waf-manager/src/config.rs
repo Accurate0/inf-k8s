@@ -98,6 +98,21 @@ pub struct Defaults {
 
     #[serde(default = "default_candidate_limit")]
     pub candidate_limit: usize,
+
+    #[serde(default = "default_max_blocklist_cidrs")]
+    pub max_blocklist_cidrs: usize,
+
+    #[serde(default = "default_max_block_duration")]
+    pub max_block_duration: Span,
+
+    #[serde(default = "default_escalation")]
+    pub escalation: Vec<Span>,
+
+    #[serde(default = "default_escalation_decay")]
+    pub escalation_decay: Span,
+
+    #[serde(default = "default_fast_candidate_limit")]
+    pub fast_candidate_limit: usize,
 }
 
 impl Default for Defaults {
@@ -106,6 +121,11 @@ impl Default for Defaults {
             gateway: default_gateway(),
             window: default_window(),
             candidate_limit: default_candidate_limit(),
+            max_blocklist_cidrs: default_max_blocklist_cidrs(),
+            max_block_duration: default_max_block_duration(),
+            escalation: default_escalation(),
+            escalation_decay: default_escalation_decay(),
+            fast_candidate_limit: default_fast_candidate_limit(),
         }
     }
 }
@@ -137,6 +157,9 @@ pub struct WorkflowDef {
 
     #[serde(default)]
     pub enabled: Enabled,
+
+    #[serde(default)]
+    pub tier: Tier,
 
     #[serde(default)]
     pub window: Option<Span>,
@@ -206,14 +229,50 @@ impl WorkflowDef {
         self.gateway.as_deref().unwrap_or(&defaults.gateway)
     }
 
-    pub fn expires_at(&self, now: chrono::DateTime<chrono::Utc>) -> Option<String> {
-        match self.duration {
-            BlockDuration::Forever => None,
-            BlockDuration::For(span) => {
-                let at =
-                    now + chrono::Duration::from_std(span.0).unwrap_or(chrono::Duration::zero());
-                Some(at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
-            }
+    pub fn block_span(&self, strikes: i32, defaults: &Defaults) -> std::time::Duration {
+        let cap = defaults.max_block_duration.0;
+
+        let own = match self.duration {
+            BlockDuration::Forever => cap,
+            BlockDuration::For(span) => span.0,
+        };
+
+        let rung = defaults
+            .escalation
+            .get(strikes.max(1) as usize - 1)
+            .or_else(|| defaults.escalation.last())
+            .map(|span| span.0)
+            .unwrap_or(own);
+
+        own.max(rung).min(cap)
+    }
+
+    pub fn expires_at(
+        &self,
+        now: chrono::DateTime<chrono::Utc>,
+        strikes: i32,
+        defaults: &Defaults,
+    ) -> Option<String> {
+        let span = self.block_span(strikes, defaults);
+        let at = now + chrono::Duration::from_std(span).unwrap_or(chrono::Duration::zero());
+
+        Some(at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true))
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum Tier {
+    Fast,
+    #[default]
+    Standard,
+}
+
+impl Tier {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Tier::Fast => "fast",
+            Tier::Standard => "standard",
         }
     }
 }
@@ -459,6 +518,31 @@ fn default_candidate_limit() -> usize {
     50
 }
 
+fn default_max_blocklist_cidrs() -> usize {
+    20000
+}
+
+fn default_max_block_duration() -> Span {
+    Span(std::time::Duration::from_secs(180 * 24 * 60 * 60))
+}
+
+fn default_escalation() -> Vec<Span> {
+    vec![
+        Span::from_secs(24 * 60 * 60),
+        Span::from_secs(7 * 24 * 60 * 60),
+        Span::from_secs(30 * 24 * 60 * 60),
+        default_max_block_duration(),
+    ]
+}
+
+fn default_escalation_decay() -> Span {
+    Span::from_secs(90 * 24 * 60 * 60)
+}
+
+fn default_fast_candidate_limit() -> usize {
+    10
+}
+
 fn default_allowlist_refresh() -> Span {
     Span::from_secs(12 * 60 * 60)
 }
@@ -526,7 +610,7 @@ workflows: []
     }
 
     #[test]
-    fn forever_produces_no_expiry() {
+    fn forever_is_clamped_to_the_max_block_duration() {
         let workflow: WorkflowDef = serde_yaml::from_str(
             r#"
 name: permanent
@@ -539,7 +623,77 @@ when:
         )
         .unwrap();
 
-        assert_eq!(workflow.expires_at(chrono::Utc::now()), None);
+        let defaults = Defaults::default();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        assert_eq!(
+            workflow.expires_at(now, 1, &defaults).as_deref(),
+            Some("2026-06-30T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn repeat_offenders_climb_the_escalation_ladder() {
+        let workflow: WorkflowDef = serde_yaml::from_str(
+            r#"
+name: temporary
+duration: 24h
+reason: because
+when:
+  type: detections
+  min: 1
+"#,
+        )
+        .unwrap();
+
+        let defaults = Defaults::default();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        assert_eq!(
+            workflow.expires_at(now, 1, &defaults).as_deref(),
+            Some("2026-01-02T00:00:00Z")
+        );
+        assert_eq!(
+            workflow.expires_at(now, 2, &defaults).as_deref(),
+            Some("2026-01-08T00:00:00Z")
+        );
+        assert_eq!(
+            workflow.expires_at(now, 3, &defaults).as_deref(),
+            Some("2026-01-31T00:00:00Z")
+        );
+        assert_eq!(
+            workflow.expires_at(now, 99, &defaults).as_deref(),
+            Some("2026-06-30T00:00:00Z")
+        );
+    }
+
+    #[test]
+    fn a_long_workflow_duration_is_never_shortened_by_a_low_strike_count() {
+        let workflow: WorkflowDef = serde_yaml::from_str(
+            r#"
+name: strict
+duration: 30d
+reason: because
+when:
+  type: detections
+  min: 1
+"#,
+        )
+        .unwrap();
+
+        let defaults = Defaults::default();
+        let now = chrono::DateTime::parse_from_rfc3339("2026-01-01T00:00:00Z")
+            .unwrap()
+            .with_timezone(&chrono::Utc);
+
+        assert_eq!(
+            workflow.expires_at(now, 1, &defaults).as_deref(),
+            Some("2026-01-31T00:00:00Z")
+        );
     }
 
     #[test]
@@ -561,7 +715,7 @@ when:
             .with_timezone(&chrono::Utc);
 
         assert_eq!(
-            workflow.expires_at(now).as_deref(),
+            workflow.expires_at(now, 1, &Defaults::default()).as_deref(),
             Some("2026-01-02T00:00:00Z")
         );
     }
@@ -581,6 +735,25 @@ when:
         .unwrap();
 
         assert_eq!(workflow.enabled, Enabled::DryRun);
+        assert_eq!(workflow.tier, Tier::Standard);
+    }
+
+    #[test]
+    fn a_workflow_can_opt_into_the_fast_tier() {
+        let workflow: WorkflowDef = serde_yaml::from_str(
+            r#"
+name: urgent
+tier: fast
+duration: 1h
+reason: because
+when:
+  type: detections
+  min: 1
+"#,
+        )
+        .unwrap();
+
+        assert_eq!(workflow.tier, Tier::Fast);
     }
 
     #[test]

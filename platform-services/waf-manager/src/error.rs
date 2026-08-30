@@ -24,8 +24,17 @@ pub enum Error {
     #[error("unexpected response from loki: {0}")]
     Loki(String),
 
-    #[error("gave up applying the security policy after {0} conflicting writes")]
-    PolicyContention(usize),
+    #[error("template render failed: {0}")]
+    Render(String),
+
+    #[error("unauthorized: {0}")]
+    Unauthorized(String),
+
+    #[error("jwks error: {0}")]
+    Jwks(String),
+
+    #[error("sync failed: {0}")]
+    Sync(String),
 
     #[error("object {0} is missing a namespace")]
     MissingNamespace(String),

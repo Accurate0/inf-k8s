@@ -4,14 +4,9 @@
   "type": "object",
   "properties": {
     "candidates": {
-      "description": "Replaces the built-in candidate query. Must return series carrying a\n`client_ip` label; the value becomes `detections`.",
-      "anyOf": [
-        {
-          "$ref": "#/$defs/Template"
-        },
-        {
-          "type": "null"
-        }
+      "type": [
+        "string",
+        "null"
       ]
     },
     "duration": {
@@ -34,11 +29,13 @@
       "type": "string"
     },
     "signals": {
-      "description": "LogQL instant queries evaluated per candidate IP, compared by the\n`signal` matcher.",
       "type": "object",
       "additionalProperties": {
-        "$ref": "#/$defs/Template"
+        "type": "string"
       }
+    },
+    "tier": {
+      "$ref": "#/$defs/Tier"
     },
     "when": {
       "$ref": "#/$defs/Matcher"
@@ -114,19 +111,11 @@
       ]
     },
     "Enabled": {
-      "oneOf": [
-        {
-          "type": "string",
-          "enum": [
-            "active",
-            "disabled"
-          ]
-        },
-        {
-          "description": "Logs what it would block and records a metric, but creates nothing.",
-          "type": "string",
-          "const": "dry-run"
-        }
+      "type": "string",
+      "enum": [
+        "active",
+        "dry-run",
+        "disabled"
       ]
     },
     "LeafMatcher": {
@@ -345,9 +334,12 @@
         "exact"
       ]
     },
-    "Template": {
-      "description": "A LogQL query with `{{name}}` placeholders: `{{window}}`, `{{limit}}` and the\n[`crate::loki::Loki::fragments`] everywhere, plus `{{client_ip}}`,\n`{{prefilter}}` and `{{exact_client}}` in a signal.",
-      "type": "string"
+    "Tier": {
+      "type": "string",
+      "enum": [
+        "fast",
+        "standard"
+      ]
     }
   }
 }

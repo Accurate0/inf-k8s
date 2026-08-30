@@ -16,13 +16,25 @@ use std::time::Duration;
 const REQUEUE: Duration = Duration::from_secs(3600);
 const ERROR_REQUEUE: Duration = Duration::from_secs(30);
 
+pub const SYNC_DEBOUNCE: Duration = Duration::from_secs(2);
+
+#[derive(Debug, Clone, Default)]
+pub struct SyncOutcome {
+    pub generation: u64,
+    pub error: Option<String>,
+}
+
 pub struct Context {
     pub client: Client,
     pub namespace: String,
     pub allowlist: Allowlist,
     pub writer: PolicyWriter,
     pub pool: PgPool,
+    pub max_blocklist_cidrs: usize,
     sync_lock: tokio::sync::Mutex<()>,
+    sync_requests: tokio::sync::Notify,
+    sync_state: tokio::sync::watch::Sender<SyncOutcome>,
+    applied: tokio::sync::Mutex<std::collections::BTreeMap<String, u64>>,
 }
 
 impl Context {
@@ -32,6 +44,7 @@ impl Context {
         allowlist: Allowlist,
         writer: PolicyWriter,
         pool: PgPool,
+        max_blocklist_cidrs: usize,
     ) -> Self {
         Self {
             client,
@@ -39,7 +52,56 @@ impl Context {
             allowlist,
             writer,
             pool,
+            max_blocklist_cidrs,
             sync_lock: tokio::sync::Mutex::new(()),
+            sync_requests: tokio::sync::Notify::new(),
+            sync_state: tokio::sync::watch::Sender::new(SyncOutcome::default()),
+            applied: tokio::sync::Mutex::new(std::collections::BTreeMap::new()),
+        }
+    }
+
+    pub fn request_sync(&self) -> u64 {
+        let at = self.sync_state.borrow().generation;
+        self.sync_requests.notify_one();
+        at
+    }
+
+    pub async fn await_sync(&self, after: u64) -> Result<()> {
+        let mut state = self.sync_state.subscribe();
+
+        loop {
+            let outcome = state.borrow_and_update().clone();
+
+            if outcome.generation > after {
+                return match outcome.error {
+                    Some(e) => Err(Error::Sync(e)),
+                    None => Ok(()),
+                };
+            }
+
+            if state.changed().await.is_err() {
+                return Ok(());
+            }
+        }
+    }
+
+    pub async fn run_syncer(self: Arc<Self>, debounce: Duration) {
+        loop {
+            self.sync_requests.notified().await;
+            tokio::time::sleep(debounce).await;
+
+            let error = self.sync_all().await.err().map(|e| e.to_string());
+
+            Metrics::record_sync(error.is_none());
+
+            if let Some(e) = &error {
+                tracing::warn!("coalesced sync failed: {e}");
+            }
+
+            self.sync_state.send_modify(|state| {
+                state.generation += 1;
+                state.error = error;
+            });
         }
     }
 
@@ -104,7 +166,7 @@ impl Context {
 
         for gateway in gateways {
             let compositor = Compositor::new(&gateway);
-            let cidrs = compositor.active_cidrs(&blocks, now, &protected);
+            let cidrs = compositor.active_cidrs(&blocks, now, &protected, self.max_blocklist_cidrs);
             let for_gateway: Vec<WafPolicy> = policies
                 .iter()
                 .filter(|p| p.spec.gateway == gateway)
@@ -112,9 +174,15 @@ impl Context {
                 .collect();
 
             let compiled = compositor.compile(&for_gateway, &cidrs);
-            self.writer.reconcile(&gateway, compiled.spec).await?;
+            let digest = Self::digest(&compiled.spec);
+
+            if self.applied.lock().await.get(&gateway) != Some(&digest) {
+                self.writer.reconcile(&gateway, compiled.spec).await?;
+                self.applied.lock().await.insert(gateway.clone(), digest);
+            }
 
             Metrics::set_active_blocks(&gateway, cidrs.len());
+            Metrics::set_blocklist_size(&gateway, cidrs.len(), Self::blocklist_bytes(&cidrs));
             all_conflicts.extend(compiled.conflicts);
         }
 
@@ -122,6 +190,22 @@ impl Context {
         self.store_conflicts(&all_conflicts).await?;
 
         Ok(all_conflicts)
+    }
+
+    fn digest(spec: &Option<serde_json::Value>) -> u64 {
+        use std::hash::{Hash, Hasher};
+
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        spec.as_ref()
+            .map(ToString::to_string)
+            .unwrap_or_default()
+            .hash(&mut hasher);
+
+        hasher.finish()
+    }
+
+    fn blocklist_bytes(cidrs: &[ipnet::IpNet]) -> usize {
+        cidrs.iter().map(|net| net.to_string().len() + 4).sum()
     }
 
     pub async fn ensure_owner(&self, obj: &WafBlock) -> Result<()> {
@@ -221,7 +305,7 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
         ctx.blocks()
             .delete(&obj.name_any(), &DeleteParams::default())
             .await?;
-        ctx.sync_all().await?;
+        ctx.request_sync();
 
         return Ok(Action::await_change());
     }
@@ -232,7 +316,10 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
     });
 
     let synced = match &accepted {
-        Ok(()) => ctx.sync_all().await.map(|_| ()),
+        Ok(()) => {
+            let at = ctx.request_sync();
+            ctx.await_sync(at).await
+        }
         Err(_) => Ok(()),
     };
 
@@ -245,8 +332,6 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
     )
     .await;
 
-    Metrics::record_sync(synced.is_ok());
-
     accepted.map_err(|msg| Error::InvalidCidr(obj.spec.cidr.clone(), msg))?;
     synced?;
 
@@ -254,17 +339,19 @@ pub async fn reconcile_block(obj: Arc<WafBlock>, ctx: Arc<Context>) -> Result<Ac
 }
 
 pub async fn reconcile_policy(obj: Arc<WafPolicy>, ctx: Arc<Context>) -> Result<Action> {
-    let synced = ctx.sync_all().await;
-    let mine: Vec<Conflict> = synced
-        .as_ref()
-        .map(|conflicts| {
-            conflicts
-                .iter()
-                .filter(|c| c.source == obj.name_any())
-                .cloned()
-                .collect()
-        })
-        .unwrap_or_default();
+    let at = ctx.request_sync();
+    let synced = ctx.await_sync(at).await;
+
+    let mine: Vec<Conflict> = match &synced {
+        Ok(()) => ctx
+            .conflicts()
+            .await
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|c| c.source == obj.name_any())
+            .collect(),
+        Err(_) => Vec::new(),
+    };
 
     write_status(
         &ctx,
@@ -275,7 +362,6 @@ pub async fn reconcile_policy(obj: Arc<WafPolicy>, ctx: Arc<Context>) -> Result<
     )
     .await;
 
-    Metrics::record_sync(synced.is_ok());
     synced?;
 
     Ok(Action::requeue(REQUEUE))

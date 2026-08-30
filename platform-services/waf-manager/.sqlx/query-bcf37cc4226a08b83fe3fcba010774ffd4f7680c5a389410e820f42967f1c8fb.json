@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select cidr, strikes from offenses",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cidr",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "offenses",
+            "name": "cidr"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "strikes",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "offenses",
+            "name": "strikes"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "bcf37cc4226a08b83fe3fcba010774ffd4f7680c5a389410e820f42967f1c8fb"
+}

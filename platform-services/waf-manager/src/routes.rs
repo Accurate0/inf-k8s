@@ -1,9 +1,10 @@
 use askama::Template;
-use axum::extract::{Path, State};
-use axum::http::{HeaderMap, StatusCode};
+use axum::extract::{Path, Query, Request, State};
+use axum::http::{StatusCode, header};
+use axum::middleware::{Next, from_fn_with_state};
 use axum::response::{Html, IntoResponse, Redirect, Response};
 use axum::routing::{get, post};
-use axum::{Form, Router};
+use axum::{Extension, Form, Router};
 use ipnet::IpNet;
 use kube::ResourceExt;
 use kube::api::{DeleteParams, ListParams, PostParams};
@@ -16,13 +17,16 @@ use waf_manager::controller::Context;
 use waf_manager::crd::{WafBlock, WafBlockSpec};
 use waf_manager::metrics::Metrics;
 use waf_manager::workflows::{Decision, WORKFLOW_AUTHOR_PREFIX};
-use waf_manager::{Error, Loki, WorkflowEngine};
+use waf_manager::{Claims, Error, Jwks, Loki, WorkflowEngine};
+
+const BLOCK_PAGE_SIZE: usize = 100;
 
 pub struct AppState {
     pub ctx: Arc<Context>,
     pub loki: Arc<Loki>,
     pub engine: Arc<WorkflowEngine>,
     pub leadership: watch::Receiver<bool>,
+    pub jwks: Option<Jwks>,
 }
 
 impl AppState {
@@ -43,16 +47,57 @@ pub struct Routes;
 
 impl Routes {
     pub fn router(state: Arc<AppState>) -> Router {
-        Router::new()
+        let protected = Router::new()
             .route("/", get(Self::index))
             .route("/blocks", get(Self::blocks))
             .route("/workflows", get(Self::workflows))
             .route("/ip/{addr}", get(Self::ip_detail))
             .route("/block", post(Self::create_block))
             .route("/unblock", post(Self::delete_block))
+            .layer(from_fn_with_state(state.clone(), Self::authenticate))
+            .with_state(state);
+
+        let open = Router::new()
             .route("/health", get(|| async { StatusCode::OK }))
-            .route("/metrics", get(|| async { Metrics::render() }))
-            .with_state(state)
+            .route("/metrics", get(|| async { Metrics::render() }));
+
+        protected.merge(open)
+    }
+
+    async fn authenticate(
+        State(state): State<Arc<AppState>>,
+        mut request: Request,
+        next: Next,
+    ) -> Result<Response, AppError> {
+        let claims = match &state.jwks {
+            Some(jwks) => {
+                let token = request
+                    .headers()
+                    .get(header::AUTHORIZATION)
+                    .and_then(|v| v.to_str().ok())
+                    .and_then(|v| v.strip_prefix("Bearer "))
+                    .map(str::trim)
+                    .filter(|t| !t.is_empty())
+                    .ok_or_else(|| {
+                        Metrics::record_auth_rejected("no_bearer_token");
+                        Error::Unauthorized("no bearer token on request".to_string())
+                    })?;
+
+                jwks.verify(token).await.inspect_err(|_| {
+                    Metrics::record_auth_rejected("invalid_token");
+                })?
+            }
+            None => Claims {
+                sub: "insecure-no-auth".to_string(),
+                preferred_username: Some("insecure-no-auth".to_string()),
+                email: None,
+                name: None,
+            },
+        };
+
+        request.extensions_mut().insert(claims);
+
+        Ok(next.run(request).await)
     }
 
     async fn index(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
@@ -99,7 +144,10 @@ impl Routes {
         })
     }
 
-    async fn blocks(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
+    async fn blocks(
+        State(state): State<Arc<AppState>>,
+        Query(page): Query<BlocksQuery>,
+    ) -> Result<Html<String>, AppError> {
         let mut blocks = state
             .ctx
             .blocks()
@@ -114,9 +162,35 @@ impl Routes {
                 .then_with(|| a.name_any().cmp(&b.name_any()))
         });
 
-        let rows = blocks
+        let filter = page.q.trim().to_lowercase();
+
+        if !filter.is_empty() {
+            blocks.retain(|b| b.spec.cidr.to_lowercase().contains(&filter));
+        }
+
+        let total = blocks.len();
+        let offset = page.offset.min(total);
+        let blocks: Vec<_> = blocks
+            .into_iter()
+            .skip(offset)
+            .take(BLOCK_PAGE_SIZE)
+            .collect();
+
+        let strikes = state.engine.all_strikes().await.unwrap_or_else(|e| {
+            tracing::warn!("reading offenses failed: {e}");
+            Default::default()
+        });
+
+        let rows: Vec<BlockRow> = blocks
             .into_iter()
             .map(|b| BlockRow {
+                strikes: b
+                    .spec
+                    .cidr
+                    .parse::<IpNet>()
+                    .ok()
+                    .and_then(|net| strikes.get(&net.to_string()).copied())
+                    .unwrap_or(0),
                 name: b.name_any(),
                 cidr: b.spec.cidr.clone(),
                 gateway: b.spec.gateway.clone(),
@@ -144,9 +218,16 @@ impl Routes {
             })
             .collect();
 
+        let shown = offset + rows.len();
+
         Self::render(BlocksTemplate {
             rows,
             conflicts: state.ctx.conflicts().await?,
+            total,
+            offset,
+            query: page.q.trim().to_string(),
+            newer: (offset > 0).then(|| offset.saturating_sub(BLOCK_PAGE_SIZE)),
+            older: (shown < total).then_some(shown),
         })
     }
 
@@ -182,6 +263,7 @@ impl Routes {
             .map(|w| WorkflowRow {
                 name: w.name.clone(),
                 enabled: w.enabled.as_str(),
+                tier: w.tier.as_str(),
                 window: w.window(&config.defaults).to_string(),
                 duration: w.duration.to_string(),
                 gateway: w.gateway(&config.defaults).to_string(),
@@ -228,7 +310,7 @@ impl Routes {
 
     async fn create_block(
         State(state): State<Arc<AppState>>,
-        headers: HeaderMap,
+        Extension(claims): Extension<Claims>,
         Form(form): Form<BlockForm>,
     ) -> Result<Redirect, AppError> {
         let net = state.ctx.allowlist.parse_and_check(&form.cidr).await?;
@@ -248,7 +330,7 @@ impl Routes {
             reason: form.reason,
             rule_ids: None,
             expires_at,
-            created_by: Self::user(&headers),
+            created_by: Some(claims.identity()),
         };
 
         let block = WafBlock::new(&WafBlock::resource_name(&net), spec);
@@ -259,36 +341,11 @@ impl Routes {
             .await
             .map_err(Error::from)?;
 
-        Ok(Redirect::to("/blocks"))
-    }
-
-    fn user(headers: &HeaderMap) -> Option<String> {
-        const CLAIM_HEADERS: &[&str] = &[
-            "x-waf-user",
-            "x-waf-user-name",
-            "x-waf-user-email",
-            "x-waf-user-sub",
-        ];
-
-        let found = CLAIM_HEADERS.iter().find_map(|name| {
-            headers
-                .get(*name)
-                .and_then(|v| v.to_str().ok())
-                .map(str::trim)
-                .filter(|v| !v.is_empty())
-                .map(str::to_string)
-        });
-
-        if found.is_none() {
-            let seen: Vec<&str> = headers
-                .keys()
-                .map(|k| k.as_str())
-                .filter(|k| k.starts_with("x-waf-") || *k == "authorization")
-                .collect();
-            tracing::warn!("no identity claim header on request; saw {seen:?}");
+        if *state.leadership.borrow() {
+            state.ctx.sync_all().await?;
         }
 
-        found
+        Ok(Redirect::to("/blocks"))
     }
 
     async fn delete_block(
@@ -310,10 +367,14 @@ impl Routes {
             .await
             .map_err(Error::from)?;
 
-        if let Some(net) = cidr
-            && let Err(e) = state.engine.suppress(&net).await
-        {
-            tracing::warn!("recording unblock suppression for {net} failed: {e}");
+        if let Some(net) = cidr {
+            if let Err(e) = state.engine.suppress(&net).await {
+                tracing::warn!("recording unblock suppression for {net} failed: {e}");
+            }
+
+            if let Err(e) = state.engine.forgive(&net).await {
+                tracing::warn!("resetting offenses for {net} failed: {e}");
+            }
         }
 
         if *state.leadership.borrow() {
@@ -342,7 +403,7 @@ impl Routes {
         template
             .render()
             .map(Html)
-            .map_err(|e| AppError(Error::Loki(format!("template failed: {e}"))))
+            .map_err(|e| AppError(Error::Render(e.to_string())))
     }
 }
 
@@ -387,6 +448,7 @@ impl IntoResponse for AppError {
     fn into_response(self) -> Response {
         let status = match self.0 {
             Error::ProtectedRange(..) | Error::InvalidCidr(..) => StatusCode::BAD_REQUEST,
+            Error::Unauthorized(_) => StatusCode::UNAUTHORIZED,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 
@@ -426,6 +488,7 @@ pub struct BlockRow {
     pub created_by: String,
     pub expires_at: String,
     pub enforced: bool,
+    pub strikes: i32,
 }
 
 pub struct RuleRow {
@@ -448,6 +511,7 @@ struct IndexTemplate {
 pub struct WorkflowRow {
     pub name: String,
     pub enabled: &'static str,
+    pub tier: &'static str,
     pub window: String,
     pub duration: String,
     pub gateway: String,
@@ -475,6 +539,20 @@ pub struct ProtectedRow {
 struct BlocksTemplate {
     rows: Vec<BlockRow>,
     conflicts: Vec<Conflict>,
+    total: usize,
+    offset: usize,
+    query: String,
+    newer: Option<usize>,
+    older: Option<usize>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct BlocksQuery {
+    #[serde(default)]
+    pub q: String,
+
+    #[serde(default)]
+    pub offset: usize,
 }
 
 #[derive(Template)]
