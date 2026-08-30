@@ -1,7 +1,7 @@
 use crate::error::{Error, Result};
 use crate::metrics::Metrics;
-use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
-use jsonwebtoken::{DecodingKey, Validation, decode, decode_header};
+use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, JwkSet};
+use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -45,7 +45,13 @@ struct JwksInner {
     uri: String,
     issuer: String,
     audience: Option<String>,
-    keys: RwLock<BTreeMap<String, DecodingKey>>,
+    keys: RwLock<BTreeMap<String, VerifyingKey>>,
+}
+
+#[derive(Clone)]
+struct VerifyingKey {
+    key: DecodingKey,
+    alg: Option<Algorithm>,
 }
 
 impl Jwks {
@@ -96,13 +102,23 @@ impl Jwks {
                 continue;
             };
 
-            if !matches!(jwk.algorithm, AlgorithmParameters::RSA(_)) {
+            if !Self::is_asymmetric(jwk) {
+                tracing::warn!("ignoring non-asymmetric jwk {kid}");
                 continue;
             }
 
             match DecodingKey::from_jwk(jwk) {
                 Ok(key) => {
-                    keys.insert(kid, key);
+                    keys.insert(
+                        kid,
+                        VerifyingKey {
+                            key,
+                            alg: jwk
+                                .common
+                                .key_algorithm
+                                .and_then(|a| a.to_string().parse::<Algorithm>().ok()),
+                        },
+                    );
                 }
                 Err(e) => tracing::warn!("ignoring unusable jwk {kid}: {e}"),
             }
@@ -157,7 +173,7 @@ impl Jwks {
 
         let key = key.ok_or_else(|| Error::Unauthorized(format!("no key for kid {kid}")))?;
 
-        let mut validation = Validation::new(header.alg);
+        let mut validation = Validation::new(key.alg.unwrap_or(header.alg));
         validation.set_issuer(&[&self.inner.issuer]);
 
         match &self.inner.audience {
@@ -165,12 +181,21 @@ impl Jwks {
             None => validation.validate_aud = false,
         }
 
-        decode::<Claims>(token, &key, &validation)
+        decode::<Claims>(token, &key.key, &validation)
             .map(|data| data.claims)
             .map_err(|e| Error::Unauthorized(format!("token rejected: {e}")))
     }
 
-    async fn key(&self, kid: &str) -> Option<DecodingKey> {
+    fn is_asymmetric(jwk: &Jwk) -> bool {
+        matches!(
+            jwk.algorithm,
+            AlgorithmParameters::RSA(_)
+                | AlgorithmParameters::EllipticCurve(_)
+                | AlgorithmParameters::OctetKeyPair(_)
+        )
+    }
+
+    async fn key(&self, kid: &str) -> Option<VerifyingKey> {
         self.inner.keys.read().await.get(kid).cloned()
     }
 }
@@ -204,6 +229,38 @@ mod tests {
             name: None,
         };
         assert_eq!(claims.identity(), "abc");
+    }
+
+    #[test]
+    fn kanidms_es256_key_is_usable() {
+        let set: JwkSet = serde_json::from_str(
+            r#"{"keys":[{"kty":"EC","crv":"P-256",
+                "x":"pHzGsnQ1iSPTB2OE7sx7lrMcHHmwFvXPN5SBtWaS7w0",
+                "y":"YT5H7NQ9WvpxyWcEoWSwv5lEsbswWUHZCHJiY1OYSLE",
+                "alg":"ES256","use":"sig","kid":"495e009e846e"}]}"#,
+        )
+        .unwrap();
+
+        let jwk = &set.keys[0];
+
+        assert!(Jwks::is_asymmetric(jwk));
+        assert!(DecodingKey::from_jwk(jwk).is_ok());
+        assert_eq!(
+            jwk.common
+                .key_algorithm
+                .and_then(|a| a.to_string().parse::<Algorithm>().ok()),
+            Some(Algorithm::ES256)
+        );
+    }
+
+    #[test]
+    fn shared_secrets_are_never_trusted_as_verifying_keys() {
+        let set: JwkSet = serde_json::from_str(
+            r#"{"keys":[{"kty":"oct","k":"c2VjcmV0","alg":"HS256","kid":"shared"}]}"#,
+        )
+        .unwrap();
+
+        assert!(!Jwks::is_asymmetric(&set.keys[0]));
     }
 
     #[test]
