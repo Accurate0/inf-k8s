@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: login-bruteforce
+enabled: dry-run
+window: 6h
+duration: 24h
+reason: "automatic: credential stuffing against authentication endpoints"
+candidates: |
+  topk({{limit}}, sum by (client_ip) (count_over_time({{access_selector}} | response_code >= 401 | response_code <= 403 {{re_xff}} [{{window}}])))
+signals:
+  auth_failures: |
+    sum(count_over_time({{access_selector}} {{prefilter}} | response_code >= 401 | response_code <= 403 {{re_xff}} {{exact_client}} {{fmt_path}} | path =~ `(?i).*(login|signin|sign-in|oauth|/auth|wp-login).*` [{{window}}]))
+when:
+  all:
+    - type: signal
+      name: auth_failures
+      min: 150
+    - type: detections
+      min: 1

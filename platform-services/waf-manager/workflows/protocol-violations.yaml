@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: protocol-violations
+enabled: dry-run
+window: 6h
+duration: 24h
+reason: "automatic: repeated HTTP protocol violations"
+signals:
+  protocol_rules: |
+    sum(count_over_time({{selector}} {{prefilter}} {{parse}} {{re_client}} {{exact_client}} {{re_id}} | rule_id =~ `92[01]\d+` [{{window}}]))
+when:
+  type: signal
+  name: protocol_rules
+  min: 20

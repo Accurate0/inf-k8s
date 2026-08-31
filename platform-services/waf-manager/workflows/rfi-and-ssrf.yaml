@@ -1,0 +1,28 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: rfi-and-ssrf
+enabled: dry-run
+window: 6h
+duration: forever
+reason: "automatic: remote file inclusion, SSRF or open-proxy abuse"
+signals:
+  rfi_rules: |
+    sum(count_over_time({{selector}} {{prefilter}} {{parse}} {{re_client}} {{exact_client}} {{re_id}} | rule_id =~ `931\d+` [{{window}}]))
+when:
+  any:
+    - type: signal
+      name: rfi_rules
+      min: 3
+    - type: uri_matches
+      mode: contains
+      patterns:
+        - "169.254.169.254"
+        - "/latest/meta-data"
+        - "/computeMetadata"
+        - "/metadata/identity/oauth2"
+      min_count: 1
+    - type: uri_matches
+      mode: prefix
+      patterns:
+        - "http://"
+        - "https://"
+      min_count: 1

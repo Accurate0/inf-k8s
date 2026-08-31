@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: php-injection
+enabled: dry-run
+window: 6h
+duration: 30d
+reason: "automatic: PHP injection attempts against a cluster that serves no PHP"
+signals:
+  php_rules: |
+    sum(count_over_time({{selector}} {{prefilter}} {{parse}} {{re_client}} {{exact_client}} {{re_id}} | rule_id =~ `933\d+` [{{window}}]))
+when:
+  type: signal
+  name: php_rules
+  min: 5

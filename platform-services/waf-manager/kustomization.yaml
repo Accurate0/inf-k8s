@@ -19,6 +19,14 @@ configMapGenerator:
       - workflows/directory-bruteforce.yaml
       - workflows/high-volume-scanner.yaml
       - workflows/broad-rule-fanout.yaml
+      - workflows/sql-injection.yaml
+      - workflows/xss-attempts.yaml
+      - workflows/php-injection.yaml
+      - workflows/rfi-and-ssrf.yaml
+      - workflows/protocol-violations.yaml
+      - workflows/iot-router-cve-probes.yaml
+      - workflows/cloud-and-ci-secret-probes.yaml
+      - workflows/login-bruteforce.yaml
   - name: waf-manager-dashboard
     namespace: waf-manager
     files:

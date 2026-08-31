@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: sql-injection
+enabled: dry-run
+window: 6h
+duration: 7d
+reason: "automatic: sustained SQL injection attempts"
+signals:
+  sqli_rules: |
+    sum(count_over_time({{selector}} {{prefilter}} {{parse}} {{re_client}} {{exact_client}} {{re_id}} | rule_id =~ `942\d+` [{{window}}]))
+when:
+  type: signal
+  name: sqli_rules
+  min: 10

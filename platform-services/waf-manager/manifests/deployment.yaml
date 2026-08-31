@@ -135,3 +135,19 @@ spec:
                 path: workflows/high-volume-scanner.yaml
               - key: broad-rule-fanout.yaml
                 path: workflows/broad-rule-fanout.yaml
+              - key: sql-injection.yaml
+                path: workflows/sql-injection.yaml
+              - key: xss-attempts.yaml
+                path: workflows/xss-attempts.yaml
+              - key: php-injection.yaml
+                path: workflows/php-injection.yaml
+              - key: rfi-and-ssrf.yaml
+                path: workflows/rfi-and-ssrf.yaml
+              - key: protocol-violations.yaml
+                path: workflows/protocol-violations.yaml
+              - key: iot-router-cve-probes.yaml
+                path: workflows/iot-router-cve-probes.yaml
+              - key: cloud-and-ci-secret-probes.yaml
+                path: workflows/cloud-and-ci-secret-probes.yaml
+              - key: login-bruteforce.yaml
+                path: workflows/login-bruteforce.yaml

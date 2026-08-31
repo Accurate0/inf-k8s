@@ -44,3 +44,11 @@ workflows:
   - !include workflows/directory-bruteforce.yaml
   - !include workflows/high-volume-scanner.yaml
   - !include workflows/broad-rule-fanout.yaml
+  - !include workflows/sql-injection.yaml
+  - !include workflows/xss-attempts.yaml
+  - !include workflows/php-injection.yaml
+  - !include workflows/rfi-and-ssrf.yaml
+  - !include workflows/protocol-violations.yaml
+  - !include workflows/iot-router-cve-probes.yaml
+  - !include workflows/cloud-and-ci-secret-probes.yaml
+  - !include workflows/login-bruteforce.yaml
