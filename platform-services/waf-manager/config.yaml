@@ -8,7 +8,6 @@ ignored_rule_ids:
   - "949110"
   - "949111"
   - "200002"
-  - "920420"
 manual_unblock_cooldown: 7d
 never_block:
   - 100.64.0.0/10
