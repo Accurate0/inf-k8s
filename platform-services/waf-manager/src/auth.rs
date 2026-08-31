@@ -1,5 +1,7 @@
 use crate::error::{Error, Result};
 use crate::metrics::Metrics;
+use base64::Engine;
+use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use jsonwebtoken::jwk::{AlgorithmParameters, Jwk, JwkSet};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
@@ -139,6 +141,29 @@ impl Jwks {
         Ok(count)
     }
 
+    pub async fn self_check(&self) -> Result<()> {
+        let Some((kid, key)) = self.any_key().await else {
+            return Err(Error::Jwks("no keys loaded for self check".to_string()));
+        };
+
+        let alg = key.alg.unwrap_or(Algorithm::RS256);
+        let header = URL_SAFE_NO_PAD.encode(format!(r#"{{"alg":"{alg:?}","kid":"{kid}"}}"#));
+        let payload = URL_SAFE_NO_PAD.encode(r#"{"sub":"self-check"}"#);
+        let signature = URL_SAFE_NO_PAD.encode([0u8; 64]);
+
+        match self
+            .verify(&format!("{header}.{payload}.{signature}"))
+            .await
+        {
+            Err(Error::Unauthorized(_)) => Ok(()),
+            Ok(_) => Err(Error::Jwks(
+                "self check token was accepted, verification is not enforcing signatures"
+                    .to_string(),
+            )),
+            Err(e) => Err(e),
+        }
+    }
+
     pub async fn run(self, interval: std::time::Duration) {
         let mut ticker = tokio::time::interval(interval);
 
@@ -193,6 +218,13 @@ impl Jwks {
                 | AlgorithmParameters::EllipticCurve(_)
                 | AlgorithmParameters::OctetKeyPair(_)
         )
+    }
+
+    async fn any_key(&self) -> Option<(String, VerifyingKey)> {
+        let keys = self.inner.keys.read().await;
+        keys.iter()
+            .next()
+            .map(|(kid, key)| (kid.clone(), key.clone()))
     }
 
     async fn key(&self, kid: &str) -> Option<VerifyingKey> {
@@ -288,6 +320,28 @@ mod tests {
         let err = jwks.verify(&token).await.unwrap_err();
 
         assert!(matches!(err, Error::Unauthorized(_)), "got {err:?}");
+    }
+
+    #[tokio::test]
+    async fn self_check_exercises_signature_verification() {
+        let set: JwkSet = serde_json::from_str(
+            r#"{"keys":[{"kty":"EC","crv":"P-256",
+                "x":"pHzGsnQ1iSPTB2OE7sx7lrMcHHmwFvXPN5SBtWaS7w0",
+                "y":"YT5H7NQ9WvpxyWcEoWSwv5lEsbswWUHZCHJiY1OYSLE",
+                "alg":"ES256","use":"sig","kid":"495e009e846e"}]}"#,
+        )
+        .unwrap();
+
+        let jwks = Jwks::new("https://example.test/jwks", "https://example.test", None);
+        jwks.inner.keys.write().await.insert(
+            "495e009e846e".to_string(),
+            VerifyingKey {
+                key: DecodingKey::from_jwk(&set.keys[0]).unwrap(),
+                alg: Some(Algorithm::ES256),
+            },
+        );
+
+        jwks.self_check().await.unwrap();
     }
 
     #[tokio::test]

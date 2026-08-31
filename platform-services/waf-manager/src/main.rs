@@ -104,6 +104,12 @@ async fn main() -> Result<()> {
 
     let jwks = match (Jwks::from_env(), std::env::var(INSECURE_NO_AUTH).is_ok()) {
         (Some(jwks), _) => {
+            jwks.refresh().await.expect("initial jwks refresh failed");
+
+            jwks.self_check()
+                .await
+                .expect("jwks self check failed, refusing to serve");
+
             tokio::spawn(jwks.clone().run(JWKS_REFRESH));
             Some(jwks)
         }
