@@ -16,8 +16,9 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "value", "graphMode": "none" },
       "targets": [
-        { "refId": "A", "expr": "sum by (origin) (waf_manager_blocks_by_origin)", "legendFormat": "{{origin}}" }
+        { "refId": "A", "instant": true, "expr": "sum by (origin) (waf_manager_blocks_by_origin)", "legendFormat": "{{origin}}" }
       ]
     },
     {
@@ -27,8 +28,9 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 6, "w": 6, "x": 6, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "value", "graphMode": "none" },
       "targets": [
-        { "refId": "A", "expr": "sum by (mode) (waf_manager_workflows)", "legendFormat": "{{mode}}" }
+        { "refId": "A", "instant": true, "expr": "sum by (mode) (waf_manager_workflows)", "legendFormat": "{{mode}}" }
       ]
     },
     {
@@ -38,8 +40,9 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 6, "w": 6, "x": 12, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "value", "graphMode": "none" },
       "targets": [
-        { "refId": "A", "expr": "waf_manager_allowlist_entries", "legendFormat": "{{source}}" }
+        { "refId": "A", "instant": true, "expr": "waf_manager_allowlist_entries", "legendFormat": "{{source}}" }
       ]
     },
     {
@@ -49,8 +52,9 @@
       "datasource": { "type": "prometheus", "uid": "prometheus" },
       "gridPos": { "h": 6, "w": 6, "x": 18, "y": 0 },
       "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false }, "orientation": "horizontal", "textMode": "value_and_name", "colorMode": "value", "graphMode": "none" },
       "targets": [
-        { "refId": "A", "expr": "sum(waf_manager_suppressions)", "legendFormat": "suppressed" }
+        { "refId": "A", "instant": true, "expr": "sum(waf_manager_suppressions)", "legendFormat": "suppressed" }
       ]
     },
     {
@@ -132,7 +136,62 @@
       "targets": [
         { "refId": "A", "expr": "sum by (status) (rate(waf_manager_syncs_total[5m])) * 60", "legendFormat": "syncs/min ({{status}})" },
         { "refId": "B", "expr": "sum(waf_manager_policy_conflicts)", "legendFormat": "policy conflicts" },
-        { "refId": "C", "expr": "waf_manager_workflow_run_seconds", "legendFormat": "workflow run seconds" }
+        { "refId": "C", "expr": "waf_manager_workflow_run_seconds", "legendFormat": "workflow run seconds" },
+        { "refId": "D", "expr": "sum by (gateway) (rate(waf_manager_blocks_dropped_total[5m])) * 60", "legendFormat": "blocks dropped/min ({{gateway}})" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Blocklist compaction",
+      "description": "Blocked CIDRs before and after lossless aggregation. Aggregation only merges adjacent siblings and absorbs subsets, so the two lines cover exactly the same addresses. A flat gap means the blocklist is scattered single hosts and cannot be compacted.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 30 },
+      "fieldConfig": {
+        "defaults": { "unit": "short" },
+        "overrides": [
+          {
+            "matcher": { "id": "byRegexp", "options": ".*compaction$" },
+            "properties": [
+              { "id": "unit", "value": "percent" },
+              { "id": "custom.axisPlacement", "value": "right" },
+              { "id": "custom.axisLabel", "value": "compaction" },
+              { "id": "max", "value": 100 },
+              { "id": "min", "value": 0 }
+            ]
+          }
+        ]
+      },
+      "targets": [
+        { "refId": "A", "expr": "sum by (gateway) (waf_manager_blocklist_pre_aggregation_cidrs)", "legendFormat": "{{gateway}} before" },
+        { "refId": "B", "expr": "sum by (gateway) (waf_manager_blocklist_cidrs)", "legendFormat": "{{gateway}} after" },
+        { "refId": "C", "expr": "sum by (gateway) (waf_manager_blocklist_pre_aggregation_cidrs - waf_manager_blocklist_cidrs)", "legendFormat": "{{gateway}} merged away" },
+        { "refId": "D", "expr": "100 * (1 - sum by (gateway) (waf_manager_blocklist_cidrs) / sum by (gateway) (waf_manager_blocklist_pre_aggregation_cidrs > 0))", "legendFormat": "{{gateway}} compaction" }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "SecurityPolicy blocklist size",
+      "description": "Serialized size of the clientCIDRs list in the compiled SecurityPolicy, after aggregation. This is the dominant term in the object stored in etcd, which is hard-capped at 1.5 MiB; the full object is larger because server-side apply mirrors the same list into managedFields. Envoy Gateway also expands this list into the RBAC filter of every attached route.",
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 30 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "custom": { "fillOpacity": 10 },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 393216 },
+              { "color": "red", "value": 786432 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "tooltip": { "mode": "multi", "sort": "desc" } },
+      "targets": [
+        { "refId": "A", "expr": "sum by (gateway) (waf_manager_blocklist_bytes)", "legendFormat": "{{gateway}}" }
       ]
     },
     {
@@ -140,7 +199,7 @@
       "title": "waf-manager log",
       "description": "Blocks created, dry-run decisions, allowlist refreshes and reload failures.",
       "datasource": { "type": "loki", "uid": "loki" },
-      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 30 },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 38 },
       "options": {
         "showTime": true,
         "wrapLogMessage": true,

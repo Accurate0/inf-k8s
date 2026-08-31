@@ -255,8 +255,14 @@ impl Routes {
         })
     }
 
-    async fn workflows(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
+    async fn workflows(
+        State(state): State<Arc<AppState>>,
+        Query(query): Query<WorkflowsQuery>,
+    ) -> Result<Html<String>, AppError> {
         let config = state.engine.config();
+        let selected = Some(query.workflow.trim())
+            .filter(|name| !name.is_empty())
+            .map(str::to_string);
         let rows = config
             .workflows
             .iter()
@@ -274,7 +280,8 @@ impl Routes {
 
         Self::render(WorkflowsTemplate {
             rows,
-            decisions: state.engine.decisions().await?,
+            decisions: state.engine.decisions(selected.as_deref()).await?,
+            selected,
             cooldown: config.manual_unblock_cooldown.to_string(),
             protected: Self::protected_rows(&state.ctx.allowlist.entries().await),
         })
@@ -524,8 +531,15 @@ pub struct WorkflowRow {
 struct WorkflowsTemplate {
     rows: Vec<WorkflowRow>,
     decisions: Vec<Decision>,
+    selected: Option<String>,
     cooldown: String,
     protected: Vec<ProtectedRow>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct WorkflowsQuery {
+    #[serde(default)]
+    pub workflow: String,
 }
 
 pub struct ProtectedRow {
@@ -570,6 +584,70 @@ mod tests {
 
     fn parse(body: &str) -> BlockForm {
         serde_urlencoded::from_str(body).expect(body)
+    }
+
+    fn decision(workflow: &str, cidr: &str, mode: &str) -> Decision {
+        Decision {
+            at: chrono::Utc::now(),
+            workflow: workflow.to_string(),
+            cidr: cidr.to_string(),
+            detections: 7,
+            mode: mode.to_string(),
+            outcome: "would block".to_string(),
+        }
+    }
+
+    fn workflows_page(selected: Option<&str>, decisions: Vec<Decision>) -> String {
+        WorkflowsTemplate {
+            rows: vec![WorkflowRow {
+                name: "scanner burst".to_string(),
+                enabled: "dry-run",
+                tier: "standard",
+                window: "12h".to_string(),
+                duration: "24h".to_string(),
+                gateway: "public-gateway".to_string(),
+                reason: "burst".to_string(),
+                signals: String::new(),
+            }],
+            decisions,
+            selected: selected.map(str::to_string),
+            cooldown: "24h".to_string(),
+            protected: Vec::new(),
+        }
+        .render()
+        .unwrap()
+    }
+
+    #[test]
+    fn workflow_names_link_to_their_own_decisions() {
+        let page = workflows_page(None, Vec::new());
+
+        assert!(page.contains(r#"href="/workflows?workflow=scanner%20burst#decisions""#));
+        assert!(page.contains("Click a workflow name above"));
+    }
+
+    #[test]
+    fn a_selected_workflow_keeps_its_dry_run_decisions() {
+        let page = workflows_page(
+            Some("scanner burst"),
+            vec![
+                decision("scanner burst", "203.0.113.4/32", "dry-run"),
+                decision("scanner burst", "203.0.113.5/32", "active"),
+            ],
+        );
+
+        assert!(page.contains("dry-run decisions included"));
+        assert!(page.contains("Show all workflows"));
+        assert!(page.contains("203.0.113.4/32"));
+        assert!(page.contains("203.0.113.5/32"));
+    }
+
+    #[test]
+    fn a_selected_workflow_with_no_decisions_says_so() {
+        let page = workflows_page(Some("scanner burst"), Vec::new());
+
+        assert!(page.contains("has not decided anything yet"));
+        assert!(!page.contains("Nothing decided since this pod started"));
     }
 
     #[test]

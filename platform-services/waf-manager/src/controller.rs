@@ -166,7 +166,9 @@ impl Context {
 
         for gateway in gateways {
             let compositor = Compositor::new(&gateway);
-            let cidrs = compositor.active_cidrs(&blocks, now, &protected, self.max_blocklist_cidrs);
+            let blocklist =
+                compositor.active_cidrs(&blocks, now, &protected, self.max_blocklist_cidrs);
+            let cidrs = blocklist.cidrs;
             let for_gateway: Vec<WafPolicy> = policies
                 .iter()
                 .filter(|p| p.spec.gateway == gateway)
@@ -183,6 +185,7 @@ impl Context {
 
             Metrics::set_active_blocks(&gateway, cidrs.len());
             Metrics::set_blocklist_size(&gateway, cidrs.len(), Self::blocklist_bytes(&cidrs));
+            Metrics::set_blocklist_pre_aggregation(&gateway, blocklist.raw);
             all_conflicts.extend(compiled.conflicts);
         }
 

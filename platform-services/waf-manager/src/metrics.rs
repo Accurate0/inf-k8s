@@ -31,6 +31,11 @@ impl Metrics {
         gauge!("waf_manager_blocklist_bytes", "gateway" => gateway.to_owned()).set(bytes as f64);
     }
 
+    pub fn set_blocklist_pre_aggregation(gateway: &str, count: usize) {
+        gauge!("waf_manager_blocklist_pre_aggregation_cidrs", "gateway" => gateway.to_owned())
+            .set(count as f64);
+    }
+
     pub fn record_blocks_dropped(gateway: &str, count: usize) {
         counter!("waf_manager_blocks_dropped_total", "gateway" => gateway.to_owned())
             .increment(count as u64);

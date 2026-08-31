@@ -22,6 +22,13 @@ pub struct Conflict {
     pub message: String,
 }
 
+#[derive(Debug, Clone)]
+pub struct Blocklist {
+    pub cidrs: Vec<IpNet>,
+
+    pub raw: usize,
+}
+
 pub struct Compositor {
     gateway: String,
 }
@@ -207,7 +214,7 @@ impl Compositor {
         now: chrono::DateTime<chrono::Utc>,
         protected: &[(IpNet, String)],
         max: usize,
-    ) -> Vec<IpNet> {
+    ) -> Blocklist {
         let mut eligible: Vec<&WafBlock> = blocks
             .iter()
             .filter(|block| block.spec.gateway == self.gateway)
@@ -220,7 +227,7 @@ impl Compositor {
                 .then_with(|| a.name_any().cmp(&b.name_any()))
         });
 
-        let mut cidrs: Vec<IpNet> = eligible
+        let cidrs: Vec<IpNet> = eligible
             .into_iter()
             .filter_map(|block| crate::allowlist::Allowlist::parse_cidr(&block.spec.cidr).ok())
             .filter(|net| {
@@ -233,21 +240,44 @@ impl Compositor {
             })
             .collect();
 
-        if cidrs.len() > max {
-            let dropped = cidrs.len() - max;
+        let raw = cidrs.len();
+        let aggregated = IpNet::aggregate(&cidrs);
 
-            tracing::error!(
+        if aggregated.len() < raw {
+            tracing::info!(
                 gateway = self.gateway,
-                "blocklist holds {} cidrs, over the {max} cap; \
-                 dropping the {dropped} oldest from the policy",
-                cidrs.len()
+                raw,
+                aggregated = aggregated.len(),
+                merged = raw - aggregated.len(),
+                "aggregated blocklist"
             );
-
-            crate::metrics::Metrics::record_blocks_dropped(&self.gateway, dropped);
-            cidrs.truncate(max);
         }
 
-        cidrs
+        if aggregated.len() <= max {
+            return Blocklist {
+                cidrs: aggregated,
+                raw,
+            };
+        }
+
+        let dropped = raw - max;
+
+        tracing::error!(
+            gateway = self.gateway,
+            "blocklist holds {raw} cidrs ({} after aggregation), over the {max} cap; \
+             dropping the {dropped} oldest from the policy",
+            aggregated.len()
+        );
+
+        crate::metrics::Metrics::record_blocks_dropped(&self.gateway, dropped);
+
+        let mut capped = cidrs;
+        capped.truncate(max);
+
+        Blocklist {
+            cidrs: IpNet::aggregate(&capped),
+            raw,
+        }
     }
 }
 
@@ -465,12 +495,9 @@ mod tests {
 
         let keep = block("keep", "203.0.113.4");
 
-        let cidrs = Compositor::new("public-gateway").active_cidrs(
-            &[other, expired, keep],
-            now,
-            &[],
-            usize::MAX,
-        );
+        let cidrs = Compositor::new("public-gateway")
+            .active_cidrs(&[other, expired, keep], now, &[], usize::MAX)
+            .cidrs;
 
         assert_eq!(cidrs.len(), 1);
         assert_eq!(cidrs[0].to_string(), "203.0.113.4/32");
@@ -484,12 +511,9 @@ mod tests {
         let stale = block("stale", "140.82.115.33");
         let keep = block("keep", "203.0.113.4");
 
-        let cidrs = Compositor::new("public-gateway").active_cidrs(
-            &[stale, keep],
-            now,
-            &protected,
-            usize::MAX,
-        );
+        let cidrs = Compositor::new("public-gateway")
+            .active_cidrs(&[stale, keep], now, &protected, usize::MAX)
+            .cidrs;
 
         assert_eq!(cidrs.len(), 1);
         assert_eq!(cidrs[0].to_string(), "203.0.113.4/32");
@@ -499,14 +523,113 @@ mod tests {
     fn active_cidrs_caps_the_blocklist_at_the_configured_maximum() {
         let now = chrono::Utc::now();
         let blocks: Vec<WafBlock> = (0..10)
-            .map(|i| block(&format!("b{i}"), &format!("203.0.113.{i}")))
+            .map(|i| block(&format!("b{i}"), &format!("203.0.113.{}", i * 4)))
             .collect();
 
         let capped = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 4);
-        assert_eq!(capped.len(), 4);
+        assert_eq!(capped.cidrs.len(), 4);
+        assert_eq!(capped.raw, 10);
 
         let uncapped = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 100);
-        assert_eq!(uncapped.len(), 10);
+        assert_eq!(uncapped.cidrs.len(), 10);
+        assert_eq!(uncapped.raw, 10);
+    }
+
+    #[test]
+    fn active_cidrs_merges_adjacent_hosts_into_one_prefix() {
+        let now = chrono::Utc::now();
+        let blocks: Vec<WafBlock> = (4..8)
+            .map(|i| block(&format!("b{i}"), &format!("203.0.113.{i}")))
+            .collect();
+
+        let blocklist = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 100);
+
+        assert_eq!(blocklist.raw, 4);
+        assert_eq!(blocklist.cidrs, vec![net("203.0.113.4/30")]);
+    }
+
+    #[test]
+    fn active_cidrs_absorbs_hosts_covered_by_a_wider_block() {
+        let now = chrono::Utc::now();
+        let blocks = vec![
+            block("wide", "203.0.113.0/24"),
+            block("host", "203.0.113.9"),
+            block("elsewhere", "198.51.100.7"),
+        ];
+
+        let blocklist = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 100);
+
+        assert_eq!(blocklist.raw, 3);
+        assert_eq!(
+            blocklist.cidrs,
+            vec![net("198.51.100.7/32"), net("203.0.113.0/24")]
+        );
+    }
+
+    #[test]
+    fn active_cidrs_aggregates_each_address_family_separately() {
+        let now = chrono::Utc::now();
+        let blocks = vec![
+            block("v4a", "203.0.113.4"),
+            block("v4b", "203.0.113.5"),
+            block("v6a", "2001:db8::/33"),
+            block("v6b", "2001:db8:8000::/33"),
+        ];
+
+        let blocklist = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 100);
+
+        assert_eq!(blocklist.raw, 4);
+        assert_eq!(
+            blocklist.cidrs,
+            vec![net("203.0.113.4/31"), net("2001:db8::/32")]
+        );
+    }
+
+    #[test]
+    fn active_cidrs_never_merges_across_a_protected_address() {
+        let now = chrono::Utc::now();
+        let protected = crate::allowlist::Allowlist::parse_list("203.0.113.6/32", "never_block");
+        let blocks: Vec<WafBlock> = (4..8)
+            .map(|i| block(&format!("b{i}"), &format!("203.0.113.{i}")))
+            .collect();
+
+        let blocklist =
+            Compositor::new("public-gateway").active_cidrs(&blocks, now, &protected, 100);
+
+        assert_eq!(blocklist.raw, 3);
+        assert_eq!(
+            blocklist.cidrs,
+            vec![net("203.0.113.4/31"), net("203.0.113.7/32")]
+        );
+    }
+
+    #[test]
+    fn active_cidrs_over_the_cap_still_drops_the_oldest_blocks() {
+        let now = chrono::Utc::now();
+        let blocks: Vec<WafBlock> = (0..10)
+            .map(|i| {
+                use kube::Resource;
+
+                let mut b = block(&format!("b{i}"), &format!("203.0.113.{}", i * 4));
+                let at = k8s_openapi::jiff::Timestamp::from_second(1_000_000 - i * 60).unwrap();
+
+                b.meta_mut().creation_timestamp =
+                    Some(k8s_openapi::apimachinery::pkg::apis::meta::v1::Time(at));
+                b
+            })
+            .collect();
+
+        let blocklist = Compositor::new("public-gateway").active_cidrs(&blocks, now, &[], 3);
+
+        assert_eq!(blocklist.raw, 10);
+        assert_eq!(
+            blocklist.cidrs,
+            vec![
+                net("203.0.113.0/32"),
+                net("203.0.113.4/32"),
+                net("203.0.113.8/32")
+            ]
+        );
     }
 
     #[test]

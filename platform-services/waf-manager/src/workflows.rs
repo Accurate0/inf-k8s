@@ -187,11 +187,13 @@ impl WorkflowEngine {
         self.inner.offenses.all().await
     }
 
-    pub async fn decisions(&self) -> Result<Vec<Decision>> {
+    pub async fn decisions(&self, workflow: Option<&str>) -> Result<Vec<Decision>> {
         let rows = sqlx::query!(
             "select at, workflow, cidr, detections, mode, outcome
-             from decisions order by at desc, id desc limit $1",
+             from decisions where ($2::text is null or workflow = $2)
+             order by at desc, id desc limit $1",
             DECISION_PAGE_SIZE,
+            workflow,
         )
         .fetch_all(&self.inner.pool)
         .await?;

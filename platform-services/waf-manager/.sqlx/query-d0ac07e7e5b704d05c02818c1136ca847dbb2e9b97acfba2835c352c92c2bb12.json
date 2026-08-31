@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "select at, workflow, cidr, detections, mode, outcome\n             from decisions order by at desc, id desc limit $1",
+  "query": "select at, workflow, cidr, detections, mode, outcome\n             from decisions where ($2::text is null or workflow = $2)\n             order by at desc, id desc limit $1",
   "describe": {
     "columns": [
       {
@@ -72,7 +72,8 @@
     ],
     "parameters": {
       "Left": [
-        "Int8"
+        "Int8",
+        "Text"
       ]
     },
     "nullable": [
@@ -84,5 +85,5 @@
       false
     ]
   },
-  "hash": "722c2b926aee8abe4878532f92c7dfea508c10d042367a3a24df6839686635fa"
+  "hash": "d0ac07e7e5b704d05c02818c1136ca847dbb2e9b97acfba2835c352c92c2bb12"
 }

@@ -28,7 +28,7 @@
     <tbody>
     {% for row in rows %}
         <tr>
-            <td><code>{{ row.name }}</code></td>
+            <td><a href="/workflows?workflow={{ row.name|urlencode_strict }}#decisions"><code>{{ row.name }}</code></a></td>
             <td><span class="badge {{ row.enabled }}">{{ row.enabled }}</span></td>
             <td>{{ row.tier }}</td>
             <td>{{ row.window }}</td>
@@ -67,10 +67,23 @@
     </tbody>
 </table>
 
-<h2>Recent decisions</h2>
+<h2 id="decisions">Recent decisions</h2>
+
+{% match selected %}
+{% when Some with (name) %}
+<p class="muted">Showing <code>{{ name }}</code> only, dry-run decisions included.
+   <a href="/workflows#decisions">Show all workflows</a>.</p>
+{% when None %}
+<p class="muted">Every workflow. Click a workflow name above to see just its decisions.</p>
+{% endmatch %}
 
 {% if decisions.is_empty() %}
+{% match selected %}
+{% when Some with (name) %}
+<p class="muted"><code>{{ name }}</code> has not decided anything yet.</p>
+{% when None %}
 <p class="muted">Nothing decided since this pod started.</p>
+{% endmatch %}
 {% else %}
 <table>
     <thead>
