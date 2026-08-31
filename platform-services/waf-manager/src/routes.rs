@@ -12,14 +12,20 @@ use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use tokio::sync::watch;
+use waf_manager::audit;
 use waf_manager::compositor::Conflict;
 use waf_manager::controller::Context;
 use waf_manager::crd::{WafBlock, WafBlockSpec};
 use waf_manager::metrics::Metrics;
-use waf_manager::workflows::{Decision, WORKFLOW_AUTHOR_PREFIX};
-use waf_manager::{Claims, Error, Jwks, Loki, WorkflowEngine};
+use waf_manager::workflows::{Decision, Scorecard, WORKFLOW_AUTHOR_PREFIX};
+use waf_manager::{
+    Allowlist, Audit, Claims, Enricher, Enrichment, Error, Jwks, Loki, ManualAllowlist,
+    ManualEntry, WorkflowEngine,
+};
 
 const BLOCK_PAGE_SIZE: usize = 100;
+const AUDIT_PAGE_SIZE: i64 = 100;
+const IP_HISTORY_LIMIT: i64 = 20;
 
 pub struct AppState {
     pub ctx: Arc<Context>,
@@ -27,6 +33,9 @@ pub struct AppState {
     pub engine: Arc<WorkflowEngine>,
     pub leadership: watch::Receiver<bool>,
     pub jwks: Option<Jwks>,
+    pub audit: Audit,
+    pub manual: ManualAllowlist,
+    pub enricher: Option<Enricher>,
 }
 
 impl AppState {
@@ -52,8 +61,11 @@ impl Routes {
             .route("/blocks", get(Self::blocks))
             .route("/workflows", get(Self::workflows))
             .route("/ip/{addr}", get(Self::ip_detail))
+            .route("/audit", get(Self::audit))
             .route("/block", post(Self::create_block))
             .route("/unblock", post(Self::delete_block))
+            .route("/allowlist", post(Self::create_allowlist))
+            .route("/allowlist/delete", post(Self::delete_allowlist))
             .layer(from_fn_with_state(state.clone(), Self::authenticate))
             .with_state(state);
 
@@ -183,39 +195,7 @@ impl Routes {
 
         let rows: Vec<BlockRow> = blocks
             .into_iter()
-            .map(|b| BlockRow {
-                strikes: b
-                    .spec
-                    .cidr
-                    .parse::<IpNet>()
-                    .ok()
-                    .and_then(|net| strikes.get(&net.to_string()).copied())
-                    .unwrap_or(0),
-                name: b.name_any(),
-                cidr: b.spec.cidr.clone(),
-                gateway: b.spec.gateway.clone(),
-                reason: b.spec.reason.clone().unwrap_or_default(),
-                created_at: b
-                    .creation_timestamp()
-                    .map(|t| t.0.to_string())
-                    .unwrap_or_default(),
-                automatic: b
-                    .spec
-                    .created_by
-                    .as_deref()
-                    .is_some_and(|by| by.starts_with(WORKFLOW_AUTHOR_PREFIX)),
-                created_by: b.spec.created_by.clone().unwrap_or_default(),
-                expires_at: b.spec.expires_at.clone().unwrap_or_default(),
-                enforced: b
-                    .status
-                    .as_ref()
-                    .map(|s| {
-                        s.conditions
-                            .iter()
-                            .any(|c| c.type_ == "Enforced" && c.status == "True")
-                    })
-                    .unwrap_or(false),
-            })
+            .map(|b| BlockRow::new(b, &strikes))
             .collect();
 
         let shown = offset + rows.len();
@@ -235,12 +215,33 @@ impl Routes {
         State(state): State<Arc<AppState>>,
         Path(addr): Path<String>,
     ) -> Result<Html<String>, AppError> {
-        let rules = state.loki.rules_for_ip(&addr, &state.window()).await?;
-        let lines = state.loki.recent_lines(&addr, &state.window(), 100).await?;
+        let window = state.window();
+        let net = Allowlist::parse_cidr(&addr)?;
+        let cidr = net.to_string();
+
+        let rules = state.loki.rules_for_ip(&addr, &window).await?;
+        let uris = state.loki.uris_for_ip(&addr, &window).await?;
+        let lines = state.loki.recent_lines(&addr, &window, 100).await?;
+
+        let protected = state.ctx.allowlist.entries().await;
+        let block = Self::block_for(&state, &net).await?;
+
+        let enrichment = match &state.enricher {
+            Some(enricher) => Some(enricher.lookup(net.addr()).await),
+            None => None,
+        };
 
         Self::render(IpTemplate {
             client_ip: addr,
             window: state.window_label(),
+            strikes: state.engine.strikes(&net).await.unwrap_or(0),
+            protected: Allowlist::matching(&protected, &net)
+                .map(|(range, source)| format!("{range} ({source})")),
+            block,
+            decisions: state.engine.decisions_for(&cidr).await?,
+            audit: state.audit.for_target(&cidr, IP_HISTORY_LIMIT).await?,
+            enrichment,
+            cidr,
             rules: rules
                 .into_iter()
                 .map(|r| RuleRow {
@@ -251,7 +252,46 @@ impl Routes {
                     count: r.count,
                 })
                 .collect(),
+            uris,
             lines,
+        })
+    }
+
+    async fn block_for(state: &AppState, net: &IpNet) -> Result<Option<BlockRow>, AppError> {
+        let blocks = state
+            .ctx
+            .blocks()
+            .list(&ListParams::default())
+            .await
+            .map_err(Error::from)?
+            .items;
+
+        let strikes = state.engine.all_strikes().await.unwrap_or_default();
+
+        Ok(blocks
+            .into_iter()
+            .find(|b| {
+                b.spec
+                    .cidr
+                    .parse::<IpNet>()
+                    .is_ok_and(|blocked| blocked.contains(net))
+            })
+            .map(|b| BlockRow::new(b, &strikes)))
+    }
+
+    async fn audit(
+        State(state): State<Arc<AppState>>,
+        Query(page): Query<AuditQuery>,
+    ) -> Result<Html<String>, AppError> {
+        let offset = page.offset.max(0);
+        let (entries, total) = state.audit.recent(AUDIT_PAGE_SIZE, offset).await?;
+        let shown = offset + entries.len() as i64;
+
+        Self::render(AuditTemplate {
+            entries,
+            total,
+            newer: (offset > 0).then(|| (offset - AUDIT_PAGE_SIZE).max(0)),
+            older: (shown < total).then_some(shown),
         })
     }
 
@@ -280,10 +320,12 @@ impl Routes {
 
         Self::render(WorkflowsTemplate {
             rows,
+            scorecard: state.engine.scorecard().await?,
             decisions: state.engine.decisions(selected.as_deref()).await?,
             selected,
             cooldown: config.manual_unblock_cooldown.to_string(),
             protected: Self::protected_rows(&state.ctx.allowlist.entries().await),
+            manual: state.manual.list().await?,
         })
     }
 
@@ -348,6 +390,16 @@ impl Routes {
             .await
             .map_err(Error::from)?;
 
+        state
+            .audit
+            .record(
+                &claims.identity(),
+                audit::ACTION_BLOCK,
+                &net.to_string(),
+                block.spec.reason.as_deref(),
+            )
+            .await;
+
         if *state.leadership.borrow() {
             state.ctx.sync_all().await?;
         }
@@ -357,15 +409,27 @@ impl Routes {
 
     async fn delete_block(
         State(state): State<Arc<AppState>>,
+        Extension(claims): Extension<Claims>,
         Form(form): Form<UnblockForm>,
     ) -> Result<Redirect, AppError> {
-        let cidr = state
+        let existing = state
             .ctx
             .blocks()
             .get_opt(&form.name)
             .await
-            .map_err(Error::from)?
+            .map_err(Error::from)?;
+
+        let cidr = existing
+            .as_ref()
             .and_then(|b| b.spec.cidr.parse::<IpNet>().ok());
+
+        let author = existing.as_ref().and_then(|b| {
+            b.spec
+                .created_by
+                .as_deref()
+                .and_then(|by| by.strip_prefix(WORKFLOW_AUTHOR_PREFIX))
+                .map(str::to_string)
+        });
 
         state
             .ctx
@@ -375,6 +439,20 @@ impl Routes {
             .map_err(Error::from)?;
 
         if let Some(net) = cidr {
+            state
+                .audit
+                .record(
+                    &claims.identity(),
+                    audit::ACTION_UNBLOCK,
+                    &net.to_string(),
+                    author.as_deref(),
+                )
+                .await;
+
+            if let Some(workflow) = &author {
+                state.engine.record_unblock(workflow, &net).await;
+            }
+
             if let Err(e) = state.engine.suppress(&net).await {
                 tracing::warn!("recording unblock suppression for {net} failed: {e}");
             }
@@ -389,6 +467,62 @@ impl Routes {
         }
 
         Ok(Redirect::to("/blocks"))
+    }
+
+    async fn create_allowlist(
+        State(state): State<Arc<AppState>>,
+        Extension(claims): Extension<Claims>,
+        Form(form): Form<AllowlistForm>,
+    ) -> Result<Redirect, AppError> {
+        let net = Allowlist::parse_cidr(&form.cidr)?;
+        let blocked = Self::blocked_cidrs(&state).await?;
+
+        if let Some(clash) = blocked
+            .iter()
+            .find(|b| b.contains(&net) || net.contains(*b))
+        {
+            return Err(AppError(Error::AllowlistConflict(
+                net.to_string(),
+                clash.to_string(),
+            )));
+        }
+
+        state
+            .manual
+            .add(&net, form.note.as_deref(), &claims.identity())
+            .await?;
+
+        state
+            .audit
+            .record(
+                &claims.identity(),
+                audit::ACTION_ALLOWLIST_ADD,
+                &net.to_string(),
+                form.note.as_deref(),
+            )
+            .await;
+
+        Ok(Redirect::to("/workflows#allowlist"))
+    }
+
+    async fn delete_allowlist(
+        State(state): State<Arc<AppState>>,
+        Extension(claims): Extension<Claims>,
+        Form(form): Form<AllowlistDeleteForm>,
+    ) -> Result<Redirect, AppError> {
+        state.manual.remove(&form.cidr).await?;
+
+        state
+            .audit
+            .record(
+                &claims.identity(),
+                audit::ACTION_ALLOWLIST_REMOVE,
+                &form.cidr,
+                None,
+            )
+            .await;
+
+        Ok(Redirect::to("/workflows#allowlist"))
     }
 
     async fn blocked_cidrs(state: &AppState) -> Result<Vec<IpNet>, AppError> {
@@ -441,6 +575,18 @@ where
 #[derive(Deserialize)]
 pub struct UnblockForm {
     name: String,
+}
+
+#[derive(Deserialize)]
+pub struct AllowlistForm {
+    cidr: String,
+    #[serde(default, deserialize_with = "blank_as_none")]
+    note: Option<String>,
+}
+
+#[derive(Deserialize)]
+pub struct AllowlistDeleteForm {
+    cidr: String,
 }
 
 pub struct AppError(Error);
@@ -498,6 +644,44 @@ pub struct BlockRow {
     pub strikes: i32,
 }
 
+impl BlockRow {
+    fn new(block: WafBlock, strikes: &BTreeMap<String, i32>) -> Self {
+        Self {
+            strikes: block
+                .spec
+                .cidr
+                .parse::<IpNet>()
+                .ok()
+                .and_then(|net| strikes.get(&net.to_string()).copied())
+                .unwrap_or(0),
+            name: block.name_any(),
+            cidr: block.spec.cidr.clone(),
+            gateway: block.spec.gateway.clone(),
+            reason: block.spec.reason.clone().unwrap_or_default(),
+            created_at: block
+                .creation_timestamp()
+                .map(|t| t.0.to_string())
+                .unwrap_or_default(),
+            automatic: block
+                .spec
+                .created_by
+                .as_deref()
+                .is_some_and(|by| by.starts_with(WORKFLOW_AUTHOR_PREFIX)),
+            created_by: block.spec.created_by.clone().unwrap_or_default(),
+            expires_at: block.spec.expires_at.clone().unwrap_or_default(),
+            enforced: block
+                .status
+                .as_ref()
+                .map(|s| {
+                    s.conditions
+                        .iter()
+                        .any(|c| c.type_ == "Enforced" && c.status == "True")
+                })
+                .unwrap_or(false),
+        }
+    }
+}
+
 pub struct RuleRow {
     pub rule_id: String,
     pub rule_msg: String,
@@ -530,10 +714,12 @@ pub struct WorkflowRow {
 #[template(path = "workflows.html")]
 struct WorkflowsTemplate {
     rows: Vec<WorkflowRow>,
+    scorecard: Vec<Scorecard>,
     decisions: Vec<Decision>,
     selected: Option<String>,
     cooldown: String,
     protected: Vec<ProtectedRow>,
+    manual: Vec<ManualEntry>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -573,9 +759,32 @@ pub struct BlocksQuery {
 #[template(path = "ip.html")]
 struct IpTemplate {
     client_ip: String,
+    cidr: String,
     window: String,
+    strikes: i32,
+    protected: Option<String>,
+    block: Option<BlockRow>,
+    decisions: Vec<Decision>,
+    audit: Vec<waf_manager::audit::Entry>,
+    enrichment: Option<Arc<Enrichment>>,
     rules: Vec<RuleRow>,
+    uris: Vec<waf_manager::UriHit>,
     lines: Vec<String>,
+}
+
+#[derive(Template)]
+#[template(path = "audit.html")]
+struct AuditTemplate {
+    entries: Vec<waf_manager::audit::Entry>,
+    total: i64,
+    newer: Option<i64>,
+    older: Option<i64>,
+}
+
+#[derive(Debug, Default, Deserialize)]
+pub struct AuditQuery {
+    #[serde(default)]
+    pub offset: i64,
 }
 
 #[cfg(test)]
@@ -598,6 +807,15 @@ mod tests {
     }
 
     fn workflows_page(selected: Option<&str>, decisions: Vec<Decision>) -> String {
+        page_with(selected, decisions, Vec::new(), Vec::new())
+    }
+
+    fn page_with(
+        selected: Option<&str>,
+        decisions: Vec<Decision>,
+        scorecard: Vec<Scorecard>,
+        manual: Vec<ManualEntry>,
+    ) -> String {
         WorkflowsTemplate {
             rows: vec![WorkflowRow {
                 name: "scanner burst".to_string(),
@@ -609,10 +827,12 @@ mod tests {
                 reason: "burst".to_string(),
                 signals: String::new(),
             }],
+            scorecard,
             decisions,
             selected: selected.map(str::to_string),
             cooldown: "24h".to_string(),
             protected: Vec::new(),
+            manual,
         }
         .render()
         .unwrap()

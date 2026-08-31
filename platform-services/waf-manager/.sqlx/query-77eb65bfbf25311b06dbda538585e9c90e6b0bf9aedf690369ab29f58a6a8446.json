@@ -1,0 +1,62 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "select cidr, note, created_by, at from allowlist order by cidr",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "cidr",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "allowlist",
+            "name": "cidr"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "note",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "allowlist",
+            "name": "note"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "created_by",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "allowlist",
+            "name": "created_by"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "allowlist",
+            "name": "at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "77eb65bfbf25311b06dbda538585e9c90e6b0bf9aedf690369ab29f58a6a8446"
+}

@@ -1,0 +1,17 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "insert into allowlist (cidr, note, created_by, at) values ($1, $2, $3, $4)\n             on conflict (cidr) do update\n             set note = excluded.note, created_by = excluded.created_by, at = excluded.at",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "e6522424cb93c1d38cefde7d4649f23ec19ae6d2c652161a367220d9c28ed1d1"
+}

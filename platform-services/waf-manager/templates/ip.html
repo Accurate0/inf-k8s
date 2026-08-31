@@ -4,16 +4,96 @@
 
 {% block content %}
 <h1><code>{{ client_ip }}</code></h1>
-<p class="muted">Coraza detections over the last {{ window }}.</p>
 
+<dl class="facts">
+    <div>
+        <dt>Status</dt>
+        <dd>
+            {% match block %}
+            {% when Some with (block) %}
+            <span class="badge blocked">blocked</span>
+            {% when None %}
+            {% match protected %}
+            {% when Some with (range) %}
+            <span class="badge protected">protected</span>
+            {% when None %}
+            <span class="muted">not blocked</span>
+            {% endmatch %}
+            {% endmatch %}
+        </dd>
+    </div>
+    <div>
+        <dt>Strikes</dt>
+        <dd>{{ strikes }}</dd>
+    </div>
+    {% match enrichment %}
+    {% when Some with (facts) %}
+    <div>
+        <dt>Hostname</dt>
+        <dd>{% match facts.hostname %}{% when Some with (name) %}{{ name }}{% when None %}<span class="muted">none</span>{% endmatch %}</dd>
+    </div>
+    <div>
+        <dt>Network</dt>
+        <dd>
+            {% match facts.as_number() %}
+            {% when Some with (asn) %}
+            <code>{{ asn }}</code>
+            {% match facts.org %}{% when Some with (org) %}{{ org }}{% when None %}{% endmatch %}
+            {% when None %}
+            <span class="muted">unavailable</span>
+            {% endmatch %}
+        </dd>
+    </div>
+    <div>
+        <dt>Prefix</dt>
+        <dd>
+            {% match facts.prefix %}{% when Some with (prefix) %}<code>{{ prefix }}</code>{% when None %}<span class="muted">unavailable</span>{% endmatch %}
+            {% match facts.country %}{% when Some with (country) %}{{ country }}{% when None %}{% endmatch %}
+        </dd>
+    </div>
+    {% when None %}
+    <div>
+        <dt>Network</dt>
+        <dd class="muted">enrichment disabled</dd>
+    </div>
+    {% endmatch %}
+</dl>
+
+{% match protected %}
+{% when Some with (range) %}
+<p class="muted">Never blocked: covered by {{ range }}.</p>
+{% when None %}
+{% endmatch %}
+
+{% match block %}
+{% when Some with (block) %}
+<p class="muted">Blocked as <code>{{ block.cidr }}</code> on <code>{{ block.gateway }}</code>
+   by {{ block.created_by }}{% if !block.reason.is_empty() %} &mdash; {{ block.reason }}{% endif %}.
+   {% if !block.expires_at.is_empty() %}Expires {{ block.expires_at }}.{% endif %}
+   {% if block.enforced %}<span class="badge enforced">enforced</span>{% else %}<span class="badge pending">pending</span>{% endif %}</p>
+
+<form class="inline" method="post" action="/unblock">
+    <input type="hidden" name="name" value="{{ block.name }}">
+    <button type="submit">Unblock</button>
+</form>
+{% when None %}
 <form class="inline" method="post" action="/block">
     <input type="hidden" name="cidr" value="{{ client_ip }}">
     <input type="text" name="reason" placeholder="reason" size="32">
     <input type="number" name="ttl_hours" placeholder="ttl h" min="0" size="5">
     <button type="submit">Block this client</button>
 </form>
+{% endmatch %}
+
+<form class="inline" method="post" action="/allowlist">
+    <input type="hidden" name="cidr" value="{{ cidr }}">
+    <input type="text" name="note" placeholder="note" size="24">
+    <button type="submit">Never block</button>
+</form>
 
 <h2>Rules matched</h2>
+<p class="muted">Coraza detections over the last {{ window }}.</p>
+
 {% if rules.is_empty() %}
 <p>No rule matches in this window.</p>
 {% else %}
@@ -23,7 +103,7 @@
             <th>Rule</th>
             <th>Message</th>
             <th>Severity</th>
-            <th>Count</th>
+            <th class="num">Count</th>
         </tr>
     </thead>
     <tbody>
@@ -42,6 +122,85 @@
                 {% endif %}
             </td>
             <td class="num">{{ rule.count }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Paths probed</h2>
+
+{% if uris.is_empty() %}
+<p>No URIs recorded in this window.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>URI</th>
+            <th class="num">Count</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for hit in uris %}
+        <tr>
+            <td><code>{{ hit.uri }}</code></td>
+            <td class="num">{{ hit.count }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Workflow decisions</h2>
+
+{% if decisions.is_empty() %}
+<p class="muted">No workflow has decided anything about this client.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>When</th>
+            <th>Workflow</th>
+            <th class="num">Detections</th>
+            <th>Mode</th>
+            <th>Outcome</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for decision in decisions %}
+        <tr>
+            <td class="nowrap">{{ decision.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true) }}</td>
+            <td><code>{{ decision.workflow }}</code></td>
+            <td class="num">{{ decision.detections }}</td>
+            <td><span class="badge {{ decision.mode }}">{{ decision.mode }}</span></td>
+            <td>{{ decision.outcome }}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<h2>Operator actions</h2>
+
+{% if audit.is_empty() %}
+<p class="muted">Nobody has acted on this client by hand.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>When</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for entry in audit %}
+        <tr>
+            <td class="nowrap">{{ entry.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true) }}</td>
+            <td>{{ entry.actor }}</td>
+            <td><code>{{ entry.action }}</code></td>
+            <td>{% match entry.detail %}{% when Some with (detail) %}{{ detail }}{% when None %}<span class="muted">-</span>{% endmatch %}</td>
         </tr>
     {% endfor %}
     </tbody>

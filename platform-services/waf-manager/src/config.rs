@@ -172,6 +172,9 @@ pub struct WorkflowDef {
     pub reason: String,
 
     #[serde(default)]
+    pub candidate_strategy: CandidateStrategy,
+
+    #[serde(default)]
     pub candidates: Option<Template>,
 
     #[serde(default)]
@@ -273,6 +276,23 @@ impl Tier {
         match self {
             Tier::Fast => "fast",
             Tier::Standard => "standard",
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Deserialize, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CandidateStrategy {
+    #[default]
+    Detections,
+    DistinctRules,
+}
+
+impl CandidateStrategy {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            CandidateStrategy::Detections => "detections",
+            CandidateStrategy::DistinctRules => "distinct_rules",
         }
     }
 }

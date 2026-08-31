@@ -42,7 +42,47 @@
 </table>
 {% endif %}
 
-<h2>Never blocked</h2>
+<h2>Scorecard</h2>
+
+<p class="muted">The last 30 days of decisions. <strong>Agreement</strong> counts CIDRs an
+   <code>active</code> workflow independently decided on too, so a <code>dry-run</code>
+   workflow that mostly agrees is safe to promote. <strong>Unblocked</strong> counts blocks
+   an operator reversed by hand, which is this workflow's false-positive signal.</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Workflow</th>
+            <th>State</th>
+            <th class="num">Decisions</th>
+            <th class="num">CIDRs</th>
+            <th class="num">Agreement</th>
+            <th class="num">Unblocked</th>
+            <th>Verdict</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for card in scorecard %}
+        <tr>
+            <td><code>{{ card.workflow }}</code></td>
+            <td><span class="badge {{ card.enabled }}">{{ card.enabled }}</span></td>
+            <td class="num">{{ card.decisions }}</td>
+            <td class="num">{{ card.cidrs }}</td>
+            <td class="num">{{ card.agreement }}</td>
+            <td class="num">{{ card.unblocked }}</td>
+            <td>
+                {% if card.decisions == 0 %}
+                <span class="muted">no data</span>
+                {% else %}
+                <span class="badge {{ card.verdict() }}">{{ card.verdict() }}</span>
+                {% endif %}
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<h2 id="allowlist">Never blocked</h2>
 
 <p class="muted">Checked in both directions, so neither a block inside one of these
    nor a supernet swallowing one is accepted. Entries marked
@@ -66,6 +106,56 @@
     {% endfor %}
     </tbody>
 </table>
+
+<h3>Added by hand</h3>
+
+<p class="muted">Permanent until removed, and applied on top of the sources above.
+   A CIDR already covered by a block has to be unblocked first.</p>
+
+{% if manual.is_empty() %}
+<p class="muted">No entries have been added by hand.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>CIDR</th>
+            <th>Note</th>
+            <th>Added by</th>
+            <th>When</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for entry in manual %}
+        <tr>
+            <td>
+                {% match entry.host() %}
+                {% when Some with (host) %}
+                <a href="/ip/{{ host|urlencode_strict }}"><code>{{ entry.cidr }}</code></a>
+                {% when None %}
+                <code>{{ entry.cidr }}</code>
+                {% endmatch %}
+            </td>
+            <td>{% match entry.note %}{% when Some with (note) %}{{ note }}{% when None %}<span class="muted">-</span>{% endmatch %}</td>
+            <td>{{ entry.created_by }}</td>
+            <td class="nowrap">{{ entry.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true) }}</td>
+            <td>
+                <form class="inline" method="post" action="/allowlist/delete">
+                    <input type="hidden" name="cidr" value="{{ entry.cidr }}">
+                    <button type="submit">Remove</button>
+                </form>
+            </td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+{% endif %}
+
+<form class="inline" method="post" action="/allowlist">
+    <input type="text" name="cidr" placeholder="cidr" size="20" required>
+    <input type="text" name="note" placeholder="note" size="32">
+    <button type="submit">Never block this</button>
+</form>
 
 <h2 id="decisions">Recent decisions</h2>
 

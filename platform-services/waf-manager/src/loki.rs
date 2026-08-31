@@ -62,6 +62,45 @@ impl Loki {
         self.candidates_from(&query).await
     }
 
+    pub async fn top_client_ips_by_distinct_rules(
+        &self,
+        window: &str,
+        limit: usize,
+    ) -> Result<Vec<Candidate>> {
+        let ranked = format!(
+            "topk({limit}, count by (client_ip) (sum by (client_ip, rule_id) \
+             (count_over_time({SELECTOR} {PARSE} {RE_CLIENT} {RE_ID} [{window}]))))"
+        );
+
+        let selected = self.candidates_from(&ranked).await?;
+
+        if selected.is_empty() {
+            return Ok(Vec::new());
+        }
+
+        let totals = format!(
+            "sum by (client_ip) (count_over_time({SELECTOR} {PARSE} {RE_CLIENT} [{window}]))"
+        );
+
+        let totals: std::collections::BTreeMap<String, u64> = self
+            .candidates_from(&totals)
+            .await?
+            .into_iter()
+            .map(|c| (c.client_ip, c.detections))
+            .collect();
+
+        let mut candidates: Vec<Candidate> = selected
+            .into_iter()
+            .map(|c| Candidate {
+                detections: totals.get(&c.client_ip).copied().unwrap_or(c.detections),
+                client_ip: c.client_ip,
+            })
+            .collect();
+
+        candidates.sort_by_key(|c| std::cmp::Reverse(c.detections));
+        Ok(candidates)
+    }
+
     pub async fn candidates_from(&self, query: &str) -> Result<Vec<Candidate>> {
         let mut candidates: Vec<Candidate> = self
             .instant(query)

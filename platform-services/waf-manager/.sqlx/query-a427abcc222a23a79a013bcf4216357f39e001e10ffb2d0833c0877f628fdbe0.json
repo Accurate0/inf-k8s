@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "delete from allowlist where cidr = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a427abcc222a23a79a013bcf4216357f39e001e10ffb2d0833c0877f628fdbe0"
+}

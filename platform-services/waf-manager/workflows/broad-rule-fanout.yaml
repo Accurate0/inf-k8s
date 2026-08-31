@@ -3,6 +3,7 @@ name: broad-rule-fanout
 enabled: active
 window: 1h
 duration: 48h
+candidate_strategy: distinct_rules
 reason: "automatic: tripped many distinct rules in a short window"
 signals:
   sqli_or_rce: |

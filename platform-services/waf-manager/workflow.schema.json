@@ -3,6 +3,9 @@
   "title": "WorkflowDef",
   "type": "object",
   "properties": {
+    "candidate_strategy": {
+      "$ref": "#/$defs/CandidateStrategy"
+    },
     "candidates": {
       "type": [
         "string",
@@ -63,6 +66,13 @@
       "description": "How long a block lasts: a duration such as `24h`, or `forever`.",
       "type": "string",
       "pattern": "^(forever|\\d+[smhd])$"
+    },
+    "CandidateStrategy": {
+      "type": "string",
+      "enum": [
+        "detections",
+        "distinct_rules"
+      ]
     },
     "Combinator": {
       "oneOf": [

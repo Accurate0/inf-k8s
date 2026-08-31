@@ -37,6 +37,14 @@
         .badge.dry-run { background: #0969da; }
         .badge.disabled { background: #6e7781; }
         .badge.auto { background: #8250df; }
+        .badge.manual { background: #8250df; }
+        .badge.agrees { background: #2da44e; }
+        .badge.disputed { background: #cf222e; }
+        .badge.unproven { background: #bf8700; }
+        .facts { display: flex; flex-wrap: wrap; gap: 0.6em 1.6em; margin: 0 0 1.2em; padding: 0; }
+        .facts div { min-width: 9em; }
+        .facts dt { font-size: 0.75em; text-transform: uppercase; letter-spacing: 0.05em; color: #6e7781; }
+        .facts dd { margin: 0.1em 0 0; font-size: 0.95em; }
         .conflicts { border-left: 4px solid #bf8700; padding-left: 1em; }
         .muted { color: #6e7781; }
         .pager a { margin-right: 1em; }
@@ -47,6 +55,7 @@
         <a href="/">Candidates</a>
         <a href="/blocks">Blocks</a>
         <a href="/workflows">Workflows</a>
+        <a href="/audit">Audit</a>
     </nav>
     {% block content %}{% endblock %}
 </body>

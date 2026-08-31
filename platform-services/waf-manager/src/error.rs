@@ -21,6 +21,9 @@ pub enum Error {
     #[error("refusing to block {0}: overlaps protected range {1}")]
     ProtectedRange(String, String),
 
+    #[error("refusing to allowlist {0}: block {1} covers it, unblock it first")]
+    AllowlistConflict(String, String),
+
     #[error("unexpected response from loki: {0}")]
     Loki(String),
 

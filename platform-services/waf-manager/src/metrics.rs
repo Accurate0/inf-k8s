@@ -71,6 +71,14 @@ impl Metrics {
         .increment(1);
     }
 
+    pub fn record_workflow_unblock(workflow: &str) {
+        counter!(
+            "waf_manager_workflow_unblocks_total",
+            "workflow" => workflow.to_owned(),
+        )
+        .increment(1);
+    }
+
     pub fn record_workflow_evaluation(workflow: &str) {
         counter!(
             "waf_manager_workflow_evaluations_total",
@@ -130,6 +138,15 @@ impl Metrics {
 
     pub fn record_auth_rejected(reason: &'static str) {
         counter!("waf_manager_auth_rejected_total", "reason" => reason).increment(1);
+    }
+
+    pub fn record_enrichment_lookup(kind: &'static str, status: &'static str) {
+        counter!(
+            "waf_manager_enrichment_lookups_total",
+            "kind" => kind,
+            "status" => status,
+        )
+        .increment(1);
     }
 
     pub fn record_workflow_run(duration: std::time::Duration) {

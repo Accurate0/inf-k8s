@@ -10,6 +10,8 @@ use tokio::sync::RwLock;
 
 const EXTRA_ENV: &str = "WAF_MANAGER_ALLOWLIST";
 
+pub const MANUAL_SOURCE: &str = "manual";
+
 type Entries = Vec<(IpNet, String)>;
 
 #[derive(Clone)]
@@ -21,6 +23,7 @@ struct AllowlistInner {
     client: reqwest::Client,
     sources: Vec<AllowlistSource>,
     base: Entries,
+    manual: RwLock<Entries>,
     fetched: RwLock<BTreeMap<String, Entries>>,
     current: RwLock<Arc<Entries>>,
     ready: tokio::sync::watch::Sender<bool>,
@@ -41,6 +44,7 @@ impl Allowlist {
                 sources,
                 current: RwLock::new(Arc::new(base.clone())),
                 base,
+                manual: RwLock::new(Vec::new()),
                 fetched: RwLock::new(BTreeMap::new()),
             }),
         }
@@ -176,8 +180,15 @@ impl Allowlist {
         }
     }
 
+    pub async fn set_manual(&self, entries: Entries) {
+        Metrics::set_allowlist_entries(MANUAL_SOURCE, entries.len());
+        *self.inner.manual.write().await = entries;
+        self.rebuild().await;
+    }
+
     async fn rebuild(&self) {
         let mut entries = self.inner.base.clone();
+        entries.extend(self.inner.manual.read().await.iter().cloned());
         entries.extend(self.inner.fetched.read().await.values().flatten().cloned());
 
         Metrics::set_allowlist_entries("total", entries.len());
@@ -253,6 +264,101 @@ impl Allowlist {
         };
 
         IpNet::new(addr, prefix).map_err(|e| Error::InvalidCidr(input.to_string(), e.to_string()))
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct ManualEntry {
+    pub cidr: String,
+    pub note: Option<String>,
+    pub created_by: String,
+    pub at: chrono::DateTime<chrono::Utc>,
+}
+
+impl ManualEntry {
+    pub fn host(&self) -> Option<&str> {
+        self.cidr
+            .strip_suffix("/32")
+            .or_else(|| self.cidr.strip_suffix("/128"))
+    }
+}
+
+#[derive(Clone)]
+pub struct ManualAllowlist {
+    inner: Arc<ManualAllowlistInner>,
+}
+
+struct ManualAllowlistInner {
+    pool: sqlx::postgres::PgPool,
+    allowlist: Allowlist,
+}
+
+impl ManualAllowlist {
+    pub fn new(pool: sqlx::postgres::PgPool, allowlist: Allowlist) -> Self {
+        Self {
+            inner: Arc::new(ManualAllowlistInner { pool, allowlist }),
+        }
+    }
+
+    pub async fn list(&self) -> Result<Vec<ManualEntry>> {
+        let rows = sqlx::query!("select cidr, note, created_by, at from allowlist order by cidr")
+            .fetch_all(&self.inner.pool)
+            .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| ManualEntry {
+                cidr: row.cidr,
+                note: row.note,
+                created_by: row.created_by,
+                at: row.at,
+            })
+            .collect())
+    }
+
+    pub async fn add(&self, net: &IpNet, note: Option<&str>, created_by: &str) -> Result<()> {
+        sqlx::query!(
+            "insert into allowlist (cidr, note, created_by, at) values ($1, $2, $3, $4)
+             on conflict (cidr) do update
+             set note = excluded.note, created_by = excluded.created_by, at = excluded.at",
+            net.to_string(),
+            note,
+            created_by,
+            chrono::Utc::now(),
+        )
+        .execute(&self.inner.pool)
+        .await?;
+
+        self.reload().await
+    }
+
+    pub async fn remove(&self, cidr: &str) -> Result<()> {
+        sqlx::query!("delete from allowlist where cidr = $1", cidr)
+            .execute(&self.inner.pool)
+            .await?;
+
+        self.reload().await
+    }
+
+    pub async fn reload(&self) -> Result<()> {
+        let entries = self
+            .list()
+            .await?
+            .into_iter()
+            .filter_map(|entry| match Allowlist::parse_cidr(&entry.cidr) {
+                Ok(net) => Some((net, MANUAL_SOURCE.to_string())),
+                Err(e) => {
+                    tracing::error!(
+                        "ignoring unparsable manual allowlist entry {:?}: {e}",
+                        entry.cidr
+                    );
+                    None
+                }
+            })
+            .collect();
+
+        self.inner.allowlist.set_manual(entries).await;
+        Ok(())
     }
 }
 
@@ -376,6 +482,52 @@ mod tests {
 
         assert!(allowlist.parse_and_check("140.82.115.33").await.is_err());
         assert!(allowlist.parse_and_check("10.1.2.3").await.is_err());
+    }
+
+    #[tokio::test]
+    async fn manual_entries_survive_a_feed_refresh() {
+        let allowlist = allowlist("10.0.0.0/8");
+
+        allowlist
+            .set_manual(vec![(
+                "203.0.113.0/24".parse().unwrap(),
+                MANUAL_SOURCE.to_string(),
+            )])
+            .await;
+
+        allowlist.inner.fetched.write().await.insert(
+            "github".to_string(),
+            Allowlist::parse_list("192.0.2.0/24", "github"),
+        );
+
+        allowlist.rebuild().await;
+
+        let entries = allowlist.entries().await;
+        let sources: Vec<&str> = entries.iter().map(|(_, why)| why.as_str()).collect();
+
+        assert!(sources.contains(&"test"));
+        assert!(sources.contains(&MANUAL_SOURCE));
+        assert!(sources.contains(&"github"));
+        assert!(
+            allowlist
+                .check(&"203.0.113.9/32".parse().unwrap())
+                .await
+                .is_err()
+        );
+    }
+
+    #[tokio::test]
+    async fn removing_the_last_manual_entry_stops_protecting_it() {
+        let allowlist = allowlist("10.0.0.0/8");
+        let net: IpNet = "203.0.113.0/24".parse().unwrap();
+
+        allowlist
+            .set_manual(vec![(net, MANUAL_SOURCE.to_string())])
+            .await;
+        assert!(allowlist.check(&net).await.is_err());
+
+        allowlist.set_manual(Vec::new()).await;
+        assert!(allowlist.check(&net).await.is_ok());
     }
 
     #[tokio::test]

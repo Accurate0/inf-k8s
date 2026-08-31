@@ -15,8 +15,8 @@ use waf_manager::controller::{
 };
 use waf_manager::metrics::Metrics;
 use waf_manager::{
-    Allowlist, Config, Jwks, LeaderElector, Loki, PolicyWriter, Result, Suppressions, WafBlock,
-    WafPolicy, WorkflowEngine,
+    Allowlist, Audit, Config, Enricher, Jwks, LeaderElector, Loki, ManualAllowlist, PolicyWriter,
+    Result, Suppressions, WafBlock, WafPolicy, WorkflowEngine,
 };
 
 const DEFAULT_LOKI: &str = "http://monitoring-loki.monitoring.svc.cluster.local:3100";
@@ -79,7 +79,13 @@ async fn main() -> Result<()> {
 
     let loki = Arc::new(Loki::new(loki_url));
 
-    tokio::spawn(allowlist.run(config.allowlist_refresh));
+    let manual = ManualAllowlist::new(pool.clone(), allowlist.clone());
+
+    if let Err(e) = manual.reload().await {
+        tracing::error!("loading the manual allowlist failed, only config entries apply: {e}");
+    }
+
+    tokio::spawn(allowlist.clone().run(config.allowlist_refresh));
 
     let suppressions = Suppressions::new(
         pool.clone(),
@@ -92,7 +98,7 @@ async fn main() -> Result<()> {
         loki.clone(),
         ctx.clone(),
         suppressions,
-        pool,
+        pool.clone(),
     ));
 
     let elector = Arc::new(LeaderElector::new(
@@ -126,6 +132,9 @@ async fn main() -> Result<()> {
         engine: engine.clone(),
         leadership: leadership.clone(),
         jwks,
+        audit: Audit::new(pool.clone()),
+        manual,
+        enricher: Enricher::new(),
     });
 
     let app = Routes::router(state).nest_service("/static", ServeDir::new("static"));

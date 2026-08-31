@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+
+{% block title %}WAF audit{% endblock %}
+
+{% block content %}
+<h1>Audit</h1>
+
+<p class="muted">Every block, unblock and allowlist change made by hand, newest first.
+   Automatic decisions live on the <a href="/workflows#decisions">workflows</a> page.</p>
+
+{% if entries.is_empty() %}
+<p>Nothing has been changed by hand yet.</p>
+{% else %}
+<table>
+    <thead>
+        <tr>
+            <th>When</th>
+            <th>Actor</th>
+            <th>Action</th>
+            <th>Target</th>
+            <th>Detail</th>
+        </tr>
+    </thead>
+    <tbody>
+    {% for entry in entries %}
+        <tr>
+            <td class="nowrap">{{ entry.at.to_rfc3339_opts(chrono::SecondsFormat::Secs, true) }}</td>
+            <td>{{ entry.actor }}</td>
+            <td><code>{{ entry.action }}</code></td>
+            <td>
+                {% match entry.host() %}
+                {% when Some with (host) %}
+                <a href="/ip/{{ host|urlencode_strict }}"><code>{{ entry.target }}</code></a>
+                {% when None %}
+                <code>{{ entry.target }}</code>
+                {% endmatch %}
+            </td>
+            <td>{% match entry.detail %}{% when Some with (detail) %}{{ detail }}{% when None %}<span class="muted">-</span>{% endmatch %}</td>
+        </tr>
+    {% endfor %}
+    </tbody>
+</table>
+
+<p class="pager muted">
+    {% match newer %}{% when Some with (o) %}<a href="/audit?offset={{ o }}">Newer</a>{% when None %}{% endmatch %}
+    {% match older %}{% when Some with (o) %}<a href="/audit?offset={{ o }}">Older</a>{% when None %}{% endmatch %}
+    {{ total }} entries.
+</p>
+{% endif %}
+{% endblock %}

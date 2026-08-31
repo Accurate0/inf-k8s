@@ -82,6 +82,13 @@
       "type": "string",
       "pattern": "^(forever|\\d+[smhd])$"
     },
+    "CandidateStrategy": {
+      "type": "string",
+      "enum": [
+        "detections",
+        "distinct_rules"
+      ]
+    },
     "Combinator": {
       "oneOf": [
         {
@@ -412,6 +419,9 @@
     "WorkflowDef": {
       "type": "object",
       "properties": {
+        "candidate_strategy": {
+          "$ref": "#/$defs/CandidateStrategy"
+        },
         "candidates": {
           "type": [
             "string",

@@ -1,4 +1,6 @@
-use crate::config::{Combinator, Config, Enabled, LeafMatcher, Matcher, Span, Tier, WorkflowDef};
+use crate::config::{
+    CandidateStrategy, Combinator, Config, Enabled, LeafMatcher, Matcher, Span, Tier, WorkflowDef,
+};
 use crate::controller::Context;
 use crate::crd::{WafBlock, WafBlockSpec};
 use crate::error::Result;
@@ -13,6 +15,39 @@ use std::sync::Arc;
 pub const WORKFLOW_AUTHOR_PREFIX: &str = "waf-manager.inf-k8s.net/workflow/";
 
 const DECISION_PAGE_SIZE: i64 = 200;
+
+const SCORECARD_DAYS: i64 = 30;
+
+pub const MANUAL_MODE: &str = "manual";
+pub const UNBLOCKED_OUTCOME: &str = "unblocked";
+
+#[derive(Debug, Clone, Default)]
+pub struct Scorecard {
+    pub workflow: String,
+    pub enabled: &'static str,
+    pub decisions: i64,
+    pub cidrs: i64,
+    pub unblocked: i64,
+    pub agreement: i64,
+}
+
+impl Scorecard {
+    pub fn verdict(&self) -> &'static str {
+        if self.decisions == 0 {
+            return "no data";
+        }
+
+        if self.unblocked > 0 && self.unblocked * 4 >= self.cidrs {
+            return "disputed";
+        }
+
+        if self.agreement * 2 >= self.cidrs {
+            return "agrees";
+        }
+
+        "unproven"
+    }
+}
 
 #[derive(Debug, Default)]
 pub struct IpFacts {
@@ -99,6 +134,7 @@ impl Needs {
 struct CandidateSource {
     window: Span,
     query: Option<String>,
+    strategy: CandidateStrategy,
     limit: usize,
 }
 
@@ -207,6 +243,116 @@ impl WorkflowEngine {
                 detections: row.detections as u64,
                 mode: row.mode,
                 outcome: row.outcome,
+            })
+            .collect())
+    }
+
+    pub async fn decisions_for(&self, cidr: &str) -> Result<Vec<Decision>> {
+        let rows = sqlx::query!(
+            "select at, workflow, cidr, detections, mode, outcome
+             from decisions where cidr = $1
+             order by at desc, id desc limit $2",
+            cidr,
+            DECISION_PAGE_SIZE,
+        )
+        .fetch_all(&self.inner.pool)
+        .await?;
+
+        Ok(rows
+            .into_iter()
+            .map(|row| Decision {
+                at: row.at,
+                workflow: row.workflow,
+                cidr: row.cidr,
+                detections: row.detections as u64,
+                mode: row.mode,
+                outcome: row.outcome,
+            })
+            .collect())
+    }
+
+    pub async fn record_unblock(&self, workflow: &str, net: &IpNet) {
+        Metrics::record_workflow_unblock(workflow);
+
+        self.record(Decision {
+            at: chrono::Utc::now(),
+            workflow: workflow.to_string(),
+            cidr: net.to_string(),
+            detections: 0,
+            mode: MANUAL_MODE.to_string(),
+            outcome: UNBLOCKED_OUTCOME.to_string(),
+        })
+        .await;
+    }
+
+    pub async fn scorecard(&self) -> Result<Vec<Scorecard>> {
+        let active: BTreeSet<&str> = self
+            .config()
+            .workflows
+            .iter()
+            .filter(|w| w.enabled == Enabled::Active)
+            .map(|w| w.name.as_str())
+            .collect();
+
+        let since = chrono::Utc::now() - chrono::Duration::days(SCORECARD_DAYS);
+        let active_names: Vec<String> = active.iter().map(|n| n.to_string()).collect();
+
+        let rows = sqlx::query!(
+            "with recent as (
+                 select workflow, cidr, outcome from decisions where at >= $1
+             ),
+             agreed as (
+                 select distinct workflow, cidr from recent
+                 where workflow = any($2::text[]) and outcome <> $3
+             )
+             select
+                 r.workflow as workflow,
+                 count(*) as decisions,
+                 count(distinct r.cidr) as cidrs,
+                 count(*) filter (where r.outcome = $3) as unblocked,
+                 count(distinct r.cidr) filter (
+                     where exists (
+                         select 1 from agreed a
+                         where a.cidr = r.cidr and a.workflow <> r.workflow
+                     )
+                 ) as agreement
+             from recent r
+             group by r.workflow",
+            since,
+            &active_names,
+            UNBLOCKED_OUTCOME,
+        )
+        .fetch_all(&self.inner.pool)
+        .await?;
+
+        let mut by_workflow: BTreeMap<String, Scorecard> = rows
+            .into_iter()
+            .map(|row| {
+                let card = Scorecard {
+                    workflow: row.workflow.clone(),
+                    enabled: "",
+                    decisions: row.decisions.unwrap_or(0),
+                    cidrs: row.cidrs.unwrap_or(0),
+                    unblocked: row.unblocked.unwrap_or(0),
+                    agreement: row.agreement.unwrap_or(0),
+                };
+
+                (row.workflow, card)
+            })
+            .collect();
+
+        Ok(self
+            .config()
+            .workflows
+            .iter()
+            .map(|w| {
+                let mut card = by_workflow.remove(&w.name).unwrap_or(Scorecard {
+                    workflow: w.name.clone(),
+                    ..Default::default()
+                });
+
+                card.enabled = w.enabled.as_str();
+                card
             })
             .collect())
     }
@@ -341,12 +487,18 @@ impl WorkflowEngine {
         now: chrono::DateTime<chrono::Utc>,
     ) -> Result<()> {
         let window = source.window;
-        let candidates = match &source.query {
-            Some(query) => self.inner.loki.candidates_from(query).await?,
-            None => {
+        let candidates = match (&source.query, source.strategy) {
+            (Some(query), _) => self.inner.loki.candidates_from(query).await?,
+            (None, CandidateStrategy::Detections) => {
                 self.inner
                     .loki
                     .top_client_ips(&window.to_logql(), source.limit)
+                    .await?
+            }
+            (None, CandidateStrategy::DistinctRules) => {
+                self.inner
+                    .loki
+                    .top_client_ips_by_distinct_rules(&window.to_logql(), source.limit)
                     .await?
             }
         };
@@ -621,7 +773,11 @@ impl WorkflowEngine {
     }
 
     fn candidate_sources(&self, tier: Tier) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
-        let defaults = &self.inner.config.defaults;
+        Self::sources_for(&self.inner.config, tier)
+    }
+
+    fn sources_for(config: &Config, tier: Tier) -> Vec<(CandidateSource, Vec<&WorkflowDef>)> {
+        let defaults = &config.defaults;
         let limit = match tier {
             Tier::Fast => defaults.fast_candidate_limit,
             Tier::Standard => defaults.candidate_limit,
@@ -629,13 +785,8 @@ impl WorkflowEngine {
 
         let mut grouped: Vec<(CandidateSource, Vec<&WorkflowDef>)> = Vec::new();
 
-        for workflow in self
-            .inner
-            .config
-            .active_workflows()
-            .filter(|w| w.tier == tier)
-        {
-            let window = workflow.window(&self.inner.config.defaults);
+        for workflow in config.active_workflows().filter(|w| w.tier == tier) {
+            let window = workflow.window(defaults);
             let vars = Self::base_vars(&window.to_logql(), limit);
 
             let query = workflow.candidates.as_ref().and_then(|template| {
@@ -654,6 +805,7 @@ impl WorkflowEngine {
             let source = CandidateSource {
                 window,
                 query,
+                strategy: workflow.candidate_strategy,
                 limit,
             };
             match grouped.iter_mut().find(|(s, _)| *s == source) {
@@ -765,6 +917,112 @@ mod tests {
 
     fn matcher(yaml: &str) -> Matcher {
         serde_yaml::from_str(yaml).expect(yaml)
+    }
+
+    fn config(workflows: &str) -> Config {
+        let yaml = format!(
+            "version: 2\ndefaults:\n  window: 12h\n  candidate_limit: 50\nworkflows:\n{workflows}"
+        );
+
+        serde_yaml::from_str(&yaml).expect(&yaml)
+    }
+
+    fn workflow(name: &str, strategy: &str) -> String {
+        format!(
+            "  - name: {name}\n    enabled: active\n    candidate_strategy: {strategy}\n    \
+             duration: 24h\n    reason: test\n    when:\n      type: detections\n      min: 1\n"
+        )
+    }
+
+    #[test]
+    fn workflows_sharing_a_window_and_strategy_share_one_candidate_source() {
+        let config = config(&format!(
+            "{}{}",
+            workflow("first", "detections"),
+            workflow("second", "detections")
+        ));
+
+        let sources = WorkflowEngine::sources_for(&config, Tier::Standard);
+
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].1.len(), 2);
+    }
+
+    #[test]
+    fn a_different_strategy_gets_its_own_candidate_source() {
+        let config = config(&format!(
+            "{}{}",
+            workflow("volume", "detections"),
+            workflow("diversity", "distinct_rules")
+        ));
+
+        let sources = WorkflowEngine::sources_for(&config, Tier::Standard);
+
+        assert_eq!(sources.len(), 2);
+        assert!(
+            sources
+                .iter()
+                .any(|(source, _)| source.strategy == CandidateStrategy::DistinctRules)
+        );
+        assert!(sources.iter().all(|(_, workflows)| workflows.len() == 1));
+    }
+
+    #[test]
+    fn the_default_strategy_ranks_by_detection_volume() {
+        let config = config(
+            "  - name: plain\n    enabled: active\n    duration: 24h\n    \
+                             reason: test\n    when:\n      type: detections\n      min: 1\n",
+        );
+
+        let sources = WorkflowEngine::sources_for(&config, Tier::Standard);
+
+        assert_eq!(sources[0].0.strategy, CandidateStrategy::Detections);
+    }
+
+    #[test]
+    fn a_workflow_with_no_decisions_has_no_verdict() {
+        let card = Scorecard::default();
+
+        assert_eq!(card.verdict(), "no data");
+    }
+
+    #[test]
+    fn manual_unblocks_dispute_a_workflow() {
+        let card = Scorecard {
+            decisions: 20,
+            cidrs: 8,
+            unblocked: 2,
+            agreement: 8,
+            ..Scorecard::default()
+        };
+
+        assert_eq!(card.verdict(), "disputed");
+    }
+
+    #[test]
+    fn agreement_with_an_active_workflow_reads_as_safe_to_promote() {
+        let card = Scorecard {
+            decisions: 20,
+            cidrs: 10,
+            unblocked: 0,
+            agreement: 7,
+            ..Scorecard::default()
+        };
+
+        assert_eq!(card.verdict(), "agrees");
+    }
+
+    #[test]
+    fn decisions_nobody_else_saw_stay_unproven() {
+        let card = Scorecard {
+            decisions: 20,
+            cidrs: 10,
+            unblocked: 0,
+            agreement: 1,
+            ..Scorecard::default()
+        };
+
+        assert_eq!(card.verdict(), "unproven");
     }
 
     fn rule(id: &str, msg: &str, severity: &str, count: u64) -> RuleHit {
