@@ -30,6 +30,12 @@ rm -rf "$BUILTIN_TMP_DIR"
 openapi2jsonschema --kubernetes --stand-alone --expanded -o "$BUILTIN_TMP_DIR" "$SWAGGER_FILE"
 python3 /reorganize-schemas.py "$BUILTIN_TMP_DIR" "$OUTPUT_DIR"
 
+echo "Publishing helm chart values schemas..."
+REPO_DIR="/tmp/inf-k8s"
+git clone --depth 1 --filter=blob:none --sparse https://github.com/Accurate0/inf-k8s.git "$REPO_DIR"
+git -C "$REPO_DIR" sparse-checkout set charts
+python3 /patch-application-schema.py "$OUTPUT_DIR" "$REPO_DIR/charts"
+
 echo "Building index.json..."
 python3 /build-index.py "$OUTPUT_DIR"
 

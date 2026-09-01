@@ -10,7 +10,8 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY entrypoint.sh /entrypoint.sh
 COPY reorganize-schemas.py /reorganize-schemas.py
 COPY build-index.py /build-index.py
-RUN chmod +x /entrypoint.sh /reorganize-schemas.py /build-index.py
+COPY patch-application-schema.py /patch-application-schema.py
+RUN chmod +x /entrypoint.sh /reorganize-schemas.py /build-index.py /patch-application-schema.py
 
 USER 10001
 

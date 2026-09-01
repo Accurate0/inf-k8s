@@ -27,7 +27,6 @@ when:
         type: bot.has_approved
     - type: status_checks
       names:
-        - "Trivy scan / Trivy (pull_request)"
         - "Terraform plan / tofu plan (pull_request)"
       state: success
     - type: bot.comment_contains

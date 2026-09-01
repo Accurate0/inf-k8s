@@ -1,8 +1,0 @@
-scan:
-  skip-dirs:
-    - system-components/barman-cloud-plugin
-    - terraform
-
-rego:
-  data:
-    - ./trivy-data

@@ -1,0 +1,303 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-http-routes values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "bouncerServiceName": {
+      "type": "string",
+      "description": "Name of the envoy proxy bouncer service."
+    },
+    "routes": {
+      "type": "array",
+      "description": "HTTPRoutes to create, one per entry.",
+      "items": {
+        "$ref": "#/definitions/route"
+      }
+    }
+  },
+  "definitions": {
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "gateway",
+        "hostnames",
+        "rules"
+      ],
+      "properties": {
+        "name": {
+          "type": "string",
+          "description": "Name of the generated HTTPRoute. The rate limit policy is named <name>-ratelimit-policy."
+        },
+        "annotations": {
+          "type": "object",
+          "description": "Annotations set on the HTTPRoute, e.g. external-dns.alpha.kubernetes.io/managed.",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "gateway": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "name",
+            "namespace"
+          ],
+          "description": "Gateway this route attaches to, rendered as the parentRef.",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "Gateway name, e.g. public-gateway or internal-gateway."
+            },
+            "namespace": {
+              "type": "string",
+              "description": "Namespace of the gateway, usually envoy-gateway-system."
+            }
+          }
+        },
+        "hostnames": {
+          "type": "array",
+          "description": "Hostnames matched by this route.",
+          "minItems": 1,
+          "items": {
+            "type": "string"
+          }
+        },
+        "ratelimit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "rules"
+          ],
+          "description": "Creates a local BackendTrafficPolicy targeting this route.",
+          "properties": {
+            "rules": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "$ref": "#/definitions/ratelimitRule"
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "array",
+          "description": "HTTPRoute rules, passed through verbatim.",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/definitions/httpRouteRule"
+          }
+        }
+      }
+    },
+    "ratelimitRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "limit"
+      ],
+      "properties": {
+        "clientSelectors": {
+          "type": "array",
+          "description": "Selects the requests this rule applies to. Omit to apply to all requests.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "headers": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "name"
+                  ],
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "description": "Header name, e.g. CF-Connecting-IP."
+                    },
+                    "type": {
+                      "type": "string",
+                      "enum": [
+                        "Exact",
+                        "RegularExpression",
+                        "Distinct"
+                      ],
+                      "description": "Distinct rate limits each unique header value separately."
+                    },
+                    "value": {
+                      "type": "string",
+                      "description": "Value to match. Required for Exact and RegularExpression."
+                    },
+                    "invert": {
+                      "type": "boolean",
+                      "description": "Match requests that do not satisfy this header selector."
+                    }
+                  }
+                }
+              },
+              "sourceCIDR": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "value"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "Exact",
+                      "Distinct"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "limit": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "requests",
+            "unit"
+          ],
+          "properties": {
+            "requests": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Requests allowed per unit."
+            },
+            "unit": {
+              "type": "string",
+              "enum": [
+                "Second",
+                "Minute",
+                "Hour",
+                "Day"
+              ]
+            }
+          }
+        },
+        "cost": {
+          "type": "object",
+          "description": "Overrides how much of the limit a request consumes."
+        },
+        "shared": {
+          "type": "boolean",
+          "description": "Share the counter across all envoy instances instead of per instance."
+        }
+      }
+    },
+    "httpRouteRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string"
+        },
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "path": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "enum": [
+                      "Exact",
+                      "PathPrefix",
+                      "RegularExpression"
+                    ]
+                  },
+                  "value": {
+                    "type": "string"
+                  }
+                }
+              },
+              "headers": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "queryParams": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "method": {
+                "type": "string"
+              }
+            }
+          }
+        },
+        "backendRefs": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name"
+            ],
+            "properties": {
+              "group": {
+                "type": "string",
+                "description": "API group of the backend. Empty string for core Services."
+              },
+              "kind": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 65535
+              },
+              "weight": {
+                "type": "integer"
+              },
+              "filters": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "timeouts": {
+          "type": "object"
+        },
+        "retry": {
+          "type": "object"
+        },
+        "sessionPersistence": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

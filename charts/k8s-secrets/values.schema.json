@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-secrets values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Applied to every entry in secrets that does not override the field.",
+      "properties": {
+        "namespace": { "$ref": "#/definitions/namespace" },
+        "projectSlug": { "$ref": "#/definitions/projectSlug" },
+        "environmentSlug": { "$ref": "#/definitions/environmentSlug" },
+        "secretPath": { "$ref": "#/definitions/secretPath" },
+        "recursive": { "$ref": "#/definitions/recursive" },
+        "resyncInterval": { "$ref": "#/definitions/resyncInterval" },
+        "hostAPI": { "$ref": "#/definitions/hostAPI" },
+        "authSecretName": { "$ref": "#/definitions/authSecretName" },
+        "labels": { "$ref": "#/definitions/labels" },
+        "annotations": { "$ref": "#/definitions/annotations" }
+      }
+    },
+    "secrets": {
+      "type": "array",
+      "description": "One SecretStore per entry, plus one ExternalSecret per managed secret.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "managedSecrets"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Names the SecretStore, which is created as infisical-<name>."
+          },
+          "managedSecrets": {
+            "type": "array",
+            "description": "Kubernetes secrets to create from this store.",
+            "minItems": 1,
+            "items": { "$ref": "#/definitions/managedSecret" }
+          },
+          "namespace": { "$ref": "#/definitions/namespace" },
+          "projectSlug": { "$ref": "#/definitions/projectSlug" },
+          "environmentSlug": { "$ref": "#/definitions/environmentSlug" },
+          "secretPath": { "$ref": "#/definitions/secretPath" },
+          "recursive": { "$ref": "#/definitions/recursive" },
+          "resyncInterval": { "$ref": "#/definitions/resyncInterval" },
+          "hostAPI": { "$ref": "#/definitions/hostAPI" },
+          "authSecretName": { "$ref": "#/definitions/authSecretName" },
+          "labels": { "$ref": "#/definitions/labels" },
+          "annotations": { "$ref": "#/definitions/annotations" }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "namespace": {
+      "type": "string",
+      "description": "Namespace the SecretStore and ExternalSecrets are created in."
+    },
+    "projectSlug": {
+      "type": "string",
+      "description": "Infisical project slug to read secrets from."
+    },
+    "environmentSlug": {
+      "type": "string",
+      "description": "Infisical environment slug. Defaults to prod."
+    },
+    "secretPath": {
+      "type": "string",
+      "description": "Path within the Infisical project. Defaults to /."
+    },
+    "recursive": {
+      "type": "boolean",
+      "description": "Read secrets from folders below secretPath. Defaults to false."
+    },
+    "resyncInterval": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Refresh interval in seconds."
+    },
+    "hostAPI": {
+      "type": "string",
+      "description": "Infisical API URL. Defaults to the in-cluster standalone service."
+    },
+    "authSecretName": {
+      "type": "string",
+      "description": "Secret holding clientId and clientSecret for universal auth. Defaults to universal-auth-credentials."
+    },
+    "labels": {
+      "type": "object",
+      "description": "Labels set on the ExternalSecret and on the secret it creates.",
+      "additionalProperties": { "type": "string" }
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Annotations set on the ExternalSecret and on the secret it creates.",
+      "additionalProperties": { "type": "string" }
+    },
+    "managedSecret": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["secretName"],
+      "properties": {
+        "secretName": {
+          "type": "string",
+          "description": "Name of the ExternalSecret and of the secret it creates."
+        },
+        "template": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Omit to sync every secret in scope verbatim.",
+          "properties": {
+            "includeAllSecrets": {
+              "type": "boolean",
+              "description": "Retained for compatibility. All secrets in scope are always fetched; data only controls which keys the created secret exposes."
+            },
+            "data": {
+              "type": "object",
+              "description": "Keys of the created secret, mapped to go templates over the fetched secrets, e.g. {{ .FOO }}.",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}
