@@ -4,3 +4,4 @@
 cluster/inventory.yaml
 **/.ansible
 *.pem
+.mcp.json
