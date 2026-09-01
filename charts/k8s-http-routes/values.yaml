@@ -1,3 +1,4 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/charts/k8s-http-routes.json
 bouncerServiceName: envoy-proxy-bouncer
 routes:
   - name: "some-route"
