@@ -37,7 +37,7 @@ spec:
               app.kubernetes.io/name: kanidm
       initContainers:
         - name: repl-bootstrap
-          image: ghcr.io/accurate0/kanidm-repl-coordinator:1.10.3-1
+          image: ghcr.io/accurate0/kanidm-repl-coordinator:1.11.1-1
           command: ["/bin/sh", "/scripts/bootstrap.sh"]
           env:
             - name: POD_NAME
@@ -89,7 +89,7 @@ spec:
               mountPath: /tmp
       containers:
         - name: kanidm
-          image: docker.io/kanidm/server:1.10.3
+          image: docker.io/kanidm/server:1.11.1
           command: ["/sbin/kanidmd", "server", "-c", "/shared/server.toml"]
           ports:
             - name: https

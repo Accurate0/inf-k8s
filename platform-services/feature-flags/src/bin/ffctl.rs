@@ -471,7 +471,10 @@ fn load_config(dir: &str) -> anyhow::Result<(Vec<pb::Flag>, Vec<pb::Segment>)> {
         entries.sort_by_key(|e| e.path());
         for entry in entries {
             let path = entry.path();
-            if !matches!(path.extension().and_then(|e| e.to_str()), Some("yaml" | "yml")) {
+            if !matches!(
+                path.extension().and_then(|e| e.to_str()),
+                Some("yaml" | "yml")
+            ) {
                 continue;
             }
             let text = fs::read_to_string(&path)?;
@@ -504,7 +507,10 @@ fn export_config(dir: &str, flags: &[pb::Flag], segments: &[pb::Segment]) -> any
     let file = SegmentsFile {
         segments: segments.iter().map(segment_to_doc).collect(),
     };
-    fs::write(Path::new(dir).join("segments.yaml"), serde_yaml::to_string(&file)?)?;
+    fs::write(
+        Path::new(dir).join("segments.yaml"),
+        serde_yaml::to_string(&file)?,
+    )?;
     Ok(())
 }
 
@@ -766,12 +772,24 @@ fn render_plan(
 
         let (before, after) = match c.target_kind.as_str() {
             "flag" => (
-                live.flags.get(&c.target_key).map(yaml_of_flag).unwrap_or_default(),
-                desired_flags.get(c.target_key.as_str()).map(|f| yaml_of_flag(f)).unwrap_or_default(),
+                live.flags
+                    .get(&c.target_key)
+                    .map(yaml_of_flag)
+                    .unwrap_or_default(),
+                desired_flags
+                    .get(c.target_key.as_str())
+                    .map(|f| yaml_of_flag(f))
+                    .unwrap_or_default(),
             ),
             _ => (
-                live.segments.get(&c.target_key).map(yaml_of_segment).unwrap_or_default(),
-                desired_segments.get(c.target_key.as_str()).map(|s| yaml_of_segment(s)).unwrap_or_default(),
+                live.segments
+                    .get(&c.target_key)
+                    .map(yaml_of_segment)
+                    .unwrap_or_default(),
+                desired_segments
+                    .get(c.target_key.as_str())
+                    .map(|s| yaml_of_segment(s))
+                    .unwrap_or_default(),
             ),
         };
 

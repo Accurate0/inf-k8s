@@ -45,7 +45,7 @@ jobs:
           context: system-components/kanidm/coordinator
           push: true
           tags: |
-            ghcr.io/accurate0/kanidm-repl-coordinator:1.10.3-1
+            ghcr.io/accurate0/kanidm-repl-coordinator:1.11.1-1
           cache-from: type=local,src=/tmp/.buildx-cache
           cache-to: type=local,mode=max,dest=/tmp/.buildx-cache-new
 
