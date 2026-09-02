@@ -170,6 +170,8 @@ spec:
                 s3ForcePathStyle: true
           singleBinary:
             replicas: 1
+            nodeSelector:
+              kubernetes.io/hostname: k8s-pve-1
             extraArgs:
               - "-config.expand-env=true"
             extraEnvFrom:
@@ -177,7 +179,7 @@ spec:
                   name: loki-s3-credentials
             persistence:
               enabled: true
-              storageClass: longhorn-local-wait
+              storageClass: local-path
               size: 10Gi
           chunksCache:
             enabled: false
@@ -303,6 +305,8 @@ spec:
               probeSelectorNilUsesHelmValues: false
               ruleSelectorNilUsesHelmValues: false
               serviceMonitorSelectorNilUsesHelmValues: false
+              nodeSelector:
+                kubernetes.io/hostname: k8s-pve-1
               tolerations:
                 - key: "inf-k8s.net/architecture"
                   operator: "Equal"
@@ -314,7 +318,7 @@ spec:
               storageSpec:
                 volumeClaimTemplate:
                   spec:
-                    storageClassName: longhorn-local
+                    storageClassName: local-path
                     accessModes: ["ReadWriteOnce"]
                     resources:
                       requests:
