@@ -82,6 +82,12 @@
       "enabled": false
     },
     {
+      "matchFileNames": ["system-components/kanidm/coordinator/Dockerfile"],
+      "matchDatasources": ["docker"],
+      "matchPackageNames": ["docker.io/kanidm/server"],
+      "enabled": false
+    },
+    {
       "matchDatasources": ["github-releases"],
       "matchPackageNames": ["k3s-io/k3s"],
       "groupName": "k3s",
