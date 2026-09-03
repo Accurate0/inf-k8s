@@ -6,7 +6,7 @@ use std::str::FromStr;
 const SELECTOR: &str =
     r#"{namespace="envoy-gateway-system", container="envoy"} |= `coraza/config.go`"#;
 
-const PARSE: &str = r"| json | line_format `{{.msg}}`";
+const PARSE: &str = r"| json | __error__=`` | line_format `{{.msg}}`";
 const RE_CLIENT: &str = r#"| regexp `\[client "(?P<client_ip>[^"]*)"\]`"#;
 const RE_ID: &str = r#"| regexp `\[id "(?P<rule_id>\d+)"\]`"#;
 const RE_MSG: &str = r#"| regexp `\[msg "(?P<rule_msg>[^"]*)"\]`"#;
