@@ -9,7 +9,9 @@ axum = "0.8"
 base64 = "0.22"
 chrono = { version = "0.4", features = ["serde"] }
 futures = "0.3"
-hickory-resolver = "0.26.1"
+hickory-net = "0.26.2"
+hickory-proto = "0.26.2"
+hickory-resolver = "0.26.2"
 ipnet = { version = "2", features = ["serde"] }
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }
 k8s-openapi = { version = "0.28.0", features = ["latest"] }
