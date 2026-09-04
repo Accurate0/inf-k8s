@@ -9,6 +9,8 @@
         update_cache: true
         package:
           - curl
+          - cryptsetup
+          - dmsetup
           - nfs-common
           - open-iscsi
           - htop
