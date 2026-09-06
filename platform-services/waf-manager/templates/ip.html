@@ -72,6 +72,14 @@
    {% if !block.expires_at.is_empty() %}Expires {{ block.expires_at }}.{% endif %}
    {% if block.enforced %}<span class="badge enforced">enforced</span>{% else %}<span class="badge pending">pending</span>{% endif %}</p>
 
+{% if block.automatic && !block.expires_at.is_empty() %}
+<form class="inline" method="post" action="/block/permanent">
+    <input type="hidden" name="name" value="{{ block.name }}">
+    <input type="hidden" name="redirect" value="/ip/{{ client_ip }}">
+    <button type="submit">Make permanent</button>
+</form>
+{% endif %}
+
 <form class="inline" method="post" action="/unblock">
     <input type="hidden" name="name" value="{{ block.name }}">
     <button type="submit">Unblock</button>

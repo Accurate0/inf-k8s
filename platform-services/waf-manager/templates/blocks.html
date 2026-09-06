@@ -72,6 +72,12 @@
                 {% endif %}
             </td>
             <td>
+                {% if row.automatic && !row.expires_at.is_empty() %}
+                <form class="inline" method="post" action="/block/permanent">
+                    <input type="hidden" name="name" value="{{ row.name }}">
+                    <button type="submit">Make permanent</button>
+                </form>
+                {% endif %}
                 <form class="inline" method="post" action="/unblock">
                     <input type="hidden" name="name" value="{{ row.name }}">
                     <button type="submit">Unblock</button>

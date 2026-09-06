@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 pub const ACTION_BLOCK: &str = "block";
 pub const ACTION_UNBLOCK: &str = "unblock";
+pub const ACTION_BLOCK_PERMANENT: &str = "block-permanent";
 pub const ACTION_ALLOWLIST_ADD: &str = "allowlist-add";
 pub const ACTION_ALLOWLIST_REMOVE: &str = "allowlist-remove";
 

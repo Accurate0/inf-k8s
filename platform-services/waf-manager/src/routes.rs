@@ -7,7 +7,7 @@ use axum::routing::{get, post};
 use axum::{Extension, Form, Router};
 use ipnet::IpNet;
 use kube::ResourceExt;
-use kube::api::{DeleteParams, ListParams, PostParams};
+use kube::api::{DeleteParams, ListParams, Patch, PatchParams, PostParams};
 use serde::Deserialize;
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
@@ -64,6 +64,7 @@ impl Routes {
             .route("/audit", get(Self::audit))
             .route("/block", post(Self::create_block))
             .route("/unblock", post(Self::delete_block))
+            .route("/block/permanent", post(Self::make_block_permanent))
             .route("/allowlist", post(Self::create_allowlist))
             .route("/allowlist/delete", post(Self::delete_allowlist))
             .layer(from_fn_with_state(state.clone(), Self::authenticate))
@@ -469,6 +470,53 @@ impl Routes {
         Ok(Redirect::to("/blocks"))
     }
 
+    async fn make_block_permanent(
+        State(state): State<Arc<AppState>>,
+        Extension(claims): Extension<Claims>,
+        Form(form): Form<PermanentForm>,
+    ) -> Result<Redirect, AppError> {
+        let redirect = form
+            .redirect
+            .filter(|to| to.starts_with('/') && !to.starts_with("//"))
+            .unwrap_or_else(|| "/blocks".to_string());
+
+        let existing = state
+            .ctx
+            .blocks()
+            .get_opt(&form.name)
+            .await
+            .map_err(Error::from)?;
+
+        let Some(block) = existing.filter(|b| b.spec.expires_at.is_some()) else {
+            return Ok(Redirect::to(&redirect));
+        };
+
+        let patch = serde_json::json!({ "spec": { "expiresAt": null } });
+
+        state
+            .ctx
+            .blocks()
+            .patch(&form.name, &PatchParams::default(), &Patch::Merge(&patch))
+            .await
+            .map_err(Error::from)?;
+
+        state
+            .audit
+            .record(
+                &claims.identity(),
+                audit::ACTION_BLOCK_PERMANENT,
+                &block.spec.cidr,
+                block.spec.created_by.as_deref(),
+            )
+            .await;
+
+        if *state.leadership.borrow() {
+            state.ctx.sync_all().await?;
+        }
+
+        Ok(Redirect::to(&redirect))
+    }
+
     async fn create_allowlist(
         State(state): State<Arc<AppState>>,
         Extension(claims): Extension<Claims>,
@@ -575,6 +623,13 @@ where
 #[derive(Deserialize)]
 pub struct UnblockForm {
     name: String,
+}
+
+#[derive(Deserialize)]
+pub struct PermanentForm {
+    name: String,
+    #[serde(default, deserialize_with = "blank_as_none")]
+    redirect: Option<String>,
 }
 
 #[derive(Deserialize)]
