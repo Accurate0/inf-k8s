@@ -1,0 +1,33 @@
+key: home-gateway-epd
+type: object
+enabled: true
+default: default
+variants:
+  clear_screen_and_sleep:
+    clear_screen: true
+    force_sleep: false
+    refresh_interval: 1440.0
+  default:
+    clear_screen: false
+    force_sleep: false
+    refresh_interval: 15.0
+  forced_sleep:
+    clear_screen: false
+    force_sleep: true
+    refresh_interval: 1440.0
+  no_values: {}
+  sleep_forever:
+    clear_screen: false
+    force_sleep: false
+    refresh_interval: 1440.0
+rules:
+- variant: no_values
+  constraint_groups:
+  - - attribute: device_id
+      operator: eq
+      values:
+      - e83dc1fb1c98
+    - attribute: device_id
+      operator: eq
+      values:
+      - 94a990cf8384
