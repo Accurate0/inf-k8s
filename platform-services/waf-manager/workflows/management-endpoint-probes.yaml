@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: management-endpoint-probes
+enabled: active
+window: 6h
+duration: 30d
+reason: "automatic: probing for exposed management endpoints"
+when:
+  type: uri_matches
+  patterns:
+    - "/actuator/env"
+    - "/actuator/configprops"
+    - "/actuator/threaddump"
+    - "/actuator/heapdump"
+    - "/jenkins/.env"
+    - "/jenkins/config.xml"
+  min_count: 1

@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Copy sysctl file for inotify limits
+  become: true
+  become_user: root
+  ansible.builtin.copy:
+    src: inotify.conf
+    dest: /etc/sysctl.d/99-inotify.conf
+    owner: root
+    mode: "0644"
+  notify: Reload inotify sysctl

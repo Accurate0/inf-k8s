@@ -1,0 +1,14 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: dev-server-file-leaks
+enabled: active
+window: 6h
+duration: 30d
+reason: "automatic: probing for dev-server and runtime file leaks"
+when:
+  type: uri_matches
+  patterns:
+    - "/proc/self/environ"
+    - "/@fs/"
+    - "/bootstrap.yml"
+    - "/.env.local"
+  min_count: 1

@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Reload inotify sysctl
+  become: true
+  become_user: root
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-inotify.conf
+  changed_when: false

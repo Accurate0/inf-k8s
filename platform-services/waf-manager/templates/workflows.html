@@ -45,8 +45,8 @@
 <h2>Scorecard</h2>
 
 <p class="muted">The last 30 days of decisions. <strong>Agreement</strong> counts CIDRs an
-   <code>active</code> workflow independently decided on too, so a <code>dry-run</code>
-   workflow that mostly agrees is safe to promote. <strong>Unblocked</strong> counts blocks
+   <code>active</code> workflow independently decided on too, so a workflow that mostly
+   agrees is corroborated. <strong>Unblocked</strong> counts blocks
    an operator reversed by hand, which is this workflow's false-positive signal.</p>
 
 <table>
@@ -58,7 +58,6 @@
             <th class="num">CIDRs</th>
             <th class="num">Agreement</th>
             <th class="num">Unblocked</th>
-            <th>Verdict</th>
         </tr>
     </thead>
     <tbody>
@@ -70,13 +69,6 @@
             <td class="num">{{ card.cidrs }}</td>
             <td class="num">{{ card.agreement }}</td>
             <td class="num">{{ card.unblocked }}</td>
-            <td>
-                {% if card.decisions == 0 %}
-                <span class="muted">no data</span>
-                {% else %}
-                <span class="badge {{ card.verdict() }}">{{ card.verdict() }}</span>
-                {% endif %}
-            </td>
         </tr>
     {% endfor %}
     </tbody>

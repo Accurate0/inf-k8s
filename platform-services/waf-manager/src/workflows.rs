@@ -31,24 +31,6 @@ pub struct Scorecard {
     pub agreement: i64,
 }
 
-impl Scorecard {
-    pub fn verdict(&self) -> &'static str {
-        if self.decisions == 0 {
-            return "no data";
-        }
-
-        if self.unblocked > 0 && self.unblocked * 4 >= self.cidrs {
-            return "disputed";
-        }
-
-        if self.agreement * 2 >= self.cidrs {
-            return "agrees";
-        }
-
-        "unproven"
-    }
-}
-
 #[derive(Debug, Default)]
 pub struct IpFacts {
     pub client_ip: String,
@@ -977,52 +959,6 @@ mod tests {
         let sources = WorkflowEngine::sources_for(&config, Tier::Standard);
 
         assert_eq!(sources[0].0.strategy, CandidateStrategy::Detections);
-    }
-
-    #[test]
-    fn a_workflow_with_no_decisions_has_no_verdict() {
-        let card = Scorecard::default();
-
-        assert_eq!(card.verdict(), "no data");
-    }
-
-    #[test]
-    fn manual_unblocks_dispute_a_workflow() {
-        let card = Scorecard {
-            decisions: 20,
-            cidrs: 8,
-            unblocked: 2,
-            agreement: 8,
-            ..Scorecard::default()
-        };
-
-        assert_eq!(card.verdict(), "disputed");
-    }
-
-    #[test]
-    fn agreement_with_an_active_workflow_reads_as_safe_to_promote() {
-        let card = Scorecard {
-            decisions: 20,
-            cidrs: 10,
-            unblocked: 0,
-            agreement: 7,
-            ..Scorecard::default()
-        };
-
-        assert_eq!(card.verdict(), "agrees");
-    }
-
-    #[test]
-    fn decisions_nobody_else_saw_stay_unproven() {
-        let card = Scorecard {
-            decisions: 20,
-            cidrs: 10,
-            unblocked: 0,
-            agreement: 1,
-            ..Scorecard::default()
-        };
-
-        assert_eq!(card.verdict(), "unproven");
     }
 
     fn rule(id: &str, msg: &str, severity: &str, count: u64) -> RuleHit {

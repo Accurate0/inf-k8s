@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=../workflow.schema.json
+name: nextjs-middleware-bypass
+enabled: active
+window: 6h
+duration: forever
+reason: "automatic: Next.js middleware bypass attempt (CVE-2025-29927)"
+candidates: |
+  topk({{limit}}, sum by (client_ip) (count_over_time({{selector}} |= `x-middleware-subrequest` {{parse}} {{re_client}} [{{window}}])))
+when:
+  type: rule_msg_matches
+  patterns:
+    - "x-middleware-subrequest"
+  min_count: 1
