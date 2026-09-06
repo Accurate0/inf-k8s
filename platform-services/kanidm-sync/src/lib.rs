@@ -56,6 +56,10 @@ pub struct KanidmOAuth2ClientSpec {
     /// Expose the short username (instead of the SPN) as preferred_username.
     #[serde(default)]
     pub prefer_short_username: bool,
+    /// Allow http://localhost redirects for public clients (native/CLI apps
+    /// that listen on an ephemeral loopback port). Public clients only.
+    #[serde(default)]
+    pub allow_localhost_redirect: bool,
     /// Optional app icon/logo, sourced from a ConfigMap.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub icon: Option<IconRef>,

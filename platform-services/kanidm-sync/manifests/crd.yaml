@@ -31,6 +31,12 @@ spec:
                 default: false
                 description: Disable the PKCE requirement for confidential clients that don't support it.
                 type: boolean
+              allowLocalhostRedirect:
+                default: false
+                description: |-
+                  Allow http://localhost redirects for public clients (native/CLI apps
+                  that listen on an ephemeral loopback port). Public clients only.
+                type: boolean
               claimMaps:
                 additionalProperties:
                   properties:

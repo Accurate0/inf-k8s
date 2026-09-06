@@ -138,6 +138,20 @@ impl Reconcile for KanidmOAuth2Client {
                 .map_err(kanidm_err)?;
         }
 
+        if spec.public {
+            if spec.allow_localhost_redirect {
+                kanidm
+                    .idm_oauth2_rs_enable_public_localhost_redirect(name)
+                    .await
+                    .map_err(kanidm_err)?;
+            } else {
+                kanidm
+                    .idm_oauth2_rs_disable_public_localhost_redirect(name)
+                    .await
+                    .map_err(kanidm_err)?;
+            }
+        }
+
         if !spec.public {
             if spec.allow_insecure_client_disable_pkce {
                 kanidm

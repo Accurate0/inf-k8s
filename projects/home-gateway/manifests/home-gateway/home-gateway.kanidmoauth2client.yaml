@@ -15,6 +15,7 @@ spec:
   redirectUrls:
     - https://home.inf-k8s.net/callback
   preferShortUsername: true
+  allowLocalhostRedirect: true
   # The API validates access tokens against the JWKS and derives scopes from the
   # caller's `groups` claim, so every mapped group must be granted the `groups`
   # scope here. Group SPNs must match `oauth.group_scopes` in the app config.
