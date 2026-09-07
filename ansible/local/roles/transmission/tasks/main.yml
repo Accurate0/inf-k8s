@@ -46,10 +46,18 @@
         gid: "{{ media_gid }}"
         state: present
 
+    - name: Create the NAS group
+      ansible.builtin.group:
+        name: "{{ media_nas_group }}"
+        gid: "{{ media_nas_gid }}"
+        state: present
+
     - name: Make media transmission's primary group
       ansible.builtin.user:
         name: "{{ transmission_user }}"
         group: media
+        groups: "{{ media_nas_group }}"
+        append: true
       notify: Restart transmission
 
     - name: Ensure download directories exist

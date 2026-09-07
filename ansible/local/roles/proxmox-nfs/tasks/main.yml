@@ -65,8 +65,6 @@
   ansible.builtin.file:
     path: /mnt/pve/{{ proxmox_nfs_id }}/{{ item }}
     state: directory
-    owner: "{{ proxmox_nfs_lxc_uid_offset + media_puid | int }}"
-    group: "{{ proxmox_nfs_lxc_uid_offset + media_pgid | int }}"
     mode: "02775"
   loop: "{{ proxmox_nfs_media_dirs }}"
   when: proxmox_nfs_export in proxmox_nfs_exports.stdout

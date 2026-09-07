@@ -56,6 +56,12 @@
 
     proxmox_media_source: /mnt/pve/unraid
 
+    proxmox_media_idmap:
+      - "lxc.idmap: u 0 100000 65536"
+      - "lxc.idmap: g 0 100000 1100"
+      - "lxc.idmap: g 1100 100 1"
+      - "lxc.idmap: g 1101 101101 64435"
+
     proxmox_lxc_bridge: vmbr0
     proxmox_lxc_mac_prefix: "BC:24:11:00"
     proxmox_lxc_gateway: 10.0.2.1
@@ -74,6 +80,7 @@
         features: [nesting=1]
         mounts:
           mp0: "{{ proxmox_media_source }},mp=/data"
+        extra_config: "{{ proxmox_media_idmap }}"
 
       - name: media-apps
         vmid: 203
@@ -85,6 +92,7 @@
         features: [nesting=1, keyctl=1]
         mounts:
           mp0: "{{ proxmox_media_source }},mp=/data"
+        extra_config: "{{ proxmox_media_idmap }}"
 
       - name: transmission
         vmid: 204
@@ -96,6 +104,7 @@
         features: [nesting=1]
         mounts:
           mp0: "{{ proxmox_media_source }},mp=/data"
+        extra_config: "{{ proxmox_media_idmap }}"
 
       - name: home-gateway-web
         vmid: 205
@@ -278,6 +287,17 @@
       loop_control:
         label: "{{ item.name }} ({{ item.vmid }}) -> {{ item.disk }}G"
       when: item.vmid in proxmox_existing_vmids
+
+    - name: Allow the media guests to map the NAS group
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.lineinfile:
+        path: /etc/subgid
+        line: "root:100:1"
+        state: present
 
     - name: Apply the extra lxc config keys
       become: true

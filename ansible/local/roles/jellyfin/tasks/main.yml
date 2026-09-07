@@ -46,10 +46,16 @@
         gid: "{{ media_gid }}"
         state: present
 
-    - name: Add jellyfin to the media group
+    - name: Create the NAS group
+      ansible.builtin.group:
+        name: "{{ media_nas_group }}"
+        gid: "{{ media_nas_gid }}"
+        state: present
+
+    - name: Add jellyfin to the media and NAS groups
       ansible.builtin.user:
         name: "{{ jellyfin_user }}"
-        groups: media
+        groups: "media,{{ media_nas_group }}"
         append: true
       notify: Restart jellyfin
 

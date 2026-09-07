@@ -3,6 +3,8 @@
 media_pool_mount: /data
 media_uid: 1000
 media_gid: 1000
+media_nas_group: nasmedia
+media_nas_gid: 1100
 
 jellyfin_user: jellyfin
 

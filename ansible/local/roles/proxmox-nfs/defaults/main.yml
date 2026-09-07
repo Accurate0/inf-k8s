@@ -6,8 +6,6 @@ proxmox_nfs_export: /mnt/user/media
 proxmox_nfs_content: iso
 proxmox_nfs_options: vers=4.2,hard,noatime,nconnect=4
 
-proxmox_nfs_lxc_uid_offset: 100000
-
 proxmox_nfs_media_dirs:
   - anime
   - downloads
