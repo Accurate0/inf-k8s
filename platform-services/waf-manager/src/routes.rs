@@ -700,6 +700,14 @@ pub struct BlockRow {
 }
 
 impl BlockRow {
+    fn short_time(stamp: &str) -> String {
+        let Some((date, time)) = stamp.split_once('T') else {
+            return stamp.to_string();
+        };
+
+        format!("{date} {}", &time[..time.len().min(5)])
+    }
+
     fn new(block: WafBlock, strikes: &BTreeMap<String, i32>) -> Self {
         Self {
             strikes: block
@@ -712,18 +720,31 @@ impl BlockRow {
             name: block.name_any(),
             cidr: block.spec.cidr.clone(),
             gateway: block.spec.gateway.clone(),
-            reason: block.spec.reason.clone().unwrap_or_default(),
-            created_at: block
-                .creation_timestamp()
-                .map(|t| t.0.to_string())
+            reason: block
+                .spec
+                .reason
+                .as_deref()
+                .map(|r| r.strip_prefix("automatic: ").unwrap_or(r).to_string())
                 .unwrap_or_default(),
+            created_at: Self::short_time(
+                &block
+                    .creation_timestamp()
+                    .map(|t| t.0.to_string())
+                    .unwrap_or_default(),
+            ),
             automatic: block
                 .spec
                 .created_by
                 .as_deref()
                 .is_some_and(|by| by.starts_with(WORKFLOW_AUTHOR_PREFIX)),
-            created_by: block.spec.created_by.clone().unwrap_or_default(),
-            expires_at: block.spec.expires_at.clone().unwrap_or_default(),
+            created_by: block
+                .spec
+                .created_by
+                .as_deref()
+                .map(|by| by.strip_prefix(WORKFLOW_AUTHOR_PREFIX).unwrap_or(by))
+                .unwrap_or_default()
+                .to_string(),
+            expires_at: Self::short_time(block.spec.expires_at.as_deref().unwrap_or_default()),
             enforced: block
                 .status
                 .as_ref()

@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - ./grafana
   - ./prometheus
+  - proxmox-dashboard.configmap.yaml

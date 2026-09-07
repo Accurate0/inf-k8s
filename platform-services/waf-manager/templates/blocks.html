@@ -32,16 +32,15 @@
 {% else %}
 <p class="muted">Showing {{ offset + 1 }}&ndash;{{ offset + rows.len() }} of {{ total }}</p>
 
+<div class="table-scroll">
 <table>
     <thead>
         <tr>
             <th>CIDR</th>
             <th>Gateway</th>
             <th>Reason</th>
-            <th>By</th>
             <th>Created</th>
             <th>Expires</th>
-            <th>Strikes</th>
             <th>State</th>
             <th></th>
         </tr>
@@ -51,31 +50,33 @@
         <tr>
             <td><code>{{ row.cidr }}</code></td>
             <td>{{ row.gateway }}</td>
-            <td>{{ row.reason }}</td>
             <td>
+                {% if row.reason.is_empty() %}<span class="muted">&mdash;</span>{% else %}{{ row.reason }}{% endif %}
+                <div class="by">
                 {% if row.automatic %}
-                <span class="badge auto">auto</span> {{ row.created_by }}
+                    <span class="badge auto">auto</span> {{ row.created_by }}
                 {% else if row.created_by.is_empty() %}
-                <span class="muted">git</span>
+                    <span class="muted">git</span>
                 {% else %}
-                {{ row.created_by }}
+                    <span class="muted" title="{{ row.created_by }}">{{ row.created_by }}</span>
                 {% endif %}
+                </div>
             </td>
-            <td>{{ row.created_at }}</td>
-            <td>{% if row.expires_at.is_empty() %}<span class="muted">never</span>{% else %}{{ row.expires_at }}{% endif %}</td>
-            <td>{% if row.strikes == 0 %}<span class="muted">&mdash;</span>{% else %}{{ row.strikes }}{% endif %}</td>
-            <td>
+            <td class="nowrap">{{ row.created_at }}</td>
+            <td class="nowrap">{% if row.expires_at.is_empty() %}<span class="muted">never</span>{% else %}{{ row.expires_at }}{% endif %}</td>
+            <td class="nowrap">
                 {% if row.enforced %}
                 <span class="badge enforced">enforced</span>
                 {% else %}
                 <span class="badge pending">pending</span>
                 {% endif %}
+                {% if row.strikes > 0 %}<span class="muted" title="strikes">&times;{{ row.strikes }}</span>{% endif %}
             </td>
-            <td>
+            <td class="nowrap">
                 {% if row.automatic && !row.expires_at.is_empty() %}
                 <form class="inline" method="post" action="/block/permanent">
                     <input type="hidden" name="name" value="{{ row.name }}">
-                    <button type="submit">Make permanent</button>
+                    <button type="submit" title="Make permanent">Pin</button>
                 </form>
                 {% endif %}
                 <form class="inline" method="post" action="/unblock">
@@ -87,6 +88,7 @@
     {% endfor %}
     </tbody>
 </table>
+</div>
 
 {% if newer.is_some() || older.is_some() %}
 <p class="pager">

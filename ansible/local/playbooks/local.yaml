@@ -24,6 +24,8 @@
     - proxmox-nginx
     - proxmox-oidc
     - proxmox-sysctl
+    - proxmox-node-exporter
+    - proxmox-pve-exporter
 
 - name: Wait for guests to accept SSH
   hosts: media_servers:gateway:home_automation:backup:mirror

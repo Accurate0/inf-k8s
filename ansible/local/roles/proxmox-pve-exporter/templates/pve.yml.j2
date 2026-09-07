@@ -1,0 +1,5 @@
+{{ proxmox_pve_exporter_module }}:
+  user: {{ proxmox_pve_exporter_user }}
+  token_name: {{ proxmox_pve_exporter_token_name }}
+  token_value: {{ proxmox_pve_exporter_token_value }}
+  verify_ssl: {{ proxmox_pve_exporter_verify_ssl | bool | lower }}

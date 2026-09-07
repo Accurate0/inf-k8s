@@ -43,20 +43,18 @@ Bulk storage lives on **unraid**, a VM on the Proxmox host at `10.0.2.25`
 (`nas.internal`). Unraid manages its own network config — set the static
 address in its webgui after first boot.
 
-The two media drives are handed to it whole, as SCSI passthrough devices listed
-in `proxmox_unraid_disks` by their `/dev/disk/by-id` paths. They are attached
-with `scsiblock=1`, which builds them as QEMU `scsi-block` devices instead of
-the default emulated `scsi-hd`: SCSI commands go straight to the drive, so
-Unraid reads the real model, serial, and SMART data (ATA pass-through reaches
-the disk via the kernel's SAT layer) rather than QEMU's synthesised answers.
-Proxmox does not mount them — a disk the host still has mounted invites two
-writers on one filesystem, so keep them out of the host's fstab.
+The SAS HBAs are handed to it whole. `roles/proxmox-vfio` blacklists `mpt3sas`
+on the host and binds the controllers to `vfio-pci` by PCI id
+(`proxmox_vfio_ids`), so the host never enumerates the drives behind them and
+Unraid drives the controllers directly — real models, serials, and SMART data,
+no QEMU layer in between. This replaced the earlier per-disk `scsiblock=1`
+passthrough, which was only necessary while the media drives shared the chipset
+SATA controller with the `rpool` boot SSD; the add-in HBAs are on their own
+IOMMU groups, so the host keeps its root disk.
 
-This is disk-level passthrough, not controller passthrough. Handing the HBA to
-the VM with vfio would cut the host out completely, but it is not possible here:
-both media drives and the `rpool` boot SSD sit behind the one chipset SATA
-controller (`0000:00:1f.2`), so passing it through would take Proxmox's own root
-disk with it. That needs a separate add-in HBA for the media drives.
+`intel_iommu=on,sp_off` on the kernel command line is load-bearing: without
+`sp_off` this platform's IOMMU superpage support corrupts the mappings and the
+HBAs fail under the guest.
 
 It uses **internal boot** (7.3+): the VM boots from `scsi0`, a virtual disk on
 `local-zfs`, rather than reading the OS off the flash every boot. First boot
@@ -103,6 +101,29 @@ chown -R 101000:101000 /mnt/pve/unraid/{downloads,tv,movies}
 Inside the containers those directories then read as `1000:media`, matching
 `media_puid`/`media_pgid`. Keep downloads and the library on this one share so
 the *arr apps can hardlink imports instead of copying them.
+
+## Metrics
+
+The Proxmox host exports to the cluster's Prometheus. Two exporters run on `pve`,
+installed by `roles/proxmox-node-exporter` and `roles/proxmox-pve-exporter`:
+
+| Port | Exporter | What it covers |
+|---|---|---|
+| 9100 | `prometheus-node-exporter` | CPU, memory, ZFS ARC, disk IO, filesystems, hwmon temperatures, and SMART via the `smartmon` textfile collector |
+| 9221 | `prometheus-pve-exporter` | The PVE API — guest state, per-storage usage, node and cluster status |
+
+Both bind to the host's LAN address, not `0.0.0.0`. Prometheus runs on
+`k8s-pve-1`, an LXC on this same host and subnet, so the scrape is a plain LAN
+hop — no Tailscale, unlike the haproxy job. The two jobs live in
+`additionalScrapeConfigs` in `system-components/monitoring.application.yaml`, and
+`system-components/monitoring/proxmox-dashboard.configmap.yaml` provisions the
+Grafana dashboard.
+
+`proxmox-pve-exporter` issues its own read-only API token (`prometheus@pve`,
+`PVEAuditor`) the first time it runs and writes it to `/etc/prometheus/pve.yml`.
+The secret is only returned at creation, so the role keys off that file: delete
+it and the next run reissues the token. Nothing needs to be passed in through
+the environment.
 
 ## Dependencies
 

@@ -1,0 +1,115 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Proxmox API metrics exporter
+  become: true
+  become_user: root
+  block:
+    - name: Install the exporter package
+      ansible.builtin.apt:
+        name: prometheus-pve-exporter
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the configuration directory
+      ansible.builtin.file:
+        path: "{{ proxmox_pve_exporter_config | dirname }}"
+        state: directory
+        owner: root
+        group: prometheus
+        mode: "0750"
+
+    - name: List the configured users
+      ansible.builtin.command: pveum user list --output-format json
+      changed_when: false
+      register: proxmox_pve_exporter_users
+
+    - name: Create the exporter user
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - user
+          - add
+          - "{{ proxmox_pve_exporter_user }}"
+          - --comment
+          - Prometheus metrics exporter
+      when: proxmox_pve_exporter_user not in (proxmox_pve_exporter_users.stdout | from_json | map(attribute='userid') | list)
+
+    - name: Grant the exporter user read-only access
+      ansible.builtin.command:
+        argv:
+          - pveum
+          - acl
+          - modify
+          - /
+          - --users
+          - "{{ proxmox_pve_exporter_user }}"
+          - --roles
+          - "{{ proxmox_pve_exporter_role }}"
+      changed_when: false
+
+    - name: Look for an existing exporter configuration
+      ansible.builtin.stat:
+        path: "{{ proxmox_pve_exporter_config }}"
+      register: proxmox_pve_exporter_stat
+
+    - name: Issue the API token
+      when: not proxmox_pve_exporter_stat.stat.exists
+      block:
+        - name: List the exporter user tokens
+          ansible.builtin.command: pveum user token list {{ proxmox_pve_exporter_user }} --output-format json
+          changed_when: false
+          register: proxmox_pve_exporter_tokens
+
+        - name: Remove the orphaned token
+          ansible.builtin.command:
+            argv:
+              - pveum
+              - user
+              - token
+              - remove
+              - "{{ proxmox_pve_exporter_user }}"
+              - "{{ proxmox_pve_exporter_token_name }}"
+          when: proxmox_pve_exporter_token_name in (proxmox_pve_exporter_tokens.stdout | from_json | map(attribute='tokenid') | list)
+
+        - name: Add the token
+          ansible.builtin.command:
+            argv:
+              - pveum
+              - user
+              - token
+              - add
+              - "{{ proxmox_pve_exporter_user }}"
+              - "{{ proxmox_pve_exporter_token_name }}"
+              - --privsep
+              - "0"
+              - --output-format
+              - json
+          no_log: true
+          register: proxmox_pve_exporter_token
+
+        - name: Write the exporter configuration
+          ansible.builtin.template:
+            src: pve.yml.j2
+            dest: "{{ proxmox_pve_exporter_config }}"
+            owner: prometheus
+            group: prometheus
+            mode: "0600"
+          vars:
+            proxmox_pve_exporter_token_value: "{{ (proxmox_pve_exporter_token.stdout | from_json).value }}"
+          no_log: true
+          notify: Restart pve exporter
+
+    - name: Configure the exporter arguments
+      ansible.builtin.template:
+        src: default.j2
+        dest: /etc/default/prometheus-pve-exporter
+        owner: root
+        mode: "0644"
+      notify: Restart pve exporter
+
+    - name: Enable the exporter
+      ansible.builtin.systemd_service:
+        name: prometheus-pve-exporter
+        enabled: true
+        state: started

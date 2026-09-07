@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_node_exporter_bind: "{{ ansible_host }}"
+proxmox_node_exporter_port: 9100
+
+proxmox_node_exporter_textfile_dir: /var/lib/prometheus/node-exporter
+
+proxmox_node_exporter_packages:
+  - prometheus-node-exporter
+  - prometheus-node-exporter-collectors
+  - smartmontools
+
+proxmox_node_exporter_collectors:
+  - zfs
+  - hwmon
+  - systemd
+
+proxmox_node_exporter_timers:
+  - prometheus-node-exporter-smartmon.timer
+  - prometheus-node-exporter-apt.timer

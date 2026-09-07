@@ -301,6 +301,32 @@ spec:
                         - "100.98.212.43:8405"
                   tls_config:
                     insecure_skip_verify: true
+                - job_name: "pve-node"
+                  static_configs:
+                    - targets:
+                        - "10.0.2.249:9100"
+                  relabel_configs:
+                    - target_label: instance
+                      replacement: pve
+                - job_name: "pve-api"
+                  metrics_path: /pve
+                  params:
+                    module:
+                      - default
+                    cluster:
+                      - "1"
+                    node:
+                      - "1"
+                  static_configs:
+                    - targets:
+                        - "10.0.2.249"
+                  relabel_configs:
+                    - source_labels: [__address__]
+                      target_label: __param_target
+                    - source_labels: [__param_target]
+                      target_label: instance
+                    - target_label: __address__
+                      replacement: "10.0.2.249:9221"
               podMonitorSelectorNilUsesHelmValues: false
               probeSelectorNilUsesHelmValues: false
               ruleSelectorNilUsesHelmValues: false

@@ -1,0 +1,1 @@
+ARGS="--web.listen-address={{ proxmox_node_exporter_bind }}:{{ proxmox_node_exporter_port }} --collector.textfile.directory={{ proxmox_node_exporter_textfile_dir }}{% for collector in proxmox_node_exporter_collectors %} --collector.{{ collector }}{% endfor %}"

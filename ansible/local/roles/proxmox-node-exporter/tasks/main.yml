@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Host metrics exporter
+  become: true
+  become_user: root
+  block:
+    - name: Install the exporter packages
+      ansible.builtin.apt:
+        name: "{{ proxmox_node_exporter_packages }}"
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the textfile collector directory
+      ansible.builtin.file:
+        path: "{{ proxmox_node_exporter_textfile_dir }}"
+        state: directory
+        owner: prometheus
+        group: prometheus
+        mode: "0755"
+
+    - name: Configure the exporter arguments
+      ansible.builtin.template:
+        src: default.j2
+        dest: /etc/default/prometheus-node-exporter
+        owner: root
+        mode: "0644"
+      notify: Restart node exporter
+
+    - name: Enable the exporter
+      ansible.builtin.systemd_service:
+        name: prometheus-node-exporter
+        enabled: true
+        state: started
+
+    - name: Enable the textfile collector timers
+      ansible.builtin.systemd_service:
+        name: "{{ item }}"
+        enabled: true
+        state: started
+      loop: "{{ proxmox_node_exporter_timers }}"
