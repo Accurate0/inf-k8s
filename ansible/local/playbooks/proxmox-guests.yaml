@@ -424,12 +424,12 @@
     proxmox_unraid_ip: 10.0.2.25
     proxmox_unraid_cores: 4
     proxmox_unraid_memory: 8192
-    proxmox_unraid_balloon: 4096
+    proxmox_unraid_balloon: 0
     proxmox_unraid_usb: "{{ lookup('ansible.builtin.env', 'UNRAID_USB_ID') }}"
     proxmox_unraid_boot_disk: 32
-    proxmox_unraid_disks:
-      - /dev/disk/by-id/ata-ST4000VN006-3CW104_ZW6464KJ
-      - /dev/disk/by-id/ata-WDC_WD20EZAZ-00GGJB0_WD-WX72A70242TP
+    proxmox_unraid_hostpci:
+      - "0000:03:00.0"
+      - "0000:05:00.0"
 
   tasks:
     - name: Assert the API token is available
@@ -557,7 +557,25 @@
       changed_when: "'update VM' in proxmox_unraid_tpm.stderr"
       when: proxmox_unraid_vmid | int in proxmox_existing_vmids
 
-    - name: Attach the passthrough array disks
+    - name: Read the current VM configuration
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: qm config {{ proxmox_unraid_vmid }} --current
+      register: proxmox_unraid_config
+      changed_when: false
+
+    - name: Index the HBAs the VM has not claimed yet
+      ansible.builtin.set_fact:
+        proxmox_unraid_missing_hostpci: >-
+          {{ proxmox_unraid_hostpci
+             | reject('in', proxmox_unraid_config.stdout
+                            | regex_findall('^hostpci[0-9]+: (\S+)', multiline=True))
+             | list }}
+
+    - name: Attach the HBAs
       become: true
       become_user: root
       delegate_to: pve
@@ -565,13 +583,14 @@
         ansible_connection: ssh
       ansible.builtin.command: >-
         qm set {{ proxmox_unraid_vmid }}
-        -scsi{{ index + 1 }} {{ item }},scsiblock=1,backup=0
-      register: proxmox_unraid_disk
-      changed_when: "'update VM' in proxmox_unraid_disk.stderr"
-      loop: "{{ proxmox_unraid_disks }}"
+        -hostpci{{ index }} {{ item }},pcie=1
+      register: proxmox_unraid_hba
+      changed_when: "'update VM' in proxmox_unraid_hba.stderr"
+      loop: "{{ proxmox_unraid_hostpci }}"
       loop_control:
         index_var: index
-        label: "scsi{{ index + 1 }} -> {{ item }}"
+        label: "hostpci{{ index }} -> {{ item }}"
+      when: proxmox_unraid_missing_hostpci | length > 0
 
     - name: Start the Unraid VM
       community.proxmox.proxmox_kvm:

@@ -7,6 +7,7 @@
 
   roles:
     - proxmox-nfs
+    - proxmox-vfio
 
 - ansible.builtin.import_playbook: proxmox-guests.yaml
 

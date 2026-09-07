@@ -1,0 +1,5 @@
+options vfio-pci ids={{ proxmox_vfio_ids | join(',') }}
+{% for module in proxmox_vfio_blacklist %}
+blacklist {{ module }}
+softdep {{ module }} pre: vfio-pci
+{% endfor %}

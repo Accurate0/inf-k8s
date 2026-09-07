@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Look for an active IOMMU
+  become: true
+  become_user: root
+  ansible.builtin.find:
+    paths: /sys/class/iommu
+    file_type: any
+  register: proxmox_vfio_iommu
+
+- name: Assert the IOMMU is enabled
+  ansible.builtin.assert:
+    that:
+      - proxmox_vfio_iommu.matched > 0
+    fail_msg: >-
+      No IOMMU groups on {{ inventory_hostname }}. Enable VT-d (Intel) or
+      AMD-Vi in the firmware, and add intel_iommu=on to the kernel command
+      line with proxmox-boot-tool, before binding the HBAs to vfio-pci.
+
+- name: Bind the passthrough devices to vfio-pci
+  become: true
+  become_user: root
+  ansible.builtin.template:
+    src: vfio.conf.j2
+    dest: /etc/modprobe.d/vfio.conf
+    owner: root
+    mode: "0644"
+  notify: Rebuild the initramfs
+
+- name: Load the vfio modules at boot
+  become: true
+  become_user: root
+  ansible.builtin.template:
+    src: modules.conf.j2
+    dest: /etc/modules-load.d/vfio.conf
+    owner: root
+    mode: "0644"
+  notify: Rebuild the initramfs
+
+- name: Read the current kernel command line
+  become: true
+  become_user: root
+  ansible.builtin.slurp:
+    src: /etc/kernel/cmdline
+  register: proxmox_vfio_cmdline
+
+- name: Compose the kernel command line
+  ansible.builtin.set_fact:
+    proxmox_vfio_cmdline_next: >-
+      {{ ((proxmox_vfio_cmdline.content | b64decode).split()
+          | reject('match', '^(' ~ (proxmox_vfio_cmdline_params
+                                    | map('regex_replace', '=.*$', '')
+                                    | join('|')) ~ ')=')
+          | list) + proxmox_vfio_cmdline_params }}
+
+- name: Set the kernel command line
+  become: true
+  become_user: root
+  ansible.builtin.copy:
+    content: "{{ proxmox_vfio_cmdline_next | join(' ') }}\n"
+    dest: /etc/kernel/cmdline
+    owner: root
+    mode: "0644"
+  notify: Refresh the boot configuration
+
+- name: Read the drivers currently bound to the passthrough devices
+  become: true
+  become_user: root
+  ansible.builtin.shell: |
+    set -o pipefail
+    for id in {{ proxmox_vfio_ids | join(' ') }}; do
+      lspci -d "$id" -k | sed -n 's/.*Kernel driver in use: //p'
+    done
+  args:
+    executable: /bin/bash
+  register: proxmox_vfio_bound
+  changed_when: false
+
+- name: Report the devices still held by the host
+  ansible.builtin.debug:
+    msg: >-
+      {{ proxmox_vfio_ids | join(', ') }} is still bound to
+      {{ proxmox_vfio_bound.stdout_lines | unique | join(', ') }} on
+      {{ inventory_hostname }}. Reboot the host to hand it to vfio-pci -
+      the Unraid VM cannot claim the HBAs until then.
+  when: proxmox_vfio_bound.stdout_lines | reject('equalto', 'vfio-pci') | list | length > 0
