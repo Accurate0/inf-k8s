@@ -112,6 +112,11 @@ installed by `roles/proxmox-node-exporter` and `roles/proxmox-pve-exporter`:
 | 9100 | `prometheus-node-exporter` | CPU, memory, ZFS ARC, disk IO, filesystems, hwmon temperatures, and SMART via the `smartmon` textfile collector |
 | 9221 | `prometheus-pve-exporter` | The PVE API — guest state, per-storage usage, node and cluster status |
 
+`prometheus-pve-exporter` is not packaged for Debian, so the role installs it
+from PyPI into a virtualenv at `/opt/prometheus-pve-exporter` — pinned by
+`proxmox_pve_exporter_version` — and ships its own systemd unit. The node
+exporter is a plain Debian package.
+
 Both bind to the host's LAN address, not `0.0.0.0`. Prometheus runs on
 `k8s-pve-1`, an LXC on this same host and subnet, so the scrape is a plain LAN
 hop — no Tailscale, unlike the haproxy job. The two jobs live in

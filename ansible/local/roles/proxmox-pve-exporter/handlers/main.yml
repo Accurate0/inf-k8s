@@ -1,5 +1,11 @@
 # SPDX-License-Identifier: MIT-0
 ---
+- name: Reload systemd
+  become: true
+  become_user: root
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
 - name: Restart pve exporter
   become: true
   become_user: root
