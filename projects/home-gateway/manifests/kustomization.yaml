@@ -23,4 +23,4 @@ images:
   - name: ghcr.io/accurate0/home-gateway-solar-web
     newTag: 1285b5430f1704ac2c82d93b327be0a4d7d77cfc
   - name: ghcr.io/accurate0/home-gateway-web
-    newTag: 1285b5430f1704ac2c82d93b327be0a4d7d77cfc
+    newTag: 3f49076eaae3bb5302e7091dd72537a7c3585183
