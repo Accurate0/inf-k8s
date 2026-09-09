@@ -1,0 +1,6 @@
+key: home-gateway-tracing
+type: object
+enabled: true
+default: default
+variants:
+  default: {}
