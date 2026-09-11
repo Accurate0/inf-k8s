@@ -90,6 +90,9 @@ spec:
             - name: config
               mountPath: /etc/home-gateway/config
               readOnly: true
+            - name: config-devices
+              mountPath: /etc/home-gateway/config/devices
+              readOnly: true
             - name: config-workflows
               mountPath: /etc/home-gateway/config/workflows
               readOnly: true
@@ -97,6 +100,9 @@ spec:
         - name: config
           configMap:
             name: home-gateway-config
+        - name: config-devices
+          configMap:
+            name: home-gateway-config-devices
         - name: config-workflows
           configMap:
             name: home-gateway-config-workflows
