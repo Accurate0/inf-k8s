@@ -102,6 +102,9 @@ spec:
             - name: config-lua-workflows
               mountPath: /etc/home-gateway/config/lua/workflows
               readOnly: true
+            - name: config-lua-zigbee
+              mountPath: /etc/home-gateway/config/lua/zigbee
+              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -118,3 +121,6 @@ spec:
         - name: config-lua-workflows
           configMap:
             name: home-gateway-config-lua-workflows
+        - name: config-lua-zigbee
+          configMap:
+            name: home-gateway-config-lua-zigbee
