@@ -10,8 +10,6 @@ resources:
   - home-gateway/home-web.deployment.yaml
   - home-gateway/home-web.service.yaml
   - home-gateway/home-web.httproute.yaml
-  - home-gateway/solar-web.deployment.yaml
-  - home-gateway/solar-web.service.yaml
   - namespace.yaml
   - database.yaml
 commonAnnotations:
@@ -20,7 +18,5 @@ commonAnnotations:
 images:
   - name: ghcr.io/accurate0/home-gateway
     newTag: 93a79f0bea9bd4b4988383c59fac84ece1460861
-  - name: ghcr.io/accurate0/home-gateway-solar-web
-    newTag: 150173c5ca72d2b1956ec437f6363d657cabb0bc
   - name: ghcr.io/accurate0/home-gateway-web
     newTag: dfdffa455f50f0d4d5ac073ab94c3cd932d79131
