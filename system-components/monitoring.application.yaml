@@ -20,6 +20,67 @@ spec:
       selfHeal: true
   project: system-components
   sources:
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.2
+      helm:
+        valuesObject:
+          defaults:
+            namespace: monitoring
+          clients:
+            - name: prometheus
+              displayName: Prometheus
+              host: prometheus.inf-k8s.net
+              preferShortUsername: true
+              allowInsecureClientDisablePkce: true
+              secretKeys:
+                clientId: client-id
+                clientSecret: client-secret
+              scopeMaps:
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+              secretName: kanidm-prometheus-oidc
+              secretNamespace: monitoring
+              icon:
+                configMap: prometheus-kanidm-icon
+                key: prometheus.svg
+              securityPolicy:
+                httpRoute: prometheus
+                scopes:
+                  - openid
+                  - email
+                  - profile
+            - name: grafana
+              displayName: Grafana
+              host: grafana.inf-k8s.net
+              callbackPath: /login/generic_oauth
+              preferShortUsername: true
+              scopeMaps:
+                grafana_users:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              claimMaps:
+                grafana_role:
+                  join: array
+                  valuesByGroup:
+                    platform_admins:
+                      - GrafanaAdmin
+                    grafana_users:
+                      - Editor
+              secretName: kanidm-grafana-oidc
+              secretNamespace: monitoring
+              icon:
+                configMap: grafana-kanidm-icon
+                key: Grafana.svg
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/monitoring
     - chart: k8s-http-routes
