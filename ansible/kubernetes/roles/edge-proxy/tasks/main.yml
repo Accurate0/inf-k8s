@@ -10,8 +10,6 @@
       ansible.builtin.apt:
         package:
           - haproxy
-          - nginx
-          - libnginx-mod-stream
       notify:
         - Start HAProxy
 

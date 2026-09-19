@@ -25,6 +25,10 @@ spec:
       value: 50000
   http2:
     maxConcurrentStreams: 100
+  timeout:
+    http:
+      requestReceivedTimeout: "30s"
+      idleTimeout: "5m"
   headers:
     disableRateLimitHeaders: true
     enableEnvoyHeaders: false
@@ -42,3 +46,5 @@ spec:
           value: "strict-origin-when-cross-origin"
         - name: "Permissions-Policy"
           value: "interest-cohort=()"
+        - name: "Strict-Transport-Security"
+          value: "max-age=31536000; includeSubDomains"
