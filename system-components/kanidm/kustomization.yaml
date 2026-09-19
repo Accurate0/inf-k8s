@@ -12,8 +12,6 @@ resources:
   - httproute.yaml
   - backendtlspolicy.yaml
   - backend.policy.yaml
-  - clients/pbs.yaml
-  - clients/pve.yaml
   - groups/argocd-users.yaml
   - groups/dawarich-users.yaml
   - groups/flipt-users.yaml

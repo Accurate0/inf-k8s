@@ -19,6 +19,50 @@ spec:
       selfHeal: true
   project: system-components
   sources:
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.2
+      helm:
+        valuesObject:
+          defaults:
+            namespace: kanidm
+          clients:
+            - name: pve
+              displayName: Proxmox VE
+              host: pve.internal
+              callbackPath: /
+              extraRedirectUrls:
+                - https://pve.internal:8006/
+              preferShortUsername: true
+              allowInsecureClientDisablePkce: true
+              scopeMaps:
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+              claimMaps:
+                pve_groups:
+                  join: array
+                  valuesByGroup:
+                    platform_admins:
+                      - admins
+              secretName: kanidm-pve-oidc
+              secretNamespace: kanidm
+            - name: pbs
+              displayName: Proxmox Backup Server
+              host: pbs.internal
+              callbackPath: /
+              extraRedirectUrls:
+                - https://pbs.internal:8007/
+              preferShortUsername: true
+              allowInsecureClientDisablePkce: true
+              scopeMaps:
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+              secretName: kanidm-pbs-oidc
+              secretNamespace: kanidm
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/kanidm
   destination:
