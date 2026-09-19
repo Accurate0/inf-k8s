@@ -32,15 +32,16 @@ spec:
     {{- if .forwardAccessToken }}
     forwardAccessToken: true
     {{- end }}
-  {{- with .jwt }}
+  {{- if hasKey . "jwt" }}
+  {{- $jwt := .jwt | default dict }}
   jwt:
     providers:
       - name: kanidm
         issuer: {{ $issuerBase }}/{{ $client.name }}
         remoteJWKS:
-          cacheDuration: {{ .cacheDuration | default "3600s" }}
+          cacheDuration: {{ $jwt.cacheDuration | default "3600s" }}
           uri: {{ $issuerBase }}/{{ $client.name }}/public_key.jwk
-        {{- with .claimToHeaders }}
+        {{- with $jwt.claimToHeaders }}
         claimToHeaders:
           {{- toYaml . | nindent 10 }}
         {{- end }}
