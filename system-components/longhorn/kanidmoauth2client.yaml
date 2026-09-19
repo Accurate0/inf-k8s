@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: longhorn
   namespace: longhorn-system
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: longhorn
   displayName: Longhorn

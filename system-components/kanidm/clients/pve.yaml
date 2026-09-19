@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: pve
   namespace: kanidm
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: pve
   displayName: Proxmox VE

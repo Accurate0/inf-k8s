@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: ai-gateway-database
   namespace: ai-gateway
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: ai_gateway
   secretName: ai-gateway-database-secret

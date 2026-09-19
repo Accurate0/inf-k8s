@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: argocd
   namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: argocd
   displayName: Argo CD

@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: forgejo
   namespace: forgejo
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: forgejo
   displayName: Forgejo

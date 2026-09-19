@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: home-gateway-database
   namespace: home-gateway
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: home_gateway
   secretName: home-gateway-database-secret

@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: pg-db-controller-2
   namespace: pg-db-controller
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: k8s_pg_db_controller_2
   secretName: pg-db-controller-test-secret-2

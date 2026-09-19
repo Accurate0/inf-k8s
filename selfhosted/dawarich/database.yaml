@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: dawarich-database
   namespace: dawarich
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: dawarich_2
   secretName: dawarich-database-secret

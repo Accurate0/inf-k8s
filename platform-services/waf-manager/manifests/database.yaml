@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: waf-manager-database
   namespace: waf-manager
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: waf_manager
   secretName: waf-manager-database-secret

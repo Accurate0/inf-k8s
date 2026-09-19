@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: bom-database
   namespace: bom
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: bom
   secretName: bom-database-secret

@@ -4,6 +4,8 @@ kind: PostgresDatabase
 metadata:
   name: forgejo-database
   namespace: forgejo
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   databaseName: forgejo
   secretName: forgejo-database-secret

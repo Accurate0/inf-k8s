@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: home-gateway
   namespace: home-gateway
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: home-gateway
   displayName: Home Gateway

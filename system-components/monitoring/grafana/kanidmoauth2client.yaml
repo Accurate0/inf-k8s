@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: grafana
   namespace: monitoring
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: grafana
   displayName: Grafana

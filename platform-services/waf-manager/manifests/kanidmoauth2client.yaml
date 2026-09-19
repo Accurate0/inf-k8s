@@ -4,6 +4,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: waf-manager
   namespace: waf-manager
+  annotations:
+    argocd.argoproj.io/sync-options: Prune=false,Delete=false
 spec:
   name: waf-manager
   displayName: WAF Manager
