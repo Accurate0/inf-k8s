@@ -2,8 +2,10 @@
 {{- $releaseNamespace := .Release.Namespace }}
 {{- $issuerBase := $defaults.issuerBase | default "https://idm.anurag.sh/oauth2/openid" }}
 {{- range $client := .Values.clients }}
-{{- with $client.securityPolicy }}
-{{- $scopes := .scopes | default $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
+{{- if hasKey $client "securityPolicy" }}
+{{- $sp := $client.securityPolicy | default dict }}
+{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false") }}
+{{- $scopes := $sp.scopes | default $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
 {{- $secretName := $client.secretName | default (printf "kanidm-%s-oidc" $client.name) }}
 {{- $callbackPath := $client.callbackPath | default "/oauth2/callback" }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
@@ -11,11 +13,13 @@ kind: SecurityPolicy
 metadata:
   name: {{ $client.name }}-oidc
   namespace: {{ $client.namespace | default $defaults.namespace | default $releaseNamespace }}
+  annotations:
+    {{- toYaml $annotations | nindent 4 }}
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
-      name: {{ .httpRoute | default $client.name }}
+      name: {{ $sp.httpRoute | default $client.name }}
   oidc:
     provider:
       issuer: {{ $issuerBase }}/{{ $client.name }}
@@ -24,16 +28,16 @@ spec:
     clientSecret:
       name: {{ $secretName }}
     redirectURL: https://{{ $client.host }}{{ $callbackPath }}
-    {{- with .logoutPath }}
+    {{- with $sp.logoutPath }}
     logoutPath: {{ . }}
     {{- end }}
     scopes:
       {{- toYaml $scopes | nindent 6 }}
-    {{- if .forwardAccessToken }}
+    {{- if $sp.forwardAccessToken }}
     forwardAccessToken: true
     {{- end }}
-  {{- if hasKey . "jwt" }}
-  {{- $jwt := .jwt | default dict }}
+  {{- if hasKey $sp "jwt" }}
+  {{- $jwt := $sp.jwt | default dict }}
   jwt:
     providers:
       - name: kanidm

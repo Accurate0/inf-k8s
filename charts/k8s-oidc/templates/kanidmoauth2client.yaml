@@ -2,7 +2,7 @@
 {{- $releaseNamespace := .Release.Namespace }}
 {{- range $client := .Values.clients }}
 {{- $secretKeys := $client.secretKeys | default $defaults.secretKeys }}
-{{- if and (not $secretKeys) $client.securityPolicy }}
+{{- if and (not $secretKeys) (hasKey $client "securityPolicy") }}
 {{- $secretKeys = dict "clientId" "client-id" "clientSecret" "client-secret" }}
 {{- end }}
 {{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false") }}
