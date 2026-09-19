@@ -17,7 +17,7 @@ spec:
   sources:
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.1
+      targetRevision: 0.2.2
       helm:
         valuesObject:
           clients:

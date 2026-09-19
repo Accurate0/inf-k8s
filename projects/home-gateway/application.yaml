@@ -16,7 +16,7 @@ spec:
   sources:
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
-      targetRevision: 2.2.0
+      targetRevision: 2.3.0
       helm:
         valuesObject:
           routes:
@@ -52,7 +52,7 @@ spec:
                         value: /v1
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.1
+      targetRevision: 0.2.2
       helm:
         valuesObject:
           clients:

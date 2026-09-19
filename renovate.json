@@ -4,6 +4,7 @@
   "argocd": {
     "managerFilePatterns": [
       "/system-components/.*\\.application\\.yaml$/",
+      "/selfhosted/.*\\.application\\.yaml$/",
       "/projects/.*/application\\.yaml$/",
       "/platform-services/.*/application\\.yaml$/"
     ]
@@ -14,12 +15,23 @@
       "customType": "regex",
       "managerFilePatterns": [
         "/system-components/.*\\.application\\.yaml$/",
+        "/selfhosted/.*\\.application\\.yaml$/",
         "/projects/.*/application\\.yaml$/",
         "/platform-services/.*/application\\.yaml$/"
       ],
       "matchStrings": [
         "repoURL:\\s*oci://(?<depName>[^\\s]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[^\\s]+)"
       ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^scripts/new-project\\.sh$/"],
+      "matchStrings": [
+        "(?<depName>routes|secrets|oidc|postgres)_chart_version=\"\\$\\{[A-Z_]+:-(?<currentValue>[^}]+)\\}\""
+      ],
+      "packageNameTemplate": "ghcr.io/accurate0/charts/k8s-{{#if (equals depName 'routes')}}http-routes{{else}}{{{depName}}}{{/if}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
     },
@@ -74,6 +86,8 @@
       "matchPackageNames": [
         "ghcr.io/accurate0/charts/k8s-http-routes/k8s-http-routes",
         "ghcr.io/accurate0/charts/k8s-secrets/k8s-secrets",
+        "ghcr.io/accurate0/charts/k8s-oidc/k8s-oidc",
+        "ghcr.io/accurate0/charts/k8s-postgres/k8s-postgres",
         "ghcr.io/external-secrets/charts/external-secrets/external-secrets",
         "ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator/dragonfly-operator",
         "ghcr.io/bjw-s-labs/helm/app-template/app-template",
