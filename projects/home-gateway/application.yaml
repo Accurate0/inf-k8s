@@ -50,6 +50,50 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /v1
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.1
+      helm:
+        valuesObject:
+          clients:
+            - name: home-gateway
+              namespace: home-gateway
+              displayName: Home Gateway
+              host: home.inf-k8s.net
+              callbackPath: /callback
+              public: true
+              preferShortUsername: true
+              allowLocalhostRedirect: true
+              scopeMaps:
+                home_gateway_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+                home_gateway_readers:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              secretName: kanidm-home-gateway-oidc
+              secretNamespace: home-gateway
+              annotations:
+                inf-k8s.net/app: home-gateway
+                inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
+    - chart: k8s-postgres
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          databases:
+            - name: home-gateway
+              namespace: home-gateway
+              databaseName: home_gateway
+              secretName: home-gateway-database-secret
+              secretNamespace: home-gateway
+              annotations:
+                inf-k8s.net/app: home-gateway
+                inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/home-gateway/manifests
