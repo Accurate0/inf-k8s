@@ -602,6 +602,54 @@ spec:
                   subPath: data
                 - path: /tmp
                   subPath: tmp
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.2
+      helm:
+        valuesObject:
+          clients:
+            - name: forgejo
+              namespace: forgejo
+              displayName: Forgejo
+              host: git.anurag.sh
+              callbackPath: /user/oauth2/kanidm/callback
+              secretKeys:
+                clientId: key
+                clientSecret: secret
+              preferShortUsername: true
+              scopeMaps:
+                forgejo_users:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              claimMaps:
+                forgejo:
+                  join: ssv
+                  valuesByGroup:
+                    platform_admins:
+                      - admin
+              secretName: kanidm-forgejo-oidc
+              secretNamespace: forgejo
+              icon:
+                configMap: forgejo-kanidm-icon
+                key: Forgejo.svg
+    - chart: k8s-postgres
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          databases:
+            - name: forgejo
+              namespace: forgejo
+              databaseName: forgejo
+              secretName: forgejo-database-secret
+              secretNamespace: forgejo
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/forgejo
       kustomize: {}
