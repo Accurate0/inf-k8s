@@ -6,7 +6,6 @@ resources:
   - secret.yaml
   - secretstore.yaml
   - service.yaml
-  - database.yaml
 commonAnnotations:
   inf-k8s.net/app: bom
   inf-k8s.net/repository: https://github.com/Accurate0/bom
