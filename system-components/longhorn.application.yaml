@@ -40,6 +40,37 @@ spec:
                       AWS_ACCESS_KEY_ID: "{{ .AWS_ACCESS_KEY_ID }}"
                       AWS_SECRET_ACCESS_KEY: "{{ .AWS_SECRET_ACCESS_KEY }}"
                       AWS_ENDPOINTS: "{{ .AWS_ENDPOINTS }}"
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.2
+      helm:
+        valuesObject:
+          clients:
+            - name: longhorn
+              namespace: longhorn-system
+              displayName: Longhorn
+              host: longhorn.inf-k8s.net
+              preferShortUsername: true
+              allowInsecureClientDisablePkce: true
+              secretKeys:
+                clientId: client-id
+                clientSecret: client-secret
+              scopeMaps:
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+              secretName: kanidm-longhorn-oidc
+              secretNamespace: longhorn-system
+              icon:
+                configMap: longhorn-kanidm-icon
+                key: longhorn.png
+              securityPolicy:
+                httpRoute: longhorn
+                scopes:
+                  - openid
+                  - email
+                  - profile
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/longhorn
     - chart: k8s-http-routes
