@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: cloudflare-ips-sync
+spec:
+  schedule: "23 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: OnFailure
+          serviceAccountName: cloudflare-ips-sync
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: sync
+              image: alpine/k8s:1.36.4
+              command:
+                - /bin/sh
+                - -euc
+                - |
+                  response=$(curl -fsS --max-time 30 https://api.cloudflare.com/client/v4/ips)
+
+                  cidrs=$(echo "$response" | jq -ce 'select(.success == true) | .result.ipv4_cidrs + .result.ipv6_cidrs | select(length > 0)')
+
+                  patch=$(jq -cn --argjson cidrs "$cidrs" '{spec: {clientIPDetection: {xForwardedFor: {trustedCIDRs: $cidrs}}}}')
+
+                  for policy in public-gateway-client-policy git-anurag-sh-client-policy; do
+                    kubectl patch clienttrafficpolicy "$policy" --type merge -p "$patch"
+                  done
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi

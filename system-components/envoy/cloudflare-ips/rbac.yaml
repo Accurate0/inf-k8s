@@ -1,0 +1,33 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: cloudflare-ips-sync
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: cloudflare-ips-sync
+rules:
+  - apiGroups:
+      - gateway.envoyproxy.io
+    resources:
+      - clienttrafficpolicies
+    resourceNames:
+      - public-gateway-client-policy
+      - git-anurag-sh-client-policy
+    verbs:
+      - get
+      - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: cloudflare-ips-sync
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: cloudflare-ips-sync
+subjects:
+  - kind: ServiceAccount
+    name: cloudflare-ips-sync

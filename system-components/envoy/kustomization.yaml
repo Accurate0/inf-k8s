@@ -15,3 +15,5 @@ resources:
   - public/client-policy
   - public/client-policy-git
   - waf-dashboard.configmap.yaml
+  - cloudflare-ips/rbac.yaml
+  - cloudflare-ips/cronjob.yaml

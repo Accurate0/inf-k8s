@@ -6,6 +6,11 @@ metadata:
   namespace: argocd
 spec:
   project: system-components
+  ignoreDifferences:
+    - group: gateway.envoyproxy.io
+      kind: ClientTrafficPolicy
+      jqPathExpressions:
+        - ".spec.clientIPDetection.xForwardedFor.trustedCIDRs"
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/envoy
@@ -29,6 +34,7 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
     automated:
       prune: true
       selfHeal: true
