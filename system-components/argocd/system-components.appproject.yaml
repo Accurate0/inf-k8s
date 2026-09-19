@@ -29,6 +29,8 @@ spec:
     - oci://ghcr.io/accurate0/charts/k8s-http-routes
     - oci://ghcr.io/bjw-s-labs/helm/app-template
     - oci://ghcr.io/accurate0/charts/k8s-secrets
+    - oci://ghcr.io/accurate0/charts/k8s-oidc
+    - oci://ghcr.io/accurate0/charts/k8s-postgres
     - oci://ghcr.io/external-secrets/charts/external-secrets
     - oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
   destinations:

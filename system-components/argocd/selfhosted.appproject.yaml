@@ -11,6 +11,8 @@ spec:
     - https://git.anurag.sh/anurag/k8s.git
     - oci://code.forgejo.org/forgejo-helm/forgejo
     - oci://ghcr.io/accurate0/charts/k8s-secrets
+    - oci://ghcr.io/accurate0/charts/k8s-oidc
+    - oci://ghcr.io/accurate0/charts/k8s-postgres
     - oci://ghcr.io/bjw-s-labs/helm/app-template
   destinations:
     - namespace: "*"
