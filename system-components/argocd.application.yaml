@@ -20,6 +20,38 @@ spec:
       selfHeal: true
   project: system-components
   sources:
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.2
+      helm:
+        valuesObject:
+          clients:
+            - name: argocd
+              namespace: argocd
+              displayName: Argo CD
+              host: argocd.inf-k8s.net
+              callbackPath: /api/dex/callback
+              extraRedirectUrls:
+                - https://argocd.inf-k8s.net/auth/callback
+              preferShortUsername: true
+              secretLabels:
+                app.kubernetes.io/part-of: argocd
+              scopeMaps:
+                argocd_users:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              secretName: kanidm-argocd-oidc
+              secretNamespace: argocd
+              icon:
+                configMap: argocd-kanidm-icon
+                key: ArgoCD.svg
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/argocd
     - chart: k8s-http-routes

@@ -13,7 +13,6 @@ resources:
   - ./projects-apps.application.yaml
   - ./selfhosted-apps.application.yaml
   - ./system-components-apps.application.yaml
-  - ./kanidmoauth2client.yaml
 configMapGenerator:
   - name: argocd-kanidm-icon
     files:
