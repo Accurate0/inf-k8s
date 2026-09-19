@@ -10,6 +10,8 @@
       ansible.builtin.apt:
         package:
           - haproxy
+          - curl
+          - jq
       notify:
         - Start HAProxy
 
@@ -36,6 +38,35 @@
         mode: "0644"
       notify:
         - Reload Haproxy
+
+    - name: Copy cloudflare-ips-sync script
+      ansible.builtin.copy:
+        src: cloudflare-ips-sync.sh
+        dest: /usr/local/bin/cloudflare-ips-sync
+        owner: root
+        mode: "0755"
+
+    - name: Copy cloudflare-ips-sync systemd units
+      ansible.builtin.copy:
+        src: "{{ item }}"
+        dest: "/etc/systemd/system/{{ item }}"
+        owner: root
+        mode: "0644"
+      loop:
+        - cloudflare-ips-sync.service
+        - cloudflare-ips-sync.timer
+
+    - name: Sync cloudflare ips
+      ansible.builtin.systemd_service:
+        name: cloudflare-ips-sync.service
+        state: started
+        daemon_reload: true
+
+    - name: Enable cloudflare-ips-sync timer
+      ansible.builtin.systemd_service:
+        name: cloudflare-ips-sync.timer
+        state: started
+        enabled: true
 
     - name: Create haproxy systemd override directory
       ansible.builtin.file:

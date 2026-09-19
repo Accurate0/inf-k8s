@@ -11,7 +11,7 @@ routes:
       rules:
         - clientSelectors:
             - headers:
-                - name: CF-Connecting-IP
+                - name: x-real-ip
                   type: Distinct
           limit:
             requests: 5

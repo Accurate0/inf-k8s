@@ -16,7 +16,7 @@ spec:
   sources:
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
-      targetRevision: 2.3.0
+      targetRevision: 2.3.1
       helm:
         valuesObject:
           routes:
@@ -33,7 +33,7 @@ spec:
                 rules:
                   - clientSelectors:
                       - headers:
-                          - name: CF-Connecting-IP
+                          - name: x-real-ip
                             type: Distinct
                             invert: false
                     limit:

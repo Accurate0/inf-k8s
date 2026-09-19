@@ -1,6 +1,7 @@
 ---
 extends: default
 ignore: |
+  target/
   charts/*/templates/
   system-components/network-policies/templates/
   system-components/barman-cloud-plugin/manifest.yaml

@@ -67,5 +67,3 @@ spec:
           value: "strict-origin-when-cross-origin"
         - name: "Permissions-Policy"
           value: "interest-cohort=()"
-        - name: "Strict-Transport-Security"
-          value: "max-age=31536000; includeSubDomains"
