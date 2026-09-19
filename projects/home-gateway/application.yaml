@@ -97,12 +97,9 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/home-gateway/manifests
-      kustomize: {}
     - repoURL: https://github.com/Accurate0/home-gateway.git
       name: config
       path: config
-      kustomize: {}
-
   destination:
     server: https://kubernetes.default.svc
     namespace: home-gateway

@@ -64,7 +64,6 @@ spec:
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: platform-services/feature-flags/manifests
-      kustomize: {}
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.3.0

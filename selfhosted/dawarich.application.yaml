@@ -50,7 +50,6 @@ spec:
               secretNamespace: dawarich
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/dawarich
-      kustomize: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: dawarich

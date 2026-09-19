@@ -53,7 +53,6 @@ spec:
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: platform-services/ai-gateway
-      kustomize: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: ai-gateway

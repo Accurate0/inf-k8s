@@ -79,7 +79,6 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/maccas-api/manifests
-      kustomize: {}
 
   destination:
     server: https://kubernetes.default.svc

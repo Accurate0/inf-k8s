@@ -44,7 +44,6 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/anurag-sh/manifests
-      kustomize: {}
   destination:
     server: https://kubernetes.default.svc
     namespace: anurag-sh
