@@ -1,0 +1,58 @@
+{{- $defaults := .Values.defaults | default dict }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- range $client := .Values.clients }}
+{{- $secretKeys := $client.secretKeys | default $defaults.secretKeys | default (dict "clientId" "client-id" "clientSecret" "client-secret") }}
+{{- $scopeGroup := $client.scopeMapGroup | default $defaults.scopeMapGroup | default "platform_admins" }}
+{{- $scopes := $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
+{{- $scopeMaps := $client.scopeMaps | default (dict $scopeGroup $scopes) }}
+{{- $callbackPath := $client.callbackPath | default "/oauth2/callback" }}
+{{- $namespace := $client.namespace | default $defaults.namespace | default $releaseNamespace }}
+apiVersion: inf-k8s.net/v1
+kind: KanidmOAuth2Client
+metadata:
+  name: {{ $client.name }}
+  namespace: {{ $namespace }}
+spec:
+  name: {{ $client.name }}
+  displayName: {{ $client.displayName | default $client.name | quote }}
+  origin: {{ $client.origin | default (printf "https://%s/" $client.host) }}
+  redirectUrls:
+    - https://{{ $client.host }}{{ $callbackPath }}
+    {{- range $client.extraRedirectUrls }}
+    - {{ . }}
+    {{- end }}
+  {{- if $client.public }}
+  public: true
+  {{- end }}
+  {{- if $client.preferShortUsername }}
+  preferShortUsername: true
+  {{- end }}
+  {{- if $client.allowInsecureClientDisablePkce }}
+  allowInsecureClientDisablePkce: true
+  {{- end }}
+  {{- if $client.allowLocalhostRedirect }}
+  allowLocalhostRedirect: true
+  {{- end }}
+  {{- if $client.enableLegacyCrypto }}
+  enableLegacyCrypto: true
+  {{- end }}
+  secretKeys:
+    {{- toYaml $secretKeys | nindent 4 }}
+  scopeMaps:
+    {{- toYaml $scopeMaps | nindent 4 }}
+  {{- with $client.claimMaps }}
+  claimMaps:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $client.secretLabels }}
+  secretLabels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  secretName: {{ $client.secretName | default (printf "kanidm-%s-oidc" $client.name) }}
+  secretNamespace: {{ $client.secretNamespace | default $namespace }}
+  {{- with $client.icon }}
+  icon:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- end }}

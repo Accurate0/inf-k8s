@@ -1,0 +1,34 @@
+{{- $defaults := .Values.defaults | default dict }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- $issuerBase := $defaults.issuerBase | default "https://idm.anurag.sh/oauth2/openid" }}
+{{- range $client := .Values.clients }}
+{{- with $client.securityPolicy }}
+{{- $scopes := .scopes | default $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
+{{- $secretName := $client.secretName | default (printf "kanidm-%s-oidc" $client.name) }}
+{{- $callbackPath := $client.callbackPath | default "/oauth2/callback" }}
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: SecurityPolicy
+metadata:
+  name: {{ $client.name }}-oidc
+  namespace: {{ $client.namespace | default $defaults.namespace | default $releaseNamespace }}
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: {{ .httpRoute | default $client.name }}
+  oidc:
+    provider:
+      issuer: {{ $issuerBase }}/{{ $client.name }}
+    clientIDRef:
+      name: {{ $secretName }}
+    clientSecret:
+      name: {{ $secretName }}
+    redirectURL: https://{{ $client.host }}{{ $callbackPath }}
+    {{- with .logoutPath }}
+    logoutPath: {{ . }}
+    {{- end }}
+    scopes:
+      {{- toYaml $scopes | nindent 6 }}
+---
+{{- end }}
+{{- end }}

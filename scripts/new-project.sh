@@ -10,6 +10,8 @@ cd "$repo_root"
 
 routes_chart_version="${ROUTES_CHART_VERSION:-2.1.0}"
 secrets_chart_version="${SECRETS_CHART_VERSION:-0.3.0}"
+oidc_chart_version="${OIDC_CHART_VERSION:-0.1.0}"
+postgres_chart_version="${POSTGRES_CHART_VERSION:-0.1.0}"
 gateway_name="${GATEWAY_NAME:-public-gateway}"
 
 render() {
@@ -28,16 +30,22 @@ render() {
     -e "s|@@SECRETS_CHART_VERSION@@|$secrets_chart_version|g" \
     -e "s|@@PROJECT_SLUG@@|$secret_project_slug|g" \
     -e "s|@@ROUTE_NAME@@|$name-route|g" \
+    -e "s|@@OIDC_CHART_VERSION@@|$oidc_chart_version|g" \
+    -e "s|@@POSTGRES_CHART_VERSION@@|$postgres_chart_version|g" \
+    -e "s|@@OIDC_HOST@@|${hosts%% *}|g" \
     "$1" \
   | awk -v hosts="$hostnames_block" -v labels="$labels_block" \
         -v ports="$ports_block" -v resources="$resources_block" \
-        -v route="$route_source_block" -v secrets="$secrets_source_block" '
+        -v route="$route_source_block" -v secrets="$secrets_source_block" \
+        -v oidc="$oidc_source_block" -v database="$database_source_block" '
       /@@HOSTNAMES@@/       { if (hosts != "")     print hosts;     next }
       /@@LABELS@@/          { if (labels != "")    print labels;    next }
       /@@PORTS@@/           { if (ports != "")     print ports;     next }
       /@@RESOURCES@@/       { if (resources != "") print resources; next }
       /@@ROUTE_SOURCE@@/    { if (route != "")     print route;     next }
       /@@SECRETS_SOURCE@@/  { if (secrets != "")   print secrets;   next }
+      /@@OIDC_SOURCE@@/     { if (oidc != "")      print oidc;      next }
+      /@@DATABASE_SOURCE@@/ { if (database != "")  print database;  next }
       { print }
     '
 }
@@ -56,6 +64,8 @@ generate_files() {
   ports_block=""
   route_source_block=""
   secrets_source_block=""
+  oidc_source_block=""
+  database_source_block=""
   if $is_public; then
     hostnames_block="$(for h in $hosts; do printf '                - %s\n' "$h"; done)"
     labels_block="$({ printf '  labels:\n'; for h in $hosts; do printf '    gateway.inf-k8s.net/%s: "true"\n' "${h//./-}"; done; })"
@@ -65,6 +75,8 @@ generate_files() {
 
   $is_public && route_source_block="$(render "$tmpl_dir/source.route.yaml.tmpl")"
   $with_secrets && secrets_source_block="$(render "$tmpl_dir/source.secrets.yaml.tmpl")"
+  $with_oidc && oidc_source_block="$(render "$tmpl_dir/source.oidc.yaml.tmpl")"
+  $with_database && database_source_block="$(render "$tmpl_dir/source.database.yaml.tmpl")"
 
   render "$tmpl_dir/application.yaml.tmpl"    >"$dir/application.yaml"
   render "$tmpl_dir/namespace.yaml.tmpl"      >"$dir/manifests/namespace.yaml"
@@ -126,6 +138,16 @@ if gum confirm "Add an Infisical ExternalSecret?"; then
   secret_project_slug="$(gum input --prompt "Infisical projectSlug: " --placeholder "my-app-xxxx")"
 fi
 
+with_oidc=false
+if $is_public && gum confirm "Protect the route with Kanidm OIDC?"; then
+  with_oidc=true
+fi
+
+with_database=false
+if gum confirm "Add a Postgres database?"; then
+  with_database=true
+fi
+
 summary="app:       $name
 location:  $dir
 repo:      $repo_url
@@ -138,6 +160,10 @@ $is_public && summary+="
 hosts:     $hosts"
 $with_secrets && summary+="
 secrets:   Infisical ($secret_project_slug)"
+$with_oidc && summary+="
+oidc:      kanidm-$name-oidc"
+$with_database && summary+="
+database:  $name-database-secret"
 
 gum style --border normal --padding "0 1" "$summary"
 gum confirm "Generate these files?" || { info "Aborted."; exit 0; }

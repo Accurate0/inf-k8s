@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/charts/k8s-postgres.json
+defaults:
+  namespace: bom
+
+databases:
+  - name: bom
+
+  - name: dawarich
+    namespace: dawarich
+    databaseName: dawarich_2
+    additionalDatabases:
+      - dawarich_cache

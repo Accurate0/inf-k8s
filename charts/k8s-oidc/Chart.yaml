@@ -1,0 +1,6 @@
+apiVersion: v2
+name: k8s-oidc
+description: Standardized Kanidm OAuth2 clients with optional Envoy OIDC SecurityPolicies
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

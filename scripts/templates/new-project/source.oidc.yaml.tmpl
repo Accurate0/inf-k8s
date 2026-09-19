@@ -1,0 +1,10 @@
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: @@OIDC_CHART_VERSION@@
+      helm:
+        valuesObject:
+          clients:
+            - name: @@NAME@@
+              host: @@OIDC_HOST@@
+              securityPolicy:
+                httpRoute: @@ROUTE_NAME@@

@@ -1,0 +1,22 @@
+{{- $defaults := .Values.defaults | default dict }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- range $db := .Values.databases }}
+{{- $namespace := $db.namespace | default $defaults.namespace | default $releaseNamespace }}
+apiVersion: inf-k8s.net/v1
+kind: PostgresDatabase
+metadata:
+  name: {{ $db.name }}-database
+  namespace: {{ $namespace }}
+spec:
+  databaseName: {{ $db.databaseName | default ($db.name | replace "-" "_") }}
+  {{- with $db.roleName }}
+  roleName: {{ . }}
+  {{- end }}
+  {{- with $db.additionalDatabases }}
+  additionalDatabases:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  secretName: {{ $db.secretName | default (printf "%s-database-secret" $db.name) }}
+  secretNamespace: {{ $db.secretNamespace | default $namespace }}
+---
+{{- end }}

@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/charts/k8s-oidc.json
+defaults:
+  issuerBase: https://idm.anurag.sh/oauth2/openid
+  scopeMapGroup: platform_admins
+  scopes:
+    - openid
+    - email
+    - profile
+
+clients:
+  - name: prometheus
+    displayName: Prometheus
+    host: prometheus.inf-k8s.net
+    preferShortUsername: true
+    allowInsecureClientDisablePkce: true
+    icon:
+      configMap: prometheus-kanidm-icon
+      key: prometheus.svg
+    securityPolicy:
+      httpRoute: prometheus
+
+  - name: some-app
+    host: some-app.anurag.sh
+    public: true

@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-postgres values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Applied to every database that does not override the field.",
+      "properties": {
+        "namespace": { "$ref": "#/definitions/namespace" }
+      }
+    },
+    "databases": {
+      "type": "array",
+      "description": "One PostgresDatabase per entry.",
+      "items": { "$ref": "#/definitions/database" }
+    }
+  },
+  "definitions": {
+    "namespace": {
+      "type": "string",
+      "description": "Namespace the PostgresDatabase is created in. Defaults to the release namespace."
+    },
+    "identifier": {
+      "type": "string",
+      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+          "description": "Names the PostgresDatabase, which is created as <name>-database."
+        },
+        "namespace": { "$ref": "#/definitions/namespace" },
+        "databaseName": {
+          "$ref": "#/definitions/identifier",
+          "description": "Postgres database name. Defaults to name with dashes replaced by underscores."
+        },
+        "roleName": {
+          "$ref": "#/definitions/identifier",
+          "description": "Owning role. Defaults to the controller's choice."
+        },
+        "additionalDatabases": {
+          "type": "array",
+          "description": "Extra databases owned by the same role.",
+          "items": { "$ref": "#/definitions/identifier" }
+        },
+        "secretName": {
+          "type": "string",
+          "description": "Secret holding the connection details. Defaults to <name>-database-secret."
+        },
+        "secretNamespace": {
+          "type": "string",
+          "description": "Namespace of the secret. Defaults to namespace."
+        }
+      }
+    }
+  }
+}

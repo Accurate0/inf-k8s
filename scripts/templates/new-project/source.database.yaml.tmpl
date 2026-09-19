@@ -1,0 +1,7 @@
+    - chart: k8s-postgres
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+      targetRevision: @@POSTGRES_CHART_VERSION@@
+      helm:
+        valuesObject:
+          databases:
+            - name: @@NAME@@

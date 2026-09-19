@@ -1,0 +1,148 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-oidc values",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "defaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Applied to every client that does not override the field.",
+      "properties": {
+        "namespace": { "$ref": "#/definitions/namespace" },
+        "issuerBase": {
+          "type": "string",
+          "description": "Kanidm OpenID base URL; the client name is appended. Defaults to https://idm.anurag.sh/oauth2/openid."
+        },
+        "scopeMapGroup": { "$ref": "#/definitions/scopeMapGroup" },
+        "scopes": { "$ref": "#/definitions/scopes" },
+        "secretKeys": { "$ref": "#/definitions/secretKeys" }
+      }
+    },
+    "clients": {
+      "type": "array",
+      "description": "One KanidmOAuth2Client per entry, plus an Envoy SecurityPolicy when securityPolicy is set.",
+      "items": { "$ref": "#/definitions/client" }
+    }
+  },
+  "definitions": {
+    "namespace": {
+      "type": "string",
+      "description": "Namespace the resources are created in. Defaults to the release namespace."
+    },
+    "scopeMapGroup": {
+      "type": "string",
+      "description": "Kanidm group granted scopes when scopeMaps is not set. Defaults to platform_admins."
+    },
+    "scopes": {
+      "type": "array",
+      "description": "OIDC scopes. Defaults to openid, email, profile.",
+      "items": { "type": "string" }
+    },
+    "secretKeys": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Key names in the written secret. Defaults to client-id and client-secret, which Envoy expects.",
+      "properties": {
+        "clientId": { "type": "string" },
+        "clientSecret": { "type": "string" },
+        "issuerUrl": { "type": "string" }
+      }
+    },
+    "client": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "host"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
+          "description": "Kanidm resource server name; also names the KanidmOAuth2Client."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "Name shown in Kanidm. Defaults to name."
+        },
+        "host": {
+          "type": "string",
+          "description": "Public hostname of the app, used for the origin and redirect URL."
+        },
+        "origin": {
+          "type": "string",
+          "description": "Landing URL. Defaults to https://<host>/."
+        },
+        "callbackPath": {
+          "type": "string",
+          "description": "Redirect path on host. Defaults to /oauth2/callback."
+        },
+        "extraRedirectUrls": {
+          "type": "array",
+          "description": "Additional redirect URLs.",
+          "items": { "type": "string" }
+        },
+        "namespace": { "$ref": "#/definitions/namespace" },
+        "public": {
+          "type": "boolean",
+          "description": "PKCE-only client without a secret."
+        },
+        "preferShortUsername": { "type": "boolean" },
+        "allowInsecureClientDisablePkce": { "type": "boolean" },
+        "allowLocalhostRedirect": { "type": "boolean" },
+        "enableLegacyCrypto": {
+          "type": "boolean",
+          "description": "Sign tokens with RS256 instead of ES256."
+        },
+        "scopeMapGroup": { "$ref": "#/definitions/scopeMapGroup" },
+        "scopes": { "$ref": "#/definitions/scopes" },
+        "scopeMaps": {
+          "type": "object",
+          "description": "Group name to scopes. Overrides scopeMapGroup and scopes.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
+        "claimMaps": {
+          "type": "object",
+          "description": "Claim name to group-derived values, passed through verbatim."
+        },
+        "secretKeys": { "$ref": "#/definitions/secretKeys" },
+        "secretLabels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "secretName": {
+          "type": "string",
+          "description": "Secret to write. Defaults to kanidm-<name>-oidc."
+        },
+        "secretNamespace": {
+          "type": "string",
+          "description": "Namespace of the written secret. Defaults to namespace."
+        },
+        "icon": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["configMap", "key"],
+          "properties": {
+            "configMap": { "type": "string" },
+            "key": { "type": "string" },
+            "namespace": { "type": "string" }
+          }
+        },
+        "securityPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Creates an Envoy SecurityPolicy named <name>-oidc that puts OIDC in front of the route.",
+          "properties": {
+            "httpRoute": {
+              "type": "string",
+              "description": "HTTPRoute to protect. Defaults to name."
+            },
+            "scopes": { "$ref": "#/definitions/scopes" },
+            "logoutPath": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}
