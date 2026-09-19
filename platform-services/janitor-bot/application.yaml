@@ -52,7 +52,7 @@ spec:
                 rules:
                   - clientSelectors:
                       - headers:
-                          - name: CF-Connecting-IP
+                          - name: x-real-ip
                             invert: false
                             type: Distinct
                     limit:

@@ -42,7 +42,7 @@ spec:
             timeoutSeconds: 1
           env:
             - name: ADDRESS_HEADER
-              value: CF-Connecting-IP
+              value: x-real-ip
             - name: OLD_API_BASE_URL
               value: https://api.maccas.one/v1
             - name: API_BASE_URL
