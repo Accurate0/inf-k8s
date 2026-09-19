@@ -16,7 +16,8 @@
         },
         "scopeMapGroup": { "$ref": "#/definitions/scopeMapGroup" },
         "scopes": { "$ref": "#/definitions/scopes" },
-        "secretKeys": { "$ref": "#/definitions/secretKeys" }
+        "secretKeys": { "$ref": "#/definitions/secretKeys" },
+        "annotations": { "$ref": "#/definitions/annotations" }
       }
     },
     "clients": {
@@ -42,12 +43,17 @@
     "secretKeys": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Key names in the written secret. Defaults to client-id and client-secret, which Envoy expects.",
+      "description": "Key names in the written secret. Omitted uses the CRD defaults (clientId, clientSecret), or client-id and client-secret when securityPolicy is set, which Envoy expects.",
       "properties": {
         "clientId": { "type": "string" },
         "clientSecret": { "type": "string" },
         "issuerUrl": { "type": "string" }
       }
+    },
+    "annotations": {
+      "type": "object",
+      "description": "Annotations set on the KanidmOAuth2Client. argocd.argoproj.io/sync-options defaults to Prune=false,Delete=false.",
+      "additionalProperties": { "type": "string" }
     },
     "client": {
       "type": "object",
@@ -81,6 +87,7 @@
           "items": { "type": "string" }
         },
         "namespace": { "$ref": "#/definitions/namespace" },
+        "annotations": { "$ref": "#/definitions/annotations" },
         "public": {
           "type": "boolean",
           "description": "PKCE-only client without a secret."
@@ -139,7 +146,34 @@
               "description": "HTTPRoute to protect. Defaults to name."
             },
             "scopes": { "$ref": "#/definitions/scopes" },
-            "logoutPath": { "type": "string" }
+            "logoutPath": { "type": "string" },
+            "forwardAccessToken": {
+              "type": "boolean",
+              "description": "Forward the access token to the backend as a bearer token."
+            },
+            "jwt": {
+              "type": "object",
+              "additionalProperties": false,
+              "description": "Validates bearer tokens against the client's Kanidm JWKS.",
+              "properties": {
+                "cacheDuration": {
+                  "type": "string",
+                  "description": "JWKS cache duration. Defaults to 3600s."
+                },
+                "claimToHeaders": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["claim", "header"],
+                    "properties": {
+                      "claim": { "type": "string" },
+                      "header": { "type": "string" }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }

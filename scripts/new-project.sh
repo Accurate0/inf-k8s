@@ -10,8 +10,8 @@ cd "$repo_root"
 
 routes_chart_version="${ROUTES_CHART_VERSION:-2.1.0}"
 secrets_chart_version="${SECRETS_CHART_VERSION:-0.3.0}"
-oidc_chart_version="${OIDC_CHART_VERSION:-0.1.0}"
-postgres_chart_version="${POSTGRES_CHART_VERSION:-0.1.0}"
+oidc_chart_version="${OIDC_CHART_VERSION:-0.2.0}"
+postgres_chart_version="${POSTGRES_CHART_VERSION:-0.2.0}"
 gateway_name="${GATEWAY_NAME:-public-gateway}"
 
 render() {

@@ -1,7 +1,11 @@
 {{- $defaults := .Values.defaults | default dict }}
 {{- $releaseNamespace := .Release.Namespace }}
 {{- range $client := .Values.clients }}
-{{- $secretKeys := $client.secretKeys | default $defaults.secretKeys | default (dict "clientId" "client-id" "clientSecret" "client-secret") }}
+{{- $secretKeys := $client.secretKeys | default $defaults.secretKeys }}
+{{- if and (not $secretKeys) $client.securityPolicy }}
+{{- $secretKeys = dict "clientId" "client-id" "clientSecret" "client-secret" }}
+{{- end }}
+{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false") }}
 {{- $scopeGroup := $client.scopeMapGroup | default $defaults.scopeMapGroup | default "platform_admins" }}
 {{- $scopes := $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
 {{- $scopeMaps := $client.scopeMaps | default (dict $scopeGroup $scopes) }}
@@ -12,6 +16,8 @@ kind: KanidmOAuth2Client
 metadata:
   name: {{ $client.name }}
   namespace: {{ $namespace }}
+  annotations:
+    {{- toYaml $annotations | nindent 4 }}
 spec:
   name: {{ $client.name }}
   displayName: {{ $client.displayName | default $client.name | quote }}
@@ -36,8 +42,10 @@ spec:
   {{- if $client.enableLegacyCrypto }}
   enableLegacyCrypto: true
   {{- end }}
+  {{- with $secretKeys }}
   secretKeys:
-    {{- toYaml $secretKeys | nindent 4 }}
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   scopeMaps:
     {{- toYaml $scopeMaps | nindent 4 }}
   {{- with $client.claimMaps }}

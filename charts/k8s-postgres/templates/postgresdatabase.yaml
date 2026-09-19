@@ -2,11 +2,14 @@
 {{- $releaseNamespace := .Release.Namespace }}
 {{- range $db := .Values.databases }}
 {{- $namespace := $db.namespace | default $defaults.namespace | default $releaseNamespace }}
+{{- $annotations := merge (dict) ($db.annotations | default dict) ($defaults.annotations | default dict) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false") }}
 apiVersion: inf-k8s.net/v1
 kind: PostgresDatabase
 metadata:
-  name: {{ $db.name }}-database
+  name: {{ $db.resourceName | default (printf "%s-database" $db.name) }}
   namespace: {{ $namespace }}
+  annotations:
+    {{- toYaml $annotations | nindent 4 }}
 spec:
   databaseName: {{ $db.databaseName | default ($db.name | replace "-" "_") }}
   {{- with $db.roleName }}
