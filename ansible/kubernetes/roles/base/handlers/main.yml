@@ -8,3 +8,10 @@
 - name: Reload sysctl
   ansible.builtin.command: sysctl -p /etc/sysctl.d/99-ip-forward.conf
   changed_when: false
+
+- name: Reload inotify sysctl
+  ansible.builtin.command: sysctl -p /etc/sysctl.d/99-inotify.conf
+  changed_when: false
+  become: true
+  become_user: root
+  become_method: sudo

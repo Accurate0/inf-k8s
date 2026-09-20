@@ -12,3 +12,16 @@
       become: true
       become_user: root
       become_method: sudo
+
+- name: Setup inotify limits
+  block:
+    - name: Copy sysctl file for inotify limits
+      ansible.builtin.copy:
+        src: inotify.conf
+        dest: /etc/sysctl.d/99-inotify.conf
+        owner: root
+        mode: "0644"
+      notify: Reload inotify sysctl
+      become: true
+      become_user: root
+      become_method: sudo
