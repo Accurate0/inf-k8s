@@ -1,6 +1,20 @@
 # SPDX-License-Identifier: MIT-0
 ---
 
+- name: Stop transmission
+  hosts: transmission
+  gather_facts: false
+  ignore_unreachable: true
+
+  tasks:
+    - name: Stop transmission
+      become: true
+      become_user: root
+      ansible.builtin.systemd_service:
+        name: transmission-daemon
+        state: stopped
+      failed_when: false
+
 - name: Storage on the Proxmox host
   hosts: proxmox
   gather_facts: true
@@ -118,3 +132,17 @@
 
   roles:
     - proxmox-pbs
+
+- name: Start transmission
+  hosts: transmission
+  gather_facts: false
+  ignore_unreachable: true
+
+  tasks:
+    - name: Start transmission
+      become: true
+      become_user: root
+      ansible.builtin.systemd_service:
+        name: transmission-daemon
+        state: started
+      failed_when: false

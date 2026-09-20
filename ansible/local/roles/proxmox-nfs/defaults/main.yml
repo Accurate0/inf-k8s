@@ -11,5 +11,6 @@ proxmox_nfs_media_dirs:
   - downloads
   - downloads/incomplete
   - downloads/radarr
+  - downloads/sonarr
   - movies
   - tv
