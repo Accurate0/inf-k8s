@@ -11,6 +11,8 @@ transmission_config_root: /var/lib/transmission-daemon/.config/transmission-daem
 transmission_rpc_port: 80
 transmission_peer_port: 51413
 
+transmission_version: "4.1.0~beta2+dfsg-3+deb13u2"
+
 transmission_download_dir: "{{ media_pool_mount }}/downloads"
 transmission_incomplete_dir: "{{ media_pool_mount }}/downloads/incomplete"
 
@@ -20,11 +22,13 @@ transmission_settings:
   incomplete-dir-enabled: true
   ratio-limit: 0
   ratio-limit-enabled: true
+  rpc-authentication-required: false
   rpc-bind-address: 0.0.0.0
   rpc-port: "{{ transmission_rpc_port }}"
   rpc-whitelist-enabled: false
   rpc-host-whitelist-enabled: false
   peer-port: "{{ transmission_peer_port }}"
+  preallocation: 2
   umask: 2
   watch-dir-enabled: false
   download-queue-enabled: true

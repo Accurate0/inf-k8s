@@ -4,11 +4,23 @@
   become: true
   become_user: root
   block:
+    - name: Release any previous hold on transmission
+      ansible.builtin.dpkg_selections:
+        name: transmission-daemon
+        selection: install
+
     - name: Install transmission
       ansible.builtin.apt:
-        name: transmission-daemon
+        name: "transmission-daemon{{ transmission_version | ternary('=' + transmission_version, '') }}"
         state: present
         update_cache: true
+        allow_downgrade: true
+
+    - name: Hold transmission at the pinned version
+      ansible.builtin.dpkg_selections:
+        name: transmission-daemon
+        selection: hold
+      when: transmission_version | length > 0
 
     - name: Disable IPv6
       ansible.posix.sysctl:
@@ -85,8 +97,8 @@
              | combine(transmission_settings) | to_nice_json }}
         dest: "{{ transmission_config_root }}/settings.json"
         owner: "{{ transmission_user }}"
-        group: "{{ transmission_user }}"
-        mode: "0600"
+        group: media
+        mode: "0664"
 
     - name: Enable and start transmission
       ansible.builtin.systemd_service:
