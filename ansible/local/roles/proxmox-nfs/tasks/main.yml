@@ -39,7 +39,18 @@
     - proxmox_nfs_export in proxmox_nfs_exports.stdout
     - proxmox_nfs_status.rc != 0
 
+- name: Read the current storage options
+  ansible.builtin.command: pvesh get /storage/{{ proxmox_nfs_id }} --output-format json
+  register: proxmox_nfs_current
+  changed_when: false
+  failed_when: false
+  when:
+    - proxmox_nfs_export in proxmox_nfs_exports.stdout
+    - proxmox_nfs_status.rc == 0
+
 - name: Converge the storage options
+  vars:
+    proxmox_nfs_live: "{{ proxmox_nfs_current.stdout | default('{}', true) | from_json }}"
   ansible.builtin.command: >-
     pvesm set {{ proxmox_nfs_id }}
     --content {{ proxmox_nfs_content }}
@@ -47,10 +58,15 @@
     --create-base-path 1
     --create-subdirs 0
   register: proxmox_nfs_set
-  changed_when: false
+  changed_when: true
   when:
     - proxmox_nfs_export in proxmox_nfs_exports.stdout
     - proxmox_nfs_status.rc == 0
+    - >-
+      proxmox_nfs_live.content | default('') != proxmox_nfs_content
+      or proxmox_nfs_live.options | default('') != proxmox_nfs_options
+      or proxmox_nfs_live['create-base-path'] | default(0) | int != 1
+      or proxmox_nfs_live['create-subdirs'] | default(1) | int != 0
 
 - name: Wait for the mount
   ansible.builtin.command: findmnt --mountpoint /mnt/pve/{{ proxmox_nfs_id }}
