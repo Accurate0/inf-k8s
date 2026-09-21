@@ -108,6 +108,9 @@ spec:
             - name: config-lua-zigbee
               mountPath: /etc/home-gateway/config/lua/zigbee
               readOnly: true
+            - name: config-lua-esphome
+              mountPath: /etc/home-gateway/config/lua/esphome
+              readOnly: true
             - name: config-lua-home-assistant
               mountPath: /etc/home-gateway/config/lua/home_assistant
               readOnly: true
@@ -133,6 +136,9 @@ spec:
         - name: config-lua-zigbee
           configMap:
             name: home-gateway-config-lua-zigbee
+        - name: config-lua-esphome
+          configMap:
+            name: home-gateway-config-lua-esphome
         - name: config-lua-home-assistant
           configMap:
             name: home-gateway-config-lua-home-assistant
