@@ -105,11 +105,8 @@ spec:
             - name: config-lua-workflows
               mountPath: /etc/home-gateway/config/lua/workflows
               readOnly: true
-            - name: config-lua-zigbee
-              mountPath: /etc/home-gateway/config/lua/zigbee
-              readOnly: true
-            - name: config-lua-esphome
-              mountPath: /etc/home-gateway/config/lua/esphome
+            - name: config-lua-mqtt
+              mountPath: /etc/home-gateway/config/lua/mqtt
               readOnly: true
             - name: config-lua-home-assistant
               mountPath: /etc/home-gateway/config/lua/home_assistant
@@ -133,12 +130,9 @@ spec:
         - name: config-lua-workflows
           configMap:
             name: home-gateway-config-lua-workflows
-        - name: config-lua-zigbee
+        - name: config-lua-mqtt
           configMap:
-            name: home-gateway-config-lua-zigbee
-        - name: config-lua-esphome
-          configMap:
-            name: home-gateway-config-lua-esphome
+            name: home-gateway-config-lua-mqtt
         - name: config-lua-home-assistant
           configMap:
             name: home-gateway-config-lua-home-assistant

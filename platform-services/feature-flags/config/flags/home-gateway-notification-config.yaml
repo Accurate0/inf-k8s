@@ -1,0 +1,9 @@
+key: home-gateway-notification-config
+type: object
+enabled: true
+default: default
+variants:
+  default: {}
+  value:
+    disabled:
+    - watchdog.*
