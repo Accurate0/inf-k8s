@@ -102,6 +102,9 @@ spec:
             - name: config-lua-lib
               mountPath: /etc/home-gateway/config/lua/lib
               readOnly: true
+            - name: config-lua-model-lib
+              mountPath: /etc/home-gateway/config/lua/model_lib
+              readOnly: true
             - name: config-lua-workflows
               mountPath: /etc/home-gateway/config/lua/workflows
               readOnly: true
@@ -127,6 +130,9 @@ spec:
         - name: config-lua-lib
           configMap:
             name: home-gateway-config-lua-lib
+        - name: config-lua-model-lib
+          configMap:
+            name: home-gateway-config-lua-model-lib
         - name: config-lua-workflows
           configMap:
             name: home-gateway-config-lua-workflows
