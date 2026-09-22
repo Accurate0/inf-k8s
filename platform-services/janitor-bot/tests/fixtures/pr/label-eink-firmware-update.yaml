@@ -54,7 +54,7 @@ mocks:
     path: /api/v1/repos/anurag/home-gateway/pulls/410/files
     status: 200
     body:
-      - filename: config/devices.yaml
+      - filename: config/sections/eink_display.yaml
         status: modified
         additions: 2
         deletions: 2
