@@ -114,6 +114,9 @@ spec:
             - name: config-lua-home-assistant
               mountPath: /etc/home-gateway/config/lua/home_assistant
               readOnly: true
+            - name: config-lua-esphome-native-api
+              mountPath: /etc/home-gateway/config/lua/esphome_native_api
+              readOnly: true
       volumes:
         - name: config
           configMap:
@@ -142,3 +145,6 @@ spec:
         - name: config-lua-home-assistant
           configMap:
             name: home-gateway-config-lua-home-assistant
+        - name: config-lua-esphome-native-api
+          configMap:
+            name: home-gateway-config-lua-esphome-native-api
