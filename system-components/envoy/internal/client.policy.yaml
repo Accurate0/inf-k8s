@@ -14,6 +14,8 @@ spec:
     probes: 9
     idleTime: "7200s"
     interval: "75s"
+  connection:
+    bufferLimit: 2Mi
   headers:
     disableRateLimitHeaders: true
     lateResponseHeaders:
