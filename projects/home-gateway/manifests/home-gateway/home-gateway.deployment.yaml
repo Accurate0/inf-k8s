@@ -103,19 +103,22 @@ spec:
               mountPath: /etc/home-gateway/config/lua/lib
               readOnly: true
             - name: config-lua-model-lib
-              mountPath: /etc/home-gateway/config/lua/model_lib
+              mountPath: /etc/home-gateway/config/lua/models/lib
               readOnly: true
             - name: config-lua-workflows
               mountPath: /etc/home-gateway/config/lua/workflows
               readOnly: true
+            - name: config-lua-integrations
+              mountPath: /etc/home-gateway/config/lua/integrations
+              readOnly: true
             - name: config-lua-mqtt
-              mountPath: /etc/home-gateway/config/lua/mqtt
+              mountPath: /etc/home-gateway/config/lua/models/mqtt
               readOnly: true
             - name: config-lua-home-assistant
-              mountPath: /etc/home-gateway/config/lua/home_assistant
+              mountPath: /etc/home-gateway/config/lua/models/home_assistant
               readOnly: true
             - name: config-lua-esphome-native-api
-              mountPath: /etc/home-gateway/config/lua/esphome_native_api
+              mountPath: /etc/home-gateway/config/lua/models/esphome_native_api
               readOnly: true
       volumes:
         - name: config
@@ -139,6 +142,9 @@ spec:
         - name: config-lua-workflows
           configMap:
             name: home-gateway-config-lua-workflows
+        - name: config-lua-integrations
+          configMap:
+            name: home-gateway-config-lua-integrations
         - name: config-lua-mqtt
           configMap:
             name: home-gateway-config-lua-mqtt
