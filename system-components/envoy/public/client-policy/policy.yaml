@@ -42,6 +42,7 @@ spec:
   tls:
     minVersion: "1.2"
   connection:
+    bufferLimit: 2Mi
     connectionLimit:
       value: 50000
   http2:
