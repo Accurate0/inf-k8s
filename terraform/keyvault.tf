@@ -5,17 +5,19 @@ data "azurerm_resource_group" "general-api-group" {
 }
 
 resource "azurerm_key_vault" "k8s-shared-vault" {
-  name                         = "k8s-shared-vault"
-  location                     = data.azurerm_resource_group.general-api-group.location
-  resource_group_name          = data.azurerm_resource_group.general-api-group.name
-  tenant_id                    = data.azurerm_client_config.current.tenant_id
-  sku_name                     = "standard"
-  rbac_authorization_enabled   = false
+  name                       = "k8s-shared-vault"
+  location                   = data.azurerm_resource_group.general-api-group.location
+  resource_group_name        = data.azurerm_resource_group.general-api-group.name
+  tenant_id                  = data.azurerm_client_config.current.tenant_id
+  sku_name                   = "standard"
+  rbac_authorization_enabled = false
 
   # the identity running terraform manages secrets in the vault
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
     object_id = data.azurerm_client_config.current.object_id
+
+    key_permissions = ["Get", "List", "Create", "Delete", "Purge", "Recover", "GetRotationPolicy"]
 
     secret_permissions = ["Get", "List", "Set", "Delete", "Purge", "Recover"]
   }
@@ -36,6 +38,13 @@ resource "azurerm_key_vault" "k8s-shared-vault" {
     object_id = azuread_service_principal.eso-shared-vault.object_id
 
     secret_permissions = ["Get", "List"]
+  }
+
+  access_policy {
+    tenant_id = data.azurerm_client_config.current.tenant_id
+    object_id = azuread_service_principal.openbao-unseal.object_id
+
+    key_permissions = ["Get", "WrapKey", "UnwrapKey"]
   }
 }
 

@@ -21,6 +21,7 @@ spec:
     - https://kubernetes-sigs.github.io/descheduler/
     - https://kubernetes-sigs.github.io/external-dns/
     - https://mend.github.io/renovate-ce-ee
+    - https://openbao.github.io/openbao-helm
     - https://prometheus-community.github.io/helm-charts
     - https://stakater.github.io/stakater-charts
     - docker.io/envoyproxy
