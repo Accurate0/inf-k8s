@@ -2,17 +2,24 @@
 set -euo pipefail
 
 recursive=false
-if [ "${1:-}" = "-r" ]; then
-  recursive=true
-  shift
-fi
+azure=false
+while getopts "ra" opt; do
+  case $opt in
+    r) recursive=true ;;
+    a) azure=true ;;
+    *) exit 1 ;;
+  esac
+done
+shift $((OPTIND - 1))
 
 if [ $# -lt 3 ]; then
-  echo "usage: $0 [-r] <namespace> <name> <slug[:path]>..." >&2
+  echo "usage: $0 [-r] [-a] <namespace> <name> <slug[:path]>..." >&2
   exit 1
 fi
 
-: "${BAO_TOKEN:?BAO_TOKEN must be set}"
+if [ "$azure" = false ]; then
+  : "${BAO_TOKEN:?BAO_TOKEN must be set}"
+fi
 
 namespace=$1
 name=$2
@@ -49,6 +56,12 @@ for source in "$@"; do
   echo "$slug:$path -> $(jq length <<<"$secrets") keys" >&2
   merged=$(jq -n --argjson a "$merged" --argjson b "$secrets" '$a + $b')
 done
+
+if [ "$azure" = true ]; then
+  az keyvault secret set --vault-name k8s-shared-vault --name "$name" --value "$(jq -c . <<<"$merged")" --output none
+  echo "wrote $(jq length <<<"$merged") keys to azure k8s-shared-vault/$name" >&2
+  exit 0
+fi
 
 key="kv/$namespace/$name"
 if [ "$name" = "$namespace" ]; then

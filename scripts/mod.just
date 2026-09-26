@@ -14,7 +14,7 @@ argo-status *args:
 preflight *args:
     ./cluster-preflight.sh {{args}}
 
-# Copy Infisical project(s) into one OpenBao KV secret: [-r] <namespace> <name> <slug[:path]>... (needs BAO_TOKEN)
+# Copy Infisical project(s) into one OpenBao KV secret, or Azure KV with -a: [-r] [-a] <namespace> <name> <slug[:path]>...
 infisical-to-bao +args:
     ./infisical-to-bao.sh {{args}}
 

@@ -29,6 +29,22 @@ spec:
               annotations:
                 inf-k8s.net/app: pg-db-controller
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          defaults:
+            namespace: pg-db-controller
+            provider: azurekv
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: pg-db-controller
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          secrets:
+            - name: pg-db-controller
+              managedSecrets:
+                - secretName: pg-db-controller-managed-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: platform-services/pg-db-controller/manifests
   destination:
