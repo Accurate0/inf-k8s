@@ -74,32 +74,3 @@ resource "vault_identity_group_alias" "platform_admins" {
   mount_accessor = vault_jwt_auth_backend.oidc.accessor
   canonical_id   = vault_identity_group.platform_admins.id
 }
-
-data "vault_identity_group" "platform_admins" {
-  group_name = "platform_admins"
-}
-
-import {
-  to = vault_policy.admin
-  id = "admin"
-}
-
-import {
-  to = vault_jwt_auth_backend.oidc
-  id = "oidc"
-}
-
-import {
-  to = vault_jwt_auth_backend_role.default
-  id = "auth/oidc/role/default"
-}
-
-import {
-  to = vault_identity_group.platform_admins
-  id = data.vault_identity_group.platform_admins.group_id
-}
-
-import {
-  to = vault_identity_group_alias.platform_admins
-  id = data.vault_identity_group.platform_admins.alias_id
-}
