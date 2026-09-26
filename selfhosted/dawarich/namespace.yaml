@@ -4,5 +4,4 @@ kind: Namespace
 metadata:
   name: dawarich
   labels:
-    inf-k8s.net/infisical-secrets: "true"
     gateway.inf-k8s.net/anurag-sh: "true"

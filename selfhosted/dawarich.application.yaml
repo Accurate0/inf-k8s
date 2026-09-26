@@ -48,6 +48,19 @@ spec:
               databaseName: dawarich_2
               secretName: dawarich-database-secret
               secretNamespace: dawarich
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          defaults:
+            namespace: dawarich
+            provider: openbao
+            resyncInterval: 900
+          secrets:
+            - name: dawarich
+              managedSecrets:
+                - secretName: dawarich-managed-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/dawarich
   destination:
