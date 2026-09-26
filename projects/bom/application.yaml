@@ -16,7 +16,7 @@ spec:
   sources:
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+      targetRevision: 1.0.1
       helm:
         valuesObject:
           databases:
@@ -24,7 +24,6 @@ spec:
               namespace: bom
               databaseName: bom
               secretName: bom-database-secret
-              secretNamespace: bom
               annotations:
                 inf-k8s.net/app: bom
                 inf-k8s.net/repository: https://github.com/Accurate0/bom

@@ -1,7 +1,3 @@
-locals {
-  databases = {}
-}
-
 resource "random_password" "openbao-db-admin" {
   length  = 48
   special = false
@@ -59,4 +55,10 @@ resource "vault_kubernetes_auth_backend_role" "database" {
   bound_service_account_namespaces = [each.value.namespace]
   token_policies                   = [vault_policy.database[each.key].name]
   token_ttl                        = 3600
+}
+
+locals {
+  databases = {
+    bom = { namespace = "bom", role = "bom" }
+  }
 }

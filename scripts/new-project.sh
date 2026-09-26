@@ -11,7 +11,7 @@ cd "$repo_root"
 routes_chart_version="${ROUTES_CHART_VERSION:-2.3.0}"
 secrets_chart_version="${SECRETS_CHART_VERSION:-0.4.0}"
 oidc_chart_version="${OIDC_CHART_VERSION:-0.2.2}"
-postgres_chart_version="${POSTGRES_CHART_VERSION:-1.0.0}"
+postgres_chart_version="${POSTGRES_CHART_VERSION:-1.0.1}"
 gateway_name="${GATEWAY_NAME:-public-gateway}"
 
 render() {
