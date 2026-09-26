@@ -16,28 +16,24 @@ spec:
   sources:
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.4.0
+      targetRevision: 0.5.1
       helm:
         valuesObject:
           defaults:
             namespace: maccas-api
-            projectSlug: maccas-api-576-r
+            provider: openbao
             resyncInterval: 900
           secrets:
-            - name: maccas-api-secret
-              secretPath: /api
+            - name: api
               managedSecrets:
                 - secretName: maccas-api-managed-secrets
-            - name: maccas-common-secret
-              secretPath: /
+            - name: common
               managedSecrets:
                 - secretName: maccas-common-managed-secrets
-            - name: maccas-web-secret
-              secretPath: /web
+            - name: web
               managedSecrets:
                 - secretName: maccas-web-managed-secrets
-            - name: maccas-migration-secret
-              secretPath: /migration
+            - name: migration
               managedSecrets:
                 - secretName: maccas-migration-managed-secrets
     - chart: k8s-http-routes
