@@ -73,6 +73,22 @@ spec:
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: platform-services/waf-manager
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          defaults:
+            namespace: waf-manager
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: waf-manager
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          secrets:
+            - name: waf-manager
+              managedSecrets:
+                - secretName: waf-manager-managed-secrets
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.3.1
