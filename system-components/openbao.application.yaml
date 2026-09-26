@@ -62,17 +62,22 @@ spec:
                   - groups
               secretName: kanidm-openbao-oidc
               secretNamespace: openbao
-    - chart: k8s-postgres
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.2
       helm:
         valuesObject:
-          databases:
-            - name: openbao
-              namespace: openbao
-              databaseName: openbao
-              secretName: openbao-database-secret
-              secretNamespace: openbao
+          defaults:
+            namespace: openbao
+            provider: azurekv
+            resyncInterval: 900
+          secrets:
+            - name: openbao-database
+              managedSecrets:
+                - secretName: openbao-db-credentials
+                  template:
+                    data:
+                      DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@cloudnative-pg-cluster-rw.cnpg-system:5432/openbao"
     - chart: openbao
       repoURL: https://openbao.github.io/openbao-helm
       targetRevision: 0.29.6
@@ -89,7 +94,7 @@ spec:
               enabled: false
             extraSecretEnvironmentVars:
               - envName: BAO_PG_CONNECTION_URL
-                secretName: openbao-database-secret
+                secretName: openbao-db-credentials
                 secretKey: DATABASE_URL
             extraArgs: -config=/openbao/userconfig/azure-unseal/seal.hcl
             volumes:

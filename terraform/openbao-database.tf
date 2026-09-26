@@ -57,6 +57,20 @@ resource "vault_kubernetes_auth_backend_role" "database" {
   token_ttl                        = 3600
 }
 
+resource "random_password" "openbao-database" {
+  length  = 48
+  special = false
+}
+
+resource "azurerm_key_vault_secret" "openbao-database" {
+  name = "openbao-database"
+  value = jsonencode({
+    username = "openbao"
+    password = random_password.openbao-database.result
+  })
+  key_vault_id = azurerm_key_vault.k8s-shared-vault.id
+}
+
 locals {
   databases = {
     bom           = { namespace = "bom", role = "bom" }

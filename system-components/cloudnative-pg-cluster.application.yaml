@@ -40,6 +40,10 @@ spec:
               managedSecrets:
                 - secretName: openbao-db-admin
                   type: kubernetes.io/basic-auth
+            - name: openbao-database
+              managedSecrets:
+                - secretName: openbao-database
+                  type: kubernetes.io/basic-auth
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/postgres-cluster
       directory:
