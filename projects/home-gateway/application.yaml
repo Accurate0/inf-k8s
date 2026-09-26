@@ -89,7 +89,7 @@ spec:
             - name: home-gateway
               namespace: home-gateway
               databaseName: home_gateway
-              secretName: home-gateway-database-secret
+              secretName: home-gateway-db-credentials
               annotations:
                 inf-k8s.net/app: home-gateway
                 inf-k8s.net/repository: https://github.com/Accurate0/home-gateway

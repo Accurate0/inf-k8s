@@ -321,19 +321,19 @@ spec:
               - name: FORGEJO__DATABASE__NAME
                 valueFrom:
                   secretKeyRef:
-                    name: forgejo-database-secret
+                    name: forgejo-db-credentials
                     key: PGDATABASE
               - name: FORGEJO__DATABASE__USER
                 valueFrom:
                   secretKeyRef:
-                    name: forgejo-database-secret
+                    name: forgejo-db-credentials
                     key: PGUSER
               - name: FORGEJO__DATABASE__HOST
                 value: cloudnative-pg-cluster-pooler-rw.cnpg-system
               - name: FORGEJO__DATABASE__PASSWD
                 valueFrom:
                   secretKeyRef:
-                    name: forgejo-database-secret
+                    name: forgejo-db-credentials
                     key: PGPASSWORD
             metrics:
               enabled: true
@@ -641,7 +641,7 @@ spec:
             - name: forgejo
               namespace: forgejo
               databaseName: forgejo
-              secretName: forgejo-database-secret
+              secretName: forgejo-db-credentials
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/forgejo
 

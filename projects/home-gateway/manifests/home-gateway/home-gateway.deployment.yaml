@@ -83,7 +83,7 @@ spec:
             - secretRef:
                 name: home-gateway-managed-secrets
             - secretRef:
-                name: home-gateway-database-secret
+                name: home-gateway-db-credentials
           ports:
             - containerPort: 8000
           volumeMounts:

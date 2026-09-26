@@ -60,17 +60,17 @@ spec:
             - name: PGUSER
               valueFrom:
                 secretKeyRef:
-                  name: feature-flags-database-secret
+                  name: feature-flags-db-credentials
                   key: PGUSER
             - name: PGPASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: feature-flags-database-secret
+                  name: feature-flags-db-credentials
                   key: PGPASSWORD
             - name: PGDATABASE
               valueFrom:
                 secretKeyRef:
-                  name: feature-flags-database-secret
+                  name: feature-flags-db-credentials
                   key: PGDATABASE
             - name: DATABASE_URL
               value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)

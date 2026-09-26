@@ -66,7 +66,7 @@ spec:
             - name: waf-manager
               namespace: waf-manager
               databaseName: waf_manager
-              secretName: waf-manager-database-secret
+              secretName: waf-manager-db-credentials
               annotations:
                 inf-k8s.net/app: waf-manager
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

@@ -46,7 +46,7 @@ spec:
             - name: dawarich
               namespace: dawarich
               databaseName: dawarich_2
-              secretName: dawarich-database-secret
+              secretName: dawarich-db-credentials
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.5.1

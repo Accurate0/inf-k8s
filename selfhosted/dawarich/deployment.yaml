@@ -34,22 +34,22 @@ spec:
             - name: DATABASE_PORT
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGPORT
             - name: DATABASE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGUSER
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGPASSWORD
             - name: DATABASE_NAME
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGDATABASE
             - name: SECRET_KEY_BASE
               valueFrom:
@@ -105,22 +105,22 @@ spec:
             - name: DATABASE_PORT
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGPORT
             - name: DATABASE_USERNAME
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGUSER
             - name: DATABASE_PASSWORD
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGPASSWORD
             - name: DATABASE_NAME
               valueFrom:
                 secretKeyRef:
-                  name: dawarich-database-secret
+                  name: dawarich-db-credentials
                   key: PGDATABASE
             - name: SECRET_KEY_BASE
               valueFrom:
