@@ -14,6 +14,7 @@ spec:
     - oci://ghcr.io/accurate0/charts/k8s-oidc
     - oci://ghcr.io/accurate0/charts/k8s-postgres
     - oci://ghcr.io/bjw-s-labs/helm/app-template
+    - oci://git.erwanleboucher.dev/eleboucher/charts/forgejo-runner
   destinations:
     - namespace: "*"
       server: "*"
