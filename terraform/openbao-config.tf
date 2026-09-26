@@ -18,6 +18,10 @@ resource "vault_kubernetes_auth_backend_config" "kubernetes" {
 resource "vault_policy" "eso-read" {
   name   = "eso-read"
   policy = <<-EOT
+    path "kv/data/{{identity.entity.aliases.${vault_auth_backend.kubernetes.accessor}.metadata.service_account_namespace}}" {
+      capabilities = ["read"]
+    }
+
     path "kv/data/{{identity.entity.aliases.${vault_auth_backend.kubernetes.accessor}.metadata.service_account_namespace}}/*" {
       capabilities = ["read"]
     }

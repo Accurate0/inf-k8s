@@ -1,8 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+recursive=false
+if [ "${1:-}" = "-r" ]; then
+  recursive=true
+  shift
+fi
+
 if [ $# -lt 3 ]; then
-  echo "usage: $0 <namespace> <name> <slug[:path]>..." >&2
+  echo "usage: $0 [-r] <namespace> <name> <slug[:path]>..." >&2
   exit 1
 fi
 
@@ -35,6 +41,7 @@ for source in "$@"; do
     --data-urlencode "workspaceSlug=$slug" \
     --data-urlencode "environment=prod" \
     --data-urlencode "secretPath=$path" \
+    --data-urlencode "recursive=$recursive" \
     --data-urlencode "expandSecretReferences=true" \
     --data-urlencode "include_imports=true" |
     jq '([.imports[]?.secrets[]] + .secrets) | map({key: .secretKey, value: .secretValue}) | from_entries')
@@ -43,6 +50,11 @@ for source in "$@"; do
   merged=$(jq -n --argjson a "$merged" --argjson b "$secrets" '$a + $b')
 done
 
+key="kv/$namespace/$name"
+if [ "$name" = "$namespace" ]; then
+  key="kv/$namespace"
+fi
+
 pod=$(kubectl -n openbao get pod -l openbao-active=true -o name)
-kubectl -n openbao exec -i "$pod" -- env BAO_TOKEN="$BAO_TOKEN" bao kv put "kv/$namespace/$name" - <<<"$merged"
-echo "wrote $(jq length <<<"$merged") keys to kv/$namespace/$name" >&2
+kubectl -n openbao exec -i "$pod" -- env BAO_TOKEN="$BAO_TOKEN" bao kv put "$key" - <<<"$merged"
+echo "wrote $(jq length <<<"$merged") keys to $key" >&2

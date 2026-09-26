@@ -40,7 +40,7 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Names the SecretStore, which is created as <provider>-<name>. For openbao the remote key defaults to <namespace>/<name>; for azurekv it defaults to <name>."
+            "description": "Names the SecretStore, which is created as <provider>-<name>. For openbao the remote key defaults to <namespace> when name equals the namespace, otherwise <namespace>/<name>; for azurekv it defaults to <name>."
           },
           "provider": { "$ref": "#/definitions/provider" },
           "key": {
