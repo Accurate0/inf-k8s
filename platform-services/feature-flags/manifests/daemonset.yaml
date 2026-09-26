@@ -17,6 +17,8 @@ spec:
     metadata:
       labels:
         app: feature-flags
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       securityContext:
         runAsNonRoot: true

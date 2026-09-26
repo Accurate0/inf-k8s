@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/database_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: home-gateway
+  namespace: cnpg-system
+spec:
+  name: home_gateway
+  owner: home_gateway
+  cluster:
+    name: cloudnative-pg-cluster
+  databaseReclaimPolicy: retain

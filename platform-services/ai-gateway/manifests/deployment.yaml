@@ -18,6 +18,8 @@ spec:
     metadata:
       labels:
         app: ai-gateway
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       topologySpreadConstraints:
         - topologyKey: inf-k8s.net/location

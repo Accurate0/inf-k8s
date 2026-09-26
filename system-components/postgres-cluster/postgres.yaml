@@ -57,6 +57,36 @@ spec:
         connectionLimit: -1
         inherit: true
         login: true
+      - name: home_gateway
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: waf_manager
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: feature_flags
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: ai_gateway
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: dawarich_2
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: forgejo
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
   monitoring:
     disableDefaultQueries: false
     enablePodMonitor: true

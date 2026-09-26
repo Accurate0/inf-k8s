@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/database_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Database
+metadata:
+  name: dawarich
+  namespace: cnpg-system
+spec:
+  name: dawarich_2
+  owner: dawarich_2
+  cluster:
+    name: cloudnative-pg-cluster
+  databaseReclaimPolicy: retain
