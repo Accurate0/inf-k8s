@@ -54,6 +54,11 @@ resource "vault_jwt_auth_backend" "oidc" {
   oidc_client_secret = var.OPENBAO_OIDC_CLIENT_SECRET
   jwt_supported_algs = ["ES256"]
   default_role       = "default"
+
+  tune {
+    listing_visibility = "unauth"
+    token_type         = "default-service"
+  }
 }
 
 resource "vault_jwt_auth_backend_role" "default" {
@@ -63,7 +68,7 @@ resource "vault_jwt_auth_backend_role" "default" {
   user_claim            = "preferred_username"
   groups_claim          = "groups"
   oidc_scopes           = ["openid", "email", "profile", "groups"]
-  allowed_redirect_uris = ["https://openbao.inf-k8s.net/ui/vault/auth/oidc/oidc/callback"]
+  allowed_redirect_uris = ["https://vault.inf-k8s.net/ui/vault/auth/oidc/oidc/callback"]
   token_ttl             = 28800
 }
 

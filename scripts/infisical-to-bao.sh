@@ -25,7 +25,7 @@ namespace=$1
 name=$2
 shift 2
 
-infisical_url=${INFISICAL_URL:-https://vault.inf-k8s.net}
+infisical_url=${INFISICAL_URL:-https://infisical.inf-k8s.net}
 
 client_id=$(kubectl -n infisical get secret universal-auth-credentials -o jsonpath='{.data.clientId}' | base64 -d)
 client_secret=$(kubectl -n infisical get secret universal-auth-credentials -o jsonpath='{.data.clientSecret}' | base64 -d)

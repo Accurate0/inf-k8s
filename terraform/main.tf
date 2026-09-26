@@ -101,7 +101,7 @@ variable "infisical_client_secret" {
 }
 
 provider "infisical" {
-  host = "https://vault.inf-k8s.net"
+  host = "https://infisical.inf-k8s.net"
   auth = {
     universal = {
       client_id     = var.infisical_client_id
@@ -129,7 +129,7 @@ variable "OPENBAO_OIDC_CLIENT_SECRET" {
 }
 
 provider "vault" {
-  address          = "https://openbao.inf-k8s.net"
+  address          = "https://vault.inf-k8s.net"
   skip_child_token = true
 
   auth_login {
