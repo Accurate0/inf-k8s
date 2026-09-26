@@ -13,6 +13,8 @@ spec:
     metadata:
       labels:
         app: bom
+      annotations:
+        reloader.stakater.com/auto: "true"
     spec:
       securityContext:
         runAsNonRoot: true

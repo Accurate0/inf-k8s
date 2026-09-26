@@ -52,6 +52,11 @@ spec:
         superuser: true
         passwordSecret:
           name: openbao-db-admin
+      - name: bom
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
   monitoring:
     disableDefaultQueries: false
     enablePodMonitor: true

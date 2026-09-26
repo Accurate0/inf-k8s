@@ -42,6 +42,8 @@ spec:
                   type: kubernetes.io/basic-auth
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/postgres-cluster
+      directory:
+        recurse: true
   destination:
     server: https://kubernetes.default.svc
     namespace: cnpg-system
