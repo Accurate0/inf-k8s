@@ -59,7 +59,7 @@ spec:
                       header: x-waf-user-sub
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+      targetRevision: 1.0.1
       helm:
         valuesObject:
           databases:
@@ -67,7 +67,6 @@ spec:
               namespace: waf-manager
               databaseName: waf_manager
               secretName: waf-manager-database-secret
-              secretNamespace: waf-manager
               annotations:
                 inf-k8s.net/app: waf-manager
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

@@ -634,7 +634,7 @@ spec:
                 key: Forgejo.svg
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+      targetRevision: 1.0.1
       helm:
         valuesObject:
           databases:
@@ -642,7 +642,6 @@ spec:
               namespace: forgejo
               databaseName: forgejo
               secretName: forgejo-database-secret
-              secretNamespace: forgejo
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/forgejo
 

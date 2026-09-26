@@ -50,7 +50,7 @@ spec:
                   cacheDuration: 3600s
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+      targetRevision: 1.0.1
       helm:
         valuesObject:
           databases:
@@ -58,7 +58,6 @@ spec:
               namespace: feature-flags
               databaseName: feature_flags
               secretName: feature-flags-database-secret
-              secretNamespace: feature-flags
               annotations:
                 inf-k8s.net/app: feature-flags
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

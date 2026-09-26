@@ -59,6 +59,12 @@ resource "vault_kubernetes_auth_backend_role" "database" {
 
 locals {
   databases = {
-    bom = { namespace = "bom", role = "bom" }
+    bom           = { namespace = "bom", role = "bom" }
+    home-gateway  = { namespace = "home-gateway", role = "home_gateway" }
+    waf-manager   = { namespace = "waf-manager", role = "waf_manager" }
+    feature-flags = { namespace = "feature-flags", role = "feature_flags" }
+    ai-gateway    = { namespace = "ai-gateway", role = "ai_gateway" }
+    dawarich      = { namespace = "dawarich", role = "dawarich_2" }
+    forgejo       = { namespace = "forgejo", role = "forgejo" }
   }
 }

@@ -39,7 +39,7 @@ spec:
               secretNamespace: dawarich
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+      targetRevision: 1.0.1
       helm:
         valuesObject:
           databases:
@@ -47,7 +47,6 @@ spec:
               namespace: dawarich
               databaseName: dawarich_2
               secretName: dawarich-database-secret
-              secretNamespace: dawarich
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.5.1

@@ -39,7 +39,7 @@ spec:
                         value: /
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 0.2.0
+      targetRevision: 1.0.1
       helm:
         valuesObject:
           databases:
@@ -47,7 +47,6 @@ spec:
               namespace: ai-gateway
               databaseName: ai_gateway
               secretName: ai-gateway-database-secret
-              secretNamespace: ai-gateway
               annotations:
                 inf-k8s.net/app: ai-gateway
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
