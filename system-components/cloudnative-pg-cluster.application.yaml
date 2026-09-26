@@ -26,7 +26,7 @@ spec:
   sources:
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.5.1
+      targetRevision: 0.5.2
       helm:
         valuesObject:
           defaults:
@@ -37,6 +37,10 @@ spec:
             - name: cnpg-cluster-backup
               managedSecrets:
                 - secretName: cloudnative-pg-cluster-backup-s3-creds
+            - name: openbao-db-admin
+              managedSecrets:
+                - secretName: openbao-db-admin
+                  type: kubernetes.io/basic-auth
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/postgres-cluster
   destination:

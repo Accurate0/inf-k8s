@@ -10,28 +10,41 @@
       "description": "Applied to every database that does not override the field.",
       "properties": {
         "namespace": { "$ref": "#/definitions/namespace" },
-        "annotations": { "$ref": "#/definitions/annotations" }
+        "annotations": { "$ref": "#/definitions/annotations" },
+        "host": {
+          "type": "string",
+          "description": "Postgres host written to the secret. Defaults to cloudnative-pg-cluster-rw.cnpg-system."
+        },
+        "port": {
+          "type": "integer",
+          "description": "Postgres port written to the secret. Defaults to 5432."
+        },
+        "openbaoServer": {
+          "type": "string",
+          "description": "OpenBao address. Defaults to http://openbao-active.openbao.svc.cluster.local:8200."
+        },
+        "resyncInterval": {
+          "type": "integer",
+          "minimum": 1,
+          "description": "Seconds between credential refreshes. Defaults to 300."
+        }
       }
     },
     "databases": {
       "type": "array",
-      "description": "One PostgresDatabase per entry.",
+      "description": "One OpenBao-backed credentials secret per entry. The database and role themselves are defined in system-components/postgres-cluster.",
       "items": { "$ref": "#/definitions/database" }
     }
   },
   "definitions": {
     "namespace": {
       "type": "string",
-      "description": "Namespace the PostgresDatabase is created in. Defaults to the release namespace."
+      "description": "Namespace the generator, ExternalSecret and secret are created in. Defaults to the release namespace."
     },
     "annotations": {
       "type": "object",
-      "description": "Annotations set on the PostgresDatabase. argocd.argoproj.io/sync-options defaults to Prune=false,Delete=false.",
+      "description": "Annotations set on the generator, ExternalSecret and secret.",
       "additionalProperties": { "type": "string" }
-    },
-    "identifier": {
-      "type": "string",
-      "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
     },
     "database": {
       "type": "object",
@@ -41,34 +54,18 @@
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
-          "description": "Names the PostgresDatabase, which is created as <name>-database."
-        },
-        "resourceName": {
-          "type": "string",
-          "description": "Overrides the PostgresDatabase name. Defaults to <name>-database."
+          "description": "OpenBao static role name; credentials are read from database/static-creds/<name> using kubernetes auth role db-<name>."
         },
         "namespace": { "$ref": "#/definitions/namespace" },
         "annotations": { "$ref": "#/definitions/annotations" },
         "databaseName": {
-          "$ref": "#/definitions/identifier",
-          "description": "Postgres database name. Defaults to name with dashes replaced by underscores."
-        },
-        "roleName": {
-          "$ref": "#/definitions/identifier",
-          "description": "Owning role. Defaults to the controller's choice."
-        },
-        "additionalDatabases": {
-          "type": "array",
-          "description": "Extra databases owned by the same role.",
-          "items": { "$ref": "#/definitions/identifier" }
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
+          "description": "Postgres database name written to PGDATABASE and DATABASE_URL. Defaults to name with dashes replaced by underscores."
         },
         "secretName": {
           "type": "string",
           "description": "Secret holding the connection details. Defaults to <name>-database-secret."
-        },
-        "secretNamespace": {
-          "type": "string",
-          "description": "Namespace of the secret. Defaults to namespace."
         }
       }
     }

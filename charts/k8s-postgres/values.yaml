@@ -8,5 +8,3 @@ databases:
   - name: dawarich
     namespace: dawarich
     databaseName: dawarich_2
-    additionalDatabases:
-      - dawarich_cache

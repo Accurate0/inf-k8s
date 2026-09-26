@@ -125,6 +125,10 @@
           "type": "string",
           "description": "Name of the ExternalSecret and of the secret it creates."
         },
+        "type": {
+          "type": "string",
+          "description": "Type of the created secret, e.g. kubernetes.io/basic-auth. Defaults to Opaque."
+        },
         "template": {
           "type": "object",
           "additionalProperties": false,

@@ -42,6 +42,14 @@ spec:
   imagePullPolicy: IfNotPresent
   instances: 3
   logLevel: info
+  managed:
+    roles:
+      - name: openbao_db_admin
+        ensure: present
+        login: true
+        superuser: true
+        passwordSecret:
+          name: openbao-db-admin
   monitoring:
     disableDefaultQueries: false
     enablePodMonitor: true

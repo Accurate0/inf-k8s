@@ -2,5 +2,5 @@ apiVersion: v2
 name: k8s-secrets
 description: Standardized ExternalSecret resources backed by Infisical, OpenBao or Azure Key Vault
 type: application
-version: 0.5.1
+version: 0.5.2
 appVersion: "0.1.0"

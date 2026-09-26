@@ -45,6 +45,7 @@ openbao-approle:
     path "sys/policies/acl/*" { capabilities = ["create", "read", "update", "delete", "list"] }
     path "auth/*" { capabilities = ["create", "read", "update", "delete", "list"] }
     path "identity/*" { capabilities = ["create", "read", "update", "delete", "list"] }
+    path "database/*" { capabilities = ["create", "read", "update", "delete", "list"] }
     EOF
 
     bao write auth/approle/role/terraform token_policies=terraform token_ttl=1h secret_id_ttl=0
