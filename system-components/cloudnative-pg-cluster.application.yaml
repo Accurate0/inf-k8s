@@ -10,7 +10,6 @@ spec:
       kind: Cluster
       jsonPointers:
         - /spec/bootstrap/initdb/postInitApplicationSQL
-        - /spec/managed
         - /spec/postgresql/shared_preload_libraries
         - /spec/priorityClassName
         - /spec/storage/storageClass
