@@ -25,12 +25,12 @@ spec:
       helm:
         valuesObject:
           routes:
-            - name: vault
+            - name: infisical
               gateway:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - vault.inf-k8s.net
+                - infisical.inf-k8s.net
               rules:
                 - backendRefs:
                     - group: ""
@@ -64,11 +64,11 @@ spec:
               cert-manager.io/cluster-issuer: letsencrypt-prod
             nginx:
               enabled: false
-            hostName: vault.inf-k8s.net
+            hostName: infisical.inf-k8s.net
             tls:
-              - secretName: vault-inf-k8s-tls
+              - secretName: infisical-inf-k8s-tls
                 hosts:
-                  - vault.inf-k8s.net
+                  - infisical.inf-k8s.net
           postgresql:
             enabled: false
           redis:

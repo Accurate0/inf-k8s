@@ -30,7 +30,7 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - openbao.inf-k8s.net
+                - vault.inf-k8s.net
               rules:
                 - backendRefs:
                     - group: ""
@@ -51,7 +51,7 @@ spec:
             - name: openbao
               namespace: openbao
               displayName: OpenBao
-              host: openbao.inf-k8s.net
+              host: vault.inf-k8s.net
               callbackPath: /ui/vault/auth/oidc/oidc/callback
               preferShortUsername: true
               scopeMaps:
