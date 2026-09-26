@@ -109,6 +109,15 @@ spec:
               - name: azure-unseal
                 mountPath: /openbao/userconfig/azure-unseal
                 readOnly: true
+            topologySpreadConstraints:
+              - topologyKey: inf-k8s.net/location
+                maxSkew: 1
+                whenUnsatisfiable: DoNotSchedule
+                labelSelector:
+                  matchLabels:
+                    app.kubernetes.io/name: openbao
+                    app.kubernetes.io/instance: openbao
+                    component: server
             ha:
               enabled: true
               replicas: 2
