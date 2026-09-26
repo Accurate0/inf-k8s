@@ -131,7 +131,10 @@ spec:
                 plugin_auto_download = true
 
                 plugin "kms" "azurekeyvault" {
-                  image = "ghcr.io/openbao/openbao-plugin-kms-azure:v0.1.0@sha256:7dd89c064f16dcaa8a49b389099edf23439a2b67d2d6871146e598b9b6f96324"
+                  image       = "ghcr.io/openbao/openbao-plugin-kms-azure"
+                  version     = "v0.1.0"
+                  binary_name = "openbao-plugin-kms-azure"
+                  sha256sum   = "e46a6d13ab427b594c89e58b002db6bbb6d61557f5de8a599557c76827deef0d"
                 }
 
                 service_registration "kubernetes" {}
