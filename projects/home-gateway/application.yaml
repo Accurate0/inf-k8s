@@ -94,6 +94,22 @@ spec:
               annotations:
                 inf-k8s.net/app: home-gateway
                 inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          defaults:
+            namespace: home-gateway
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: home-gateway
+              inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
+          secrets:
+            - name: home-gateway
+              managedSecrets:
+                - secretName: home-gateway-managed-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/home-gateway/manifests
