@@ -13,4 +13,4 @@ images:
   - name: ghcr.io/accurate0/feature-flags
     newTag: 896cdcab52611ee2a1d857cecb9d4febca92d6a2
   - name: ghcr.io/accurate0/feature-flags-frontend
-    newTag: b1c5497e910d4b702d4c6311486470a864035829
+    newTag: ef611c17fa21f25f423dd22bef870fa944dd0b7c
