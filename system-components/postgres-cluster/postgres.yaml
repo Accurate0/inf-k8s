@@ -46,6 +46,8 @@ spec:
     roles:
       - name: openbao_db_admin
         ensure: present
+        connectionLimit: -1
+        inherit: true
         login: true
         superuser: true
         passwordSecret:
