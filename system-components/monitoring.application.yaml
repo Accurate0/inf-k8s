@@ -257,7 +257,7 @@ spec:
             replicas: 0
     - chart: alloy
       repoURL: https://grafana.github.io/helm-charts
-      targetRevision: 1.12.1
+      targetRevision: 1.13.0
       helm:
         valuesObject:
           controller:
