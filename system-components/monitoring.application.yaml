@@ -8,7 +8,6 @@ spec:
   syncPolicy:
     managedNamespaceMetadata:
       labels:
-        inf-k8s.net/infisical-secrets: "true"
         internal-gateway-access: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
@@ -125,21 +124,17 @@ spec:
                         value: /
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.4.0
+      targetRevision: 0.5.1
       helm:
         valuesObject:
           defaults:
             namespace: monitoring
-            projectSlug: monitoring-wg-xi
+            provider: openbao
             resyncInterval: 900
           secrets:
-            - name: monitoring-secrets
-              secretPath: /
+            - name: monitoring
               managedSecrets:
                 - secretName: monitoring-managed-secrets
-            - name: loki-s3-secrets
-              secretPath: /
-              managedSecrets:
                 - secretName: loki-s3-credentials
                   template:
                     includeAllSecrets: false
