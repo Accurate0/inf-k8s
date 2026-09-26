@@ -28,6 +28,22 @@ spec:
               annotations:
                 inf-k8s.net/app: bom
                 inf-k8s.net/repository: https://github.com/Accurate0/bom
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          defaults:
+            namespace: bom
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: bom
+              inf-k8s.net/repository: https://github.com/Accurate0/bom
+          secrets:
+            - name: bom
+              managedSecrets:
+                - secretName: bom-managed-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/bom/manifests
