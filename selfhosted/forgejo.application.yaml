@@ -17,7 +17,6 @@ spec:
   syncPolicy:
     managedNamespaceMetadata:
       labels:
-        inf-k8s.net/infisical-secrets: "true"
         gateway.inf-k8s.net/anurag-sh: "true"
     syncOptions:
       - ApplyOutOfSyncOnly=true
@@ -31,16 +30,15 @@ spec:
   sources:
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.4.0
+      targetRevision: 0.5.1
       helm:
         valuesObject:
           defaults:
             namespace: forgejo
-            projectSlug: forgejo-lmh-v
+            provider: openbao
             resyncInterval: 900
           secrets:
-            - name: forgejo-ssh-signing-secrets
-              secretPath: /ssh-signing
+            - name: ssh-signing
               managedSecrets:
                 - secretName: forgejo-ssh-signing-managed-secrets
                   template:
@@ -48,28 +46,24 @@ spec:
                     data:
                       ed25519: "{{ .SSH_SIGNING_KEY }}"
                       ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC }}"
-            - name: forgejo-ssh-host-secrets
-              secretPath: /ssh
+            - name: ssh-host
               managedSecrets:
                 - secretName: forgejo-ssh-host-managed-secrets
                   template:
                     includeAllSecrets: false
                     data:
                       ssh_host_ed25519_key: "{{ .SSH_HOST_KEY }}"
-            - name: forgejo-gpg-secrets
-              secretPath: /gpg
+            - name: gpg
               managedSecrets:
                 - secretName: forgejo-gpg-managed-secrets
                   template:
                     includeAllSecrets: false
                     data:
                       privateKey: "{{ .GPG_PRIVATE_KEY }}"
-            - name: forgejo-secrets
-              secretPath: /
+            - name: forgejo
               managedSecrets:
                 - secretName: forgejo-managed-secrets
-            - name: forgejo-runner-secrets
-              secretPath: /runner
+            - name: runner
               managedSecrets:
                 - secretName: forgejo-runner-secret
                   template:
@@ -77,8 +71,7 @@ spec:
                     data:
                       uuid: "{{ .UUID }}"
                       token: "{{ .TOKEN }}"
-            - name: forgejo-anubis-secrets
-              secretPath: /anubis
+            - name: anubis
               managedSecrets:
                 - secretName: forgejo-anubis-managed-secrets
                   template:
