@@ -24,6 +24,19 @@ spec:
       - ServerSideApply=true
   project: system-components
   sources:
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.5.1
+      helm:
+        valuesObject:
+          defaults:
+            namespace: cnpg-system
+            provider: azurekv
+            resyncInterval: 900
+          secrets:
+            - name: cnpg-cluster-backup
+              managedSecrets:
+                - secretName: cloudnative-pg-cluster-backup-s3-creds
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/postgres-cluster
   destination:
