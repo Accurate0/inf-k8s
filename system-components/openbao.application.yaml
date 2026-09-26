@@ -42,6 +42,26 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.2.2
+      helm:
+        valuesObject:
+          clients:
+            - name: openbao
+              namespace: openbao
+              displayName: OpenBao
+              host: openbao.inf-k8s.net
+              callbackPath: /ui/vault/auth/oidc/oidc/callback
+              preferShortUsername: true
+              scopeMaps:
+                platform_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              secretName: kanidm-openbao-oidc
+              secretNamespace: openbao
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
       targetRevision: 0.2.0
