@@ -35,11 +35,6 @@ terraform {
       version = ">= 5.22.0"
     }
 
-    infisical = {
-      source  = "Infisical/infisical"
-      version = "0.19.32"
-    }
-
     google = {
       source  = "hashicorp/google"
       version = ">= 4"
@@ -88,26 +83,6 @@ variable "github_token" {
 
 provider "github" {
   token = try(coalesce(var.tf_github_token, var.github_token), null)
-}
-
-variable "infisical_client_id" {
-  type     = string
-  nullable = false
-}
-
-variable "infisical_client_secret" {
-  type     = string
-  nullable = false
-}
-
-provider "infisical" {
-  host = "https://infisical.inf-k8s.net"
-  auth = {
-    universal = {
-      client_id     = var.infisical_client_id
-      client_secret = var.infisical_client_secret
-    }
-  }
 }
 
 variable "OPENBAO_ROLE_ID" {

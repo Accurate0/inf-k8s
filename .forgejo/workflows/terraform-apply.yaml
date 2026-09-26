@@ -28,8 +28,6 @@ jobs:
       AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
       GOOGLE_CREDENTIALS: ${{ secrets.GOOGLE_CREDENTIALS }}
       AWS_REGION: ${{ vars.AWS_REGION }}
-      TF_VAR_infisical_client_id: ${{ secrets.TF_VAR_INFISICAL_CLIENT_ID }}
-      TF_VAR_infisical_client_secret: ${{ secrets.TF_VAR_INFISICAL_CLIENT_SECRET }}
       TF_VAR_OPENBAO_ROLE_ID: ${{ secrets.TF_VAR_OPENBAO_ROLE_ID }}
       TF_VAR_OPENBAO_SECRET_ID: ${{ secrets.TF_VAR_OPENBAO_SECRET_ID }}
       TF_VAR_OPENBAO_OIDC_CLIENT_SECRET: ${{ secrets.TF_VAR_OPENBAO_OIDC_CLIENT_SECRET }}

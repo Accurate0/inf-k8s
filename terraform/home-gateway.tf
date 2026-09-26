@@ -62,22 +62,6 @@ resource "github_actions_secret" "aws-key-secret" {
   value       = aws_iam_access_key.home-gateway-access-key.secret
 }
 
-# resource "infisical_secret" "aws_key_id" {
-#   name         = "AWS_ACCESS_KEY_ID"
-#   value        = aws_iam_access_key.home-gateway-access-key.id
-#   env_slug     = "prod"
-#   workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
-#   folder_path  = "/"
-# }
-#
-# resource "infisical_secret" "aws_key_secret" {
-#   name         = "AWS_SECRET_ACCESS_KEY"
-#   value        = aws_iam_access_key.home-gateway-access-key.secret
-#   env_slug     = "prod"
-#   workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
-#   folder_path  = "/"
-# }
-
 resource "google_project_service" "iam" {
   service            = "iam.googleapis.com"
   disable_on_destroy = false
@@ -108,10 +92,12 @@ resource "google_service_account_key" "home-gateway-fcm" {
   service_account_id = google_service_account.home-gateway-fcm.name
 }
 
-# resource "infisical_secret" "fcm_service_account" {
-#   name         = "FCM_SERVICE_ACCOUNT_JSON"
-#   value        = base64decode(google_service_account_key.home-gateway-fcm.private_key)
-#   env_slug     = "prod"
-#   workspace_id = "759d2a91-e4da-4506-b61e-e415645aa3ae"
-#   folder_path  = "/"
-# }
+resource "vault_kv_secret_v2" "home-gateway" {
+  mount = vault_mount.kv.path
+  name  = "home-gateway/terraform"
+  data_json = jsonencode({
+    AWS_ACCESS_KEY_ID                         = aws_iam_access_key.home-gateway-access-key.id
+    AWS_SECRET_ACCESS_KEY                     = aws_iam_access_key.home-gateway-access-key.secret
+    NOTIFY__ANDROID__FCM_SERVICE_ACCOUNT_JSON = base64decode(google_service_account_key.home-gateway-fcm.private_key)
+  })
+}

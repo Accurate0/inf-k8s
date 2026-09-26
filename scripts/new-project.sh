@@ -9,7 +9,7 @@ tmpl_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/templates/new-project"
 cd "$repo_root"
 
 routes_chart_version="${ROUTES_CHART_VERSION:-2.3.0}"
-secrets_chart_version="${SECRETS_CHART_VERSION:-0.4.0}"
+secrets_chart_version="${SECRETS_CHART_VERSION:-0.6.0}"
 oidc_chart_version="${OIDC_CHART_VERSION:-0.2.2}"
 postgres_chart_version="${POSTGRES_CHART_VERSION:-1.0.1}"
 gateway_name="${GATEWAY_NAME:-public-gateway}"
@@ -28,7 +28,6 @@ render() {
     -e "s|@@GATEWAY@@|$gateway_name|g" \
     -e "s|@@CHART_VERSION@@|$routes_chart_version|g" \
     -e "s|@@SECRETS_CHART_VERSION@@|$secrets_chart_version|g" \
-    -e "s|@@PROJECT_SLUG@@|$secret_project_slug|g" \
     -e "s|@@ROUTE_NAME@@|$name-route|g" \
     -e "s|@@OIDC_CHART_VERSION@@|$oidc_chart_version|g" \
     -e "s|@@POSTGRES_CHART_VERSION@@|$postgres_chart_version|g" \
@@ -132,10 +131,8 @@ if $is_public; then
 fi
 
 with_secrets=false
-secret_project_slug=""
-if gum confirm "Add an Infisical ExternalSecret?"; then
+if gum confirm "Add an OpenBao ExternalSecret?"; then
   with_secrets=true
-  secret_project_slug="$(gum input --prompt "Infisical projectSlug: " --placeholder "my-app-xxxx")"
 fi
 
 with_oidc=false
@@ -159,7 +156,7 @@ ports:     $container_port -> svc $service_port"
 $is_public && summary+="
 hosts:     $hosts"
 $with_secrets && summary+="
-secrets:   Infisical ($secret_project_slug)"
+secrets:   OpenBao (kv/$name)"
 $with_oidc && summary+="
 oidc:      kanidm-$name-oidc"
 $with_database && summary+="

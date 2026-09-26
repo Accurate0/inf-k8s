@@ -109,6 +109,9 @@ spec:
             - name: home-gateway
               managedSecrets:
                 - secretName: home-gateway-managed-secrets
+            - name: terraform
+              managedSecrets:
+                - secretName: home-gateway-terraform-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/home-gateway/manifests

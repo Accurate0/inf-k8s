@@ -83,6 +83,8 @@ spec:
             - secretRef:
                 name: home-gateway-managed-secrets
             - secretRef:
+                name: home-gateway-terraform-secrets
+            - secretRef:
                 name: home-gateway-db-credentials
           ports:
             - containerPort: 8000

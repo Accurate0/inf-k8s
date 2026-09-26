@@ -14,10 +14,6 @@ argo-status *args:
 preflight *args:
     ./cluster-preflight.sh {{args}}
 
-# Copy Infisical project(s) into one OpenBao KV secret, or Azure KV with -a: [-r] [-a] <namespace> <name> <slug[:path]>...
-infisical-to-bao +args:
-    ./infisical-to-bao.sh {{args}}
-
 # Benchmark the Unraid array from pve and from here (--tier 2|3|all)
 unraid-bench *args:
     ./unraid-bench.sh {{args}}
