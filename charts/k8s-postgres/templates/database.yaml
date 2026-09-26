@@ -1,0 +1,80 @@
+{{- $defaults := .Values.defaults | default dict }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- $host := $defaults.host | default "cloudnative-pg-cluster-rw.cnpg-system" }}
+{{- $port := $defaults.port | default 5432 }}
+{{- $openbaoServer := $defaults.openbaoServer | default "http://openbao-active.openbao.svc.cluster.local:8200" }}
+{{- $resync := $defaults.resyncInterval | default 300 }}
+{{- $namespaces := dict }}
+{{- range $db := .Values.databases }}
+{{- $namespace := $db.namespace | default $defaults.namespace | default $releaseNamespace }}
+{{- $_ := set $namespaces $namespace true }}
+{{- $annotations := merge (dict) ($db.annotations | default dict) ($defaults.annotations | default dict) }}
+{{- $databaseName := $db.databaseName | default ($db.name | replace "-" "_") }}
+{{- $generatorName := printf "%s-database" $db.name }}
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: VaultDynamicSecret
+metadata:
+  name: {{ $generatorName }}
+  namespace: {{ $namespace }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  method: GET
+  path: /database/static-creds/{{ $db.name }}
+  provider:
+    server: {{ $openbaoServer }}
+    auth:
+      kubernetes:
+        mountPath: kubernetes
+        role: db-{{ $db.name }}
+        serviceAccountRef:
+          name: openbao-database
+---
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $db.secretName | default (printf "%s-database-secret" $db.name) }}
+  namespace: {{ $namespace }}
+  {{- with $annotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  refreshInterval: {{ $resync }}s
+  target:
+    name: {{ $db.secretName | default (printf "%s-database-secret" $db.name) }}
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      {{- with $annotations }}
+      metadata:
+        annotations:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
+      engineVersion: v2
+      mergePolicy: Replace
+      data:
+        PGHOST: {{ $host | quote }}
+        PGPORT: {{ $port | toString | quote }}
+        PGDATABASE: {{ $databaseName | quote }}
+        PGUSER: {{ "{{ .username }}" | quote }}
+        PGPASSWORD: {{ "{{ .password }}" | quote }}
+        DATABASE_URL: {{ printf "postgresql://{{ .username }}:{{ .password }}@%s:%v/%s" $host $port $databaseName | quote }}
+  dataFrom:
+    - sourceRef:
+        generatorRef:
+          apiVersion: generators.external-secrets.io/v1alpha1
+          kind: VaultDynamicSecret
+          name: {{ $generatorName }}
+---
+{{- end }}
+{{- range $namespace, $_ := $namespaces }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-database
+  namespace: {{ $namespace }}
+---
+{{- end }}
