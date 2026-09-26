@@ -9,6 +9,7 @@
       "additionalProperties": false,
       "description": "Applied to every entry in secrets that does not override the field.",
       "properties": {
+        "provider": { "$ref": "#/definitions/provider" },
         "namespace": { "$ref": "#/definitions/namespace" },
         "projectSlug": { "$ref": "#/definitions/projectSlug" },
         "environmentSlug": { "$ref": "#/definitions/environmentSlug" },
@@ -17,6 +18,14 @@
         "resyncInterval": { "$ref": "#/definitions/resyncInterval" },
         "hostAPI": { "$ref": "#/definitions/hostAPI" },
         "authSecretName": { "$ref": "#/definitions/authSecretName" },
+        "openbaoServer": {
+          "type": "string",
+          "description": "OpenBao API URL. Defaults to the in-cluster active service."
+        },
+        "azureStore": {
+          "type": "string",
+          "description": "ClusterSecretStore used by the azurekv provider. Defaults to k8s-shared-vault."
+        },
         "labels": { "$ref": "#/definitions/labels" },
         "annotations": { "$ref": "#/definitions/annotations" }
       }
@@ -31,7 +40,12 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Names the SecretStore, which is created as infisical-<name>."
+            "description": "Names the SecretStore, which is created as <provider>-<name>. For openbao the remote key defaults to <namespace>/<name>; for azurekv it defaults to <name>."
+          },
+          "provider": { "$ref": "#/definitions/provider" },
+          "key": {
+            "type": "string",
+            "description": "Remote key to extract for the openbao and azurekv providers, overriding the default derived from name."
           },
           "managedSecrets": {
             "type": "array",
@@ -54,6 +68,11 @@
     }
   },
   "definitions": {
+    "provider": {
+      "type": "string",
+      "enum": ["infisical", "openbao", "azurekv"],
+      "description": "Secret backend. openbao reads kv/<key> via kubernetes auth; azurekv extracts a JSON-object secret from the Azure ClusterSecretStore. Defaults to infisical."
+    },
     "namespace": {
       "type": "string",
       "description": "Namespace the SecretStore and ExternalSecrets are created in."

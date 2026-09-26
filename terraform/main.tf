@@ -44,6 +44,11 @@ terraform {
       source  = "hashicorp/google"
       version = ">= 4"
     }
+
+    vault = {
+      source  = "hashicorp/vault"
+      version = "5.12.0"
+    }
   }
 
   backend "s3" {
@@ -96,6 +101,37 @@ provider "infisical" {
     universal = {
       client_id     = var.infisical_client_id
       client_secret = var.infisical_client_secret
+    }
+  }
+}
+
+variable "OPENBAO_ROLE_ID" {
+  type      = string
+  nullable  = false
+  sensitive = true
+}
+
+variable "OPENBAO_SECRET_ID" {
+  type      = string
+  nullable  = false
+  sensitive = true
+}
+
+variable "OPENBAO_OIDC_CLIENT_SECRET" {
+  type      = string
+  nullable  = false
+  sensitive = true
+}
+
+provider "vault" {
+  address          = "https://openbao.inf-k8s.net"
+  skip_child_token = true
+
+  auth_login {
+    path = "auth/approle/login"
+    parameters = {
+      role_id   = var.OPENBAO_ROLE_ID
+      secret_id = var.OPENBAO_SECRET_ID
     }
   }
 }

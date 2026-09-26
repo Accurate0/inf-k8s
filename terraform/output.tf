@@ -33,3 +33,12 @@ output "inventory" {
     }
   })
 }
+
+output "eso_shared_vault_client_id" {
+  value = azuread_application.eso-shared-vault.client_id
+}
+
+output "eso_shared_vault_client_secret" {
+  sensitive = true
+  value     = azuread_application_password.eso-shared-vault.value
+}
