@@ -83,8 +83,6 @@ spec:
           env:
             - name: CONFIG_PATH
               value: /etc/ai-gateway/config.yaml
-            # Credentials come from the pg-db-controller-provisioned secret, but the
-            # host is the CNPG pgbouncer pooler rather than the direct cluster service.
             - name: PGUSER
               valueFrom:
                 secretKeyRef:

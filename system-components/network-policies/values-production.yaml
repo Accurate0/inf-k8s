@@ -48,6 +48,5 @@ namespaces:
       - feature-flags
       - ai-gateway
   ozbargain: {}
-  pg-db-controller: {}
   kanidm-sync: {}
   k8s-schemas: {}
