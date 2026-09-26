@@ -71,12 +71,19 @@ spec:
               - envName: BAO_PG_CONNECTION_URL
                 secretName: openbao-database-secret
                 secretKey: DATABASE_URL
-              - envName: AZURE_CLIENT_ID
-                secretName: openbao-azure-unseal
-                secretKey: AZURE_CLIENT_ID
-              - envName: AZURE_CLIENT_SECRET
-                secretName: openbao-azure-unseal
-                secretKey: AZURE_CLIENT_SECRET
+            extraArgs: -config=/openbao/userconfig/azure-unseal/seal.hcl
+            volumes:
+              - name: plugins
+                emptyDir: {}
+              - name: azure-unseal
+                secret:
+                  secretName: openbao-azure-unseal
+            volumeMounts:
+              - name: plugins
+                mountPath: /openbao/plugins
+              - name: azure-unseal
+                mountPath: /openbao/userconfig/azure-unseal
+                readOnly: true
             ha:
               enabled: true
               replicas: 2
@@ -95,10 +102,11 @@ spec:
                   ha_enabled = "true"
                 }
 
-                seal "azurekeyvault" {
-                  tenant_id  = "a41823d8-d908-4fa5-980a-cde6ae04d6ff"
-                  vault_name = "k8s-shared-vault"
-                  key_name   = "openbao-unseal"
+                plugin_directory     = "/openbao/plugins"
+                plugin_auto_download = true
+
+                plugin "kms" "azurekeyvault" {
+                  image = "ghcr.io/openbao/openbao-plugin-kms-azure:v0.1.0@sha256:7dd89c064f16dcaa8a49b389099edf23439a2b67d2d6871146e598b9b6f96324"
                 }
 
                 service_registration "kubernetes" {}

@@ -11,6 +11,7 @@ resource "azurerm_key_vault" "k8s-shared-vault" {
   tenant_id                  = data.azurerm_client_config.current.tenant_id
   sku_name                   = "standard"
   rbac_authorization_enabled = false
+  purge_protection_enabled   = true
 
   # the identity running terraform manages secrets in the vault
   access_policy {
