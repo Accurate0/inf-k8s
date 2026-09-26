@@ -16,16 +16,15 @@ spec:
   sources:
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.4.0
+      targetRevision: 0.5.1
       helm:
         valuesObject:
           defaults:
             namespace: k8s-schemas
-            projectSlug: k8s-schemas-p-pb-y
+            provider: openbao
             resyncInterval: 900
           secrets:
-            - name: k8s-schemas-secret
-              secretPath: /
+            - name: k8s-schemas
               managedSecrets:
                 - secretName: k8s-schemas-managed-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
