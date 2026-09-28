@@ -6,7 +6,7 @@ metadata:
   labels:
     inf-k8s.net/grafana-dashboard: "true"
 data:
-  nodes.json: |
+  nodes-at-a-glance.json: |
     {
       "annotations": { "list": [] },
       "editable": true,
