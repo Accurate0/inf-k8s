@@ -5,3 +5,4 @@ resources:
   - ./grafana
   - ./prometheus
   - proxmox-dashboard.configmap.yaml
+  - nodes-dashboard.configmap.yaml

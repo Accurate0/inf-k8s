@@ -1,0 +1,356 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nodes-dashboard
+  namespace: monitoring
+  labels:
+    inf-k8s.net/grafana-dashboard: "true"
+data:
+  nodes.json: |
+    {
+      "annotations": { "list": [] },
+      "editable": true,
+      "schemaVersion": 39,
+      "tags": ["kubernetes", "nodes"],
+      "title": "Nodes at a glance",
+      "uid": "nodes-at-a-glance",
+      "time": { "from": "now-6h", "to": "now" },
+      "refresh": "1m",
+      "templating": {
+        "list": [
+          {
+            "name": "node",
+            "label": "Node",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": { "query": "label_values(kube_node_info, node)", "refId": "node" },
+            "refresh": 2,
+            "sort": 1,
+            "multi": true,
+            "includeAll": true,
+            "allValue": ".*",
+            "current": { "text": ["All"], "value": ["$__all"] }
+          },
+          {
+            "name": "namespace",
+            "label": "Namespace",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": { "query": "label_values(kube_pod_info{node=~\"$node\"}, namespace)", "refId": "namespace" },
+            "refresh": 2,
+            "sort": 1,
+            "multi": true,
+            "includeAll": true,
+            "allValue": ".*",
+            "current": { "text": ["All"], "value": ["$__all"] }
+          },
+          {
+            "name": "workload_type",
+            "label": "Workload type",
+            "type": "query",
+            "datasource": { "type": "prometheus", "uid": "prometheus" },
+            "query": { "query": "label_values(namespace_workload_pod:kube_pod_owner:relabel, workload_type)", "refId": "workload_type" },
+            "refresh": 2,
+            "sort": 1,
+            "multi": true,
+            "includeAll": true,
+            "allValue": ".*",
+            "current": { "text": ["deployment"], "value": ["deployment"] }
+          }
+        ]
+      },
+      "panels": [
+        {
+          "id": 1,
+          "type": "row",
+          "title": "Cluster",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+          "panels": []
+        },
+        {
+          "id": 2,
+          "type": "stat",
+          "title": "Nodes ready",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 1 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "textMode": "value_and_name" },
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "green" } }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "instant": true, "expr": "sum(kube_node_status_condition{condition=\"Ready\", status=\"true\"})", "legendFormat": "ready" },
+            { "refId": "B", "instant": true, "expr": "count(kube_node_info)", "legendFormat": "total" }
+          ]
+        },
+        {
+          "id": 3,
+          "type": "stat",
+          "title": "Running pods",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 1 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "area", "textMode": "value" },
+          "fieldConfig": { "defaults": { "unit": "short", "color": { "mode": "fixed", "fixedColor": "blue" } }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "sum(kube_pod_status_phase{phase=\"Running\"})", "legendFormat": "running" }
+          ]
+        },
+        {
+          "id": 4,
+          "type": "gauge",
+          "title": "Cluster CPU",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 1 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.7 }, { "color": "red", "value": 0.9 } ] }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "refId": "A", "expr": "1 - avg(rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]))" }
+          ]
+        },
+        {
+          "id": 5,
+          "type": "gauge",
+          "title": "Cluster memory",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 1 },
+          "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "fieldConfig": {
+            "defaults": {
+              "unit": "percentunit",
+              "min": 0,
+              "max": 1,
+              "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.75 }, { "color": "red", "value": 0.9 } ] }
+            },
+            "overrides": []
+          },
+          "targets": [
+            { "refId": "A", "expr": "1 - sum(node_memory_MemAvailable_bytes{job=\"node-exporter\"}) / sum(node_memory_MemTotal_bytes{job=\"node-exporter\"})" }
+          ]
+        },
+        {
+          "id": 6,
+          "type": "table",
+          "title": "Nodes",
+          "description": "Click a node name to filter the workloads section below.",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 9, "w": 24, "x": 0, "y": 5 },
+          "options": { "showHeader": true, "cellHeight": "sm", "sortBy": [ { "displayName": "Node", "desc": false } ] },
+          "fieldConfig": {
+            "defaults": { "custom": { "align": "auto", "cellOptions": { "type": "auto" } } },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "Node" },
+                "properties": [
+                  { "id": "links", "value": [ { "title": "Show workloads on ${__value.raw}", "url": "/d/nodes-at-a-glance?${__url_time_range}&var-node=${__value.raw}&${namespace:queryparam}&${workload_type:queryparam}" } ] }
+                ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Ready" },
+                "properties": [
+                  { "id": "mappings", "value": [ { "type": "value", "options": { "0": { "text": "NotReady", "color": "red" }, "1": { "text": "Ready", "color": "green" } } } ] },
+                  { "id": "custom.cellOptions", "value": { "type": "color-text" } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "/(CPU|Memory) (used|requested) %/" },
+                "properties": [
+                  { "id": "unit", "value": "percentunit" },
+                  { "id": "min", "value": 0 },
+                  { "id": "max", "value": 1 },
+                  { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "basic", "valueDisplayMode": "text" } },
+                  { "id": "thresholds", "value": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "orange", "value": 0.7 }, { "color": "red", "value": 0.9 } ] } }
+                ]
+              },
+              {
+                "matcher": { "id": "byRegexp", "options": "/Memory (used|total)$/" },
+                "properties": [ { "id": "unit", "value": "bytes" } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "CPU cores" },
+                "properties": [ { "id": "unit", "value": "short" } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Pods" },
+                "properties": [
+                  { "id": "custom.cellOptions", "value": { "type": "gauge", "mode": "basic", "valueDisplayMode": "text" } },
+                  { "id": "min", "value": 0 },
+                  { "id": "max", "value": 110 },
+                  { "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }
+                ]
+              }
+            ]
+          },
+          "targets": [
+            { "refId": "A", "format": "table", "instant": true, "expr": "max by (node) (kube_node_status_condition{condition=\"Ready\", status=\"true\"})" },
+            { "refId": "B", "format": "table", "instant": true, "expr": "max by (node) (label_replace((1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[5m]))) * on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"}, \"node\", \"$1\", \"nodename\", \"(.*)\"))" },
+            { "refId": "C", "format": "table", "instant": true, "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"cpu\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=~\"Pending|Running\"} == 1)) / sum by (node) (kube_node_status_allocatable{resource=\"cpu\"})" },
+            { "refId": "D", "format": "table", "instant": true, "expr": "sum by (node) (kube_node_status_capacity{resource=\"cpu\"})" },
+            { "refId": "E", "format": "table", "instant": true, "expr": "max by (node) (label_replace((1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) * on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"}, \"node\", \"$1\", \"nodename\", \"(.*)\"))" },
+            { "refId": "F", "format": "table", "instant": true, "expr": "sum by (node) (kube_pod_container_resource_requests{resource=\"memory\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=~\"Pending|Running\"} == 1)) / sum by (node) (kube_node_status_allocatable{resource=\"memory\"})" },
+            { "refId": "G", "format": "table", "instant": true, "expr": "max by (node) (label_replace((node_memory_MemTotal_bytes{job=\"node-exporter\"} - node_memory_MemAvailable_bytes{job=\"node-exporter\"}) * on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"}, \"node\", \"$1\", \"nodename\", \"(.*)\"))" },
+            { "refId": "H", "format": "table", "instant": true, "expr": "sum by (node) (kube_node_status_capacity{resource=\"memory\"})" },
+            { "refId": "I", "format": "table", "instant": true, "expr": "count by (node) (kube_pod_info{node!=\"\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1))" },
+            { "refId": "J", "format": "table", "instant": true, "expr": "sum by (node) (kube_node_status_allocatable{resource=\"pods\"})" }
+          ],
+          "transformations": [
+            { "id": "merge", "options": {} },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": { "Time": true },
+                "indexByName": {
+                  "node": 0,
+                  "Value #A": 1,
+                  "Value #B": 2,
+                  "Value #C": 3,
+                  "Value #D": 4,
+                  "Value #E": 5,
+                  "Value #F": 6,
+                  "Value #G": 7,
+                  "Value #H": 8,
+                  "Value #I": 9,
+                  "Value #J": 10
+                },
+                "renameByName": {
+                  "node": "Node",
+                  "Value #A": "Ready",
+                  "Value #B": "CPU used %",
+                  "Value #C": "CPU requested %",
+                  "Value #D": "CPU cores",
+                  "Value #E": "Memory used %",
+                  "Value #F": "Memory requested %",
+                  "Value #G": "Memory used",
+                  "Value #H": "Memory total",
+                  "Value #I": "Pods",
+                  "Value #J": "Pod capacity"
+                }
+              }
+            }
+          ]
+        },
+        {
+          "id": 7,
+          "type": "timeseries",
+          "title": "CPU by node",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 14 },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "max by (node) (label_replace((1 - avg by (instance) (rate(node_cpu_seconds_total{job=\"node-exporter\", mode=\"idle\"}[$__rate_interval]))) * on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"}, \"node\", \"$1\", \"nodename\", \"(.*)\"))", "legendFormat": "{{node}}" }
+          ]
+        },
+        {
+          "id": 8,
+          "type": "timeseries",
+          "title": "Memory by node",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 14 },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+          "fieldConfig": { "defaults": { "unit": "percentunit", "min": 0, "max": 1 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "max by (node) (label_replace((1 - node_memory_MemAvailable_bytes{job=\"node-exporter\"} / node_memory_MemTotal_bytes{job=\"node-exporter\"}) * on (instance) group_left (nodename) node_uname_info{job=\"node-exporter\"}, \"node\", \"$1\", \"nodename\", \"(.*)\"))", "legendFormat": "{{node}}" }
+          ]
+        },
+        {
+          "id": 9,
+          "type": "timeseries",
+          "title": "Running pods by node",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 14 },
+          "options": { "legend": { "displayMode": "list", "placement": "bottom" }, "tooltip": { "mode": "multi", "sort": "desc" } },
+          "fieldConfig": { "defaults": { "unit": "short", "min": 0, "decimals": 0 }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "expr": "count by (node) (kube_pod_info{node!=\"\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1))", "legendFormat": "{{node}}" }
+          ]
+        },
+        {
+          "id": 10,
+          "type": "row",
+          "title": "Workloads on $node",
+          "collapsed": false,
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 22 },
+          "panels": []
+        },
+        {
+          "id": 11,
+          "type": "bargauge",
+          "title": "Pods per namespace",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 14, "w": 7, "x": 0, "y": 23 },
+          "options": { "orientation": "horizontal", "displayMode": "basic", "showUnfilled": true, "reduceOptions": { "calcs": ["lastNotNull"] } },
+          "fieldConfig": { "defaults": { "unit": "short", "min": 0, "decimals": 0, "color": { "mode": "fixed", "fixedColor": "blue" } }, "overrides": [] },
+          "targets": [
+            { "refId": "A", "instant": true, "expr": "sort_desc(count by (namespace) (kube_pod_info{node=~\"$node\", namespace=~\"$namespace\"} * on (namespace, pod) group_left () (kube_pod_status_phase{phase=\"Running\"} == 1)))", "legendFormat": "{{namespace}}" }
+          ]
+        },
+        {
+          "id": 12,
+          "type": "table",
+          "title": "Namespace → workload",
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "gridPos": { "h": 14, "w": 17, "x": 7, "y": 23 },
+          "options": {
+            "showHeader": true,
+            "cellHeight": "sm",
+            "footer": { "show": false },
+            "sortBy": [ { "displayName": "Namespace", "desc": false } ]
+          },
+          "fieldConfig": {
+            "defaults": { "custom": { "align": "auto", "filterable": true, "cellOptions": { "type": "auto" } } },
+            "overrides": [
+              {
+                "matcher": { "id": "byName", "options": "CPU" },
+                "properties": [ { "id": "unit", "value": "cores" }, { "id": "decimals", "value": 3 } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Memory" },
+                "properties": [ { "id": "unit", "value": "bytes" } ]
+              },
+              {
+                "matcher": { "id": "byName", "options": "Pods" },
+                "properties": [ { "id": "decimals", "value": 0 } ]
+              }
+            ]
+          },
+          "targets": [
+            { "refId": "A", "format": "table", "instant": true, "expr": "count by (node, namespace, workload_type, workload) (kube_pod_info{node=~\"$node\", namespace=~\"$namespace\"} * on (namespace, pod) group_left (workload, workload_type) namespace_workload_pod:kube_pod_owner:relabel{workload_type=~\"$workload_type\"})" },
+            { "refId": "B", "format": "table", "instant": true, "expr": "sum by (node, namespace, workload_type, workload) (node_namespace_pod_container:container_cpu_usage_seconds_total:sum_rate5m{node=~\"$node\", namespace=~\"$namespace\"} * on (namespace, pod) group_left (workload, workload_type) namespace_workload_pod:kube_pod_owner:relabel{workload_type=~\"$workload_type\"})" },
+            { "refId": "C", "format": "table", "instant": true, "expr": "sum by (node, namespace, workload_type, workload) (node_namespace_pod_container:container_memory_working_set_bytes{node=~\"$node\", namespace=~\"$namespace\", container!=\"\"} * on (namespace, pod) group_left (workload, workload_type) namespace_workload_pod:kube_pod_owner:relabel{workload_type=~\"$workload_type\"})" }
+          ],
+          "transformations": [
+            { "id": "merge", "options": {} },
+            {
+              "id": "organize",
+              "options": {
+                "excludeByName": { "Time": true },
+                "indexByName": {
+                  "namespace": 0,
+                  "workload": 1,
+                  "workload_type": 2,
+                  "node": 3,
+                  "Value #A": 4,
+                  "Value #B": 5,
+                  "Value #C": 6
+                },
+                "renameByName": {
+                  "namespace": "Namespace",
+                  "workload": "Workload",
+                  "workload_type": "Kind",
+                  "node": "Node",
+                  "Value #A": "Pods",
+                  "Value #B": "CPU",
+                  "Value #C": "Memory"
+                }
+              }
+            }
+          ]
+        }
+      ]
+    }
