@@ -13,7 +13,7 @@ data:
       "schemaVersion": 39,
       "tags": ["kubernetes", "nodes"],
       "title": "Nodes at a glance",
-      "uid": "nodes-at-a-glance",
+      "uid": "nodes-overview",
       "time": { "from": "now-6h", "to": "now" },
       "refresh": "1m",
       "templating": {
@@ -147,7 +147,7 @@ data:
               {
                 "matcher": { "id": "byName", "options": "Node" },
                 "properties": [
-                  { "id": "links", "value": [ { "title": "Show workloads on ${__value.raw}", "url": "/d/nodes-at-a-glance?${__url_time_range}&var-node=${__value.raw}&${namespace:queryparam}&${workload_type:queryparam}" } ] }
+                  { "id": "links", "value": [ { "title": "Show workloads on ${__value.raw}", "url": "/d/nodes-overview?${__url_time_range}&var-node=${__value.raw}&${namespace:queryparam}&${workload_type:queryparam}" } ] }
                 ]
               },
               {
