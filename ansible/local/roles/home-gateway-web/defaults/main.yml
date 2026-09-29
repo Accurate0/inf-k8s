@@ -1,6 +1,6 @@
 home_gateway_web_root: /opt/home-gateway-web
 home_gateway_web_image: ghcr.io/accurate0/home-gateway-web
-home_gateway_web_image_tag: no-oauth-3ed617638f552682120004a9507f17533bb405ba
+home_gateway_web_image_tag: no-oauth-48d76d14fd9f509635fb86a891a482520071bb1f
 home_gateway_web_port: 8080
 home_gateway_web_domain: home.internal
 home_gateway_web_api_proxy: https://home.anurag.sh
