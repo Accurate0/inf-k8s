@@ -61,6 +61,8 @@ spec:
               displayName: Home Gateway
               host: home.inf-k8s.net
               callbackPath: /callback
+              extraRedirectUrls:
+                - net.infk8s.homegateway:/oauth2redirect
               public: true
               preferShortUsername: true
               allowLocalhostRedirect: true
