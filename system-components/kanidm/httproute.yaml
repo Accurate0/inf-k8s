@@ -4,7 +4,6 @@ kind: HTTPRoute
 metadata:
   name: kanidm
   annotations:
-    external-dns.alpha.kubernetes.io/managed: "true"
     external-dns.kubernetes.io/managed: "true"
     external-dns.kubernetes.io/cloudflare-proxied: "false"
 spec:

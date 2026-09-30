@@ -47,7 +47,6 @@ spec:
                 name: public-gateway
                 namespace: envoy-gateway-system
               annotations:
-                external-dns.alpha.kubernetes.io/managed: "true"
                 external-dns.kubernetes.io/managed: "true"
                 external-dns.kubernetes.io/cloudflare-proxied: "true"
               hostnames:

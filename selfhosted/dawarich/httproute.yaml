@@ -5,7 +5,6 @@ metadata:
   name: dawarich
   namespace: dawarich
   annotations:
-    external-dns.alpha.kubernetes.io/managed: "true"
     external-dns.kubernetes.io/managed: "true"
     external-dns.kubernetes.io/cloudflare-proxied: "false"
 spec:
