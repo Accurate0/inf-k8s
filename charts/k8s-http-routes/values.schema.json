@@ -33,7 +33,7 @@
         },
         "annotations": {
           "type": "object",
-          "description": "Annotations set on the HTTPRoute, e.g. external-dns.alpha.kubernetes.io/managed.",
+          "description": "Annotations set on the HTTPRoute, e.g. external-dns.kubernetes.io/managed.",
           "additionalProperties": {
             "type": "string"
           }

@@ -65,7 +65,7 @@ spec:
             additionalLabels:
               release: monitoring
           txtOwnerId: inf-k8s
-          annotationFilter: "external-dns.alpha.kubernetes.io/managed=true"
+          annotationFilter: "external-dns.kubernetes.io/managed=true"
           domainFilters:
             - anurag.sh
             - anurag.id.au
