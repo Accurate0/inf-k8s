@@ -6,7 +6,8 @@ metadata:
   namespace: dawarich
   annotations:
     external-dns.alpha.kubernetes.io/managed: "true"
-    external-dns.alpha.kubernetes.io/cloudflare-proxied: "false"
+    external-dns.kubernetes.io/managed: "true"
+    external-dns.kubernetes.io/cloudflare-proxied: "false"
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
