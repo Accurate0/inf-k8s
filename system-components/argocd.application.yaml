@@ -106,7 +106,7 @@ spec:
                       githubAppPrivateKey: "{{ .GITHUB_APP_PRIVATE_KEY }}"
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
-      targetRevision: 10.9.2
+      targetRevision: 10.9.5
       helm:
         valuesObject:
           global:
