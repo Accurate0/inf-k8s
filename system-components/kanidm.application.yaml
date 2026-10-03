@@ -43,6 +43,9 @@ spec:
                       - admins
               secretName: kanidm-pve-oidc
               secretNamespace: kanidm
+              icon:
+                configMap: proxmox-kanidm-icon
+                key: Proxmox.svg
             - name: pbs
               displayName: Proxmox Backup Server
               host: pbs.internal
@@ -53,6 +56,9 @@ spec:
               allowInsecureClientDisablePkce: true
               secretName: kanidm-pbs-oidc
               secretNamespace: kanidm
+              icon:
+                configMap: proxmox-kanidm-icon
+                key: Proxmox.svg
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/kanidm
   destination:

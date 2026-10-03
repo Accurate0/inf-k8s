@@ -21,3 +21,8 @@ configMapGenerator:
       - coordinator/bootstrap.sh
     options:
       disableNameSuffixHash: true
+  - name: proxmox-kanidm-icon
+    files:
+      - Proxmox.svg
+    options:
+      disableNameSuffixHash: true
