@@ -55,7 +55,7 @@ spec:
               callbackPath: /ui/vault/auth/oidc/oidc/callback
               preferShortUsername: true
               scopeMaps:
-                platform_admins:
+                openbao_users:
                   - openid
                   - email
                   - profile

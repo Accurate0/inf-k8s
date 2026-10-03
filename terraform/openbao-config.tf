@@ -67,6 +67,7 @@ resource "vault_jwt_auth_backend_role" "default" {
   role_type             = "oidc"
   user_claim            = "preferred_username"
   groups_claim          = "groups"
+  bound_claims          = { groups = "openbao_users@idm.anurag.sh" }
   oidc_scopes           = ["openid", "email", "profile", "groups"]
   allowed_redirect_uris = ["https://vault.inf-k8s.net/ui/vault/auth/oidc/oidc/callback"]
   token_ttl             = 28800

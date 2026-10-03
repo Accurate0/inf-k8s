@@ -2,9 +2,9 @@
 apiVersion: inf-k8s.net/v1
 kind: KanidmGroup
 metadata:
-  name: flipt-users
+  name: openbao-users
   namespace: kanidm
 spec:
-  name: flipt_users
+  name: openbao_users
   members:
     - platform_admins
