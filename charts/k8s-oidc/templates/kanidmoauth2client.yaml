@@ -6,7 +6,7 @@
 {{- $secretKeys = dict "clientId" "client-id" "clientSecret" "client-secret" }}
 {{- end }}
 {{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false") }}
-{{- $scopeGroup := $client.scopeMapGroup | default $defaults.scopeMapGroup | default "platform_admins" }}
+{{- $scopeGroup := $client.scopeMapGroup | default $defaults.scopeMapGroup | default (printf "%s_admins" ($client.name | replace "-" "_")) }}
 {{- $scopes := $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
 {{- $scopeMaps := $client.scopeMaps | default (dict $scopeGroup $scopes) }}
 {{- $callbackPath := $client.callbackPath | default "/oauth2/callback" }}

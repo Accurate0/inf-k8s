@@ -1,7 +1,8 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/charts/k8s-oidc.json
 defaults:
   issuerBase: https://idm.anurag.sh/oauth2/openid
-  scopeMapGroup: platform_admins
+  members:
+    - platform_admins
   scopes:
     - openid
     - email

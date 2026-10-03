@@ -1,0 +1,23 @@
+{{- $defaults := .Values.defaults | default dict }}
+{{- $releaseNamespace := .Release.Namespace }}
+{{- range $client := .Values.clients }}
+{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false") }}
+{{- $namespace := $client.namespace | default $defaults.namespace | default $releaseNamespace }}
+{{- $adminGroup := printf "%s_admins" ($client.name | replace "-" "_") }}
+{{- $members := $defaults.members | default (list "platform_admins") }}
+{{- $groups := $client.groups | default (dict $adminGroup $members) }}
+{{- range $group, $groupMembers := $groups }}
+apiVersion: inf-k8s.net/v1
+kind: KanidmGroup
+metadata:
+  name: {{ $group | replace "_" "-" }}
+  namespace: {{ $namespace }}
+  annotations:
+    {{- toYaml $annotations | nindent 4 }}
+spec:
+  name: {{ $group }}
+  members:
+    {{- toYaml $groupMembers | nindent 4 }}
+---
+{{- end }}
+{{- end }}

@@ -15,6 +15,7 @@
           "description": "Kanidm OpenID base URL; the client name is appended. Defaults to https://idm.anurag.sh/oauth2/openid."
         },
         "scopeMapGroup": { "$ref": "#/definitions/scopeMapGroup" },
+        "members": { "$ref": "#/definitions/members" },
         "scopes": { "$ref": "#/definitions/scopes" },
         "secretKeys": { "$ref": "#/definitions/secretKeys" },
         "annotations": { "$ref": "#/definitions/annotations" }
@@ -22,7 +23,7 @@
     },
     "clients": {
       "type": "array",
-      "description": "One KanidmOAuth2Client per entry, plus an Envoy SecurityPolicy when securityPolicy is set.",
+      "description": "One KanidmOAuth2Client and its KanidmGroups per entry, plus an Envoy SecurityPolicy when securityPolicy is set.",
       "items": { "$ref": "#/definitions/client" }
     }
   },
@@ -33,7 +34,12 @@
     },
     "scopeMapGroup": {
       "type": "string",
-      "description": "Kanidm group granted scopes when scopeMaps is not set. Defaults to platform_admins."
+      "description": "Kanidm group granted scopes when scopeMaps is not set. Defaults to <name>_admins, with dashes in name replaced by underscores."
+    },
+    "members": {
+      "type": "array",
+      "description": "Members of the default <name>_admins group. Defaults to platform_admins.",
+      "items": { "type": "string" }
     },
     "scopes": {
       "type": "array",
@@ -52,7 +58,7 @@
     },
     "annotations": {
       "type": "object",
-      "description": "Annotations set on the KanidmOAuth2Client. argocd.argoproj.io/sync-options defaults to Prune=false,Delete=false.",
+      "description": "Annotations set on the KanidmOAuth2Client and its KanidmGroups. argocd.argoproj.io/sync-options defaults to Prune=false,Delete=false.",
       "additionalProperties": { "type": "string" }
     },
     "client": {
@@ -100,6 +106,14 @@
           "description": "Sign tokens with RS256 instead of ES256."
         },
         "scopeMapGroup": { "$ref": "#/definitions/scopeMapGroup" },
+        "groups": {
+          "type": "object",
+          "description": "Group name to members; one KanidmGroup per entry. Defaults to <name>_admins containing defaults.members.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
         "scopes": { "$ref": "#/definitions/scopes" },
         "scopeMaps": {
           "type": "object",
