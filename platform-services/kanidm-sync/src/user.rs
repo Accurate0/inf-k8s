@@ -4,6 +4,7 @@ use kanidm_sync::{Condition, KanidmUser};
 impl Reconcile for KanidmUser {
     const KIND: &'static str = "KanidmUser";
     const PROGRAMMED_OK: &'static str = "User provisioned in kanidm";
+    const FINALIZER: &'static str = "kanidmuser.inf-k8s.net/cleanup";
 
     fn validate(&self) -> Result<(), String> {
         if self.spec.name.is_empty() {
@@ -45,6 +46,26 @@ impl Reconcile for KanidmUser {
             )
             .await
             .map_err(kanidm_err)?;
+
+        Ok(())
+    }
+
+    async fn cleanup(&self, ctx: &ControllerContext) -> Result<()> {
+        let kanidm = &ctx.kanidm;
+        let name = self.spec.name.as_str();
+
+        if kanidm
+            .idm_person_account_get(name)
+            .await
+            .map_err(kanidm_err)?
+            .is_some()
+        {
+            tracing::info!("deleting person account {name}");
+            kanidm
+                .idm_person_account_delete(name)
+                .await
+                .map_err(kanidm_err)?;
+        }
 
         Ok(())
     }

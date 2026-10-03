@@ -47,8 +47,6 @@ pub enum Error {
     Finalizer(#[source] Box<kube::runtime::finalizer::Error<Error>>),
 }
 
-const OAUTH2_FINALIZER: &str = "kanidmoauth2client.inf-k8s.net/cleanup";
-
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 fn kanidm_err<E: std::fmt::Debug>(e: E) -> Error {
@@ -95,15 +93,23 @@ async fn main() -> Result<()> {
     let users = Api::<KanidmUser>::all(client.clone());
 
     let oauth2_controller = Controller::new(oauth2_clients, Default::default())
-        .run(reconcile_oauth2, error_policy, ctx.clone())
+        .run(
+            reconcile_finalized::<KanidmOAuth2Client>,
+            error_policy,
+            ctx.clone(),
+        )
         .for_each(|_| futures::future::ready(()));
 
     let group_controller = Controller::new(groups, Default::default())
-        .run(reconcile::<KanidmGroup>, error_policy, ctx.clone())
+        .run(
+            reconcile_finalized::<KanidmGroup>,
+            error_policy,
+            ctx.clone(),
+        )
         .for_each(|_| futures::future::ready(()));
 
     let user_controller = Controller::new(users, Default::default())
-        .run(reconcile::<KanidmUser>, error_policy, ctx.clone())
+        .run(reconcile_finalized::<KanidmUser>, error_policy, ctx.clone())
         .for_each(|_| futures::future::ready(()));
 
     tokio::join!(oauth2_controller, group_controller, user_controller);
@@ -147,12 +153,18 @@ pub(crate) trait Reconcile:
 {
     const KIND: &'static str;
     const PROGRAMMED_OK: &'static str;
+    const FINALIZER: &'static str;
 
     fn validate(&self) -> Result<(), String> {
         Ok(())
     }
 
     fn provision(
+        &self,
+        ctx: &ControllerContext,
+    ) -> impl std::future::Future<Output = Result<()>> + Send;
+
+    fn cleanup(
         &self,
         ctx: &ControllerContext,
     ) -> impl std::future::Future<Output = Result<()>> + Send;
@@ -180,20 +192,20 @@ async fn reconcile<K: Reconcile>(obj: Arc<K>, ctx: Arc<ControllerContext>) -> Re
     Ok(Action::requeue(Duration::from_secs(3600)))
 }
 
-async fn reconcile_oauth2(
-    obj: Arc<KanidmOAuth2Client>,
+async fn reconcile_finalized<K: Reconcile>(
+    obj: Arc<K>,
     ctx: Arc<ControllerContext>,
 ) -> Result<Action> {
     let namespace = obj
         .namespace()
         .ok_or_else(|| Error::MissingNamespace(obj.name_any()))?;
-    let api = Api::<KanidmOAuth2Client>::namespaced(ctx.client.clone(), &namespace);
+    let api = Api::<K>::namespaced(ctx.client.clone(), &namespace);
 
-    finalizer(&api, OAUTH2_FINALIZER, obj, |event| async {
+    finalizer(&api, K::FINALIZER, obj, |event| async {
         match event {
             FinalizerEvent::Apply(obj) => reconcile(obj, ctx.clone()).await,
             FinalizerEvent::Cleanup(obj) => {
-                oauth2::cleanup(&obj, &ctx).await?;
+                obj.cleanup(&ctx).await?;
                 Ok(Action::await_change())
             }
         }

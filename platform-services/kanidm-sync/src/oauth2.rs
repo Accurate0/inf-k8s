@@ -15,6 +15,7 @@ use url::Url;
 impl Reconcile for KanidmOAuth2Client {
     const KIND: &'static str = "KanidmOAuth2Client";
     const PROGRAMMED_OK: &'static str = "OAuth2 client provisioned in kanidm";
+    const FINALIZER: &'static str = "kanidmoauth2client.inf-k8s.net/cleanup";
 
     fn validate(&self) -> Result<(), String> {
         let spec = &self.spec;
@@ -243,24 +244,26 @@ impl Reconcile for KanidmOAuth2Client {
 
         Ok(())
     }
-}
 
-pub(crate) async fn cleanup(obj: &KanidmOAuth2Client, ctx: &ControllerContext) -> Result<()> {
-    let kanidm = &ctx.kanidm;
-    let name = obj.spec.name.as_str();
-    if kanidm
-        .idm_oauth2_rs_get(name)
-        .await
-        .map_err(kanidm_err)?
-        .is_some()
-    {
-        tracing::info!("deleting oauth2 resource server {name}");
-        kanidm
-            .idm_oauth2_rs_delete(name)
+    async fn cleanup(&self, ctx: &ControllerContext) -> Result<()> {
+        let kanidm = &ctx.kanidm;
+        let name = self.spec.name.as_str();
+
+        if kanidm
+            .idm_oauth2_rs_get(name)
             .await
-            .map_err(kanidm_err)?;
+            .map_err(kanidm_err)?
+            .is_some()
+        {
+            tracing::info!("deleting oauth2 resource server {name}");
+            kanidm
+                .idm_oauth2_rs_delete(name)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        Ok(())
     }
-    Ok(())
 }
 
 async fn ensure_group(kanidm: &kanidm_client::KanidmClient, group: &str) -> Result<()> {
