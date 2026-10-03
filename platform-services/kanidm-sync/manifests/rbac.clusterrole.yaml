@@ -18,6 +18,8 @@ rules:
       - "inf-k8s.net"
     resources:
       - kanidmoauth2clients
+      - kanidmgroups
+      - kanidmusers
     verbs:
       - update
       - patch
