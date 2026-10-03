@@ -1,5 +1,7 @@
-use crate::{kanidm_err, ControllerContext, Reconcile, Result};
-use kanidm_sync::{Condition, KanidmGroup};
+use crate::{kanidm_err, ControllerContext, Error, Reconcile, Result};
+use kanidm_client::KanidmClient;
+use kanidm_proto::v1::Entry;
+use kanidm_sync::{AccountPolicy, Condition, KanidmGroup};
 
 impl Reconcile for KanidmGroup {
     const KIND: &'static str = "KanidmGroup";
@@ -48,15 +50,22 @@ impl Reconcile for KanidmGroup {
                 .idm_group_purge_members(name)
                 .await
                 .map_err(kanidm_err)?;
-
-            return Ok(());
+        } else {
+            let members: Vec<&str> = spec.members.iter().map(String::as_str).collect();
+            kanidm
+                .idm_group_set_members(name, &members)
+                .await
+                .map_err(kanidm_err)?;
         }
 
-        let members: Vec<&str> = spec.members.iter().map(String::as_str).collect();
-        kanidm
-            .idm_group_set_members(name, &members)
-            .await
-            .map_err(kanidm_err)?;
+        if let Some(policy) = &spec.account_policy {
+            AccountPolicySync {
+                kanidm,
+                group: name,
+            }
+            .apply(policy)
+            .await?;
+        }
 
         Ok(())
     }
@@ -76,5 +85,87 @@ impl Reconcile for KanidmGroup {
         }
 
         Ok(())
+    }
+}
+
+struct AccountPolicySync<'a> {
+    kanidm: &'a KanidmClient,
+    group: &'a str,
+}
+
+impl AccountPolicySync<'_> {
+    const CREDENTIAL_TYPE_MINIMUM: &'static str = "credential_type_minimum";
+    const AUTH_SESSION_EXPIRY: &'static str = "authsession_expiry";
+    const PRIVILEGE_EXPIRY: &'static str = "privilege_expiry";
+    const PASSWORD_MINIMUM_LENGTH: &'static str = "auth_password_minimum_length";
+
+    async fn apply(&self, policy: &AccountPolicy) -> Result<()> {
+        let kanidm = self.kanidm;
+        let group = self.group;
+
+        let entry = kanidm
+            .idm_group_get(group)
+            .await
+            .map_err(kanidm_err)?
+            .ok_or_else(|| Error::Kanidm(format!("group {group} not found")))?;
+
+        let enabled = entry
+            .attrs
+            .get("class")
+            .is_some_and(|classes| classes.iter().any(|c| c == "account_policy"));
+
+        if !enabled {
+            tracing::info!("enabling account policy on group {group}");
+            kanidm
+                .group_account_policy_enable(group)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        match policy.credential_type_minimum {
+            Some(minimum) => kanidm
+                .group_account_policy_credential_type_minimum_set(group, minimum.as_str())
+                .await
+                .map_err(kanidm_err)?,
+            None => self.reset(&entry, Self::CREDENTIAL_TYPE_MINIMUM).await?,
+        }
+
+        match policy.auth_session_expiry {
+            Some(expiry) => kanidm
+                .group_account_policy_authsession_expiry_set(group, expiry)
+                .await
+                .map_err(kanidm_err)?,
+            None => self.reset(&entry, Self::AUTH_SESSION_EXPIRY).await?,
+        }
+
+        match policy.privilege_expiry {
+            Some(expiry) => kanidm
+                .group_account_policy_privilege_expiry_set(group, expiry)
+                .await
+                .map_err(kanidm_err)?,
+            None => self.reset(&entry, Self::PRIVILEGE_EXPIRY).await?,
+        }
+
+        match policy.password_minimum_length {
+            Some(length) => kanidm
+                .group_account_policy_password_minimum_length_set(group, length)
+                .await
+                .map_err(kanidm_err)?,
+            None => self.reset(&entry, Self::PASSWORD_MINIMUM_LENGTH).await?,
+        }
+
+        Ok(())
+    }
+
+    async fn reset(&self, entry: &Entry, attr: &str) -> Result<()> {
+        if !entry.attrs.contains_key(attr) {
+            return Ok(());
+        }
+
+        tracing::info!("resetting {attr} on group {}", self.group);
+        self.kanidm
+            .idm_group_purge_attr(self.group, attr)
+            .await
+            .map_err(kanidm_err)
     }
 }

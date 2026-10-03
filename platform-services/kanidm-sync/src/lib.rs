@@ -176,6 +176,48 @@ pub struct KanidmGroupSpec {
     /// Optional entry_managed_by parameter for group creation.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub entry_managed_by: Option<String>,
+    /// Account policy applied to members of this group. When set, it is
+    /// authoritative: fields left out are reset to the kanidm default. When
+    /// omitted, any policy already on the group is left untouched.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub account_policy: Option<AccountPolicy>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct AccountPolicy {
+    /// Weakest credential type members may authenticate with.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub credential_type_minimum: Option<CredentialTypeMinimum>,
+    /// Maximum lifetime of an authenticated session, in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub auth_session_expiry: Option<u32>,
+    /// How long a session keeps write privileges after re-authentication, in seconds.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub privilege_expiry: Option<u32>,
+    /// Minimum password length.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub password_minimum_length: Option<u32>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Copy, Debug, JsonSchema)]
+#[serde(rename_all = "snake_case")]
+pub enum CredentialTypeMinimum {
+    Any,
+    Mfa,
+    Passkey,
+    AttestedPasskey,
+}
+
+impl CredentialTypeMinimum {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Any => "any",
+            Self::Mfa => "mfa",
+            Self::Passkey => "passkey",
+            Self::AttestedPasskey => "attested_passkey",
+        }
+    }
 }
 
 #[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]

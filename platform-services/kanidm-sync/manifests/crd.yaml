@@ -162,6 +162,8 @@ spec:
               rule: self.name != ""
             - message: spec.redirectUrls must contain at least one URL
               rule: self.redirectUrls.size() > 0
+            - message: spec.name is immutable
+              rule: self.name == oldSelf.name
           status:
             nullable: true
             properties:
@@ -236,6 +238,42 @@ spec:
         properties:
           spec:
             properties:
+              accountPolicy:
+                description: |-
+                  Account policy applied to members of this group. When set, it is
+                  authoritative: fields left out are reset to the kanidm default. When
+                  omitted, any policy already on the group is left untouched.
+                nullable: true
+                properties:
+                  authSessionExpiry:
+                    description: Maximum lifetime of an authenticated session, in seconds.
+                    format: uint32
+                    minimum: 0.0
+                    nullable: true
+                    type: integer
+                  credentialTypeMinimum:
+                    description: Weakest credential type members may authenticate with.
+                    enum:
+                    - any
+                    - mfa
+                    - passkey
+                    - attested_passkey
+                    - null
+                    nullable: true
+                    type: string
+                  passwordMinimumLength:
+                    description: Minimum password length.
+                    format: uint32
+                    minimum: 0.0
+                    nullable: true
+                    type: integer
+                  privilegeExpiry:
+                    description: How long a session keeps write privileges after re-authentication, in seconds.
+                    format: uint32
+                    minimum: 0.0
+                    nullable: true
+                    type: integer
+                type: object
               entryManagedBy:
                 description: Optional entry_managed_by parameter for group creation.
                 nullable: true
@@ -257,6 +295,8 @@ spec:
             x-kubernetes-validations:
             - message: spec.name must not be empty
               rule: self.name != ""
+            - message: spec.name is immutable
+              rule: self.name == oldSelf.name
           status:
             nullable: true
             properties:
@@ -351,6 +391,8 @@ spec:
             x-kubernetes-validations:
             - message: spec.name must not be empty
               rule: self.name != ""
+            - message: spec.name is immutable
+              rule: self.name == oldSelf.name
           status:
             nullable: true
             properties:

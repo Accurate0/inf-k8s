@@ -14,19 +14,26 @@ fn main() {
                 "self.redirectUrls.size() > 0",
                 "spec.redirectUrls must contain at least one URL",
             ),
+            ("self.name == oldSelf.name", "spec.name is immutable"),
         ],
     );
 
     let mut group = KanidmGroup::crd();
     inject_spec_validations(
         &mut group,
-        &[("self.name != \"\"", "spec.name must not be empty")],
+        &[
+            ("self.name != \"\"", "spec.name must not be empty"),
+            ("self.name == oldSelf.name", "spec.name is immutable"),
+        ],
     );
 
     let mut user = KanidmUser::crd();
     inject_spec_validations(
         &mut user,
-        &[("self.name != \"\"", "spec.name must not be empty")],
+        &[
+            ("self.name != \"\"", "spec.name must not be empty"),
+            ("self.name == oldSelf.name", "spec.name is immutable"),
+        ],
     );
 
     let docs: Vec<String> = [oauth2, group, user].into_iter().map(render).collect();
