@@ -61,6 +61,9 @@ spec:
                 - groups
               secretName: kanidm-openbao-oidc
               secretNamespace: openbao
+              icon:
+                configMap: openbao-kanidm-icon
+                key: OpenBao.svg
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.5.2
