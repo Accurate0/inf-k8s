@@ -67,10 +67,22 @@ resource "vault_jwt_auth_backend_role" "default" {
   role_type             = "oidc"
   user_claim            = "preferred_username"
   groups_claim          = "groups"
-  bound_claims          = { groups = "openbao_users@idm.anurag.sh" }
+  bound_claims          = { groups = "openbao_admins@idm.anurag.sh" }
   oidc_scopes           = ["openid", "email", "profile", "groups"]
   allowed_redirect_uris = ["https://vault.inf-k8s.net/ui/vault/auth/oidc/oidc/callback"]
   token_ttl             = 28800
+}
+
+resource "vault_identity_group" "openbao_admins" {
+  name     = "openbao_admins"
+  type     = "external"
+  policies = [vault_policy.admin.name]
+}
+
+resource "vault_identity_group_alias" "openbao_admins" {
+  name           = "openbao_admins@idm.anurag.sh"
+  mount_accessor = vault_jwt_auth_backend.oidc.accessor
+  canonical_id   = vault_identity_group.openbao_admins.id
 }
 
 resource "vault_identity_group" "platform_admins" {

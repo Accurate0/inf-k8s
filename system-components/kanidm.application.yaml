@@ -21,7 +21,7 @@ spec:
   sources:
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           defaults:
@@ -35,16 +35,11 @@ spec:
                 - https://pve.internal:8006/
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
-              scopeMaps:
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
               claimMaps:
                 pve_groups:
                   join: array
                   valuesByGroup:
-                    platform_admins:
+                    pve_admins:
                       - admins
               secretName: kanidm-pve-oidc
               secretNamespace: kanidm
@@ -56,11 +51,6 @@ spec:
                 - https://pbs.internal:8007/
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
-              scopeMaps:
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
               secretName: kanidm-pbs-oidc
               secretNamespace: kanidm
     - repoURL: https://github.com/Accurate0/inf-k8s.git

@@ -490,7 +490,7 @@ spec:
               restartPolicy: Never
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           clients:
@@ -503,22 +503,16 @@ spec:
                 clientId: key
                 clientSecret: secret
               preferShortUsername: true
-              scopeMaps:
-                forgejo_users:
-                  - openid
-                  - email
-                  - profile
-                  - groups
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
-                  - groups
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
               claimMaps:
                 forgejo:
                   join: ssv
                   valuesByGroup:
-                    platform_admins:
+                    forgejo_admins:
                       - admin
               secretName: kanidm-forgejo-oidc
               secretNamespace: forgejo

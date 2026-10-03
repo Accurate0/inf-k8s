@@ -17,7 +17,7 @@ spec:
   sources:
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           clients:
@@ -30,11 +30,6 @@ spec:
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret
-              scopeMaps:
-                dawarich_users:
-                  - openid
-                  - email
-                  - profile
               secretName: kanidm-dawarich-oidc
               secretNamespace: dawarich
     - chart: k8s-postgres

@@ -40,7 +40,7 @@ spec:
                       AWS_ENDPOINTS: "{{ .AWS_ENDPOINTS }}"
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           clients:
@@ -53,11 +53,6 @@ spec:
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret
-              scopeMaps:
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
               secretName: kanidm-longhorn-oidc
               secretNamespace: longhorn-system
               icon:

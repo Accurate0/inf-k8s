@@ -44,7 +44,7 @@ spec:
                         value: /
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           clients:
@@ -54,12 +54,11 @@ spec:
               host: vault.inf-k8s.net
               callbackPath: /ui/vault/auth/oidc/oidc/callback
               preferShortUsername: true
-              scopeMaps:
-                openbao_users:
-                  - openid
-                  - email
-                  - profile
-                  - groups
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
               secretName: kanidm-openbao-oidc
               secretNamespace: openbao
     - chart: k8s-secrets

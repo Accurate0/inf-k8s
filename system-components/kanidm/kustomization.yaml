@@ -12,13 +12,6 @@ resources:
   - httproute.yaml
   - backendtlspolicy.yaml
   - backend.policy.yaml
-  - groups/argocd-users.yaml
-  - groups/dawarich-users.yaml
-  - groups/forgejo-users.yaml
-  - groups/grafana-users.yaml
-  - groups/home-gateway-admins.yaml
-  - groups/home-gateway-readers.yaml
-  - groups/openbao-users.yaml
   - groups/platform-admins.yaml
   - users/anurag.yaml
 

@@ -21,7 +21,7 @@ spec:
   sources:
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           clients:
@@ -35,17 +35,11 @@ spec:
               preferShortUsername: true
               secretLabels:
                 app.kubernetes.io/part-of: argocd
-              scopeMaps:
-                argocd_users:
-                  - openid
-                  - email
-                  - profile
-                  - groups
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
-                  - groups
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
               secretName: kanidm-argocd-oidc
               secretNamespace: argocd
               icon:
@@ -135,6 +129,7 @@ spec:
                   id: kanidm
             rbac:
               policy.csv: |
+                g, argocd_admins@idm.anurag.sh, role:admin
                 g, platform_admins@idm.anurag.sh, role:admin
                 p, github-actions, applications, sync, bootstrap/*, allow
                 p, github-actions, applications, get, bootstrap/*, allow

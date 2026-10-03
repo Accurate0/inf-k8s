@@ -52,7 +52,7 @@ spec:
                         value: /v1
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           clients:
@@ -66,12 +66,12 @@ spec:
               public: true
               preferShortUsername: true
               allowLocalhostRedirect: true
-              scopeMaps:
+              groups:
                 home_gateway_admins:
-                  - openid
-                  - email
-                  - profile
-                  - groups
+                  - anurag
+                home_gateway_readers:
+                  - home_gateway_admins
+              scopeMaps:
                 home_gateway_readers:
                   - openid
                   - email

@@ -21,7 +21,7 @@ spec:
   sources:
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.2.2
+      targetRevision: 0.3.0
       helm:
         valuesObject:
           defaults:
@@ -35,11 +35,6 @@ spec:
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret
-              scopeMaps:
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
               secretName: kanidm-prometheus-oidc
               secretNamespace: monitoring
               icon:
@@ -56,25 +51,17 @@ spec:
               host: grafana.inf-k8s.net
               callbackPath: /login/generic_oauth
               preferShortUsername: true
-              scopeMaps:
-                grafana_users:
-                  - openid
-                  - email
-                  - profile
-                  - groups
-                platform_admins:
-                  - openid
-                  - email
-                  - profile
-                  - groups
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
               claimMaps:
                 grafana_role:
                   join: array
                   valuesByGroup:
-                    platform_admins:
+                    grafana_admins:
                       - GrafanaAdmin
-                    grafana_users:
-                      - Editor
               secretName: kanidm-grafana-oidc
               secretNamespace: monitoring
               icon:
