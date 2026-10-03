@@ -68,7 +68,7 @@ spec:
               allowLocalhostRedirect: true
               groups:
                 home_gateway_admins:
-                  - anurag
+                  - platform_admins
                 home_gateway_readers:
                   - home_gateway_admins
               scopeMaps:
