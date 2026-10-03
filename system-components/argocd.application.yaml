@@ -130,7 +130,6 @@ spec:
             rbac:
               policy.csv: |
                 g, argocd_admins@idm.anurag.sh, role:admin
-                g, platform_admins@idm.anurag.sh, role:admin
                 p, github-actions, applications, sync, bootstrap/*, allow
                 p, github-actions, applications, get, bootstrap/*, allow
                 p, github-actions, applications, sync, system-components/*, allow

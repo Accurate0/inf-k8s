@@ -84,15 +84,3 @@ resource "vault_identity_group_alias" "openbao_admins" {
   mount_accessor = vault_jwt_auth_backend.oidc.accessor
   canonical_id   = vault_identity_group.openbao_admins.id
 }
-
-resource "vault_identity_group" "platform_admins" {
-  name     = "platform_admins"
-  type     = "external"
-  policies = [vault_policy.admin.name]
-}
-
-resource "vault_identity_group_alias" "platform_admins" {
-  name           = "platform_admins@idm.anurag.sh"
-  mount_accessor = vault_jwt_auth_backend.oidc.accessor
-  canonical_id   = vault_identity_group.platform_admins.id
-}
