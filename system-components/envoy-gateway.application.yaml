@@ -17,6 +17,10 @@ spec:
     - chart: gateway-helm
       helm:
         valuesObject:
+          config:
+            envoyGateway:
+              extensionApis:
+                enableLua: true
           deployment:
             replicas: 1
             envoyGateway:
