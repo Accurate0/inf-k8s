@@ -1,4 +1,4 @@
-FROM ghcr.io/cloudnative-pg/postgresql:18.4-standard-trixie
+FROM ghcr.io/cloudnative-pg/postgresql:18.6-standard-trixie
 
 USER root
 RUN set -xe ;\
