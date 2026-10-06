@@ -1,0 +1,6 @@
+packages:
+  - feature-flag-client
+
+allowBuilds:
+  grpc-tools: true
+  protobufjs: true

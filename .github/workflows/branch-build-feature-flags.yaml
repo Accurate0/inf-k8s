@@ -6,9 +6,9 @@ on:
       - main
     paths:
       - platform-services/feature-flags/**
-      - "!platform-services/feature-flags/web"
       - crates/feature-flag/feature-flag-proto/**
       - crates/feature-flag/feature-flag-engine/**
+      - crates/feature-flag/ffctl/**
       - .github/workflows/branch-build-feature-flags.yaml
 
 jobs:

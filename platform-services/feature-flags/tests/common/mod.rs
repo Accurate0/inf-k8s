@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use feature_flags::auth::{AuthLayer, Authenticator};
 use feature_flags::grpc::{AdminService, EvaluationService};
 use feature_flags::pb::admin_client::AdminClient;
 use feature_flags::pb::admin_server::AdminServer;
@@ -12,6 +13,13 @@ use tokio::task::JoinHandle;
 use tonic::transport::Channel;
 
 pub async fn spawn_server(pool: PgPool) -> (String, JoinHandle<()>) {
+    spawn_server_with_auth(pool, None).await
+}
+
+pub async fn spawn_server_with_auth(
+    pool: PgPool,
+    authenticator: Option<Authenticator>,
+) -> (String, JoinHandle<()>) {
     let store = Store::new(pool);
     let manager = SnapshotManager::bootstrap(store.clone(), None)
         .await
@@ -24,6 +32,7 @@ pub async fn spawn_server(pool: PgPool) -> (String, JoinHandle<()>) {
     let incoming = tokio_stream::wrappers::TcpListenerStream::new(listener);
     let handle = tokio::spawn(async move {
         tonic::transport::Server::builder()
+            .layer(AuthLayer::new(authenticator))
             .add_service(EvaluationServer::new(evaluation))
             .add_service(AdminServer::new(admin))
             .serve_with_incoming(incoming)

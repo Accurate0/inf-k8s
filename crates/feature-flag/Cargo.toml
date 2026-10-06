@@ -5,4 +5,5 @@ members = [
     "feature-flag-engine",
     "feature-flag-client",
     "openfeature-provider",
+    "ffctl",
 ]

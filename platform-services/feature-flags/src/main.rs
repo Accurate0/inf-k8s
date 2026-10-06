@@ -1,3 +1,4 @@
+use feature_flags::auth::{AuthLayer, Authenticator};
 use feature_flags::cache::CacheClient;
 use feature_flags::config::Config;
 use feature_flags::grpc::{AdminService, EvaluationService};
@@ -42,6 +43,19 @@ async fn main() -> anyhow::Result<()> {
         .register_encoded_file_descriptor_set(feature_flags::pb::FILE_DESCRIPTOR_SET)
         .build_v1()?;
 
+    let authenticator = Authenticator::from_config(&config);
+
+    match &authenticator {
+        Some(authenticator) => {
+            if let Err(e) = authenticator.refresh().await {
+                tracing::warn!("initial jwks refresh failed, retrying on demand: {e}");
+            }
+
+            tokio::spawn(authenticator.clone().run());
+        }
+        None => tracing::warn!("OIDC_ISSUER is not set, admin API is unauthenticated"),
+    }
+
     let addr = config.grpc_addr.parse()?;
     tracing::info!("feature-flags gRPC listening on {addr}");
 
@@ -50,6 +64,7 @@ async fn main() -> anyhow::Result<()> {
         .http2_keepalive_timeout(Some(Duration::from_secs(10)))
         .tcp_keepalive(Some(Duration::from_secs(30)))
         .trace_fn(feature_flags::grpc::grpc_span)
+        .layer(AuthLayer::new(authenticator))
         .add_service(health_service)
         .add_service(reflection)
         .add_service(

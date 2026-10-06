@@ -14,6 +14,18 @@ pub struct Config {
     /// Address the gRPC server binds to.
     #[arg(long, env = "GRPC_ADDR", default_value = "0.0.0.0:50051")]
     pub grpc_addr: String,
+
+    #[arg(long, env = "OIDC_ISSUER")]
+    pub oidc_issuer: Option<String>,
+
+    #[arg(long, env = "OIDC_AUDIENCE")]
+    pub oidc_audience: Option<String>,
+
+    #[arg(long, env = "OIDC_JWKS_URI")]
+    pub oidc_jwks_uri: Option<String>,
+
+    #[arg(long, env = "OIDC_USERINFO_ENDPOINT")]
+    pub oidc_userinfo_endpoint: Option<String>,
 }
 
 impl Config {

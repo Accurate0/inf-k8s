@@ -1,0 +1,51 @@
+{
+  "name": "@accurate0/feature-flag-client",
+  "version": "0.2.0",
+  "description": "Node gRPC client for the feature-flags service Admin and Evaluation APIs.",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Accurate0/inf-k8s.git",
+    "directory": "packages/feature-flag-client"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com",
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./model": {
+      "types": "./dist/model.d.ts",
+      "default": "./dist/model.js"
+    },
+    "./openfeature": {
+      "types": "./dist/openfeature.d.ts",
+      "default": "./dist/openfeature.js"
+    }
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "gen": "mkdir -p ./src/gen && grpc_tools_node_protoc --plugin=protoc-gen-ts_proto=./node_modules/.bin/protoc-gen-ts_proto --ts_proto_out=./src/gen --ts_proto_opt=outputServices=grpc-js,esModuleInterop=true,useOptionals=messages,outputJsonMethods=false -I ../../crates/feature-flag/feature-flag-proto/proto featureflag/v1/common.proto featureflag/v1/evaluation.proto featureflag/v1/admin.proto",
+    "build": "tsc -p tsconfig.json",
+    "prepare": "tsc -p tsconfig.json",
+    "check": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@bufbuild/protobuf": "^2.2.3",
+    "@grpc/grpc-js": "^1.12.5",
+    "@openfeature/server-sdk": "^1.20.2"
+  },
+  "devDependencies": {
+    "grpc-tools": "^1.12.4",
+    "ts-proto": "^2.6.1",
+    "typescript": "^6.0.0"
+  }
+}

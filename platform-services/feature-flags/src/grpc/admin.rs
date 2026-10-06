@@ -1,3 +1,4 @@
+use crate::auth::Actor;
 use crate::model::{Rule, Segment, ValueType, Variant};
 use crate::pb;
 use crate::pb::admin_server::Admin;
@@ -37,9 +38,11 @@ impl From<&FlagChange> for pb::FlagChange {
     }
 }
 
-/// Identity of the caller, forwarded by the authenticated frontend in the `actor`
-/// gRPC metadata header. Falls back to `unknown` so an audit row is always written.
 fn actor_of<T>(request: &Request<T>) -> String {
+    if let Some(Actor(actor)) = request.extensions().get::<Actor>() {
+        return actor.clone();
+    }
+
     request
         .metadata()
         .get("actor")

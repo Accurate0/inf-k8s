@@ -28,6 +28,7 @@ install:
     cargo install --path ai-gateway
     cargo install --path janitor-bot
     cargo install --path feature-flags
+    cargo install --path ../crates/feature-flag/ffctl
 
 # Run the ai-gateway aig binary
 aig *args:
@@ -39,7 +40,7 @@ janitor *args:
 
 # Run the ffctl binary
 ffctl *args:
-    cd feature-flags && cargo run --bin ffctl -- {{args}}
+    cargo run --manifest-path ../crates/feature-flag/ffctl/Cargo.toml -- {{args}}
 
 # Show ArgoCD applications status
 status:

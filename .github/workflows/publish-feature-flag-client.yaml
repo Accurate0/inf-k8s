@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - platform-services/feature-flags/web/client/**
+      - packages/feature-flag-client/**
       - .github/workflows/publish-feature-flag-client.yaml
   workflow_dispatch:
 
@@ -23,15 +23,15 @@ jobs:
         with:
           node-version: 22
           cache: pnpm
-          cache-dependency-path: platform-services/feature-flags/web/pnpm-lock.yaml
+          cache-dependency-path: packages/pnpm-lock.yaml
           registry-url: https://npm.pkg.github.com
           scope: "@accurate0"
       - run: pnpm install --frozen-lockfile
-        working-directory: platform-services/feature-flags/web
+        working-directory: packages
       - run: pnpm --filter @accurate0/feature-flag-client build
-        working-directory: platform-services/feature-flags/web
+        working-directory: packages
       - name: Publish if version is new
-        working-directory: platform-services/feature-flags/web/client
+        working-directory: packages/feature-flag-client
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
