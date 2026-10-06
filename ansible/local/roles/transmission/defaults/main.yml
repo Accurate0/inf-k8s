@@ -11,6 +11,7 @@ transmission_config_root: /var/lib/transmission-daemon/.config/transmission-daem
 transmission_rpc_port: 80
 transmission_peer_port: 51413
 
+# renovate: datasource=deb depName=transmission-daemon registryUrl=https://deb.debian.org/debian?suite=trixie&components=main&binaryArch=amd64 versioning=deb
 transmission_version: "4.1.0~beta2+dfsg-3+deb13u2"
 
 transmission_download_dir: "{{ media_pool_mount }}/downloads"

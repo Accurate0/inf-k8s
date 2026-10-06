@@ -8,6 +8,7 @@ bazarr_group: media
 bazarr_port: 6767
 bazarr_install_root: /opt/bazarr
 bazarr_config_root: /var/lib/bazarr
+# renovate: datasource=github-releases depName=morpheus65535/bazarr extractVersion=^v(?<version>.+)$
 bazarr_version: 1.6.0
 
 bazarr_venv: "{{ bazarr_install_root }}/venv"

@@ -21,8 +21,11 @@ arr_nginx_extra_sites:
   - {name: flaresolverr, port: 8191}
   - {name: seerr, port: 5055}
 
+# renovate: datasource=github-releases depName=Sonarr/Sonarr versioning=loose extractVersion=^v(?<version>.+)$
 arr_sonarr_version: 4.0.19.2979
+# renovate: datasource=github-releases depName=Radarr/Radarr versioning=loose extractVersion=^v(?<version>.+)$
 arr_radarr_version: 6.3.0.10514
+# renovate: datasource=github-releases depName=Prowlarr/Prowlarr versioning=loose extractVersion=^v(?<version>.+)$
 arr_prowlarr_version: 2.5.2.5491
 
 arr_apps:

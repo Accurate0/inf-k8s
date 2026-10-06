@@ -2,6 +2,7 @@
 ---
 flaresolverr_user: media
 flaresolverr_group: media
+# renovate: datasource=github-releases depName=FlareSolverr/FlareSolverr extractVersion=^v(?<version>.+)$
 flaresolverr_version: "3.5.0"
 flaresolverr_port: 8191
 flaresolverr_install_root: /opt/flaresolverr
