@@ -16,7 +16,7 @@ jellyfin_keyring: /etc/apt/keyrings/jellyfin.gpg
 jellyfin_repo_uri: https://repo.jellyfin.org/debian
 
 # renovate: datasource=github-releases depName=jellyfin/jellyfin versioning=loose extractVersion=^v(?<version>.+)$
-jellyfin_version: "10.11.11"
+jellyfin_version: "12.2"
 
 # network.xml is templated in full rather than patched. The config migrated
 # from the docker install carried a bare PublishedServerUriBySubnet entry,
