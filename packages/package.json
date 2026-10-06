@@ -7,5 +7,5 @@
     "build": "pnpm --filter @accurate0/feature-flag-client build",
     "check": "pnpm -r check"
   },
-  "packageManager": "pnpm@11.11.0"
+  "packageManager": "pnpm@12.6.0"
 }
