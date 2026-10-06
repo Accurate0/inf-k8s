@@ -1,14 +1,14 @@
 function envoy_on_request(request_handle)
-  local user_agent = request_handle:headers():get("user-agent") or ""
+  local user_agent = string.lower(request_handle:headers():get("user-agent") or "")
   local blocked_patterns = {
-    "Meta-ExternalAgent",
+    "meta-externalagent",
     "meta-webindexer",
-    "GPTBot",
-    "CCBot",
-    "Google-Extended",
-    "Bytespider",
-    "Amazonbot",
-    "Applebot-Extended"
+    "gptbot",
+    "ccbot",
+    "google-extended",
+    "bytespider",
+    "amazonbot",
+    "applebot-extended"
   }
 
   for _, pattern in ipairs(blocked_patterns) do
