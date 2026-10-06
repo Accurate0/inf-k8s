@@ -3,7 +3,7 @@
 recyclarr_user: media
 recyclarr_group: media
 # renovate: datasource=github-releases depName=recyclarr/recyclarr extractVersion=^v(?<version>.+)$
-recyclarr_version: "8.7.0"
+recyclarr_version: "8.7.3"
 recyclarr_install_root: /opt/recyclarr
 recyclarr_config_root: /var/lib/recyclarr
 
