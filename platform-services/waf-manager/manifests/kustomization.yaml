@@ -15,4 +15,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/waf-manager
-    newTag: 896cdcab52611ee2a1d857cecb9d4febca92d6a2
+    newTag: e79aaa32848c57a0627bd60a36bc94f17a4d9b13
