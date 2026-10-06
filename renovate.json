@@ -90,7 +90,8 @@
         "ghcr.io/external-secrets/charts/external-secrets/external-secrets",
         "ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator/dragonfly-operator",
         "ghcr.io/bjw-s-labs/helm/app-template/app-template",
-        "code.forgejo.org/forgejo-helm/forgejo/forgejo"
+        "code.forgejo.org/forgejo-helm/forgejo/forgejo",
+        "git.erwanleboucher.dev/eleboucher/charts/forgejo-runner/forgejo-runner"
       ],
       "enabled": false
     },
