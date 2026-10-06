@@ -8,7 +8,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 tmpl_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/templates/new-project"
 cd "$repo_root"
 
-routes_chart_version="${ROUTES_CHART_VERSION:-2.3.0}"
+routes_chart_version="${ROUTES_CHART_VERSION:-2.3.1}"
 secrets_chart_version="${SECRETS_CHART_VERSION:-0.6.0}"
 oidc_chart_version="${OIDC_CHART_VERSION:-0.2.2}"
 postgres_chart_version="${POSTGRES_CHART_VERSION:-1.0.1}"
