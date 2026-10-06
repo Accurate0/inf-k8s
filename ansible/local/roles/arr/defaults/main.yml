@@ -22,11 +22,11 @@ arr_nginx_extra_sites:
   - {name: seerr, port: 5055}
 
 # renovate: datasource=github-releases depName=Sonarr/Sonarr versioning=loose extractVersion=^v(?<version>.+)$
-arr_sonarr_version: 4.0.19.2979
+arr_sonarr_version: 4.0.20.3014
 # renovate: datasource=github-releases depName=Radarr/Radarr versioning=loose extractVersion=^v(?<version>.+)$
-arr_radarr_version: 6.3.0.10514
+arr_radarr_version: 6.4.4.10685
 # renovate: datasource=github-releases depName=Prowlarr/Prowlarr versioning=loose extractVersion=^v(?<version>.+)$
-arr_prowlarr_version: 2.5.2.5491
+arr_prowlarr_version: 2.6.5.5623
 
 arr_apps:
   - name: sonarr
