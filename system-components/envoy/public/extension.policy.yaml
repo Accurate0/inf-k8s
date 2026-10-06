@@ -2,12 +2,18 @@
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: EnvoyExtensionPolicy
 metadata:
-  name: public-gateway-waf
+  name: public-gateway-extension-policy
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: Gateway
       name: public-gateway
+  lua:
+    - type: ValueRef
+      valueRef:
+        group: ""
+        kind: ConfigMap
+        name: block-user-agents-lua
   dynamicModule:
     - name: composer
       filterName: coraza-waf

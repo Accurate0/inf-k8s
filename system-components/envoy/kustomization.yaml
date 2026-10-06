@@ -11,9 +11,15 @@ resources:
   - internal/tailscale-client-ip.securitypolicy.yaml
   - public/backend.policy.yaml
   - public/gateway.yaml
-  - public/waf.extensionpolicy.yaml
+  - public/extension.policy.yaml
   - public/client-policy
   - public/client-policy-git
   - waf-dashboard.configmap.yaml
   - cloudflare-ips/rbac.yaml
   - cloudflare-ips/cronjob.yaml
+configMapGenerator:
+  - name: block-user-agents-lua
+    files:
+      - lua=public/block-user-agents.lua
+    options:
+      disableNameSuffixHash: true
