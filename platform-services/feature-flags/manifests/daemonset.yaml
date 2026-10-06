@@ -78,3 +78,7 @@ spec:
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
             - name: REDIS_URL
               value: redis://replicated.dragonfly.svc.cluster.local
+            - name: OIDC_ISSUER
+              value: https://idm.anurag.sh/oauth2/openid/feature-flags
+            - name: OIDC_AUDIENCE
+              value: feature-flags

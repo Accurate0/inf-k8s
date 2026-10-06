@@ -24,25 +24,14 @@ spec:
               namespace: feature-flags
               displayName: Feature Flags
               host: feature-flags.inf-k8s.net
+              public: true
+              allowLocalhostRedirect: true
               preferShortUsername: true
-              allowInsecureClientDisablePkce: true
-              secretKeys:
-                clientId: client-id
-                clientSecret: client-secret
               secretName: kanidm-feature-flags-oidc
               secretNamespace: feature-flags
               annotations:
                 inf-k8s.net/app: feature-flags
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
-              securityPolicy:
-                httpRoute: feature-flags-frontend
-                scopes:
-                  - openid
-                  - email
-                  - profile
-                forwardAccessToken: true
-                jwt:
-                  cacheDuration: 3600s
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
       targetRevision: 1.0.1
@@ -80,7 +69,7 @@ spec:
       helm:
         valuesObject:
           routes:
-            - name: feature-flags-frontend
+            - name: feature-flags-api
               gateway:
                 name: internal-gateway
                 namespace: envoy-gateway-system
@@ -90,13 +79,18 @@ spec:
                 - backendRefs:
                     - group: ""
                       kind: Service
-                      name: frontend
-                      port: 80
+                      name: api
+                      port: 50051
                       weight: 1
                   matches:
                     - path:
                         type: PathPrefix
-                        value: /
+                        value: /featureflag.v1.Admin/
+                    - path:
+                        type: PathPrefix
+                        value: /featureflag.v1.Evaluation/
+                  timeouts:
+                    request: 0s
   destination:
     server: https://kubernetes.default.svc
     namespace: feature-flags
