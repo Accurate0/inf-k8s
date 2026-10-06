@@ -66,7 +66,7 @@ spec:
                 key: OpenBao.svg
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.5.2
+      targetRevision: 0.6.0
       helm:
         valuesObject:
           defaults:
