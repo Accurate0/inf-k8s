@@ -227,6 +227,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     );
     let config = Config {
         admin_token: String::new(),
+        oauth: None,
         providers,
         keys: vec![],
         rules: fixture.rules.clone(),
@@ -238,7 +239,15 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     // client at a bogus URL would instead block ~120s per test on a connect timeout before
     // falling back to the same defaults.
     let features = FeatureFlagClient::new(None).await;
-    let state = AppState::new(config, registry, pool, features, Pricing::default(), None);
+    let state = AppState::new(
+        config,
+        registry,
+        pool,
+        features,
+        Pricing::default(),
+        None,
+        None,
+    );
 
     let token = match fixture.key.auth.as_str() {
         "valid" => {

@@ -3,8 +3,8 @@ use std::time::Duration;
 use sqlx::PgPool;
 
 use crate::{
-    cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, keys::KeyStore,
-    pricing::Pricing, providers::Registry,
+    auth::Authenticator, cache::CacheClient, config::Config, feature_flag::FeatureFlagClient,
+    keys::KeyStore, pricing::Pricing, providers::Registry,
 };
 
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(10);
@@ -23,6 +23,7 @@ pub struct AppState {
     /// is unset, in which case response caching is off and lookups hit Postgres.
     pub cache: Option<CacheClient>,
     pub http: reqwest::Client,
+    pub auth: Option<Authenticator>,
 }
 
 impl AppState {
@@ -33,6 +34,7 @@ impl AppState {
         features: FeatureFlagClient,
         pricing: Pricing,
         cache: Option<CacheClient>,
+        auth: Option<Authenticator>,
     ) -> Self {
         // No total deadline (streams run long), but a stalled connection — no bytes for
         // IDLE_TIMEOUT — fails so it can't pin a task and client connection forever.
@@ -51,6 +53,7 @@ impl AppState {
             pricing,
             cache,
             http,
+            auth,
         }
     }
 }

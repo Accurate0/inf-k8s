@@ -11,13 +11,12 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    error::Result, keys::UpdateKey, metrics, pricing, pricing::ModelPrice, state::AppState, usage,
+    auth::AuthError, error::Result, keys::UpdateKey, metrics, pricing, pricing::ModelPrice,
+    state::AppState, usage,
 };
 
-/// Guards `/admin/*`. Requires the bearer to equal the configured admin token; when no
-/// token is configured admin endpoints are closed entirely.
 #[allow(clippy::result_large_err)]
-fn authorize(state: &AppState, headers: &HeaderMap) -> std::result::Result<(), Response> {
+async fn authorize(state: &AppState, headers: &HeaderMap) -> std::result::Result<(), Response> {
     let provided = headers
         .get("authorization")
         .and_then(|v| v.to_str().ok())
@@ -25,10 +24,48 @@ fn authorize(state: &AppState, headers: &HeaderMap) -> std::result::Result<(), R
         .map(str::trim)
         .unwrap_or("");
 
+    let denied = || (StatusCode::UNAUTHORIZED, "admin credentials required").into_response();
+
+    if provided.is_empty() {
+        return Err(denied());
+    }
+
     if !state.config.admin_token.is_empty() && provided == state.config.admin_token {
-        Ok(())
-    } else {
-        Err((StatusCode::UNAUTHORIZED, "admin token required").into_response())
+        return Ok(());
+    }
+
+    let Some(auth) = &state.auth else {
+        return Err(denied());
+    };
+
+    match auth.authorize(provided).await {
+        Ok(claims) => {
+            tracing::info!(
+                actor = claims.identity(),
+                "admin request authorized via oidc"
+            );
+
+            Ok(())
+        }
+        Err(AuthError::Unauthorized(reason)) => {
+            tracing::warn!("admin bearer rejected: {reason}");
+
+            Err(denied())
+        }
+        Err(AuthError::Forbidden(reason)) => {
+            tracing::warn!("admin bearer forbidden: {reason}");
+
+            Err((StatusCode::FORBIDDEN, "not a member of an admin group").into_response())
+        }
+        Err(e) => {
+            tracing::error!("admin authentication failed: {e}");
+
+            Err((
+                StatusCode::SERVICE_UNAVAILABLE,
+                "authentication unavailable",
+            )
+                .into_response())
+        }
     }
 }
 
@@ -63,7 +100,7 @@ pub async fn create_key(
     headers: HeaderMap,
     Json(body): Json<CreateKey>,
 ) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
 
@@ -81,7 +118,7 @@ pub async fn create_key(
 }
 
 pub async fn list_keys(State(state): State<AppState>, headers: HeaderMap) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
     Ok(Json(state.keys.list().await?).into_response())
@@ -92,7 +129,7 @@ pub async fn revoke_key(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
     let found = state.keys.revoke(id).await?;
@@ -108,7 +145,7 @@ pub async fn regenerate_key(
     headers: HeaderMap,
     Path(id): Path<Uuid>,
 ) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
     Ok(match state.keys.regenerate(id).await? {
@@ -124,7 +161,7 @@ pub async fn update_key(
     Path(id): Path<Uuid>,
     Json(body): Json<UpdateKey>,
 ) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
     Ok(match state.keys.update(id, &body).await? {
@@ -134,7 +171,7 @@ pub async fn update_key(
 }
 
 pub async fn usage_summary(State(state): State<AppState>, headers: HeaderMap) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
     Ok(Json(usage::summary(&state.pool).await?).into_response())
@@ -145,7 +182,7 @@ pub async fn sync_prices(
     headers: HeaderMap,
     Json(prices): Json<Vec<ModelPrice>>,
 ) -> Result<Response> {
-    if let Err(resp) = authorize(&state, &headers) {
+    if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
     let written = pricing::upsert(&state.pool, &prices).await?;

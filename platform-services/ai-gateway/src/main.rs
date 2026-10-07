@@ -1,6 +1,6 @@
 use ai_gateway::{
-    cache::CacheClient, config::Config, feature_flag::FeatureFlagClient, metrics, pricing::Pricing,
-    providers::Registry, state::AppState, tracing_setup,
+    auth::Authenticator, cache::CacheClient, config::Config, feature_flag::FeatureFlagClient,
+    metrics, pricing::Pricing, providers::Registry, state::AppState, tracing_setup,
 };
 use anyhow::Context;
 use sqlx::postgres::PgPoolOptions;
@@ -48,7 +48,18 @@ async fn main() -> anyhow::Result<()> {
     let pricing = Pricing::load(&pool).await;
     pricing.spawn_refresh(pool.clone());
 
-    let state = AppState::new(config, providers, pool, features, pricing, cache);
+    let auth = config.oauth.as_ref().map(Authenticator::new);
+
+    if let Some(auth) = &auth {
+        if let Err(e) = auth.refresh().await {
+            tracing::warn!("initial jwks fetch failed, retrying on demand: {e}");
+        }
+
+        tokio::spawn(auth.clone().run());
+        tracing::info!("oidc bearer auth enabled for admin endpoints");
+    }
+
+    let state = AppState::new(config, providers, pool, features, pricing, cache, auth);
 
     for key in &state.config.keys {
         let claimed = state

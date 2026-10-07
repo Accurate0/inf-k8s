@@ -1,25 +1,124 @@
+mod auth;
+
+use auth::{Credentials, OAuthClient, TokenSource};
 use clap::{Parser, Subcommand};
 use serde_json::json;
 
-/// Admin CLI for ai-gateway. Talks to the `/admin/*` endpoints; point `--url` at a
-/// port-forwarded gateway and supply the admin token.
 #[derive(Parser)]
 #[command(name = "aig", about = "ai-gateway admin CLI")]
 struct Cli {
     #[arg(
         long,
+        global = true,
         env = "AIG_URL",
         default_value = "https://ai-gateway.inf-k8s.net"
     )]
     url: String,
-    #[arg(long, env = "AIG_ADMIN_TOKEN")]
-    token: String,
+
+    #[arg(
+        long,
+        global = true,
+        env = "AIG_OIDC_ISSUER",
+        default_value = "https://idm.anurag.sh/oauth2/openid/ai-gateway",
+        help = "OIDC issuer used to log in"
+    )]
+    issuer: String,
+
+    #[arg(
+        long,
+        global = true,
+        env = "AIG_OIDC_CLIENT_ID",
+        default_value = "ai-gateway",
+        help = "OAuth client id"
+    )]
+    client_id: String,
+
+    #[arg(
+        long,
+        global = true,
+        env = "AIG_ADMIN_TOKEN",
+        hide_env_values = true,
+        help = "Use this admin token instead of the stored login"
+    )]
+    token: Option<String>,
+
     #[command(subcommand)]
     command: Command,
 }
 
+struct Session {
+    url: String,
+    oauth: OAuthClient,
+    token: Option<String>,
+}
+
+impl Session {
+    fn new(cli: &Cli) -> Self {
+        Self {
+            url: cli.url.trim_end_matches('/').to_owned(),
+            oauth: OAuthClient::new(&cli.issuer, &cli.client_id),
+            token: cli.token.clone().filter(|token| !token.is_empty()),
+        }
+    }
+
+    async fn bearer(&self) -> anyhow::Result<String> {
+        if let Some(token) = &self.token {
+            return Ok(token.clone());
+        }
+
+        Ok(TokenSource::acquire(&self.oauth).await?.access_token)
+    }
+
+    async fn login(&self) -> anyhow::Result<()> {
+        let credentials = self.oauth.login().await?;
+        println!("Logged in as {}.", credentials.display_name());
+
+        Ok(())
+    }
+
+    fn logout(&self) -> anyhow::Result<()> {
+        if Credentials::delete()? {
+            println!("Logged out.");
+        } else {
+            println!("Not logged in.");
+        }
+
+        Ok(())
+    }
+
+    fn whoami(&self) -> anyhow::Result<()> {
+        let Some(credentials) = Credentials::load(self.oauth.issuer(), self.oauth.client_id())
+        else {
+            anyhow::bail!("not logged in; run `aig login`");
+        };
+
+        let expires = chrono::DateTime::from_timestamp(credentials.expires_at, 0)
+            .map(|at| at.with_timezone(&chrono::Local).to_rfc3339())
+            .unwrap_or_default();
+
+        let renewable = if credentials.refresh_token.is_some() {
+            "renews automatically"
+        } else {
+            "no refresh token"
+        };
+
+        println!("user     {}", credentials.display_name());
+        println!("issuer   {}", credentials.issuer);
+        println!("server   {}", self.url);
+        println!("expires  {expires} ({renewable})");
+
+        Ok(())
+    }
+}
+
 #[derive(Subcommand)]
 enum Command {
+    /// Log in through the browser and store the session
+    Login,
+    /// Forget the stored session
+    Logout,
+    /// Show the logged in user
+    Whoami,
     /// Manage virtual keys
     Keys {
         #[command(subcommand)]
@@ -97,10 +196,15 @@ enum KeyAction {
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
+    let session = Session::new(&cli);
     let http = reqwest::Client::new();
-    let base = cli.url.trim_end_matches('/');
+    let base = session.url.as_str();
 
     let request = match &cli.command {
+        Command::Login => return session.login().await,
+        Command::Logout => return session.logout(),
+        Command::Whoami => return session.whoami(),
+        Command::Models => return send(http.get(format!("{base}/v1/models"))).await,
         Command::Keys { action } => match action {
             KeyAction::Create {
                 name,
@@ -138,7 +242,6 @@ async fn main() -> anyhow::Result<()> {
             KeyAction::Regenerate { id } => http.post(format!("{base}/admin/keys/{id}/regenerate")),
         },
         Command::Usage => http.get(format!("{base}/admin/usage")),
-        Command::Models => http.get(format!("{base}/v1/models")),
         Command::Prices { action } => match action {
             PriceAction::Sync { source } => {
                 let upstream: UpstreamPrices = http.get(source).send().await?.json().await?;
@@ -161,7 +264,7 @@ async fn main() -> anyhow::Result<()> {
         },
     };
 
-    send(request.bearer_auth(&cli.token)).await
+    send(request.bearer_auth(session.bearer().await?)).await
 }
 
 async fn send(request: reqwest::RequestBuilder) -> anyhow::Result<()> {

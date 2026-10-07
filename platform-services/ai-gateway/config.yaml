@@ -1,5 +1,11 @@
 version: 2
 
+oauth:
+  issuer: https://idm.anurag.sh/oauth2/openid/ai-gateway
+  audience: ai-gateway
+  groups:
+    - ai_gateway_admins
+
 providers:
   anthropic:
     dialect: anthropic

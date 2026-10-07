@@ -21,6 +21,7 @@ pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 #[derive(Clone, Debug, Default)]
 pub struct Config {
     pub admin_token: String,
+    pub oauth: Option<OAuthConfig>,
     pub providers: HashMap<String, ProviderConfig>,
     pub keys: Vec<KeyConfig>,
     /// Ordered model-resolution rules, evaluated first-match-wins per request. Subsumes
@@ -33,11 +34,26 @@ struct FileConfig {
     #[serde(default)]
     version: u32,
     #[serde(default)]
+    oauth: Option<OAuthConfig>,
+    #[serde(default)]
     providers: HashMap<String, ProviderConfig>,
     #[serde(default)]
     keys: Vec<KeyConfig>,
     #[serde(default)]
     rules: Vec<Rule>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct OAuthConfig {
+    pub issuer: String,
+    #[serde(default)]
+    pub audience: Option<String>,
+    #[serde(default)]
+    pub jwks_uri: Option<String>,
+    #[serde(default)]
+    pub userinfo_endpoint: Option<String>,
+    #[serde(default)]
+    pub groups: Vec<String>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -173,6 +189,7 @@ impl Config {
 
         Ok(Self {
             admin_token: std::env::var("ADMIN_TOKEN").unwrap_or_default(),
+            oauth: file.oauth,
             providers: file.providers,
             keys: file.keys,
             rules: file.rules,

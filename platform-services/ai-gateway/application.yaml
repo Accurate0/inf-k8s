@@ -14,6 +14,29 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.3.0
+      helm:
+        valuesObject:
+          clients:
+            - name: ai-gateway
+              namespace: ai-gateway
+              displayName: AI Gateway
+              host: ai-gateway.inf-k8s.net
+              public: true
+              allowLocalhostRedirect: true
+              preferShortUsername: true
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
+              secretName: kanidm-ai-gateway-oidc
+              secretNamespace: ai-gateway
+              annotations:
+                inf-k8s.net/app: ai-gateway
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.3.1
