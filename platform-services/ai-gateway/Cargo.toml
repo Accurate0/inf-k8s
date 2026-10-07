@@ -30,11 +30,11 @@ metrics-exporter-prometheus = { version = "0.18", default-features = false }
 open-feature = "0.3"
 openfeature-provider = { git = "https://github.com/Accurate0/inf-k8s.git", branch = "main" }
 tower-http = { version = "0.7", features = ["trace"] }
-opentelemetry = { version = "0.32.0", features = ["trace"] }
-opentelemetry_sdk = { version = "0.32.1", features = ["rt-tokio"] }
-opentelemetry-otlp = { version = "0.32.0", features = ["trace", "reqwest-blocking-client", "reqwest-rustls", "http-json"] }
-opentelemetry-semantic-conventions = { version = "0.32.0", features = ["semconv_experimental"] }
-tracing-opentelemetry = "0.33.0"
+opentelemetry = { version = "0.33.0", features = ["trace"] }
+opentelemetry_sdk = { version = "0.33.0", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.33.0", features = ["trace", "reqwest-blocking-client", "reqwest-rustls", "http-json"] }
+opentelemetry-semantic-conventions = { version = "0.33.0", features = ["semconv_experimental"] }
+tracing-opentelemetry = "0.34.0"
 axum-tracing-opentelemetry = "0.42.0"
 clap = { version = "4", features = ["derive", "env"] }
 jsonwebtoken = { version = "10", features = ["rust_crypto"] }

@@ -53,11 +53,12 @@ fn build_provider(endpoint: String) -> SdkTracerProvider {
 
     let resource = Resource::builder_empty().with_attributes(tags).build();
 
-    let span_exporter = opentelemetry_otlp::HttpExporterBuilder::default()
+    let span_exporter = opentelemetry_otlp::SpanExporter::builder()
+        .with_http()
         .with_protocol(Protocol::HttpJson)
         .with_endpoint(endpoint)
         .with_timeout(Duration::from_secs(3))
-        .build_span_exporter()
+        .build()
         .expect("failed to build OTLP span exporter");
 
     SdkTracerProvider::builder()
