@@ -1,9 +1,15 @@
+export type CardAccountConfig = {
+  name: string;
+  match: string;
+};
+
 export class Config {
   readonly upToken: string;
   readonly fireflyUrl: string;
   readonly fireflyToken: string;
   readonly lookbackDays: number;
   readonly dryRun: boolean;
+  readonly cardAccounts: CardAccountConfig[];
 
   constructor(env: NodeJS.ProcessEnv) {
     this.upToken = Config.required(env, "UP_TOKEN");
@@ -11,6 +17,31 @@ export class Config {
     this.fireflyToken = Config.required(env, "FIREFLY_TOKEN");
     this.lookbackDays = Config.positiveInteger(env, "LOOKBACK_DAYS", 14);
     this.dryRun = env.DRY_RUN === "true";
+    this.cardAccounts = Config.cardAccounts(env, "CARD_ACCOUNTS");
+  }
+
+  private static cardAccounts(env: NodeJS.ProcessEnv, name: string): CardAccountConfig[] {
+    const raw = env[name]?.trim();
+
+    if (!raw) {
+      return [];
+    }
+
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!Array.isArray(parsed)) {
+      throw new Error(`${name} must be a JSON array`);
+    }
+
+    return parsed.map((entry) => {
+      const card = entry as Partial<CardAccountConfig>;
+
+      if (typeof card.name !== "string" || !card.name.trim() || typeof card.match !== "string" || !card.match.trim()) {
+        throw new Error(`${name} entries need a non-empty "name" and "match"`);
+      }
+
+      return { name: card.name.trim(), match: card.match.trim() };
+    });
   }
 
   private static required(env: NodeJS.ProcessEnv, name: string): string {

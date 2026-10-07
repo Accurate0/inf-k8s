@@ -205,6 +205,37 @@ test("interest charged on the home loan is a withdrawal from the liability", () 
   assert.equal(planned?.destination_name, "Interest");
 });
 
+test("a card payment is a transfer into the card account", () => {
+  const cards = [{ match: "American Express", account: { id: "9", kind: "asset" as const } }];
+
+  const planned = new Planner(ACCOUNTS, IMPORT_SINCE, cards).plan([
+    transaction({ id: "pay", account: "up-saver", cents: -657039, description: "American Express Australia" }),
+    transaction({ id: "coffee", account: "up-spending", cents: -450 }),
+  ]);
+
+  const payment = planned.find((entry) => entry.external_id === "pay");
+  const coffee = planned.find((entry) => entry.external_id === "coffee");
+
+  assert.equal(payment?.type, "transfer");
+  assert.equal(payment?.amount, "6570.39");
+  assert.equal(payment?.source_id, "2");
+  assert.equal(payment?.destination_id, "9");
+  assert.equal(payment?.destination_name, undefined);
+  assert.equal(coffee?.type, "withdrawal");
+});
+
+test("money back from a card is a transfer out of the card account", () => {
+  const cards = [{ match: "american express", account: { id: "9", kind: "asset" as const } }];
+
+  const [planned] = new Planner(ACCOUNTS, IMPORT_SINCE, cards).plan([
+    transaction({ id: "refund", account: "up-spending", cents: 2500, description: "AMERICAN EXPRESS AUSTRALIA" }),
+  ]);
+
+  assert.equal(planned?.type, "transfer");
+  assert.equal(planned?.source_id, "9");
+  assert.equal(planned?.destination_id, "1");
+});
+
 test("message and foreign amount end up in the notes", () => {
   const [planned] = plan([
     transaction({

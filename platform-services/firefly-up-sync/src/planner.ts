@@ -6,15 +6,22 @@ export type TrackedAccount = {
   kind: AccountKind;
 };
 
+export type CardAccount = {
+  match: string;
+  account: TrackedAccount;
+};
+
 export class Planner {
   static readonly COUNTERPART_WINDOW_MS = 60_000;
 
   private readonly accounts: Map<string, TrackedAccount>;
   private readonly importSince: Date;
+  private readonly cards: CardAccount[];
 
-  constructor(accounts: Map<string, TrackedAccount>, importSince: Date) {
+  constructor(accounts: Map<string, TrackedAccount>, importSince: Date, cards: CardAccount[] = []) {
     this.accounts = accounts;
     this.importSince = importSince;
+    this.cards = cards.map((card) => ({ ...card, match: card.match.toLowerCase() }));
   }
 
   plan(transactions: UpTransaction[]): FireflyTransaction[] {
@@ -91,6 +98,16 @@ export class Planner {
     return source.kind === "asset" ? "withdrawal" : "deposit";
   }
 
+  private cardFor(transaction: UpTransaction, account: TrackedAccount): TrackedAccount | undefined {
+    if (account.kind !== "asset") {
+      return undefined;
+    }
+
+    const description = transaction.attributes.description.toLowerCase();
+
+    return this.cards.find((card) => description.includes(card.match))?.account;
+  }
+
   private isTracked(transaction: UpTransaction): boolean {
     return this.accounts.has(transaction.relationships.account.data.id);
   }
@@ -159,6 +176,17 @@ export class Planner {
         type: Planner.internalType(source, destination),
         source_id: source.id,
         destination_id: destination.id,
+      };
+    }
+
+    const card = this.cardFor(transaction, account);
+
+    if (card) {
+      return {
+        ...base,
+        type: "transfer",
+        source_id: cents < 0 ? account.id : card.id,
+        destination_id: cents < 0 ? card.id : account.id,
       };
     }
 

@@ -41,6 +41,8 @@ spec:
                   value: http://firefly.firefly.svc.cluster.local
                 - name: LOOKBACK_DAYS
                   value: "14"
+                - name: CARD_ACCOUNTS
+                  value: '[{"name": "Amex", "match": "American Express"}]'
               envFrom:
                 - secretRef:
                     name: firefly-up-sync-managed-secrets

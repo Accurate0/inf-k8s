@@ -1,6 +1,6 @@
 import type { Config } from "./config.ts";
 import type { AccountKind, FireflyClient, NewFireflyAccount } from "./firefly.ts";
-import { Planner, type TrackedAccount } from "./planner.ts";
+import { type CardAccount, Planner, type TrackedAccount } from "./planner.ts";
 import type { UpAccount, UpClient, UpTransaction } from "./up.ts";
 
 export type SyncResult = {
@@ -37,8 +37,9 @@ export class Sync {
 
     const transactions = await this.up.settledTransactionsSince(fetchSince);
     const accounts = await this.resolveAccounts(transactions, importSince);
+    const cards = await this.resolveCards();
 
-    const planned = new Planner(accounts, importSince).plan(transactions);
+    const planned = new Planner(accounts, importSince, cards).plan(transactions);
 
     const existing = await this.firefly.externalIdsBetween(
       new Date(fetchSince.getTime() - Sync.EXISTING_MARGIN_DAYS * Sync.DAY_MS),
@@ -126,6 +127,47 @@ export class Sync {
       opening_balance: (owedCents / 100).toFixed(2),
       opening_balance_date: importSince.toISOString().slice(0, 10),
     };
+  }
+
+  private async resolveCards(): Promise<CardAccount[]> {
+    if (this.config.cardAccounts.length === 0) {
+      return [];
+    }
+
+    const byName = new Map<string, string>();
+
+    for (const account of await this.firefly.accounts("asset")) {
+      byName.set(account.attributes.name, account.id);
+    }
+
+    const cards: CardAccount[] = [];
+
+    for (const card of this.config.cardAccounts) {
+      const existingId = byName.get(card.name);
+
+      if (existingId) {
+        cards.push({ match: card.match, account: { id: existingId, kind: "asset" } });
+        continue;
+      }
+
+      if (this.config.dryRun) {
+        console.log(`would create Firefly card account "${card.name}"`);
+        cards.push({ match: card.match, account: { id: Sync.PENDING_ACCOUNT_ID, kind: "asset" } });
+        continue;
+      }
+
+      const created = await this.firefly.createAccount({
+        name: card.name,
+        type: "asset",
+        account_role: "defaultAsset",
+        currency_code: "AUD",
+      });
+
+      console.log(`created Firefly card account "${created.attributes.name}" (#${created.id})`);
+      cards.push({ match: card.match, account: { id: created.id, kind: "asset" } });
+    }
+
+    return cards;
   }
 
   private async resolveAccounts(

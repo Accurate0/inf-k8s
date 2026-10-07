@@ -14,7 +14,7 @@ export type NewFireflyAccount =
       type: "asset";
       account_role: "defaultAsset" | "savingAsset";
       currency_code: string;
-      account_number: string;
+      account_number?: string;
     }
   | {
       name: string;
