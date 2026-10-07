@@ -208,7 +208,77 @@ spec:
             env:
               IGNORE_DUPLICATE_ERRORS: "false"
               TZ: Australia/Perth
-            files: []
+            files:
+              - mountPath: /var/www/html/storage/configurations
+                name: amex-au.json
+                content: |
+                  {
+                    "version": 3,
+                    "source": "ff3-importer-2.2.3",
+                    "created_at": "2026-10-07T23:50:00+08:00",
+                    "date": "d/m/Y",
+                    "default_account": 0,
+                    "delimiter": "comma",
+                    "headers": true,
+                    "rules": true,
+                    "webhooks": true,
+                    "skip_form": false,
+                    "add_import_tag": true,
+                    "roles": [
+                      "date_transaction",
+                      "date_process",
+                      "description",
+                      "amount_negated",
+                      "note",
+                      "_ignore",
+                      "_ignore",
+                      "note",
+                      "opposing-name",
+                      "_ignore",
+                      "_ignore",
+                      "_ignore",
+                      "_ignore",
+                      "external-id"
+                    ],
+                    "do_mapping": [
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false,
+                      false
+                    ],
+                    "mapping": [],
+                    "duplicate_detection_method": "cell",
+                    "ignore_duplicate_lines": true,
+                    "ignore_duplicate_transactions": true,
+                    "unique_column_index": 13,
+                    "unique_column_type": "external-id",
+                    "flow": "file",
+                    "content_type": "csv",
+                    "custom_tag": "",
+                    "identifier": "0",
+                    "connection": "0",
+                    "ignore_spectre_categories": false,
+                    "grouped_transaction_handling": "",
+                    "use_entire_opposing_address": false,
+                    "map_all_data": false,
+                    "accounts": [],
+                    "date_range": "",
+                    "date_range_number": 30,
+                    "date_range_unit": "d",
+                    "date_not_before": "",
+                    "date_not_after": "",
+                    "conversion": false
+                  }
 
           httpRoute:
             enabled: true
