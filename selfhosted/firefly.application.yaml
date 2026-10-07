@@ -158,6 +158,7 @@ spec:
               AUTHENTICATION_GUARD: remote_user_guard
               AUTHENTICATION_GUARD_HEADER: HTTP_X_FIREFLY_USER_EMAIL
               ALLOW_WEBHOOKS: "true"
+              SITE_OWNER: contact@anurag.sh
             envValueFrom:
               DB_DATABASE:
                 secretKeyRef:
