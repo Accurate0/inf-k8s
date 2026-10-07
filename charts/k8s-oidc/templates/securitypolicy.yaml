@@ -8,6 +8,8 @@
 {{- $scopes := $sp.scopes | default $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
 {{- $secretName := $client.secretName | default (printf "kanidm-%s-oidc" $client.name) }}
 {{- $callbackPath := $client.callbackPath | default "/oauth2/callback" }}
+{{- $jwt := $sp.jwt | default dict }}
+{{- $idTokenCookie := printf "%s-id-token" $client.name }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: SecurityPolicy
 metadata:
@@ -36,12 +38,20 @@ spec:
     {{- if $sp.forwardAccessToken }}
     forwardAccessToken: true
     {{- end }}
+    {{- if $jwt.idToken }}
+    cookieNames:
+      idToken: {{ $idTokenCookie }}
+    {{- end }}
   {{- if hasKey $sp "jwt" }}
-  {{- $jwt := $sp.jwt | default dict }}
   jwt:
     providers:
       - name: kanidm
         issuer: {{ $issuerBase }}/{{ $client.name }}
+        {{- if $jwt.idToken }}
+        extractFrom:
+          cookies:
+            - {{ $idTokenCookie }}
+        {{- end }}
         remoteJWKS:
           cacheDuration: {{ $jwt.cacheDuration | default "3600s" }}
           uri: {{ $issuerBase }}/{{ $client.name }}/public_key.jwk
