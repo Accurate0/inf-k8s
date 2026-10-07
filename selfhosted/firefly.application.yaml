@@ -129,6 +129,17 @@ spec:
           podAnnotations:
             reloader.stakater.com/auto: "true"
 
+          affinity:
+            nodeAffinity:
+              preferredDuringSchedulingIgnoredDuringExecution:
+                - weight: 100
+                  preference:
+                    matchExpressions:
+                      - key: inf-k8s.net/location
+                        operator: In
+                        values:
+                          - perth
+
           persistence:
             enabled: true
             existingClaim: firefly-upload
