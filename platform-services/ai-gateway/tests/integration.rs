@@ -37,6 +37,8 @@ struct ProviderDef {
     models: Vec<String>,
     #[serde(default)]
     embedding_models: Vec<String>,
+    #[serde(default)]
+    decision_models: Vec<String>,
 }
 
 fn default_provider_name() -> String {
@@ -175,6 +177,16 @@ fixture_test!(
     "embeddings",
     "no-provider-for-model"
 );
+fixture_test!(
+    decisions_openai_happy_path,
+    "decisions",
+    "openai-happy-path"
+);
+fixture_test!(
+    decisions_no_provider_for_model,
+    "decisions",
+    "no-provider-for-model"
+);
 
 async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     let snapshot_name = format!("{dir}__{file}");
@@ -208,6 +220,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
             api_key_env: Some(API_KEY_ENV.into()),
             models: fixture.provider.models.clone(),
             embedding_models: fixture.provider.embedding_models.clone(),
+            decision_models: fixture.provider.decision_models.clone(),
             priority: 100,
             fallback: false,
         },
@@ -311,6 +324,8 @@ fn validate_schema(endpoint: &str, streaming: bool, body: &Value) {
         }
     } else if endpoint.ends_with("/embeddings") {
         include_str!("schemas/openai-embeddings.json")
+    } else if endpoint.ends_with("/decisions") {
+        include_str!("schemas/openai-decisions.json")
     } else if streaming {
         include_str!("schemas/openai-chat-chunk.json")
     } else {

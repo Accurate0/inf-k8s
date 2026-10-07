@@ -1,0 +1,12 @@
+endpoint: /v1/decisions
+provider:
+  dialect: openai
+  models:
+    - gpt-4o
+request:
+  model: gpt-4o
+  input: I was charged twice for my order.
+  questions:
+    - type: predicate
+      name: is_billing
+      instructions: Is this a billing complaint?

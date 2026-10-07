@@ -85,6 +85,14 @@ pub async fn embeddings(
     proxy(state, headers, body, "/embeddings").await
 }
 
+pub async fn decisions(
+    state: State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+) -> Result<Response> {
+    proxy(state, headers, body, "/decisions").await
+}
+
 /// Carries everything resolved on the request hot path through to where usage is
 /// recorded, so streaming and buffered paths record identically.
 struct RequestContext {
@@ -176,10 +184,14 @@ async fn proxy(
         request.set_model(&resolved_model);
     }
 
-    let candidates = match &pinned_provider {
+    let mut candidates: Vec<Arc<dyn Provider>> = match &pinned_provider {
         Some(name) => state.providers.get(name).into_iter().collect(),
         None => state.providers.providers_for_model(&resolved_model, kind),
     };
+
+    if kind == ModelKind::Decision {
+        candidates.retain(|provider| provider.dialect() == client_dialect);
+    }
 
     let Some(primary) = candidates.first().cloned() else {
         return Err(GatewayError::NoProvider(resolved_model));

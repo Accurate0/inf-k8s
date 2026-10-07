@@ -48,6 +48,7 @@ impl Dialect {
 pub enum ModelKind {
     Chat,
     Embedding,
+    Decision,
 }
 
 impl ModelKind {
@@ -55,6 +56,8 @@ impl ModelKind {
     pub fn for_sub_path(sub_path: &str) -> Self {
         if sub_path.ends_with("/embeddings") {
             ModelKind::Embedding
+        } else if sub_path.ends_with("/decisions") {
+            ModelKind::Decision
         } else {
             ModelKind::Chat
         }
@@ -135,7 +138,7 @@ impl ProxyRequest {
     /// can't mask intended sampling variance.
     pub fn is_cacheable(&self, kind: ModelKind) -> bool {
         match kind {
-            ModelKind::Embedding => true,
+            ModelKind::Embedding | ModelKind::Decision => true,
             ModelKind::Chat => self.json.get("temperature").and_then(Value::as_f64) == Some(0.0),
         }
     }

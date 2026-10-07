@@ -25,11 +25,16 @@ impl Registry {
             if pc.fallback {
                 fallbacks.push(name.clone());
             }
-            let declared = pc.models.iter().map(|m| (m, ModelKind::Chat)).chain(
-                pc.embedding_models
-                    .iter()
-                    .map(|m| (m, ModelKind::Embedding)),
-            );
+            let declared = pc
+                .models
+                .iter()
+                .map(|m| (m, ModelKind::Chat))
+                .chain(
+                    pc.embedding_models
+                        .iter()
+                        .map(|m| (m, ModelKind::Embedding)),
+                )
+                .chain(pc.decision_models.iter().map(|m| (m, ModelKind::Decision)));
             for (model, kind) in declared {
                 routes
                     .entry((model.clone(), kind))
@@ -186,6 +191,29 @@ openai:
         assert!(
             registry
                 .providers_for_model("text-embedding-3-large", ModelKind::Chat)
+                .is_empty()
+        );
+    }
+
+    #[test]
+    fn decision_models_route_only_from_decisions_endpoint() {
+        let yaml = r#"
+openai:
+  dialect: openai
+  base_url: https://example.test
+  api_key_env: TEST_OPENAI_DECISION_KEY
+  decision_models:
+    - gpt-6-luna
+"#;
+        let registry = registry_from_yaml(yaml, "TEST_OPENAI_DECISION_KEY");
+        assert!(
+            !registry
+                .providers_for_model("gpt-6-luna", ModelKind::Decision)
+                .is_empty()
+        );
+        assert!(
+            registry
+                .providers_for_model("gpt-6-luna", ModelKind::Chat)
                 .is_empty()
         );
     }

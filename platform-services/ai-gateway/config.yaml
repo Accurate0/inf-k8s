@@ -23,6 +23,8 @@ providers:
       - gpt-5.5
     embedding_models:
       - text-embedding-3-large
+    decision_models:
+      - gpt-6-luna
 
   openrouter:
     dialect: openai

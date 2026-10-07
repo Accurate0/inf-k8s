@@ -1,0 +1,32 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  status: 200
+  body:
+    answers:
+      - choice: billing
+        confidence: 0.93
+        name: department
+        probabilities:
+          - probability: 0.95
+            value: billing
+          - probability: 0.05
+            value: technical
+        type: choice
+upstream_requests:
+  - method: POST
+    path: /decisions
+    body:
+      input: I was charged twice for my order.
+      model: gpt-6-luna
+      questions:
+        - choices:
+            - description: "Payments, invoices, and refunds."
+              value: billing
+            - description: Problems using the product.
+              value: technical
+          instructions: Which department should handle this complaint?
+          name: department
+          type: choice

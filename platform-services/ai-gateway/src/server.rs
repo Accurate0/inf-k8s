@@ -16,6 +16,7 @@ pub fn router(state: AppState) -> Router {
             post(routes::proxy::chat_completions),
         )
         .route("/v1/embeddings", post(routes::proxy::embeddings))
+        .route("/v1/decisions", post(routes::proxy::decisions))
         .route("/v1/models", get(routes::admin::list_models))
         .route("/admin/metrics", get(routes::admin::metrics_handler))
         .route(

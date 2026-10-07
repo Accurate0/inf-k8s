@@ -40,6 +40,7 @@ impl Provider for OpenAiCompatible {
         let path = match kind {
             ModelKind::Chat => "/chat/completions",
             ModelKind::Embedding => "/embeddings",
+            ModelKind::Decision => "/decisions",
         };
         let req = http
             .post(format!("{}{path}", self.base_url))
@@ -82,12 +83,16 @@ fn usage_of(usage: Option<&Value>) -> Usage {
     let Some(u) = usage else {
         return Usage::default();
     };
+    let tokens = |names: [&str; 2]| {
+        names
+            .iter()
+            .find_map(|name| u.get(*name).and_then(Value::as_i64))
+            .unwrap_or(0)
+    };
+
     Usage {
-        input: u.get("prompt_tokens").and_then(Value::as_i64).unwrap_or(0),
-        output: u
-            .get("completion_tokens")
-            .and_then(Value::as_i64)
-            .unwrap_or(0),
+        input: tokens(["prompt_tokens", "input_tokens"]),
+        output: tokens(["completion_tokens", "output_tokens"]),
     }
 }
 
@@ -107,6 +112,18 @@ mod tests {
             Usage {
                 input: 30,
                 output: 5
+            }
+        );
+    }
+
+    #[test]
+    fn parses_responses_style_usage() {
+        let body = br#"{"answers":[],"usage":{"input_tokens":42,"output_tokens":0}}"#;
+        assert_eq!(
+            provider().parse_usage(body),
+            Usage {
+                input: 42,
+                output: 0
             }
         );
     }
