@@ -171,6 +171,36 @@ impl Gateway {
 
         request.send().await.unwrap().status().as_u16()
     }
+
+    async fn usage(&self, query: &str) -> (u16, serde_json::Value) {
+        let response = self
+            .http
+            .get(format!("{}/admin/usage{query}", self.url))
+            .bearer_auth(ADMIN_TOKEN)
+            .send()
+            .await
+            .unwrap();
+
+        let status = response.status().as_u16();
+
+        (status, response.json().await.unwrap())
+    }
+}
+
+async fn record_usage(pool: &PgPool, key: &str, model: &str, age: &str, cache_hit: bool) {
+    sqlx::query(
+        "INSERT INTO usage_events \
+         (key_name, provider, requested_model, resolved_model, input_tokens, output_tokens, \
+          cost_usd, cache_hit, created_at) \
+         VALUES ($1, 'test', $2, $2, 100, 10, 0.5, $3, now() - $4::interval)",
+    )
+    .bind(key)
+    .bind(model)
+    .bind(cache_hit)
+    .bind(age)
+    .execute(pool)
+    .await
+    .unwrap();
 }
 
 impl Drop for Gateway {
@@ -257,4 +287,69 @@ async fn admin_rejects_jwts_when_oidc_is_not_configured(pool: PgPool) {
     let token = idp.token(&idp.issuer, AUDIENCE, 300);
     assert_eq!(gateway.list_keys(Some(&token)).await, 401);
     assert_eq!(gateway.list_keys(Some(ADMIN_TOKEN)).await, 200);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn usage_is_grouped_by_key_and_model_within_the_window(pool: PgPool) {
+    record_usage(&pool, "alpha", "model-a", "1 hour", false).await;
+    record_usage(&pool, "alpha", "model-a", "2 hours", true).await;
+    record_usage(&pool, "alpha", "model-b", "3 hours", false).await;
+    record_usage(&pool, "beta", "model-a", "3 days", false).await;
+    record_usage(&pool, "beta", "model-a", "30 days", false).await;
+
+    let gateway = Gateway::spawn(pool, None).await;
+
+    let (status, day) = gateway.usage("?since=24h").await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        day,
+        json!([
+            {
+                "key_name": "alpha",
+                "model": "model-a",
+                "requests": 2,
+                "cache_hits": 1,
+                "input_tokens": 200,
+                "output_tokens": 20,
+                "cost_usd": 1.0,
+            },
+            {
+                "key_name": "alpha",
+                "model": "model-b",
+                "requests": 1,
+                "cache_hits": 0,
+                "input_tokens": 100,
+                "output_tokens": 10,
+                "cost_usd": 0.5,
+            },
+        ])
+    );
+
+    let (_, default_window) = gateway.usage("").await;
+    let (_, week) = gateway.usage("?since=7d").await;
+    assert_eq!(default_window, week);
+    assert_eq!(week.as_array().unwrap().len(), 3);
+    assert_eq!(week[2]["key_name"], "beta");
+    assert_eq!(week[2]["requests"], 1);
+
+    let (_, quarter) = gateway.usage("?since=12w").await;
+    assert_eq!(quarter[2]["requests"], 2);
+
+    let (_, recent) = gateway.usage("?since=30m").await;
+    assert_eq!(recent, json!([]));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn usage_rejects_a_malformed_window(pool: PgPool) {
+    let gateway = Gateway::spawn(pool, None).await;
+
+    let (status, body) = gateway.usage("?since=soon").await;
+
+    assert_eq!(status, 400);
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("invalid window")
+    );
 }

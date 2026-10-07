@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT key_name, resolved_model AS model, date_trunc('day', created_at)::date AS day, SUM(input_tokens)::bigint AS input_tokens, SUM(output_tokens)::bigint AS output_tokens, COUNT(*)::bigint AS requests, COUNT(*) FILTER (WHERE cache_hit)::bigint AS cache_hits, SUM(cost_usd)::double precision AS cost_usd FROM usage_events WHERE created_at >= now() - interval '30 days' GROUP BY key_name, resolved_model, date_trunc('day', created_at)::date ORDER BY day DESC, key_name, model LIMIT 1000",
+  "query": "SELECT key_name,\n                  resolved_model AS model,\n                  COUNT(*)::bigint AS \"requests!\",\n                  COUNT(*) FILTER (WHERE cache_hit)::bigint AS \"cache_hits!\",\n                  COALESCE(SUM(input_tokens), 0)::bigint AS \"input_tokens!\",\n                  COALESCE(SUM(output_tokens), 0)::bigint AS \"output_tokens!\",\n                  COALESCE(SUM(cost_usd), 0)::double precision AS \"cost_usd!\"\n           FROM usage_events\n           WHERE created_at >= $1\n           GROUP BY key_name, resolved_model\n           ORDER BY key_name, 3 DESC, resolved_model",
   "describe": {
     "columns": [
       {
@@ -27,43 +27,39 @@
       },
       {
         "ordinal": 2,
-        "name": "day",
-        "type_info": "Date",
+        "name": "requests!",
+        "type_info": "Int8",
         "origin": "Expression"
       },
       {
         "ordinal": 3,
-        "name": "input_tokens",
+        "name": "cache_hits!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
         "ordinal": 4,
-        "name": "output_tokens",
+        "name": "input_tokens!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
         "ordinal": 5,
-        "name": "requests",
+        "name": "output_tokens!",
         "type_info": "Int8",
         "origin": "Expression"
       },
       {
         "ordinal": 6,
-        "name": "cache_hits",
-        "type_info": "Int8",
-        "origin": "Expression"
-      },
-      {
-        "ordinal": 7,
-        "name": "cost_usd",
+        "name": "cost_usd!",
         "type_info": "Float8",
         "origin": "Expression"
       }
     ],
     "parameters": {
-      "Left": []
+      "Left": [
+        "Timestamptz"
+      ]
     },
     "nullable": [
       false,
@@ -72,9 +68,8 @@
       null,
       null,
       null,
-      null,
       null
     ]
   },
-  "hash": "c75fb416f82ce09d226e3c44b25bfecaea6fee9c79cb2f73142ddcfdcfc0d561"
+  "hash": "bc9d38f32e496d9192349a8c8c70c0231857c4cd56e7e2dbb320ec6d2648ea0a"
 }

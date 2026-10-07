@@ -2,7 +2,7 @@ use std::collections::BTreeMap;
 
 use axum::{
     Json,
-    extract::{Path, State},
+    extract::{Path, Query, State},
     http::{HeaderMap, StatusCode},
     response::{IntoResponse, Response},
 };
@@ -11,8 +11,14 @@ use serde_json::json;
 use uuid::Uuid;
 
 use crate::{
-    auth::AuthError, error::Result, keys::UpdateKey, metrics, pricing, pricing::ModelPrice,
-    state::AppState, usage,
+    auth::AuthError,
+    error::{GatewayError, Result},
+    keys::UpdateKey,
+    metrics, pricing,
+    pricing::ModelPrice,
+    state::AppState,
+    usage,
+    usage::Window,
 };
 
 #[allow(clippy::result_large_err)]
@@ -170,11 +176,26 @@ pub async fn update_key(
     })
 }
 
-pub async fn usage_summary(State(state): State<AppState>, headers: HeaderMap) -> Result<Response> {
+#[derive(Deserialize)]
+pub struct UsageQuery {
+    pub since: Option<String>,
+}
+
+pub async fn usage_summary(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Query(query): Query<UsageQuery>,
+) -> Result<Response> {
     if let Err(resp) = authorize(&state, &headers).await {
         return Ok(resp);
     }
-    Ok(Json(usage::summary(&state.pool).await?).into_response())
+
+    let window = match query.since.as_deref() {
+        Some(since) => since.parse().map_err(GatewayError::BadRequest)?,
+        None => Window::default(),
+    };
+
+    Ok(Json(usage::summary(&state.pool, window).await?).into_response())
 }
 
 pub async fn sync_prices(

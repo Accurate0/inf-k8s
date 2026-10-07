@@ -1,8 +1,11 @@
 mod auth;
+mod usage;
 
+use ai_gateway::usage::{UsageRow, Window};
 use auth::{Credentials, OAuthClient, TokenSource};
 use clap::{Parser, Subcommand};
 use serde_json::json;
+use usage::UsageTable;
 
 #[derive(Parser)]
 #[command(name = "aig", about = "ai-gateway admin CLI")]
@@ -109,6 +112,20 @@ impl Session {
 
         Ok(())
     }
+
+    fn usage_request(&self, http: &reqwest::Client, since: Window) -> reqwest::RequestBuilder {
+        http.get(format!("{}/admin/usage?since={since}", self.url))
+    }
+
+    async fn usage(&self, http: &reqwest::Client, since: Window) -> anyhow::Result<()> {
+        let request = self.usage_request(http, since);
+        let (_, body) = fetch(request.bearer_auth(self.bearer().await?)).await?;
+        let rows: Vec<UsageRow> = serde_json::from_str(&body)?;
+
+        print!("{}", UsageTable::new(since, rows));
+
+        Ok(())
+    }
 }
 
 #[derive(Subcommand)]
@@ -124,8 +141,18 @@ enum Command {
         #[command(subcommand)]
         action: KeyAction,
     },
-    /// Show the rolled-up usage summary
-    Usage,
+    /// Show usage per key and model over a recent window
+    Usage {
+        #[arg(
+            long,
+            default_value_t,
+            help = "How far back to look, e.g. 30m, 24h, 7d, 2w"
+        )]
+        since: Window,
+
+        #[arg(long, help = "Print the raw JSON instead of a table")]
+        json: bool,
+    },
     /// List routable providers
     Models,
     /// Manage model pricing
@@ -241,7 +268,8 @@ async fn main() -> anyhow::Result<()> {
             KeyAction::Revoke { id } => http.delete(format!("{base}/admin/keys/{id}")),
             KeyAction::Regenerate { id } => http.post(format!("{base}/admin/keys/{id}/regenerate")),
         },
-        Command::Usage => http.get(format!("{base}/admin/usage")),
+        Command::Usage { since, json: false } => return session.usage(&http, *since).await,
+        Command::Usage { since, .. } => session.usage_request(&http, *since),
         Command::Prices { action } => match action {
             PriceAction::Sync { source } => {
                 let upstream: UpstreamPrices = http.get(source).send().await?.json().await?;
@@ -267,7 +295,7 @@ async fn main() -> anyhow::Result<()> {
     send(request.bearer_auth(session.bearer().await?)).await
 }
 
-async fn send(request: reqwest::RequestBuilder) -> anyhow::Result<()> {
+async fn fetch(request: reqwest::RequestBuilder) -> anyhow::Result<(reqwest::StatusCode, String)> {
     let response = request.send().await?;
     let status = response.status();
     let body = response.text().await?;
@@ -275,6 +303,12 @@ async fn send(request: reqwest::RequestBuilder) -> anyhow::Result<()> {
     if !status.is_success() {
         anyhow::bail!("request failed ({status}): {body}");
     }
+
+    Ok((status, body))
+}
+
+async fn send(request: reqwest::RequestBuilder) -> anyhow::Result<()> {
+    let (status, body) = fetch(request).await?;
 
     if body.is_empty() {
         println!("ok ({status})");
