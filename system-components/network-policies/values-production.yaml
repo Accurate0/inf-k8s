@@ -42,6 +42,9 @@ namespaces:
       - maccas-api
       - feature-flags
       - ai-gateway
+  firefly:
+    ingress:
+      - envoy-gateway-system
   ozbargain: {}
   kanidm-sync: {}
   k8s-schemas: {}

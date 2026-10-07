@@ -80,5 +80,6 @@ locals {
     ai-gateway    = { namespace = "ai-gateway", role = "ai_gateway" }
     dawarich      = { namespace = "dawarich", role = "dawarich_2" }
     forgejo       = { namespace = "forgejo", role = "forgejo" }
+    firefly       = { namespace = "firefly", role = "firefly" }
   }
 }
