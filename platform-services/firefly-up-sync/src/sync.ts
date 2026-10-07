@@ -1,6 +1,7 @@
 import type { Config } from "./config.ts";
-import type { AccountKind, FireflyClient, NewFireflyAccount } from "./firefly.ts";
+import type { AccountKind, FireflyClient, FireflyTransaction, NewFireflyAccount } from "./firefly.ts";
 import { type CardAccount, Planner, type TrackedAccount } from "./planner.ts";
+import { Schedule } from "./schedule.ts";
 import type { UpAccount, UpClient, UpTransaction } from "./up.ts";
 
 export type SyncResult = {
@@ -48,16 +49,10 @@ export class Sync {
 
     const missing = planned.filter((transaction) => !existing.has(transaction.external_id));
 
-    for (const transaction of missing) {
-      console.log(
-        `${this.config.dryRun ? "would create" : "creating"} ${transaction.type} ` +
-          `${transaction.amount} ${transaction.currency_code} "${transaction.description}" (${transaction.external_id})`,
-      );
+    const schedule = new Schedule(missing, this.config.concurrency);
 
-      if (!this.config.dryRun) {
-        await this.firefly.createTransaction(transaction);
-      }
-    }
+    await this.createAll(schedule.warmup);
+    await Promise.all(schedule.lanes.map((lane) => this.createAll(lane)));
 
     return {
       fetched: transactions.length,
@@ -127,6 +122,19 @@ export class Sync {
       opening_balance: (owedCents / 100).toFixed(2),
       opening_balance_date: importSince.toISOString().slice(0, 10),
     };
+  }
+
+  private async createAll(transactions: FireflyTransaction[]): Promise<void> {
+    for (const transaction of transactions) {
+      console.log(
+        `${this.config.dryRun ? "would create" : "creating"} ${transaction.type} ` +
+          `${transaction.amount} ${transaction.currency_code} "${transaction.description}" (${transaction.external_id})`,
+      );
+
+      if (!this.config.dryRun) {
+        await this.firefly.createTransaction(transaction);
+      }
+    }
   }
 
   private async resolveCards(): Promise<CardAccount[]> {

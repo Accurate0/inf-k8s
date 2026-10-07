@@ -8,6 +8,7 @@ export class Config {
   readonly fireflyUrl: string;
   readonly fireflyToken: string;
   readonly lookbackDays: number;
+  readonly concurrency: number;
   readonly dryRun: boolean;
   readonly cardAccounts: CardAccountConfig[];
 
@@ -16,6 +17,7 @@ export class Config {
     this.fireflyUrl = Config.required(env, "FIREFLY_URL").replace(/\/+$/, "");
     this.fireflyToken = Config.required(env, "FIREFLY_TOKEN");
     this.lookbackDays = Config.positiveInteger(env, "LOOKBACK_DAYS", 14);
+    this.concurrency = Config.positiveInteger(env, "CONCURRENCY", 1);
     this.dryRun = env.DRY_RUN === "true";
     this.cardAccounts = Config.cardAccounts(env, "CARD_ACCOUNTS");
   }
