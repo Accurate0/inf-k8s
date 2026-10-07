@@ -37,7 +37,7 @@ opentelemetry-semantic-conventions = { version = "0.33.0", features = ["semconv_
 tracing-opentelemetry = "0.34.0"
 axum-tracing-opentelemetry = "0.42.0"
 clap = { version = "4", features = ["derive", "env"] }
-jsonwebtoken = { version = "10", features = ["rust_crypto"] }
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 base64 = "0.22"
 dirs = "6"
 open = "5"
