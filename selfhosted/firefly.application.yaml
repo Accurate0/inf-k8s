@@ -219,6 +219,7 @@ spec:
           config:
             env:
               IGNORE_DUPLICATE_ERRORS: "false"
+              IMPORT_DIR_ALLOWLIST: /var/www/html/storage/configurations,/var/www/html/storage/uploads
               TZ: Australia/Perth
             files:
               - mountPath: /var/www/html/storage/configurations
@@ -229,7 +230,7 @@ spec:
                     "source": "ff3-importer-2.2.3",
                     "created_at": "2026-10-07T23:50:00+08:00",
                     "date": "d/m/Y",
-                    "default_account": 0,
+                    "default_account": 44,
                     "delimiter": "comma",
                     "headers": true,
                     "rules": true,
