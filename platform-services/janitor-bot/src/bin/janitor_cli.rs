@@ -242,7 +242,7 @@ async fn run_replay(
                 None => {
                     let (e, t) = janitor_bot::forgejo::infer_event(&body).context(
                         "could not infer X-Forgejo-Event from payload; pass --event \
-                         (pull_request|issue_comment)",
+                         (pull_request|issue_comment|push)",
                     )?;
                     (e.to_string(), event_type.or(t))
                 }

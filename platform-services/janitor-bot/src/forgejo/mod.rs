@@ -1042,6 +1042,9 @@ pub fn infer_event(body: &[u8]) -> Option<(&'static str, Option<&'static str>)> 
         Some(("issue_comment", on_pr.then_some("pull_request_comment")))
     } else if obj.get("pull_request").is_some_and(|p| p.is_object()) {
         Some(("pull_request", None))
+    } else if obj.contains_key("ref") && (obj.contains_key("pusher") || obj.contains_key("commits"))
+    {
+        Some(("push", None))
     } else {
         None
     }

@@ -156,6 +156,7 @@ spec:
               server.insecure: true
             secret:
               githubSecret: $argocd-managed-secrets:GITHUB_WEBHOOK_SECRET
+              gogsSecret: $argocd-managed-secrets:GITHUB_WEBHOOK_SECRET
 
           notifications:
             enabled: true

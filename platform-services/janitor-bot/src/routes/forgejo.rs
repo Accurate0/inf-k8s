@@ -1,5 +1,6 @@
 use axum::{
-    extract::{Json, State},
+    body::Bytes,
+    extract::State,
     http::{HeaderMap, StatusCode},
 };
 use std::sync::Arc;
@@ -7,12 +8,12 @@ use tracing::Instrument;
 
 use super::background_span;
 use crate::AppState;
-use janitor_bot::{command, event};
+use janitor_bot::{command, event, github};
 
 pub async fn handle_forgejo_webhook(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-    Json(event): Json<event::WebhookEvent>,
+    body: Bytes,
 ) -> StatusCode {
     let auth = headers
         .get("Authorization")
@@ -33,6 +34,37 @@ pub async fn handle_forgejo_webhook(
         .unwrap_or("");
 
     janitor_bot::metrics::record_webhook("forgejo");
+
+    if forgejo_event == "push" {
+        let Some(push_event) = github::parse_push_event(&body) else {
+            tracing::info!("received forgejo push event but failed to parse");
+            return StatusCode::OK;
+        };
+
+        tracing::info!(
+            repository = push_event.repository,
+            branch = push_event.branch,
+            "received forgejo push event"
+        );
+
+        let raw = event::RawRequest::gogs_push(&state.github_webhook_secret, &body);
+
+        tokio::spawn(
+            async move {
+                state
+                    .orchestrator
+                    .evaluate_forgejo_push(&state.clients, &push_event, &raw)
+                    .await;
+            }
+            .instrument(background_span("forgejo_push")),
+        );
+
+        return StatusCode::OK;
+    }
+
+    let Ok(event) = serde_json::from_slice::<event::WebhookEvent>(&body) else {
+        return StatusCode::UNPROCESSABLE_ENTITY;
+    };
 
     tracing::info!(
         action = event.action,

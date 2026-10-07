@@ -51,7 +51,7 @@ impl BotEvent<'_> {
             BotEvent::GitHubWorkflow(_) => "workflow",
             BotEvent::GitHubCommitStatus(_) => "commit_status",
             BotEvent::GitHubCheckRun(_) => "check_run",
-            BotEvent::GitHubPush(_) => "push",
+            BotEvent::GitHubPush(_) | BotEvent::ForgejoPush(_) => "push",
             BotEvent::ArgoSync(_) => "argocd_sync",
         }
     }
@@ -68,7 +68,9 @@ impl BotEvent<'_> {
             BotEvent::GitHubCheckRun(cr) => {
                 format!("{} {} ({})", cr.repository, cr.name, cr.conclusion)
             }
-            BotEvent::GitHubPush(p) => format!("{} ({})", p.repository, p.branch),
+            BotEvent::GitHubPush(p) | BotEvent::ForgejoPush(p) => {
+                format!("{} ({})", p.repository, p.branch)
+            }
             BotEvent::ArgoSync(s) => format!("{} ({})", s.app_name, s.phase),
         }
     }
@@ -166,6 +168,12 @@ impl BotEvent<'_> {
                 vars.insert("repository", push.repository.clone());
                 vars.insert("github_push.repository", push.repository.clone());
                 vars.insert("github_push.branch", push.branch.clone());
+            }
+
+            BotEvent::ForgejoPush(push) => {
+                vars.insert("repository", push.repository.clone());
+                vars.insert("forgejo_push.repository", push.repository.clone());
+                vars.insert("forgejo_push.branch", push.branch.clone());
             }
 
             BotEvent::GitHubCheckRun(cr) => {

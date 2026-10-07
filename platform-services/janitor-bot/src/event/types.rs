@@ -143,6 +143,22 @@ pub struct RawRequest {
     pub headers: Vec<(String, String)>,
 }
 
+impl RawRequest {
+    pub fn gogs_push(secret: &str, body: &[u8]) -> Self {
+        let signature = crate::github::sign_payload(secret, body);
+        let signature = signature.trim_start_matches("sha256=").to_string();
+
+        Self {
+            body: body.to_vec(),
+            headers: vec![
+                ("content-type".into(), "application/json".into()),
+                ("x-gogs-event".into(), "push".into()),
+                ("x-gogs-signature".into(), signature),
+            ],
+        }
+    }
+}
+
 #[allow(dead_code)]
 pub struct CheckRunEvent {
     pub repository: String,
@@ -183,5 +199,6 @@ pub enum BotEvent<'a> {
     GitHubCommitStatus(&'a CommitStatusEvent),
     GitHubCheckRun(&'a CheckRunEvent),
     GitHubPush(&'a PushEvent),
+    ForgejoPush(&'a PushEvent),
     ArgoSync(&'a ArgoSyncEvent),
 }

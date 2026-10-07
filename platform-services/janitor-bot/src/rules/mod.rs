@@ -417,6 +417,25 @@ impl RulesOrchestrator {
         self.run_rules(clients, &bot_event, Some(raw)).await;
     }
 
+    pub async fn explain_forgejo_push(
+        &self,
+        clients: &Clients,
+        event: &PushEvent,
+    ) -> Vec<MatchedRule> {
+        let bot_event = BotEvent::ForgejoPush(event);
+        self.explain_rules(&bot_event, clients).await
+    }
+
+    pub async fn evaluate_forgejo_push(
+        &self,
+        clients: &Clients,
+        event: &PushEvent,
+        raw: &RawRequest,
+    ) {
+        let bot_event = BotEvent::ForgejoPush(event);
+        self.run_rules(clients, &bot_event, Some(raw)).await;
+    }
+
     pub async fn evaluate_workflow(&self, clients: &Clients, event: &mut WorkflowEvent) {
         let _guard = self.workflow_lock.lock().await;
 
