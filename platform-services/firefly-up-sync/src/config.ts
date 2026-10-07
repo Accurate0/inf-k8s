@@ -12,8 +12,10 @@ export class Config {
   readonly concurrency: number;
   readonly dryRun: boolean;
   readonly linkedAccounts: LinkedAccountConfig[];
+  readonly payoffPiggyBank: string | undefined;
 
   constructor(env: NodeJS.ProcessEnv) {
+    this.payoffPiggyBank = env.PAYOFF_PIGGY_BANK?.trim() || undefined;
     this.upToken = Config.required(env, "UP_TOKEN");
     this.fireflyUrl = Config.required(env, "FIREFLY_URL").replace(/\/+$/, "");
     this.fireflyToken = Config.required(env, "FIREFLY_TOKEN");

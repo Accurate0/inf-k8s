@@ -48,6 +48,20 @@ type FireflyPage<T> = {
   meta: { pagination: { total_pages: number } };
 };
 
+export type PiggyBank = {
+  id: string;
+  attributes: {
+    name: string;
+    target_amount: string;
+    accounts: { account_id: string; current_amount: string }[];
+  };
+};
+
+export type PiggyBankUpdate = {
+  target_amount: string;
+  accounts: { account_id: string; current_amount: string }[];
+};
+
 export type ExistingTransaction = {
   groupId: string;
   journalId: string;
@@ -107,6 +121,14 @@ export class FireflyClient {
     const body = await this.request<{ data: FireflyAccount }>("POST", "/api/v1/accounts", account);
 
     return body.data;
+  }
+
+  async piggyBanks(): Promise<PiggyBank[]> {
+    return this.paginate<PiggyBank>("/api/v1/piggy-banks", {});
+  }
+
+  async updatePiggyBank(piggyBank: PiggyBank, update: PiggyBankUpdate): Promise<void> {
+    await this.request("PUT", `/api/v1/piggy-banks/${piggyBank.id}`, update);
   }
 
   async existingBetween(start: Date, end: Date): Promise<Map<string, ExistingTransaction>> {

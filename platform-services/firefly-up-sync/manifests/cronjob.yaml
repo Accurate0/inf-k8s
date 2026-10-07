@@ -40,6 +40,8 @@ spec:
                   value: http://firefly.firefly.svc.cluster.local
                 - name: LOOKBACK_DAYS
                   value: "14"
+                - name: PAYOFF_PIGGY_BANK
+                  value: Home loan payoff
                 - name: LINKED_ACCOUNTS
                   value: |
                     [

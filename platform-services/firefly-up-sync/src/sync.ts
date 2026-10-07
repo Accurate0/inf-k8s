@@ -1,5 +1,6 @@
 import type { Config } from "./config.ts";
 import type { AccountKind, FireflyClient, FireflyTransaction, NewFireflyAccount } from "./firefly.ts";
+import { Payoff } from "./payoff.ts";
 import { type LinkedAccount, Planner, type TrackedAccount } from "./planner.ts";
 import { type PlannedUpdate, Reconciler } from "./reconciler.ts";
 import { Schedule } from "./schedule.ts";
@@ -67,6 +68,7 @@ export class Sync {
 
     await this.updateAll(updates);
     await this.removeAll(reconciler);
+    await this.updatePayoff(accounts);
 
     return {
       fetched: transactions.length,
@@ -166,6 +168,38 @@ export class Sync {
       if (!this.config.dryRun) {
         await this.firefly.updateTransaction(existing, update);
       }
+    }
+  }
+
+  private async updatePayoff(accounts: Map<string, TrackedAccount>): Promise<void> {
+    const name = this.config.payoffPiggyBank;
+
+    if (!name) {
+      return;
+    }
+
+    const piggyBank = (await this.firefly.piggyBanks()).find((candidate) => candidate.attributes.name === name);
+
+    if (!piggyBank) {
+      console.log(`piggy bank "${name}" not found, skipping payoff update`);
+      return;
+    }
+
+    const payoff = new Payoff(piggyBank, await this.up.accounts(), accounts);
+
+    if (!payoff.update) {
+      return;
+    }
+
+    const saved = payoff.update.accounts.reduce((total, entry) => total + Number(entry.current_amount), 0);
+
+    console.log(
+      `${this.config.dryRun ? "would update" : "updating"} piggy bank "${name}": ` +
+        `owed ${payoff.update.target_amount}, offset ${saved.toFixed(2)}`,
+    );
+
+    if (!this.config.dryRun) {
+      await this.firefly.updatePiggyBank(piggyBank, payoff.update);
     }
   }
 
