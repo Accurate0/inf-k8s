@@ -15,6 +15,8 @@ export type LinkedAccount = {
 export class Planner {
   static readonly COUNTERPART_WINDOW_MS = 60_000;
   static readonly PENDING_TAG = "pending";
+  static readonly CASHBACK_SUFFIX = ":cashback";
+  static readonly CASHBACK_SOURCE = "Up cashback";
 
   private readonly accounts: Map<string, TrackedAccount>;
   private readonly importSince: Date;
@@ -53,6 +55,12 @@ export class Planner {
       }
 
       planned.push(this.toFirefly(transaction));
+
+      const cashback = this.cashback(transaction);
+
+      if (cashback) {
+        planned.push(cashback);
+      }
     }
 
     return planned.sort((a, b) => a.date.localeCompare(b.date));
@@ -108,6 +116,26 @@ export class Planner {
     }
 
     return tags.length > 0 ? tags : undefined;
+  }
+
+  private cashback(transaction: UpTransaction): FireflyTransaction | undefined {
+    const { cashback, status, createdAt } = transaction.attributes;
+
+    if (!cashback || status === "HELD" || cashback.amount.valueInBaseUnits === 0) {
+      return undefined;
+    }
+
+    return {
+      type: "deposit",
+      date: createdAt,
+      amount: Planner.formatAmount(cashback.amount.valueInBaseUnits),
+      description: `Cashback: ${cashback.description}`,
+      currency_code: cashback.amount.currencyCode,
+      external_id: `${transaction.id}${Planner.CASHBACK_SUFFIX}`,
+      source_name: Planner.CASHBACK_SOURCE,
+      destination_id: this.accounts.get(transaction.relationships.account.data.id)!.id,
+      notes: `Cashback on "${transaction.attributes.description}"`,
+    };
   }
 
   private linkedFor(transaction: UpTransaction): TrackedAccount | undefined {

@@ -23,6 +23,7 @@ type Overrides = {
   tags?: string[];
   message?: string;
   foreign?: { cents: number; currency: string };
+  cashback?: { cents: number; description: string };
 };
 
 function transaction(overrides: Overrides): UpTransaction {
@@ -43,6 +44,16 @@ function transaction(overrides: Overrides): UpTransaction {
             currencyCode: overrides.foreign.currency,
             value: (overrides.foreign.cents / 100).toFixed(2),
             valueInBaseUnits: overrides.foreign.cents,
+          }
+        : null,
+      cashback: overrides.cashback
+        ? {
+            description: overrides.cashback.description,
+            amount: {
+              currencyCode: "AUD",
+              value: (overrides.cashback.cents / 100).toFixed(2),
+              valueInBaseUnits: overrides.cashback.cents,
+            },
           }
         : null,
       createdAt: overrides.createdAt ?? "2026-10-05T09:00:00+08:00",
@@ -276,6 +287,41 @@ test("a held transaction is tagged pending and a settled one is not", () => {
 
   assert.deepEqual(planned.find((entry) => entry.external_id === "held")?.tags, ["work", "pending"]);
   assert.equal(planned.find((entry) => entry.external_id === "settled")?.tags, undefined);
+});
+
+test("cashback on a purchase is recorded as its own deposit", () => {
+  const planned = plan([
+    transaction({
+      id: "t1",
+      account: "up-spending",
+      cents: -550,
+      cashback: { cents: 550, description: "Perk-up winner" },
+    }),
+  ]);
+
+  const purchase = planned.find((entry) => entry.external_id === "t1");
+  const cashback = planned.find((entry) => entry.external_id === "t1:cashback");
+
+  assert.equal(planned.length, 2);
+  assert.equal(purchase?.type, "withdrawal");
+  assert.equal(purchase?.amount, "5.50");
+  assert.equal(cashback?.type, "deposit");
+  assert.equal(cashback?.amount, "5.50");
+  assert.equal(cashback?.source_name, "Up cashback");
+  assert.equal(cashback?.destination_id, "1");
+  assert.equal(cashback?.description, "Cashback: Perk-up winner");
+});
+
+test("cashback is not recorded while the purchase is still held", () => {
+  const held = transaction({
+    id: "t1",
+    account: "up-spending",
+    cents: -550,
+    cashback: { cents: 100, description: "Onboarding bonus" },
+  });
+  held.attributes.status = "HELD";
+
+  assert.deepEqual(plan([held]).map((entry) => entry.external_id), ["t1"]);
 });
 
 test("message and foreign amount end up in the notes", () => {

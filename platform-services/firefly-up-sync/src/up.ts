@@ -27,6 +27,7 @@ export type UpTransaction = {
     message: string | null;
     amount: UpMoney;
     foreignAmount: UpMoney | null;
+    cashback: { description: string; amount: UpMoney } | null;
     createdAt: string;
     settledAt: string | null;
   };
