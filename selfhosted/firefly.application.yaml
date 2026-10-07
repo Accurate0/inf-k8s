@@ -28,7 +28,7 @@ spec:
   sources:
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.3.0
+      targetRevision: 0.4.0
       helm:
         valuesObject:
           clients:
@@ -49,9 +49,9 @@ spec:
                   - openid
                   - email
                   - profile
-                forwardAccessToken: true
                 jwt:
                   cacheDuration: 3600s
+                  idToken: true
                   claimToHeaders:
                     - claim: email
                       header: x-firefly-user-email
