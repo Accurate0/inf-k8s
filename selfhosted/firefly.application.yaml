@@ -228,6 +228,8 @@ spec:
               memory: 512Mi
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/firefly
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      path: platform-services/firefly-up-sync/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: firefly
