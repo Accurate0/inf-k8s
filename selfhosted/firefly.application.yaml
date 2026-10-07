@@ -11,6 +11,11 @@ spec:
       name: firefly-app-key
       jsonPointers:
         - /data
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: firefly
+      jqPathExpressions:
+        - ".spec.rules[].backendRefs[].group"
   syncPolicy:
     syncOptions:
       - ApplyOutOfSyncOnly=true
