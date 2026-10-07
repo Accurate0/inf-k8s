@@ -1,0 +1,51 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: firefly-up-sync
+  namespace: firefly
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 1
+      template:
+        metadata:
+          labels:
+            app: firefly-up-sync
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: firefly-up-sync
+              image: ghcr.io/accurate0/firefly-up-sync
+              imagePullPolicy: Always
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              env:
+                - name: FIREFLY_URL
+                  value: http://firefly.firefly.svc.cluster.local
+                - name: LOOKBACK_DAYS
+                  value: "14"
+              envFrom:
+                - secretRef:
+                    name: firefly-up-sync-managed-secrets
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
