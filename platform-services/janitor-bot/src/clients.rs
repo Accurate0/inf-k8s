@@ -2,7 +2,6 @@ use crate::argocd::ArgocdClient;
 use crate::feature_flag::FeatureFlagClient;
 use crate::forgejo::ForgejoClient;
 use crate::github::GitHubClient;
-use crate::llm::LlmClient;
 use crate::registry::RegistryClient;
 
 pub struct Clients {
@@ -11,8 +10,6 @@ pub struct Clients {
     pub argocd: ArgocdClient,
     pub feature_flag: FeatureFlagClient,
     pub registry: RegistryClient,
-    /// Present only when `AI_GATEWAY_TOKEN` is configured; gates the autofix command.
-    pub llm: Option<LlmClient>,
 }
 
 impl Clients {
@@ -22,7 +19,6 @@ impl Clients {
         argocd: ArgocdClient,
         feature_flag: FeatureFlagClient,
         registry: RegistryClient,
-        llm: Option<LlmClient>,
     ) -> Self {
         Self {
             forgejo,
@@ -30,7 +26,6 @@ impl Clients {
             argocd,
             feature_flag,
             registry,
-            llm,
         }
     }
 }

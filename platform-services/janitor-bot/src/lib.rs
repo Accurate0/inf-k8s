@@ -1,5 +1,4 @@
 pub mod argocd;
-pub mod autofix;
 pub mod cache;
 pub mod clients;
 pub mod dashboard;
@@ -9,7 +8,6 @@ pub mod feature_flag;
 pub mod forgejo;
 pub mod git;
 pub mod github;
-pub mod llm;
 pub mod marker;
 pub mod metrics;
 pub mod registry;

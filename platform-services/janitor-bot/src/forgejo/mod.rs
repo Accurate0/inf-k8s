@@ -656,84 +656,6 @@ impl ForgejoClient {
         Ok(resp)
     }
 
-    /// Downloads the plaintext logs for a Forgejo Actions job from a commit
-    /// status `target_url`, which is site-relative (e.g.
-    /// `/anurag/k8s/actions/runs/561/jobs/0`).
-    ///
-    /// The URL carries the run's per-repo index and the job's position within
-    /// the run, neither of which is the job ID the logs endpoint wants — so we
-    /// list the run's jobs first and resolve the position to an ID. When the
-    /// position is missing or out of range we fall back to concatenating the
-    /// logs of every failed job in the run.
-    ///
-    /// Needs Forgejo v16+ for `GET /repos/{owner}/{repo}/actions/jobs/{id}/logs`.
-    #[tracing::instrument(skip_all)]
-    pub async fn get_action_logs(&self, target_url: &str) -> Option<String> {
-        let (owner, repo, run_index, job_index) = parse_forgejo_job_url(target_url)?;
-
-        let jobs = match self
-            .api
-            .list_action_run_jobs(owner, repo, run_index)
-            .send()
-            .await
-        {
-            Ok(jobs) => jobs,
-            Err(e) => {
-                tracing::warn!(owner, repo, run_index, "forgejo run jobs fetch failed: {e}");
-                return None;
-            }
-        };
-
-        let selected: Vec<&ActionRunJob> = match job_index.and_then(|i| jobs.get(i)) {
-            Some(job) => vec![job],
-            None => jobs
-                .iter()
-                .filter(|j| matches!(j.status.as_deref(), Some("failure") | Some("cancelled")))
-                .collect(),
-        };
-
-        let mut out = String::new();
-        for job in selected {
-            let Some(id) = job.id else {
-                continue;
-            };
-
-            let query = RepoGetActionJobLogsQuery::default();
-            match self
-                .api
-                .repo_get_action_job_logs(owner, repo, id, query)
-                .send()
-                .await
-            {
-                Ok(logs) if !logs.trim().is_empty() => {
-                    if let Some(name) = &job.name {
-                        out.push_str(&format!("#### {name}\n"));
-                    }
-
-                    out.push_str(&logs);
-                    if !logs.ends_with('\n') {
-                        out.push('\n');
-                    }
-                }
-                Ok(_) => {}
-                Err(e) => {
-                    tracing::warn!(
-                        owner,
-                        repo,
-                        job_id = id,
-                        "forgejo job logs fetch failed: {e}"
-                    );
-                }
-            }
-        }
-
-        if out.trim().is_empty() {
-            None
-        } else {
-            Some(out)
-        }
-    }
-
     #[tracing::instrument(skip_all, fields(owner, repo, sha))]
     pub async fn get_combined_status_by_ref(
         &self,
@@ -1050,45 +972,9 @@ pub fn infer_event(body: &[u8]) -> Option<(&'static str, Option<&'static str>)> 
     }
 }
 
-/// Parses a Forgejo Actions commit-status `target_url`
-/// (`/{owner}/{repo}/actions/runs/{run_index}[/jobs/{job_index}]`) into its
-/// parts. `run_index` is the per-repo run number the API also keys on; the
-/// job part is a position within the run, not a job ID, and may be absent.
-fn parse_forgejo_job_url(url: &str) -> Option<(&str, &str, i64, Option<usize>)> {
-    let mut parts = url.trim_start_matches('/').split('/');
-    let owner = parts.next()?;
-    let repo = parts.next()?;
-
-    if parts.next()? != "actions" || parts.next()? != "runs" {
-        return None;
-    }
-
-    let run_index: i64 = parts.next()?.parse().ok()?;
-    let job_index = match parts.next() {
-        Some("jobs") => parts.next().and_then(|i| i.parse().ok()),
-        _ => None,
-    };
-
-    Some((owner, repo, run_index, job_index))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn parses_forgejo_job_url() {
-        assert_eq!(
-            parse_forgejo_job_url("/anurag/k8s/actions/runs/561/jobs/2"),
-            Some(("anurag", "k8s", 561, Some(2)))
-        );
-        assert_eq!(
-            parse_forgejo_job_url("/anurag/k8s/actions/runs/561"),
-            Some(("anurag", "k8s", 561, None))
-        );
-        assert!(parse_forgejo_job_url("/anurag/k8s/pulls/5").is_none());
-        assert!(parse_forgejo_job_url("/anurag/k8s/actions/runs/abc").is_none());
-    }
 
     #[test]
     fn infer_event_distinguishes_comment_targets() {

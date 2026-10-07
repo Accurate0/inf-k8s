@@ -44,8 +44,6 @@ spec:
                 path: rules/automerge-renovate-terraform.yaml
               - key: automerge-renovate-rust.yaml
                 path: rules/automerge-renovate-rust.yaml
-              - key: automerge-autofix.yaml
-                path: rules/automerge-autofix.yaml
               - key: retry-renovate-workflow.yaml
                 path: rules/retry-renovate-workflow.yaml
               - key: argocd-diff-renovate.yaml
@@ -108,8 +106,6 @@ spec:
               value: http://api.feature-flags.svc.cluster.local:50051
             - name: ARGOCD_SERVER
               value: http://argocd-server.argocd.svc.cluster.local:80
-            - name: AI_GATEWAY_URL
-              value: http://api.ai-gateway.svc.cluster.local
             - name: OTEL_TRACING_URL
               value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
             - name: FORGEJO_INSTANCE_URL
