@@ -6,13 +6,26 @@ export type FireflyAccount = {
   };
 };
 
-export type NewFireflyAccount = {
-  name: string;
-  type: "asset";
-  account_role: "defaultAsset" | "savingAsset";
-  currency_code: string;
-  account_number: string;
-};
+export type AccountKind = "asset" | "liability";
+
+export type NewFireflyAccount =
+  | {
+      name: string;
+      type: "asset";
+      account_role: "defaultAsset" | "savingAsset";
+      currency_code: string;
+      account_number: string;
+    }
+  | {
+      name: string;
+      type: "liability";
+      liability_type: "mortgage";
+      liability_direction: "debit";
+      currency_code: string;
+      account_number: string;
+      opening_balance?: string;
+      opening_balance_date?: string;
+    };
 
 export type FireflyTransaction = {
   type: "withdrawal" | "deposit" | "transfer";
@@ -52,8 +65,10 @@ export class FireflyClient {
     this.token = token;
   }
 
-  async assetAccounts(): Promise<FireflyAccount[]> {
-    return this.paginate<FireflyAccount>("/api/v1/accounts", { type: "asset" });
+  async accounts(kind: AccountKind): Promise<FireflyAccount[]> {
+    return this.paginate<FireflyAccount>("/api/v1/accounts", {
+      type: kind === "asset" ? "asset" : "liabilities",
+    });
   }
 
   async createAccount(account: NewFireflyAccount): Promise<FireflyAccount> {

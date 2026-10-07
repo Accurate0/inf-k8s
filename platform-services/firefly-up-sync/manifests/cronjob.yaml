@@ -6,6 +6,7 @@ metadata:
   namespace: firefly
 spec:
   schedule: "*/30 * * * *"
+  suspend: true
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 3
   failedJobsHistoryLimit: 3

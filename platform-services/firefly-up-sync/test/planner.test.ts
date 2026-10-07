@@ -1,12 +1,13 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { Planner } from "../src/planner.ts";
+import { Planner, type TrackedAccount } from "../src/planner.ts";
 import type { UpTransaction } from "../src/up.ts";
 
-const ACCOUNTS = new Map([
-  ["up-spending", "1"],
-  ["up-saver", "2"],
+const ACCOUNTS = new Map<string, TrackedAccount>([
+  ["up-spending", { id: "1", kind: "asset" }],
+  ["up-saver", { id: "2", kind: "asset" }],
+  ["up-home-loan", { id: "3", kind: "liability" }],
 ]);
 
 const IMPORT_SINCE = new Date("2026-10-01T00:00:00+08:00");
@@ -151,7 +152,7 @@ test("an outgoing side before the import window still suppresses its incoming si
 test("transactions before the import window or on untracked accounts are skipped", () => {
   const planned = plan([
     transaction({ id: "old", account: "up-spending", cents: -100, createdAt: "2026-09-20T09:00:00+08:00" }),
-    transaction({ id: "loan", account: "up-home-loan", cents: -100 }),
+    transaction({ id: "closed", account: "up-closed", cents: -100 }),
   ]);
 
   assert.equal(planned.length, 0);
@@ -159,10 +160,49 @@ test("transactions before the import window or on untracked accounts are skipped
 
 test("a transfer to an untracked account is treated as a plain withdrawal", () => {
   const [planned] = plan([
-    transaction({ id: "t1", account: "up-spending", cents: -5000, transferAccount: "up-home-loan" }),
+    transaction({ id: "t1", account: "up-spending", cents: -5000, transferAccount: "up-closed" }),
   ]);
 
   assert.equal(planned?.type, "withdrawal");
+  assert.equal(planned?.destination_name, "Coffee");
+  assert.equal(planned?.destination_id, undefined);
+});
+
+test("a home loan repayment is one withdrawal into the liability", () => {
+  const planned = plan([
+    transaction({ id: "out", account: "up-spending", cents: -357300, transferAccount: "up-home-loan" }),
+    transaction({ id: "in", account: "up-home-loan", cents: 357300, transferAccount: "up-spending" }),
+  ]);
+
+  assert.equal(planned.length, 1);
+  assert.equal(planned[0]?.type, "withdrawal");
+  assert.equal(planned[0]?.external_id, "out");
+  assert.equal(planned[0]?.source_id, "1");
+  assert.equal(planned[0]?.destination_id, "3");
+  assert.equal(planned[0]?.destination_name, undefined);
+});
+
+test("a redraw from the home loan is one deposit out of the liability", () => {
+  const planned = plan([
+    transaction({ id: "out", account: "up-home-loan", cents: -100000, transferAccount: "up-spending" }),
+    transaction({ id: "in", account: "up-spending", cents: 100000, transferAccount: "up-home-loan" }),
+  ]);
+
+  assert.equal(planned.length, 1);
+  assert.equal(planned[0]?.type, "deposit");
+  assert.equal(planned[0]?.source_id, "3");
+  assert.equal(planned[0]?.destination_id, "1");
+});
+
+test("interest charged on the home loan is a withdrawal from the liability", () => {
+  const [planned] = plan([
+    transaction({ id: "t1", account: "up-home-loan", cents: -123456, description: "Interest" }),
+  ]);
+
+  assert.equal(planned?.type, "withdrawal");
+  assert.equal(planned?.amount, "1234.56");
+  assert.equal(planned?.source_id, "3");
+  assert.equal(planned?.destination_name, "Interest");
 });
 
 test("message and foreign amount end up in the notes", () => {

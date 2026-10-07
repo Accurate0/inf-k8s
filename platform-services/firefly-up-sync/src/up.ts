@@ -10,6 +10,7 @@ export type UpAccount = {
     displayName: string;
     accountType: string;
     ownershipType: string;
+    balance: UpMoney;
   };
 };
 

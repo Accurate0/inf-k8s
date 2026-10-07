@@ -1,14 +1,19 @@
-import type { FireflyTransaction } from "./firefly.ts";
+import type { AccountKind, FireflyTransaction } from "./firefly.ts";
 import type { UpTransaction } from "./up.ts";
+
+export type TrackedAccount = {
+  id: string;
+  kind: AccountKind;
+};
 
 export class Planner {
   static readonly COUNTERPART_WINDOW_MS = 60_000;
 
-  private readonly fireflyAccountIds: Map<string, string>;
+  private readonly accounts: Map<string, TrackedAccount>;
   private readonly importSince: Date;
 
-  constructor(fireflyAccountIds: Map<string, string>, importSince: Date) {
-    this.fireflyAccountIds = fireflyAccountIds;
+  constructor(accounts: Map<string, TrackedAccount>, importSince: Date) {
+    this.accounts = accounts;
     this.importSince = importSince;
   }
 
@@ -78,14 +83,22 @@ export class Planner {
     return lines.length > 0 ? lines.join("\n") : undefined;
   }
 
+  private static internalType(source: TrackedAccount, destination: TrackedAccount): FireflyTransaction["type"] {
+    if (source.kind === destination.kind) {
+      return "transfer";
+    }
+
+    return source.kind === "asset" ? "withdrawal" : "deposit";
+  }
+
   private isTracked(transaction: UpTransaction): boolean {
-    return this.fireflyAccountIds.has(transaction.relationships.account.data.id);
+    return this.accounts.has(transaction.relationships.account.data.id);
   }
 
   private isInternalTransfer(transaction: UpTransaction): boolean {
     const otherId = transaction.relationships.transferAccount.data?.id;
 
-    return otherId !== undefined && this.fireflyAccountIds.has(otherId);
+    return otherId !== undefined && this.accounts.has(otherId);
   }
 
   private findOutgoingCounterpart(
@@ -123,7 +136,7 @@ export class Planner {
   private toFirefly(transaction: UpTransaction): FireflyTransaction {
     const { attributes, relationships } = transaction;
     const cents = Planner.cents(transaction);
-    const accountId = this.fireflyAccountIds.get(relationships.account.data.id)!;
+    const account = this.accounts.get(relationships.account.data.id)!;
 
     const base = {
       date: attributes.createdAt,
@@ -137,13 +150,15 @@ export class Planner {
     };
 
     if (this.isInternalTransfer(transaction)) {
-      const otherId = this.fireflyAccountIds.get(relationships.transferAccount.data!.id)!;
+      const other = this.accounts.get(relationships.transferAccount.data!.id)!;
+      const source = cents < 0 ? account : other;
+      const destination = cents < 0 ? other : account;
 
       return {
         ...base,
-        type: "transfer",
-        source_id: cents < 0 ? accountId : otherId,
-        destination_id: cents < 0 ? otherId : accountId,
+        type: Planner.internalType(source, destination),
+        source_id: source.id,
+        destination_id: destination.id,
       };
     }
 
@@ -151,7 +166,7 @@ export class Planner {
       return {
         ...base,
         type: "withdrawal",
-        source_id: accountId,
+        source_id: account.id,
         destination_name: attributes.description,
       };
     }
@@ -160,7 +175,7 @@ export class Planner {
       ...base,
       type: "deposit",
       source_name: attributes.description,
-      destination_id: accountId,
+      destination_id: account.id,
     };
   }
 }
