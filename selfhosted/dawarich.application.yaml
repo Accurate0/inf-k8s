@@ -55,7 +55,7 @@ spec:
             - name: dawarich
               managedSecrets:
                 - secretName: dawarich-managed-secrets
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
+    - repoURL: https://git.anurag.sh/anurag/k8s.git
       path: selfhosted/dawarich
   destination:
     server: https://kubernetes.default.svc

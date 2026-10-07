@@ -14,7 +14,7 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
+    - repoURL: https://git.anurag.sh/anurag/k8s.git
       path: platform-services/kanidm-sync/manifests
   destination:
     server: https://kubernetes.default.svc

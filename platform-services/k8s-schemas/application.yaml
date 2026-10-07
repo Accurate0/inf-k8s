@@ -27,7 +27,7 @@ spec:
             - name: k8s-schemas
               managedSecrets:
                 - secretName: k8s-schemas-managed-secrets
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
+    - repoURL: https://git.anurag.sh/anurag/k8s.git
       path: platform-services/k8s-schemas/manifests
   destination:
     server: https://kubernetes.default.svc
