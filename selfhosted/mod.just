@@ -6,7 +6,13 @@ default:
 # Import an Amex activity CSV into Firefly III
 [no-cd]
 firefly-import-amex csv:
+    #!/usr/bin/env bash
+    set -euo pipefail
+
     test -f "{{csv}}"
-    kubectl -n firefly exec -i deploy/firefly-importer -- sh -c 'cat > /var/www/html/storage/uploads/amex.csv' < "{{csv}}"
-    kubectl -n firefly exec deploy/firefly-importer -- php artisan importer:import /var/www/html/storage/configurations/amex-au.json /var/www/html/storage/uploads/amex.csv
-    kubectl -n firefly exec deploy/firefly-importer -- rm -f /var/www/html/storage/uploads/amex.csv
+
+    importer() { kubectl -n firefly exec "$@" deploy/firefly-importer --; }
+    trap 'importer rm -f /var/www/html/storage/uploads/amex.csv' EXIT
+
+    importer -i sh -c 'cat > /var/www/html/storage/uploads/amex.csv' < "{{csv}}"
+    importer php artisan importer:import /var/www/html/storage/configurations/amex-au.json /var/www/html/storage/uploads/amex.csv

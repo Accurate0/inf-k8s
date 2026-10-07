@@ -218,7 +218,7 @@ spec:
 
           config:
             env:
-              IGNORE_DUPLICATE_ERRORS: "false"
+              IGNORE_DUPLICATE_ERRORS: "true"
               IMPORT_DIR_ALLOWLIST: /var/www/html/storage/configurations,/var/www/html/storage/uploads
               TZ: Australia/Perth
             files:
