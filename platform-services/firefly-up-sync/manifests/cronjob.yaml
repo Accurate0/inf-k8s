@@ -48,7 +48,10 @@ spec:
                       {"name": "Amex", "matches": ["American Express"]},
                       {"name": "ING", "matches": ["ING Savings", "ING Transactional"]},
                       {"name": "Ubank", "matches": ["ubank Savings", "ubank Transactional"]},
-                      {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]}
+                      {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]},
+                      {"name": "Vanguard", "matches": ["Vanguard"]},
+                      {"name": "Rent", "matches": ["Forward to Rent", "Transfer from Rent"]},
+                      {"name": "Spendings", "matches": ["Spendings"]}
                     ]
               envFrom:
                 - secretRef:
