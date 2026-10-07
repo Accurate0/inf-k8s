@@ -14,7 +14,7 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
-    - repoURL: https://git.anurag.sh/anurag/k8s.git
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: platform-services/janitor-bot
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
