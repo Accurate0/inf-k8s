@@ -111,6 +111,7 @@ spec:
               TRUSTED_PROXIES: "**"
               AUTHENTICATION_GUARD: remote_user_guard
               AUTHENTICATION_GUARD_HEADER: HTTP_X_FIREFLY_USER_EMAIL
+              ALLOW_WEBHOOKS: "true"
             envValueFrom:
               DB_DATABASE:
                 secretKeyRef:
