@@ -11,7 +11,8 @@ try {
   const result = await new Sync(config, up, firefly).run(new Date());
 
   console.log(
-    `done: fetched ${result.fetched} from Up, ${result.alreadyImported} already in Firefly, created ${result.created}` +
+    `done: fetched ${result.fetched} from Up, ${result.unchanged} unchanged, created ${result.created}, ` +
+      `updated ${result.updated}, removed ${result.removed}` +
       (config.dryRun ? " (dry run)" : ""),
   );
 } catch (error) {

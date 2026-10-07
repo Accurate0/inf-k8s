@@ -1,13 +1,16 @@
 import type { Config } from "./config.ts";
 import type { AccountKind, FireflyClient, FireflyTransaction, NewFireflyAccount } from "./firefly.ts";
-import { type CardAccount, Planner, type TrackedAccount } from "./planner.ts";
+import { type LinkedAccount, Planner, type TrackedAccount } from "./planner.ts";
+import { type PlannedUpdate, Reconciler } from "./reconciler.ts";
 import { Schedule } from "./schedule.ts";
 import type { UpAccount, UpClient, UpTransaction } from "./up.ts";
 
 export type SyncResult = {
   fetched: number;
-  alreadyImported: number;
+  unchanged: number;
   created: number;
+  updated: number;
+  removed: number;
 };
 
 export class Sync {
@@ -36,29 +39,48 @@ export class Sync {
     const importSince = new Date(now.getTime() - this.config.lookbackDays * Sync.DAY_MS);
     const fetchSince = new Date(importSince.getTime() - Sync.FETCH_MARGIN_DAYS * Sync.DAY_MS);
 
-    const transactions = await this.up.settledTransactionsSince(fetchSince);
+    const transactions = await this.up.transactionsSince(fetchSince);
     const accounts = await this.resolveAccounts(transactions, importSince);
-    const cards = await this.resolveCards();
+    const linked = await this.resolveLinked();
 
-    const planned = new Planner(accounts, importSince, cards).plan(transactions);
+    const planned = new Planner(accounts, importSince, linked).plan(transactions);
 
-    const existing = await this.firefly.externalIdsBetween(
+    const existing = await this.firefly.existingBetween(
       new Date(fetchSince.getTime() - Sync.EXISTING_MARGIN_DAYS * Sync.DAY_MS),
       new Date(now.getTime() + Sync.EXISTING_MARGIN_DAYS * Sync.DAY_MS),
     );
 
-    const missing = planned.filter((transaction) => !existing.has(transaction.external_id));
+    const reconciler = new Reconciler({
+      planned,
+      existing,
+      upIds: new Set(transactions.map((transaction) => transaction.id)),
+      fetchedSince: fetchSince,
+      pendingTag: Planner.PENDING_TAG,
+    });
 
-    const schedule = new Schedule(missing, this.config.concurrency);
+    const schedule = new Schedule(reconciler.create, this.config.concurrency);
 
     await this.createAll(schedule.warmup);
     await Promise.all(schedule.lanes.map((lane) => this.createAll(lane)));
 
+    const updates = reconciler.update.filter((entry) => this.config.dryRun || !Sync.touchesPendingAccount(entry));
+
+    await this.updateAll(updates);
+    await this.removeAll(reconciler);
+
     return {
       fetched: transactions.length,
-      alreadyImported: planned.length - missing.length,
-      created: this.config.dryRun ? 0 : missing.length,
+      unchanged: reconciler.unchanged,
+      created: this.config.dryRun ? 0 : reconciler.create.length,
+      updated: this.config.dryRun ? 0 : updates.length,
+      removed: this.config.dryRun ? 0 : reconciler.remove.length,
     };
+  }
+
+  private static touchesPendingAccount(entry: PlannedUpdate): boolean {
+    return (
+      entry.update.source_id === Sync.PENDING_ACCOUNT_ID || entry.update.destination_id === Sync.PENDING_ACCOUNT_ID
+    );
   }
 
   private static fireflyName(account: UpAccount): string {
@@ -137,8 +159,30 @@ export class Sync {
     }
   }
 
-  private async resolveCards(): Promise<CardAccount[]> {
-    if (this.config.cardAccounts.length === 0) {
+  private async updateAll(updates: PlannedUpdate[]): Promise<void> {
+    for (const { existing, update, reason } of updates) {
+      console.log(`${this.config.dryRun ? "would update" : "updating"} #${existing.groupId}: ${reason} (${existing.externalId})`);
+
+      if (!this.config.dryRun) {
+        await this.firefly.updateTransaction(existing, update);
+      }
+    }
+  }
+
+  private async removeAll(reconciler: Reconciler): Promise<void> {
+    for (const existing of reconciler.remove) {
+      console.log(
+        `${this.config.dryRun ? "would remove" : "removing"} #${existing.groupId}: hold released by Up (${existing.externalId})`,
+      );
+
+      if (!this.config.dryRun) {
+        await this.firefly.deleteTransaction(existing);
+      }
+    }
+  }
+
+  private async resolveLinked(): Promise<LinkedAccount[]> {
+    if (this.config.linkedAccounts.length === 0) {
       return [];
     }
 
@@ -148,34 +192,34 @@ export class Sync {
       byName.set(account.attributes.name, account.id);
     }
 
-    const cards: CardAccount[] = [];
+    const linked: LinkedAccount[] = [];
 
-    for (const card of this.config.cardAccounts) {
-      const existingId = byName.get(card.name);
+    for (const { name, matches, ids } of this.config.linkedAccounts) {
+      const existingId = byName.get(name);
 
       if (existingId) {
-        cards.push({ match: card.match, account: { id: existingId, kind: "asset" } });
+        linked.push({ matches, ids, account: { id: existingId, kind: "asset" } });
         continue;
       }
 
       if (this.config.dryRun) {
-        console.log(`would create Firefly card account "${card.name}"`);
-        cards.push({ match: card.match, account: { id: Sync.PENDING_ACCOUNT_ID, kind: "asset" } });
+        console.log(`would create Firefly account "${name}"`);
+        linked.push({ matches, ids, account: { id: Sync.PENDING_ACCOUNT_ID, kind: "asset" } });
         continue;
       }
 
       const created = await this.firefly.createAccount({
-        name: card.name,
+        name,
         type: "asset",
         account_role: "defaultAsset",
         currency_code: "AUD",
       });
 
-      console.log(`created Firefly card account "${created.attributes.name}" (#${created.id})`);
-      cards.push({ match: card.match, account: { id: created.id, kind: "asset" } });
+      console.log(`created Firefly account "${created.attributes.name}" (#${created.id})`);
+      linked.push({ matches, ids, account: { id: created.id, kind: "asset" } });
     }
 
-    return cards;
+    return linked;
   }
 
   private async resolveAccounts(

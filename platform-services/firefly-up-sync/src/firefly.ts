@@ -48,9 +48,41 @@ type FireflyPage<T> = {
   meta: { pagination: { total_pages: number } };
 };
 
+export type ExistingTransaction = {
+  groupId: string;
+  journalId: string;
+  splits: number;
+  externalId: string;
+  type: string;
+  date: string;
+  amount: string;
+  sourceId: string;
+  destinationId: string;
+  tags: string[];
+};
+
+export type TransactionUpdate = {
+  type?: FireflyTransaction["type"];
+  date?: string;
+  amount?: string;
+  source_id?: string;
+  destination_id?: string;
+  tags?: string[];
+};
+
 type FireflyTransactionGroup = {
+  id: string;
   attributes: {
-    transactions: { external_id: string | null }[];
+    transactions: {
+      transaction_journal_id: string;
+      external_id: string | null;
+      type: string;
+      date: string;
+      amount: string;
+      source_id: string;
+      destination_id: string;
+      tags: string[] | null;
+    }[];
   };
 };
 
@@ -77,24 +109,49 @@ export class FireflyClient {
     return body.data;
   }
 
-  async externalIdsBetween(start: Date, end: Date): Promise<Set<string>> {
+  async existingBetween(start: Date, end: Date): Promise<Map<string, ExistingTransaction>> {
     const groups = await this.paginate<FireflyTransactionGroup>("/api/v1/transactions", {
       type: "all",
       start: FireflyClient.dateOnly(start),
       end: FireflyClient.dateOnly(end),
     });
 
-    const ids = new Set<string>();
+    const existing = new Map<string, ExistingTransaction>();
 
     for (const group of groups) {
       for (const transaction of group.attributes.transactions) {
-        if (transaction.external_id) {
-          ids.add(transaction.external_id);
+        if (!transaction.external_id) {
+          continue;
         }
+
+        existing.set(transaction.external_id, {
+          groupId: group.id,
+          journalId: String(transaction.transaction_journal_id),
+          splits: group.attributes.transactions.length,
+          externalId: transaction.external_id,
+          type: transaction.type,
+          date: transaction.date,
+          amount: transaction.amount,
+          sourceId: String(transaction.source_id),
+          destinationId: String(transaction.destination_id),
+          tags: transaction.tags ?? [],
+        });
       }
     }
 
-    return ids;
+    return existing;
+  }
+
+  async updateTransaction(existing: ExistingTransaction, update: TransactionUpdate): Promise<void> {
+    await this.request("PUT", `/api/v1/transactions/${existing.groupId}`, {
+      apply_rules: false,
+      fire_webhooks: true,
+      transactions: [{ transaction_journal_id: existing.journalId, ...update }],
+    });
+  }
+
+  async deleteTransaction(existing: ExistingTransaction): Promise<void> {
+    await this.request("DELETE", `/api/v1/transactions/${existing.groupId}`);
   }
 
   async createTransaction(transaction: FireflyTransaction): Promise<void> {
@@ -146,6 +203,10 @@ export class FireflyClient {
     if (!response.ok) {
       const pathname = path.split("?")[0];
       throw new Error(`Firefly ${method} ${pathname} failed: ${response.status} ${await response.text()}`);
+    }
+
+    if (response.status === 204) {
+      return undefined as T;
     }
 
     return (await response.json()) as T;

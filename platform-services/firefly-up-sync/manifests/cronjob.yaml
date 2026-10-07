@@ -40,8 +40,14 @@ spec:
                   value: http://firefly.firefly.svc.cluster.local
                 - name: LOOKBACK_DAYS
                   value: "14"
-                - name: CARD_ACCOUNTS
-                  value: '[{"name": "Amex", "match": "American Express"}]'
+                - name: LINKED_ACCOUNTS
+                  value: |
+                    [
+                      {"name": "Amex", "matches": ["American Express"]},
+                      {"name": "ING", "matches": ["ING Savings", "ING Transactional"]},
+                      {"name": "Ubank", "matches": ["ubank Savings", "ubank Transactional"]},
+                      {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]}
+                    ]
               envFrom:
                 - secretRef:
                     name: firefly-up-sync-managed-secrets

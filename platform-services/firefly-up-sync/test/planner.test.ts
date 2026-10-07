@@ -206,7 +206,7 @@ test("interest charged on the home loan is a withdrawal from the liability", () 
 });
 
 test("a card payment is a transfer into the card account", () => {
-  const cards = [{ match: "American Express", account: { id: "9", kind: "asset" as const } }];
+  const cards = [{ matches: ["American Express"], ids: [], account: { id: "9", kind: "asset" as const } }];
 
   const planned = new Planner(ACCOUNTS, IMPORT_SINCE, cards).plan([
     transaction({ id: "pay", account: "up-saver", cents: -657039, description: "American Express Australia" }),
@@ -225,7 +225,7 @@ test("a card payment is a transfer into the card account", () => {
 });
 
 test("money back from a card is a transfer out of the card account", () => {
-  const cards = [{ match: "american express", account: { id: "9", kind: "asset" as const } }];
+  const cards = [{ matches: ["american express"], ids: [], account: { id: "9", kind: "asset" as const } }];
 
   const [planned] = new Planner(ACCOUNTS, IMPORT_SINCE, cards).plan([
     transaction({ id: "refund", account: "up-spending", cents: 2500, description: "AMERICAN EXPRESS AUSTRALIA" }),
@@ -234,6 +234,48 @@ test("money back from a card is a transfer out of the card account", () => {
   assert.equal(planned?.type, "transfer");
   assert.equal(planned?.source_id, "9");
   assert.equal(planned?.destination_id, "1");
+});
+
+test("a linked account matched by transaction id works without a description match", () => {
+  const linked = [{ matches: [], ids: ["deposit"], account: { id: "20", kind: "asset" as const } }];
+
+  const planned = new Planner(ACCOUNTS, IMPORT_SINCE, linked).plan([
+    transaction({ id: "deposit", account: "up-spending", cents: -17224415, description: "Debit" }),
+    transaction({ id: "other", account: "up-spending", cents: -500, description: "Debit" }),
+  ]);
+
+  assert.equal(planned.find((entry) => entry.external_id === "deposit")?.type, "transfer");
+  assert.equal(planned.find((entry) => entry.external_id === "deposit")?.destination_id, "20");
+  assert.equal(planned.find((entry) => entry.external_id === "other")?.type, "withdrawal");
+});
+
+test("a loan drawdown into a linked account is a deposit out of the liability", () => {
+  const linked = [{ matches: ["Drawdown"], ids: [], account: { id: "20", kind: "asset" as const } }];
+
+  const planned = new Planner(ACCOUNTS, IMPORT_SINCE, linked).plan([
+    transaction({ id: "draw", account: "up-home-loan", cents: -59951076, description: "Drawdown" }),
+    transaction({ id: "credit", account: "up-home-loan", cents: 6864, description: "Drawdown" }),
+  ]);
+
+  const draw = planned.find((entry) => entry.external_id === "draw");
+  const credit = planned.find((entry) => entry.external_id === "credit");
+
+  assert.equal(draw?.type, "deposit");
+  assert.equal(draw?.source_id, "3");
+  assert.equal(draw?.destination_id, "20");
+  assert.equal(credit?.type, "withdrawal");
+  assert.equal(credit?.source_id, "20");
+  assert.equal(credit?.destination_id, "3");
+});
+
+test("a held transaction is tagged pending and a settled one is not", () => {
+  const held = transaction({ id: "held", account: "up-spending", cents: -450, tags: ["work"] });
+  held.attributes.status = "HELD";
+
+  const planned = plan([held, transaction({ id: "settled", account: "up-spending", cents: -450 })]);
+
+  assert.deepEqual(planned.find((entry) => entry.external_id === "held")?.tags, ["work", "pending"]);
+  assert.equal(planned.find((entry) => entry.external_id === "settled")?.tags, undefined);
 });
 
 test("message and foreign amount end up in the notes", () => {

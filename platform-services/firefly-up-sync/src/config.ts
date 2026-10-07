@@ -1,6 +1,7 @@
-export type CardAccountConfig = {
+export type LinkedAccountConfig = {
   name: string;
-  match: string;
+  matches: string[];
+  ids: string[];
 };
 
 export class Config {
@@ -10,7 +11,7 @@ export class Config {
   readonly lookbackDays: number;
   readonly concurrency: number;
   readonly dryRun: boolean;
-  readonly cardAccounts: CardAccountConfig[];
+  readonly linkedAccounts: LinkedAccountConfig[];
 
   constructor(env: NodeJS.ProcessEnv) {
     this.upToken = Config.required(env, "UP_TOKEN");
@@ -19,10 +20,10 @@ export class Config {
     this.lookbackDays = Config.positiveInteger(env, "LOOKBACK_DAYS", 14);
     this.concurrency = Config.positiveInteger(env, "CONCURRENCY", 1);
     this.dryRun = env.DRY_RUN === "true";
-    this.cardAccounts = Config.cardAccounts(env, "CARD_ACCOUNTS");
+    this.linkedAccounts = Config.linkedAccounts(env, "LINKED_ACCOUNTS");
   }
 
-  private static cardAccounts(env: NodeJS.ProcessEnv, name: string): CardAccountConfig[] {
+  private static linkedAccounts(env: NodeJS.ProcessEnv, name: string): LinkedAccountConfig[] {
     const raw = env[name]?.trim();
 
     if (!raw) {
@@ -36,14 +37,32 @@ export class Config {
     }
 
     return parsed.map((entry) => {
-      const card = entry as Partial<CardAccountConfig>;
+      const account = entry as { name?: unknown; matches?: unknown; ids?: unknown };
+      const matches = Config.strings(account.matches);
+      const ids = Config.strings(account.ids);
 
-      if (typeof card.name !== "string" || !card.name.trim() || typeof card.match !== "string" || !card.match.trim()) {
-        throw new Error(`${name} entries need a non-empty "name" and "match"`);
+      if (typeof account.name !== "string" || !account.name.trim()) {
+        throw new Error(`${name} entries need a non-empty "name"`);
       }
 
-      return { name: card.name.trim(), match: card.match.trim() };
+      if (matches.length === 0 && ids.length === 0) {
+        throw new Error(`${name} entry "${account.name}" needs at least one of "matches" or "ids"`);
+      }
+
+      return { name: account.name.trim(), matches, ids };
     });
+  }
+
+  private static strings(value: unknown): string[] {
+    if (value === undefined) {
+      return [];
+    }
+
+    if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item.trim())) {
+      throw new Error(`expected an array of non-empty strings, got ${JSON.stringify(value)}`);
+    }
+
+    return value.map((item: string) => item.trim());
   }
 
   private static required(env: NodeJS.ProcessEnv, name: string): string {

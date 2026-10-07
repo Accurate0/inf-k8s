@@ -60,10 +60,9 @@ export class UpClient {
     return this.paginate<UpAccount>(url.toString());
   }
 
-  async settledTransactionsSince(since: Date): Promise<UpTransaction[]> {
+  async transactionsSince(since: Date): Promise<UpTransaction[]> {
     const url = new URL(`${UpClient.BASE_URL}/transactions`);
     url.searchParams.set("page[size]", String(UpClient.PAGE_SIZE));
-    url.searchParams.set("filter[status]", "SETTLED");
     url.searchParams.set("filter[since]", since.toISOString());
 
     return this.paginate<UpTransaction>(url.toString());

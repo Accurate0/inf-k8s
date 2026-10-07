@@ -6,22 +6,24 @@ export type TrackedAccount = {
   kind: AccountKind;
 };
 
-export type CardAccount = {
-  match: string;
+export type LinkedAccount = {
+  matches: string[];
+  ids: string[];
   account: TrackedAccount;
 };
 
 export class Planner {
   static readonly COUNTERPART_WINDOW_MS = 60_000;
+  static readonly PENDING_TAG = "pending";
 
   private readonly accounts: Map<string, TrackedAccount>;
   private readonly importSince: Date;
-  private readonly cards: CardAccount[];
+  private readonly linked: LinkedAccount[];
 
-  constructor(accounts: Map<string, TrackedAccount>, importSince: Date, cards: CardAccount[] = []) {
+  constructor(accounts: Map<string, TrackedAccount>, importSince: Date, linked: LinkedAccount[] = []) {
     this.accounts = accounts;
     this.importSince = importSince;
-    this.cards = cards.map((card) => ({ ...card, match: card.match.toLowerCase() }));
+    this.linked = linked.map((entry) => ({ ...entry, matches: entry.matches.map((match) => match.toLowerCase()) }));
   }
 
   plan(transactions: UpTransaction[]): FireflyTransaction[] {
@@ -98,14 +100,25 @@ export class Planner {
     return source.kind === "asset" ? "withdrawal" : "deposit";
   }
 
-  private cardFor(transaction: UpTransaction, account: TrackedAccount): TrackedAccount | undefined {
-    if (account.kind !== "asset") {
-      return undefined;
+  private static tags(transaction: UpTransaction): string[] | undefined {
+    const tags = transaction.relationships.tags.data.map((tag) => tag.id);
+
+    if (transaction.attributes.status === "HELD") {
+      tags.push(Planner.PENDING_TAG);
     }
 
+    return tags.length > 0 ? tags : undefined;
+  }
+
+  private linkedFor(transaction: UpTransaction): TrackedAccount | undefined {
     const description = transaction.attributes.description.toLowerCase();
 
-    return this.cards.find((card) => description.includes(card.match))?.account;
+    const entry = this.linked.find(
+      (candidate) =>
+        candidate.ids.includes(transaction.id) || candidate.matches.some((match) => description.includes(match)),
+    );
+
+    return entry?.account;
   }
 
   private isTracked(transaction: UpTransaction): boolean {
@@ -162,7 +175,7 @@ export class Planner {
       currency_code: attributes.amount.currencyCode,
       external_id: transaction.id,
       category_name: relationships.category.data ? Planner.categoryName(relationships.category.data.id) : undefined,
-      tags: relationships.tags.data.length > 0 ? relationships.tags.data.map((tag) => tag.id) : undefined,
+      tags: Planner.tags(transaction),
       notes: Planner.notes(transaction),
     };
 
@@ -179,14 +192,17 @@ export class Planner {
       };
     }
 
-    const card = this.cardFor(transaction, account);
+    const linked = this.linkedFor(transaction);
 
-    if (card) {
+    if (linked) {
+      const source = cents < 0 ? account : linked;
+      const destination = cents < 0 ? linked : account;
+
       return {
         ...base,
-        type: "transfer",
-        source_id: cents < 0 ? account.id : card.id,
-        destination_id: cents < 0 ? card.id : account.id,
+        type: Planner.internalType(source, destination),
+        source_id: source.id,
+        destination_id: destination.id,
       };
     }
 
