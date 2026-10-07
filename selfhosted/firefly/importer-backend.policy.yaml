@@ -1,0 +1,15 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.envoyproxy.io/backendtrafficpolicy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: BackendTrafficPolicy
+metadata:
+  name: firefly-importer-backend-traffic
+  namespace: firefly
+spec:
+  mergeType: StrategicMerge
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: HTTPRoute
+      name: firefly-importer
+  timeout:
+    http:
+      requestTimeout: 600s
