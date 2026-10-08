@@ -4,4 +4,4 @@ kind: Kustomization
 resources:
   - ./namespace.yaml
   - ./pvc.yaml
-  - ./importer-backend.policy.yaml
+  - ./backend.policy.yaml
