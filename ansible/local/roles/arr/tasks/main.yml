@@ -44,17 +44,28 @@
       loop_control:
         label: "{{ item.name }}"
 
+    - name: Create the release directories
+      ansible.builtin.file:
+        path: "{{ arr_install_root }}/{{ item.name }}/{{ item.version }}"
+        state: directory
+        owner: "{{ arr_user }}"
+        group: "{{ arr_group }}"
+        mode: "0755"
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }} {{ item.version }}"
+
     - name: Download and unpack releases
       ansible.builtin.unarchive:
         src: "{{ item.url }}"
-        dest: "{{ arr_install_root }}"
+        dest: "{{ arr_install_root }}/{{ item.name }}/{{ item.version }}"
         remote_src: true
         owner: "{{ arr_user }}"
         group: "{{ arr_group }}"
-        creates: "{{ arr_install_root }}/{{ item.binary }}/{{ item.binary }}"
+        creates: "{{ arr_install_root }}/{{ item.name }}/{{ item.version }}/{{ item.binary }}/{{ item.binary }}"
       loop: "{{ arr_apps }}"
       loop_control:
-        label: "{{ item.name }}"
+        label: "{{ item.name }} {{ item.version }}"
 
     - name: Install systemd units
       ansible.builtin.template:
@@ -64,10 +75,45 @@
       loop: "{{ arr_apps }}"
       loop_control:
         label: "{{ item.name }}"
+      register: arr_units
       notify: Reload systemd
 
     - name: Flush handlers so units exist before starting
       ansible.builtin.meta: flush_handlers
+
+    - name: Restart the apps whose unit changed
+      ansible.builtin.systemd_service:
+        name: "{{ item.item.name }}"
+        state: restarted
+      loop: "{{ arr_units.results }}"
+      loop_control:
+        label: "{{ item.item.name }}"
+      when: item.changed
+
+    - name: Find superseded releases
+      ansible.builtin.find:
+        paths: "{{ arr_install_root }}/{{ item.name }}"
+        file_type: any
+        hidden: true
+        excludes: ["{{ item.version }}"]
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+      register: arr_superseded
+
+    - name: Remove superseded releases
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: absent
+      loop: "{{ arr_superseded.results | map(attribute='files') | flatten | map(attribute='path') | list }}"
+
+    - name: Remove the unversioned installs
+      ansible.builtin.file:
+        path: "{{ arr_install_root }}/{{ item.binary }}"
+        state: absent
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.binary }}"
 
     - name: Enable and start
       ansible.builtin.systemd_service:

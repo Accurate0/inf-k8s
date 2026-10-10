@@ -15,6 +15,9 @@ unifi_mirror_ip: 10.0.2.17
 unifi_unraid_ip: 10.0.2.25
 unifi_k8s_pve_ip: 10.0.2.18
 
+unifi_dns_prune_domains:
+  - internal
+
 unifi_dns_records:
   - {key: jellyfin.media.internal, value: "{{ unifi_jellyfin_ip }}"}
   - {key: media.internal, value: "{{ unifi_jellyfin_ip }}"}
@@ -24,7 +27,6 @@ unifi_dns_records:
   - {key: prowlarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
   - {key: bazarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
   - {key: flaresolverr.media.internal, value: "{{ unifi_media_apps_ip }}"}
-  - {key: seerr.media.internal, value: "{{ unifi_media_apps_ip }}"}
 
   - {key: transmission.media.internal, value: "{{ unifi_transmission_ip }}"}
 

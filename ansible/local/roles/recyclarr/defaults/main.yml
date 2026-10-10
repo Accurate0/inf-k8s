@@ -5,6 +5,7 @@ recyclarr_group: media
 # renovate: datasource=github-releases depName=recyclarr/recyclarr extractVersion=^v(?<version>.+)$
 recyclarr_version: "8.7.3"
 recyclarr_install_root: /opt/recyclarr
+recyclarr_release_root: "{{ recyclarr_install_root }}/{{ recyclarr_version }}"
 recyclarr_config_root: /var/lib/recyclarr
 
 recyclarr_url: "https://github.com/recyclarr/recyclarr/releases/download/v{{ recyclarr_version }}/recyclarr-linux-x64.tar.xz"

@@ -12,6 +12,10 @@ all *args:
 unifi *args:
     cd {{ansible_dir}} && ansible-playbook playbooks/unifi-dns.yaml {{args}}
 
+# Remove retired apps and their DNS records
+cleanup *args:
+    cd {{ansible_dir}} && ansible-playbook playbooks/cleanup.yaml {{args}}
+
 # Run an ansible playbook (e.g. just ansible local run media media)
 run playbook group:
     cd {{ansible_dir}} && ansible-playbook playbooks/{{playbook}}.yaml -l {{group}},localhost

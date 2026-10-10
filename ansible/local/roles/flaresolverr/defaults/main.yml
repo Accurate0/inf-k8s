@@ -6,6 +6,7 @@ flaresolverr_group: media
 flaresolverr_version: "3.5.2"
 flaresolverr_port: 8191
 flaresolverr_install_root: /opt/flaresolverr
+flaresolverr_release_root: "{{ flaresolverr_install_root }}/{{ flaresolverr_version }}"
 
 flaresolverr_home: /var/lib/flaresolverr
 

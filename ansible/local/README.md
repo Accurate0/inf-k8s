@@ -12,6 +12,7 @@ local/
 ├── group_vars/all.yml
 ├── playbooks/
 │   ├── local.yaml           # everything: guests, unifi dns/clients, hosts
+│   ├── cleanup.yaml         # tears down retired apps and their dns records
 │   ├── proxmox-guests.yaml  # LXC guests + the unraid VM
 │   └── unifi-dns.yaml       # dns records + client aliases
 └── roles/
@@ -202,6 +203,7 @@ export PVE_OIDC_CLIENT_SECRET=$(kubectl -n kanidm get secret kanidm-pve-oidc \
 ```sh
 just ansible local all                        # everything
 just ansible local run proxmox-guests proxmox # guests + the unraid VM
+just ansible local cleanup                    # remove retired apps
 just ansible local ping media_servers         # connectivity check
 ```
 

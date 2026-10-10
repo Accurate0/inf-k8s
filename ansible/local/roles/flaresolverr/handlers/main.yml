@@ -3,3 +3,8 @@
 - name: Reload systemd for flaresolverr
   ansible.builtin.systemd_service:
     daemon_reload: true
+
+- name: Restart flaresolverr
+  ansible.builtin.systemd_service:
+    name: flaresolverr
+    state: restarted

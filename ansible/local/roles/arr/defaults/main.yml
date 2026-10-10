@@ -19,7 +19,6 @@ arr_nginx_sites: "{{ arr_apps + arr_nginx_extra_sites }}"
 arr_nginx_extra_sites:
   - {name: bazarr, port: 6767}
   - {name: flaresolverr, port: 8191}
-  - {name: seerr, port: 5055}
 
 # renovate: datasource=github-releases depName=Sonarr/Sonarr versioning=loose extractVersion=^v(?<version>.+)$
 arr_sonarr_version: 4.0.20.3014
@@ -30,16 +29,19 @@ arr_prowlarr_version: 2.6.5.5623
 
 arr_apps:
   - name: sonarr
+    version: "{{ arr_sonarr_version }}"
     port: 8989
     binary: Sonarr
     url: "https://github.com/Sonarr/Sonarr/releases/download/v{{ arr_sonarr_version }}/Sonarr.main.{{ arr_sonarr_version }}.linux-x64.tar.gz"
 
   - name: radarr
+    version: "{{ arr_radarr_version }}"
     port: 7878
     binary: Radarr
     url: "https://github.com/Radarr/Radarr/releases/download/v{{ arr_radarr_version }}/Radarr.master.{{ arr_radarr_version }}.linux-core-x64.tar.gz"
 
   - name: prowlarr
+    version: "{{ arr_prowlarr_version }}"
     port: 9696
     binary: Prowlarr
     url: "https://github.com/Prowlarr/Prowlarr/releases/download/v{{ arr_prowlarr_version }}/Prowlarr.master.{{ arr_prowlarr_version }}.linux-core-x64.tar.gz"

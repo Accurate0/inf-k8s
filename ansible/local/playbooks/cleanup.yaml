@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Retire seerr
+  hosts: media-apps
+  gather_facts: false
+
+  vars:
+    cleanup_seerr_root: /opt/seerr
+
+  tasks:
+    - name: Seerr
+      become: true
+      become_user: root
+      block:
+        - name: Check for the compose project
+          ansible.builtin.stat:
+            path: "{{ cleanup_seerr_root }}/docker-compose.yml"
+          register: cleanup_seerr_compose
+
+        - name: Tear down the stack and its image
+          community.docker.docker_compose_v2:
+            project_src: "{{ cleanup_seerr_root }}"
+            state: absent
+            remove_images: all
+            remove_volumes: true
+            remove_orphans: true
+          when: cleanup_seerr_compose.stat.exists
+
+        - name: Remove the install and config directory
+          ansible.builtin.file:
+            path: "{{ cleanup_seerr_root }}"
+            state: absent
+
+- name: Retire DNS records
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars:
+    unifi_api_key: "{{ lookup('ansible.builtin.env', 'UNIFI_API_KEY') }}"
+
+  roles:
+    - role: unifi-dns
+      tags: [unifi, dns]

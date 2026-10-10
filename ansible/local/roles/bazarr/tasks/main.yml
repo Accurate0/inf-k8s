@@ -19,20 +19,21 @@
         mode: "0755"
       loop:
         - "{{ bazarr_install_root }}"
+        - "{{ bazarr_release_root }}"
         - "{{ bazarr_config_root }}"
 
     - name: Download and unpack bazarr
       ansible.builtin.unarchive:
         src: "{{ bazarr_url }}"
-        dest: "{{ bazarr_install_root }}"
+        dest: "{{ bazarr_release_root }}"
         remote_src: true
         owner: "{{ bazarr_user }}"
         group: "{{ bazarr_group }}"
-        creates: "{{ bazarr_install_root }}/bazarr.py"
+        creates: "{{ bazarr_release_root }}/bazarr.py"
 
     - name: Create the virtualenv and install requirements
       ansible.builtin.pip:
-        requirements: "{{ bazarr_install_root }}/requirements.txt"
+        requirements: "{{ bazarr_release_root }}/requirements.txt"
         virtualenv: "{{ bazarr_venv }}"
         virtualenv_command: python3 -m venv
 
@@ -41,10 +42,28 @@
         src: bazarr.service.j2
         dest: /etc/systemd/system/bazarr.service
         mode: "0644"
-      notify: Reload systemd for bazarr
+      notify:
+        - Reload systemd for bazarr
+        - Restart bazarr
 
     - name: Flush handlers so the unit exists before starting
       ansible.builtin.meta: flush_handlers
+
+    - name: Find superseded releases
+      ansible.builtin.find:
+        paths: "{{ bazarr_install_root }}"
+        file_type: any
+        hidden: true
+        excludes: ["{{ bazarr_version }}"]
+      register: bazarr_superseded
+
+    - name: Remove superseded releases
+      ansible.builtin.file:
+        path: "{{ item.path }}"
+        state: absent
+      loop: "{{ bazarr_superseded.files }}"
+      loop_control:
+        label: "{{ item.path }}"
 
     - name: Enable and start bazarr
       ansible.builtin.systemd_service:

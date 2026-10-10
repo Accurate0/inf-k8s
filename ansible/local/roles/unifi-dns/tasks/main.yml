@@ -64,3 +64,20 @@
   when:
     - item.key in unifi_existing_by_key
     - unifi_existing_values[item.key] != item.value
+
+- name: Remove records that are no longer declared
+  ansible.builtin.uri:
+    url: "https://{{ unifi_host }}/proxy/network/v2/api/site/{{ unifi_site }}/static-dns/{{ item._id }}"
+    method: DELETE
+    headers:
+      X-API-KEY: "{{ unifi_api_key }}"
+      Accept: application/json
+    validate_certs: "{{ unifi_validate_certs }}"
+    status_code: [200, 204]
+  loop: "{{ unifi_existing.json }}"
+  loop_control:
+    label: "{{ item.key }} -> {{ item.value }}"
+  when:
+    - unifi_dns_prune_domains | length > 0
+    - item.key not in (unifi_dns_records | map(attribute='key') | list)
+    - item.key is match('(.*\.)?(' + (unifi_dns_prune_domains | map('regex_escape') | join('|')) + ')$')
