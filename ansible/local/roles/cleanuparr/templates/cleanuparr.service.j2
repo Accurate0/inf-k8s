@@ -1,0 +1,21 @@
+[Unit]
+Description=Cleanuparr
+After=network-online.target sonarr.service radarr.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ cleanuparr_user }}
+Group={{ cleanuparr_group }}
+UMask=0002
+WorkingDirectory={{ cleanuparr_bin_root }}
+Environment=PORT={{ cleanuparr_port }}
+Environment=BIND_ADDRESS={{ cleanuparr_bind_address }}
+Environment=CLEANUPARR_CONFIG_PATH={{ cleanuparr_config_root }}
+ExecStart={{ cleanuparr_bin_root }}/Cleanuparr
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=20
+
+[Install]
+WantedBy=multi-user.target

@@ -67,6 +67,17 @@
       loop_control:
         label: "{{ item.name }} {{ item.version }}"
 
+    - name: Hand updates to ansible
+      ansible.builtin.template:
+        src: package_info.j2
+        dest: "{{ arr_install_root }}/{{ item.name }}/{{ item.version }}/package_info"
+        owner: "{{ arr_user }}"
+        group: "{{ arr_group }}"
+        mode: "0644"
+      loop: "{{ arr_apps }}"
+      loop_control:
+        label: "{{ item.name }}"
+
     - name: Install systemd units
       ansible.builtin.template:
         src: arr.service.j2

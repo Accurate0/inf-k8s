@@ -89,7 +89,7 @@
         memory: 4096
         disk: 16
         unprivileged: true
-        features: [nesting=1, keyctl=1]
+        features: [nesting=1]
         mounts:
           mp0: "{{ proxmox_media_source }},mp=/data"
         extra_config: "{{ proxmox_media_idmap }}"

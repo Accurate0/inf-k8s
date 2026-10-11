@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Reload systemd for cleanuparr
+  ansible.builtin.systemd_service:
+    daemon_reload: true
+
+- name: Restart cleanuparr
+  ansible.builtin.systemd_service:
+    name: cleanuparr
+    state: restarted

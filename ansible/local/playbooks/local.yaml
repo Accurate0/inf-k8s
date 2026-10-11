@@ -66,8 +66,6 @@
   roles:
     - jellyfin
 
-- ansible.builtin.import_playbook: cleanup.yaml
-
 - name: Media apps
   hosts: media-apps
   gather_facts: true
@@ -75,6 +73,7 @@
   roles:
     - arr
     - bazarr
+    - cleanuparr
     - flaresolverr
     - recyclarr
 
