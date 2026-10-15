@@ -165,6 +165,9 @@ spec:
             extraEnvFrom:
               - secretRef:
                   name: tempo-s3-credentials
+            extraVolumeMounts:
+              - name: storage
+                mountPath: /var/tempo
             overrides:
               defaults:
                 metrics_generator:
@@ -182,13 +185,9 @@ spec:
                   enable_target_info: true
               storage:
                 path: "/var/tempo/metrics"
-          persistence:
-            enabled: true
-            enableStatefulSetAutoDeletePVC: false
-            storageClassName: longhorn-local-perth
-            accessModes:
-              - ReadWriteOnce
-            size: 100Gi
+          extraVolumes:
+            - name: storage
+              emptyDir: {}
     - chart: loki
       repoURL: https://grafana.github.io/helm-charts
       targetRevision: 7.3.0
