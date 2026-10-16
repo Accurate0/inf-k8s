@@ -8,3 +8,5 @@ spec:
   name: platform_admins
   members:
     - anurag
+  accountPolicy:
+    authSessionExpiry: 2592000
