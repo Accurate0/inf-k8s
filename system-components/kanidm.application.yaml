@@ -64,6 +64,7 @@ spec:
               host: unraid.internal
               callbackPath: /graphql/api/auth/oidc/callback
               preferShortUsername: true
+              allowInsecureClientDisablePkce: true
               claimMaps:
                 unraid_groups:
                   join: array
