@@ -63,6 +63,8 @@ spec:
               displayName: Unraid
               host: unraid.internal
               callbackPath: /graphql/api/auth/oidc/callback
+              extraRedirectUrls:
+                - https://nas.internal/graphql/api/auth/oidc/callback
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
               claimMaps:
