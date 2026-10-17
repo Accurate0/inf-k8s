@@ -1,0 +1,13 @@
+[Unit]
+Description=USB gadget {{ proxmox_usb_gadget_name }}
+After=local-fs.target
+Before=pve-guests.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=true
+ExecStart=/usr/local/sbin/usb-gadget-{{ proxmox_usb_gadget_name }} start
+ExecStop=/usr/local/sbin/usb-gadget-{{ proxmox_usb_gadget_name }} stop
+
+[Install]
+WantedBy=multi-user.target

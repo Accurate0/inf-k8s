@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: USB gadget backed by an image file
+  become: true
+  become_user: root
+  block:
+    - name: Gather the running kernel version
+      ansible.builtin.setup:
+        gather_subset: [min]
+      when: ansible_kernel is not defined
+
+    - name: Install dkms and the kernel headers
+      ansible.builtin.apt:
+        name:
+          - dkms
+          - proxmox-default-headers
+          - proxmox-headers-{{ ansible_kernel }}
+        state: present
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Create the dummy_hcd dkms source directory
+      ansible.builtin.file:
+        path: "{{ proxmox_usb_gadget_dkms_root }}"
+        state: directory
+        owner: root
+        mode: "0755"
+
+    - name: Download the dummy_hcd source
+      ansible.builtin.get_url:
+        url: "{{ proxmox_usb_gadget_dummy_hcd_url }}"
+        dest: "{{ proxmox_usb_gadget_dkms_root }}/dummy_hcd.c"
+        checksum: "{{ proxmox_usb_gadget_dummy_hcd_checksum }}"
+        owner: root
+        mode: "0644"
+      register: proxmox_usb_gadget_source
+
+    - name: Install the dummy_hcd Makefile
+      ansible.builtin.copy:
+        src: Makefile
+        dest: "{{ proxmox_usb_gadget_dkms_root }}/Makefile"
+        owner: root
+        mode: "0644"
+      register: proxmox_usb_gadget_makefile
+
+    - name: Install the dummy_hcd dkms.conf
+      ansible.builtin.template:
+        src: dkms.conf.j2
+        dest: "{{ proxmox_usb_gadget_dkms_root }}/dkms.conf"
+        owner: root
+        mode: "0644"
+      register: proxmox_usb_gadget_dkms_conf
+
+    - name: Drop the stale dummy_hcd build
+      ansible.builtin.command: dkms remove dummy_hcd/{{ proxmox_usb_gadget_dkms_version }} --all
+      register: proxmox_usb_gadget_dkms_remove
+      failed_when: false
+      changed_when: proxmox_usb_gadget_dkms_remove.rc == 0
+      when: >-
+        proxmox_usb_gadget_source.changed
+        or proxmox_usb_gadget_makefile.changed
+        or proxmox_usb_gadget_dkms_conf.changed
+
+    - name: Build and install dummy_hcd
+      ansible.builtin.shell: |
+        set -o pipefail
+        dkms status -m dummy_hcd -v {{ proxmox_usb_gadget_dkms_version }} -k {{ ansible_kernel }} | grep -q installed && exit 0
+        dkms status -m dummy_hcd -v {{ proxmox_usb_gadget_dkms_version }} | grep -q . || dkms add dummy_hcd/{{ proxmox_usb_gadget_dkms_version }}
+        dkms install dummy_hcd/{{ proxmox_usb_gadget_dkms_version }} -k {{ ansible_kernel }}
+      args:
+        executable: /bin/bash
+      register: proxmox_usb_gadget_dkms_install
+      changed_when: proxmox_usb_gadget_dkms_install.stdout | length > 0
+
+    - name: Install the gadget script
+      ansible.builtin.template:
+        src: usb-gadget.sh.j2
+        dest: /usr/local/sbin/usb-gadget-{{ proxmox_usb_gadget_name }}
+        owner: root
+        mode: "0755"
+
+    - name: Install the gadget service
+      ansible.builtin.template:
+        src: usb-gadget.service.j2
+        dest: /etc/systemd/system/usb-gadget-{{ proxmox_usb_gadget_name }}.service
+        owner: root
+        mode: "0644"
+      notify: Reload systemd for the USB gadget
+
+    - name: Flush handlers so the unit exists before enabling
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable the gadget service
+      ansible.builtin.systemd_service:
+        name: usb-gadget-{{ proxmox_usb_gadget_name }}.service
+        enabled: true
+        state: started

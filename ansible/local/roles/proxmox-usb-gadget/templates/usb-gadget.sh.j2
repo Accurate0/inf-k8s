@@ -1,0 +1,42 @@
+#!/bin/bash
+set -euo pipefail
+
+gadget=/sys/kernel/config/usb_gadget/{{ proxmox_usb_gadget_name }}
+
+start() {
+  modprobe libcomposite
+  modprobe usb_f_mass_storage
+  modprobe dummy_hcd
+
+  test -d "$gadget" && return 0
+
+  mkdir "$gadget"
+  echo {{ proxmox_usb_gadget_vendor }} > "$gadget/idVendor"
+  echo {{ proxmox_usb_gadget_product }} > "$gadget/idProduct"
+  echo 0x0100 > "$gadget/bcdDevice"
+  echo 0x0200 > "$gadget/bcdUSB"
+
+  mkdir "$gadget/strings/0x409"
+  echo "{{ proxmox_usb_gadget_serial }}" > "$gadget/strings/0x409/serialnumber"
+  echo "{{ proxmox_usb_gadget_manufacturer }}" > "$gadget/strings/0x409/manufacturer"
+  echo "{{ proxmox_usb_gadget_product_name }}" > "$gadget/strings/0x409/product"
+
+  mkdir "$gadget/functions/mass_storage.0"
+  echo 1 > "$gadget/functions/mass_storage.0/lun.0/removable"
+  echo "{{ proxmox_usb_gadget_image }}" > "$gadget/functions/mass_storage.0/lun.0/file"
+
+  mkdir "$gadget/configs/c.1"
+  ln -s "$gadget/functions/mass_storage.0" "$gadget/configs/c.1/"
+
+  echo dummy_udc.0 > "$gadget/UDC"
+}
+
+stop() {
+  test -d "$gadget" || return 0
+
+  echo "" > "$gadget/UDC" || true
+  rm -f "$gadget/configs/c.1/mass_storage.0"
+  rmdir "$gadget/configs/c.1" "$gadget/functions/mass_storage.0" "$gadget/strings/0x409" "$gadget"
+}
+
+"$1"

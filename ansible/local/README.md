@@ -73,6 +73,21 @@ VM will not capture the passed-through flash.
 The old mergerfs pool is gone — its member drives were released to Unraid, and
 the role that retired it has been removed now that the migration is done.
 
+The drives form a parity-protected **array**, not a pool: the 4TB IronWolf is
+parity and every other drive is an XFS data disk. That trades the old btrfs
+raid1 pool's checksums for growing one disk at a time — any size up to parity,
+which keeps parity valid while Unraid clears the new disk. A drive larger than
+parity has to replace parity first. `media` and `storage` live on the array
+only, with high-water allocation and a 50GB minimum free. `media` splits only
+at the top two levels, so each show stays on one disk and the *arr hardlinks
+stay valid. With a single data disk, *Tunable (md_write_method)* is set to
+reconstruct write, so a write needs no read before it updates parity.
+
+Rebuilding the shares onto new disks leaves the Proxmox host's NFS mount
+stale even though `fsid` is pinned: the handles point at files that no longer
+exist. Containers then fail to start with `lxc.hook.pre-start` status 116.
+`umount -f -l /mnt/pve/unraid` and Proxmox remounts it.
+
 The share comes back from Unraid over NFS, mounted by the Proxmox host rather
 than by the guests — unprivileged LXC cannot mount NFS in its own namespace, so
 the host mounts once and the guests keep their existing `mp0` bind. `roles/

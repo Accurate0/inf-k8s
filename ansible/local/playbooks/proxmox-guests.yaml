@@ -445,8 +445,8 @@
     proxmox_unraid_cores: 4
     proxmox_unraid_memory: 8192
     proxmox_unraid_balloon: 0
-    proxmox_unraid_usb: "{{ lookup('ansible.builtin.env', 'UNRAID_USB_ID') }}"
     proxmox_unraid_boot_disk: 32
+    proxmox_unraid_usb: "0781:5567"
     proxmox_unraid_hostpci:
       - "0000:03:00.0"
       - "0000:05:00.0"
@@ -459,16 +459,6 @@
         fail_msg: >-
           No credentials. Export PROXMOX_PASSWORD for {{ proxmox_api_user }}, or
           PROMOX_API_KEY to use an API token.
-
-    - name: Assert the Unraid boot flash is identified
-      ansible.builtin.assert:
-        that:
-          - proxmox_unraid_usb | length > 0
-        fail_msg: >-
-          Unraid anchors its licence to the USB flash drive, which a VM cannot
-          replace with a TPM. Export UNRAID_USB_ID with the vendor:product id
-          of the stick plugged into {{ proxmox_node }} (lsusb), e.g.
-          UNRAID_USB_ID=0781:5583.
 
     - name: Gather existing VMs
       community.proxmox.proxmox_vm_info:
@@ -485,6 +475,26 @@
     - name: Index existing vmids
       ansible.builtin.set_fact:
         proxmox_existing_vmids: "{{ proxmox_existing_vms.proxmox_vms | map(attribute='vmid') | map('int') | list }}"
+
+    - name: List the USB devices carrying the flash id
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: lsusb -d {{ proxmox_unraid_usb }}
+      register: proxmox_unraid_usb_devices
+      changed_when: false
+      failed_when: false
+
+    - name: Assert the flash gadget is the only device with the flash id
+      ansible.builtin.assert:
+        that:
+          - proxmox_unraid_usb_devices.stdout_lines | length == 1
+        fail_msg: >-
+          Expected exactly one {{ proxmox_unraid_usb }} device on
+          {{ proxmox_node }}, found {{ proxmox_unraid_usb_devices.stdout_lines | length }}.
+          Run the proxmox-usb-gadget role and unplug the physical flash.
 
     - name: Create the Unraid VM
       community.proxmox.proxmox_kvm:
@@ -517,7 +527,7 @@
         tpmstate0:
           storage: "{{ proxmox_vm_storage }}"
           version: v2.0
-        boot: order=scsi0;usb0
+        boot: order=scsi0
         usb:
           usb0: "host={{ proxmox_unraid_usb }},usb3=1"
         net:
@@ -548,7 +558,7 @@
         balloon: "{{ proxmox_unraid_balloon }}"
         vga: virtio
         scsihw: virtio-scsi-single
-        boot: order=scsi0;usb0
+        boot: order=scsi0
         usb:
           usb0: "host={{ proxmox_unraid_usb }},usb3=1"
         net:
@@ -586,6 +596,15 @@
       ansible.builtin.command: qm config {{ proxmox_unraid_vmid }} --current
       register: proxmox_unraid_config
       changed_when: false
+
+    - name: Remove the raw QEMU args
+      become: true
+      become_user: root
+      delegate_to: pve
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: qm set {{ proxmox_unraid_vmid }} --delete args
+      when: proxmox_unraid_config.stdout is search('^args:', multiline=True)
 
     - name: Index the HBAs the VM has not claimed yet
       ansible.builtin.set_fact:
@@ -629,7 +648,6 @@
       ansible.builtin.debug:
         msg: >-
           {{ proxmox_unraid_name }} ({{ proxmox_unraid_vmid }}) started on
-          {{ proxmox_node }}, booting from the flash until you run
-          Settings -> Onboarding Wizard and pick internal boot (scsi0). Keep
-          the flash attached - it stays the licence anchor. Set the static
-          address to {{ proxmox_unraid_ip }} in Settings -> Network.
+          {{ proxmox_node }}, booting from scsi0 with the flash image gadget
+          ({{ proxmox_unraid_usb }}) passed through as the licence anchor. Set
+          the static address to {{ proxmox_unraid_ip }} in Settings -> Network.

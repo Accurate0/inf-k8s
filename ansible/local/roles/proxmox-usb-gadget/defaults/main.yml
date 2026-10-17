@@ -1,0 +1,15 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_usb_gadget_dummy_hcd_tag: v7.0.14
+proxmox_usb_gadget_dummy_hcd_url: "https://git.kernel.org/pub/scm/linux/kernel/git/stable/linux.git/plain/drivers/usb/gadget/udc/dummy_hcd.c?h={{ proxmox_usb_gadget_dummy_hcd_tag }}"
+proxmox_usb_gadget_dummy_hcd_checksum: sha256:381277bdbc6409b10a98d61337cd5c1cbfe6ba820ed6bad4237010c1ba738e6a
+proxmox_usb_gadget_dkms_version: "{{ proxmox_usb_gadget_dummy_hcd_tag | regex_replace('^v', '') }}"
+proxmox_usb_gadget_dkms_root: /usr/src/dummy_hcd-{{ proxmox_usb_gadget_dkms_version }}
+
+proxmox_usb_gadget_name: unraid-flash
+proxmox_usb_gadget_image: /var/lib/vz/template/iso/unraid-flash.img
+proxmox_usb_gadget_vendor: "0x0781"
+proxmox_usb_gadget_product: "0x5567"
+proxmox_usb_gadget_serial: "04016515092220152716"
+proxmox_usb_gadget_manufacturer: SanDisk
+proxmox_usb_gadget_product_name: Cruzer Blade
