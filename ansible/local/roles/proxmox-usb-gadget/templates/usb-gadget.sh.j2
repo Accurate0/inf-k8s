@@ -23,6 +23,7 @@ start() {
 
   mkdir "$gadget/functions/mass_storage.0"
   echo 1 > "$gadget/functions/mass_storage.0/lun.0/removable"
+  printf '%-8.8s%-16.16s%-4.4s' "{{ proxmox_usb_gadget_manufacturer }}" "{{ proxmox_usb_gadget_product_name }}" "{{ proxmox_usb_gadget_revision }}" > "$gadget/functions/mass_storage.0/lun.0/inquiry_string"
   echo "{{ proxmox_usb_gadget_image }}" > "$gadget/functions/mass_storage.0/lun.0/file"
 
   mkdir "$gadget/configs/c.1"

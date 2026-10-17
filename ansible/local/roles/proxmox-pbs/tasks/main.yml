@@ -88,3 +88,23 @@
              + proxmox_pbs_exclude_paths | map('regex_replace', '^', '--exclude-path=') | list }}
       changed_when: false
       when: proxmox_pbs_job_id in (proxmox_pbs_jobs.stdout | from_json | map(attribute='id') | list)
+
+    - name: Install the host image backup service and timer
+      ansible.builtin.template:
+        src: "{{ item }}.j2"
+        dest: /etc/systemd/system/{{ item }}
+        owner: root
+        mode: "0644"
+      loop:
+        - pve-host-backup.service
+        - pve-host-backup.timer
+      notify: Reload systemd for the host image backup
+
+    - name: Flush handlers so the units exist before enabling
+      ansible.builtin.meta: flush_handlers
+
+    - name: Enable the host image backup timer
+      ansible.builtin.systemd_service:
+        name: pve-host-backup.timer
+        enabled: true
+        state: started

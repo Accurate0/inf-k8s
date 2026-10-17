@@ -13,3 +13,4 @@ proxmox_usb_gadget_product: "0x5567"
 proxmox_usb_gadget_serial: "04016515092220152716"
 proxmox_usb_gadget_manufacturer: SanDisk
 proxmox_usb_gadget_product_name: Cruzer Blade
+proxmox_usb_gadget_revision: "1.00"

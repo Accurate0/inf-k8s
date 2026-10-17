@@ -1,0 +1,11 @@
+[Unit]
+Description=Back up the pve host images to PBS
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+Environment=PBS_REPOSITORY={{ proxmox_pbs_username }}@{{ proxmox_pbs_server }}:{{ proxmox_pbs_datastore }}
+Environment=PBS_PASSWORD_FILE=/etc/pve/priv/storage/{{ proxmox_pbs_storage }}.pw
+Environment=PBS_FINGERPRINT={{ proxmox_pbs_fingerprint }}
+ExecStart=/usr/bin/proxmox-backup-client backup{% for image in proxmox_pbs_host_images %} {{ image | basename }}:{{ image }}{% endfor %} --backup-type host --backup-id {{ inventory_hostname }}

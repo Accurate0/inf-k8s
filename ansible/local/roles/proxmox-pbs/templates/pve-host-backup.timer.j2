@@ -1,0 +1,9 @@
+[Unit]
+Description=Back up the pve host images to PBS nightly
+
+[Timer]
+OnCalendar={{ proxmox_pbs_host_on_calendar }}
+Persistent=true
+
+[Install]
+WantedBy=timers.target

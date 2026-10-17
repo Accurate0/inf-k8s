@@ -15,3 +15,7 @@ proxmox_pbs_job_notes: "{{ '{{guestname}}' }}"
 proxmox_pbs_exclude_vmids: [207, 208, 210]
 proxmox_pbs_exclude_paths:
   - /data
+
+proxmox_pbs_host_on_calendar: "*-*-* 00:15"
+proxmox_pbs_host_images:
+  - /var/lib/vz/template/iso/unraid-flash.img

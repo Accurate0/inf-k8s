@@ -59,6 +59,13 @@ spec:
               icon:
                 configMap: proxmox-kanidm-icon
                 key: Proxmox.svg
+            - name: unraid
+              displayName: Unraid
+              host: unraid.internal
+              callbackPath: /graphql/api/auth/oidc/callback
+              preferShortUsername: true
+              secretName: kanidm-unraid-oidc
+              secretNamespace: kanidm
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/kanidm
   destination:
