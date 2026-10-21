@@ -1,6 +1,7 @@
 vpn-auth: "name=tailscale,joinKey={{ k3s_tailscale_auth_key }}"
 disable:
   - traefik
+  - gateway-api-crd
 node-external-ip: "{{ tailscale_ip_result.stdout }}"
 node-ip: "{{ tailscale_ip_result.stdout }}"
 server: "{{ k3s_control_ip }}"
