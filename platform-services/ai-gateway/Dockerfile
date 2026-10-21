@@ -20,12 +20,10 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends libssl-dev ca-certificates
 RUN update-ca-certificates
-RUN adduser \
-    --disabled-password \
-    --gecos "" \
-    --home "/nonexistent" \
-    --shell "/sbin/nologin" \
+RUN useradd \
     --no-create-home \
+    --home-dir "/nonexistent" \
+    --shell "/sbin/nologin" \
     --uid "10001" \
     appuser
 
