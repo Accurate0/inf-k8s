@@ -1,6 +1,6 @@
 ARG BINARY_NAME
 
-FROM rust:1.99.0-slim-bookworm AS builder
+FROM rust:1.99.0-slim-trixie AS builder
 ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev
@@ -14,7 +14,7 @@ RUN \
     cargo build --locked --release --bin ${BINARY_NAME} && \
     cp ./target/release/${BINARY_NAME} /app
 
-FROM debian:bookworm-slim AS final
+FROM debian:trixie-slim AS final
 ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends libssl-dev ca-certificates

@@ -1,6 +1,6 @@
 # Build context is the repository root: the service is a standalone crate but depends
 # on crates/feature-flag-proto via a path dependency, so both trees must be present.
-FROM rust:1.99.0-slim-bookworm AS builder
+FROM rust:1.99.0-slim-trixie AS builder
 
 # libprotobuf-dev ships the well-known .proto includes (google/protobuf/*) that
 # protobuf-compiler alone omits; prost-build resolves the struct.proto import from there.
@@ -20,7 +20,7 @@ RUN \
     --bin feature-flags && \
     cp platform-services/feature-flags/target/release/feature-flags /app/feature-flags
 
-FROM debian:bookworm-slim AS final
+FROM debian:trixie-slim AS final
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends libssl-dev ca-certificates
 RUN update-ca-certificates

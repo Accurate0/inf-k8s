@@ -1,6 +1,6 @@
 ARG BINARY_NAME
 
-FROM rust:1.99.0-slim-bookworm AS builder
+FROM rust:1.99.0-slim-trixie AS builder
 ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler libprotobuf-dev
@@ -15,7 +15,7 @@ RUN \
     cp ./target/release/${BINARY_NAME} /app && \
     cp ./target/release/aig /app/aig
 
-FROM debian:bookworm-slim AS final
+FROM debian:trixie-slim AS final
 ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends libssl-dev ca-certificates
