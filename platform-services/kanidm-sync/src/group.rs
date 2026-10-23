@@ -1,5 +1,6 @@
 use crate::{kanidm_err, ControllerContext, Error, Reconcile, Result};
 use kanidm_client::KanidmClient;
+use kanidm_proto::constants::ENTRYCLASS_BUILTIN;
 use kanidm_proto::v1::Entry;
 use kanidm_sync::{AccountPolicy, Condition, KanidmGroup};
 
@@ -24,12 +25,24 @@ impl Reconcile for KanidmGroup {
         let kanidm = &ctx.kanidm;
         let name = spec.name.as_str();
 
-        if kanidm
-            .idm_group_get(name)
-            .await
-            .map_err(kanidm_err)?
-            .is_none()
-        {
+        let existing = kanidm.idm_group_get(name).await.map_err(kanidm_err)?;
+
+        let policy = AccountPolicySync {
+            kanidm,
+            group: name,
+        };
+
+        if existing.as_ref().is_some_and(is_builtin) {
+            if !spec.members.is_empty() || spec.entry_managed_by.is_some() {
+                return Err(Error::Kanidm(format!(
+                    "{name} is a builtin group; only accountPolicy can be managed"
+                )));
+            }
+
+            return policy.apply(spec.account_policy.as_ref()).await;
+        }
+
+        if existing.is_none() {
             tracing::info!("creating group {name}");
             let entry_managed_by = spec.entry_managed_by.as_deref();
             kanidm
@@ -58,34 +71,34 @@ impl Reconcile for KanidmGroup {
                 .map_err(kanidm_err)?;
         }
 
-        if let Some(policy) = &spec.account_policy {
-            AccountPolicySync {
-                kanidm,
-                group: name,
-            }
-            .apply(policy)
-            .await?;
-        }
-
-        Ok(())
+        policy.apply(spec.account_policy.as_ref()).await
     }
 
     async fn cleanup(&self, ctx: &ControllerContext) -> Result<()> {
         let kanidm = &ctx.kanidm;
         let name = self.spec.name.as_str();
 
-        if kanidm
-            .idm_group_get(name)
-            .await
-            .map_err(kanidm_err)?
-            .is_some()
-        {
-            tracing::info!("deleting group {name}");
-            kanidm.idm_group_delete(name).await.map_err(kanidm_err)?;
+        let Some(existing) = kanidm.idm_group_get(name).await.map_err(kanidm_err)? else {
+            return Ok(());
+        };
+
+        if is_builtin(&existing) {
+            tracing::info!("leaving builtin group {name} in place");
+            return Ok(());
         }
+
+        tracing::info!("deleting group {name}");
+        kanidm.idm_group_delete(name).await.map_err(kanidm_err)?;
 
         Ok(())
     }
+}
+
+fn is_builtin(entry: &Entry) -> bool {
+    entry
+        .attrs
+        .get("class")
+        .is_some_and(|classes| classes.iter().any(|c| c == ENTRYCLASS_BUILTIN))
 }
 
 struct AccountPolicySync<'a> {
@@ -99,7 +112,11 @@ impl AccountPolicySync<'_> {
     const PRIVILEGE_EXPIRY: &'static str = "privilege_expiry";
     const PASSWORD_MINIMUM_LENGTH: &'static str = "auth_password_minimum_length";
 
-    async fn apply(&self, policy: &AccountPolicy) -> Result<()> {
+    async fn apply(&self, policy: Option<&AccountPolicy>) -> Result<()> {
+        let Some(policy) = policy else {
+            return Ok(());
+        };
+
         let kanidm = self.kanidm;
         let group = self.group;
 
