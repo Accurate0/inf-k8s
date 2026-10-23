@@ -12,6 +12,7 @@ resources:
   - httproute.yaml
   - backendtlspolicy.yaml
   - backend.policy.yaml
+  - groups/all-accounts.yaml
   - groups/platform-admins.yaml
   - users/anurag.yaml
 
