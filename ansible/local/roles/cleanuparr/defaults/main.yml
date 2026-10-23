@@ -3,7 +3,7 @@
 cleanuparr_user: media
 cleanuparr_group: media
 # renovate: datasource=github-releases depName=Cleanuparr/Cleanuparr extractVersion=^v(?<version>.+)$
-cleanuparr_version: "2.10.9"
+cleanuparr_version: "2.10.12"
 cleanuparr_port: 11011
 cleanuparr_bind_address: 127.0.0.1
 cleanuparr_install_root: /opt/cleanuparr
