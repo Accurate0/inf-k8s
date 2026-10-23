@@ -43,6 +43,10 @@ echo "Uploading schemas to S3..."
 aws s3 sync "$OUTPUT_DIR" "s3://${S3_BUCKET}/" \
   --endpoint-url "${S3_ENDPOINT}" \
   --delete \
-  --exclude "master-standalone/*"
+  --exclude "master-standalone/*" \
+  --exclude "version.json"
+
+aws s3 cp "$OUTPUT_DIR/version.json" "s3://${S3_BUCKET}/version.json" \
+  --endpoint-url "${S3_ENDPOINT}"
 
 echo "Upload complete."

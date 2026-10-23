@@ -8,12 +8,30 @@ script_path="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/$(basename "${BASH_SO
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
 
+schema_base='https://k8s-schemas.anurag.sh'
 schema_location="${SCHEMA_LOCATION:-}"
 if [[ -z "$schema_location" ]]; then
-  schema_location='https://k8s-schemas.anurag.sh/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json'
+  schema_location="$schema_base/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json"
 fi
 
-cache="${KUBECONFORM_CACHE:-${XDG_CACHE_HOME:-$HOME/.cache}/inf-k8s-schemas}"
+if [[ -z "${KUBECONFORM_CACHE:-}" ]]; then
+  cache_root="${XDG_CACHE_HOME:-$HOME/.cache}/inf-k8s-schemas"
+  version="$(curl -fsS -m 5 "$schema_base/version.json" 2>/dev/null | grep -oE '[0-9a-f]{64}' || true)"
+
+  if [[ -n "$version" ]]; then
+    mkdir -p "$cache_root"
+    find "$cache_root" -mindepth 1 -maxdepth 1 ! -name "$version" -exec rm -rf {} +
+    KUBECONFORM_CACHE="$cache_root/$version"
+  else
+    latest="$(find "$cache_root" -mindepth 1 -maxdepth 1 -type d -printf '%T@ %p\n' 2>/dev/null \
+      | sort -rn | head -n1 | cut -d' ' -f2- || true)"
+    KUBECONFORM_CACHE="${latest:-$cache_root/unversioned}"
+  fi
+
+  export KUBECONFORM_CACHE
+fi
+
+cache="$KUBECONFORM_CACHE"
 mkdir -p "$cache"
 
 read -r -a extra_flags <<<"${KUBECONFORM_FLAGS:-}"
