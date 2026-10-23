@@ -26,7 +26,6 @@ unifi_dns_records:
   - {key: radarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
   - {key: prowlarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
   - {key: bazarr.media.internal, value: "{{ unifi_media_apps_ip }}"}
-  - {key: cleanuparr.media.internal, value: "{{ unifi_media_apps_ip }}"}
   - {key: flaresolverr.media.internal, value: "{{ unifi_media_apps_ip }}"}
 
   - {key: transmission.media.internal, value: "{{ unifi_transmission_ip }}"}

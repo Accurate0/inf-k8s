@@ -18,7 +18,6 @@ arr_nginx_sites: "{{ arr_apps + arr_nginx_extra_sites }}"
 
 arr_nginx_extra_sites:
   - {name: bazarr, port: 6767}
-  - {name: cleanuparr, port: 11011}
   - {name: flaresolverr, port: 8191}
 
 # renovate: datasource=github-releases depName=Sonarr/Sonarr versioning=loose extractVersion=^v(?<version>.+)$
