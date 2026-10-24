@@ -49,6 +49,7 @@ namespaces:
   immich:
     ingress:
       - envoy-gateway-system
+      - home-gateway
   ozbargain: {}
   kanidm-sync: {}
   k8s-schemas: {}
