@@ -16,6 +16,7 @@ rules:
     resourceNames:
       - public-gateway-client-policy
       - git-anurag-sh-client-policy
+      - photos-anurag-sh-client-policy
     verbs:
       - get
       - patch

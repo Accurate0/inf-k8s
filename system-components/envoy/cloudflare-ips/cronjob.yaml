@@ -34,7 +34,7 @@ spec:
 
                   patch=$(jq -cn --argjson cidrs "$cidrs" '{spec: {clientIPDetection: {xForwardedFor: {trustedCIDRs: $cidrs}}}}')
 
-                  for policy in public-gateway-client-policy git-anurag-sh-client-policy; do
+                  for policy in public-gateway-client-policy git-anurag-sh-client-policy photos-anurag-sh-client-policy; do
                     kubectl patch clienttrafficpolicy "$policy" --type merge -p "$patch"
                   done
               securityContext:
