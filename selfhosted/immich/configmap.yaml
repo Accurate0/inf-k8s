@@ -1,0 +1,43 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/configmap_v1.json
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: immich-config
+  namespace: immich
+data:
+  immich.json.tmpl: |
+    {
+      "backup": {
+        "database": {
+          "enabled": false
+        }
+      },
+      "newVersionCheck": {
+        "enabled": false
+      },
+      "oauth": {
+        "enabled": true,
+        "autoLaunch": true,
+        "autoRegister": true,
+        "buttonText": "Login with Kanidm",
+        "clientId": "__OIDC_CLIENT_ID__",
+        "clientSecret": "__OIDC_CLIENT_SECRET__",
+        "issuerUrl": "https://idm.anurag.sh/oauth2/openid/immich",
+        "scope": "openid email profile",
+        "signingAlgorithm": "ES256",
+        "roleClaim": "immich_role",
+        "storageLabelClaim": "preferred_username",
+        "mobileOverrideEnabled": true,
+        "mobileRedirectUri": "https://photos.anurag.sh/api/oauth/mobile-redirect"
+      },
+      "passwordLogin": {
+        "enabled": false
+      },
+      "server": {
+        "externalDomain": "https://photos.anurag.sh"
+      },
+      "storageTemplate": {
+        "enabled": true,
+        "template": "{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}"
+      }
+    }

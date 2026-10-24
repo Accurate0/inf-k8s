@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/persistentvolumeclaim_v1.json
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: immich-library
+  namespace: immich
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: nfs-k8s-perth
+  resources:
+    requests:
+      storage: 1Ti

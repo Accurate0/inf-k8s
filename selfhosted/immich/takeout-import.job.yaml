@@ -1,0 +1,65 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/batch/job_v1.json
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: immich-takeout-import
+  namespace: immich
+spec:
+  backoffLimit: 0
+  ttlSecondsAfterFinished: 604800
+  template:
+    spec:
+      restartPolicy: Never
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - perth
+      containers:
+        - name: immich-go
+          image: alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+          imagePullPolicy: IfNotPresent
+          command:
+            - sh
+            - -euc
+            - |
+              wget -q -O /tmp/immich-go.tgz https://github.com/simulot/immich-go/releases/download/v0.32.0/immich-go_Linux_x86_64.tar.gz
+              echo "6e2ad86bafdadb9466d6515de7cb882726c0aea1a21d51164dff361d7d480a97  /tmp/immich-go.tgz" | sha256sum -c
+              tar -xzf /tmp/immich-go.tgz -C /tmp immich-go
+              /tmp/immich-go upload from-google-photos \
+                --server http://immich-server.immich.svc \
+                --api-key "$IMMICH_API_KEY" \
+                --no-ui \
+                --on-errors continue \
+                $IMMICH_GO_ARGS \
+                /takeout/*.zip
+          env:
+            - name: HOME
+              value: /tmp
+            - name: IMMICH_GO_ARGS
+              value: --dry-run
+            - name: IMMICH_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: immich-go-api-key
+                  key: key
+          resources:
+            requests:
+              cpu: 500m
+              memory: 512Mi
+            limits:
+              memory: 4Gi
+          volumeMounts:
+            - name: takeout
+              mountPath: /takeout
+              readOnly: true
+      volumes:
+        - name: takeout
+          nfs:
+            server: nas.internal
+            path: /mnt/user/k8s/takeout
+            readOnly: true

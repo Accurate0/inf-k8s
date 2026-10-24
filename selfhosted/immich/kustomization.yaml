@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ./namespace.yaml
+  - ./configmap.yaml
+  - ./library.pvc.yaml
+  - ./ml-cache.pvc.yaml
+  - ./server.deployment.yaml
+  - ./server.service.yaml
+  - ./ml.deployment.yaml
+  - ./ml.service.yaml
+  - ./httproute.yaml
