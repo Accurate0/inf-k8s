@@ -21,7 +21,7 @@ data:
       "oauth": {
         "enabled": true,
         "autoLaunch": true,
-        "autoRegister": true,
+        "autoRegister": false,
         "buttonText": "Login with Kanidm",
         "clientId": "__OIDC_CLIENT_ID__",
         "clientSecret": "__OIDC_CLIENT_SECRET__",

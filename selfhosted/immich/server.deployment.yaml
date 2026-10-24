@@ -68,6 +68,8 @@ spec:
               value: /config/immich.json
             - name: IMMICH_TRUSTED_PROXIES
               value: 10.42.0.0/16
+            - name: IMMICH_ALLOW_SETUP
+              value: "false"
             - name: DB_VECTOR_EXTENSION
               value: vectorchord
             - name: REDIS_HOSTNAME
