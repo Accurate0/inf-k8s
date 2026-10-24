@@ -115,7 +115,7 @@ spec:
                       UP_TOKEN: "{{ .UP_TOKEN }}"
     - chart: firefly-iii
       repoURL: https://firefly-iii.github.io/kubernetes/
-      targetRevision: 1.10.1
+      targetRevision: 1.10.2
       helm:
         valuesObject:
           fullnameOverride: firefly
