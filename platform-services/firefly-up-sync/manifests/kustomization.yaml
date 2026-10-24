@@ -7,4 +7,4 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
 images:
   - name: ghcr.io/accurate0/firefly-up-sync
-    newTag: 910ae42a5ebef8ed655ab35d2158fdfb80982359
+    newTag: 200e5e63a0e8b2b1fc662aa4b42b89ae55fe017e
