@@ -12,6 +12,9 @@ data:
           "enabled": false
         }
       },
+      "machineLearning": {
+        "enabled": false
+      },
       "newVersionCheck": {
         "enabled": false
       },

@@ -5,9 +5,6 @@ resources:
   - ./namespace.yaml
   - ./configmap.yaml
   - ./library.pvc.yaml
-  - ./ml-cache.pvc.yaml
   - ./server.deployment.yaml
   - ./server.service.yaml
-  - ./ml.deployment.yaml
-  - ./ml.service.yaml
   - ./httproute.yaml
