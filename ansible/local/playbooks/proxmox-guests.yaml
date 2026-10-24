@@ -152,11 +152,15 @@
         memory: 8192
         disk: 256
         swap: 0
-        unprivileged: true
-        features: [nesting=1, keyctl=1, fuse=1]
+        unprivileged: false
+        features: [nesting=1, keyctl=1, fuse=1, mount=nfs]
         template: "{{ proxmox_lxc_ubuntu_template }}"
         extra_config:
           - "dev0: /dev/net/tun"
+          - "lxc.apparmor.profile: unconfined"
+          - "lxc.cgroup2.devices.allow: a"
+          - "lxc.cap.drop: "
+          - "lxc.mount.auto: proc:rw sys:rw"
 
   tasks:
     - name: Assert the API token is available

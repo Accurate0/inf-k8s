@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/storage.k8s.io/storageclass_v1.json
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: nfs-k8s-perth
+provisioner: nfs.csi.k8s.io
+parameters:
+  server: nas.internal
+  share: /mnt/user/k8s
+  subDir: ${pvc.metadata.namespace}/${pvc.metadata.name}
+  onDelete: retain
+reclaimPolicy: Retain
+volumeBindingMode: Immediate
+mountOptions:
+  - nfsvers=4.2
+  - hard
+  - noatime
+  - nconnect=4
