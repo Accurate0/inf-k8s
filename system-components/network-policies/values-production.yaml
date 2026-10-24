@@ -42,7 +42,11 @@ namespaces:
       - maccas-api
       - feature-flags
       - ai-gateway
+      - immich
   firefly:
+    ingress:
+      - envoy-gateway-system
+  immich:
     ingress:
       - envoy-gateway-system
   ozbargain: {}
