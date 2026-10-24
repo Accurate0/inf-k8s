@@ -38,7 +38,7 @@ spec:
         barmanObjectName: r2-store
   enablePDB: true
   enableSuperuserAccess: true
-  imageName: ghcr.io/accurate0/cnpg-postgresql:18.4.1-trixie
+  imageName: ghcr.io/accurate0/cnpg-postgresql:18.6.1-trixie
   imagePullPolicy: IfNotPresent
   instances: 3
   logLevel: info
@@ -92,6 +92,11 @@ spec:
         connectionLimit: -1
         inherit: true
         login: true
+      - name: immich
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
       - name: openbao
         ensure: present
         connectionLimit: -1
@@ -107,6 +112,7 @@ spec:
   postgresql:
     shared_preload_libraries:
       - "timescaledb.so"
+      - "vchord.so"
     parameters:
       max_connections: "150"
       pg_stat_statements.max: "10000"
