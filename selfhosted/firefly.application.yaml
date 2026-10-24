@@ -197,7 +197,7 @@ spec:
               memory: 1Gi
     - chart: importer
       repoURL: https://firefly-iii.github.io/kubernetes/
-      targetRevision: 1.6.0
+      targetRevision: 1.6.1
       helm:
         valuesObject:
           fullnameOverride: firefly-importer
