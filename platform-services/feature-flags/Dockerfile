@@ -1,6 +1,6 @@
 # Build context is the repository root: the service is a standalone crate but depends
 # on crates/feature-flag-proto via a path dependency, so both trees must be present.
-FROM rust:1.99.0-slim-trixie AS builder
+FROM rust:1.99.1-slim-trixie AS builder
 
 # libprotobuf-dev ships the well-known .proto includes (google/protobuf/*) that
 # protobuf-compiler alone omits; prost-build resolves the struct.proto import from there.
