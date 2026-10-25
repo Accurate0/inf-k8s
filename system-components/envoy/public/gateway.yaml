@@ -9,7 +9,7 @@ metadata:
 spec:
   gatewayClassName: envoy-gateway
   # NOTE: ports must be unique across the internal-gateway too — mergeGateways
-  # (see config.yaml) collapses both Gateways into one Envoy. internal uses 2222.
+  # (see config.yaml) collapses both Gateways into one Envoy.
   listeners:
     - name: git-ssh
       protocol: TCP
