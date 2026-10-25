@@ -89,3 +89,4 @@ agent:
         topology.kubernetes.io/zone: perth
         inf-k8s.net/location: perth
         inf-k8s.net/proxy: "true"
+        inf-k8s.net/lan-proxy: "true"
