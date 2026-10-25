@@ -18,6 +18,7 @@ spec:
         externalTrafficPolicy: Local
         loadBalancerSourceRanges:
           - 10.0.2.0/24
+          - 192.168.0.0/24
   telemetry:
     metrics:
       prometheus: {}
