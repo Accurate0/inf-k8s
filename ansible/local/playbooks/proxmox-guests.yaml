@@ -106,15 +106,6 @@
           mp0: "{{ proxmox_media_source }},mp=/data"
         extra_config: "{{ proxmox_media_idmap }}"
 
-      - name: home-gateway-web
-        vmid: 205
-        ip: 10.0.2.14/24
-        cores: 1
-        memory: 512
-        disk: 8
-        unprivileged: true
-        features: [nesting=1, keyctl=1]
-
       - name: homeassistant
         vmid: 206
         ip: 10.0.2.15/24

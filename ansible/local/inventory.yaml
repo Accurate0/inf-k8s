@@ -2,7 +2,6 @@ all:
   children:
     proxmox: {}
     media_servers: {}
-    gateway: {}
     home_automation: {}
     backup: {}
     mirror: {}
@@ -24,11 +23,6 @@ media_servers:
       ansible_host: 10.0.2.13
   vars:
     media_pool_mount: /data
-
-gateway:
-  hosts:
-    home-gateway-web:
-      ansible_host: 10.0.2.14
 
 home_automation:
   hosts:

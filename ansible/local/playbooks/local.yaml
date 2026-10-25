@@ -43,7 +43,7 @@
     - proxmox-pve-exporter
 
 - name: Wait for guests to accept SSH
-  hosts: media_servers:gateway:home_automation:backup:mirror
+  hosts: media_servers:home_automation:backup:mirror
   gather_facts: false
 
   tasks:
@@ -54,7 +54,7 @@
         timeout: 300
 
 - name: Base configuration
-  hosts: media_servers:gateway:home_automation:backup:mirror
+  hosts: media_servers:home_automation:backup:mirror
   gather_facts: true
 
   roles:
@@ -83,14 +83,6 @@
 
   roles:
     - transmission
-
-- name: Home gateway web
-  hosts: gateway
-  gather_facts: true
-
-  roles:
-    - docker
-    - home-gateway-web
 
 - name: Home Assistant
   hosts: home_automation
