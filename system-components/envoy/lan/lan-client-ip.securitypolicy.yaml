@@ -15,3 +15,4 @@ spec:
         principal:
           clientCIDRs:
             - 10.0.2.0/24
+            - 10.42.0.0/16

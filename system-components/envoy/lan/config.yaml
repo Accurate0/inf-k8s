@@ -16,6 +16,8 @@ spec:
       envoyService:
         type: LoadBalancer
         externalTrafficPolicy: Local
+        loadBalancerSourceRanges:
+          - 10.0.2.0/24
   telemetry:
     metrics:
       prometheus: {}
