@@ -7,7 +7,6 @@ unifi_validate_certs: false
 unifi_jellyfin_ip: 10.0.2.11
 unifi_media_apps_ip: 10.0.2.12
 unifi_transmission_ip: 10.0.2.13
-unifi_gateway_ip: 10.0.2.14
 unifi_node_ip: 10.0.2.249
 
 unifi_homeassistant_ip: 10.0.2.15
@@ -30,7 +29,6 @@ unifi_dns_records:
 
   - {key: transmission.media.internal, value: "{{ unifi_transmission_ip }}"}
 
-  - {key: home.internal, value: "{{ unifi_gateway_ip }}"}
   - {key: home-assistant.internal, value: "{{ unifi_homeassistant_ip }}"}
 
   - {key: mirror.internal, value: "{{ unifi_mirror_ip }}"}

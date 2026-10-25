@@ -4,6 +4,8 @@ kind: HTTPRoute
 metadata:
   name: home-web-lan
   namespace: home-gateway
+  annotations:
+    external-dns.kubernetes.io/managed-unifi: "true"
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
