@@ -4,7 +4,6 @@ kind: Gateway
 metadata:
   name: lan-gateway
   annotations:
-    cert-manager.io/cluster-issuer: internal-ca
     external-dns.kubernetes.io/target: 10.0.2.18
 spec:
   gatewayClassName: envoy-gateway-lan
@@ -32,4 +31,4 @@ spec:
         certificateRefs:
           - group: ""
             kind: Secret
-            name: wildcard-internal-tls
+            name: lan-gateway-tls

@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/cert-manager.io/certificate_v1.json
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: lan-gateway-tls
+spec:
+  dnsNames:
+    - home.internal
+  issuerRef:
+    group: cert-manager.io
+    kind: ClusterIssuer
+    name: internal-ca
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+  secretName: lan-gateway-tls
+  usages:
+    - digital signature
+    - server auth

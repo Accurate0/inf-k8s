@@ -9,6 +9,7 @@ resources:
   - internal/client.policy.yaml
   - internal/gateway.yaml
   - internal/tailscale-client-ip.securitypolicy.yaml
+  - lan/certificate.yaml
   - lan/config.yaml
   - lan/gatewayclass.yaml
   - lan/gateway.yaml
