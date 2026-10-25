@@ -14,8 +14,28 @@
   "acls": [
     {
       "action": "accept",
-      "src":    ["*"],
+      "src":    ["Accurate0@github"],
       "dst":    ["*:*"],
+    },
+    {
+      "action": "accept",
+      "src":    ["tag:k8s"],
+      "dst":    ["tag:k8s:*", "10.42.0.0/16:*"],
+    },
+    {
+      "action": "accept",
+      "src":    ["tag:k8s"],
+      "dst":    ["tag:k8s-proxy:8405"],
+    },
+    {
+      "action": "accept",
+      "src":    ["tag:k8s-proxy"],
+      "dst":    ["tag:k8s:8443,2223,6443"],
+    },
+    {
+      "action": "accept",
+      "src":    ["tag:ci"],
+      "dst":    ["tag:k8s-proxy:443"],
     },
   ],
 
@@ -32,6 +52,28 @@
     {
       "target": ["autogroup:member"],
       "attr":   ["funnel"],
+    },
+  ],
+
+  "tests": [
+    {
+      "src":    "tag:k8s-proxy",
+      "accept": ["tag:k8s:8443", "tag:k8s:2223", "tag:k8s:6443"],
+      "deny":   ["tag:k8s:22", "tag:k8s:10250", "tag:k8s:2379", "10.42.5.1:443", "100.116.36.106:22"],
+    },
+    {
+      "src":    "tag:ci",
+      "accept": ["tag:k8s-proxy:443"],
+      "deny":   ["tag:k8s-proxy:6443", "tag:k8s:443", "tag:k8s:6443"],
+    },
+    {
+      "src":    "tag:k8s",
+      "accept": ["tag:k8s:10250", "tag:k8s:2379", "10.42.5.1:443", "tag:k8s-proxy:8405"],
+      "deny":   ["tag:k8s-proxy:22", "tag:k8s-proxy:443", "100.116.36.106:22"],
+    },
+    {
+      "src":    "Accurate0@github",
+      "accept": ["tag:k8s:22", "tag:k8s-proxy:443", "tag:k8s-proxy:6443", "10.42.5.1:443"],
     },
   ],
 }
