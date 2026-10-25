@@ -49,6 +49,11 @@ terraform {
       source  = "hashicorp/random"
       version = "3.9.1"
     }
+
+    tailscale = {
+      source  = "tailscale/tailscale"
+      version = "0.29.2"
+    }
   }
 
   backend "s3" {
@@ -101,6 +106,23 @@ variable "OPENBAO_OIDC_CLIENT_SECRET" {
   type      = string
   nullable  = false
   sensitive = true
+}
+
+variable "TAILSCALE_CLIENT_ID" {
+  type      = string
+  nullable  = false
+  sensitive = true
+}
+
+variable "TAILSCALE_CLIENT_SECRET" {
+  type      = string
+  nullable  = false
+  sensitive = true
+}
+
+provider "tailscale" {
+  oauth_client_id     = var.TAILSCALE_CLIENT_ID
+  oauth_client_secret = var.TAILSCALE_CLIENT_SECRET
 }
 
 provider "vault" {

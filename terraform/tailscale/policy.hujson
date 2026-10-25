@@ -1,0 +1,37 @@
+{
+  "autoApprovers": {
+    "routes": {
+      "10.42.0.0/24": ["Accurate0@github"],
+    },
+  },
+
+  "tagOwners": {
+    "tag:ci":        ["autogroup:admin"],
+    "tag:k8s":       ["autogroup:admin"],
+    "tag:k8s-proxy": ["autogroup:admin"],
+  },
+
+  "acls": [
+    {
+      "action": "accept",
+      "src":    ["*"],
+      "dst":    ["*:*"],
+    },
+  ],
+
+  "ssh": [
+    {
+      "action": "check",
+      "src":    ["autogroup:member"],
+      "dst":    ["autogroup:self"],
+      "users":  ["autogroup:nonroot", "root"],
+    },
+  ],
+
+  "nodeAttrs": [
+    {
+      "target": ["autogroup:member"],
+      "attr":   ["funnel"],
+    },
+  ],
+}
