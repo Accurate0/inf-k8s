@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/gatewayclass_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-gateway-lan
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: envoy-proxy-lan-config
+    namespace: envoy-gateway-system

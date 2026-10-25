@@ -63,6 +63,7 @@ spec:
               callbackPath: /callback
               extraRedirectUrls:
                 - net.infk8s.homegateway:/oauth2redirect
+                - https://home.internal/callback
               public: true
               preferShortUsername: true
               allowLocalhostRedirect: true

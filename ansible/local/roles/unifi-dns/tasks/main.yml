@@ -22,6 +22,12 @@
     unifi_existing_by_key: "{{ unifi_existing.json | items2dict(key_name='key', value_name='_id') }}"
     unifi_existing_values: "{{ unifi_existing.json | items2dict(key_name='key', value_name='value') }}"
 
+- name: Index records owned by external-dns
+  ansible.builtin.set_fact:
+    unifi_dns_external_owned: "{{ unifi_dns_external_txt + (unifi_dns_external_txt | map('regex_replace', '^k8s\\.[a-z]+-', '') | list) }}"
+  vars:
+    unifi_dns_external_txt: "{{ unifi_existing.json | selectattr('record_type', 'equalto', 'TXT') | selectattr('value', 'search', 'heritage=external-dns') | map(attribute='key') | list }}"
+
 - name: Create missing records
   ansible.builtin.uri:
     url: "https://{{ unifi_host }}/proxy/network/v2/api/site/{{ unifi_site }}/static-dns"
@@ -80,4 +86,5 @@
   when:
     - unifi_dns_prune_domains | length > 0
     - item.key not in (unifi_dns_records | map(attribute='key') | list)
+    - item.key not in unifi_dns_external_owned
     - item.key is match('(.*\.)?(' + (unifi_dns_prune_domains | map('regex_escape') | join('|')) + ')$')

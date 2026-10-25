@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.envoyproxy.io/envoyproxy_v1alpha1.json
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: EnvoyProxy
+metadata:
+  name: envoy-proxy-lan-config
+  namespace: envoy-gateway-system
+spec:
+  provider:
+    type: "Kubernetes"
+    kubernetes:
+      envoyDeployment:
+        replicas: 1
+        pod:
+          nodeSelector:
+            inf-k8s.net/lan-proxy: "true"
+      envoyService:
+        type: LoadBalancer
+        externalTrafficPolicy: Local
+  telemetry:
+    metrics:
+      prometheus: {}
+      enableVirtualHostStats: true
+    tracing:
+      samplingRate: 100
+      provider:
+        backendRefs:
+          - group: ""
+            kind: Service
+            name: monitoring-tempo
+            namespace: monitoring
+            port: 4317
+            weight: 1
+        type: OpenTelemetry
+      customTags:
+        provider:
+          type: Literal
+          literal:
+            value: "otel"
+        "k8s.pod.name":
+          type: Environment
+          environment:
+            name: ENVOY_POD_NAME
+            defaultValue: "-"
+        "k8s.namespace.name":
+          type: Environment
+          environment:
+            name: ENVOY_POD_NAMESPACE
+            defaultValue: "envoy-gateway-system"

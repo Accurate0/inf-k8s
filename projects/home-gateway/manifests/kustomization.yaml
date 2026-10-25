@@ -7,6 +7,7 @@ resources:
   - home-gateway/home-web.deployment.yaml
   - home-gateway/home-web.service.yaml
   - home-gateway/home-web.httproute.yaml
+  - home-gateway/home-web-lan.httproute.yaml
   - namespace.yaml
 commonAnnotations:
   inf-k8s.net/app: home-gateway

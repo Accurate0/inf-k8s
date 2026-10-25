@@ -9,6 +9,11 @@ resources:
   - internal/client.policy.yaml
   - internal/gateway.yaml
   - internal/tailscale-client-ip.securitypolicy.yaml
+  - lan/config.yaml
+  - lan/gatewayclass.yaml
+  - lan/gateway.yaml
+  - lan/lan-client-ip.securitypolicy.yaml
+  - lan/https-redirect.httproute.yaml
   - public/backend.policy.yaml
   - public/gateway.yaml
   - public/extension.policy.yaml

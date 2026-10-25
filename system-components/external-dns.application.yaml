@@ -34,6 +34,7 @@ spec:
                     data:
                       CF_API_TOKEN: "{{ .CF_API_TOKEN }}"
                       TXT_ENCRYPT_AES_KEY: "{{ .TXT_ENCRYPT_AES_KEY }}"
+                      UNIFI_API_TOKEN: "{{ .UNIFI_API_TOKEN }}"
     - chart: external-dns
       repoURL: https://kubernetes-sigs.github.io/external-dns/
       targetRevision: 1.23.0
@@ -71,6 +72,59 @@ spec:
             - anurag.id.au
             - inf-k8s.net
             - maccas.one
+    - chart: external-dns
+      repoURL: https://kubernetes-sigs.github.io/external-dns/
+      targetRevision: 1.23.0
+      helm:
+        releaseName: external-dns-unifi
+        valuesObject:
+          fullnameOverride: external-dns-unifi
+          provider:
+            name: webhook
+            webhook:
+              image:
+                repository: ghcr.io/home-operations/external-dns-unifi-webhook
+                tag: 0.10.14
+              env:
+                - name: UNIFI_HOST
+                  value: https://unifi.internal
+                - name: UNIFI_SITE
+                  value: default
+                - name: UNIFI_SKIP_TLS_VERIFY
+                  value: "true"
+                - name: UNIFI_API_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: external-dns-secrets
+                      key: UNIFI_API_TOKEN
+              livenessProbe:
+                httpGet:
+                  path: /healthz
+                  port: http-webhook
+                initialDelaySeconds: 10
+                timeoutSeconds: 5
+              readinessProbe:
+                httpGet:
+                  path: /readyz
+                  port: http-webhook
+                initialDelaySeconds: 10
+                timeoutSeconds: 5
+          nodeSelector:
+            inf-k8s.net/location: perth
+          policy: sync
+          interval: 15m
+          triggerLoopOnEvent: true
+          sources:
+            - gateway-httproute
+          serviceMonitor:
+            enabled: true
+            additionalLabels:
+              release: monitoring
+          txtOwnerId: inf-k8s-unifi
+          txtPrefix: k8s.%{record_type}-
+          annotationFilter: "external-dns.kubernetes.io/managed-unifi=true"
+          domainFilters:
+            - internal
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns
