@@ -80,7 +80,7 @@ spec:
                       ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"
     - chart: forgejo
       repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
-      targetRevision: 17.2.0
+      targetRevision: 17.3.1
       helm:
         valuesObject:
           extraVolumes:
