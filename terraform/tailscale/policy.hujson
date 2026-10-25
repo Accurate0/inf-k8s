@@ -30,7 +30,7 @@
     {
       "action": "accept",
       "src":    ["tag:k8s", "10.42.0.0/16"],
-      "dst":    ["tag:k8s-proxy:8405"],
+      "dst":    ["tag:k8s-proxy:443,8405"],
     },
     {
       "action": "accept",
@@ -73,12 +73,12 @@
     },
     {
       "src":    "tag:k8s",
-      "accept": ["tag:k8s:10250", "tag:k8s:2379", "10.42.5.1:443", "tag:k8s-proxy:8405"],
-      "deny":   ["tag:k8s-proxy:22", "tag:k8s-proxy:443", "100.116.36.106:22"],
+      "accept": ["tag:k8s:10250", "tag:k8s:2379", "10.42.5.1:443", "tag:k8s-proxy:443", "tag:k8s-proxy:8405"],
+      "deny":   ["tag:k8s-proxy:22", "tag:k8s-proxy:6443", "100.116.36.106:22"],
     },
     {
       "src":    "10.42.7.10",
-      "accept": ["10.42.0.83:8080", "tag:k8s:8443", "tag:k8s-proxy:8405"],
+      "accept": ["10.42.0.83:8080", "tag:k8s:8443", "tag:k8s-proxy:443", "tag:k8s-proxy:8405"],
       "deny":   ["tag:k8s-proxy:22", "100.116.36.106:22"],
     },
     {
