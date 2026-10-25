@@ -6,7 +6,7 @@ metadata:
   namespace: immich
   annotations:
     external-dns.kubernetes.io/managed: "true"
-    external-dns.kubernetes.io/cloudflare-proxied: "true"
+    external-dns.kubernetes.io/cloudflare-proxied: "false"
 spec:
   parentRefs:
     - group: gateway.networking.k8s.io
