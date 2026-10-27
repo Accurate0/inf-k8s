@@ -11,7 +11,3 @@ clap = { version = "4", features = ["derive", "env"] }
 reqwest = { version = "0.13", features = ["json"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
-
-[[bin]]
-name = "janitor"
-path = "src/main.rs"

@@ -1,4 +1,4 @@
-//! Webhook helpers shared by janitor-bot and the `janitor` CLI, kept free of server
+//! Webhook helpers shared by janitor-bot and `k8sctl janitor`, kept free of server
 //! dependencies so the CLI doesn't link git2 or the forge clients.
 
 pub mod github {
@@ -7,7 +7,7 @@ pub mod github {
 
     /// Computes the `X-Hub-Signature-256` header value for `body`, as GitHub sends
     /// it: `sha256=<hex HMAC-SHA256(secret, body)>`. Inverse of janitor-bot's
-    /// `github::verify_signature`; used by the `janitor replay` tool to sign saved
+    /// `github::verify_signature`; used by `k8sctl janitor replay` to sign saved
     /// payloads.
     pub fn sign_payload(secret: &str, body: &[u8]) -> String {
         let mut mac = Hmac::<Sha256>::new_from_slice(secret.as_bytes())

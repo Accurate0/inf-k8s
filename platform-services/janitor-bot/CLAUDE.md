@@ -36,13 +36,13 @@ Snapshot tests: review/accept changes with `cargo insta review` (snapshots in
 
 To drive a locally-running bot with a real event, save a webhook payload (the "Payload" tab
 of a GitHub/Forgejo "recent deliveries" entry) into `payloads/` (gitignored) and replay it
-through the real signed endpoint with the `janitor` CLI (the `cli/` crate, also available as
-`k8sctl janitor`; the payload inference and signing helpers live in `webhook/`):
+through the real signed endpoint with `k8sctl janitor` (the `cli/` crate, mounted into `crates/k8sctl`; the payload
+inference and signing helpers live in `webhook/`):
 
 ```
-janitor --url http://localhost:3000 replay github  payloads/status.json
-janitor --url http://localhost:3000 replay forgejo payloads/pr-comment.json
-janitor --url http://localhost:3000 replay argocd  payloads/sync.json
+k8sctl janitor --url http://localhost:3000 replay github  payloads/status.json
+k8sctl janitor --url http://localhost:3000 replay forgejo payloads/pr-comment.json
+k8sctl janitor --url http://localhost:3000 replay argocd  payloads/sync.json
 ```
 
 The CLI infers the `X-GitHub-Event` / `X-Forgejo-Event(-Type)` header from the payload shape

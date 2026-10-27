@@ -177,7 +177,7 @@ impl Api {
         match result {
             Ok(response) => Ok(response.into_inner()),
             Err(status) if status.code() == tonic::Code::Unauthenticated => {
-                bail!("unauthenticated: {} (run `ffctl login`)", status.message())
+                bail!("unauthenticated: {} (run `k8sctl ff login`)", status.message())
             }
             Err(status) => bail!("{:?}: {}", status.code(), status.message()),
         }

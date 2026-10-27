@@ -105,7 +105,7 @@ enum Source {
     Argocd,
 }
 
-/// Runs janitor. Shared by the `janitor` binary and `k8sctl janitor`.
+/// Runs janitor, mounted as `k8sctl janitor`.
 pub async fn run(cli: Cli) -> Result<()> {
     let client = reqwest::Client::new();
     let base = cli.url.trim_end_matches('/');

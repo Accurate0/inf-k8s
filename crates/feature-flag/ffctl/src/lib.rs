@@ -23,7 +23,7 @@ pub use cli::Cli;
 const APP: App = App {
     name: "ffctl",
     scopes: "openid email profile",
-    login_hint: "run `ffctl login`",
+    login_hint: "run `k8sctl ff login`",
 };
 
 struct Session {
@@ -64,7 +64,7 @@ impl Session {
     }
 }
 
-/// Runs ffctl. Shared by the `ffctl` binary and `k8sctl ff`.
+/// Runs ffctl, mounted as `k8sctl ff`.
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let session = Session::new(&cli);
     let output = Output::new(cli.output);
