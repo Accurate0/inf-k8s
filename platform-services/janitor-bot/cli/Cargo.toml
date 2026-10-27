@@ -5,6 +5,7 @@ edition = "2024"
 description = "CLI for the janitor-bot admin API"
 
 [dependencies]
+cli-auth = { path = "../../../crates/cli-auth" }
 janitor-webhook = { path = "../webhook" }
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }

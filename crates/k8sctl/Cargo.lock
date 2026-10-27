@@ -1287,6 +1287,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "clap",
+ "cli-auth",
  "janitor-webhook",
  "reqwest",
  "serde_json",

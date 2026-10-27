@@ -3,10 +3,12 @@ mod routes;
 use axum::{
     Router,
     http::StatusCode,
+    middleware,
     routing::{get, post},
 };
 use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use chrono_tz::Australia;
+use janitor_bot::auth::{self, Authenticator, OAuthConfig};
 use janitor_bot::{
     argocd::ArgocdClient, cache::CacheAccessor, clients::Clients, github::GitHubClient, metrics,
     registry::RegistryClient,
@@ -150,16 +152,32 @@ async fn main() -> anyhow::Result<()> {
         scheduler.start().await?;
     }
 
-    let app = Router::new()
-        .route("/health", get(|| async { StatusCode::OK }))
-        .route(
-            "/renovate/dashboard",
-            get(routes::handle_renovate_dashboard).post(routes::handle_renovate_dashboard_refresh),
-        )
-        .nest_service("/static", ServeDir::new("static"))
-        .route("/forgejo/webhook", post(routes::handle_forgejo_webhook))
-        .route("/github/webhook", post(routes::handle_github_webhook))
-        .route("/argocd/webhook", post(routes::handle_argocd_webhook))
+    let auth = match OAuthConfig::from_env() {
+        Some(config) => {
+            let auth = Authenticator::new(&config);
+
+            if let Err(e) = auth.refresh().await {
+                tracing::warn!("initial jwks fetch failed, retrying on first request: {e}");
+            }
+
+            tokio::spawn(auth.clone().run());
+            tracing::info!(
+                issuer = config.issuer,
+                "oidc bearer auth enabled for admin endpoints"
+            );
+
+            Some(auth)
+        }
+        None if cfg!(debug_assertions) => {
+            tracing::warn!("debug build: OIDC_ISSUER unset, admin endpoints are unauthenticated");
+
+            None
+        }
+        None => anyhow::bail!("OIDC_ISSUER must be set to protect the admin endpoints"),
+    };
+
+    // Everything under /admin except /admin/metrics, which Prometheus scrapes.
+    let admin = Router::new()
         .route("/admin/cron", post(routes::handle_admin_cron))
         .route(
             "/admin/merge-queued",
@@ -178,10 +196,23 @@ async fn main() -> anyhow::Result<()> {
             "/admin/dry-run/{owner}/{repo}/{pr_number}",
             post(routes::handle_admin_dry_run),
         )
-        .route("/admin/metrics", get(routes::handle_admin_metrics))
         .route("/admin/logs", get(routes::handle_admin_logs))
         .route("/admin/rules", get(routes::handle_admin_rules))
         .route("/admin/health/deep", get(routes::handle_admin_health_deep))
+        .route_layer(middleware::from_fn_with_state(auth, auth::require_admin));
+
+    let app = Router::new()
+        .route("/health", get(|| async { StatusCode::OK }))
+        .route(
+            "/renovate/dashboard",
+            get(routes::handle_renovate_dashboard).post(routes::handle_renovate_dashboard_refresh),
+        )
+        .nest_service("/static", ServeDir::new("static"))
+        .route("/forgejo/webhook", post(routes::handle_forgejo_webhook))
+        .route("/github/webhook", post(routes::handle_github_webhook))
+        .route("/argocd/webhook", post(routes::handle_argocd_webhook))
+        .route("/admin/metrics", get(routes::handle_admin_metrics))
+        .merge(admin)
         .layer(OtelInResponseLayer)
         .layer(
             OtelAxumLayer::default()

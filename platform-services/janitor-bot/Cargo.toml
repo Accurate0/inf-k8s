@@ -1,6 +1,8 @@
 [workspace]
-members = ["webhook", "cli"]
-default-members = [".", "cli"]
+members = ["webhook"]
+# The CLI is only built through crates/k8sctl and depends on crates/cli-auth, which sits
+# outside this image's build context.
+exclude = ["cli"]
 
 [package]
 name = "janitor-bot"
@@ -49,6 +51,8 @@ metrics = "0.24"
 metrics-exporter-prometheus = { version = "0.18", default-features = false }
 clap = { version = "4", features = ["derive", "env"] }
 yaml-include = "0.8.1"
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+thiserror = "2"
 
 [build-dependencies]
 jsonschema = { version = "0.58", default-features = false }
@@ -57,6 +61,7 @@ yaml-include = "0.8.1"
 yaml_serde = "0.10.4"
 
 [dev-dependencies]
+p256 = { version = "0.13", features = ["pkcs8", "jwk"] }
 insta = { version = "1", features = ["yaml", "redactions"] }
 regex = "1.12.4"
 rstest = "0.27"

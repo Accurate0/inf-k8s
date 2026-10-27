@@ -1,8 +1,15 @@
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
+use cli_auth::{App, OAuthClient, TokenSource};
 use reqwest::Method;
 use serde_json::Value;
 use std::path::PathBuf;
+
+const APP: App = App {
+    name: "janitor",
+    scopes: "openid email profile groups",
+    login_hint: "run `k8sctl janitor login` or set JANITOR_TOKEN",
+};
 
 #[derive(Parser)]
 #[command(name = "janitor", about = "CLI for the janitor-bot admin API")]
@@ -16,12 +23,46 @@ pub struct Cli {
     )]
     url: String,
 
+    #[arg(
+        long,
+        global = true,
+        env = "JANITOR_OIDC_ISSUER",
+        default_value = "https://idm.anurag.sh/oauth2/openid/janitor-bot",
+        help = "OIDC issuer used to log in"
+    )]
+    issuer: String,
+
+    #[arg(
+        long,
+        global = true,
+        env = "JANITOR_OIDC_CLIENT_ID",
+        default_value = "janitor-bot",
+        help = "OAuth client id"
+    )]
+    client_id: String,
+
+    #[arg(
+        long,
+        global = true,
+        env = "JANITOR_TOKEN",
+        hide_env_values = true,
+        help = "Use this bearer token instead of the stored login"
+    )]
+    token: Option<String>,
+
     #[command(subcommand)]
     cmd: Command,
 }
 
 #[derive(Subcommand)]
 enum Command {
+    /// Log in through the browser and store the session
+    Login,
+    /// Forget the stored session
+    Logout,
+    /// Show the logged in user
+    Whoami,
+
     /// Trigger the open-PR cron evaluation now
     Cron,
 
@@ -109,6 +150,14 @@ enum Source {
 pub async fn run(cli: Cli) -> Result<()> {
     let client = reqwest::Client::new();
     let base = cli.url.trim_end_matches('/');
+    let oauth = OAuthClient::new(APP, &cli.issuer, &cli.client_id);
+
+    match &cli.cmd {
+        Command::Login => return cli_auth::commands::login(&oauth).await,
+        Command::Logout => return cli_auth::commands::logout(&oauth),
+        Command::Whoami => return cli_auth::commands::whoami(&oauth, base),
+        _ => {}
+    }
 
     if let Command::Replay {
         source,
@@ -180,10 +229,21 @@ pub async fn run(cli: Cli) -> Result<()> {
         Command::Rules => (Method::GET, "/admin/rules".into(), None),
         Command::Health => (Method::GET, "/admin/health/deep".into(), None),
         Command::Replay { .. } => unreachable!("replay is handled before this match"),
+        Command::Login | Command::Logout | Command::Whoami => {
+            unreachable!("session commands are handled before this match")
+        }
     };
 
     let url = format!("{base}{path}");
     let mut req = client.request(method, &url);
+    // Prometheus scrapes /admin/metrics unauthenticated; everything else needs a bearer.
+    if path != "/admin/metrics" {
+        let token = match cli.token.filter(|token| !token.is_empty()) {
+            Some(token) => token,
+            None => TokenSource::acquire(oauth).await?.access_token(),
+        };
+        req = req.bearer_auth(token);
+    }
     if let Some(b) = body {
         req = req.json(&b);
     }

@@ -1,4 +1,5 @@
 pub mod argocd;
+pub mod auth;
 pub mod cache;
 pub mod clients;
 pub mod dashboard;

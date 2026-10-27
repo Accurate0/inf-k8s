@@ -24,7 +24,11 @@ cargo run --bin gen-schema     # regenerate rule.schema.json + rules.schema.json
 
 Required env vars to run: `FORGEJO_INSTANCE_URL`, `FORGEJO_ACCESS_KEY`, `GITHUB_TOKEN`,
 `FORGEJO_INCOMING_WEBHOOK_AUTH`, `GITHUB_WEBHOOK_SECRET`. Optional: `ARGOCD_WEBHOOK_SECRET`,
-`FEATURE_FLAGS_URL` (feature flags; falls back to a NoOp provider when unset). `.env.local`
+`FEATURE_FLAGS_URL` (feature flags; falls back to a NoOp provider when unset). `OIDC_ISSUER`,
+`OIDC_AUDIENCE`, `OIDC_GROUPS` (comma-separated) protect every `/admin/*` route except
+`/admin/metrics` (Prometheus scrapes it) with Kanidm bearer tokens via `src/auth.rs`; a
+release build refuses to start without `OIDC_ISSUER`, a debug build leaves admin open.
+Log in with `k8sctl janitor login`. `.env.local`
 (gitignored) holds local values. Debug builds (`cargo run`) skip the startup label sync and
 the open-PR poll cron so a local run makes no unsolicited writes to the repo; the deployed
 release image keeps both.

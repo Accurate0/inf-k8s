@@ -100,6 +100,12 @@ spec:
             - secretRef:
                 name: janitor-bot-managed-secrets
           env:
+            - name: OIDC_ISSUER
+              value: https://idm.anurag.sh/oauth2/openid/janitor-bot
+            - name: OIDC_AUDIENCE
+              value: janitor-bot
+            - name: OIDC_GROUPS
+              value: janitor_bot_admins
             - name: RULES_CONFIGMAP_PATH
               value: /etc/janitor-bot/rules/config.yaml
             - name: FEATURE_FLAGS_URL
