@@ -5,15 +5,21 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler libprotobuf-dev
 
-WORKDIR /app/${BINARY_NAME}-build
+# Build context is the repository root: the aig CLI depends on crates/cli-auth via a
+# path dependency, so both trees must be present.
+WORKDIR /app
 
-COPY . .
+COPY crates/cli-auth ./crates/cli-auth
+COPY platform-services/ai-gateway ./platform-services/ai-gateway
+
 RUN \
-    --mount=type=cache,target=/app/${BINARY_NAME}-build/target/ \
+    --mount=type=cache,target=/app/platform-services/ai-gateway/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    cargo build --locked --release --bin ${BINARY_NAME} --bin aig && \
-    cp ./target/release/${BINARY_NAME} /app && \
-    cp ./target/release/aig /app/aig
+    cargo build --locked --release \
+    --manifest-path platform-services/ai-gateway/Cargo.toml \
+    --bin ${BINARY_NAME} --bin aig && \
+    cp platform-services/ai-gateway/target/release/${BINARY_NAME} /app/${BINARY_NAME} && \
+    cp platform-services/ai-gateway/target/release/aig /app/aig
 
 FROM debian:trixie-slim AS final
 ARG BINARY_NAME

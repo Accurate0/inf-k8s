@@ -1,6 +1,6 @@
-use crate::auth::TokenSource;
 use crate::convert::Convert;
 use anyhow::{Context as _, bail};
+use cli_auth::TokenSource;
 use feature_flag_proto as pb;
 use pb::admin_client::AdminClient;
 use pb::evaluation_client::EvaluationClient;

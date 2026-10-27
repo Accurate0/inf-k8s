@@ -1,9 +1,15 @@
+[workspace]
+members = ["api", "cli"]
+# `cargo build --bin aig` from here, as the Dockerfile does, still finds the CLI.
+default-members = [".", "cli"]
+
 [package]
 name = "ai-gateway"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+ai-gateway-api = { path = "api" }
 axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.13", features = ["json", "form", "stream", "rustls", "http2"], default-features = false }
@@ -36,11 +42,7 @@ opentelemetry-otlp = { version = "0.33.0", features = ["trace", "reqwest-blockin
 opentelemetry-semantic-conventions = { version = "0.33.0", features = ["semconv_experimental"] }
 tracing-opentelemetry = "0.34.0"
 axum-tracing-opentelemetry = "0.42.0"
-clap = { version = "4", features = ["derive", "env"] }
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
-base64 = "0.22"
-dirs = "6"
-open = "5"
 
 [dev-dependencies]
 p256 = { version = "0.13", features = ["pkcs8", "jwk"] }
@@ -52,7 +54,3 @@ wiremock = "0.6"
 [[bin]]
 name = "ai-gateway"
 path = "src/main.rs"
-
-[[bin]]
-name = "aig"
-path = "src/bin/aig/main.rs"

@@ -10,6 +10,17 @@ use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
+pub mod commands;
+
+/// Identifies the CLI a login belongs to: where its session is stored, what it asks the
+/// identity provider for, and how it tells the user to log in again.
+#[derive(Debug, Clone, Copy)]
+pub struct App {
+    pub name: &'static str,
+    pub scopes: &'static str,
+    pub login_hint: &'static str,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Credentials {
     pub issuer: String,
@@ -25,24 +36,24 @@ pub struct Credentials {
 impl Credentials {
     const EXPIRY_SKEW_SECS: i64 = 60;
 
-    pub fn path() -> anyhow::Result<PathBuf> {
+    pub fn path(app: App) -> anyhow::Result<PathBuf> {
         let dir = dirs::config_dir().context("no config directory for this user")?;
 
-        Ok(dir.join("ffctl").join("credentials.json"))
+        Ok(dir.join(app.name).join("credentials.json"))
     }
 
-    pub fn load(issuer: &str, client_id: &str) -> Option<Self> {
-        let text = std::fs::read_to_string(Self::path().ok()?).ok()?;
+    pub fn load(app: App, issuer: &str, client_id: &str) -> Option<Self> {
+        let text = std::fs::read_to_string(Self::path(app).ok()?).ok()?;
         let credentials: Self = serde_json::from_str(&text).ok()?;
 
         (credentials.issuer == issuer && credentials.client_id == client_id).then_some(credentials)
     }
 
-    pub fn save(&self) -> anyhow::Result<()> {
+    pub fn save(&self, app: App) -> anyhow::Result<()> {
         use std::io::Write as _;
         use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
 
-        let path = Self::path()?;
+        let path = Self::path(app)?;
         let dir = path.parent().context("credentials path has no parent")?;
         std::fs::create_dir_all(dir)?;
 
@@ -60,8 +71,8 @@ impl Credentials {
         Ok(())
     }
 
-    pub fn delete() -> anyhow::Result<bool> {
-        let path = Self::path()?;
+    pub fn delete(app: App) -> anyhow::Result<bool> {
+        let path = Self::path(app)?;
 
         if !path.exists() {
             return Ok(false);
@@ -130,6 +141,7 @@ impl Pkce {
 }
 
 struct Callback {
+    app: App,
     v4: TcpListener,
     v6: Option<TcpListener>,
     port: u16,
@@ -137,16 +149,16 @@ struct Callback {
 
 impl Callback {
     const PATH: &'static str = "/callback";
-    const PAGE: &'static str = "<!doctype html><html><head><meta charset=\"utf-8\"><title>ffctl</title></head><body style=\"font-family: sans-serif; margin: 4rem\"><h2>ffctl</h2><p>MESSAGE</p></body></html>";
+    const PAGE: &'static str = "<!doctype html><html><head><meta charset=\"utf-8\"><title>APP</title></head><body style=\"font-family: sans-serif; margin: 4rem\"><h2>APP</h2><p>MESSAGE</p></body></html>";
 
-    async fn bind() -> anyhow::Result<Self> {
+    async fn bind(app: App) -> anyhow::Result<Self> {
         let v4 = TcpListener::bind(("127.0.0.1", 0))
             .await
             .context("binding loopback callback listener")?;
         let port = v4.local_addr()?.port();
         let v6 = TcpListener::bind(("::1", port)).await.ok();
 
-        Ok(Self { v4, v6, port })
+        Ok(Self { app, v4, v6, port })
     }
 
     fn redirect_uri(&self) -> String {
@@ -173,12 +185,12 @@ impl Callback {
 
             let target = head.split_whitespace().nth(1).unwrap_or_default();
             let Ok(url) = reqwest::Url::parse(&format!("http://localhost{target}")) else {
-                Self::respond(&mut stream, 400, "Bad request.").await;
+                self.respond(&mut stream, 400, "Bad request.").await;
                 continue;
             };
 
             if url.path() != Self::PATH {
-                Self::respond(&mut stream, 404, "Not found.").await;
+                self.respond(&mut stream, 404, "Not found.").await;
                 continue;
             }
 
@@ -190,28 +202,33 @@ impl Callback {
 
             if let Some(error) = param("error") {
                 let description = param("error_description").unwrap_or_default();
-                Self::respond(&mut stream, 400, "Login failed. Return to the terminal.").await;
+                self.respond(&mut stream, 400, "Login failed. Return to the terminal.")
+                    .await;
                 bail!("authorization failed: {error} {description}");
             }
 
             if param("state").as_deref() != Some(state) {
-                Self::respond(&mut stream, 400, "State mismatch.").await;
+                self.respond(&mut stream, 400, "State mismatch.").await;
                 bail!("authorization response state did not match");
             }
 
             let Some(code) = param("code") else {
-                Self::respond(&mut stream, 400, "Missing authorization code.").await;
+                self.respond(&mut stream, 400, "Missing authorization code.")
+                    .await;
                 bail!("authorization response had no code");
             };
 
-            Self::respond(&mut stream, 200, "Logged in. You can close this tab.").await;
+            self.respond(&mut stream, 200, "Logged in. You can close this tab.")
+                .await;
 
             return Ok(code);
         }
     }
 
-    async fn respond(stream: &mut TcpStream, status: u16, message: &str) {
-        let body = Self::PAGE.replace("MESSAGE", message);
+    async fn respond(&self, stream: &mut TcpStream, status: u16, message: &str) {
+        let body = Self::PAGE
+            .replace("APP", self.app.name)
+            .replace("MESSAGE", message);
         let response = format!(
             "HTTP/1.1 {status} OK\r\ncontent-type: text/html; charset=utf-8\r\ncontent-length: {}\r\nconnection: close\r\n\r\n{body}",
             body.len()
@@ -224,26 +241,31 @@ impl Callback {
 
 #[derive(Clone)]
 pub struct OAuthClient {
+    app: App,
     http: reqwest::Client,
     issuer: String,
     client_id: String,
 }
 
 impl OAuthClient {
-    const SCOPES: &'static str = "openid email profile";
     const LOGIN_TIMEOUT: Duration = Duration::from_secs(300);
     const DEFAULT_EXPIRY_SECS: i64 = 300;
 
-    pub fn new(issuer: &str, client_id: &str) -> Self {
+    pub fn new(app: App, issuer: &str, client_id: &str) -> Self {
         Self {
+            app,
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(20))
-                .user_agent("ffctl")
+                .user_agent(app.name)
                 .build()
                 .unwrap_or_default(),
             issuer: issuer.trim_end_matches('/').to_owned(),
             client_id: client_id.to_owned(),
         }
+    }
+
+    pub fn app(&self) -> App {
+        self.app
     }
 
     pub fn issuer(&self) -> &str {
@@ -270,7 +292,7 @@ impl OAuthClient {
 
     pub async fn login(&self) -> anyhow::Result<Credentials> {
         let discovery = self.discover().await?;
-        let callback = Callback::bind().await?;
+        let callback = Callback::bind(self.app).await?;
         let redirect_uri = callback.redirect_uri();
         let pkce = Pkce::new();
         let state = uuid::Uuid::new_v4().simple().to_string();
@@ -282,7 +304,7 @@ impl OAuthClient {
             .append_pair("response_type", "code")
             .append_pair("client_id", &self.client_id)
             .append_pair("redirect_uri", &redirect_uri)
-            .append_pair("scope", Self::SCOPES)
+            .append_pair("scope", self.app.scopes)
             .append_pair("state", &state)
             .append_pair("code_challenge", &pkce.challenge)
             .append_pair("code_challenge_method", "S256");
@@ -307,7 +329,7 @@ impl OAuthClient {
             ])
             .await?;
 
-        credentials.save()?;
+        credentials.save(self.app)?;
 
         Ok(credentials)
     }
@@ -334,7 +356,7 @@ impl OAuthClient {
             credentials.username = current.username.clone();
         }
 
-        credentials.save()?;
+        credentials.save(self.app)?;
 
         Ok(credentials)
     }
@@ -386,7 +408,7 @@ pub struct TokenSource {
 
 impl TokenSource {
     pub async fn acquire(oauth: OAuthClient) -> anyhow::Result<Self> {
-        let stored = Credentials::load(oauth.issuer(), oauth.client_id());
+        let stored = Credentials::load(oauth.app, oauth.issuer(), oauth.client_id());
 
         let credentials = match stored {
             Some(credentials) if credentials.is_fresh() => credentials,
@@ -407,7 +429,7 @@ impl TokenSource {
 
     async fn interactive_login(oauth: &OAuthClient, reason: &str) -> anyhow::Result<Credentials> {
         if !std::io::stdin().is_terminal() {
-            bail!("{reason}; run `ffctl login`");
+            bail!("{reason}; {}", oauth.app.login_hint);
         }
 
         eprintln!("{reason}");
@@ -439,11 +461,12 @@ impl TokenSource {
             return Ok(());
         }
 
-        let refreshed = self
-            .oauth
-            .refresh(&snapshot)
-            .await
-            .context("refreshing the session failed; run `ffctl login`")?;
+        let refreshed = self.oauth.refresh(&snapshot).await.with_context(|| {
+            format!(
+                "refreshing the session failed; {}",
+                self.oauth.app.login_hint
+            )
+        })?;
 
         if let Ok(mut current) = self.current.write() {
             *current = refreshed;
@@ -456,6 +479,12 @@ impl TokenSource {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const APP: App = App {
+        name: "test",
+        scopes: "openid",
+        login_hint: "run `test login`",
+    };
 
     #[test]
     fn pkce_challenge_is_the_s256_of_the_verifier() {
@@ -497,7 +526,7 @@ mod tests {
 
     #[tokio::test]
     async fn callback_returns_the_code_for_a_matching_state() {
-        let callback = Callback::bind().await.unwrap();
+        let callback = Callback::bind(APP).await.unwrap();
         let port = callback.port;
 
         let browser = tokio::spawn(async move {
@@ -521,7 +550,7 @@ mod tests {
 
     #[tokio::test]
     async fn callback_rejects_a_state_mismatch() {
-        let callback = Callback::bind().await.unwrap();
+        let callback = Callback::bind(APP).await.unwrap();
         let port = callback.port;
 
         tokio::spawn(async move {

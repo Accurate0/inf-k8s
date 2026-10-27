@@ -1,6 +1,6 @@
 use std::fmt;
 
-use ai_gateway::usage::{UsageRow, Window};
+use ai_gateway_api::{UsageRow, Window};
 
 const COLUMNS: usize = 7;
 const LEFT_ALIGNED: usize = 2;

@@ -26,17 +26,24 @@ diff-manifests service:
 # Install all platform service binaries with cargo
 install:
     cargo install --path ai-gateway
+    cargo install --path ai-gateway/cli
     cargo install --path janitor-bot
+    cargo install --path janitor-bot/cli
     cargo install --path feature-flags
     cargo install --path ../crates/feature-flag/ffctl
+    cargo install --path ../crates/k8sctl
+
+# Run k8sctl, the combined CLI for every platform service
+k8sctl *args:
+    cargo run --manifest-path ../crates/k8sctl/Cargo.toml -- {{args}}
 
 # Run the ai-gateway aig binary
 aig *args:
     cargo run --manifest-path ai-gateway/Cargo.toml --bin aig -- {{args}}
 
-# Run the janitor-bot binary
+# Run the janitor CLI
 janitor *args:
-    cargo run --manifest-path janitor-bot/Cargo.toml --bin janitor-bot -- {{args}}
+    cargo run --manifest-path janitor-bot/Cargo.toml --bin janitor -- {{args}}
 
 # Run the ffctl binary
 ffctl *args:

@@ -12,17 +12,36 @@ on:
   workflow_dispatch:
 
 jobs:
+  # Built inline rather than through Accurate0/workflows' build-push-docker, which has no
+  # Dockerfile input: the build context is the repo root so aig can reach crates/cli-auth.
   build:
+    runs-on: ubuntu-latest
     permissions:
       packages: write
-
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
-    with:
-      directory: ./platform-services/ai-gateway
-      image-name: ai-gateway
-      docker-build-args: |
-        BINARY_NAME=ai-gateway
-      use-rust-caching: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Compute commit metadata
+        id: commit-meta
+        run: echo "committed-at=$(git show -s --format=%ct ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: ./platform-services/ai-gateway/Dockerfile
+          push: true
+          tags: ghcr.io/accurate0/ai-gateway:latest,ghcr.io/accurate0/ai-gateway:${{ github.sha }}
+          labels: |
+            net.inf-k8s.commit-sha=${{ github.sha }}
+            net.inf-k8s.committed-at=${{ steps.commit-meta.outputs.committed-at }}
+          build-args: |
+            BINARY_NAME=ai-gateway
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   test:
     runs-on: ubuntu-latest

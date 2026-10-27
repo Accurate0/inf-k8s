@@ -946,53 +946,11 @@ impl ForgejoClient {
     }
 }
 
-/// Infers the `X-Forgejo-Event` header (and optional `X-Forgejo-Event-Type`)
-/// from a raw Forgejo webhook body, mirroring the dispatch in
-/// `handle_forgejo_webhook`. Forgejo reports a comment on a PR as event
-/// `issue_comment` with event-type `pull_request_comment`; a comment on a plain
-/// issue has `issue.pull_request` null. Returns `None` if the shape matches none
-/// of the handled events.
-pub fn infer_event(body: &[u8]) -> Option<(&'static str, Option<&'static str>)> {
-    let v: serde_json::Value = serde_json::from_slice(body).ok()?;
-    let obj = v.as_object()?;
-
-    if obj.contains_key("comment") {
-        let on_pr = obj
-            .get("issue")
-            .and_then(|i| i.get("pull_request"))
-            .is_some_and(|pr| !pr.is_null());
-        Some(("issue_comment", on_pr.then_some("pull_request_comment")))
-    } else if obj.get("pull_request").is_some_and(|p| p.is_object()) {
-        Some(("pull_request", None))
-    } else if obj.contains_key("ref") && (obj.contains_key("pusher") || obj.contains_key("commits"))
-    {
-        Some(("push", None))
-    } else {
-        None
-    }
-}
+pub use janitor_webhook::forgejo::infer_event;
 
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn infer_event_distinguishes_comment_targets() {
-        assert_eq!(
-            infer_event(br#"{"action":"created","issue":{"pull_request":{}},"comment":{"body":"@janitor merge"}}"#),
-            Some(("issue_comment", Some("pull_request_comment")))
-        );
-        assert_eq!(
-            infer_event(br#"{"action":"created","issue":{"pull_request":null},"comment":{"body":"@janitor ack"}}"#),
-            Some(("issue_comment", None))
-        );
-        assert_eq!(
-            infer_event(br#"{"action":"opened","pull_request":{"number":5}}"#),
-            Some(("pull_request", None))
-        );
-        assert_eq!(infer_event(br#"{"action":"deleted"}"#), None);
-        assert_eq!(infer_event(b"not json"), None);
-    }
 
     #[test]
     fn commit_deserialization_with_files() {

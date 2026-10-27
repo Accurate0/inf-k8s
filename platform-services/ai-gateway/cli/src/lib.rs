@@ -1,15 +1,20 @@
-mod auth;
 mod usage;
 
-use ai_gateway::usage::{UsageRow, Window};
-use auth::{Credentials, OAuthClient, TokenSource};
+use ai_gateway_api::{UsageRow, Window};
 use clap::{Parser, Subcommand};
+use cli_auth::{App, OAuthClient, TokenSource};
 use serde_json::json;
 use usage::UsageTable;
 
+const APP: App = App {
+    name: "aig",
+    scopes: "openid email profile groups",
+    login_hint: "run `aig login` or set AIG_ADMIN_TOKEN",
+};
+
 #[derive(Parser)]
 #[command(name = "aig", about = "ai-gateway admin CLI")]
-struct Cli {
+pub struct Cli {
     #[arg(
         long,
         global = true,
@@ -59,7 +64,7 @@ impl Session {
     fn new(cli: &Cli) -> Self {
         Self {
             url: cli.url.trim_end_matches('/').to_owned(),
-            oauth: OAuthClient::new(&cli.issuer, &cli.client_id),
+            oauth: OAuthClient::new(APP, &cli.issuer, &cli.client_id),
             token: cli.token.clone().filter(|token| !token.is_empty()),
         }
     }
@@ -69,48 +74,9 @@ impl Session {
             return Ok(token.clone());
         }
 
-        Ok(TokenSource::acquire(&self.oauth).await?.access_token)
-    }
-
-    async fn login(&self) -> anyhow::Result<()> {
-        let credentials = self.oauth.login().await?;
-        println!("Logged in as {}.", credentials.display_name());
-
-        Ok(())
-    }
-
-    fn logout(&self) -> anyhow::Result<()> {
-        if Credentials::delete()? {
-            println!("Logged out.");
-        } else {
-            println!("Not logged in.");
-        }
-
-        Ok(())
-    }
-
-    fn whoami(&self) -> anyhow::Result<()> {
-        let Some(credentials) = Credentials::load(self.oauth.issuer(), self.oauth.client_id())
-        else {
-            anyhow::bail!("not logged in; run `aig login`");
-        };
-
-        let expires = chrono::DateTime::from_timestamp(credentials.expires_at, 0)
-            .map(|at| at.with_timezone(&chrono::Local).to_rfc3339())
-            .unwrap_or_default();
-
-        let renewable = if credentials.refresh_token.is_some() {
-            "renews automatically"
-        } else {
-            "no refresh token"
-        };
-
-        println!("user     {}", credentials.display_name());
-        println!("issuer   {}", credentials.issuer);
-        println!("server   {}", self.url);
-        println!("expires  {expires} ({renewable})");
-
-        Ok(())
+        Ok(TokenSource::acquire(self.oauth.clone())
+            .await?
+            .access_token())
     }
 
     fn usage_request(&self, http: &reqwest::Client, since: Window) -> reqwest::RequestBuilder {
@@ -220,17 +186,16 @@ enum KeyAction {
     Regenerate { id: String },
 }
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    let cli = Cli::parse();
+/// Runs aig. Shared by the `aig` binary and `k8sctl ai`.
+pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let session = Session::new(&cli);
     let http = reqwest::Client::new();
     let base = session.url.as_str();
 
     let request = match &cli.command {
-        Command::Login => return session.login().await,
-        Command::Logout => return session.logout(),
-        Command::Whoami => return session.whoami(),
+        Command::Login => return cli_auth::commands::login(&session.oauth).await,
+        Command::Logout => return cli_auth::commands::logout(&session.oauth),
+        Command::Whoami => return cli_auth::commands::whoami(&session.oauth, &session.url),
         Command::Models => return send(http.get(format!("{base}/v1/models"))).await,
         Command::Keys { action } => match action {
             KeyAction::Create {

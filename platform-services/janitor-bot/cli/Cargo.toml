@@ -1,0 +1,17 @@
+[package]
+name = "janitor-cli"
+version = "0.1.0"
+edition = "2024"
+description = "CLI for the janitor-bot admin API"
+
+[dependencies]
+janitor-webhook = { path = "../webhook" }
+anyhow = "1"
+clap = { version = "4", features = ["derive", "env"] }
+reqwest = { version = "0.13", features = ["json"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+
+[[bin]]
+name = "janitor"
+path = "src/main.rs"

@@ -6,7 +6,7 @@ use std::path::PathBuf;
 
 #[derive(Parser)]
 #[command(name = "janitor", about = "CLI for the janitor-bot admin API")]
-struct Cli {
+pub struct Cli {
     /// Base URL of janitor-bot (e.g. http://localhost:3000)
     #[arg(
         long,
@@ -105,9 +105,8 @@ enum Source {
     Argocd,
 }
 
-#[tokio::main]
-async fn main() -> Result<()> {
-    let cli = Cli::parse();
+/// Runs janitor. Shared by the `janitor` binary and `k8sctl janitor`.
+pub async fn run(cli: Cli) -> Result<()> {
     let client = reqwest::Client::new();
     let base = cli.url.trim_end_matches('/');
 
@@ -118,8 +117,15 @@ async fn main() -> Result<()> {
         event_type,
     } = &cli.cmd
     {
-        return run_replay(&client, base, *source, file, event.as_deref(), event_type.as_deref())
-            .await;
+        return run_replay(
+            &client,
+            base,
+            *source,
+            file,
+            event.as_deref(),
+            event_type.as_deref(),
+        )
+        .await;
     }
 
     let (method, path, body): (Method, String, Option<Value>) = match cli.cmd {
@@ -219,7 +225,7 @@ async fn run_replay(
         Source::Github => {
             let event = match event {
                 Some(e) => e.to_string(),
-                None => janitor_bot::github::infer_event(&body)
+                None => janitor_webhook::github::infer_event(&body)
                     .context(
                         "could not infer X-GitHub-Event from payload; pass --event \
                          (status|check_run|push|workflow_run)",
@@ -227,7 +233,7 @@ async fn run_replay(
                     .to_string(),
             };
             let secret = require_env("GITHUB_WEBHOOK_SECRET")?;
-            let signature = janitor_bot::github::sign_payload(&secret, &body);
+            let signature = janitor_webhook::github::sign_payload(&secret, &body);
             (
                 "/github/webhook",
                 vec![
@@ -240,7 +246,7 @@ async fn run_replay(
             let (event, inferred_type) = match event {
                 Some(e) => (e.to_string(), event_type),
                 None => {
-                    let (e, t) = janitor_bot::forgejo::infer_event(&body).context(
+                    let (e, t) = janitor_webhook::forgejo::infer_event(&body).context(
                         "could not infer X-Forgejo-Event from payload; pass --event \
                          (pull_request|issue_comment|push)",
                     )?;

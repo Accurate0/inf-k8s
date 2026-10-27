@@ -1,0 +1,10 @@
+[package]
+name = "janitor-webhook"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+hex = "0.4"
+hmac = "0.13"
+serde_json = "1"
+sha2 = "0.11"

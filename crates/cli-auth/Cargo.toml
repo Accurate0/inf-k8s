@@ -1,0 +1,18 @@
+[package]
+name = "cli-auth"
+version = "0.1.0"
+edition = "2024"
+description = "Browser-based OIDC (PKCE) login and stored sessions shared by the platform CLIs"
+
+[dependencies]
+anyhow = "1"
+base64 = "0.22"
+chrono = "0.4"
+dirs = "6"
+open = "5"
+reqwest = { version = "0.13", features = ["json", "form"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.11"
+tokio = { version = "1", features = ["full"] }
+uuid = { version = "1", features = ["v4"] }

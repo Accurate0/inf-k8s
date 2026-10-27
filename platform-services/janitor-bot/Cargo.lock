@@ -1650,6 +1650,7 @@ dependencies = [
  "hmac",
  "http",
  "insta",
+ "janitor-webhook",
  "jsonschema",
  "metrics",
  "metrics-exporter-prometheus",
@@ -1681,6 +1682,28 @@ dependencies = [
  "wiremock",
  "yaml-include",
  "yaml_serde",
+]
+
+[[package]]
+name = "janitor-cli"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "janitor-webhook",
+ "reqwest",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
+name = "janitor-webhook"
+version = "0.1.0"
+dependencies = [
+ "hex",
+ "hmac",
+ "serde_json",
+ "sha2 0.11.1",
 ]
 
 [[package]]
