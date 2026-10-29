@@ -2,7 +2,9 @@ use std::path::Path;
 
 use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
-use registry_api::{Package, PackageDetail, Target, Version};
+use registry_api::{
+    Package, PackageDetail, Target, Version, validate_binary_name, validate_package_name,
+};
 
 use crate::{
     client::Client,
@@ -66,6 +68,8 @@ async fn install_version(
         .iter()
         .find(|a| a.target == target)
         .with_context(|| format!("{name}@{} has no {target} build", version.version))?;
+    validate_package_name(name).map_err(anyhow::Error::msg)?;
+    validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
 
     let mut installed = store.load()?;
     if let Some(current) = installed.packages.get(name)
@@ -209,7 +213,7 @@ pub fn uninstall(names: &[String]) -> anyhow::Result<()> {
 pub async fn self_update(settings: &Settings, version: Option<&str>) -> anyhow::Result<()> {
     let client = settings.reader().await?;
     if !self_update_with(&client, host_target()?, version, version.is_some()).await? {
-        println!("ortzi {} is up to date", env!("CARGO_PKG_VERSION"));
+        println!("ortzi {} is up to date", env!("ORTZI_VERSION"));
     }
     Ok(())
 }
@@ -221,7 +225,7 @@ async fn self_update_with(
     exact: bool,
 ) -> anyhow::Result<bool> {
     let release = resolve(client, SELF, version, target).await?;
-    let running = env!("CARGO_PKG_VERSION");
+    let running = env!("ORTZI_VERSION");
     let newer = match (
         semver::Version::parse(&release.version),
         semver::Version::parse(running),

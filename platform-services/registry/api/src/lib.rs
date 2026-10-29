@@ -49,6 +49,20 @@ pub fn validate_package_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn validate_binary_name(binary: &str) -> Result<(), String> {
+    let valid = !binary.is_empty()
+        && binary.len() <= 64
+        && !binary.starts_with('.')
+        && binary
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'));
+    if valid {
+        Ok(())
+    } else {
+        Err(format!("invalid binary name {binary:?}"))
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Target {
     #[serde(rename = "darwin-arm64")]
@@ -364,6 +378,15 @@ mod tests {
         assert!(validate_package_name("").is_err());
         assert!(validate_package_name(&"a".repeat(40)).is_err());
         assert!(validate_package_name("install").is_err());
+    }
+
+    #[test]
+    fn binary_names_cannot_escape_their_directory() {
+        assert!(validate_binary_name("ffctl").is_ok());
+        assert!(validate_binary_name("home-gateway_cli.v2").is_ok());
+        for bad in ["", "../x", "a/b", "/etc/passwd", ".hidden", "..", "a\\b"] {
+            assert!(validate_binary_name(bad).is_err(), "{bad}");
+        }
     }
 
     #[test]

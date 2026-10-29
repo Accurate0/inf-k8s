@@ -42,19 +42,8 @@ pub fn validate_aliases(aliases: &[String]) -> Result<()> {
     Ok(())
 }
 
-fn validate_binary_name(binary: &str) -> Result<()> {
-    let valid = !binary.is_empty()
-        && binary
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
-        && !binary.starts_with('.');
-    if valid {
-        Ok(())
-    } else {
-        Err(ApiError::BadRequest(format!(
-            "invalid binary name {binary:?}"
-        )))
-    }
+pub fn validate_binary_name(binary: &str) -> Result<()> {
+    registry_api::validate_binary_name(binary).map_err(ApiError::BadRequest)
 }
 
 #[derive(Deserialize)]

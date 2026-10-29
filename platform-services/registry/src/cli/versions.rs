@@ -10,7 +10,7 @@ use serde_json::json;
 
 use super::{
     db::{self, DRAFT},
-    packages::validate_aliases,
+    packages::{validate_aliases, validate_binary_name},
 };
 use crate::{
     auth::{Principal, policy::authorize_publish},
@@ -65,6 +65,7 @@ pub async fn create(
         .binary_name
         .clone()
         .unwrap_or_else(|| package.binary_name.clone());
+    validate_binary_name(&binary_name)?;
     if let Some(auth) = &request.auth {
         auth.validate().map_err(ApiError::BadRequest)?;
     }

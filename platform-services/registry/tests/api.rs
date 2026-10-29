@@ -411,6 +411,16 @@ async fn uploads_are_checked_against_their_digest_and_size(pool: PgPool) {
         )
         .await;
     assert_eq!(status, 400, "undeclared target");
+
+    let (status, _) = registry
+        .call(
+            "POST",
+            base,
+            Some(&admin),
+            Some(json!({ "version": "2.0.0", "targets": ["linux-amd64"], "binary_name": "../../.bashrc" })),
+        )
+        .await;
+    assert_eq!(status, 400, "path traversal in binary_name");
 }
 
 #[sqlx::test(migrations = "./migrations")]
