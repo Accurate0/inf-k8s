@@ -12,7 +12,11 @@ spec:
   hostnames:
     - inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: ortzi.cloud
@@ -33,7 +37,11 @@ spec:
   hostnames:
     - ai-gateway.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: ai-gateway.ortzi.cloud
@@ -54,7 +62,11 @@ spec:
   hostnames:
     - argocd.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: argocd.ortzi.cloud
@@ -75,7 +87,11 @@ spec:
   hostnames:
     - feature-flags.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: feature-flags.ortzi.cloud
@@ -96,7 +112,11 @@ spec:
   hostnames:
     - firefly.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: firefly.ortzi.cloud
@@ -117,7 +137,11 @@ spec:
   hostnames:
     - firefly-importer.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: firefly-importer.ortzi.cloud
@@ -138,7 +162,11 @@ spec:
   hostnames:
     - grafana.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: grafana.ortzi.cloud
@@ -159,7 +187,11 @@ spec:
   hostnames:
     - home.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: home.ortzi.cloud
@@ -180,7 +212,11 @@ spec:
   hostnames:
     - janitor-bot.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: janitor-bot.ortzi.cloud
@@ -201,7 +237,11 @@ spec:
   hostnames:
     - longhorn.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: longhorn.ortzi.cloud
@@ -222,7 +262,11 @@ spec:
   hostnames:
     - prometheus.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: prometheus.ortzi.cloud
@@ -243,7 +287,11 @@ spec:
   hostnames:
     - vault.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: vault.ortzi.cloud
@@ -264,7 +312,11 @@ spec:
   hostnames:
     - waf-manager.inf-k8s.net
   rules:
-    - filters:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      filters:
         - type: RequestRedirect
           requestRedirect:
             hostname: waf-manager.ortzi.cloud
