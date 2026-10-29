@@ -40,7 +40,7 @@ impl Client {
             base: base.trim_end_matches('/').to_owned(),
             bearer,
             http: reqwest::Client::builder()
-                .user_agent(concat!("ortzi/", env!("CARGO_PKG_VERSION")))
+                .user_agent(concat!("ortzi/", env!("ORTZI_VERSION")))
                 .build()
                 .expect("failed to build http client"),
         }

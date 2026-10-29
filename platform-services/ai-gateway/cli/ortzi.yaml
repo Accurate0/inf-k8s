@@ -1,5 +1,6 @@
 package:
   name: ai
+  version: 0.1.0
   description: ai-gateway admin CLI
   binary: aig
   aliases: [aig]

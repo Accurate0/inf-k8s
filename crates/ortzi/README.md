@@ -30,7 +30,8 @@ ortzi registry package create <name> --forgejo-repo <owner/repo> \
   --ref refs/heads/main --workflow publish-cli-<name>.yaml
 ```
 
-Pushing to `main` then publishes a new version whenever the crate's version changes. The
+Pushing to `main` then publishes whenever `version` in `ortzi.yaml` is bumped; an
+already-published version is skipped. The
 workflow runs on the `ortzi` runner label, which has cargo-zigbuild and both targets
 (`darwin-arm64`, `linux-amd64`), and authenticates with Forgejo Actions OIDC, so no
 secrets are needed. For anywhere else, mint a scoped token with
@@ -44,7 +45,7 @@ package:
   description: feature-flags admin CLI
   binary: ffctl                # defaults to name
   aliases: [ffctl]             # extra `ortzi <alias>` names
-  # version: 1.2.3             # defaults to the crate version
+  version: 0.1.0               # bump to publish; falls back to the crate version
 auth:                          # optional: ortzi logs in and passes the token
   client_id: feature-flags     # issuer defaults to https://idm.anurag.sh/oauth2/openid/<client_id>
   token_env: FFCTL_TOKEN       # env var the binary reads its bearer token from

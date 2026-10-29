@@ -19,7 +19,7 @@ use store::Store;
 #[derive(Parser)]
 #[command(
     name = "ortzi",
-    version,
+    version = env!("ORTZI_VERSION"),
     about = "ortzi platform CLI",
     long_about = "ortzi platform CLI. Install packages from the registry and run them as \
                   `ortzi <package> ...`.",

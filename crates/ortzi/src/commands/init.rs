@@ -28,10 +28,10 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
     }
 
     let cargo_toml = dir.join("Cargo.toml");
-    let (detected_name, binary, description) = if cargo_toml.exists() {
+    let (detected_name, binary, version) = if cargo_toml.exists() {
         detect_cargo(&cargo_toml)?
     } else {
-        (None, None, String::new())
+        (None, None, None)
     };
 
     let name = options
@@ -63,9 +63,9 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
         package: PackageSection {
             binary: binary.filter(|b| b != &name),
             name: name.clone(),
-            description,
+            description: String::new(),
             aliases: Vec::new(),
-            version: (kind == Kind::Prebuilt).then(|| "0.1.0".to_owned()),
+            version: Some(version.unwrap_or_else(|| "0.1.0".to_owned())),
         },
         auth: None,
         build,
@@ -96,7 +96,9 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn detect_cargo(cargo_toml: &Path) -> anyhow::Result<(Option<String>, Option<String>, String)> {
+fn detect_cargo(
+    cargo_toml: &Path,
+) -> anyhow::Result<(Option<String>, Option<String>, Option<String>)> {
     let metadata = manifest::cargo_metadata(cargo_toml)?;
     let canonical = cargo_toml.canonicalize()?;
     let Some(package) = metadata
@@ -104,7 +106,7 @@ fn detect_cargo(cargo_toml: &Path) -> anyhow::Result<(Option<String>, Option<Str
         .into_iter()
         .find(|p| p.manifest_path.canonicalize().ok().as_deref() == Some(canonical.as_path()))
     else {
-        return Ok((None, None, String::new()));
+        return Ok((None, None, None));
     };
 
     let bins: Vec<String> = package
@@ -128,7 +130,7 @@ fn detect_cargo(cargo_toml: &Path) -> anyhow::Result<(Option<String>, Option<Str
     let name = validate_package_name(&package.name)
         .is_ok()
         .then(|| package.name.clone());
-    Ok((name, Some(binary), String::new()))
+    Ok((name, Some(binary), Some(package.version)))
 }
 
 fn git_repo(dir: &Path) -> Option<(PathBuf, Option<String>)> {

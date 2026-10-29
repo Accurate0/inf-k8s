@@ -1,5 +1,6 @@
 package:
   name: ff
+  version: 0.1.0
   description: feature-flags admin CLI and TUI
   binary: ffctl
   aliases: [ffctl]
