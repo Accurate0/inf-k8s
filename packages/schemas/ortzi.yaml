@@ -1,0 +1,10 @@
+package:
+  name: schemas
+  description: trigger and inspect the k8s-schemas sync job
+  version: 0.1.0
+permissions:
+  exec: [kubectl, curl]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

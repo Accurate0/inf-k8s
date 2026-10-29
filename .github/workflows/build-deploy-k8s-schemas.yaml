@@ -7,7 +7,7 @@ on:
       - platform-services/k8s-schemas/**
       - '!platform-services/k8s-schemas/manifests/**'
       - '!platform-services/k8s-schemas/application.yaml'
-      - .github/workflows/build-publish-k8s-schemas.yaml
+      - .github/workflows/build-deploy-k8s-schemas.yaml
   workflow_dispatch:
 
 jobs:

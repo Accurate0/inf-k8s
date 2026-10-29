@@ -218,6 +218,16 @@ importers:
         specifier: ^7.0.0
         version: 7.0.2
 
+  schemas:
+    dependencies:
+      '@ortzi/host':
+        specifier: workspace:*
+        version: link:../ortzi-host
+    devDependencies:
+      typescript:
+        specifier: ^7.0.0
+        version: 7.0.2
+
 packages:
 
   '@andreiltd/componentize-qjs-binding-darwin-arm64@0.4.5':

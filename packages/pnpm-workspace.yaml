@@ -2,6 +2,7 @@ packages:
   - feature-flag-client
   - ortzi-host
   - ortzi-example
+  - schemas
 
 allowBuilds:
   grpc-tools: true
