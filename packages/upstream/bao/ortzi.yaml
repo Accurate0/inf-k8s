@@ -1,0 +1,15 @@
+package:
+  name: bao
+  description: OpenBao CLI (upstream openbao/openbao)
+  version: 2.7.2
+build:
+  kind: prebuilt
+  prebuilt:
+    darwin-arm64:
+      url: https://github.com/openbao/openbao/releases/download/v${version}/openbao_${version}_darwin_arm64.tar.gz
+      sha256: 2b4fc131910f4b075b2e1c9a9de67c461489491a8f03fbdc73387294d67d9547
+      extract: bao
+    linux-amd64:
+      url: https://github.com/openbao/openbao/releases/download/v${version}/openbao_${version}_linux_amd64.tar.gz
+      sha256: 582b1f3c2fdc5afd443b2d57a225ef654de75adea609fdb66731fd582a9cbc96
+      extract: bao

@@ -1,0 +1,15 @@
+package:
+  name: cnpg
+  description: CloudNativePG CLI (upstream kubectl-cnpg)
+  version: 1.30.1
+build:
+  kind: prebuilt
+  prebuilt:
+    darwin-arm64:
+      url: https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v${version}/kubectl-cnpg_${version}_darwin_arm64.tar.gz
+      sha256: 74836f530b54f060126fc8cf5fd5c27e77801a6d36f61b66f4457218aa11383f
+      extract: kubectl-cnpg
+    linux-amd64:
+      url: https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v${version}/kubectl-cnpg_${version}_linux_x86_64.tar.gz
+      sha256: 784bc46f176b24a150d5de84d0691f10ff613b59456af86b1a4868e1bacb9953
+      extract: kubectl-cnpg
