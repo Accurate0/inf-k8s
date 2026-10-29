@@ -183,6 +183,7 @@ spec:
             enabled: true
             hostnames:
               - firefly.inf-k8s.net
+              - firefly.ortzi.cloud
             parentRefs:
               - group: gateway.networking.k8s.io
                 kind: Gateway
@@ -297,6 +298,7 @@ spec:
             enabled: true
             hostnames:
               - firefly-importer.inf-k8s.net
+              - firefly-importer.ortzi.cloud
             parentRefs:
               - group: gateway.networking.k8s.io
                 kind: Gateway

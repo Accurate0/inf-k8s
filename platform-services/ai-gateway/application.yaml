@@ -49,6 +49,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - ai-gateway.inf-k8s.net
+                - ai-gateway.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""

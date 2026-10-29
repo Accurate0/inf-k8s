@@ -78,6 +78,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - longhorn.inf-k8s.net
+                - longhorn.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""
