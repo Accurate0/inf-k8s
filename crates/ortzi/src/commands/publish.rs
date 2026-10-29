@@ -8,7 +8,7 @@ use registry_api::{
 use reqwest::{Method, StatusCode};
 
 use crate::{
-    client::{api_error, sha256_file},
+    client::{api_error, human_size, sha256_file},
     manifest::Loaded,
     session::Settings,
 };
@@ -97,7 +97,7 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
         let artifact: Artifact = client
             .upload(&format!("{base}/{version}/artifacts/{target}"), path, sha)
             .await?;
-        eprintln!("uploaded {target} ({} bytes)", artifact.size);
+        eprintln!("uploaded {target} ({})", human_size(artifact.size));
     }
 
     if options.no_finalize {

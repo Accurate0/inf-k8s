@@ -8,7 +8,7 @@ use registry_api::{
 };
 
 use crate::{
-    client::Client,
+    client::{self, Client},
     session::Settings,
     store::{self, Installed, InstalledPackage, Store},
     trust, wasm,
@@ -101,8 +101,9 @@ async fn install_version(
             .tmp_dir()
             .join(format!("{name}-{}-{}", version.version, std::process::id()));
     eprintln!(
-        "downloading {name}@{} ({target}, {} bytes)",
-        version.version, artifact.size
+        "downloading {name}@{} ({target}, {})",
+        version.version,
+        client::human_size(artifact.size)
     );
     let sha = client
         .download(

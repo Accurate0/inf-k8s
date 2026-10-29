@@ -162,3 +162,31 @@ pub async fn sha256_file(path: &Path) -> anyhow::Result<String> {
     }
     Ok(hex::encode(hasher.finalize()))
 }
+
+pub fn human_size(bytes: i64) -> String {
+    const UNITS: [&str; 5] = ["B", "KiB", "MiB", "GiB", "TiB"];
+    let mut size = bytes as f64;
+    let mut unit = 0;
+    while size >= 1024.0 && unit < UNITS.len() - 1 {
+        size /= 1024.0;
+        unit += 1;
+    }
+    if unit == 0 {
+        format!("{bytes} B")
+    } else {
+        format!("{size:.1} {}", UNITS[unit])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sizes_are_human_readable() {
+        assert_eq!(human_size(512), "512 B");
+        assert_eq!(human_size(8_637_072), "8.2 MiB");
+        assert_eq!(human_size(177_960_386), "169.7 MiB");
+        assert_eq!(human_size(3 * 1024 * 1024 * 1024), "3.0 GiB");
+    }
+}
