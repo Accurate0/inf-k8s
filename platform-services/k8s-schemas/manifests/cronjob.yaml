@@ -40,7 +40,7 @@ spec:
                   mountPath: /tmp
               env:
                 - name: K8S_VERSION
-                  value: v1.35.2
+                  value: v1.37.1
               envFrom:
                 - secretRef:
                     name: k8s-schemas-managed-secrets

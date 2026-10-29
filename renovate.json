@@ -49,6 +49,18 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
+        "/platform-services/k8s-schemas/manifests/cronjob\\.yaml$/"
+      ],
+      "matchStrings": [
+        "name: K8S_VERSION\\s*\\n\\s*value:\\s*(?<currentValue>v\\S+)"
+      ],
+      "depNameTemplate": "k3s-io/k3s",
+      "datasourceTemplate": "github-releases",
+      "extractVersionTemplate": "^(?<version>v\\d+\\.\\d+\\.\\d+)\\+k3s\\d+$"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": [
         "/system-components/barman-cloud-plugin/kustomization\\.yaml$/"
       ],
       "matchStrings": [
