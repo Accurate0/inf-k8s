@@ -247,7 +247,7 @@ impl Loaded {
     fn cargo_build(&self, target: Target) -> anyhow::Result<PathBuf> {
         let manifest = self.cargo_manifest();
         let cargo = &self.manifest.build.cargo;
-        let native = Target::host() == Some(target);
+        let native = rustc_host()? == target.rust_triple();
 
         let mut command = Command::new("cargo");
         if native {
@@ -288,6 +288,24 @@ impl Loaded {
         }
         Ok(path)
     }
+}
+
+fn rustc_host() -> anyhow::Result<String> {
+    let output = Command::new("rustc")
+        .arg("-vV")
+        .output()
+        .context("running rustc -vV")?;
+    if !output.status.success() {
+        bail!(
+            "rustc -vV failed: {}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+    }
+    String::from_utf8_lossy(&output.stdout)
+        .lines()
+        .find_map(|line| line.strip_prefix("host: "))
+        .map(str::to_owned)
+        .context("rustc -vV did not report a host triple")
 }
 
 fn zig_triple(target: Target) -> &'static str {
