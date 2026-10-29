@@ -95,6 +95,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - waf-manager.inf-k8s.net
+                - waf-manager.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""

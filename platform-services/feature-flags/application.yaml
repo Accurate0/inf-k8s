@@ -75,6 +75,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - feature-flags.inf-k8s.net
+                - feature-flags.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""

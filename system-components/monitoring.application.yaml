@@ -81,6 +81,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - prometheus.inf-k8s.net
+                - prometheus.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""
@@ -98,6 +99,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - grafana.inf-k8s.net
+                - grafana.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""

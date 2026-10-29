@@ -59,6 +59,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - argocd.inf-k8s.net
+                - argocd.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""

@@ -67,6 +67,7 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - janitor-bot.inf-k8s.net
+                - janitor-bot.ortzi.cloud
               rules:
                 - backendRefs:
                     - group: ""
