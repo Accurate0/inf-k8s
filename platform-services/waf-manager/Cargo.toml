@@ -1,6 +1,6 @@
 [workspace]
-members = ["api", "cli"]
-default-members = [".", "cli"]
+members = ["api"]
+exclude = ["cli"]
 
 [package]
 name = "waf-manager"
