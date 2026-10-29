@@ -1,0 +1,10 @@
+package:
+  name: obs
+  version: 0.1.0
+  description: query logs and metrics through Grafana
+  binary: obs
+  aliases: [logs, metrics]
+auth:
+  client_id: grafana-cli
+  token_env: OBS_TOKEN
+  scopes: openid email profile
