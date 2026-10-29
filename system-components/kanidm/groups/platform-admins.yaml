@@ -9,4 +9,4 @@ spec:
   members:
     - anurag
   accountPolicy:
-    authSessionExpiry: 2592000
+    authSessionExpiry: 604800
