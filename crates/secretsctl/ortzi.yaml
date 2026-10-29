@@ -1,0 +1,10 @@
+package:
+  name: secrets
+  version: 0.1.0
+  description: OpenBao secrets CLI
+  binary: secretsctl
+  aliases: [secretsctl]
+auth:
+  client_id: openbao-cli
+  token_env: SECRETSCTL_TOKEN
+  scopes: openid email profile
