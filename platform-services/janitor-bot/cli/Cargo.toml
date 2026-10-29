@@ -4,6 +4,10 @@ version = "0.1.0"
 edition = "2024"
 description = "CLI for the janitor-bot admin API"
 
+[[bin]]
+name = "janitor"
+path = "src/main.rs"
+
 [dependencies]
 cli-auth = { path = "../../../crates/cli-auth" }
 janitor-webhook = { path = "../webhook" }

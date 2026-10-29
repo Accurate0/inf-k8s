@@ -28,7 +28,7 @@ Required env vars to run: `FORGEJO_INSTANCE_URL`, `FORGEJO_ACCESS_KEY`, `GITHUB_
 `OIDC_AUDIENCE`, `OIDC_GROUPS` (comma-separated) protect every `/admin/*` route except
 `/admin/metrics` (Prometheus scrapes it) with Kanidm bearer tokens via `src/auth.rs`; a
 release build refuses to start without `OIDC_ISSUER`, a debug build leaves admin open.
-Log in with `k8sctl janitor login`. `.env.local`
+Log in with `ortzi login janitor`. `.env.local`
 (gitignored) holds local values. Debug builds (`cargo run`) skip the startup label sync and
 the open-PR poll cron so a local run makes no unsolicited writes to the repo; the deployed
 release image keeps both.
@@ -40,13 +40,13 @@ Snapshot tests: review/accept changes with `cargo insta review` (snapshots in
 
 To drive a locally-running bot with a real event, save a webhook payload (the "Payload" tab
 of a GitHub/Forgejo "recent deliveries" entry) into `payloads/` (gitignored) and replay it
-through the real signed endpoint with `k8sctl janitor` (the `cli/` crate, mounted into `crates/k8sctl`; the payload
+through the real signed endpoint with `ortzi janitor` (the `cli/` crate, published as the `janitor` ortzi package; the payload
 inference and signing helpers live in `webhook/`):
 
 ```
-k8sctl janitor --url http://localhost:3000 replay github  payloads/status.json
-k8sctl janitor --url http://localhost:3000 replay forgejo payloads/pr-comment.json
-k8sctl janitor --url http://localhost:3000 replay argocd  payloads/sync.json
+ortzi janitor --url http://localhost:3000 replay github  payloads/status.json
+ortzi janitor --url http://localhost:3000 replay forgejo payloads/pr-comment.json
+ortzi janitor --url http://localhost:3000 replay argocd  payloads/sync.json
 ```
 
 The CLI infers the `X-GitHub-Event` / `X-Forgejo-Event(-Type)` header from the payload shape

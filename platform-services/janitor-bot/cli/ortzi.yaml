@@ -1,0 +1,9 @@
+package:
+  name: janitor
+  description: janitor-bot admin CLI
+build:
+  cargo:
+    package: janitor-cli
+auth:
+  client_id: janitor-bot
+  token_env: JANITOR_TOKEN

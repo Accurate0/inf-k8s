@@ -9,7 +9,7 @@ use usage::UsageTable;
 const APP: App = App {
     name: "aig",
     scopes: "openid email profile groups",
-    login_hint: "run `k8sctl ai login` or set AIG_ADMIN_TOKEN",
+    login_hint: "run `ortzi login ai` or set AIG_ADMIN_TOKEN",
 };
 
 #[derive(Parser)]
@@ -186,7 +186,7 @@ enum KeyAction {
     Regenerate { id: String },
 }
 
-/// Runs aig, mounted as `k8sctl ai`. The `aig` binary only exists for the ai-gateway
+/// Runs aig, published as the `ai` ortzi package and also shipped in the ai-gateway
 /// image, where the pricing CronJob runs `aig prices sync`.
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let session = Session::new(&cli);

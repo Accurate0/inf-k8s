@@ -4,8 +4,8 @@ version = "0.1.0"
 edition = "2024"
 description = "ai-gateway admin CLI"
 
-# The `aig` binary (src/main.rs) is kept only for the ai-gateway image, where the pricing
-# CronJob runs `aig prices sync`. Use `k8sctl ai` everywhere else.
+# The `aig` binary is published as the `ai` ortzi package (see ortzi.yaml) and also ships in
+# the ai-gateway image, where the pricing CronJob runs `aig prices sync`.
 
 [dependencies]
 ai-gateway-api = { path = "../api" }

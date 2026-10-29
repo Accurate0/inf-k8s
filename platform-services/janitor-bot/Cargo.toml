@@ -1,7 +1,7 @@
 [workspace]
 members = ["webhook"]
-# The CLI is only built through crates/k8sctl and depends on crates/cli-auth, which sits
-# outside this image's build context.
+# The CLI is published as the `janitor` ortzi package and depends on crates/cli-auth, which
+# sits outside this image's build context.
 exclude = ["cli"]
 
 [package]

@@ -23,13 +23,13 @@ diff service:
 diff-manifests service:
     kubectl diff -k {{service}}/manifests
 
-# Install k8sctl, the CLI for every platform service
+# Install ortzi; afterwards it updates itself with `ortzi self-update`
 install:
-    cargo install --path ../crates/k8sctl
+    cargo install --locked --path ../crates/ortzi
 
-# Run k8sctl, the combined CLI for every platform service
-k8sctl *args:
-    cargo run --manifest-path ../crates/k8sctl/Cargo.toml -- {{args}}
+# Run ortzi from source
+ortzi *args:
+    cargo run --manifest-path ../crates/ortzi/Cargo.toml -- {{args}}
 
 # Show ArgoCD applications status
 status:

@@ -1,0 +1,9 @@
+package:
+  name: ff
+  description: feature-flags admin CLI and TUI
+  binary: ffctl
+  aliases: [ffctl]
+auth:
+  client_id: feature-flags
+  token_env: FFCTL_TOKEN
+  scopes: openid email profile

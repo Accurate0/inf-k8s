@@ -1,0 +1,21 @@
+name: Publish ai
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - platform-services/ai-gateway/cli/**
+      - crates/cli-auth/**
+      - platform-services/ai-gateway/api/**
+      - platform-services/ai-gateway/Cargo.lock
+      - .forgejo/workflows/publish-cli-ai.yaml
+  workflow_dispatch:
+
+enable-openid-connect: true
+
+jobs:
+  publish:
+    runs-on: ortzi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: ortzi publish platform-services/ai-gateway/cli

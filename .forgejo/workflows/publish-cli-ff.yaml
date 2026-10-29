@@ -1,0 +1,21 @@
+name: Publish ff
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - crates/feature-flag/ffctl/**
+      - crates/cli-auth/**
+      - crates/feature-flag/feature-flag-proto/**
+      - crates/feature-flag/Cargo.lock
+      - .forgejo/workflows/publish-cli-ff.yaml
+  workflow_dispatch:
+
+enable-openid-connect: true
+
+jobs:
+  publish:
+    runs-on: ortzi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: ortzi publish crates/feature-flag/ffctl

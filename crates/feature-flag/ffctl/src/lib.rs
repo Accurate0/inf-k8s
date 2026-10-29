@@ -23,7 +23,7 @@ pub use cli::Cli;
 const APP: App = App {
     name: "ffctl",
     scopes: "openid email profile",
-    login_hint: "run `k8sctl ff login`",
+    login_hint: "run `ortzi login ff`",
 };
 
 struct Session {
@@ -64,7 +64,7 @@ impl Session {
     }
 }
 
-/// Runs ffctl, mounted as `k8sctl ff`.
+/// Runs ffctl, published as the `ff` ortzi package.
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let session = Session::new(&cli);
     let output = Output::new(cli.output);

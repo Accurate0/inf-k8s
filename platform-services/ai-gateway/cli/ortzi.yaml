@@ -1,0 +1,8 @@
+package:
+  name: ai
+  description: ai-gateway admin CLI
+  binary: aig
+  aliases: [aig]
+auth:
+  client_id: ai-gateway
+  token_env: AIG_ADMIN_TOKEN

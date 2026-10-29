@@ -8,7 +8,7 @@ use std::path::PathBuf;
 const APP: App = App {
     name: "janitor",
     scopes: "openid email profile groups",
-    login_hint: "run `k8sctl janitor login` or set JANITOR_TOKEN",
+    login_hint: "run `ortzi login janitor` or set JANITOR_TOKEN",
 };
 
 #[derive(Parser)]
@@ -146,7 +146,7 @@ enum Source {
     Argocd,
 }
 
-/// Runs janitor, mounted as `k8sctl janitor`.
+/// Runs janitor, published as the `janitor` ortzi package.
 pub async fn run(cli: Cli) -> Result<()> {
     let client = reqwest::Client::new();
     let base = cli.url.trim_end_matches('/');
