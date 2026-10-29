@@ -64,6 +64,15 @@ spec:
               icon:
                 configMap: openbao-kanidm-icon
                 key: OpenBao.svg
+            - name: openbao-cli
+              namespace: openbao
+              displayName: OpenBao CLI
+              host: vault.ortzi.cloud
+              public: true
+              allowLocalhostRedirect: true
+              preferShortUsername: true
+              secretName: kanidm-openbao-cli-oidc
+              secretNamespace: openbao
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.6.0
