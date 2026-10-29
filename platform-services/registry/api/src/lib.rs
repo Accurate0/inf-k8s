@@ -400,6 +400,14 @@ pub struct Artifact {
     pub size: i64,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ArtifactUrl {
+    pub url: String,
+    pub expires_at: DateTime<Utc>,
+    pub sha256: String,
+    pub size: i64,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Source {
     pub repository: Option<String>,

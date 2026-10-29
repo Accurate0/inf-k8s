@@ -2,7 +2,7 @@ use std::{fmt, path::Path, time::Duration};
 
 use anyhow::Context;
 use futures::TryStreamExt;
-use registry_api::{ErrorBody, SHA256_HEADER};
+use registry_api::{ArtifactUrl, ErrorBody, SHA256_HEADER};
 use reqwest::{Method, RequestBuilder, Response, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
@@ -108,21 +108,24 @@ impl Client {
         Ok(())
     }
 
+    pub async fn download_artifact(&self, path: &str, dest: &Path) -> anyhow::Result<String> {
+        match self.find::<ArtifactUrl>(&format!("{path}/url")).await? {
+            Some(presigned) => {
+                let response = self
+                    .http
+                    .get(&presigned.url)
+                    .send()
+                    .await
+                    .context("downloading from object storage")?;
+                write_body(Self::check(response).await?, dest).await
+            }
+            None => self.download(path, dest).await,
+        }
+    }
+
     pub async fn download(&self, path: &str, dest: &Path) -> anyhow::Result<String> {
         let response = Self::check(self.request(Method::GET, path).send().await?).await?;
-        let mut file = tokio::fs::File::create(dest)
-            .await
-            .with_context(|| format!("creating {}", dest.display()))?;
-        let mut hasher = Sha256::new();
-        let mut stream = response.bytes_stream();
-
-        while let Some(chunk) = stream.try_next().await? {
-            hasher.update(&chunk);
-            file.write_all(&chunk).await?;
-        }
-        file.flush().await?;
-
-        Ok(hex::encode(hasher.finalize()))
+        write_body(response, dest).await
     }
 
     pub async fn upload<T: DeserializeOwned>(
@@ -145,6 +148,22 @@ impl Client {
         )
         .await
     }
+}
+
+async fn write_body(response: Response, dest: &Path) -> anyhow::Result<String> {
+    let mut file = tokio::fs::File::create(dest)
+        .await
+        .with_context(|| format!("creating {}", dest.display()))?;
+    let mut hasher = Sha256::new();
+    let mut stream = response.bytes_stream();
+
+    while let Some(chunk) = stream.try_next().await? {
+        hasher.update(&chunk);
+        file.write_all(&chunk).await?;
+    }
+    file.flush().await?;
+
+    Ok(hex::encode(hasher.finalize()))
 }
 
 pub async fn sha256_file(path: &Path) -> anyhow::Result<String> {

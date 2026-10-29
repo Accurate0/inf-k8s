@@ -106,7 +106,7 @@ async fn install_version(
         client::human_size(artifact.size)
     );
     let sha = client
-        .download(
+        .download_artifact(
             &format!(
                 "/cli/v1/packages/{name}/versions/{}/artifacts/{target}",
                 version.version
@@ -306,7 +306,7 @@ async fn self_update_with(
     let staged = exe.with_file_name(format!(".ortzi-{}-{}", release.version, std::process::id()));
     eprintln!("downloading ortzi@{} ({target})", release.version);
     let sha = client
-        .download(
+        .download_artifact(
             &format!(
                 "/cli/v1/packages/{SELF}/versions/{}/artifacts/{target}",
                 release.version

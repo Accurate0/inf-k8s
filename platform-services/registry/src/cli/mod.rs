@@ -38,4 +38,8 @@ pub fn router() -> Router<AppState> {
             "/packages/{name}/versions/{version}/artifacts/{target}",
             get(artifacts::download).put(artifacts::upload),
         )
+        .route(
+            "/packages/{name}/versions/{version}/artifacts/{target}/url",
+            get(artifacts::download_url),
+        )
 }

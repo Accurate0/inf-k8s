@@ -5,7 +5,7 @@ use axum::{
     http::{HeaderMap, HeaderValue, header},
     response::{IntoResponse, Response},
 };
-use registry_api::{Artifact, ECOSYSTEM_CLI, SHA256_HEADER, Target};
+use registry_api::{Artifact, ArtifactUrl, ECOSYSTEM_CLI, SHA256_HEADER, Target};
 
 use super::db;
 use crate::{
@@ -113,16 +113,16 @@ pub async fn upload(
     }))
 }
 
-pub async fn download(
-    State(state): State<AppState>,
-    principal: Principal,
-    Path((name, version, target)): Path<(String, String, String)>,
-) -> Result<Response> {
-    principal.require_reader()?;
-    let target = parse_target(&target)?;
+const PRESIGN_SECS: u32 = 900;
 
-    let package = db::find_package(&state.pool, &name).await?;
-    let row = db::get_version(&state.pool, &package, &version).await?;
+async fn published_artifact(
+    state: &AppState,
+    name: &str,
+    version: &str,
+    target: Target,
+) -> Result<(db::VersionRow, db::ArtifactRow)> {
+    let package = db::find_package(&state.pool, name).await?;
+    let row = db::get_version(&state.pool, &package, version).await?;
     if !row.is_published() {
         return Err(ApiError::NotFound(format!(
             "{name}@{} is not published",
@@ -137,6 +137,43 @@ pub async fn download(
         .ok_or_else(|| {
             ApiError::NotFound(format!("{name}@{} has no {target} build", row.version))
         })?;
+    Ok((row, artifact))
+}
+
+pub async fn download_url(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((name, version, target)): Path<(String, String, String)>,
+) -> Result<Json<ArtifactUrl>> {
+    principal.require_reader()?;
+    let target = parse_target(&target)?;
+    let (_, artifact) = published_artifact(&state, &name, &version, target).await?;
+
+    let url = state
+        .storage
+        .presign_get(&artifact.object_key, PRESIGN_SECS)
+        .await?
+        .ok_or_else(|| {
+            ApiError::NotFound("this registry serves artifacts directly; download them from the artifact path".to_owned())
+        })?;
+    metrics::record_download(ECOSYSTEM_CLI, &name, target.as_str());
+
+    Ok(Json(ArtifactUrl {
+        url,
+        expires_at: chrono::Utc::now() + chrono::Duration::seconds(PRESIGN_SECS.into()),
+        sha256: artifact.sha256,
+        size: artifact.size,
+    }))
+}
+
+pub async fn download(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path((name, version, target)): Path<(String, String, String)>,
+) -> Result<Response> {
+    principal.require_reader()?;
+    let target = parse_target(&target)?;
+    let (row, artifact) = published_artifact(&state, &name, &version, target).await?;
 
     let stream = state.storage.get_stream(&artifact.object_key).await?;
     metrics::record_download(ECOSYSTEM_CLI, &name, target.as_str());

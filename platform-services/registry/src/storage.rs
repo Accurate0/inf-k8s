@@ -155,6 +155,17 @@ impl Storage {
         }
     }
 
+    pub async fn presign_get(&self, key: &str, expiry_secs: u32) -> Result<Option<String>, ApiError> {
+        match self {
+            Storage::S3(bucket) => bucket
+                .presign_get(key, expiry_secs, None)
+                .await
+                .map(Some)
+                .map_err(|e| ApiError::Storage(e.to_string())),
+            Storage::Memory(_) => Ok(None),
+        }
+    }
+
     pub async fn delete(&self, key: &str) -> Result<(), ApiError> {
         match self {
             Storage::S3(bucket) => {
