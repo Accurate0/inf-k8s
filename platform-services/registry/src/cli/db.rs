@@ -124,7 +124,7 @@ pub fn latest(
     versions
         .iter()
         .filter(|v| v.is_published() && v.yanked_at.is_none())
-        .filter(|v| target.is_none_or(|t| v.targets().contains(&t)))
+        .filter(|v| target.is_none_or(|t| v.targets().iter().any(|v| v.runs_on(t))))
         .filter_map(|v| Some((v.semver()?, v)))
         .filter(|(semver, _)| prerelease || semver.pre.is_empty())
         .max_by(|(a, _), (b, _)| a.cmp(b))

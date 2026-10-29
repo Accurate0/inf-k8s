@@ -19,7 +19,7 @@ fn host_target() -> anyhow::Result<Target> {
             "{}-{} is not a supported target (supported: {})",
             std::env::consts::OS,
             std::env::consts::ARCH,
-            Target::ALL.map(Target::as_str).join(", ")
+            Target::NATIVE.map(Target::as_str).join(", ")
         )
     })
 }

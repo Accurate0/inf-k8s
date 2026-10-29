@@ -10,7 +10,7 @@ use p256::{
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
 
-use crate::{Artifact, Source};
+use crate::{Artifact, Permissions, Source};
 
 pub use p256::ecdsa::{SigningKey as PrivateKey, VerifyingKey as PublicKeyHandle};
 
@@ -26,6 +26,8 @@ pub struct Statement {
     pub package: String,
     pub version: String,
     pub artifacts: Vec<Artifact>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Permissions>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -225,6 +227,7 @@ mod tests {
                 sha256: "ab".repeat(32),
                 size: 10,
             }],
+            permissions: None,
         }
     }
 

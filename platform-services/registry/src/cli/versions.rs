@@ -162,6 +162,9 @@ pub async fn publish(
     let mut statement: Statement = signing::open(&request.statement, &key)
         .map_err(|e| ApiError::BadRequest(format!("signed statement: {e}")))?;
     statement.artifacts.sort_by_key(|a| a.target);
+    if let Some(permissions) = &statement.permissions {
+        permissions.validate().map_err(ApiError::BadRequest)?;
+    }
     let mut uploaded: Vec<Artifact> = artifacts
         .iter()
         .filter_map(|a| {

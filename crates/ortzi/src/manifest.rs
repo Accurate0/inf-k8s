@@ -117,7 +117,7 @@ impl CargoBuild {
 }
 
 fn all_targets() -> Vec<Target> {
-    Target::ALL.to_vec()
+    Target::NATIVE.to_vec()
 }
 
 #[derive(Debug)]
@@ -365,7 +365,7 @@ mod tests {
     fn minimal_manifest_defaults() {
         let manifest: Manifest = serde_yaml::from_str("package:\n  name: ff\n").unwrap();
         assert_eq!(manifest.build.kind, Kind::Cargo);
-        assert_eq!(manifest.build.targets, Target::ALL.to_vec());
+        assert_eq!(manifest.build.targets, Target::NATIVE.to_vec());
         assert!(manifest.package.version.is_none());
     }
 

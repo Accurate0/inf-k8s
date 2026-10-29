@@ -65,21 +65,70 @@ pub fn validate_binary_name(binary: &str) -> Result<(), String> {
     }
 }
 
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Permissions {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub exec: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub env: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub fs: Vec<String>,
+}
+
+impl Permissions {
+    pub fn validate(&self) -> Result<(), String> {
+        for program in &self.exec {
+            validate_binary_name(program)
+                .map_err(|_| format!("permissions.exec: {program:?} must be a bare program name"))?;
+        }
+        for name in &self.env {
+            if !is_env_name(name) {
+                return Err(format!("permissions.env: invalid variable name {name:?}"));
+            }
+        }
+        for path in &self.fs {
+            let valid = path == "."
+                || path == "~"
+                || path.starts_with("~/")
+                || path.starts_with('/');
+            if !valid || path.split('/').any(|part| part == "..") {
+                return Err(format!(
+                    "permissions.fs: {path:?} must be \".\", \"~\", \"~/...\" or absolute, without \"..\""
+                ));
+            }
+        }
+        Ok(())
+    }
+}
+
+fn is_env_name(name: &str) -> bool {
+    let mut chars = name.chars();
+    chars
+        .next()
+        .is_some_and(|c| c.is_ascii_uppercase() || c == '_')
+        && chars.all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_')
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum Target {
     #[serde(rename = "darwin-arm64")]
     DarwinArm64,
     #[serde(rename = "linux-amd64")]
     LinuxAmd64,
+    #[serde(rename = "wasm")]
+    Wasm,
 }
 
 impl Target {
-    pub const ALL: [Target; 2] = [Target::DarwinArm64, Target::LinuxAmd64];
+    pub const ALL: [Target; 3] = [Target::DarwinArm64, Target::LinuxAmd64, Target::Wasm];
+    pub const NATIVE: [Target; 2] = [Target::DarwinArm64, Target::LinuxAmd64];
 
     pub fn as_str(self) -> &'static str {
         match self {
             Target::DarwinArm64 => "darwin-arm64",
             Target::LinuxAmd64 => "linux-amd64",
+            Target::Wasm => "wasm",
         }
     }
 
@@ -87,7 +136,12 @@ impl Target {
         match self {
             Target::DarwinArm64 => "aarch64-apple-darwin",
             Target::LinuxAmd64 => "x86_64-unknown-linux-gnu",
+            Target::Wasm => "wasm32-wasip2",
         }
+    }
+
+    pub fn runs_on(self, host: Target) -> bool {
+        self == host || self == Target::Wasm
     }
 
     pub fn host() -> Option<Target> {
@@ -403,6 +457,26 @@ mod tests {
             );
         }
         assert!("windows-amd64".parse::<Target>().is_err());
+        assert!(Target::Wasm.runs_on(Target::DarwinArm64));
+        assert!(!Target::LinuxAmd64.runs_on(Target::DarwinArm64));
+    }
+
+    #[test]
+    fn permission_validation() {
+        let ok = Permissions {
+            exec: vec!["kubectl".to_owned(), "ssh".to_owned()],
+            env: vec!["KUBECONFIG".to_owned()],
+            fs: vec![".".to_owned(), "~/.kube".to_owned(), "/tmp".to_owned()],
+        };
+        assert!(ok.validate().is_ok());
+        for bad in [
+            Permissions { exec: vec!["/bin/sh".to_owned()], ..Default::default() },
+            Permissions { env: vec!["lower".to_owned()], ..Default::default() },
+            Permissions { fs: vec!["relative".to_owned()], ..Default::default() },
+            Permissions { fs: vec!["~/../etc".to_owned()], ..Default::default() },
+        ] {
+            assert!(bad.validate().is_err(), "{bad:?}");
+        }
     }
 
     #[test]

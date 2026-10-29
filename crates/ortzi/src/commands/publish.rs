@@ -136,6 +136,7 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
             package: name.clone(),
             version: version.clone(),
             artifacts: draft.artifacts,
+            permissions: None,
         },
     );
 

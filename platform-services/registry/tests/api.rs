@@ -308,6 +308,7 @@ impl Registry {
                 package: name.to_owned(),
                 version: version.to_owned(),
                 artifacts,
+                permissions: None,
             },
         );
         self.call(
@@ -849,6 +850,7 @@ async fn releases_are_signed_end_to_end(pool: PgPool) {
             package: "ff".to_owned(),
             version: "2.0.0".to_owned(),
             artifacts: claimed(sha(b"real")),
+            permissions: None,
         },
     );
     let (status, _) = registry
