@@ -42,3 +42,7 @@ output "eso_shared_vault_client_secret" {
   sensitive = true
   value     = azuread_application_password.eso-shared-vault.value
 }
+
+output "registry_signing_public_key" {
+  value = tls_private_key.registry-signing.public_key_pem
+}
