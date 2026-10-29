@@ -16,6 +16,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -35,6 +37,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: ai-gateway.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -54,6 +58,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: argocd.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -73,6 +79,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: feature-flags.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -92,6 +100,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: firefly.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -111,6 +121,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: firefly-importer.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -130,6 +142,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: grafana.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -149,6 +163,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: home.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -168,6 +184,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: janitor-bot.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -187,6 +205,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: longhorn.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -206,6 +226,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: prometheus.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -225,6 +247,8 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: vault.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
 ---
 apiVersion: gateway.networking.k8s.io/v1
@@ -244,4 +268,6 @@ spec:
         - type: RequestRedirect
           requestRedirect:
             hostname: waf-manager.ortzi.cloud
+            scheme: https
+            port: 443
             statusCode: 301
