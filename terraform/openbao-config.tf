@@ -62,18 +62,18 @@ resource "vault_jwt_auth_backend" "oidc" {
 }
 
 resource "vault_jwt_auth_backend_role" "default" {
-  backend               = vault_jwt_auth_backend.oidc.path
-  role_name             = "default"
-  role_type             = "oidc"
-  user_claim            = "preferred_username"
-  groups_claim          = "groups"
-  bound_claims          = { groups = "openbao_admins@idm.anurag.sh" }
-  oidc_scopes           = ["openid", "email", "profile", "groups"]
+  backend      = vault_jwt_auth_backend.oidc.path
+  role_name    = "default"
+  role_type    = "oidc"
+  user_claim   = "preferred_username"
+  groups_claim = "groups"
+  bound_claims = { groups = "openbao_admins@idm.anurag.sh" }
+  oidc_scopes  = ["openid", "email", "profile", "groups"]
   allowed_redirect_uris = [
     "https://vault.ortzi.cloud/ui/vault/auth/oidc/oidc/callback",
     "http://localhost:8250/oidc/callback",
   ]
-  token_ttl             = 28800
+  token_ttl = 28800
 }
 
 resource "vault_identity_group" "openbao_admins" {
