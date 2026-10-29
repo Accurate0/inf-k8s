@@ -1,7 +1,10 @@
 use std::path::Path;
 
 use anyhow::bail;
-use registry_api::{Artifact, CreateVersion, Target, Version};
+use registry_api::{
+    Artifact, CreateVersion, ECOSYSTEM_CLI, Target, Version,
+    signing::{self, CertificateRequest, Envelope, PublishRequest, Statement},
+};
 use reqwest::{Method, StatusCode};
 
 use crate::{
@@ -104,8 +107,47 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
         return Ok(());
     }
 
+    let draft: Version = client.get(&format!("{base}/{version}")).await?;
+    for (target, _, sha) in &built {
+        if !draft
+            .artifacts
+            .iter()
+            .any(|a| a.target == *target && &a.sha256 == sha)
+        {
+            bail!("the registry's {target} artifact doesn't match what was just uploaded");
+        }
+    }
+
+    let key = signing::generate();
+    let certificate: Envelope = client
+        .send(
+            Method::POST,
+            "/api/v1/signing/certificate",
+            &CertificateRequest {
+                ecosystem: ECOSYSTEM_CLI.to_owned(),
+                package: name.clone(),
+                public_key: signing::encode_key(key.verifying_key()),
+            },
+        )
+        .await?;
+    let statement = signing::sign(
+        &key,
+        &Statement {
+            package: name.clone(),
+            version: version.clone(),
+            artifacts: draft.artifacts,
+        },
+    );
+
     let published: Version = client
-        .post_empty(&format!("{base}/{version}/publish"))
+        .send(
+            Method::POST,
+            &format!("{base}/{version}/publish"),
+            &PublishRequest {
+                statement,
+                certificate,
+            },
+        )
         .await?;
     println!(
         "published {name}@{}; install with `ortzi install {name}`",

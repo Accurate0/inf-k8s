@@ -5,6 +5,7 @@ mod manifest;
 mod package_auth;
 mod session;
 mod store;
+mod trust;
 
 use std::{ffi::OsString, path::PathBuf};
 

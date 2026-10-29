@@ -10,6 +10,7 @@ use crate::{
     client::Client,
     session::Settings,
     store::{InstalledPackage, Store},
+    trust,
 };
 
 fn host_target() -> anyhow::Result<Target> {
@@ -63,12 +64,8 @@ async fn install_version(
     version: &Version,
     target: Target,
 ) -> anyhow::Result<()> {
-    let artifact = version
-        .artifacts
-        .iter()
-        .find(|a| a.target == target)
-        .with_context(|| format!("{name}@{} has no {target} build", version.version))?;
     validate_package_name(name).map_err(anyhow::Error::msg)?;
+    let artifact = trust::verified_artifact(name, version, target)?;
     validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
 
     let mut installed = store.load()?;
@@ -237,11 +234,7 @@ async fn self_update_with(
         return Ok(false);
     }
 
-    let artifact = release
-        .artifacts
-        .iter()
-        .find(|a| a.target == target)
-        .with_context(|| format!("ortzi@{} has no {target} build", release.version))?;
+    let artifact = trust::verified_artifact(SELF, &release, target)?;
 
     let exe = std::env::current_exe()?.canonicalize()?;
     let staged = exe.with_file_name(format!(".ortzi-{}-{}", release.version, std::process::id()));
