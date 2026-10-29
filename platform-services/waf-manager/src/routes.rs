@@ -33,21 +33,22 @@ pub struct AppState {
     pub engine: Arc<WorkflowEngine>,
     pub leadership: watch::Receiver<bool>,
     pub jwks: Option<Jwks>,
+    pub cli_jwks: Option<Jwks>,
     pub audit: Audit,
     pub manual: ManualAllowlist,
     pub enricher: Option<Enricher>,
 }
 
 impl AppState {
-    fn window(&self) -> String {
+    pub(crate) fn window(&self) -> String {
         self.engine.config().defaults.window.to_logql()
     }
 
-    fn window_label(&self) -> String {
+    pub(crate) fn window_label(&self) -> String {
         self.engine.config().defaults.window.to_string()
     }
 
-    fn ignored_rules(&self) -> &BTreeSet<String> {
+    pub(crate) fn ignored_rules(&self) -> &BTreeSet<String> {
         &self.engine.config().ignored_rule_ids
     }
 }
@@ -77,7 +78,7 @@ impl Routes {
         protected.merge(open)
     }
 
-    async fn authenticate(
+    pub(crate) async fn authenticate(
         State(state): State<Arc<AppState>>,
         mut request: Request,
         next: Next,
@@ -96,7 +97,16 @@ impl Routes {
                         Error::Unauthorized("no bearer token on request".to_string())
                     })?;
 
-                jwks.verify(token).await.inspect_err(|_| {
+                let verifier = match &state.cli_jwks {
+                    Some(cli)
+                        if waf_manager::auth::issuer_of(token).as_deref() == Some(cli.issuer()) =>
+                    {
+                        cli
+                    }
+                    _ => jwks,
+                };
+
+                verifier.verify(token).await.inspect_err(|_| {
                     Metrics::record_auth_rejected("invalid_token");
                 })?
             }
@@ -114,6 +124,26 @@ impl Routes {
     }
 
     async fn index(State(state): State<Arc<AppState>>) -> Result<Html<String>, AppError> {
+        let (actionable, protected, blocked) = Self::candidates(&state).await?;
+
+        Self::render(IndexTemplate {
+            actionable,
+            protected,
+            blocked,
+            window: state.window_label(),
+        })
+    }
+
+    pub(crate) async fn candidates(
+        state: &AppState,
+    ) -> Result<
+        (
+            Vec<CandidateRow>,
+            Vec<ProtectedCandidateRow>,
+            Vec<CandidateRow>,
+        ),
+        AppError,
+    > {
         let limit = state.engine.config().defaults.candidate_limit;
         let candidates = match state.loki.top_client_ips(&state.window(), limit).await {
             Ok(c) => c,
@@ -123,7 +153,7 @@ impl Routes {
             }
         };
 
-        let blocked = Self::blocked_cidrs(&state).await?;
+        let blocked = Self::blocked_cidrs(state).await?;
         let protected = state.ctx.allowlist.entries().await;
 
         let mut actionable = Vec::new();
@@ -149,12 +179,7 @@ impl Routes {
             }
         }
 
-        Self::render(IndexTemplate {
-            actionable,
-            protected: protected_rows,
-            blocked: blocked_rows,
-            window: state.window_label(),
-        })
+        Ok((actionable, protected_rows, blocked_rows))
     }
 
     async fn blocks(
@@ -258,7 +283,10 @@ impl Routes {
         })
     }
 
-    async fn block_for(state: &AppState, net: &IpNet) -> Result<Option<BlockRow>, AppError> {
+    pub(crate) async fn block_for(
+        state: &AppState,
+        net: &IpNet,
+    ) -> Result<Option<BlockRow>, AppError> {
         let blocks = state
             .ctx
             .blocks()
@@ -330,7 +358,7 @@ impl Routes {
         })
     }
 
-    fn protected_rows(entries: &[(IpNet, String)]) -> Vec<ProtectedRow> {
+    pub(crate) fn protected_rows(entries: &[(IpNet, String)]) -> Vec<ProtectedRow> {
         let mut by_source: BTreeMap<&str, Vec<String>> = BTreeMap::new();
         for (net, why) in entries {
             by_source
@@ -363,28 +391,47 @@ impl Routes {
         Extension(claims): Extension<Claims>,
         Form(form): Form<BlockForm>,
     ) -> Result<Redirect, AppError> {
-        let net = state.ctx.allowlist.parse_and_check(&form.cidr).await?;
+        Self::block(
+            &state,
+            &claims,
+            &form.cidr,
+            form.gateway,
+            form.reason,
+            form.ttl_hours,
+        )
+        .await?;
 
-        let expires_at = form.ttl_hours.filter(|h| *h > 0).map(|hours| {
+        Ok(Redirect::to("/blocks"))
+    }
+
+    pub(crate) async fn block(
+        state: &AppState,
+        claims: &Claims,
+        cidr: &str,
+        gateway: Option<String>,
+        reason: Option<String>,
+        ttl_hours: Option<u32>,
+    ) -> Result<WafBlock, AppError> {
+        let net = state.ctx.allowlist.parse_and_check(cidr).await?;
+
+        let expires_at = ttl_hours.filter(|h| *h > 0).map(|hours| {
             (chrono::Utc::now() + chrono::Duration::hours(hours as i64))
                 .to_rfc3339_opts(chrono::SecondsFormat::Secs, true)
         });
 
-        let gateway = form
-            .gateway
-            .unwrap_or_else(|| waf_manager::crd::DEFAULT_GATEWAY.to_string());
+        let gateway = gateway.unwrap_or_else(|| waf_manager::crd::DEFAULT_GATEWAY.to_string());
 
         let spec = WafBlockSpec {
             cidr: net.to_string(),
             gateway: gateway.clone(),
-            reason: form.reason,
+            reason,
             rule_ids: None,
             expires_at,
             created_by: Some(claims.identity()),
         };
 
         let block = WafBlock::new(&WafBlock::resource_name(&net), spec);
-        state
+        let block = state
             .ctx
             .blocks()
             .create(&PostParams::default(), &block)
@@ -405,7 +452,7 @@ impl Routes {
             state.ctx.sync_all().await?;
         }
 
-        Ok(Redirect::to("/blocks"))
+        Ok(block)
     }
 
     async fn delete_block(
@@ -413,10 +460,20 @@ impl Routes {
         Extension(claims): Extension<Claims>,
         Form(form): Form<UnblockForm>,
     ) -> Result<Redirect, AppError> {
+        Self::unblock(&state, &claims, &form.name).await?;
+
+        Ok(Redirect::to("/blocks"))
+    }
+
+    pub(crate) async fn unblock(
+        state: &AppState,
+        claims: &Claims,
+        name: &str,
+    ) -> Result<(), AppError> {
         let existing = state
             .ctx
             .blocks()
-            .get_opt(&form.name)
+            .get_opt(name)
             .await
             .map_err(Error::from)?;
 
@@ -435,7 +492,7 @@ impl Routes {
         state
             .ctx
             .blocks()
-            .delete(&form.name, &DeleteParams::default())
+            .delete(name, &DeleteParams::default())
             .await
             .map_err(Error::from)?;
 
@@ -467,7 +524,7 @@ impl Routes {
             state.ctx.sync_all().await?;
         }
 
-        Ok(Redirect::to("/blocks"))
+        Ok(())
     }
 
     async fn make_block_permanent(
@@ -480,15 +537,25 @@ impl Routes {
             .filter(|to| to.starts_with('/') && !to.starts_with("//"))
             .unwrap_or_else(|| "/blocks".to_string());
 
+        Self::make_permanent(&state, &claims, &form.name).await?;
+
+        Ok(Redirect::to(&redirect))
+    }
+
+    pub(crate) async fn make_permanent(
+        state: &AppState,
+        claims: &Claims,
+        name: &str,
+    ) -> Result<Option<WafBlock>, AppError> {
         let existing = state
             .ctx
             .blocks()
-            .get_opt(&form.name)
+            .get_opt(name)
             .await
             .map_err(Error::from)?;
 
         let Some(block) = existing.filter(|b| b.spec.expires_at.is_some()) else {
-            return Ok(Redirect::to(&redirect));
+            return Ok(None);
         };
 
         let patch = serde_json::json!({ "spec": { "expiresAt": null } });
@@ -496,7 +563,7 @@ impl Routes {
         state
             .ctx
             .blocks()
-            .patch(&form.name, &PatchParams::default(), &Patch::Merge(&patch))
+            .patch(name, &PatchParams::default(), &Patch::Merge(&patch))
             .await
             .map_err(Error::from)?;
 
@@ -514,7 +581,7 @@ impl Routes {
             state.ctx.sync_all().await?;
         }
 
-        Ok(Redirect::to(&redirect))
+        Ok(Some(block))
     }
 
     async fn create_allowlist(
@@ -522,8 +589,19 @@ impl Routes {
         Extension(claims): Extension<Claims>,
         Form(form): Form<AllowlistForm>,
     ) -> Result<Redirect, AppError> {
-        let net = Allowlist::parse_cidr(&form.cidr)?;
-        let blocked = Self::blocked_cidrs(&state).await?;
+        Self::allow(&state, &claims, &form.cidr, form.note.as_deref()).await?;
+
+        Ok(Redirect::to("/workflows#allowlist"))
+    }
+
+    pub(crate) async fn allow(
+        state: &AppState,
+        claims: &Claims,
+        cidr: &str,
+        note: Option<&str>,
+    ) -> Result<(), AppError> {
+        let net = Allowlist::parse_cidr(cidr)?;
+        let blocked = Self::blocked_cidrs(state).await?;
 
         if let Some(clash) = blocked
             .iter()
@@ -535,10 +613,7 @@ impl Routes {
             )));
         }
 
-        state
-            .manual
-            .add(&net, form.note.as_deref(), &claims.identity())
-            .await?;
+        state.manual.add(&net, note, &claims.identity()).await?;
 
         state
             .audit
@@ -546,11 +621,11 @@ impl Routes {
                 &claims.identity(),
                 audit::ACTION_ALLOWLIST_ADD,
                 &net.to_string(),
-                form.note.as_deref(),
+                note,
             )
             .await;
 
-        Ok(Redirect::to("/workflows#allowlist"))
+        Ok(())
     }
 
     async fn delete_allowlist(
@@ -558,22 +633,32 @@ impl Routes {
         Extension(claims): Extension<Claims>,
         Form(form): Form<AllowlistDeleteForm>,
     ) -> Result<Redirect, AppError> {
-        state.manual.remove(&form.cidr).await?;
+        Self::disallow(&state, &claims, &form.cidr).await?;
+
+        Ok(Redirect::to("/workflows#allowlist"))
+    }
+
+    pub(crate) async fn disallow(
+        state: &AppState,
+        claims: &Claims,
+        cidr: &str,
+    ) -> Result<(), AppError> {
+        state.manual.remove(cidr).await?;
 
         state
             .audit
             .record(
                 &claims.identity(),
                 audit::ACTION_ALLOWLIST_REMOVE,
-                &form.cidr,
+                cidr,
                 None,
             )
             .await;
 
-        Ok(Redirect::to("/workflows#allowlist"))
+        Ok(())
     }
 
-    async fn blocked_cidrs(state: &AppState) -> Result<Vec<IpNet>, AppError> {
+    pub(crate) async fn blocked_cidrs(state: &AppState) -> Result<Vec<IpNet>, AppError> {
         let blocks = state
             .ctx
             .blocks()
@@ -644,7 +729,7 @@ pub struct AllowlistDeleteForm {
     cidr: String,
 }
 
-pub struct AppError(Error);
+pub struct AppError(pub(crate) Error);
 
 impl From<Error> for AppError {
     fn from(e: Error) -> Self {
@@ -654,9 +739,12 @@ impl From<Error> for AppError {
 
 impl IntoResponse for AppError {
     fn into_response(self) -> Response {
-        let status = match self.0 {
+        let status = match &self.0 {
             Error::ProtectedRange(..) | Error::InvalidCidr(..) => StatusCode::BAD_REQUEST,
+            Error::AllowlistConflict(..) => StatusCode::CONFLICT,
             Error::Unauthorized(_) => StatusCode::UNAUTHORIZED,
+            Error::Kube(kube::Error::Api(status)) if status.code == 404 => StatusCode::NOT_FOUND,
+            Error::Kube(kube::Error::Api(status)) if status.code == 409 => StatusCode::CONFLICT,
             _ => StatusCode::INTERNAL_SERVER_ERROR,
         };
 

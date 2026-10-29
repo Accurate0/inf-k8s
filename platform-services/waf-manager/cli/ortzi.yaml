@@ -1,0 +1,10 @@
+package:
+  name: waf
+  version: 0.1.0
+  description: waf-manager admin CLI
+  binary: wafctl
+  aliases: [wafctl]
+auth:
+  client_id: waf-manager-cli
+  token_env: WAFCTL_TOKEN
+  scopes: openid email profile

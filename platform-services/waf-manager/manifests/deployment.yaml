@@ -96,6 +96,14 @@ spec:
                 secretKeyRef:
                   name: kanidm-waf-manager-oidc
                   key: client-id
+            - name: OIDC_CLI_ISSUER
+              value: https://idm.anurag.sh/oauth2/openid/waf-manager-cli
+            - name: OIDC_CLI_AUDIENCE
+              valueFrom:
+                secretKeyRef:
+                  name: kanidm-waf-manager-cli-oidc
+                  key: client-id
+                  optional: true
           envFrom:
             - secretRef:
                 name: waf-manager-managed-secrets

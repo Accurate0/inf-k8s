@@ -1,9 +1,14 @@
+[workspace]
+members = ["api", "cli"]
+default-members = [".", "cli"]
+
 [package]
 name = "waf-manager"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+waf-manager-api = { path = "api" }
 askama = "0.16"
 axum = "0.8"
 base64 = "0.23"

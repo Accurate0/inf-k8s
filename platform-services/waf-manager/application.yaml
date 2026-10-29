@@ -52,6 +52,21 @@ spec:
                       header: x-waf-user-email
                     - claim: sub
                       header: x-waf-user-sub
+            - name: waf-manager-cli
+              namespace: waf-manager
+              displayName: WAF Manager CLI
+              host: waf-manager.ortzi.cloud
+              public: true
+              allowLocalhostRedirect: true
+              preferShortUsername: true
+              secretKeys:
+                clientId: client-id
+                clientSecret: client-secret
+              secretName: kanidm-waf-manager-cli-oidc
+              secretNamespace: waf-manager
+              annotations:
+                inf-k8s.net/app: waf-manager
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
       targetRevision: 1.0.1
@@ -106,6 +121,23 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /
+            - name: waf-manager-api
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - waf-manager.ortzi.cloud
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: api
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /api/
   destination:
     server: https://kubernetes.default.svc
     namespace: waf-manager

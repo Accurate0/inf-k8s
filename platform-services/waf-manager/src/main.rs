@@ -1,3 +1,4 @@
+mod api;
 mod routes;
 
 use futures::StreamExt;
@@ -126,18 +127,35 @@ async fn main() -> Result<()> {
         (None, false) => panic!("OIDC_ISSUER must be set, or {INSECURE_NO_AUTH} to opt out"),
     };
 
+    let cli_jwks = match (&jwks, Jwks::cli_from_env()) {
+        (Some(_), Some(cli)) => {
+            cli.refresh()
+                .await
+                .expect("initial cli jwks refresh failed");
+            cli.self_check()
+                .await
+                .expect("cli jwks self check failed, refusing to serve");
+            tokio::spawn(cli.clone().run(JWKS_REFRESH));
+            Some(cli)
+        }
+        _ => None,
+    };
+
     let state = Arc::new(AppState {
         ctx: ctx.clone(),
         loki,
         engine: engine.clone(),
         leadership: leadership.clone(),
         jwks,
+        cli_jwks,
         audit: Audit::new(pool.clone()),
         manual,
         enricher: Enricher::new(),
     });
 
-    let app = Routes::router(state).nest_service("/static", ServeDir::new("static"));
+    let app = Routes::router(state.clone())
+        .merge(api::Api::router(state))
+        .nest_service("/static", ServeDir::new("static"));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
         .expect("failed to bind :3000");

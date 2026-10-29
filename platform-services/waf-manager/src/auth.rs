@@ -12,6 +12,22 @@ use tokio::sync::RwLock;
 const ISSUER_ENV: &str = "OIDC_ISSUER";
 const JWKS_ENV: &str = "OIDC_JWKS_URI";
 const AUDIENCE_ENV: &str = "OIDC_AUDIENCE";
+const CLI_ISSUER_ENV: &str = "OIDC_CLI_ISSUER";
+const CLI_JWKS_ENV: &str = "OIDC_CLI_JWKS_URI";
+const CLI_AUDIENCE_ENV: &str = "OIDC_CLI_AUDIENCE";
+
+pub fn issuer_of(token: &str) -> Option<String> {
+    #[derive(Deserialize)]
+    struct Unverified {
+        iss: String,
+    }
+
+    let payload = token.split('.').nth(1)?;
+    let bytes = URL_SAFE_NO_PAD.decode(payload).ok()?;
+    serde_json::from_slice::<Unverified>(&bytes)
+        .ok()
+        .map(|claims| claims.iss)
+}
 
 #[derive(Debug, Clone, Deserialize)]
 pub struct Claims {
@@ -78,12 +94,24 @@ impl Jwks {
     }
 
     pub fn from_env() -> Option<Self> {
-        let issuer = std::env::var(ISSUER_ENV).ok()?;
-        let uri = std::env::var(JWKS_ENV)
+        Self::from_vars(ISSUER_ENV, JWKS_ENV, AUDIENCE_ENV)
+    }
+
+    pub fn cli_from_env() -> Option<Self> {
+        Self::from_vars(CLI_ISSUER_ENV, CLI_JWKS_ENV, CLI_AUDIENCE_ENV)
+    }
+
+    fn from_vars(issuer: &str, jwks: &str, audience: &str) -> Option<Self> {
+        let issuer = std::env::var(issuer).ok()?;
+        let uri = std::env::var(jwks)
             .unwrap_or_else(|_| format!("{}/public_key.jwk", issuer.trim_end_matches('/')));
-        let audience = std::env::var(AUDIENCE_ENV).ok().filter(|a| !a.is_empty());
+        let audience = std::env::var(audience).ok().filter(|a| !a.is_empty());
 
         Some(Self::new(uri, issuer, audience))
+    }
+
+    pub fn issuer(&self) -> &str {
+        &self.inner.issuer
     }
 
     pub async fn refresh(&self) -> Result<usize> {
@@ -342,6 +370,19 @@ mod tests {
         );
 
         jwks.self_check().await.unwrap();
+    }
+
+    #[test]
+    fn issuer_is_read_without_verifying() {
+        let payload =
+            URL_SAFE_NO_PAD.encode(r#"{"iss":"https://idm.example.test/oauth2/openid/cli"}"#);
+        let token = format!("header.{payload}.signature");
+
+        assert_eq!(
+            issuer_of(&token).as_deref(),
+            Some("https://idm.example.test/oauth2/openid/cli")
+        );
+        assert_eq!(issuer_of("garbage"), None);
     }
 
     #[tokio::test]
