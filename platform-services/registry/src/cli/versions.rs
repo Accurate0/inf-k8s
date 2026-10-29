@@ -5,7 +5,11 @@ use axum::{
     extract::{Path, State},
     http::StatusCode,
 };
-use registry_api::{CreateVersion, ECOSYSTEM_CLI, Target, Version, Yank};
+use chrono::Utc;
+use registry_api::{
+    Artifact, CreateVersion, ECOSYSTEM_CLI, Target, Version, Yank,
+    signing::{self, ManifestClaims, PublishRequest, Signatures, Statement},
+};
 use serde_json::json;
 
 use super::{
@@ -113,6 +117,7 @@ pub async fn publish(
     State(state): State<AppState>,
     principal: Principal,
     Path((name, version)): Path<(String, String)>,
+    Json(request): Json<PublishRequest>,
 ) -> Result<Json<Version>> {
     let publisher = authorize_publish(&state, &principal, ECOSYSTEM_CLI, &name).await?;
 
@@ -143,11 +148,62 @@ pub async fn publish(
         )));
     }
 
+    let roots = [state.signer.verifying_key()];
+    let (certificate, key) =
+        signing::verify_certificate(&roots, &request.certificate, ECOSYSTEM_CLI, &name)
+            .map_err(|e| ApiError::BadRequest(format!("signing certificate: {e}")))?;
+    let published_at = Utc::now();
+    if published_at > certificate.expires_at {
+        return Err(ApiError::BadRequest(
+            "signing certificate has expired".to_owned(),
+        ));
+    }
+
+    let mut statement: Statement = signing::open(&request.statement, &key)
+        .map_err(|e| ApiError::BadRequest(format!("signed statement: {e}")))?;
+    statement.artifacts.sort_by_key(|a| a.target);
+    let mut uploaded: Vec<Artifact> = artifacts
+        .iter()
+        .filter_map(|a| {
+            Some(Artifact {
+                target: a.target.parse().ok()?,
+                sha256: a.sha256.clone(),
+                size: a.size,
+            })
+        })
+        .collect();
+    uploaded.sort_by_key(|a| a.target);
+    if statement.package != name
+        || statement.version != row.version
+        || statement.artifacts != uploaded
+    {
+        return Err(ApiError::Unprocessable(
+            "signed statement does not match the uploaded artifacts".to_owned(),
+        ));
+    }
+
+    let manifest = signing::sign(
+        state.signer.key(),
+        &ManifestClaims {
+            statement,
+            signed_by: certificate.subject,
+            published_by: publisher.actor.clone(),
+            source: publisher.source.clone(),
+            published_at,
+        },
+    );
+    let signatures = sqlx::types::Json(Signatures {
+        manifest,
+        certificate: request.certificate,
+        statement: request.statement,
+    });
+
     let source = publisher.source.clone().unwrap_or_default();
     let updated = sqlx::query!(
         "UPDATE cli_versions SET
-            status = 'published', published_at = now(), published_by = $2, publisher_kind = $3,
-            source_repository = $4, source_ref = $5, source_sha = $6, source_run_id = $7
+            status = 'published', published_at = $9, published_by = $2, publisher_kind = $3,
+            source_repository = $4, source_ref = $5, source_sha = $6, source_run_id = $7,
+            signatures = $10
          WHERE id = $1 AND status = $8",
         row.id,
         publisher.actor,
@@ -156,7 +212,9 @@ pub async fn publish(
         source.git_ref,
         source.sha,
         source.run_id,
-        DRAFT
+        DRAFT,
+        published_at,
+        signatures as sqlx::types::Json<Signatures>
     )
     .execute(&state.pool)
     .await?

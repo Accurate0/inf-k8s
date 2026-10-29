@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use registry_api::signing::Signatures;
 use registry_api::{Artifact, PackageAuth, Source, Target, Version, VersionSummary, Yanked};
 use sqlx::PgPool;
 use sqlx::types::Json;
@@ -30,6 +31,7 @@ pub struct VersionRow {
     pub binary_name: String,
     pub aliases: Vec<String>,
     pub auth: Option<Json<PackageAuth>>,
+    pub signatures: Option<Json<Signatures>>,
     pub published_at: Option<DateTime<Utc>>,
     pub published_by: Option<String>,
     pub source_repository: Option<String>,
@@ -102,6 +104,7 @@ impl VersionRow {
             binary_name: self.binary_name,
             aliases: self.aliases,
             auth: self.auth.map(|a| a.0),
+            signatures: self.signatures.map(|s| s.0),
             published_at: self.published_at,
             published_by: self.published_by,
         }
@@ -158,7 +161,7 @@ pub async fn versions(pool: &PgPool, package_id: Uuid) -> Result<Vec<VersionRow>
     Ok(sqlx::query_as!(
         VersionRow,
         r#"SELECT id, package_id, version, status, targets, description, binary_name, aliases,
-                auth as "auth: Json<PackageAuth>", published_at, published_by, source_repository, source_ref, source_sha,
+                auth as "auth: Json<PackageAuth>", signatures as "signatures: Json<Signatures>", published_at, published_by, source_repository, source_ref, source_sha,
                 source_run_id, yanked_at, yanked_by, yank_reason
          FROM cli_versions WHERE package_id = $1 ORDER BY created_at DESC"#,
         package_id
@@ -171,7 +174,7 @@ pub async fn published_versions(pool: &PgPool) -> Result<Vec<VersionRow>> {
     Ok(sqlx::query_as!(
         VersionRow,
         r#"SELECT id, package_id, version, status, targets, description, binary_name, aliases,
-                auth as "auth: Json<PackageAuth>", published_at, published_by, source_repository, source_ref, source_sha,
+                auth as "auth: Json<PackageAuth>", signatures as "signatures: Json<Signatures>", published_at, published_by, source_repository, source_ref, source_sha,
                 source_run_id, yanked_at, yanked_by, yank_reason
          FROM cli_versions WHERE status = 'published'"#
     )
@@ -187,7 +190,7 @@ pub async fn find_version(
     Ok(sqlx::query_as!(
         VersionRow,
         r#"SELECT id, package_id, version, status, targets, description, binary_name, aliases,
-                auth as "auth: Json<PackageAuth>", published_at, published_by, source_repository, source_ref, source_sha,
+                auth as "auth: Json<PackageAuth>", signatures as "signatures: Json<Signatures>", published_at, published_by, source_repository, source_ref, source_sha,
                 source_run_id, yanked_at, yanked_by, yank_reason
          FROM cli_versions WHERE package_id = $1 AND version = $2"#,
         package_id,
@@ -230,6 +233,7 @@ mod tests {
             binary_name: "ff".to_owned(),
             aliases: Vec::new(),
             auth: None,
+            signatures: None,
             published_at: None,
             published_by: None,
             source_repository: None,

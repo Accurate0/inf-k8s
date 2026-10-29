@@ -1,6 +1,10 @@
 use anyhow::Context;
 use registry::{
-    config::Config, jobs, metrics, server, state::AppState, storage::Storage, tracing_setup,
+    config::Config,
+    jobs, metrics, server,
+    state::{AppState, Signer},
+    storage::Storage,
+    tracing_setup,
 };
 use sqlx::postgres::PgPoolOptions;
 use tokio::net::TcpListener;
@@ -32,7 +36,8 @@ async fn main() -> anyhow::Result<()> {
 
     let config = Config::load()?;
     let storage = Storage::from_env(&config.storage)?;
-    let state = AppState::new(config, pool, storage);
+    let signer = Signer::from_env()?;
+    let state = AppState::new(config, pool, storage, signer);
 
     state.auth.start().await;
     tokio::spawn(jobs::run(state.clone()));

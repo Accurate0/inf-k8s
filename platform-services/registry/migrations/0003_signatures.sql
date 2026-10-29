@@ -1,0 +1,1 @@
+ALTER TABLE cli_versions ADD COLUMN IF NOT EXISTS signatures JSONB;

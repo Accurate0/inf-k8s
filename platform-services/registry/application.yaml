@@ -95,6 +95,9 @@ spec:
             - name: registry
               managedSecrets:
                 - secretName: registry-managed-secrets
+            - name: signing
+              managedSecrets:
+                - secretName: registry-signing-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: platform-services/registry
   destination:

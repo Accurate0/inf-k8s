@@ -42,6 +42,7 @@ opentelemetry-semantic-conventions = { version = "0.33.0", features = ["semconv_
 tracing-opentelemetry = "0.34.0"
 axum-tracing-opentelemetry = "0.42.0"
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+p256 = { version = "0.13", features = ["ecdsa"] }
 
 [dev-dependencies]
 p256 = { version = "0.13", features = ["pkcs8", "jwk"] }

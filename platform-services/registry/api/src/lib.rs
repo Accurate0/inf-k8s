@@ -1,3 +1,5 @@
+pub mod signing;
+
 use std::{fmt, str::FromStr};
 
 use chrono::{DateTime, Utc};
@@ -329,20 +331,22 @@ pub struct Version {
     #[serde(default)]
     pub auth: Option<PackageAuth>,
     pub artifacts: Vec<Artifact>,
+    #[serde(default)]
+    pub signatures: Option<signing::Signatures>,
     pub published_at: Option<DateTime<Utc>>,
     pub published_by: Option<String>,
     pub source: Option<Source>,
     pub yanked: Option<Yanked>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Artifact {
     pub target: Target,
     pub sha256: String,
     pub size: i64,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Source {
     pub repository: Option<String>,
     #[serde(rename = "ref")]

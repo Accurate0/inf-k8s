@@ -3,8 +3,12 @@ use p256::pkcs8::EncodePrivateKey;
 use registry::{
     config::{Config, ForgejoConfig},
     server,
-    state::AppState,
+    state::{AppState, Signer},
     storage::Storage,
+};
+use registry_api::{
+    Artifact, Target,
+    signing::{self, Statement},
 };
 use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
@@ -133,7 +137,12 @@ impl Registry {
         });
         config.limits.max_artifact_bytes = 1024;
 
-        let state = AppState::new(config, pool, Storage::memory());
+        let state = AppState::new(
+            config,
+            pool,
+            Storage::memory(),
+            Signer::new(signing::generate()),
+        );
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let app = server::router(state);
@@ -253,14 +262,73 @@ impl Registry {
             assert_eq!(status, 200, "{body}");
         }
 
+        let artifacts = ["darwin-arm64", "linux-amd64"]
+            .into_iter()
+            .map(|target| {
+                let bytes = format!("{name}-{version}-{target}");
+                Artifact {
+                    target: target.parse().unwrap(),
+                    sha256: sha(bytes.as_bytes()),
+                    size: bytes.len() as i64,
+                }
+            })
+            .collect();
+        self.sign_and_publish(token, name, version, artifacts)
+            .await
+            .0
+    }
+
+    async fn sign_and_publish(
+        &self,
+        token: &str,
+        name: &str,
+        version: &str,
+        artifacts: Vec<Artifact>,
+    ) -> (u16, Value) {
+        let key = signing::generate();
+        let (status, certificate) = self
+            .call(
+                "POST",
+                "/api/v1/signing/certificate",
+                Some(token),
+                Some(json!({
+                    "ecosystem": "cli",
+                    "package": name,
+                    "public_key": signing::encode_key(key.verifying_key()),
+                })),
+            )
+            .await;
+        if status != 200 {
+            return (status, certificate);
+        }
+
+        let statement = signing::sign(
+            &key,
+            &Statement {
+                package: name.to_owned(),
+                version: version.to_owned(),
+                artifacts,
+            },
+        );
         self.call(
             "POST",
-            &format!("{base}/{version}/publish"),
+            &format!("/cli/v1/packages/{name}/versions/{version}/publish"),
             Some(token),
-            None,
+            Some(json!({ "statement": statement, "certificate": certificate })),
         )
         .await
-        .0
+    }
+
+    async fn root_keys(&self) -> Vec<p256::ecdsa::VerifyingKey> {
+        let (status, keys) = self.call("GET", "/api/v1/signing/keys", None, None).await;
+        assert_eq!(status, 200);
+        keys.as_array()
+            .unwrap()
+            .iter()
+            .map(|k| {
+                signing::verifying_key_from_pem(k["public_key_pem"].as_str().unwrap()).unwrap()
+            })
+            .collect()
     }
 }
 
@@ -365,7 +433,16 @@ async fn publish_requires_every_declared_target(pool: PgPool) {
         .await;
 
     let (status, body) = registry
-        .call("POST", &format!("{base}/1.0.0/publish"), Some(&admin), None)
+        .sign_and_publish(
+            &admin,
+            "ff",
+            "1.0.0",
+            vec![Artifact {
+                target: Target::LinuxAmd64,
+                sha256: sha(b"x"),
+                size: 1,
+            }],
+        )
         .await;
     assert_eq!(status, 422);
     assert!(
@@ -699,4 +776,107 @@ async fn unpublished_packages_can_be_deleted(pool: PgPool) {
         .map(|e| e["action"].as_str().unwrap())
         .collect();
     assert_eq!(actions, ["package.delete", "package.create"]);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn releases_are_signed_end_to_end(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("ff").await;
+    registry.create_package("ai").await;
+    let admin = registry.admin.clone();
+    assert_eq!(registry.publish(&admin, "ff", "1.0.0").await, 200);
+
+    let (_, version) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages/ff/versions/1.0.0",
+            Some(&admin),
+            None,
+        )
+        .await;
+    let signatures = serde_json::from_value(version["signatures"].clone()).unwrap();
+    let roots = registry.root_keys().await;
+    let manifest = signing::verify_release(&roots, "ff", "1.0.0", &signatures).unwrap();
+    assert_eq!(manifest.published_by, "anurag");
+    assert_eq!(
+        manifest.statement.artifacts[0].sha256,
+        sha(b"ff-1.0.0-darwin-arm64")
+    );
+    assert!(signing::verify_release(&roots, "ai", "1.0.0", &signatures).is_err());
+
+    let base = "/cli/v1/packages/ff/versions";
+    registry
+        .call(
+            "POST",
+            base,
+            Some(&admin),
+            Some(json!({ "version": "2.0.0", "targets": ["linux-amd64"] })),
+        )
+        .await;
+    registry
+        .upload(
+            &admin,
+            &format!("{base}/2.0.0/artifacts/linux-amd64"),
+            b"real",
+            &sha(b"real"),
+        )
+        .await;
+    let claimed = |sha256: String| {
+        vec![Artifact {
+            target: Target::LinuxAmd64,
+            sha256,
+            size: 4,
+        }]
+    };
+
+    let (status, _) = registry
+        .sign_and_publish(&admin, "ff", "2.0.0", claimed(sha(b"fake")))
+        .await;
+    assert_eq!(status, 422, "statement must match the uploaded sha");
+
+    let key = signing::generate();
+    let (_, other_package) = registry
+        .call(
+            "POST",
+            "/api/v1/signing/certificate",
+            Some(&admin),
+            Some(json!({ "ecosystem": "cli", "package": "ai", "public_key": signing::encode_key(key.verifying_key()) })),
+        )
+        .await;
+    let statement = signing::sign(
+        &key,
+        &Statement {
+            package: "ff".to_owned(),
+            version: "2.0.0".to_owned(),
+            artifacts: claimed(sha(b"real")),
+        },
+    );
+    let (status, _) = registry
+        .call(
+            "POST",
+            &format!("{base}/2.0.0/publish"),
+            Some(&admin),
+            Some(json!({ "statement": statement, "certificate": other_package })),
+        )
+        .await;
+    assert_eq!(status, 400, "certificate for another package");
+
+    let forged = signing::sign(
+        &signing::generate(),
+        &json!({ "ecosystem": "cli", "package": "ff" }),
+    );
+    let (status, _) = registry
+        .call(
+            "POST",
+            &format!("{base}/2.0.0/publish"),
+            Some(&admin),
+            Some(json!({ "statement": statement, "certificate": forged })),
+        )
+        .await;
+    assert_eq!(status, 400, "certificate not signed by the registry");
+
+    let (status, _) = registry
+        .sign_and_publish(&admin, "ff", "2.0.0", claimed(sha(b"real")))
+        .await;
+    assert_eq!(status, 200);
 }

@@ -2310,9 +2310,14 @@ dependencies = [
 name = "registry-api"
 version = "0.1.0"
 dependencies = [
+ "base64 0.22.1",
  "chrono",
+ "hex",
+ "p256",
+ "rand 0.10.3",
  "serde",
  "serde_json",
+ "sha2 0.11.1",
  "uuid",
 ]
 

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, package_id, version, status, targets, description, binary_name, aliases,\n                auth as \"auth: Json<PackageAuth>\", published_at, published_by, source_repository, source_ref, source_sha,\n                source_run_id, yanked_at, yanked_by, yank_reason\n         FROM cli_versions WHERE package_id = $1 AND version = $2",
+  "query": "SELECT id, package_id, version, status, targets, description, binary_name, aliases,\n                auth as \"auth: Json<PackageAuth>\", signatures as \"signatures: Json<Signatures>\", published_at, published_by, source_repository, source_ref, source_sha,\n                source_run_id, yanked_at, yanked_by, yank_reason\n         FROM cli_versions WHERE status = 'published'",
   "describe": {
     "columns": [
       {
@@ -104,6 +104,17 @@
       },
       {
         "ordinal": 9,
+        "name": "signatures: Json<Signatures>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "signatures"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
         "name": "published_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -114,7 +125,7 @@
         }
       },
       {
-        "ordinal": 10,
+        "ordinal": 11,
         "name": "published_by",
         "type_info": "Text",
         "origin": {
@@ -125,7 +136,7 @@
         }
       },
       {
-        "ordinal": 11,
+        "ordinal": 12,
         "name": "source_repository",
         "type_info": "Text",
         "origin": {
@@ -136,7 +147,7 @@
         }
       },
       {
-        "ordinal": 12,
+        "ordinal": 13,
         "name": "source_ref",
         "type_info": "Text",
         "origin": {
@@ -147,7 +158,7 @@
         }
       },
       {
-        "ordinal": 13,
+        "ordinal": 14,
         "name": "source_sha",
         "type_info": "Text",
         "origin": {
@@ -158,7 +169,7 @@
         }
       },
       {
-        "ordinal": 14,
+        "ordinal": 15,
         "name": "source_run_id",
         "type_info": "Text",
         "origin": {
@@ -169,7 +180,7 @@
         }
       },
       {
-        "ordinal": 15,
+        "ordinal": 16,
         "name": "yanked_at",
         "type_info": "Timestamptz",
         "origin": {
@@ -180,7 +191,7 @@
         }
       },
       {
-        "ordinal": 16,
+        "ordinal": 17,
         "name": "yanked_by",
         "type_info": "Text",
         "origin": {
@@ -191,7 +202,7 @@
         }
       },
       {
-        "ordinal": 17,
+        "ordinal": 18,
         "name": "yank_reason",
         "type_info": "Text",
         "origin": {
@@ -203,10 +214,7 @@
       }
     ],
     "parameters": {
-      "Left": [
-        "Uuid",
-        "Text"
-      ]
+      "Left": []
     },
     "nullable": [
       false,
@@ -226,8 +234,9 @@
       true,
       true,
       true,
+      true,
       true
     ]
   },
-  "hash": "26ce81cd78e74bc92e302835bc7e621fc3df709e6114af5380594ab8df2f4581"
+  "hash": "e898532c5dd7ca07f4445f88e4d5bb7802a4f17465c60e26fc39bfad7732fca5"
 }

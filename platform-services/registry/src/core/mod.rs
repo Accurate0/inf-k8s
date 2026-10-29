@@ -1,10 +1,11 @@
 pub mod audit;
 pub mod publishers;
+pub mod signing;
 pub mod tokens;
 
 use axum::{
     Json, Router,
-    routing::{delete, get},
+    routing::{delete, get, post},
 };
 use registry_api::{ECOSYSTEM_CLI, WhoAmI};
 use sqlx::PgPool;
@@ -26,6 +27,8 @@ pub fn router() -> Router<AppState> {
         )
         .route("/trusted-publishers/{id}", delete(publishers::delete))
         .route("/audit", get(audit::list))
+        .route("/signing/keys", get(signing::keys))
+        .route("/signing/certificate", post(signing::certificate))
 }
 
 async fn whoami(principal: Principal) -> Json<WhoAmI> {

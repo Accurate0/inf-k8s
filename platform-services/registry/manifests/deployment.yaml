@@ -80,6 +80,8 @@ spec:
           envFrom:
             - secretRef:
                 name: registry-managed-secrets
+            - secretRef:
+                name: registry-signing-secrets
           env:
             - name: CONFIG_PATH
               value: /etc/registry/config.yaml
