@@ -70,7 +70,6 @@ spec:
           domainFilters:
             - anurag.sh
             - anurag.id.au
-            - inf-k8s.net
             - ortzi.cloud
             - maccas.one
     - chart: external-dns

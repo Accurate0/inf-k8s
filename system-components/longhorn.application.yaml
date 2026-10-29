@@ -47,7 +47,7 @@ spec:
             - name: longhorn
               namespace: longhorn-system
               displayName: Longhorn
-              host: longhorn.inf-k8s.net
+              host: longhorn.ortzi.cloud
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
               secretKeys:
@@ -77,7 +77,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - longhorn.inf-k8s.net
                 - longhorn.ortzi.cloud
               rules:
                 - backendRefs:

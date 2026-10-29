@@ -19,7 +19,7 @@ pub struct Cli {
         long,
         global = true,
         env = "AIG_URL",
-        default_value = "https://ai-gateway.inf-k8s.net"
+        default_value = "https://ai-gateway.ortzi.cloud"
     )]
     url: String,
 

@@ -28,10 +28,10 @@ spec:
             - name: argocd
               namespace: argocd
               displayName: Argo CD
-              host: argocd.inf-k8s.net
+              host: argocd.ortzi.cloud
               callbackPath: /api/dex/callback
               extraRedirectUrls:
-                - https://argocd.inf-k8s.net/auth/callback
+                - https://argocd.ortzi.cloud/auth/callback
               preferShortUsername: true
               secretLabels:
                 app.kubernetes.io/part-of: argocd
@@ -58,7 +58,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - argocd.inf-k8s.net
                 - argocd.ortzi.cloud
               rules:
                 - backendRefs:
@@ -105,7 +104,7 @@ spec:
       helm:
         valuesObject:
           global:
-            domain: argocd.inf-k8s.net
+            domain: argocd.ortzi.cloud
 
           configs:
             cm:
@@ -216,7 +215,7 @@ spec:
                 nginx.ingress.kubernetes.io/backend-protocol: "HTTP"
               extraTls:
                 - hosts:
-                    - argocd.inf-k8s.net
+                    - argocd.ortzi.cloud
                   secretName: argocd-inf-k8s-tls
 
   destination:

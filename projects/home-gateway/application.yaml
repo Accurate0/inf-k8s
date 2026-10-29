@@ -59,7 +59,7 @@ spec:
             - name: home-gateway
               namespace: home-gateway
               displayName: Home Gateway
-              host: home.inf-k8s.net
+              host: home.ortzi.cloud
               callbackPath: /callback
               extraRedirectUrls:
                 - net.infk8s.homegateway:/oauth2redirect

@@ -23,7 +23,7 @@ spec:
             - name: waf-manager
               namespace: waf-manager
               displayName: WAF Manager
-              host: waf-manager.inf-k8s.net
+              host: waf-manager.ortzi.cloud
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
               secretKeys:
@@ -94,7 +94,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - waf-manager.inf-k8s.net
                 - waf-manager.ortzi.cloud
               rules:
                 - backendRefs:

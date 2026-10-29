@@ -126,7 +126,7 @@ provider "tailscale" {
 }
 
 provider "vault" {
-  address          = "https://vault.inf-k8s.net"
+  address          = "https://vault.ortzi.cloud"
   skip_child_token = true
 
   auth_login {

@@ -40,7 +40,7 @@ spec:
             - name: firefly
               namespace: firefly
               displayName: Firefly III
-              host: firefly.inf-k8s.net
+              host: firefly.ortzi.cloud
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
               secretKeys:
@@ -63,7 +63,7 @@ spec:
             - name: firefly-importer
               namespace: firefly
               displayName: Firefly III Importer
-              host: firefly-importer.inf-k8s.net
+              host: firefly-importer.ortzi.cloud
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
               secretKeys:
@@ -147,7 +147,7 @@ spec:
           config:
             existingSecret: firefly-managed-secrets
             env:
-              APP_URL: https://firefly.inf-k8s.net
+              APP_URL: https://firefly.ortzi.cloud
               DB_CONNECTION: pgsql
               DB_HOST: cloudnative-pg-cluster-rw.cnpg-system
               DB_PORT: "5432"
@@ -182,7 +182,6 @@ spec:
           httpRoute:
             enabled: true
             hostnames:
-              - firefly.inf-k8s.net
               - firefly.ortzi.cloud
             parentRefs:
               - group: gateway.networking.k8s.io
@@ -213,7 +212,7 @@ spec:
 
           fireflyiii:
             url: http://firefly.firefly.svc.cluster.local
-            vanityUrl: https://firefly.inf-k8s.net
+            vanityUrl: https://firefly.ortzi.cloud
             auth:
               existingSecret: firefly-importer-managed-secrets
 
@@ -297,7 +296,6 @@ spec:
           httpRoute:
             enabled: true
             hostnames:
-              - firefly-importer.inf-k8s.net
               - firefly-importer.ortzi.cloud
             parentRefs:
               - group: gateway.networking.k8s.io

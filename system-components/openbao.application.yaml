@@ -30,7 +30,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - vault.inf-k8s.net
                 - vault.ortzi.cloud
               rules:
                 - backendRefs:
@@ -52,7 +51,7 @@ spec:
             - name: openbao
               namespace: openbao
               displayName: OpenBao
-              host: vault.inf-k8s.net
+              host: vault.ortzi.cloud
               callbackPath: /ui/vault/auth/oidc/oidc/callback
               preferShortUsername: true
               scopes:

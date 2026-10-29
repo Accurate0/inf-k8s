@@ -15,7 +15,6 @@ spec:
       namespace: envoy-gateway-system
       sectionName: wildcard-inf-k8s-https
   hostnames:
-    - home.inf-k8s.net
     - home.ortzi.cloud
   rules:
     # API + subscription websocket + schema, proxied same-origin to the backend.

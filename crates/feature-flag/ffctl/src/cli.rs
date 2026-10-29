@@ -14,7 +14,7 @@ pub struct Cli {
         long,
         global = true,
         env = "FFCTL_URL",
-        default_value = "https://feature-flags.inf-k8s.net",
+        default_value = "https://feature-flags.ortzi.cloud",
         help = "feature-flags gRPC endpoint"
     )]
     pub url: String,

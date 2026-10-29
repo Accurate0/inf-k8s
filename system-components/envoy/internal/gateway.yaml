@@ -5,44 +5,10 @@ metadata:
   name: internal-gateway
   annotations:
     cert-manager.io/cluster-issuer: letsencrypt-prod
-    external-dns.kubernetes.io/target: inf-k8s.net
+    external-dns.kubernetes.io/target: ortzi.cloud
 spec:
   gatewayClassName: envoy-gateway
   listeners:
-    - name: wildcard-inf-k8s-https
-      protocol: HTTPS
-      hostname: "*.inf-k8s.net"
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              internal-gateway-access: "true"
-      port: 8443
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: wildcard-inf-k8s-tls
-
-    - name: inf-k8s-https
-      protocol: HTTPS
-      hostname: inf-k8s.net
-      allowedRoutes:
-        namespaces:
-          from: Selector
-          selector:
-            matchLabels:
-              internal-gateway-access: "true"
-      port: 8443
-      tls:
-        mode: Terminate
-        certificateRefs:
-          - group: ""
-            kind: Secret
-            name: inf-k8s-tls
-
     - name: wildcard-ortzi-https
       protocol: HTTPS
       hostname: "*.ortzi.cloud"

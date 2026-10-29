@@ -19,7 +19,7 @@ pub struct Cli {
         long,
         global = true,
         env = "JANITOR_URL",
-        default_value = "https://janitor-bot.inf-k8s.net"
+        default_value = "https://janitor-bot.ortzi.cloud"
     )]
     url: String,
 

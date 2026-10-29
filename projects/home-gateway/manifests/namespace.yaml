@@ -6,6 +6,6 @@ metadata:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
     # Allow HTTPRoutes in this namespace to attach to the internal gateway
-    # (home.inf-k8s.net dashboard).
+    # (home.ortzi.cloud dashboard).
     internal-gateway-access: "true"
     inf-k8s.net/lan-gateway-access: "true"

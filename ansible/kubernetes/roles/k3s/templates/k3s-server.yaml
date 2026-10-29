@@ -7,7 +7,6 @@ node-ip: "{{ tailscale_ip_result.stdout }}"
 server: "{{ k3s_control_ip }}"
 tls-san:
   - "{{ hostvars['k8s-optiplex-5'].tailscale_ip }}"
-  - "inf-k8s.net"
   - "ortzi.cloud"
 etcd-expose-metrics: true
 etcd-arg:

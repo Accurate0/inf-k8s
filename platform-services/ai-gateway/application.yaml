@@ -23,7 +23,7 @@ spec:
             - name: ai-gateway
               namespace: ai-gateway
               displayName: AI Gateway
-              host: ai-gateway.inf-k8s.net
+              host: ai-gateway.ortzi.cloud
               public: true
               allowLocalhostRedirect: true
               preferShortUsername: true
@@ -48,7 +48,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - ai-gateway.inf-k8s.net
                 - ai-gateway.ortzi.cloud
               rules:
                 - backendRefs:

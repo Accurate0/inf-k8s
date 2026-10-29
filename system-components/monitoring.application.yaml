@@ -29,7 +29,7 @@ spec:
           clients:
             - name: prometheus
               displayName: Prometheus
-              host: prometheus.inf-k8s.net
+              host: prometheus.ortzi.cloud
               preferShortUsername: true
               allowInsecureClientDisablePkce: true
               secretKeys:
@@ -48,7 +48,7 @@ spec:
                   - profile
             - name: grafana
               displayName: Grafana
-              host: grafana.inf-k8s.net
+              host: grafana.ortzi.cloud
               callbackPath: /login/generic_oauth
               preferShortUsername: true
               scopes:
@@ -80,7 +80,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - prometheus.inf-k8s.net
                 - prometheus.ortzi.cloud
               rules:
                 - backendRefs:
@@ -98,7 +97,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - grafana.inf-k8s.net
                 - grafana.ortzi.cloud
               rules:
                 - backendRefs:
@@ -324,11 +322,11 @@ spec:
               annotations:
                 cert-manager.io/cluster-issuer: letsencrypt-prod
               hosts:
-                - prometheus.inf-k8s.net
+                - prometheus.ortzi.cloud
               tls:
                 - secretName: prometheus-inf-k8s-tls
                   hosts:
-                    - prometheus.inf-k8s.net
+                    - prometheus.ortzi.cloud
             prometheusSpec:
               otlp:
                 promoteResourceAttributes:
@@ -399,7 +397,7 @@ spec:
                   operator: "Equal"
                   value: "arm64"
                   effect: "NoSchedule"
-              externalUrl: "https://prometheus.inf-k8s.net"
+              externalUrl: "https://prometheus.ortzi.cloud"
               retention: 2d
               retentionSize: "10GB"
               storageSpec:
@@ -428,11 +426,11 @@ spec:
               annotations:
                 cert-manager.io/cluster-issuer: letsencrypt-prod
               hosts:
-                - alertmanager.inf-k8s.net
+                - alertmanager.ortzi.cloud
               tls:
                 - secretName: alertmanager-inf-k8s-tls
                   hosts:
-                    - alertmanager.inf-k8s.net
+                    - alertmanager.ortzi.cloud
           alertmanagerSpec:
             alertmanagerConfigSelector:
               matchExpressions:
@@ -514,7 +512,7 @@ spec:
                 role_attribute_path: contains(grafana_role[*], 'GrafanaAdmin') && 'GrafanaAdmin' || contains(grafana_role[*], 'Editor') && 'Editor' || 'Viewer'
               server:
                 root_url: "https://%(domain)s"
-                domain: grafana.inf-k8s.net
+                domain: grafana.ortzi.cloud
                 protocol: http
             # Provision grafana-dashboards-kubernetes
             dashboardProviders:
@@ -559,11 +557,11 @@ spec:
               annotations:
                 cert-manager.io/cluster-issuer: letsencrypt-prod
               hosts:
-                - grafana.inf-k8s.net
+                - grafana.ortzi.cloud
               tls:
                 - secretName: grafana-inf-k8s-tls
                   hosts:
-                    - grafana.inf-k8s.net
+                    - grafana.ortzi.cloud
 
   destination:
     server: https://kubernetes.default.svc

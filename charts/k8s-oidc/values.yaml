@@ -11,7 +11,7 @@ defaults:
 clients:
   - name: prometheus
     displayName: Prometheus
-    host: prometheus.inf-k8s.net
+    host: prometheus.ortzi.cloud
     preferShortUsername: true
     allowInsecureClientDisablePkce: true
     icon:

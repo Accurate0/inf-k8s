@@ -23,7 +23,7 @@ spec:
             - name: feature-flags
               namespace: feature-flags
               displayName: Feature Flags
-              host: feature-flags.inf-k8s.net
+              host: feature-flags.ortzi.cloud
               public: true
               allowLocalhostRedirect: true
               preferShortUsername: true
@@ -74,7 +74,6 @@ spec:
                 name: internal-gateway
                 namespace: envoy-gateway-system
               hostnames:
-                - feature-flags.inf-k8s.net
                 - feature-flags.ortzi.cloud
               rules:
                 - backendRefs:
