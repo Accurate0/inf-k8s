@@ -67,6 +67,14 @@ spec:
               icon:
                 configMap: grafana-kanidm-icon
                 key: Grafana.svg
+            - name: grafana-cli
+              displayName: Grafana CLI
+              host: grafana.ortzi.cloud
+              public: true
+              allowLocalhostRedirect: true
+              preferShortUsername: true
+              secretName: kanidm-grafana-cli-oidc
+              secretNamespace: monitoring
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: system-components/monitoring
     - chart: k8s-http-routes
