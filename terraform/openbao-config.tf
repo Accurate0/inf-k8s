@@ -84,3 +84,23 @@ resource "vault_identity_group_alias" "openbao_admins" {
   mount_accessor = vault_jwt_auth_backend.oidc.accessor
   canonical_id   = vault_identity_group.openbao_admins.id
 }
+
+resource "vault_jwt_auth_backend" "cli" {
+  path               = "jwt"
+  type               = "jwt"
+  oidc_discovery_url = "https://idm.anurag.sh/oauth2/openid/openbao-cli"
+  bound_issuer       = "https://idm.anurag.sh/oauth2/openid/openbao-cli"
+  jwt_supported_algs = ["ES256"]
+  default_role       = "cli"
+}
+
+resource "vault_jwt_auth_backend_role" "cli" {
+  backend         = vault_jwt_auth_backend.cli.path
+  role_name       = "cli"
+  role_type       = "jwt"
+  bound_audiences = ["openbao-cli"]
+  user_claim      = "sub"
+  token_policies  = [vault_policy.admin.name]
+  token_ttl       = 900
+  token_max_ttl   = 3600
+}
