@@ -12,6 +12,8 @@ use tokio_util::io::StreamReader;
 
 use crate::{config::StorageConfig, error::ApiError};
 
+const TRANSFER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(3600);
+
 #[derive(Clone)]
 pub enum Storage {
     S3(Box<Bucket>),
@@ -46,7 +48,8 @@ impl Storage {
             endpoint,
         };
 
-        let bucket = Bucket::new(&config.bucket, region, credentials)?.with_path_style();
+        let mut bucket = Bucket::new(&config.bucket, region, credentials)?.with_path_style();
+        bucket.set_request_timeout(Some(TRANSFER_TIMEOUT));
         Ok(Storage::S3(bucket))
     }
 
