@@ -3,14 +3,15 @@ use std::path::Path;
 use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
-    Package, PackageDetail, Target, Version, validate_binary_name, validate_package_name,
+    Package, PackageDetail, Permissions, Target, Version, validate_binary_name,
+    validate_package_name,
 };
 
 use crate::{
     client::Client,
     session::Settings,
-    store::{Installed, InstalledPackage, Store},
-    trust,
+    store::{self, Installed, InstalledPackage, Store},
+    trust, wasm,
 };
 
 fn host_target() -> anyhow::Result<Target> {
@@ -66,7 +67,11 @@ async fn install_version(
     force: bool,
 ) -> anyhow::Result<()> {
     validate_package_name(name).map_err(anyhow::Error::msg)?;
-    let artifact = trust::verified_artifact(name, version, target)?;
+    let trust::Verified {
+        artifact,
+        permissions,
+    } = trust::verified_artifact(name, version, target)?;
+    let target = artifact.target;
     validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
     if let Some(yanked) = &version.yanked {
         eprintln!(
@@ -82,6 +87,7 @@ async fn install_version(
     if !force
         && let Some(current) = installed.packages.get(name)
         && current.version == version.version
+        && current.target == target
         && current.sha256 == artifact.sha256
         && store.current_binary(name, current).exists()
     {
@@ -120,7 +126,12 @@ async fn install_version(
     let package_dir = store.package_dir(name);
     let version_dir = package_dir.join(&version.version);
     std::fs::create_dir_all(&version_dir)?;
-    std::fs::rename(&download, version_dir.join(&version.binary_name))?;
+    let installed_file = version_dir.join(store::file_name(&version.binary_name, target));
+    std::fs::rename(&download, &installed_file)?;
+    if target == Target::Wasm {
+        eprintln!("compiling {name}@{}", version.version);
+        wasm::prepare(&installed_file)?;
+    }
 
     let current = package_dir.join("current");
     let staged = package_dir.join("current.tmp");
@@ -137,10 +148,15 @@ async fn install_version(
             binary: version.binary_name.clone(),
             aliases: version.aliases.clone(),
             auth: version.auth.clone(),
+            permissions: permissions.clone(),
         },
     );
     store.save(&installed)?;
-    link_shim(store, name, &version.binary_name)?;
+    if target == Target::Wasm {
+        let _ = std::fs::remove_file(store.bin_dir().join(&version.binary_name));
+    } else {
+        link_shim(store, name, &version.binary_name)?;
+    }
 
     if let Some(previous) = previous {
         if previous.binary != version.binary_name {
@@ -153,8 +169,24 @@ async fn install_version(
     } else {
         println!("installed {name}@{}; run `ortzi {name}`", version.version);
     }
+    if let Some(permissions) = &permissions {
+        print_permissions(permissions);
+    }
 
     Ok(())
+}
+
+fn print_permissions(permissions: &Permissions) {
+    let list = |items: &[String]| {
+        if items.is_empty() {
+            "none".to_owned()
+        } else {
+            items.join(", ")
+        }
+    };
+    println!("  runs: {}", list(&permissions.exec));
+    println!("  env:  {}", list(&permissions.env));
+    println!("  fs:   {}", list(&permissions.fs));
 }
 
 fn check_conflicts(installed: &Installed, name: &str, version: &Version) -> anyhow::Result<()> {
@@ -264,7 +296,10 @@ async fn self_update_with(
         return Ok(false);
     }
 
-    let artifact = trust::verified_artifact(SELF, &release, target)?;
+    let artifact = trust::verified_artifact(SELF, &release, target)?.artifact;
+    if artifact.target != target {
+        bail!("ortzi@{} has no {target} build", release.version);
+    }
 
     let exe = std::env::current_exe()?.canonicalize()?;
     let staged = exe.with_file_name(format!(".ortzi-{}-{}", release.version, std::process::id()));
@@ -424,6 +459,21 @@ pub async fn info(settings: &Settings, name: &str) -> anyhow::Result<()> {
         println!("aliases  {}", package.aliases.join(", "));
     }
     println!("latest   {}", package.latest.as_deref().unwrap_or("-"));
+    if let Some(latest) = &package.latest
+        && let Some(version) = client
+            .find::<Version>(&format!("/cli/v1/packages/{name}/versions/{latest}"))
+            .await?
+    {
+        match trust::verified_statement(name, &version) {
+            Ok(statement) => {
+                if let Some(permissions) = &statement.permissions {
+                    println!("sandbox  wasm");
+                    print_permissions(permissions);
+                }
+            }
+            Err(e) => println!("signature {e:#}"),
+        }
+    }
 
     if !detail.versions.is_empty() {
         let mut table = Table::new();

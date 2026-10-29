@@ -1,0 +1,12 @@
+package:
+  name: example
+  description: example TypeScript package compiled to wasm
+  version: 0.1.0
+permissions:
+  exec: [git, echo]
+  env: [HOME, ORTZI_EXAMPLE]
+  fs: [.]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

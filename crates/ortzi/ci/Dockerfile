@@ -8,7 +8,8 @@ RUN rm -rf /opt/MacOSX11.3.sdk/usr/share && \
 
 FROM rust:1.99.1-alpine AS base
 
-RUN apk add --no-cache bash git nodejs cmake make perl protobuf-dev
+RUN apk add --no-cache bash git nodejs npm gcompat libgcc cmake make perl protobuf-dev && \
+    npm install -g pnpm@12.6.0
 RUN rustup target add aarch64-apple-darwin x86_64-unknown-linux-gnu
 
 COPY --from=zigbuild /opt/MacOSX11.3.sdk /opt/MacOSX11.3.sdk
@@ -22,6 +23,7 @@ WORKDIR /src
 COPY crates/cli-auth ./crates/cli-auth
 COPY crates/ortzi ./crates/ortzi
 COPY platform-services/registry/api ./platform-services/registry/api
+COPY packages/ortzi-host/wit ./packages/ortzi-host/wit
 RUN \
     --mount=type=cache,target=/src/crates/ortzi/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \

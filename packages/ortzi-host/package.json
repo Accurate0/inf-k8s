@@ -1,0 +1,24 @@
+{
+  "name": "@ortzi/host",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Host API and build tool for ortzi TypeScript packages compiled to WebAssembly components.",
+  "type": "module",
+  "bin": {
+    "ortzi-wasm-build": "./build.mjs"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bytecodealliance/componentize-js": "0.23.0",
+    "esbuild": "0.28.2",
+    "@bytecodealliance/preview2-shim": "0.29.0"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  }
+}

@@ -2,7 +2,7 @@ use std::{ffi::OsString, os::unix::process::CommandExt, process::Command};
 
 use anyhow::{Context, bail};
 
-use crate::{package_auth, session::Settings, store::Store};
+use crate::{package_auth, session::Settings, store::Store, wasm};
 
 pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()> {
     let mut args = args.into_iter();
@@ -24,16 +24,45 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                     binary.display()
                 );
             }
+            let rest: Vec<OsString> = args.by_ref().collect();
+            let mut token = None;
+            if let Some(auth) = &package.auth {
+                token = match std::env::var(&auth.token_env) {
+                    Ok(value) => Some((auth.token_env.clone(), value)),
+                    Err(_) if wants_help(&rest) => None,
+                    Err(_) => Some((
+                        auth.token_env.clone(),
+                        package_auth::token(name, auth).await?,
+                    )),
+                };
+            }
+
+            if package.is_wasm() {
+                let args = rest
+                    .into_iter()
+                    .map(|a| a.into_string())
+                    .collect::<Result<Vec<_>, _>>()
+                    .map_err(|_| anyhow::anyhow!("arguments must be valid utf-8"))?;
+                let mut vars = vec![("ORTZI_REGISTRY_URL".to_owned(), settings.registry.clone())];
+                vars.extend(token);
+                let sandbox = wasm::Sandbox::new(
+                    name,
+                    &package.permissions.clone().unwrap_or_default(),
+                    args,
+                    vars,
+                )?;
+                let name = name.clone();
+                let code = std::thread::spawn(move || wasm::run(&binary, sandbox))
+                    .join()
+                    .map_err(|_| anyhow::anyhow!("{name} crashed"))?
+                    .with_context(|| format!("running {name}"))?;
+                std::process::exit(code);
+            }
+
             let mut process = Command::new(binary);
             process.env("ORTZI_PACKAGE", name);
-
-            let rest: Vec<OsString> = args.by_ref().collect();
-            if let Some(auth) = &package.auth
-                && std::env::var_os(&auth.token_env).is_none()
-                && !wants_help(&rest)
-            {
-                let token = package_auth::token(name, auth).await?;
-                process.env(&auth.token_env, token);
+            if let Some((key, value)) = token {
+                process.env(key, value);
             }
             process.args(rest);
             process
@@ -63,7 +92,7 @@ fn wants_help(args: &[OsString]) -> bool {
             .any(|a| a == "--help" || a == "-h" || a == "--version" || a == "-V")
 }
 
-fn which(binary: &str) -> Option<std::path::PathBuf> {
+pub fn which(binary: &str) -> Option<std::path::PathBuf> {
     std::env::split_paths(&std::env::var_os("PATH")?)
         .map(|dir| dir.join(binary))
         .find(|path| path.is_file())

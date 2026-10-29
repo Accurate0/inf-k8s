@@ -1,6 +1,13 @@
 packages:
   - feature-flag-client
+  - ortzi-host
+  - ortzi-example
 
 allowBuilds:
   grpc-tools: true
   protobufjs: true
+  esbuild: true
+
+overrides:
+  "@bytecodealliance/jco": 1.38.0
+  "@bytecodealliance/preview2-shim": 0.29.0

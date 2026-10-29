@@ -5,7 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use registry_api::{DEFAULT_SCOPES, PackageAuth, Target, validate_package_name};
+use registry_api::{DEFAULT_SCOPES, PackageAuth, Permissions, Target, validate_package_name};
 use serde::{Deserialize, Serialize};
 
 pub const FILE_NAME: &str = "ortzi.yaml";
@@ -17,6 +17,8 @@ pub struct Manifest {
     pub package: PackageSection,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth: Option<AuthSection>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Permissions>,
     #[serde(default)]
     pub build: Build,
 }
@@ -69,6 +71,7 @@ pub enum Kind {
     #[default]
     Cargo,
     Prebuilt,
+    Wasm,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -82,6 +85,8 @@ pub struct Build {
     pub cargo: CargoBuild,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub prebuilt: BTreeMap<Target, String>,
+    #[serde(default, skip_serializing_if = "WasmBuild::is_default")]
+    pub wasm: WasmBuild,
 }
 
 impl Default for Build {
@@ -91,7 +96,21 @@ impl Default for Build {
             targets: all_targets(),
             cargo: CargoBuild::default(),
             prebuilt: BTreeMap::new(),
+            wasm: WasmBuild::default(),
         }
+    }
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct WasmBuild {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub entry: Option<String>,
+}
+
+impl WasmBuild {
+    fn is_default(&self) -> bool {
+        self == &Self::default()
     }
 }
 
@@ -135,7 +154,7 @@ impl Loaded {
         };
         let contents = std::fs::read_to_string(&file)
             .with_context(|| format!("reading {}; create one with `ortzi init`", file.display()))?;
-        let manifest: Manifest = serde_yaml::from_str(&contents)
+        let mut manifest: Manifest = serde_yaml::from_str(&contents)
             .with_context(|| format!("parsing {}", file.display()))?;
 
         validate_package_name(&manifest.package.name).map_err(anyhow::Error::msg)?;
@@ -144,6 +163,20 @@ impl Loaded {
         }
         if let Some(auth) = &manifest.auth {
             auth.resolve().validate().map_err(anyhow::Error::msg)?;
+        }
+        if let Some(permissions) = &manifest.permissions {
+            permissions.validate().map_err(anyhow::Error::msg)?;
+        }
+        if manifest.build.kind == Kind::Wasm {
+            if manifest.build.targets != Target::NATIVE && manifest.build.targets != [Target::Wasm]
+            {
+                bail!("wasm packages only build the wasm target; drop build.targets");
+            }
+            manifest.build.targets = vec![Target::Wasm];
+        } else if manifest.build.targets.contains(&Target::Wasm) {
+            bail!("the wasm target needs build.kind: wasm");
+        } else if manifest.permissions.is_some() {
+            bail!("permissions only apply to wasm packages; native packages are not sandboxed");
         }
         if manifest.build.targets.is_empty() {
             bail!("build.targets is empty");
@@ -218,7 +251,9 @@ impl Loaded {
                     .with_context(|| format!("cargo package {package} not found"))?
                     .version
             }
-            (None, Kind::Prebuilt) => bail!("package.version is required for prebuilt packages"),
+            (None, Kind::Prebuilt | Kind::Wasm) => {
+                bail!("package.version is required for prebuilt and wasm packages")
+            }
         };
         Ok(
             semver::Version::parse(version.strip_prefix('v').unwrap_or(&version))
@@ -241,7 +276,37 @@ impl Loaded {
                 Ok(path)
             }
             Kind::Cargo => self.cargo_build(target),
+            Kind::Wasm => self.wasm_build(),
         }
+    }
+
+    fn wasm_build(&self) -> anyhow::Result<PathBuf> {
+        let entry = self.manifest.build.wasm.entry.as_deref().unwrap_or("src/main.ts");
+        let out = self.dir.join("dist").join(format!("{}.wasm", self.binary()));
+
+        eprintln!("building {} for wasm", self.name());
+        let status = Command::new("pnpm")
+            .args(["install", "--frozen-lockfile"])
+            .current_dir(&self.dir)
+            .status()
+            .context("running pnpm; install it with `npm i -g pnpm`")?;
+        if !status.success() {
+            bail!("pnpm install failed ({status})");
+        }
+
+        let status = Command::new("pnpm")
+            .args(["exec", "ortzi-wasm-build", "--entry", entry, "--out"])
+            .arg(&out)
+            .current_dir(&self.dir)
+            .status()
+            .context("running ortzi-wasm-build; add @ortzi/host as a dependency")?;
+        if !status.success() {
+            bail!("wasm build failed ({status})");
+        }
+        if !out.is_file() {
+            bail!("expected build output at {}", out.display());
+        }
+        Ok(out)
     }
 
     fn cargo_build(&self, target: Target) -> anyhow::Result<PathBuf> {
@@ -404,6 +469,25 @@ build:
         );
         assert_eq!(auth.scopes, DEFAULT_SCOPES);
         assert!(auth.validate().is_ok());
+    }
+
+    #[test]
+    fn wasm_manifest() {
+        let manifest: Manifest = serde_yaml::from_str(
+            r#"
+package:
+  name: example
+  version: 0.1.0
+permissions:
+  exec: [git]
+  fs: [.]
+build:
+  kind: wasm
+"#,
+        )
+        .unwrap();
+        assert_eq!(manifest.build.kind, Kind::Wasm);
+        assert_eq!(manifest.permissions.unwrap().exec, ["git"]);
     }
 
     #[test]

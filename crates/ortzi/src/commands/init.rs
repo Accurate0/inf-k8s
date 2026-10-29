@@ -44,6 +44,8 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
 
     let kind = if cargo_toml.exists() {
         Kind::Cargo
+    } else if dir.join("package.json").exists() {
+        Kind::Wasm
     } else {
         Kind::Prebuilt
     };
@@ -51,6 +53,9 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
         kind,
         ..Build::default()
     };
+    if kind == Kind::Wasm {
+        build.targets = vec![registry_api::Target::Wasm];
+    }
     if kind == Kind::Prebuilt {
         for target in &build.targets {
             build
@@ -68,6 +73,7 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
             version: Some(version.unwrap_or_else(|| "0.1.0".to_owned())),
         },
         auth: None,
+        permissions: (kind == Kind::Wasm).then(registry_api::Permissions::default),
         build,
     };
     std::fs::write(&manifest_path, serde_yaml::to_string(&manifest)?)?;

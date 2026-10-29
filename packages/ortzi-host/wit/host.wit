@@ -1,0 +1,55 @@
+package ortzi:host@0.1.0;
+
+interface process {
+  enum stdio {
+    inherit,
+    piped,
+    null,
+  }
+
+  record command {
+    program: string,
+    args: list<string>,
+    env: list<tuple<string, string>>,
+    cwd: option<string>,
+    stdin: option<list<u8>>,
+    stdout: stdio,
+    stderr: stdio,
+  }
+
+  record output {
+    code: option<s32>,
+    stdout: list<u8>,
+    stderr: list<u8>,
+  }
+
+  run: func(command: command) -> result<output, string>;
+}
+
+interface fs {
+  record entry {
+    name: string,
+    dir: bool,
+  }
+
+  read-file: func(path: string) -> result<list<u8>, string>;
+  write-file: func(path: string, contents: list<u8>) -> result<_, string>;
+  read-dir: func(path: string) -> result<list<entry>, string>;
+  exists: func(path: string) -> result<bool, string>;
+  create-dir-all: func(path: string) -> result<_, string>;
+  remove: func(path: string) -> result<_, string>;
+}
+
+interface env {
+  args: func() -> list<string>;
+  vars: func() -> list<tuple<string, string>>;
+  cwd: func() -> string;
+  exit: func(code: u8);
+}
+
+world cli {
+  import process;
+  import fs;
+  import env;
+  export wasi:cli/run@0.2.12;
+}

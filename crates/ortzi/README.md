@@ -59,3 +59,39 @@ build:
 ```
 
 `ortzi publish --dry-run` builds without uploading.
+
+## TypeScript packages
+
+`build.kind: wasm` packages are TypeScript compiled to a WebAssembly component
+(`packages/ortzi-host`: esbuild + componentize-js) and run inside ortzi with wasmtime. One
+`wasm` artifact serves every platform. The package can only reach the host through
+`ortzi:host` (`packages/ortzi-host/wit/host.wit`), limited by `permissions`, which are signed
+into the release and shown by `ortzi info`:
+
+```yaml
+package:
+  name: example
+  version: 0.1.0
+permissions:
+  exec: [git, kubectl]         # programs it may run (bare names, resolved on PATH)
+  env: [HOME, KUBECONFIG]      # variables it can read
+  fs: [., ~/.kube]             # roots it may read and write; `.` is the working directory
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts         # default
+```
+
+Add the package to the `packages/` pnpm workspace with `@ortzi/host` as a dependency and export
+`run` from the entry point (see `packages/ortzi-example`):
+
+```ts
+import { args, capture, main } from '@ortzi/host';
+
+export const run = main(() => {
+  console.log(capture('git', ['rev-parse', 'HEAD'], {}).trim(), args());
+});
+```
+
+`ortzi dev path/to/pkg -- args` builds and runs it locally with the declared permissions.
+Programs it runs are ordinary host processes; the sandbox decides which ones it may start.

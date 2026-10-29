@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use anyhow::Context;
-use registry_api::{PackageAuth, Target};
+use registry_api::{PackageAuth, Permissions, Target};
 use serde::{Deserialize, Serialize};
 
 pub struct Store {
@@ -24,6 +24,25 @@ pub struct InstalledPackage {
     pub aliases: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub auth: Option<PackageAuth>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub permissions: Option<Permissions>,
+}
+
+impl InstalledPackage {
+    pub fn is_wasm(&self) -> bool {
+        self.target == Target::Wasm
+    }
+
+    pub fn file_name(&self) -> String {
+        file_name(&self.binary, self.target)
+    }
+}
+
+pub fn file_name(binary: &str, target: Target) -> String {
+    match target {
+        Target::Wasm => format!("{binary}.wasm"),
+        _ => binary.to_owned(),
+    }
 }
 
 impl Installed {
@@ -63,7 +82,7 @@ impl Store {
     }
 
     pub fn current_binary(&self, name: &str, package: &InstalledPackage) -> PathBuf {
-        self.package_dir(name).join("current").join(&package.binary)
+        self.package_dir(name).join("current").join(package.file_name())
     }
 
     fn state_path(&self) -> PathBuf {
@@ -104,6 +123,7 @@ mod tests {
                 binary: "ffctl".to_owned(),
                 aliases: vec!["ffctl".to_owned()],
                 auth: None,
+                permissions: None,
             },
         );
 

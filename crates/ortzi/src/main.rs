@@ -6,6 +6,7 @@ mod package_auth;
 mod session;
 mod store;
 mod trust;
+mod wasm;
 
 use std::{ffi::OsString, path::PathBuf};
 
@@ -97,6 +98,13 @@ enum Command {
         #[arg(long)]
         no_workflow: bool,
     },
+    /// Build a wasm package from source and run it, e.g. `ortzi dev path/to/pkg -- --help`
+    Dev {
+        #[arg(default_value = ".")]
+        path: PathBuf,
+        #[arg(last = true)]
+        args: Vec<String>,
+    },
     /// Registry administration
     Registry {
         #[command(subcommand)]
@@ -176,6 +184,7 @@ async fn main() -> anyhow::Result<()> {
             force,
             no_workflow,
         }),
+        Command::Dev { path, args } => dev(&path, args),
         Command::Registry { command } => commands::registry::run(&settings, command).await,
         Command::BinDir => {
             println!("{}", Store::open()?.bin_dir().display());
@@ -183,6 +192,24 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::External(args) => dispatch::exec(&settings, args).await,
     }
+}
+
+fn dev(path: &std::path::Path, args: Vec<String>) -> anyhow::Result<()> {
+    let loaded = manifest::Loaded::load(path)?;
+    if loaded.manifest.build.kind != manifest::Kind::Wasm {
+        anyhow::bail!("`ortzi dev` runs wasm packages; build native ones with cargo");
+    }
+    let wasm = loaded.build(Target::Wasm, &loaded.version()?)?;
+    let sandbox = wasm::Sandbox::new(
+        loaded.name(),
+        &loaded.manifest.permissions.clone().unwrap_or_default(),
+        args,
+        Vec::new(),
+    )?;
+    let code = std::thread::spawn(move || wasm::run(&wasm, sandbox))
+        .join()
+        .map_err(|_| anyhow::anyhow!("package crashed"))??;
+    std::process::exit(code);
 }
 
 async fn whoami(settings: &Settings) -> anyhow::Result<()> {

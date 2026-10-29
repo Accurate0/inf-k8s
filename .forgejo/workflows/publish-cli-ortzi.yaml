@@ -7,6 +7,7 @@ on:
       - crates/ortzi/**
       - crates/cli-auth/**
       - platform-services/registry/api/**
+      - packages/ortzi-host/wit/**
       - .forgejo/workflows/publish-cli-ortzi.yaml
   workflow_dispatch:
 
