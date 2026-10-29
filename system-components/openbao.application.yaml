@@ -53,6 +53,9 @@ spec:
               displayName: OpenBao
               host: vault.ortzi.cloud
               callbackPath: /ui/vault/auth/oidc/oidc/callback
+              extraRedirectUrls:
+                - http://localhost:8250/oidc/callback
+              allowLocalhostRedirect: true
               preferShortUsername: true
               scopes:
                 - openid

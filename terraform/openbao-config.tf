@@ -69,7 +69,10 @@ resource "vault_jwt_auth_backend_role" "default" {
   groups_claim          = "groups"
   bound_claims          = { groups = "openbao_admins@idm.anurag.sh" }
   oidc_scopes           = ["openid", "email", "profile", "groups"]
-  allowed_redirect_uris = ["https://vault.ortzi.cloud/ui/vault/auth/oidc/oidc/callback"]
+  allowed_redirect_uris = [
+    "https://vault.ortzi.cloud/ui/vault/auth/oidc/oidc/callback",
+    "http://localhost:8250/oidc/callback",
+  ]
   token_ttl             = 28800
 }
 
