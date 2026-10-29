@@ -1,6 +1,7 @@
 package:
   name: cnpg
   description: CloudNativePG CLI (upstream kubectl-cnpg)
+  # renovate: datasource=github-releases depName=cloudnative-pg/cloudnative-pg extractVersion=^v(?<version>.+)$
   version: 1.30.1
 build:
   kind: prebuilt

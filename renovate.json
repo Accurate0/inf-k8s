@@ -77,6 +77,14 @@
         "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: registryUrl=(?<registryUrl>\\S+))?(?: versioning=(?<versioning>\\S+))?(?: extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*\\w+_(?:version|image_tag):\\s*\"?(?<currentValue>[^\"\\s]+)\"?"
       ]
     }
+ ,
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^packages/upstream/[^/]+/ortzi\\.yaml$/"],
+      "matchStrings": [
+        "# renovate: datasource=(?<datasource>\\S+) depName=(?<depName>\\S+)(?: extractVersion=(?<extractVersion>\\S+))?\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
+      ]
+    }
   ],
   "packageRules": [
     {
@@ -128,6 +136,16 @@
       "groupName": "ansible local",
       "commitMessageTopic": "ansible local",
       "automerge": false
+    },
+    {
+      "matchFileNames": ["packages/upstream/**"],
+      "commitMessageTopic": "upstream {{depName}} cli",
+      "minimumReleaseAge": "3 days",
+      "postUpgradeTasks": {
+        "commands": ["sh scripts/upstream-digests.sh {{{packageFileDir}}}"],
+        "fileFilters": ["packages/upstream/**/ortzi.yaml"],
+        "executionMode": "update"
+      }
     }
   ]
 }
