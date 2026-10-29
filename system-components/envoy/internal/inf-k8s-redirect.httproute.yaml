@@ -1,0 +1,247 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/gateway.networking.k8s.io/httproute_v1.json
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: inf-k8s-https
+  hostnames:
+    - inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-ai-gateway
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - ai-gateway.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: ai-gateway.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-argocd
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - argocd.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: argocd.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-feature-flags
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - feature-flags.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: feature-flags.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-firefly
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - firefly.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: firefly.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-firefly-importer
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - firefly-importer.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: firefly-importer.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-grafana
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - grafana.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: grafana.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-home
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - home.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: home.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-janitor-bot
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - janitor-bot.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: janitor-bot.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-longhorn
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - longhorn.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: longhorn.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-prometheus
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - prometheus.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: prometheus.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-vault
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - vault.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: vault.ortzi.cloud
+            statusCode: 301
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: inf-k8s-redirect-waf-manager
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: internal-gateway
+      sectionName: wildcard-inf-k8s-https
+  hostnames:
+    - waf-manager.inf-k8s.net
+  rules:
+    - filters:
+        - type: RequestRedirect
+          requestRedirect:
+            hostname: waf-manager.ortzi.cloud
+            statusCode: 301

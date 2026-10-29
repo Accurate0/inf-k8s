@@ -8,6 +8,7 @@ resources:
   - internal/backend.policy.yaml
   - internal/client.policy.yaml
   - internal/gateway.yaml
+  - internal/inf-k8s-redirect.httproute.yaml
   - internal/tailscale-client-ip.securitypolicy.yaml
   - lan/certificate.yaml
   - lan/config.yaml

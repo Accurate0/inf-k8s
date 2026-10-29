@@ -42,3 +42,32 @@ spec:
           - group: ""
             kind: Secret
             name: ortzi-tls
+
+    # old base domain, only serves the redirects in inf-k8s-redirect.httproute.yaml
+    - name: wildcard-inf-k8s-https
+      protocol: HTTPS
+      hostname: "*.inf-k8s.net"
+      allowedRoutes:
+        namespaces:
+          from: Same
+      port: 8443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: wildcard-inf-k8s-tls
+
+    - name: inf-k8s-https
+      protocol: HTTPS
+      hostname: inf-k8s.net
+      allowedRoutes:
+        namespaces:
+          from: Same
+      port: 8443
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: inf-k8s-tls
