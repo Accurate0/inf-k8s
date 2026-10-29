@@ -13,7 +13,7 @@ spec:
       kind: Gateway
       name: internal-gateway
       namespace: envoy-gateway-system
-      sectionName: wildcard-inf-k8s-https
+      sectionName: wildcard-ortzi-https
   hostnames:
     - home.ortzi.cloud
   rules:
