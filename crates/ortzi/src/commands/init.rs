@@ -60,7 +60,10 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
         for target in &build.targets {
             build
                 .prebuilt
-                .insert(*target, format!("dist/{name}-${{version}}-{target}"));
+                .insert(
+                    *target,
+                    manifest::Prebuilt::Path(format!("dist/{name}-${{version}}-{target}")),
+                );
         }
     }
 

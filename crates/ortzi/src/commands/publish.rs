@@ -40,7 +40,7 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
 
     if options.dry_run {
         for target in &targets {
-            let artifact = loaded.build(*target, &version)?;
+            let artifact = loaded.build(*target, &version).await?;
             println!(
                 "{target}: {} ({})",
                 artifact.display(),
@@ -70,7 +70,7 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
 
     let mut built = Vec::new();
     for target in &targets {
-        let path = loaded.build(*target, &version)?;
+        let path = loaded.build(*target, &version).await?;
         let sha = sha256_file(&path).await?;
         built.push((*target, path, sha));
     }

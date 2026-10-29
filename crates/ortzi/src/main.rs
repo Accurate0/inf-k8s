@@ -184,7 +184,7 @@ async fn main() -> anyhow::Result<()> {
             force,
             no_workflow,
         }),
-        Command::Dev { path, args } => dev(&path, args),
+        Command::Dev { path, args } => dev(&path, args).await,
         Command::Registry { command } => commands::registry::run(&settings, command).await,
         Command::BinDir => {
             println!("{}", Store::open()?.bin_dir().display());
@@ -194,12 +194,12 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-fn dev(path: &std::path::Path, args: Vec<String>) -> anyhow::Result<()> {
+async fn dev(path: &std::path::Path, args: Vec<String>) -> anyhow::Result<()> {
     let loaded = manifest::Loaded::load(path)?;
     if loaded.manifest.build.kind != manifest::Kind::Wasm {
         anyhow::bail!("`ortzi dev` runs wasm packages; build native ones with cargo");
     }
-    let wasm = loaded.build(Target::Wasm, &loaded.version()?)?;
+    let wasm = loaded.build(Target::Wasm, &loaded.version()?).await?;
     let sandbox = wasm::Sandbox::new(
         loaded.name(),
         &loaded.manifest.permissions.clone().unwrap_or_default(),

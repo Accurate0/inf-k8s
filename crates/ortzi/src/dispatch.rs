@@ -60,7 +60,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
             }
 
             let mut process = Command::new(binary);
-            process.env("ORTZI_PACKAGE", name);
+            process.arg0(&command).env("ORTZI_PACKAGE", name);
             if let Some((key, value)) = token {
                 process.env(key, value);
             }

@@ -84,7 +84,7 @@ pub struct Build {
     #[serde(default, skip_serializing_if = "CargoBuild::is_default")]
     pub cargo: CargoBuild,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
-    pub prebuilt: BTreeMap<Target, String>,
+    pub prebuilt: BTreeMap<Target, Prebuilt>,
     #[serde(default, skip_serializing_if = "WasmBuild::is_default")]
     pub wasm: WasmBuild,
 }
@@ -99,6 +99,18 @@ impl Default for Build {
             wasm: WasmBuild::default(),
         }
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum Prebuilt {
+    Path(String),
+    Remote {
+        url: String,
+        sha256: String,
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        extract: Option<String>,
+    },
 }
 
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -183,8 +195,12 @@ impl Loaded {
         }
         if manifest.build.kind == Kind::Prebuilt {
             for target in &manifest.build.targets {
-                if !manifest.build.prebuilt.contains_key(target) {
-                    bail!("build.prebuilt has no path for {target}");
+                match manifest.build.prebuilt.get(target) {
+                    None => bail!("build.prebuilt has no path for {target}"),
+                    Some(Prebuilt::Remote { sha256, .. }) if !is_sha256(sha256) => {
+                        bail!("build.prebuilt.{target}.sha256 must be 64 lowercase hex characters")
+                    }
+                    Some(_) => {}
                 }
             }
         }
@@ -262,22 +278,104 @@ impl Loaded {
         )
     }
 
-    pub fn build(&self, target: Target, version: &str) -> anyhow::Result<PathBuf> {
+    pub async fn build(&self, target: Target, version: &str) -> anyhow::Result<PathBuf> {
         match self.manifest.build.kind {
-            Kind::Prebuilt => {
-                let pattern = &self.manifest.build.prebuilt[&target];
-                let path = self.dir.join(pattern.replace("${version}", version));
-                if !path.is_file() {
-                    bail!(
-                        "prebuilt {target} artifact {} does not exist",
-                        path.display()
-                    );
+            Kind::Prebuilt => match &self.manifest.build.prebuilt[&target] {
+                Prebuilt::Path(pattern) => {
+                    let path = self.dir.join(pattern.replace("${version}", version));
+                    if !path.is_file() {
+                        bail!(
+                            "prebuilt {target} artifact {} does not exist",
+                            path.display()
+                        );
+                    }
+                    Ok(path)
                 }
-                Ok(path)
-            }
+                Prebuilt::Remote {
+                    url,
+                    sha256,
+                    extract,
+                } => {
+                    self.fetch(
+                        target,
+                        &url.replace("${version}", version),
+                        sha256,
+                        extract.as_deref(),
+                        version,
+                    )
+                    .await
+                }
+            },
             Kind::Cargo => self.cargo_build(target),
             Kind::Wasm => self.wasm_build(),
         }
+    }
+
+    async fn fetch(
+        &self,
+        target: Target,
+        url: &str,
+        sha256: &str,
+        extract: Option<&str>,
+        version: &str,
+    ) -> anyhow::Result<PathBuf> {
+        use futures::TryStreamExt;
+        use sha2::{Digest, Sha256};
+        use tokio::io::AsyncWriteExt;
+
+        let dist = self.dir.join("dist");
+        std::fs::create_dir_all(&dist)?;
+        let download = dist.join(format!(".download-{target}"));
+        let out = dist.join(format!("{}-{version}-{target}", self.binary()));
+
+        eprintln!("downloading {target} from {url}");
+        let response = reqwest::get(url)
+            .await
+            .and_then(reqwest::Response::error_for_status)
+            .with_context(|| format!("downloading {url}"))?;
+        let mut file = tokio::fs::File::create(&download).await?;
+        let mut hasher = Sha256::new();
+        let mut stream = response.bytes_stream();
+        while let Some(chunk) = stream.try_next().await? {
+            hasher.update(&chunk);
+            file.write_all(&chunk).await?;
+        }
+        file.flush().await?;
+        drop(file);
+
+        let got = hex::encode(hasher.finalize());
+        if got != sha256 {
+            let _ = std::fs::remove_file(&download);
+            bail!("upstream sha256 mismatch for {target}: expected {sha256}, got {got}");
+        }
+
+        match extract {
+            None => std::fs::rename(&download, &out)?,
+            Some(member) => {
+                let unpack = dist.join(format!(".unpack-{target}"));
+                let _ = std::fs::remove_dir_all(&unpack);
+                std::fs::create_dir_all(&unpack)?;
+                let status = Command::new("tar")
+                    .arg("-xzf")
+                    .arg(&download)
+                    .arg("-C")
+                    .arg(&unpack)
+                    .arg(member)
+                    .status()
+                    .context("running tar")?;
+                if !status.success() {
+                    bail!("extracting {member} from {url} failed ({status})");
+                }
+                std::fs::rename(unpack.join(member), &out)
+                    .with_context(|| format!("{url} has no {member}"))?;
+                let _ = std::fs::remove_dir_all(&unpack);
+                let _ = std::fs::remove_file(&download);
+            }
+        }
+
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&out, std::fs::Permissions::from_mode(0o755))?;
+        Ok(out)
     }
 
     fn wasm_build(&self) -> anyhow::Result<PathBuf> {
@@ -353,6 +451,10 @@ impl Loaded {
         }
         Ok(path)
     }
+}
+
+fn is_sha256(value: &str) -> bool {
+    value.len() == 64 && value.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 fn rustc_host() -> anyhow::Result<String> {
@@ -452,8 +554,44 @@ build:
         assert_eq!(manifest.build.kind, Kind::Prebuilt);
         assert_eq!(
             manifest.build.prebuilt[&Target::LinuxAmd64],
-            "dist/tool-${version}-linux"
+            Prebuilt::Path("dist/tool-${version}-linux".to_owned())
         );
+    }
+
+    #[test]
+    fn remote_prebuilt_manifest() {
+        let manifest: Manifest = serde_yaml::from_str(&format!(
+            r#"
+package:
+  name: bao
+  version: 2.7.2
+build:
+  kind: prebuilt
+  targets: [linux-amd64]
+  prebuilt:
+    linux-amd64:
+      url: https://example.test/openbao_${{version}}_linux_amd64.tar.gz
+      sha256: {}
+      extract: bao
+"#,
+            "ab".repeat(32)
+        ))
+        .unwrap();
+        assert_eq!(
+            manifest.build.prebuilt[&Target::LinuxAmd64],
+            Prebuilt::Remote {
+                url: "https://example.test/openbao_${version}_linux_amd64.tar.gz".to_owned(),
+                sha256: "ab".repeat(32),
+                extract: Some("bao".to_owned()),
+            }
+        );
+    }
+
+    #[test]
+    fn sha256_must_be_hex() {
+        assert!(is_sha256(&"0f".repeat(32)));
+        assert!(!is_sha256(&"0F".repeat(32)));
+        assert!(!is_sha256("abc"));
     }
 
     #[test]
