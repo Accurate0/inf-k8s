@@ -1,0 +1,18 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO cli_artifacts (version_id, target, sha256, size, object_key)\n         VALUES ($1, $2, $3, $4, $5)\n         ON CONFLICT (version_id, target) DO UPDATE SET\n            sha256 = EXCLUDED.sha256, size = EXCLUDED.size,\n            object_key = EXCLUDED.object_key, uploaded_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "5a1de90a25de045d9dc927c60a7b1b6516d47d1c26b37e600f8352174c820ca4"
+}

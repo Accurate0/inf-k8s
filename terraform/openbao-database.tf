@@ -82,5 +82,6 @@ locals {
     forgejo       = { namespace = "forgejo", role = "forgejo" }
     firefly       = { namespace = "firefly", role = "firefly" }
     immich        = { namespace = "immich", role = "immich" }
+    registry      = { namespace = "registry", role = "registry" }
   }
 }

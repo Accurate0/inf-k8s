@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM core_publish_token_scopes WHERE ecosystem = $1 AND package = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "1bf9e4b56e3344996d09d5fb5db563d0cd42b965969c0b0299fa296b54d775d9"
+}

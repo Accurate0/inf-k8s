@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE cli_versions SET\n            yanked_at = CASE WHEN $2::text IS NULL THEN NULL ELSE now() END,\n            yanked_by = $2, yank_reason = $3\n         WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "bc0caa1b44e68d1c4796f94078a1d49c2bfba26bbd5289c8baada2b7972b6290"
+}

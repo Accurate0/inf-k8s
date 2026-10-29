@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "DELETE FROM core_trusted_publishers WHERE ecosystem = $1 AND package = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "a4460e55ae0209636d6863c397d03a23011c722c0731508e5eb9a69565b6d423"
+}

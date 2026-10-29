@@ -23,6 +23,11 @@ namespaces:
   maccas-api:
     ingress:
       - envoy-gateway-system
+  registry:
+    ingress:
+      - envoy-gateway-system
+      - forgejo
+      - monitoring
   home-gateway:
     ingress:
       - envoy-gateway-system

@@ -1,0 +1,52 @@
+[workspace]
+members = ["api"]
+
+[package]
+name = "registry"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+registry-api = { path = "api" }
+axum = "0.8"
+tokio = { version = "1", features = ["full"] }
+tokio-util = { version = "0.7", features = ["io"] }
+reqwest = { version = "0.13", features = ["json", "rustls"], default-features = false }
+rust-s3 = { version = "0.38.0", default-features = false, features = ["tokio-rustls-tls"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+serde_yaml = "0.9.34"
+sqlx = { version = "0.9", features = ["runtime-tokio", "postgres", "tls-rustls", "macros", "migrate", "chrono", "uuid", "json"] }
+chrono = { version = "0.4", features = ["serde"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+tracing = "0.1"
+tracing-subscriber = "0.3"
+thiserror = "2"
+anyhow = "1"
+sha2 = "0.11"
+hex = "0.4"
+rand = "0.10"
+base64 = "0.22"
+futures = "0.3"
+bytes = "1"
+http = "1"
+semver = "1"
+wildmatch = "2.6.1"
+metrics = "0.24"
+metrics-exporter-prometheus = { version = "0.18", default-features = false }
+tower-http = { version = "0.7", features = ["trace"] }
+opentelemetry = { version = "0.33.0", features = ["trace"] }
+opentelemetry_sdk = { version = "0.33.0", features = ["rt-tokio"] }
+opentelemetry-otlp = { version = "0.33.0", features = ["trace", "reqwest-blocking-client", "reqwest-rustls", "http-json"] }
+opentelemetry-semantic-conventions = { version = "0.33.0", features = ["semconv_experimental"] }
+tracing-opentelemetry = "0.34.0"
+axum-tracing-opentelemetry = "0.42.0"
+jsonwebtoken = { version = "11", features = ["rust_crypto"] }
+
+[dev-dependencies]
+p256 = { version = "0.13", features = ["pkcs8", "jwk"] }
+serde_json = "1"
+
+[[bin]]
+name = "registry"
+path = "src/main.rs"

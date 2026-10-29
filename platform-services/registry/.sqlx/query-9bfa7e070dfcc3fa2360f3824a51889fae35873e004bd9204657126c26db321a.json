@@ -1,0 +1,50 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT token_id, ecosystem, package FROM core_publish_token_scopes",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "token_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "core_publish_token_scopes",
+            "name": "token_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "ecosystem",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "core_publish_token_scopes",
+            "name": "ecosystem"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "package",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "core_publish_token_scopes",
+            "name": "package"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "9bfa7e070dfcc3fa2360f3824a51889fae35873e004bd9204657126c26db321a"
+}

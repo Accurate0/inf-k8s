@@ -1,0 +1,91 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE cli_packages SET\n            description = COALESCE($2, description),\n            binary_name = COALESCE($3, binary_name),\n            aliases = COALESCE($4, aliases),\n            updated_at = now()\n         WHERE name = $1\n         RETURNING id, name, description, binary_name, aliases, created_at",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "binary_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "binary_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "aliases",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "aliases"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "created_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text",
+        "TextArray"
+      ]
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "60c8b67361bf7bf197e0b1be29ae34d5ef6f80bd5a1c2dce1e7eecb030b08843"
+}

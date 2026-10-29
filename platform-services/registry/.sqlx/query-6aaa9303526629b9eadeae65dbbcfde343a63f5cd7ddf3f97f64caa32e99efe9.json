@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE core_trusted_publishers SET repository_id = $2\n                     WHERE id = $1 AND repository_id IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6aaa9303526629b9eadeae65dbbcfde343a63f5cd7ddf3f97f64caa32e99efe9"
+}

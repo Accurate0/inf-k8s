@@ -97,6 +97,11 @@ spec:
         connectionLimit: -1
         inherit: true
         login: true
+      - name: registry
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
       - name: openbao
         ensure: present
         connectionLimit: -1

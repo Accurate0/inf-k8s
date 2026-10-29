@@ -1,0 +1,104 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: registry
+  namespace: registry
+spec:
+  selector:
+    matchLabels:
+      app: registry
+  replicas: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+  template:
+    metadata:
+      labels:
+        app: registry
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      topologySpreadConstraints:
+        - topologyKey: inf-k8s.net/location
+          maxSkew: 1
+          whenUnsatisfiable: ScheduleAnyway
+          labelSelector:
+            matchLabels:
+              app: registry
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app: registry
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      volumes:
+        - name: config
+          configMap:
+            name: registry-config
+      containers:
+        - name: registry
+          image: ghcr.io/accurate0/registry
+          imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /etc/registry
+              readOnly: true
+          ports:
+            - containerPort: 3000
+          resources:
+            requests:
+              cpu: 10m
+              memory: 64Mi
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 60
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 15
+          envFrom:
+            - secretRef:
+                name: registry-managed-secrets
+          env:
+            - name: CONFIG_PATH
+              value: /etc/registry/config.yaml
+            - name: PGUSER
+              valueFrom:
+                secretKeyRef:
+                  name: registry-database-secret
+                  key: PGUSER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: registry-database-secret
+                  key: PGPASSWORD
+            - name: PGDATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: registry-database-secret
+                  key: PGDATABASE
+            - name: DATABASE_URL
+              value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+            - name: OTEL_TRACING_URL
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
