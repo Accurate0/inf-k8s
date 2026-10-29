@@ -51,15 +51,6 @@ data "cloudflare_zone" "ortzi" {
   }
 }
 
-resource "cloudflare_dns_record" "control_ortzi" {
-  count   = local.control_count
-  zone_id = data.cloudflare_zone.ortzi.id
-  name    = "k8s-control-${count.index + 1}.host"
-  content = binarylane_server.control[count.index].public_ipv4_addresses[0]
-  type    = "A"
-  ttl     = 1
-}
-
 resource "cloudflare_dns_record" "agent_ortzi" {
   count   = local.agent_count
   zone_id = data.cloudflare_zone.ortzi.id
@@ -98,10 +89,11 @@ resource "cloudflare_dns_record" "external_ipv6_ortzi" {
   ttl     = 1
 }
 
-# Tailscale IPs of machines not provisioned by this repo, plus the internal
+# Tailscale IPs of the nodes, plus the internal
 # gateway entrypoint (k8s-proxy-1's Tailscale IP) for the apex and wildcard.
 locals {
   ortzi_tailscale_records = {
+    "k8s-control-1.host"  = "100.100.125.120"
     "k8s-optiplex-1.host" = "100.70.180.117"
     "k8s-optiplex-2.host" = "100.89.112.112"
     "k8s-optiplex-3.host" = "100.115.217.79"
