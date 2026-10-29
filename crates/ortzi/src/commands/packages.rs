@@ -437,10 +437,14 @@ pub async fn search(settings: &Settings, query: Option<&str>) -> anyhow::Result<
         table.add_row([
             package.name.as_str(),
             package.latest.as_deref().unwrap_or("-"),
-            installed
-                .packages
-                .get(&package.name)
-                .map_or("", |p| p.version.as_str()),
+            if package.name == SELF {
+                env!("ORTZI_VERSION")
+            } else {
+                installed
+                    .packages
+                    .get(&package.name)
+                    .map_or("", |p| p.version.as_str())
+            },
             &package.description,
         ]);
     }
