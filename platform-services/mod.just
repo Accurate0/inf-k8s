@@ -23,10 +23,9 @@ diff service:
 diff-manifests service:
     kubectl diff -k {{service}}/manifests
 
-# Install k8sctl (the CLI for every platform service) and the feature-flags server
+# Install k8sctl, the CLI for every platform service
 install:
     cargo install --path ../crates/k8sctl
-    cargo install --path feature-flags
 
 # Run k8sctl, the combined CLI for every platform service
 k8sctl *args:
