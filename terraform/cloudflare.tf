@@ -60,15 +60,6 @@ resource "cloudflare_dns_record" "agent_ortzi" {
   ttl     = 1
 }
 
-resource "cloudflare_dns_record" "proxy_ortzi" {
-  count   = local.proxy_count
-  zone_id = data.cloudflare_zone.ortzi.id
-  name    = "k8s-proxy-${count.index + 1}.host"
-  content = binarylane_server.proxy[count.index].public_ipv4_addresses[0]
-  type    = "A"
-  ttl     = 1
-}
-
 resource "cloudflare_dns_record" "external_ortzi" {
   count   = local.proxy_count
   zone_id = data.cloudflare_zone.ortzi.id
@@ -100,6 +91,7 @@ locals {
     "k8s-optiplex-4.host" = "100.122.213.30"
     "k8s-optiplex-5.host" = "100.72.50.9"
     "k8s-pve-1.host"      = "100.125.61.29"
+    "k8s-proxy-1.host"    = "100.98.212.43"
     "@"                   = "100.98.212.43"
     "*"                   = "100.98.212.43"
   }
