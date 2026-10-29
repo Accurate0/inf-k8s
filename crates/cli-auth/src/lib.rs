@@ -57,18 +57,38 @@ impl Credentials {
         let dir = path.parent().context("credentials path has no parent")?;
         std::fs::create_dir_all(dir)?;
 
+        let tmp = path.with_extension(format!("json.{}.tmp", std::process::id()));
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .create(true)
             .truncate(true)
             .mode(0o600)
-            .open(&path)
-            .with_context(|| format!("writing {}", path.display()))?;
+            .open(&tmp)
+            .with_context(|| format!("writing {}", tmp.display()))?;
 
         file.set_permissions(std::fs::Permissions::from_mode(0o600))?;
         file.write_all(serde_json::to_string_pretty(self)?.as_bytes())?;
+        file.sync_all()?;
+        std::fs::rename(&tmp, &path).with_context(|| format!("writing {}", path.display()))?;
 
         Ok(())
+    }
+
+    async fn lock(app: App) -> anyhow::Result<std::fs::File> {
+        let path = Self::path(app)?.with_extension("lock");
+        if let Some(dir) = path.parent() {
+            std::fs::create_dir_all(dir)?;
+        }
+        let file = std::fs::OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&path)
+            .with_context(|| format!("opening {}", path.display()))?;
+
+        tokio::task::spawn_blocking(move || file.lock().map(|()| file))
+            .await?
+            .with_context(|| format!("locking {}", path.display()))
     }
 
     pub fn delete(app: App) -> anyhow::Result<bool> {
@@ -335,6 +355,13 @@ impl OAuthClient {
     }
 
     pub async fn refresh(&self, current: &Credentials) -> anyhow::Result<Credentials> {
+        let _lock = Credentials::lock(self.app).await?;
+        let current = match Credentials::load(self.app, &self.issuer, &self.client_id) {
+            Some(stored) if stored.is_fresh() => return Ok(stored),
+            Some(stored) if stored.refresh_token.is_some() => stored,
+            _ => current.clone(),
+        };
+
         let refresh_token = current
             .refresh_token
             .as_deref()

@@ -1,4 +1,4 @@
-use std::{fmt, path::Path};
+use std::{fmt, path::Path, time::Duration};
 
 use anyhow::Context;
 use futures::TryStreamExt;
@@ -6,7 +6,7 @@ use registry_api::{ErrorBody, SHA256_HEADER};
 use reqwest::{Method, RequestBuilder, Response, StatusCode};
 use serde::{Serialize, de::DeserializeOwned};
 use sha2::{Digest, Sha256};
-use tokio::io::AsyncWriteExt;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio_util::io::ReaderStream;
 
 #[derive(Debug)]
@@ -41,6 +41,8 @@ impl Client {
             bearer,
             http: reqwest::Client::builder()
                 .user_agent(concat!("ortzi/", env!("ORTZI_VERSION")))
+                .connect_timeout(Duration::from_secs(10))
+                .read_timeout(Duration::from_secs(60))
                 .build()
                 .expect("failed to build http client"),
         }
@@ -146,8 +148,17 @@ impl Client {
 }
 
 pub async fn sha256_file(path: &Path) -> anyhow::Result<String> {
-    let bytes = tokio::fs::read(path)
+    let mut file = tokio::fs::File::open(path)
         .await
         .with_context(|| format!("reading {}", path.display()))?;
-    Ok(hex::encode(Sha256::digest(&bytes)))
+    let mut hasher = Sha256::new();
+    let mut buffer = vec![0u8; 64 * 1024];
+    loop {
+        let read = file.read(&mut buffer).await?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+    Ok(hex::encode(hasher.finalize()))
 }

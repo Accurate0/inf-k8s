@@ -9,7 +9,7 @@ use registry_api::{
 use crate::{
     client::Client,
     session::Settings,
-    store::{InstalledPackage, Store},
+    store::{Installed, InstalledPackage, Store},
     trust,
 };
 
@@ -63,13 +63,24 @@ async fn install_version(
     name: &str,
     version: &Version,
     target: Target,
+    force: bool,
 ) -> anyhow::Result<()> {
     validate_package_name(name).map_err(anyhow::Error::msg)?;
     let artifact = trust::verified_artifact(name, version, target)?;
     validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
+    if let Some(yanked) = &version.yanked {
+        eprintln!(
+            "warning: {name}@{} was yanked by {}: {}",
+            version.version,
+            yanked.by,
+            yanked.reason.as_deref().unwrap_or("no reason given")
+        );
+    }
 
     let mut installed = store.load()?;
-    if let Some(current) = installed.packages.get(name)
+    check_conflicts(&installed, name, version)?;
+    if !force
+        && let Some(current) = installed.packages.get(name)
         && current.version == version.version
         && current.sha256 == artifact.sha256
         && store.current_binary(name, current).exists()
@@ -146,6 +157,30 @@ async fn install_version(
     Ok(())
 }
 
+fn check_conflicts(installed: &Installed, name: &str, version: &Version) -> anyhow::Result<()> {
+    let commands: Vec<&str> = std::iter::once(name)
+        .chain(version.aliases.iter().map(String::as_str))
+        .collect();
+    for (other, package) in &installed.packages {
+        if other == name {
+            continue;
+        }
+        if package.binary == version.binary_name {
+            bail!(
+                "{name} installs binary {}, which {other} already provides",
+                version.binary_name
+            );
+        }
+        if let Some(clash) = commands
+            .iter()
+            .find(|c| **c == other || package.aliases.iter().any(|a| a == *c))
+        {
+            bail!("`ortzi {clash}` already runs {other}; uninstall it first");
+        }
+    }
+    Ok(())
+}
+
 fn set_executable(path: &Path) -> anyhow::Result<()> {
     use std::os::unix::fs::PermissionsExt;
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o755))?;
@@ -178,13 +213,8 @@ pub async fn install(settings: &Settings, specs: &[String], force: bool) -> anyh
             self_update_with(&client, target, version, true).await?;
             continue;
         }
-        if force {
-            let mut installed = store.load()?;
-            installed.packages.remove(name);
-            store.save(&installed)?;
-        }
         let version = resolve(&client, name, version, target).await?;
-        install_version(&client, &store, name, &version, target).await?;
+        install_version(&client, &store, name, &version, target, force).await?;
     }
 
     Ok(())
@@ -283,28 +313,49 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
         names.iter().filter(|n| *n != SELF).cloned().collect()
     };
 
+    let mut failed = Vec::new();
     for name in &names {
         let Some(current) = installed.packages.get(name) else {
             bail!("{name} is not installed");
         };
-        let latest = resolve(&client, name, None, target).await?;
-        let newer = match (
-            semver::Version::parse(&latest.version),
-            semver::Version::parse(&current.version),
-        ) {
-            (Ok(latest), Ok(current)) => latest > current,
-            _ => latest.version != current.version,
-        };
-        if newer {
-            install_version(&client, &store, name, &latest, target).await?;
-            updated += 1;
+        match update_one(&client, &store, name, current, target).await {
+            Ok(true) => updated += 1,
+            Ok(false) => {}
+            Err(e) => {
+                eprintln!("failed to update {name}: {e:#}");
+                failed.push(name.as_str());
+            }
         }
     }
 
+    if !failed.is_empty() {
+        bail!("failed to update {}", failed.join(", "));
+    }
     if updated == 0 {
         println!("everything is up to date");
     }
     Ok(())
+}
+
+async fn update_one(
+    client: &Client,
+    store: &Store,
+    name: &str,
+    current: &InstalledPackage,
+    target: Target,
+) -> anyhow::Result<bool> {
+    let latest = resolve(client, name, None, target).await?;
+    let newer = match (
+        semver::Version::parse(&latest.version),
+        semver::Version::parse(&current.version),
+    ) {
+        (Ok(latest), Ok(current)) => latest > current,
+        _ => latest.version != current.version,
+    };
+    if newer {
+        install_version(client, store, name, &latest, target, false).await?;
+    }
+    Ok(newer)
 }
 
 pub fn list() -> anyhow::Result<()> {
