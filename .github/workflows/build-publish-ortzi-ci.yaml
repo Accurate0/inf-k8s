@@ -1,0 +1,35 @@
+name: Build & publish ortzi CI image
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - crates/ortzi/**
+      - crates/cli-auth/**
+      - platform-services/registry/api/**
+      - .github/workflows/build-publish-ortzi-ci.yaml
+  workflow_dispatch:
+
+jobs:
+  build:
+    permissions:
+      packages: write
+
+    name: Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: .
+          file: ./crates/ortzi/ci/Dockerfile
+          push: true
+          tags: ghcr.io/accurate0/ortzi-ci:latest,ghcr.io/accurate0/ortzi-ci:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
