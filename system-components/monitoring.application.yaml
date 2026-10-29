@@ -518,6 +518,15 @@ spec:
                 groups_attribute_path: groups
                 allow_assign_grafana_admin: true
                 role_attribute_path: contains(grafana_role[*], 'GrafanaAdmin') && 'GrafanaAdmin' || contains(grafana_role[*], 'Editor') && 'Editor' || 'Viewer'
+              auth.jwt:
+                enabled: true
+                header_name: X-JWT-Assertion
+                username_claim: sub
+                jwk_set_url: https://idm.anurag.sh/oauth2/openid/grafana-cli/public_key.jwk
+                expect_claims: '{"iss": "https://idm.anurag.sh/oauth2/openid/grafana-cli"}'
+                auto_sign_up: true
+                role_attribute_path: "'Viewer'"
+                cache_ttl: 60m
               server:
                 root_url: "https://%(domain)s"
                 domain: grafana.ortzi.cloud
