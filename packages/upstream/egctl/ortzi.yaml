@@ -1,0 +1,16 @@
+package:
+  name: egctl
+  description: Envoy Gateway CLI (upstream envoyproxy/gateway)
+  # renovate: datasource=github-releases depName=envoyproxy/gateway extractVersion=^v(?<version>.+)$
+  version: 1.9.2
+build:
+  kind: prebuilt
+  prebuilt:
+    darwin-arm64:
+      url: https://github.com/envoyproxy/gateway/releases/download/v${version}/egctl_v${version}_darwin_arm64.tar.gz
+      sha256: 1ced0512cc6c51048ff8e0f08e59b1f03e4a0ff80c674814136fd6bdb08728e3
+      extract: bin/darwin/arm64/egctl
+    linux-amd64:
+      url: https://github.com/envoyproxy/gateway/releases/download/v${version}/egctl_v${version}_linux_amd64.tar.gz
+      sha256: 32983b14ee53eee59d1709e56330564142067f954be3567c523c691012f89e44
+      extract: bin/linux/amd64/egctl
