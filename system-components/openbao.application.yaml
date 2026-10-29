@@ -82,7 +82,7 @@ spec:
                       DATABASE_URL: "postgresql://{{ .username }}:{{ .password }}@cloudnative-pg-cluster-rw.cnpg-system:5432/openbao"
     - chart: openbao
       repoURL: https://openbao.github.io/openbao-helm
-      targetRevision: 0.30.5
+      targetRevision: 0.30.6
       helm:
         valuesObject:
           injector:
