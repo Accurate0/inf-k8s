@@ -211,7 +211,7 @@ function buildReport(app: Application, workloads: Workload[], latest: boolean): 
     if (state === 'behind') problems.push({ severe: false, text: `${name} is behind latest` });
   }
   if (emergency) {
-    problems.push({ severe: true, text: `auto-sync turned off; undo: ortzi deploy autosync ${app.metadata.name} on` });
+    problems.push({ severe: true, text: `auto-sync turned off; undo: ortzi deploy autosync ${app.metadata.name} on --yes` });
   } else if (!automated) {
     problems.push({ severe: false, text: 'auto-sync is off' });
   } else if (!automated.selfHeal) {
@@ -411,13 +411,14 @@ function rollback(
     return 0;
   }
 
-  console.log(app.spec.syncPolicy?.automated ? `would turn auto-sync off for ${name}` : `auto-sync is already off for ${name}`);
-  for (const { workload, container, image, from } of edits) {
-    console.log(
-      `${workload.kind.toLowerCase()}/${workload.metadata.name} ${container}: ${short(from)} -> ${image}`,
-    );
-  }
+  const lines = edits.map(
+    ({ workload, container, image, from }) =>
+      `  ${workload.kind.toLowerCase()}/${workload.metadata.name} ${container}: ${short(from)} -> ${short(parseImage(image).tag)}`,
+  );
+  console.log(`${yes ? 'rolling back' : 'would roll back'} ${name}:`);
+  for (const line of lines) console.log(line);
   if (!yes) {
+    console.log('auto-sync would be turned off');
     console.log('dry run; pass --yes to apply');
     return 0;
   }
@@ -436,7 +437,7 @@ function rollback(
       ),
     );
   }
-  console.log(`rolled back ${name}; auto-sync stays off until \`ortzi deploy autosync ${name} on\`, which returns it to git`);
+  console.log(`auto-sync is off; to return to git: ortzi deploy autosync ${name} on --yes`);
   return 0;
 }
 
