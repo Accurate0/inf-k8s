@@ -1,7 +1,8 @@
 package:
   name: deploy
   description: see what's deployed, roll back images on the cluster and control argo auto-sync
-  version: 0.1.3
+  version: 0.1.4
+  completions: cobra
 permissions:
   exec: [kubectl, curl]
 build:

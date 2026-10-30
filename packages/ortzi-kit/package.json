@@ -9,7 +9,7 @@
   },
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test src/format.test.ts src/image.test.ts"
+    "test": "node --test src/completion.test.ts src/format.test.ts src/image.test.ts"
   },
   "dependencies": {
     "@ortzi/host": "workspace:*"

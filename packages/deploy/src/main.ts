@@ -1,10 +1,17 @@
 import { cli, Kube, parseMinutes, UsageError } from '@ortzi/kit';
+import { listApps } from './argo';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { rollback } from './commands/rollback';
 import { status } from './commands/status';
 
 const DEFAULT_TIMEOUT_MINUTES = 5;
+
+const appNames = (kube: Kube, position: number) =>
+  position === 0 ? listApps(kube).map((app) => app.metadata.name) : [];
+
+const appThenOnOff = (kube: Kube, position: number) =>
+  position === 1 ? ['on', 'off'] : appNames(kube, position);
 
 const USAGE = `usage: ortzi deploy <command> [flags]
 
@@ -76,5 +83,12 @@ export const run = cli({
         timeoutMinutes: parseMinutes(values.timeout, DEFAULT_TIMEOUT_MINUTES),
       });
     },
+  },
+  completers: {
+    status: appNames,
+    history: appNames,
+    rollback: appNames,
+    heal: appThenOnOff,
+    autosync: appThenOnOff,
   },
 });

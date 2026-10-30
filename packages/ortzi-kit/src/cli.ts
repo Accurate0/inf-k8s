@@ -1,4 +1,5 @@
 import { type Flags, args, main, parseArgs } from '@ortzi/host';
+import { completionCandidates, formatCompletions } from './completion';
 
 export class UsageError extends Error {}
 
@@ -11,11 +12,22 @@ export interface CliSpec<C, F extends Flags> {
   flags: F;
   setup: (values: Values<F>) => C;
   commands: Record<string, Command<C, F>>;
+  completers?: Record<string, (ctx: C, position: number) => string[]>;
 }
 
 export function cli<C, F extends Flags>(spec: CliSpec<C, F>): { run(): void } {
   return main(() => {
     const argv = args();
+    if (argv[0] === '__complete') {
+      const { values } = parseArgs([], spec.flags);
+      const candidates = completionCandidates(
+        { commands: Object.keys(spec.commands), flags: spec.flags, completers: spec.completers },
+        argv.slice(1),
+        () => spec.setup(values),
+      );
+      console.log(formatCompletions(candidates));
+      return 0;
+    }
     if (argv.includes('--help') || argv.includes('-h')) {
       console.log(spec.usage);
       return 0;
