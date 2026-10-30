@@ -23,10 +23,10 @@ diff service:
 diff-manifests service:
     kubectl diff -k {{service}}/manifests
 
-# Install ortzi into its bin dir; afterwards it updates itself with `ortzi self-update`
+# Install ortzi to ~/.local/bin; afterwards it updates itself with `ortzi self-update`
 install:
     cargo build --locked --release --manifest-path ../crates/ortzi/Cargo.toml
-    bin="$(../crates/ortzi/target/release/ortzi bin-dir)" && mkdir -p "$bin" && install -m 755 ../crates/ortzi/target/release/ortzi "$bin/ortzi" && echo "installed $bin/ortzi; put $bin on PATH"
+    mkdir -p ~/.local/bin && install -m 755 ../crates/ortzi/target/release/ortzi ~/.local/bin/ortzi
 
 # Run ortzi from source
 ortzi *args:

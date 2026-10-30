@@ -14,7 +14,7 @@ ortzi ff flag list           # logs in to the package's own service when needed
 ortzi update                 # ortzi itself and every installed package
 ```
 
-Put `$(ortzi bin-dir)` on `PATH`; it holds `ortzi` and the installed binaries (`ffctl`, `aig`, ...).
+Optionally put `$(ortzi bin-dir)` on `PATH` to run installed binaries (`ffctl`, `aig`, ...) directly.
 
 ## Publishing a package
 

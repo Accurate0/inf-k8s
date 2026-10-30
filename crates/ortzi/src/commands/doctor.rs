@@ -42,7 +42,7 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
     let installed = store.load()?;
     let target = Target::host();
 
-    let mut findings = install_findings(&store);
+    let mut findings = install_findings();
     findings.extend(store_findings(&store, &installed));
 
     let client = match settings.reader_without_login().await {
@@ -121,24 +121,8 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn install_findings(store: &Store) -> Vec<Finding> {
+fn install_findings() -> Vec<Finding> {
     let mut findings = Vec::new();
-
-    let bin = store.bin_dir();
-    let on_path = std::env::var_os("PATH")
-        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir == bin));
-    findings.push(if on_path {
-        Finding::new("path", Level::Ok, bin.display().to_string())
-    } else {
-        Finding::new(
-            "path",
-            Level::Warn,
-            format!(
-                "{} is not on PATH; only `ortzi <package>` will work",
-                bin.display()
-            ),
-        )
-    });
 
     if let Ok(exe) = std::env::current_exe().and_then(|e| e.canonicalize())
         && exe.components().any(|c| c.as_os_str() == ".cargo")
@@ -147,7 +131,7 @@ fn install_findings(store: &Store) -> Vec<Finding> {
             "install",
             Level::Warn,
             format!(
-                "{} is cargo-managed; self-update will overwrite it",
+                "{} is cargo-managed; run `just platform install`, then `cargo uninstall ortzi`",
                 exe.display()
             ),
         ));
