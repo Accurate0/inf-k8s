@@ -7,7 +7,7 @@ on:
       - platform-services/ai-gateway/**
       - "!platform-services/ai-gateway/manifests/**"
       - "!platform-services/ai-gateway/application.yaml"
-      - crates/**
+      - crates/cli-auth/**
       - .github/workflows/build-deploy-ai-gateway.yaml
   workflow_dispatch:
 

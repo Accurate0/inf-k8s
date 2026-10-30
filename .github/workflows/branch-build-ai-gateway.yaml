@@ -6,7 +6,7 @@ on:
       - main
     paths:
       - platform-services/ai-gateway/**
-      - crates/**
+      - crates/cli-auth/**
       - .github/workflows/branch-build-ai-gateway.yaml
 
 jobs:
