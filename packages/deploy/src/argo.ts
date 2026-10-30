@@ -44,6 +44,18 @@ function patchApp(kube: Kube, name: string, patch: unknown): void {
   argocd(kube).capture(['patch', 'application', name, '--type', 'merge', '-p', JSON.stringify(patch)]);
 }
 
+export function waitForSync(kube: Kube, name: string, minutes: number): boolean {
+  return argocd(kube).run(
+    [
+      'wait',
+      `application/${name}`,
+      '--for=jsonpath={.status.sync.status}=Synced',
+      `--timeout=${minutes * 60}s`,
+    ],
+    { check: false },
+  ).ok;
+}
+
 export const isEmergency = (app: Application) =>
   app.metadata.annotations?.[SAVED_AUTOMATED] !== undefined;
 

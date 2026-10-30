@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { age, columns, minuteTimestamp, short } from './format.ts';
+import { age, columns, minuteTimestamp, parseMinutes, short } from './format.ts';
 
 test('aligns columns', () => {
   assert.equal(
@@ -23,4 +23,11 @@ test('shortens only full shas', () => {
 
 test('trims timestamps to the minute', () => {
   assert.equal(minuteTimestamp('2026-10-29T16:06:20Z'), '2026-10-29 16:06');
+});
+
+test('parses minutes', () => {
+  assert.equal(parseMinutes(undefined, 5), 5);
+  assert.equal(parseMinutes('2.5', 5), 2.5);
+  assert.throws(() => parseMinutes('soon', 5));
+  assert.throws(() => parseMinutes('0', 5));
 });

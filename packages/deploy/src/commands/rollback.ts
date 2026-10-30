@@ -13,6 +13,7 @@ import {
   containersOf,
   listWorkloads,
   runningTags,
+  waitForRollouts,
   workloadRef,
   workloadsFor,
 } from '../workloads';
@@ -72,13 +73,16 @@ function applyEdit(kube: Kube, { workload, container, repository, to }: Edit): v
     .capture(['set', 'image', workloadRef(workload), `${container}=${repository}:${to}`]);
 }
 
-export function rollback(
-  kube: Kube,
-  name: string,
-  tag: string | undefined,
-  image: string | undefined,
-  yes: boolean,
-): number {
+export interface RollbackOptions {
+  tag?: string;
+  image?: string;
+  yes: boolean;
+  wait: boolean;
+  timeoutMinutes: number;
+}
+
+export function rollback(kube: Kube, name: string, options: RollbackOptions): number {
+  const { tag, image, yes } = options;
   assertChangeable(name);
   const app = getApp(kube, name);
   const workloads = workloadsFor(app, listWorkloads(kube));
@@ -102,6 +106,19 @@ export function rollback(
 
   turnAutosyncOff(kube, app);
   for (const edit of edits) applyEdit(kube, edit);
-  console.log(`auto-sync is off; to return to git: ortzi deploy autosync ${name} on --yes`);
+  const undo = `auto-sync is off; to return to git: ortzi deploy autosync ${name} on --yes`;
+  if (!options.wait) {
+    console.log(undo);
+    return 0;
+  }
+
+  const changed = [...new Set(edits.map((edit) => edit.workload))];
+  if (!waitForRollouts(kube, changed, options.timeoutMinutes)) {
+    console.error(`rollback of ${name} did not finish; check \`ortzi deploy status ${name}\``);
+    console.error(undo);
+    return 1;
+  }
+  console.log(`rolled back ${name}`);
+  console.log(undo);
   return 0;
 }

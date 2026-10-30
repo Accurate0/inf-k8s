@@ -49,3 +49,19 @@ export function runningTags(workloads: Workload[]): Map<string, string> {
 
 export const workloadRef = (workload: Workload) =>
   `${workload.kind.toLowerCase()}/${workload.metadata.name}`;
+
+export function waitForRollout(kube: Kube, workload: Workload, minutes: number): boolean {
+  const ref = workloadRef(workload);
+  if (workload.kind === 'CronJob') {
+    console.log(`${ref} has no rollout; the new image applies on its next run`);
+    return true;
+  }
+  const output = kube
+    .namespace(workload.metadata.namespace)
+    .run(['rollout', 'status', ref, `--timeout=${minutes * 60}s`], { check: false });
+  return output.ok;
+}
+
+export function waitForRollouts(kube: Kube, workloads: Workload[], minutes: number): boolean {
+  return workloads.map((workload) => waitForRollout(kube, workload, minutes)).every(Boolean);
+}

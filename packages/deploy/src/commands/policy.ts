@@ -1,4 +1,4 @@
-import { applying, type Kube, short } from '@ortzi/kit';
+import { applying, type Kube, parseImage, short } from '@ortzi/kit';
 import {
   type Application,
   assertChangeable,
@@ -7,9 +7,22 @@ import {
   savedAutomated,
   setSelfHeal,
   turnAutosyncOff,
+  waitForSync,
 } from '../argo';
 import { syncedTags } from '../git';
-import { listWorkloads, runningTags, workloadsFor } from '../workloads';
+import {
+  type Workload,
+  containersOf,
+  listWorkloads,
+  runningTags,
+  waitForRollouts,
+  workloadsFor,
+} from '../workloads';
+
+export interface WaitOptions {
+  wait: boolean;
+  timeoutMinutes: number;
+}
 
 export function heal(kube: Kube, name: string, state: 'on' | 'off', yes: boolean): number {
   assertChangeable(name);
@@ -25,8 +38,8 @@ export function heal(kube: Kube, name: string, state: 'on' | 'off', yes: boolean
   return 0;
 }
 
-function warnAboutDrift(kube: Kube, app: Application): void {
-  const running = runningTags(workloadsFor(app, listWorkloads(kube)));
+function warnAboutDrift(app: Application, workloads: Workload[]): void {
+  const running = runningTags(workloads);
   for (const [image, tag] of syncedTags(app)) {
     const now = running.get(image);
     if (now && now !== tag) {
@@ -35,7 +48,30 @@ function warnAboutDrift(kube: Kube, app: Application): void {
   }
 }
 
-function autosyncOn(kube: Kube, app: Application, yes: boolean): number {
+function driftedWorkloads(app: Application, workloads: Workload[]): Workload[] {
+  const git = syncedTags(app);
+  return workloads.filter((workload) =>
+    containersOf(workload).some((container) => {
+      const { repository, tag } = parseImage(container.image);
+      const wanted = git.get(repository);
+      return wanted !== undefined && wanted !== tag;
+    }),
+  );
+}
+
+function waitForGit(
+  kube: Kube,
+  app: Application,
+  drifted: Workload[],
+  minutes: number,
+): boolean {
+  const name = app.metadata.name;
+  if (!waitForSync(kube, name, minutes) || !waitForRollouts(kube, drifted, minutes)) return false;
+  const current = getApp(kube, name);
+  return driftedWorkloads(current, workloadsFor(current, listWorkloads(kube))).length === 0;
+}
+
+function autosyncOn(kube: Kube, app: Application, yes: boolean, options: WaitOptions): number {
   const name = app.metadata.name;
   if (app.spec.syncPolicy?.automated) {
     console.log(`auto-sync is already on for ${name}`);
@@ -43,16 +79,31 @@ function autosyncOn(kube: Kube, app: Application, yes: boolean): number {
   }
   const { automated, saved } = savedAutomated(app);
   if (!saved) console.log(`no saved policy for ${name}; using ${JSON.stringify(automated)}`);
-  warnAboutDrift(kube, app);
+  const workloads = workloadsFor(app, listWorkloads(kube));
+  warnAboutDrift(app, workloads);
   console.log(`${yes ? 'restoring' : 'would restore'} auto-sync for ${name}`);
-  if (applying(yes)) restoreAutosync(kube, name, automated);
+  if (!applying(yes)) return 0;
+
+  restoreAutosync(kube, name, automated);
+  if (!options.wait) return 0;
+  if (!waitForGit(kube, app, driftedWorkloads(app, workloads), options.timeoutMinutes)) {
+    console.error(`${name} did not return to git; check \`ortzi deploy status ${name}\``);
+    return 1;
+  }
+  console.log(`${name} is back on what git says`);
   return 0;
 }
 
-export function autosync(kube: Kube, name: string, state: 'on' | 'off', yes: boolean): number {
+export function autosync(
+  kube: Kube,
+  name: string,
+  state: 'on' | 'off',
+  yes: boolean,
+  options: WaitOptions,
+): number {
   assertChangeable(name);
   const app = getApp(kube, name);
-  if (state === 'on') return autosyncOn(kube, app, yes);
+  if (state === 'on') return autosyncOn(kube, app, yes, options);
   console.log(`${yes ? 'turning' : 'would turn'} auto-sync off for ${name}`);
   if (applying(yes)) turnAutosyncOff(kube, app);
   return 0;

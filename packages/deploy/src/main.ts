@@ -1,8 +1,10 @@
-import { cli, Kube, UsageError } from '@ortzi/kit';
+import { cli, Kube, parseMinutes, UsageError } from '@ortzi/kit';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { rollback } from './commands/rollback';
 import { status } from './commands/status';
+
+const DEFAULT_TIMEOUT_MINUTES = 5;
 
 const USAGE = `usage: ortzi deploy <command> [flags]
 
@@ -20,7 +22,9 @@ flags:
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
   --image NAME     rollback: only this image (repeat by running again)
-  --yes            apply; writes are a dry run without this`;
+  --yes            apply; writes are a dry run without this
+  --wait           rollback, autosync on: follow the change and fail if it doesn't finish
+  --timeout MIN    with --wait: minutes to allow for each step (default 5)`;
 
 function requireApp(name: string | undefined, command: string): string {
   if (!name) throw new UsageError(`usage: ortzi deploy ${command} <app>`);
@@ -46,20 +50,31 @@ export const run = cli({
     latest: { type: 'boolean' },
     image: { type: 'string' },
     yes: { type: 'boolean' },
+    wait: { type: 'boolean' },
+    timeout: { type: 'string' },
   },
   setup: (values) => Kube.connect(values.context),
   commands: {
     status: (kube, values, [name]) => status(kube, name, values.all, values.latest),
     history: (kube, _, [name]) => history(kube, requireApp(name, 'history')),
     rollback: (kube, values, [name, tag]) =>
-      rollback(kube, requireApp(name, 'rollback'), tag, values.image, values.yes),
+      rollback(kube, requireApp(name, 'rollback'), {
+        tag,
+        image: values.image,
+        yes: values.yes,
+        wait: values.wait,
+        timeoutMinutes: parseMinutes(values.timeout, DEFAULT_TIMEOUT_MINUTES),
+      }),
     heal: (kube, values, [app, value]) => {
       const { name, state } = requireOnOff('heal', app, value);
       return heal(kube, name, state, values.yes);
     },
     autosync: (kube, values, [app, value]) => {
       const { name, state } = requireOnOff('autosync', app, value);
-      return autosync(kube, name, state, values.yes);
+      return autosync(kube, name, state, values.yes, {
+        wait: values.wait,
+        timeoutMinutes: parseMinutes(values.timeout, DEFAULT_TIMEOUT_MINUTES),
+      });
     },
   },
 });

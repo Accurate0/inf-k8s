@@ -14,6 +14,14 @@ export function age(from: string, now: number): string {
   return hours < 24 ? `${hours}h` : `${Math.floor(hours / 24)}d`;
 }
 
+export function parseMinutes(value: string | undefined, fallback: number): number {
+  const minutes = value === undefined ? fallback : Number(value);
+  if (!Number.isFinite(minutes) || minutes <= 0) {
+    throw new Error(`invalid number of minutes: ${value}`);
+  }
+  return minutes;
+}
+
 export function short(tag: string): string {
   return /^[0-9a-f]{40}$/.test(tag) ? tag.slice(0, 8) : tag;
 }
