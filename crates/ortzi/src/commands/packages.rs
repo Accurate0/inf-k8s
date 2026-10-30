@@ -135,40 +135,40 @@ async fn install_version(
         wasm::prepare(&installed_file)?;
     }
 
-    let current = package_dir.join("current");
-    let staged = package_dir.join("current.tmp");
-    let _ = std::fs::remove_file(&staged);
-    std::os::unix::fs::symlink(&version.version, &staged)?;
-    std::fs::rename(&staged, &current)?;
+    point_current(&package_dir, &version.version)?;
 
-    let previous = installed.packages.insert(
-        name.to_owned(),
-        InstalledPackage {
-            version: version.version.clone(),
-            target,
-            sha256: artifact.sha256.clone(),
-            binary: version.binary_name.clone(),
-            aliases: version.aliases.clone(),
-            auth: version.auth.clone(),
-            permissions: permissions.clone(),
-            completions,
-        },
-    );
-    store.save(&installed)?;
-    if target == Target::Wasm {
-        let _ = std::fs::remove_file(store.bin_dir().join(&version.binary_name));
-    } else {
-        link_shim(store, name, &version.binary_name)?;
+    let mut package = InstalledPackage {
+        version: version.version.clone(),
+        target,
+        sha256: artifact.sha256.clone(),
+        binary: version.binary_name.clone(),
+        aliases: version.aliases.clone(),
+        auth: version.auth.clone(),
+        permissions: permissions.clone(),
+        completions,
+        pinned: false,
+        previous: None,
+    };
+    let existing = installed.packages.get(name).cloned();
+    if let Some(existing) = &existing {
+        package = package.replacing(existing);
     }
+    let kept = package.previous.as_ref().map(|p| p.version.clone());
+    sync_shim(store, name, &package)?;
+    installed.packages.insert(name.to_owned(), package);
+    store.save(&installed)?;
 
-    if let Some(previous) = previous {
-        if previous.binary != version.binary_name {
-            let _ = std::fs::remove_file(store.bin_dir().join(&previous.binary));
+    if let Some(existing) = existing {
+        if existing.binary != version.binary_name {
+            let _ = std::fs::remove_file(store.bin_dir().join(&existing.binary));
         }
-        if previous.version != version.version {
-            let _ = std::fs::remove_dir_all(package_dir.join(&previous.version));
+        if let Some(older) = existing.previous
+            && older.version != version.version
+            && Some(&older.version) != kept.as_ref()
+        {
+            let _ = std::fs::remove_dir_all(package_dir.join(&older.version));
         }
-        println!("updated {name} {} -> {}", previous.version, version.version);
+        println!("updated {name} {} -> {}", existing.version, version.version);
     } else {
         println!("installed {name}@{}; run `ortzi {name}`", version.version);
     }
@@ -222,6 +222,22 @@ fn set_executable(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+fn point_current(package_dir: &Path, version: &str) -> anyhow::Result<()> {
+    let staged = package_dir.join("current.tmp");
+    let _ = std::fs::remove_file(&staged);
+    std::os::unix::fs::symlink(version, &staged)?;
+    std::fs::rename(&staged, package_dir.join("current"))?;
+    Ok(())
+}
+
+fn sync_shim(store: &Store, name: &str, package: &InstalledPackage) -> anyhow::Result<()> {
+    if package.is_wasm() {
+        let _ = std::fs::remove_file(store.bin_dir().join(&package.binary));
+        return Ok(());
+    }
+    link_shim(store, name, &package.binary)
+}
+
 pub fn shim_target(name: &str, binary: &str) -> std::path::PathBuf {
     Path::new("../packages")
         .join(name)
@@ -245,9 +261,23 @@ pub async fn install(settings: &Settings, specs: &[String], force: bool) -> anyh
 
     for spec in specs {
         let (name, version) = split_spec(spec);
+        let installed = store.load()?;
         if name == SELF {
+            if installed.self_pinned && version.is_none() && !force {
+                bail!("ortzi is pinned; run `ortzi unpin ortzi` or name a version");
+            }
             self_update_with(&client, target, version, true).await?;
             continue;
+        }
+        if let Some(current) = installed.packages.get(name)
+            && current.pinned
+            && version.is_none()
+            && !force
+        {
+            bail!(
+                "{name} is pinned at {}; run `ortzi unpin {name}` or name a version",
+                current.version
+            );
         }
         let version = resolve(&client, name, version, target).await?;
         install_version(&client, &store, name, &version, target, force).await?;
@@ -273,7 +303,114 @@ pub fn uninstall(names: &[String]) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn rollback(name: &str) -> anyhow::Result<()> {
+    if name == SELF {
+        return rollback_self();
+    }
+    let store = Store::open()?;
+    let mut installed = store.load()?;
+    let (name, current) = installed
+        .resolve(name)
+        .map(|(n, p)| (n.clone(), p.clone()))
+        .with_context(|| format!("{name} is not installed"))?;
+    let target = current
+        .rolled_back()
+        .with_context(|| format!("{name} has no previous version to roll back to"))?;
+
+    let package_dir = store.package_dir(&name);
+    let file = package_dir.join(&target.version).join(target.file_name());
+    if !file.exists() {
+        bail!(
+            "{} is missing; run `ortzi install {name}@{}`",
+            file.display(),
+            target.version
+        );
+    }
+
+    point_current(&package_dir, &target.version)?;
+    sync_shim(&store, &name, &target)?;
+    if current.binary != target.binary {
+        let _ = std::fs::remove_file(store.bin_dir().join(&current.binary));
+    }
+    let hint = !target.pinned;
+    let version = target.version.clone();
+    installed.packages.insert(name.clone(), target);
+    store.save(&installed)?;
+
+    println!("rolled back {name} {} -> {version}", current.version);
+    if hint {
+        println!("`ortzi update` will move it forward again; run `ortzi pin {name}` to stop that");
+    }
+    Ok(())
+}
+
+fn backup_self(store: &Store, exe: &Path) -> anyhow::Result<()> {
+    let backup = store.self_backup();
+    let dir = backup.parent().context("backup path has no parent")?;
+    std::fs::create_dir_all(dir)?;
+    let staged = backup.with_extension(format!("{}.tmp", std::process::id()));
+    std::fs::copy(exe, &staged)?;
+    std::fs::rename(&staged, &backup)?;
+    std::fs::write(backup.with_extension("version"), env!("ORTZI_VERSION"))?;
+    Ok(())
+}
+
+fn rollback_self() -> anyhow::Result<()> {
+    let store = Store::open()?;
+    let backup = store.self_backup();
+    if !backup.exists() {
+        bail!("no previous ortzi to roll back to; one is kept from the next update");
+    }
+    let version = std::fs::read_to_string(backup.with_extension("version"))
+        .unwrap_or_else(|_| "unknown".to_owned());
+
+    let exe = std::env::current_exe()?.canonicalize()?;
+    let staged = exe.with_file_name(format!(".ortzi-rollback-{}", std::process::id()));
+    std::fs::copy(&backup, &staged).with_context(|| format!("writing next to {}", exe.display()))?;
+    set_executable(&staged)?;
+    let held = store.tmp_dir().join(format!("ortzi-{}", std::process::id()));
+    std::fs::create_dir_all(store.tmp_dir())?;
+    std::fs::copy(&exe, &held)?;
+    std::fs::rename(&staged, &exe).with_context(|| format!("replacing {}", exe.display()))?;
+    std::fs::rename(&held, &backup)?;
+    std::fs::write(backup.with_extension("version"), env!("ORTZI_VERSION"))?;
+
+    println!("rolled back ortzi {} -> {version}", env!("ORTZI_VERSION"));
+    if !store.load()?.self_pinned {
+        println!("`ortzi update` will move it forward again; run `ortzi pin ortzi` to stop that");
+    }
+    Ok(())
+}
+
+pub fn set_pinned(name: &str, pinned: bool) -> anyhow::Result<()> {
+    let store = Store::open()?;
+    let mut installed = store.load()?;
+    let label = if pinned { "pinned" } else { "unpinned" };
+    if name == SELF {
+        installed.self_pinned = pinned;
+        store.save(&installed)?;
+        println!("{label} ortzi at {}", env!("ORTZI_VERSION"));
+        return Ok(());
+    }
+    let (name, version) = {
+        let resolved = installed
+            .resolve(name)
+            .map(|(n, _)| n.clone())
+            .with_context(|| format!("{name} is not installed"))?;
+        let package = installed.packages.get_mut(&resolved).context("package vanished")?;
+        package.pinned = pinned;
+        (resolved, package.version.clone())
+    };
+    store.save(&installed)?;
+    println!("{label} {name} at {version}");
+    Ok(())
+}
+
 pub async fn self_update(settings: &Settings, version: Option<&str>) -> anyhow::Result<()> {
+    if version.is_none() && Store::open()?.load()?.self_pinned {
+        println!("ortzi is pinned at {}; run `ortzi unpin ortzi`", env!("ORTZI_VERSION"));
+        return Ok(());
+    }
     let client = settings.reader().await?;
     if !self_update_with(&client, host_target()?, version, version.is_some()).await? {
         println!("ortzi {} is up to date", env!("ORTZI_VERSION"));
@@ -324,6 +461,7 @@ async fn self_update_with(
         bail!("checksum mismatch for ortzi@{}", release.version);
     }
     set_executable(&staged)?;
+    backup_self(&Store::open()?, &exe)?;
     std::fs::rename(&staged, &exe).with_context(|| format!("replacing {}", exe.display()))?;
 
     println!("updated ortzi {running} -> {}", release.version);
@@ -338,7 +476,9 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
     let mut updated = 0;
 
     let everything = names.is_empty();
-    if everything || names.iter().any(|n| n == SELF) {
+    if (everything || names.iter().any(|n| n == SELF)) && installed.self_pinned {
+        println!("ortzi is pinned at {}; skipping", env!("ORTZI_VERSION"));
+    } else if everything || names.iter().any(|n| n == SELF) {
         match self_update_with(&client, target, None, false).await {
             Ok(true) => updated += 1,
             Ok(false) => {}
@@ -358,6 +498,10 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
         let Some(current) = installed.packages.get(name) else {
             bail!("{name} is not installed");
         };
+        if current.pinned {
+            println!("{name} is pinned at {}; skipping", current.version);
+            continue;
+        }
         match update_one(&client, &store, name, current, target).await {
             Ok(true) => updated += 1,
             Ok(false) => {}
@@ -403,11 +547,13 @@ pub fn list() -> anyhow::Result<()> {
     let mut table = Table::new();
     table
         .load_preset(UTF8_BORDERS_ONLY)
-        .set_header(["package", "version", "binary", "aliases"]);
+        .set_header(["package", "version", "previous", "pinned", "binary", "aliases"]);
     for (name, package) in &installed.packages {
         table.add_row([
             name.as_str(),
             &package.version,
+            package.previous.as_ref().map_or("-", |p| p.version.as_str()),
+            if package.pinned { "yes" } else { "" },
             &package.binary,
             &package.aliases.join(", "),
         ]);

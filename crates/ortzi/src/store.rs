@@ -12,6 +12,8 @@ pub struct Store {
 pub struct Installed {
     #[serde(default)]
     pub packages: BTreeMap<String, InstalledPackage>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub self_pinned: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -28,9 +30,36 @@ pub struct InstalledPackage {
     pub permissions: Option<Permissions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completions: Option<Completions>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub previous: Option<Box<InstalledPackage>>,
 }
 
 impl InstalledPackage {
+    pub fn replacing(mut self, existing: &InstalledPackage) -> Self {
+        self.pinned = existing.pinned;
+        self.previous = if existing.version == self.version {
+            existing.previous.clone()
+        } else {
+            Some(Box::new(InstalledPackage {
+                previous: None,
+                ..existing.clone()
+            }))
+        };
+        self
+    }
+
+    pub fn rolled_back(&self) -> Option<Self> {
+        let mut target = (**self.previous.as_ref()?).clone();
+        target.pinned = self.pinned;
+        target.previous = Some(Box::new(InstalledPackage {
+            previous: None,
+            ..self.clone()
+        }));
+        Some(target)
+    }
+
     pub fn is_wasm(&self) -> bool {
         self.target == Target::Wasm
     }
@@ -80,6 +109,10 @@ impl Store {
         self.root.join("bin")
     }
 
+    pub fn self_backup(&self) -> PathBuf {
+        self.root.join("self").join("previous")
+    }
+
     pub fn tmp_dir(&self) -> PathBuf {
         self.root.join("tmp")
     }
@@ -124,22 +157,49 @@ impl Store {
 mod tests {
     use super::*;
 
+    fn package(version: &str) -> InstalledPackage {
+        InstalledPackage {
+            version: version.to_owned(),
+            target: Target::LinuxAmd64,
+            sha256: String::new(),
+            binary: "ffctl".to_owned(),
+            aliases: vec!["ffctl".to_owned()],
+            auth: None,
+            permissions: None,
+            completions: None,
+            pinned: false,
+            previous: None,
+        }
+    }
+
+    #[test]
+    fn replacing_keeps_one_previous_version() {
+        let first = package("1.0.0");
+        let second = package("2.0.0").replacing(&first);
+        let third = package("3.0.0").replacing(&second);
+        let previous = third.previous.as_ref().unwrap();
+        assert_eq!(previous.version, "2.0.0");
+        assert!(previous.previous.is_none());
+
+        let reinstalled = package("3.0.0").replacing(&third);
+        assert_eq!(reinstalled.previous.unwrap().version, "2.0.0");
+    }
+
+    #[test]
+    fn rollback_swaps_and_keeps_the_pin() {
+        let mut current = package("2.0.0").replacing(&package("1.0.0"));
+        current.pinned = true;
+        let rolled = current.rolled_back().unwrap();
+        assert_eq!(rolled.version, "1.0.0");
+        assert!(rolled.pinned);
+        assert_eq!(rolled.rolled_back().unwrap().version, "2.0.0");
+        assert!(package("1.0.0").rolled_back().is_none());
+    }
+
     #[test]
     fn resolves_names_and_aliases() {
         let mut installed = Installed::default();
-        installed.packages.insert(
-            "ff".to_owned(),
-            InstalledPackage {
-                version: "1.0.0".to_owned(),
-                target: Target::LinuxAmd64,
-                sha256: String::new(),
-                binary: "ffctl".to_owned(),
-                aliases: vec!["ffctl".to_owned()],
-                auth: None,
-                permissions: None,
-                completions: None,
-            },
-        );
+        installed.packages.insert("ff".to_owned(), package("1.0.0"));
 
         assert_eq!(installed.resolve("ff").unwrap().0, "ff");
         assert_eq!(installed.resolve("ffctl").unwrap().0, "ff");

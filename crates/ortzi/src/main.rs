@@ -52,6 +52,12 @@ enum Command {
     },
     /// Update ortzi and installed packages to their latest versions
     Update { packages: Vec<String> },
+    /// Switch a package, or ortzi itself, back to its previous version
+    Rollback { package: String },
+    /// Stop `ortzi update` from changing a package, or ortzi itself
+    Pin { package: String },
+    /// Let `ortzi update` change a pinned package again
+    Unpin { package: String },
     /// Update ortzi itself from the registry
     SelfUpdate {
         #[arg(long, help = "Install this exact version, even if older")]
@@ -142,6 +148,9 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Uninstall { packages } => packages::uninstall(&packages),
         Command::Update { packages } => packages::update(&settings, &packages).await,
+        Command::Rollback { package } => packages::rollback(&package),
+        Command::Pin { package } => packages::set_pinned(&package, true),
+        Command::Unpin { package } => packages::set_pinned(&package, false),
         Command::SelfUpdate { version } => {
             packages::self_update(&settings, version.as_deref()).await
         }

@@ -15,11 +15,14 @@ use crate::{
 
 const VAR: &str = "COMPLETE";
 const INDEX_VAR: &str = "_CLAP_COMPLETE_INDEX";
-const NAME_COMMANDS: [(&str, &str); 4] = [
+const NAME_COMMANDS: [(&str, &str); 7] = [
     ("uninstall", "packages"),
     ("update", "packages"),
     ("login", "package"),
     ("logout", "package"),
+    ("rollback", "package"),
+    ("pin", "package"),
+    ("unpin", "package"),
 ];
 
 pub fn print_script(shell: &str) -> anyhow::Result<()> {
@@ -217,6 +220,8 @@ mod tests {
             auth: None,
             permissions: None,
             completions: Some(Completions::Clap),
+            pinned: false,
+            previous: None,
         }
     }
 

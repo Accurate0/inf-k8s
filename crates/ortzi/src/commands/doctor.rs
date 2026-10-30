@@ -83,7 +83,7 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
     };
 
     if let (Some(client), Some(target)) = (&client, target) {
-        findings.push(self_finding(client, target).await);
+        findings.push(self_finding(client, target, installed.self_pinned).await);
     }
 
     for (name, package) in &installed.packages {
@@ -92,7 +92,8 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
             problems.extend(remote_findings(client, name, package, target).await);
         }
         if problems.is_empty() {
-            findings.push(Finding::new(name, Level::Ok, package.version.clone()));
+            let pin = if package.pinned { " (pinned)" } else { "" };
+            findings.push(Finding::new(name, Level::Ok, format!("{}{pin}", package.version)));
         } else {
             findings.extend(problems);
         }
@@ -243,8 +244,11 @@ async fn package_findings(store: &Store, name: &str, package: &InstalledPackage)
     findings
 }
 
-async fn self_finding(client: &Client, target: Target) -> Finding {
+async fn self_finding(client: &Client, target: Target, pinned: bool) -> Finding {
     let running = env!("ORTZI_VERSION");
+    if pinned {
+        return Finding::new(SELF, Level::Ok, format!("{running} (pinned)"));
+    }
     match packages::resolve(client, SELF, None, target).await {
         Ok(latest) if packages::is_newer(&latest.version, running) => Finding::new(
             SELF,
@@ -306,7 +310,7 @@ async fn remote_findings(
         Err(e) => findings.push(Finding::new(name, Level::Warn, format!("{e:#}"))),
     }
 
-    if let Some(target) = target {
+    if let Some(target) = target.filter(|_| !package.pinned) {
         match packages::resolve(client, name, None, target).await {
             Ok(latest) if packages::is_newer(&latest.version, &package.version) => {
                 findings.push(Finding::new(
@@ -340,6 +344,8 @@ mod tests {
             auth: None,
             permissions: None,
             completions: None,
+            pinned: false,
+            previous: None,
         }
     }
 
