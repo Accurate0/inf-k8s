@@ -4,6 +4,8 @@ kind: Application
 metadata:
   name: cloudnative-pg-cluster
   namespace: argocd
+  annotations:
+    ortzi.cloud/manual-sync: safety
 spec:
   ignoreDifferences:
     - group: postgresql.cnpg.io

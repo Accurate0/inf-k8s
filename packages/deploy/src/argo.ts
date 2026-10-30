@@ -2,6 +2,7 @@ import type { Kube } from '@ortzi/kit';
 
 const ARGOCD = 'argocd';
 const SAVED_AUTOMATED = 'ortzi.cloud/saved-automated';
+const MANUAL_SYNC = 'ortzi.cloud/manual-sync';
 const DEFAULT_AUTOMATED: Automated = { prune: true, selfHeal: true };
 
 export interface Automated {
@@ -58,6 +59,9 @@ export function waitForSync(kube: Kube, name: string, minutes: number): boolean 
 
 export const isEmergency = (app: Application) =>
   app.metadata.annotations?.[SAVED_AUTOMATED] !== undefined;
+
+export const isManualSync = (app: Application) =>
+  app.metadata.annotations?.[MANUAL_SYNC] !== undefined;
 
 export const historyNewestFirst = (app: Application) => [...(app.status?.history ?? [])].reverse();
 

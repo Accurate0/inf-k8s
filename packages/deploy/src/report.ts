@@ -1,5 +1,5 @@
 import { ghcrDigest, short } from '@ortzi/kit';
-import { type Application, isEmergency } from './argo';
+import { type Application, isEmergency, isManualSync } from './argo';
 import { syncedTags } from './git';
 import { type Workload, runningTags, workloadsFor } from './workloads';
 
@@ -51,9 +51,9 @@ function appProblems(app: Application): Problem[] {
       severe: true,
       text: `auto-sync turned off; undo: ortzi deploy autosync ${app.metadata.name} on --yes`,
     });
-  } else if (!automated) {
+  } else if (!automated && !isManualSync(app)) {
     problems.push({ severe: false, text: 'auto-sync is off' });
-  } else if (!automated.selfHeal) {
+  } else if (automated && !automated.selfHeal) {
     problems.push({ severe: false, text: 'self-heal is off' });
   }
 
