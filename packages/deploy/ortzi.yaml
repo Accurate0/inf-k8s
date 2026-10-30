@@ -1,0 +1,10 @@
+package:
+  name: deploy
+  description: see what's deployed, roll back images on the cluster and control argo auto-sync
+  version: 0.1.0
+permissions:
+  exec: [kubectl, curl]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

@@ -3,6 +3,7 @@ packages:
   - ortzi-host
   - ortzi-example
   - schemas
+  - deploy
 
 allowBuilds:
   grpc-tools: true
