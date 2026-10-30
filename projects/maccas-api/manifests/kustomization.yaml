@@ -23,7 +23,5 @@ images:
     newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
   - name: ghcr.io/accurate0/maccas-scheduler
     newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
-  - name: ghcr.io/accurate0/maccas-sensordata
-    newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
   - name: ghcr.io/accurate0/maccas-web
     newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
