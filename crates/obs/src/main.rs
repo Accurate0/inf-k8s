@@ -2,7 +2,7 @@ mod grafana;
 mod logs;
 mod metrics;
 
-use clap::{Args, Parser, Subcommand};
+use clap::{Args, CommandFactory, Parser, Subcommand};
 use cli_auth::{App, OAuthClient, TokenSource};
 use grafana::Grafana;
 
@@ -129,6 +129,13 @@ async fn grafana(global: &Global, oauth: OAuthClient) -> anyhow::Result<Grafana>
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    let name = invoked_as();
+    clap_complete::CompleteEnv::with_factory(move || match name.as_str() {
+        "logs" => LogsCli::command(),
+        "metrics" => MetricsCli::command(),
+        _ => Cli::command(),
+    })
+    .complete();
     let (global, command) = parse(&invoked_as());
     let oauth = OAuthClient::new(APP, &global.issuer, &global.client_id);
 

@@ -9,6 +9,7 @@ feature-flag-proto = { path = "../feature-flag-proto" }
 anyhow = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "env"] }
+clap_complete = { version = "4", features = ["unstable-dynamic"] }
 comfy-table = "7"
 console = "0.16"
 crossterm = { version = "0.28", features = ["event-stream"] }

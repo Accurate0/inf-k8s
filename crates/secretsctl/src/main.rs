@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use anyhow::{Context, bail};
 use bao::Bao;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use cli_auth::{App, OAuthClient, TokenSource};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use serde_json::{Map, Value};
@@ -255,6 +255,7 @@ fn sync(target: &str) -> anyhow::Result<bool> {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
     let cli = Cli::parse();
     let oauth = OAuthClient::new(APP, &cli.issuer, &cli.client_id);
 

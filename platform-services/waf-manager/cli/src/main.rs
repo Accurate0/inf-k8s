@@ -1,5 +1,5 @@
 use anyhow::{Context, bail};
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
 use cli_auth::{App, OAuthClient, TokenSource};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use reqwest::{Method, StatusCode};
@@ -260,6 +260,7 @@ fn print_blocks(blocks: &[api::Block]) {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    clap_complete::CompleteEnv::with_factory(Cli::command).complete();
     let cli = Cli::parse();
     let oauth = OAuthClient::new(APP, &cli.issuer, &cli.client_id);
     let base = cli.url.trim_end_matches('/').to_owned();

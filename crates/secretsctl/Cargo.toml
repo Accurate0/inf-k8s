@@ -9,6 +9,7 @@ cli-auth = { path = "../cli-auth" }
 anyhow = "1"
 chrono = "0.4"
 clap = { version = "4", features = ["derive", "env"] }
+clap_complete = { version = "4", features = ["unstable-dynamic"] }
 comfy-table = "7"
 reqwest = { version = "0.13", features = ["json"] }
 serde = { version = "1", features = ["derive"] }

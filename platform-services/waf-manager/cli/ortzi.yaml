@@ -1,6 +1,7 @@
 package:
   name: waf
-  version: 0.1.0
+  version: 0.1.1
+  completions: clap
   description: waf-manager admin CLI
   binary: wafctl
   aliases: [wafctl]

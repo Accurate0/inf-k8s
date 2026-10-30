@@ -3,6 +3,7 @@ package:
   description: Envoy Gateway CLI (upstream envoyproxy/gateway)
   # renovate: datasource=github-releases depName=envoyproxy/gateway extractVersion=^v(?<version>.+)$
   version: 1.9.2
+  completions: cobra
 build:
   kind: prebuilt
   prebuilt:

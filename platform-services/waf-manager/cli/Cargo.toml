@@ -9,6 +9,7 @@ waf-manager-api = { path = "../api" }
 cli-auth = { path = "../../../crates/cli-auth" }
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env"] }
+clap_complete = { version = "4", features = ["unstable-dynamic"] }
 chrono = { version = "0.4", features = ["serde"] }
 comfy-table = "7"
 reqwest = { version = "0.13", features = ["json"] }
