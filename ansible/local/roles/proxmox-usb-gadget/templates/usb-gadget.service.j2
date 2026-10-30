@@ -6,6 +6,7 @@ Before=pve-guests.service
 [Service]
 Type=oneshot
 RemainAfterExit=true
+ExecStartPre=/usr/sbin/dkms autoinstall -k %v
 ExecStart=/usr/local/sbin/usb-gadget-{{ proxmox_usb_gadget_name }} start
 ExecStop=/usr/local/sbin/usb-gadget-{{ proxmox_usb_gadget_name }} stop
 
