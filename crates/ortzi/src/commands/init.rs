@@ -58,12 +58,10 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
     }
     if kind == Kind::Prebuilt {
         for target in &build.targets {
-            build
-                .prebuilt
-                .insert(
-                    *target,
-                    manifest::Prebuilt::Path(format!("dist/{name}-${{version}}-{target}")),
-                );
+            build.prebuilt.insert(
+                *target,
+                manifest::Prebuilt::Path(format!("dist/{name}-${{version}}-{target}")),
+            );
         }
     }
 
@@ -74,6 +72,7 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
             description: String::new(),
             aliases: Vec::new(),
             version: Some(version.unwrap_or_else(|| "0.1.0".to_owned())),
+            completions: None,
         },
         auth: None,
         permissions: (kind == Kind::Wasm).then(registry_api::Permissions::default),

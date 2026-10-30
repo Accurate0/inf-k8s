@@ -34,7 +34,7 @@ fn split_spec(spec: &str) -> (&str, Option<&str>) {
     }
 }
 
-async fn resolve(
+pub async fn resolve(
     client: &Client,
     name: &str,
     version: Option<&str>,
@@ -70,6 +70,7 @@ async fn install_version(
     let trust::Verified {
         artifact,
         permissions,
+        completions,
     } = trust::verified_artifact(name, version, target)?;
     let target = artifact.target;
     validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
@@ -150,6 +151,7 @@ async fn install_version(
             aliases: version.aliases.clone(),
             auth: version.auth.clone(),
             permissions: permissions.clone(),
+            completions,
         },
     );
     store.save(&installed)?;
@@ -220,18 +222,19 @@ fn set_executable(path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
+pub fn shim_target(name: &str, binary: &str) -> std::path::PathBuf {
+    Path::new("../packages")
+        .join(name)
+        .join("current")
+        .join(binary)
+}
+
 fn link_shim(store: &Store, name: &str, binary: &str) -> anyhow::Result<()> {
     let bin = store.bin_dir();
     std::fs::create_dir_all(&bin)?;
     let shim = bin.join(binary);
     let _ = std::fs::remove_file(&shim);
-    std::os::unix::fs::symlink(
-        Path::new("../packages")
-            .join(name)
-            .join("current")
-            .join(binary),
-        &shim,
-    )?;
+    std::os::unix::fs::symlink(shim_target(name, binary), &shim)?;
     Ok(())
 }
 
@@ -278,6 +281,13 @@ pub async fn self_update(settings: &Settings, version: Option<&str>) -> anyhow::
     Ok(())
 }
 
+pub fn is_newer(candidate: &str, current: &str) -> bool {
+    match (semver::Version::parse(candidate), semver::Version::parse(current)) {
+        (Ok(candidate), Ok(current)) => candidate > current,
+        _ => candidate != current,
+    }
+}
+
 async fn self_update_with(
     client: &Client,
     target: Target,
@@ -286,13 +296,7 @@ async fn self_update_with(
 ) -> anyhow::Result<bool> {
     let release = resolve(client, SELF, version, target).await?;
     let running = env!("ORTZI_VERSION");
-    let newer = match (
-        semver::Version::parse(&release.version),
-        semver::Version::parse(running),
-    ) {
-        (Ok(release), Ok(running)) => release > running,
-        _ => release.version != running,
-    };
+    let newer = is_newer(&release.version, running);
     if release.version == running || (!newer && !exact) {
         return Ok(false);
     }
@@ -381,13 +385,7 @@ async fn update_one(
     target: Target,
 ) -> anyhow::Result<bool> {
     let latest = resolve(client, name, None, target).await?;
-    let newer = match (
-        semver::Version::parse(&latest.version),
-        semver::Version::parse(&current.version),
-    ) {
-        (Ok(latest), Ok(current)) => latest > current,
-        _ => latest.version != current.version,
-    };
+    let newer = is_newer(&latest.version, &current.version);
     if newer {
         install_version(client, store, name, &latest, target, false).await?;
     }

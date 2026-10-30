@@ -1,5 +1,6 @@
 mod client;
 mod commands;
+mod completions;
 mod dispatch;
 mod manifest;
 mod package_auth;
@@ -14,7 +15,7 @@ use clap::{Parser, Subcommand};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{Target, WhoAmI};
 
-use commands::{init, packages, publish, registry::RegistryCommand};
+use commands::{doctor, init, packages, publish, registry::RegistryCommand};
 use session::Settings;
 use store::Store;
 
@@ -110,6 +111,13 @@ enum Command {
         #[command(subcommand)]
         command: RegistryCommand,
     },
+    /// Check the install, session and packages for problems
+    Doctor,
+    /// Print a shell completion script, e.g. `source <(ortzi completions zsh)`
+    Completions {
+        #[arg(value_parser = ["bash", "zsh", "fish", "elvish", "powershell"])]
+        shell: String,
+    },
     /// Print the directory installed binaries are linked into, for PATH
     BinDir,
     #[command(external_subcommand)]
@@ -118,6 +126,7 @@ enum Command {
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
+    completions::run();
     let cli = Cli::parse();
     let settings = cli.settings;
 
@@ -186,6 +195,8 @@ async fn main() -> anyhow::Result<()> {
         }),
         Command::Dev { path, args } => dev(&path, args).await,
         Command::Registry { command } => commands::registry::run(&settings, command).await,
+        Command::Doctor => doctor::run(&settings).await,
+        Command::Completions { shell } => completions::print_script(&shell),
         Command::BinDir => {
             println!("{}", Store::open()?.bin_dir().display());
             Ok(())

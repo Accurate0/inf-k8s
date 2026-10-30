@@ -1,3 +1,4 @@
+pub mod doctor;
 pub mod init;
 pub mod packages;
 pub mod publish;

@@ -1,6 +1,6 @@
 use anyhow::{Context, bail};
 use registry_api::{
-    Artifact, Permissions, Target, Version,
+    Artifact, Completions, Permissions, Target, Version,
     signing::{self, PublicKeyHandle, Statement},
 };
 
@@ -16,16 +16,21 @@ fn roots() -> anyhow::Result<Vec<PublicKeyHandle>> {
 pub struct Verified {
     pub artifact: Artifact,
     pub permissions: Option<Permissions>,
+    pub completions: Option<Completions>,
 }
 
 pub fn verified_artifact(name: &str, version: &Version, host: Target) -> anyhow::Result<Verified> {
     let statement = verified_statement(name, version)?;
-    let artifact = pick(&statement.artifacts, host)
-        .cloned()
-        .with_context(|| format!("{name}@{} has no signed {host} or wasm build", version.version))?;
+    let artifact = pick(&statement.artifacts, host).cloned().with_context(|| {
+        format!(
+            "{name}@{} has no signed {host} or wasm build",
+            version.version
+        )
+    })?;
     Ok(Verified {
         artifact,
         permissions: statement.permissions,
+        completions: statement.completions,
     })
 }
 
@@ -66,8 +71,14 @@ mod tests {
             size: 0,
         };
         let both = [artifact(Target::Wasm), artifact(Target::DarwinArm64)];
-        assert_eq!(pick(&both, Target::DarwinArm64).unwrap().target, Target::DarwinArm64);
-        assert_eq!(pick(&both, Target::LinuxAmd64).unwrap().target, Target::Wasm);
+        assert_eq!(
+            pick(&both, Target::DarwinArm64).unwrap().target,
+            Target::DarwinArm64
+        );
+        assert_eq!(
+            pick(&both, Target::LinuxAmd64).unwrap().target,
+            Target::Wasm
+        );
         assert!(pick(&[artifact(Target::LinuxAmd64)], Target::DarwinArm64).is_none());
     }
 

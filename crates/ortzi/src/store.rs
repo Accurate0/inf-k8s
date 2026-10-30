@@ -1,7 +1,7 @@
 use std::{collections::BTreeMap, path::PathBuf};
 
 use anyhow::Context;
-use registry_api::{PackageAuth, Permissions, Target};
+use registry_api::{Completions, PackageAuth, Permissions, Target};
 use serde::{Deserialize, Serialize};
 
 pub struct Store {
@@ -26,6 +26,8 @@ pub struct InstalledPackage {
     pub auth: Option<PackageAuth>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permissions: Option<Permissions>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completions: Option<Completions>,
 }
 
 impl InstalledPackage {
@@ -69,6 +71,11 @@ impl Store {
         Ok(Self { root })
     }
 
+    #[cfg(test)]
+    pub fn at(root: PathBuf) -> Self {
+        Self { root }
+    }
+
     pub fn bin_dir(&self) -> PathBuf {
         self.root.join("bin")
     }
@@ -77,12 +84,18 @@ impl Store {
         self.root.join("tmp")
     }
 
+    pub fn packages_dir(&self) -> PathBuf {
+        self.root.join("packages")
+    }
+
     pub fn package_dir(&self, name: &str) -> PathBuf {
-        self.root.join("packages").join(name)
+        self.packages_dir().join(name)
     }
 
     pub fn current_binary(&self, name: &str, package: &InstalledPackage) -> PathBuf {
-        self.package_dir(name).join("current").join(package.file_name())
+        self.package_dir(name)
+            .join("current")
+            .join(package.file_name())
     }
 
     fn state_path(&self) -> PathBuf {
@@ -124,6 +137,7 @@ mod tests {
                 aliases: vec!["ffctl".to_owned()],
                 auth: None,
                 permissions: None,
+                completions: None,
             },
         );
 

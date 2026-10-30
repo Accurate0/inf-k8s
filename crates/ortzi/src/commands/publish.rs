@@ -137,6 +137,7 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
             version: version.clone(),
             artifacts: draft.artifacts,
             permissions: loaded.manifest.permissions.clone(),
+            completions: loaded.manifest.package.completions,
         },
     );
 

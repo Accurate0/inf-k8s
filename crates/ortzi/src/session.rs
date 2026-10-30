@@ -1,5 +1,5 @@
 use anyhow::Context;
-use cli_auth::{App, OAuthClient, TokenSource};
+use cli_auth::{App, Credentials, OAuthClient, TokenSource};
 use serde::Deserialize;
 
 use crate::client::Client;
@@ -76,6 +76,24 @@ impl Settings {
             None => self.user_bearer().await?,
         };
         Ok(Client::new(&self.registry, bearer))
+    }
+
+    pub async fn reader_without_login(&self) -> anyhow::Result<Option<Client>> {
+        if let Some(token) = self.token() {
+            return Ok(Some(Client::new(&self.registry, token)));
+        }
+        let oauth = self.oauth();
+        let Some(credentials) = Credentials::load(APP, oauth.issuer(), oauth.client_id()) else {
+            return Ok(None);
+        };
+        let credentials = if credentials.is_fresh() {
+            credentials
+        } else if credentials.refresh_token.is_some() {
+            oauth.refresh(&credentials).await?
+        } else {
+            return Ok(None);
+        };
+        Ok(Some(Client::new(&self.registry, credentials.access_token)))
     }
 
     pub async fn publisher(&self) -> anyhow::Result<(Client, &'static str)> {

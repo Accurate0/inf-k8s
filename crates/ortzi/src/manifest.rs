@@ -5,7 +5,9 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use registry_api::{DEFAULT_SCOPES, PackageAuth, Permissions, Target, validate_package_name};
+use registry_api::{
+    Completions, DEFAULT_SCOPES, PackageAuth, Permissions, Target, validate_package_name,
+};
 use serde::{Deserialize, Serialize};
 
 pub const FILE_NAME: &str = "ortzi.yaml";
@@ -63,6 +65,8 @@ pub struct PackageSection {
     pub aliases: Vec<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub version: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub completions: Option<Completions>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -379,8 +383,17 @@ impl Loaded {
     }
 
     fn wasm_build(&self) -> anyhow::Result<PathBuf> {
-        let entry = self.manifest.build.wasm.entry.as_deref().unwrap_or("src/main.ts");
-        let out = self.dir.join("dist").join(format!("{}.wasm", self.binary()));
+        let entry = self
+            .manifest
+            .build
+            .wasm
+            .entry
+            .as_deref()
+            .unwrap_or("src/main.ts");
+        let out = self
+            .dir
+            .join("dist")
+            .join(format!("{}.wasm", self.binary()));
 
         eprintln!("building {} for wasm", self.name());
         let status = Command::new("pnpm")
@@ -454,7 +467,10 @@ impl Loaded {
 }
 
 fn is_sha256(value: &str) -> bool {
-    value.len() == 64 && value.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f'))
 }
 
 fn rustc_host() -> anyhow::Result<String> {
