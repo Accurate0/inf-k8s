@@ -1,8 +1,8 @@
 import type { Kube } from '@ortzi/kit';
 
 const ARGOCD = 'argocd';
-const SAVED_AUTOMATED = 'ortzi.cloud/saved-automated';
-const MANUAL_SYNC = 'ortzi.cloud/manual-sync';
+const SAVED_AUTOMATED = 'cli.ortzi.cloud/saved-automated';
+const MANUAL_SYNC = 'cli.ortzi.cloud/manual-sync';
 const DEFAULT_AUTOMATED: Automated = { prune: true, selfHeal: true };
 
 export interface Automated {
