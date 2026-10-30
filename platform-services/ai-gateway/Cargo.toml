@@ -47,7 +47,7 @@ jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 [dev-dependencies]
 p256 = { version = "0.13", features = ["pkcs8", "jwk"] }
 insta = { version = "1", features = ["yaml", "redactions"] }
-jsonschema = { version = "0.58", default-features = false }
+jsonschema = { version = "0.60", default-features = false }
 serial_test = "4"
 wiremock = "0.6"
 
