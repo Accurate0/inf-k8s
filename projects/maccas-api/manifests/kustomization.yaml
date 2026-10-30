@@ -14,14 +14,14 @@ commonAnnotations:
   inf-k8s.net/repository: https://github.com/Accurate0/maccas-api
 images:
   - name: ghcr.io/accurate0/maccas-api
-    newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
+    newTag: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
   - name: ghcr.io/accurate0/maccas-clustering
-    newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
+    newTag: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
   - name: ghcr.io/accurate0/maccas-migration
-    newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
+    newTag: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
   - name: ghcr.io/accurate0/maccas-recommendations
-    newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
+    newTag: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
   - name: ghcr.io/accurate0/maccas-scheduler
-    newTag: fe785f18af1557ff38c9897c078c0b1c7b0cc35c
+    newTag: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
   - name: ghcr.io/accurate0/maccas-web
     newTag: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
