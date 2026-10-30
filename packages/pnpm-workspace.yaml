@@ -1,6 +1,7 @@
 packages:
   - feature-flag-client
   - ortzi-host
+  - ortzi-kit
   - ortzi-example
   - schemas
   - deploy

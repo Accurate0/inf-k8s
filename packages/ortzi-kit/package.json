@@ -1,0 +1,20 @@
+{
+  "name": "@ortzi/kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Shared helpers for ortzi TypeScript packages: command dispatch, kubectl, curl, ghcr and output formatting.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test src/format.test.ts src/image.test.ts"
+  },
+  "dependencies": {
+    "@ortzi/host": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  }
+}

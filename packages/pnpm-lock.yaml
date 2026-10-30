@@ -175,6 +175,9 @@ importers:
       '@ortzi/host':
         specifier: workspace:*
         version: link:../ortzi-host
+      '@ortzi/kit':
+        specifier: workspace:*
+        version: link:../ortzi-kit
     devDependencies:
       typescript:
         specifier: ^7.0.0
@@ -228,11 +231,24 @@ importers:
         specifier: ^7.0.0
         version: 7.0.2
 
+  ortzi-kit:
+    dependencies:
+      '@ortzi/host':
+        specifier: workspace:*
+        version: link:../ortzi-host
+    devDependencies:
+      typescript:
+        specifier: ^7.0.0
+        version: 7.0.2
+
   schemas:
     dependencies:
       '@ortzi/host':
         specifier: workspace:*
         version: link:../ortzi-host
+      '@ortzi/kit':
+        specifier: workspace:*
+        version: link:../ortzi-kit
     devDependencies:
       typescript:
         specifier: ^7.0.0

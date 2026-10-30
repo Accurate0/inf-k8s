@@ -7,7 +7,8 @@
     "check": "tsc --noEmit"
   },
   "dependencies": {
-    "@ortzi/host": "workspace:*"
+    "@ortzi/host": "workspace:*",
+    "@ortzi/kit": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^7.0.0"

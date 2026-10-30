@@ -7,6 +7,7 @@ on:
       - packages/deploy/**
       - packages/schemas/**
       - packages/ortzi-host/**
+      - packages/ortzi-kit/**
       - packages/pnpm-lock.yaml
       - .forgejo/workflows/publish-cli-deploy.yaml
   workflow_dispatch:
