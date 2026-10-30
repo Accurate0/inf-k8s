@@ -227,6 +227,16 @@ impl Registry {
     }
 
     async fn publish(&self, token: &str, name: &str, version: &str) -> u16 {
+        self.publish_described(token, name, version, None).await
+    }
+
+    async fn publish_described(
+        &self,
+        token: &str,
+        name: &str,
+        version: &str,
+        description: Option<&str>,
+    ) -> u16 {
         let base = format!("/cli/v1/packages/{name}/versions");
         let (status, body) = self
             .call(
@@ -236,6 +246,7 @@ impl Registry {
                 Some(json!({
                     "version": version,
                     "targets": ["darwin-arm64", "linux-amd64"],
+                    "description": description,
                     "auth": {
                         "issuer": "https://idm.example.test/oauth2/openid/ff",
                         "client_id": "ff",
@@ -390,6 +401,43 @@ async fn publish_then_install_round_trip(pool: PgPool) {
     assert_eq!(bytes, expected);
     assert_eq!(header.as_deref(), Some(sha(expected).as_str()));
     assert_eq!(latest["artifacts"][0]["sha256"], sha(expected));
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn publishing_latest_updates_package_description(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("ff").await;
+
+    for (version, description, expected) in [
+        ("1.0.0", Some("first"), "first"),
+        ("0.9.0", Some("older"), "first"),
+        ("2.0.0-rc.1", Some("prerelease"), "first"),
+        ("1.1.0", Some(""), "first"),
+        ("1.2.0", None, "first"),
+        ("1.3.0", Some("second"), "second"),
+    ] {
+        let status = registry
+            .publish_described(&registry.admin, "ff", version, description)
+            .await;
+        assert_eq!(status, 200, "{version}");
+
+        let (status, body) = registry
+            .call("GET", "/cli/v1/packages/ff", Some(&registry.admin), None)
+            .await;
+        assert_eq!(status, 200, "{body}");
+        assert_eq!(body["description"], expected, "{version}");
+    }
+
+    let (status, body) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages?q=second",
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body[0]["name"], "ff");
 }
 
 #[sqlx::test(migrations = "./migrations")]

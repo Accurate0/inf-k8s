@@ -230,6 +230,19 @@ pub async fn publish(
         ));
     }
 
+    let versions = db::versions(&state.pool, package.id).await?;
+    if !row.description.is_empty()
+        && db::latest(&versions, None, false).is_some_and(|v| v.id == row.id)
+    {
+        sqlx::query!(
+            "UPDATE cli_packages SET description = $2, updated_at = now() WHERE id = $1",
+            package.id,
+            row.description
+        )
+        .execute(&state.pool)
+        .await?;
+    }
+
     audit::record(
         &state.pool,
         &publisher.actor,
