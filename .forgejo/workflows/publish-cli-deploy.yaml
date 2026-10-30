@@ -1,10 +1,11 @@
-name: Publish deploy
+name: Publish deploy and schemas
 on:
   push:
     branches:
       - main
     paths:
       - packages/deploy/**
+      - packages/schemas/**
       - packages/ortzi-host/**
       - packages/pnpm-lock.yaml
       - .forgejo/workflows/publish-cli-deploy.yaml
@@ -15,6 +16,10 @@ enable-openid-connect: true
 jobs:
   publish:
     runs-on: ortzi
+    strategy:
+      fail-fast: false
+      matrix:
+        package: [deploy, schemas]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: ortzi publish packages/deploy
+      - run: ortzi publish packages/${{ matrix.package }}
