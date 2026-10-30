@@ -65,6 +65,13 @@ pub fn validate_binary_name(binary: &str) -> Result<(), String> {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Completions {
+    Clap,
+    Cobra,
+}
+
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct Permissions {
