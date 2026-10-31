@@ -8,9 +8,6 @@ routes:
     gateway: internal-gateway
     hosts:
       - waf-manager.ortzi.cloud
-    backend:
-      name: api
-      port: 80
   waf-manager-api:
     auth:
       mode: jwt
@@ -20,9 +17,6 @@ routes:
     gateway: internal-gateway
     hosts:
       - waf-manager.ortzi.cloud
-    backend:
-      name: api
-      port: 80
     paths:
       - /api/
 oidc:

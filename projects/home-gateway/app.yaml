@@ -8,9 +8,7 @@ routes:
       reason: accepts X-Api-Key as well as JWTs
     hosts:
       - home.anurag.sh
-    backend:
-      name: home-gateway
-      port: 80
+    workload: home-gateway
     paths:
       - /v1
     annotations:
