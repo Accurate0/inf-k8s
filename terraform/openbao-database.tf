@@ -72,16 +72,12 @@ resource "azurerm_key_vault_secret" "openbao-database" {
 }
 
 locals {
-  databases = {
-    bom           = { namespace = "bom", role = "bom" }
-    home-gateway  = { namespace = "home-gateway", role = "home_gateway" }
-    waf-manager   = { namespace = "waf-manager", role = "waf_manager" }
-    feature-flags = { namespace = "feature-flags", role = "feature_flags" }
-    ai-gateway    = { namespace = "ai-gateway", role = "ai_gateway" }
-    dawarich      = { namespace = "dawarich", role = "dawarich_2" }
-    forgejo       = { namespace = "forgejo", role = "forgejo" }
-    firefly       = { namespace = "firefly", role = "firefly" }
-    immich        = { namespace = "immich", role = "immich" }
-    registry      = { namespace = "registry", role = "registry" }
+  selfhosted_databases = {
+    dawarich = { namespace = "dawarich", role = "dawarich_2" }
+    forgejo  = { namespace = "forgejo", role = "forgejo" }
+    firefly  = { namespace = "firefly", role = "firefly" }
+    immich   = { namespace = "immich", role = "immich" }
   }
+
+  databases = merge(local.selfhosted_databases, local.app_databases)
 }
