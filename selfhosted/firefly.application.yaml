@@ -107,12 +107,6 @@ spec:
                     includeAllSecrets: false
                     data:
                       accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"
-                - secretName: firefly-up-sync-managed-secrets
-                  template:
-                    includeAllSecrets: false
-                    data:
-                      FIREFLY_TOKEN: "{{ .FIREFLY_ACCESS_TOKEN }}"
-                      UP_TOKEN: "{{ .UP_TOKEN }}"
     - chart: firefly-iii
       repoURL: https://firefly-iii.github.io/kubernetes/
       targetRevision: 1.10.2
@@ -311,8 +305,6 @@ spec:
               memory: 512Mi
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       path: selfhosted/firefly
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: platform-services/firefly-up-sync/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: firefly
