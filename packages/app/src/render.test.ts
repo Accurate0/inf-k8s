@@ -464,3 +464,99 @@ test('rejects health without a port', () => {
     /health needs port/,
   );
 });
+
+const short = (workload: Record<string, unknown>, extra: Record<string, unknown> = {}) => {
+  const app = validate({ name: 'foo', network: { ingress: [] }, ...extra, workloads: { foo: { image: 'i', ...workload } } }, 'test');
+  return source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+};
+
+test('expands the env map', () => {
+  const { env } = short(
+    {
+      env: {
+        A: 'b',
+        N: 300,
+        T: { resource: 'traces' },
+        S: { secret: 'foo-secret', key: 'K', optional: true },
+        F: { field: 'metadata.name' },
+      },
+    },
+    { resources: [{ name: 'traces', type: 'tracing' }] },
+  );
+  assert.deepEqual(env, [
+    { name: 'A', value: 'b' },
+    { name: 'N', value: '300' },
+    { name: 'T', value: 'http://tempo/traces' },
+    { name: 'S', valueFrom: { secretKeyRef: { name: 'foo-secret', key: 'K', optional: true } } },
+    { name: 'F', valueFrom: { fieldRef: { fieldPath: 'metadata.name' } } },
+  ]);
+});
+
+test('expands envFrom names in order', () => {
+  const { envFrom } = short({ envFrom: ['b', { secretRef: { name: 'a', optional: true } }] });
+  assert.deepEqual(envFrom, [{ secretRef: { name: 'b' } }, { secretRef: { name: 'a', optional: true } }]);
+});
+
+test('expands probes around a shared target', () => {
+  const out = short({
+    probes: {
+      http: { path: '/health', port: 3000 },
+      readiness: { delay: 5, every: 15 },
+      startup: { every: 2, timeout: 2, failures: 30 },
+    },
+  });
+  const httpGet = { path: '/health', port: 3000 };
+  assert.deepEqual(out.readinessProbe, { httpGet, initialDelaySeconds: 5, periodSeconds: 15 });
+  assert.deepEqual(out.startupProbe, { httpGet, periodSeconds: 2, timeoutSeconds: 2, failureThreshold: 30 });
+  assert.equal(out.livenessProbe, undefined);
+  assert.equal(out.probes, undefined);
+});
+
+test('expands mounts to volumes and volume mounts', () => {
+  const out = short({
+    mounts: {
+      tmp: { path: '/tmp', emptyDir: true },
+      rules: { path: '/etc/rules', configMap: 'cm', items: ['config.yaml', 'rules/a.yaml'] },
+    },
+  });
+  assert.deepEqual(out.volumes, [
+    { name: 'tmp', emptyDir: {} },
+    {
+      name: 'rules',
+      configMap: { name: 'cm', items: [{ key: 'config.yaml', path: 'config.yaml' }, { key: 'a.yaml', path: 'rules/a.yaml' }] },
+    },
+  ]);
+  assert.deepEqual(out.volumeMounts, [
+    { name: 'tmp', mountPath: '/tmp' },
+    { name: 'rules', mountPath: '/etc/rules', readOnly: true },
+  ]);
+});
+
+test('expands flat resources, ports and service protocol', () => {
+  const out = short({
+    resources: { cpu: '30m', memory: '56Mi', memoryLimit: '128Mi' },
+    ports: [3000],
+    service: { name: 'api', ports: [{ name: 'http', port: 80, targetPort: 3000 }] },
+  });
+  assert.deepEqual(out.resources, { requests: { cpu: '30m', memory: '56Mi' }, limits: { memory: '128Mi' } });
+  assert.deepEqual(out.ports, [{ containerPort: 3000 }]);
+  assert.equal(out.service.ports[0].protocol, 'TCP');
+});
+
+test('overrides are written directly to the workload', () => {
+  const affinity = { podAntiAffinity: { requiredDuringSchedulingIgnoredDuringExecution: [] } };
+  const out = short({ overrides: { affinity, minReadySeconds: 15 } });
+  assert.deepEqual(out.affinity, affinity);
+  assert.equal(out.minReadySeconds, 15);
+  assert.equal(out.overrides, undefined);
+});
+
+test('rejects overrides that clash with the workload', () => {
+  assert.throws(() => short({ replicas: 2, overrides: { replicas: 3 } }), /overrides.replicas is already set/);
+  assert.throws(
+    () => short({ probes: { http: { path: '/', port: 1 }, liveness: {} }, overrides: { livenessProbe: {} } }),
+    /overrides.livenessProbe is already set/,
+  );
+  assert.throws(() => short({ port: 1, health: '/', probes: {} }), /health or probes/);
+  assert.throws(() => short({ env: { A: { resource: 'nope' } } }), /no resource named nope/);
+});

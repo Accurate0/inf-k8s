@@ -142,18 +142,106 @@
             "description": "HTTP path for readiness and liveness."
           },
           "resources": {
-            "type": "object"
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cpu": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "string"
+              },
+              "memoryLimit": {
+                "type": "string"
+              },
+              "requests": {
+                "type": "object"
+              },
+              "limits": {
+                "type": "object"
+              }
+            }
           },
           "env": {
-            "type": "array",
-            "items": {
-              "type": "object"
-            }
+            "description": "Map of variable to a string, {resource}, {secret, key} or {field}. A list is the raw form.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "resource"
+                      ],
+                      "properties": {
+                        "resource": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "secret",
+                        "key"
+                      ],
+                      "properties": {
+                        "secret": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "field"
+                      ],
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
           },
           "envFrom": {
             "type": "array",
+            "description": "Secret names, or objects for optional and prefix.",
             "items": {
-              "type": "object"
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object"
+                }
+              ]
             }
           },
           "readOnlyRootFilesystem": {
@@ -205,6 +293,143 @@
           },
           "serviceAccountName": {
             "type": "string"
+          },
+          "probes": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "http": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "port"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                }
+              },
+              "grpc": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "port"
+                ],
+                "properties": {
+                  "port": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "startup": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "readiness": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "liveness": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "mounts": {
+            "type": "object",
+            "description": "Keyed by volume name. ConfigMaps mount read-only.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "configMap": {
+                  "type": "string"
+                },
+                "items": {
+                  "type": "array",
+                  "description": "Paths in the volume; the key is the basename.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "emptyDir": {
+                  "type": "boolean"
+                }
+              }
+            }
+          },
+          "ports": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "object"
+                }
+              ]
+            }
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Written directly to the k8s-workload values for this workload."
           }
         }
       }

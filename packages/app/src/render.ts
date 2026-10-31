@@ -1,6 +1,7 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
 import { parse, stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
+import { expandWorkload, overrideConflicts, type ResolveResource } from './workload.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
 export const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
@@ -33,8 +34,11 @@ export interface Workload {
   sidecars?: { image: string }[];
   health?: string;
   resources?: Record<string, unknown>;
-  env?: Record<string, unknown>[];
-  envFrom?: Record<string, unknown>[];
+  env?: Record<string, unknown>[] | Record<string, unknown>;
+  envFrom?: (string | Record<string, unknown>)[];
+  probes?: Record<string, unknown>;
+  mounts?: Record<string, unknown>;
+  overrides?: Record<string, unknown>;
   readOnlyRootFilesystem?: boolean;
   secrets?: string[];
   databases?: string[];
@@ -204,6 +208,12 @@ export function validate(raw: unknown, where: string): App {
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
     if (workload.health && !workload.port) fail(`workloads.${name}.health needs port`);
+    if (workload.health && workload.probes) fail(`workloads.${name}: use health or probes, not both`);
+    for (const key of overrideConflicts(workload)) fail(`workloads.${name}.overrides.${key} is already set on the workload`);
+    for (const value of Object.values(!workload.env || Array.isArray(workload.env) ? {} : workload.env)) {
+      const used = (value as { resource?: string } | null)?.resource;
+      if (used && !app.resources?.some((r) => r.name === used)) fail(`workloads.${name}.env: no resource named ${used}`);
+    }
   }
   const routes = Object.entries(app.routes ?? {});
   const clients = Object.entries(app.oidc ?? {});
@@ -292,7 +302,9 @@ export function validateResources(world: World) {
       if (resource.type === 'app') appExportUrl(app, resource, world.apps);
     }
     for (const [name, workload] of Object.entries(app.workloads ?? {})) {
-      const seen = new Set((workload.env ?? []).map((e) => e.name as string));
+      const resolve: ResolveResource = (resource, env) => resourceEnv(app, { name: resource, env }, world)[0];
+      const expanded = expandWorkload({ env: workload.env }, resolve).env ?? [];
+      const seen = new Set((expanded as { name: string }[]).map((e) => e.name));
       for (const use of workload.uses ?? []) {
         for (const { name: env } of resourceEnv(app, use, world)) {
           if (seen.has(env)) throw new Error(`${app.name}: workloads.${name}.uses: ${useFor(use).name} sets ${env}, which is already set`);
@@ -410,12 +422,15 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             : {}),
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const { health, envFrom, secrets: only, databases: dbs, uses, ...rest } = spec;
-            const injected = (uses ?? []).flatMap((use) => resourceEnv(app, use, world));
-            const chosen = dbs ?? Object.keys(app.databases ?? {});
+            const resolve: ResolveResource = (resource, env) => resourceEnv(app, { name: resource, env }, world)[0];
+            const { health, secrets: only, databases: dbs, uses, ...rest } = expandWorkload(spec, resolve);
+            const envFrom = rest.envFrom as Record<string, unknown>[] | undefined;
+            delete rest.envFrom;
+            const injected = (uses ?? []).flatMap((use: Use) => resourceEnv(app, use, world));
+            const chosen: string[] = dbs ?? Object.keys(app.databases ?? {});
             const from = [
               ...(envFrom ?? []),
-              ...(only ? only.map((o) => secrets.find((s) => s.name === o)!) : secrets).map((s) => ({
+              ...(only ? (only as string[]).map((o) => secrets.find((s) => s.name === o)!) : secrets).map((s) => ({
                 secretRef: { name: s.secretName },
               })),
               ...chosen.map((database) => ({
@@ -428,7 +443,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             return {
               name: workload,
               ...rest,
-              ...(injected.length ? { env: [...(spec.env ?? []), ...injected] } : {}),
+              ...(injected.length ? { env: [...(rest.env ?? []), ...injected] } : {}),
               ...(health ? { probes: { path: health } } : {}),
               ...(from.length ? { envFrom: from } : {}),
             };
