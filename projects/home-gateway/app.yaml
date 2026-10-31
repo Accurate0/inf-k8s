@@ -73,6 +73,7 @@ resources:
         - clientSelectors:
             - headers:
                 - name: x-real-ip
+                  invert: false
                   type: Distinct
           limit:
             requests: 5
