@@ -27,11 +27,11 @@ databases:
 secrets:
   - feature-flags
 network:
-  ingress:
-    - ai-gateway
-    - home-gateway
-    - maccas-api
-    - janitor-bot
+  ingress: []
+exports:
+  - name: api
+    workload: feature-flags
+    port: grpc
 resources:
   - name: traces
     type: tracing

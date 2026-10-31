@@ -55,6 +55,10 @@ network:
     - forgejo
     - monitoring
 resources:
+  - name: flags
+    type: app
+    app: feature-flags
+    export: api
   - name: traces
     type: tracing
 workloads:
@@ -80,6 +84,8 @@ workloads:
       periodSeconds: 60
     uses:
       - traces
+      - name: flags
+        env: FEATURE_FLAGS_URL
     env:
       - name: OIDC_ISSUER
         value: https://idm.anurag.sh/oauth2/openid/janitor-bot
@@ -89,8 +95,6 @@ workloads:
         value: janitor_bot_admins
       - name: RULES_CONFIGMAP_PATH
         value: /etc/janitor-bot/rules/config.yaml
-      - name: FEATURE_FLAGS_URL
-        value: http://api.feature-flags.svc.cluster.local:50051
       - name: ARGOCD_SERVER
         value: http://argocd-server.argocd.svc.cluster.local:80
       - name: FORGEJO_INSTANCE_URL

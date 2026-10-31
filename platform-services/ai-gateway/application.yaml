@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:38:57.785Z
+# generated at 2026-10-31T10:46:20.908Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -52,12 +52,12 @@ spec:
               env:
                 - name: CONFIG_PATH
                   value: /etc/ai-gateway/config.yaml
-                - name: FEATURE_FLAGS_URL
-                  value: http://api.feature-flags.svc.cluster.local:50051
                 - name: REDIS_URL
                   value: redis://replicated.dragonfly.svc.cluster.local
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+                - name: FEATURE_FLAGS_URL
+                  value: http://api.feature-flags.svc.cluster.local:50051
               volumeMounts:
                 - name: config
                   mountPath: /etc/ai-gateway
@@ -111,13 +111,13 @@ spec:
                 limits:
                   memory: 128Mi
               env:
-                - name: AIG_URL
-                  value: http://api.ai-gateway.svc.cluster.local
                 - name: AIG_ADMIN_TOKEN
                   valueFrom:
                     secretKeyRef:
                       name: ai-gateway-managed-secrets
                       key: ADMIN_TOKEN
+                - name: AIG_URL
+                  value: http://api.ai-gateway.svc.cluster.local
               kind: CronJob
               schedule: 17 4 * * *
               backoffLimit: 2
@@ -130,9 +130,9 @@ spec:
           ingress:
             - envoy-gateway-system
             - monitoring
+            - janitor-bot
             - maccas-api
             - tldr-bot
-            - janitor-bot
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.4.0

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:38:57.808Z
+# generated at 2026-10-31T10:46:20.929Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -59,14 +59,14 @@ spec:
                   value: janitor_bot_admins
                 - name: RULES_CONFIGMAP_PATH
                   value: /etc/janitor-bot/rules/config.yaml
-                - name: FEATURE_FLAGS_URL
-                  value: http://api.feature-flags.svc.cluster.local:50051
                 - name: ARGOCD_SERVER
                   value: http://argocd-server.argocd.svc.cluster.local:80
                 - name: FORGEJO_INSTANCE_URL
                   value: http://forgejo-http.forgejo.svc.cluster.local:3000
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+                - name: FEATURE_FLAGS_URL
+                  value: http://api.feature-flags.svc.cluster.local:50051
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp

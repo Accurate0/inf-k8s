@@ -72,6 +72,10 @@ oidc:
         - profile
         - groups
 resources:
+  - name: flags
+    type: app
+    app: feature-flags
+    export: api
   - name: traces
     type: tracing
 workloads:
@@ -113,9 +117,9 @@ workloads:
       timeoutSeconds: 1
     uses:
       - traces
+      - name: flags
+        env: FEATURE_FLAGS_URL
     env:
-      - name: FEATURE_FLAGS_URL
-        value: http://api.feature-flags.svc.cluster.local:50051
       - name: CONFIG_DIR
         value: /etc/home-gateway/config
     envFrom:

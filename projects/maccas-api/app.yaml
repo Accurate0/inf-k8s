@@ -36,6 +36,15 @@ secrets:
 network:
   ingress: []
 resources:
+  - name: llm
+    type: app
+    app: ai-gateway
+    export: api
+    path: /v1
+  - name: flags
+    type: app
+    app: feature-flags
+    export: api
   - name: traces
     type: tracing
 workloads:
@@ -59,15 +68,15 @@ workloads:
       timeoutSeconds: 1
     uses:
       - traces
+      - name: llm
+        env: OPENAI_BASE_URL
+      - name: flags
+        env: FEATURE_FLAGS_URL
     env:
-      - name: OPENAI_BASE_URL
-        value: http://api.ai-gateway.svc.cluster.local/v1
       - name: RECOMMENDATIONS_API_BASE
         value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
       - name: SENSORDATA_API_BASE
         value: http://maccas-sensordata.maccas-api.svc.cluster.local
-      - name: FEATURE_FLAGS_URL
-        value: http://api.feature-flags.svc.cluster.local:50051
       - name: REDIS_CONNECTION_STRING
         value: redis://replicated.dragonfly.svc.cluster.local
     envFrom:
@@ -203,9 +212,9 @@ workloads:
       timeoutSeconds: 5
     uses:
       - traces
+      - name: llm
+        env: OPENAI_BASE_URL
     env:
-      - name: OPENAI_BASE_URL
-        value: http://api.ai-gateway.svc.cluster.local/v1
       - name: FLIPT_URL
         value: http://flipt.flipt.svc.cluster.local:8080
       - name: CLUSTERING_API_BASE

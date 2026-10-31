@@ -27,11 +27,21 @@ secrets:
   - ai-gateway
 network:
   ingress:
-    - maccas-api
-    - tldr-bot
     - janitor-bot
     - monitoring
+exports:
+  - name: api
+    workload: ai-gateway
+    port: http
 resources:
+  - name: flags
+    type: app
+    app: feature-flags
+    export: api
+  - name: ai-gateway
+    type: app
+    app: ai-gateway
+    export: api
   - name: traces
     type: tracing
 workloads:
@@ -57,11 +67,11 @@ workloads:
       periodSeconds: 60
     uses:
       - traces
+      - name: flags
+        env: FEATURE_FLAGS_URL
     env:
       - name: CONFIG_PATH
         value: /etc/ai-gateway/config.yaml
-      - name: FEATURE_FLAGS_URL
-        value: http://api.feature-flags.svc.cluster.local:50051
       - name: REDIS_URL
         value: redis://replicated.dragonfly.svc.cluster.local
     envFrom:
@@ -115,9 +125,10 @@ workloads:
         memory: 32Mi
       limits:
         memory: 128Mi
+    uses:
+      - name: ai-gateway
+        env: AIG_URL
     env:
-      - name: AIG_URL
-        value: http://api.ai-gateway.svc.cluster.local
       - name: AIG_ADMIN_TOKEN
         valueFrom:
           secretKeyRef:
