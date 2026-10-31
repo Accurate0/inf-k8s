@@ -37,10 +37,6 @@ resources:
     type: app
     app: feature-flags
     export: api
-  - name: self
-    type: app
-    app: ai-gateway
-    export: api
   - name: traces
     type: tracing
 workloads:
@@ -99,7 +95,7 @@ workloads:
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
       AIG_ADMIN_TOKEN: {secret: ai-gateway-managed-secrets, key: ADMIN_TOKEN}
-      AIG_URL: {resource: self}
+      AIG_URL: http://api.ai-gateway.svc.cluster.local
 namespace:
   labels:
     internal-gateway-access: "true"
