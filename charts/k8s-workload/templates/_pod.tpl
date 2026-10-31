@@ -1,14 +1,17 @@
 {{- define "k8s-workload.pod" -}}
+{{- $w := .workload }}
+{{- $service := $w.service | default dict }}
+{{- $tag := required (printf "no tag for image %s" $w.image) (get .images $w.image) }}
 metadata:
   labels:
-    app: {{ .Values.name }}
+    app: {{ $w.name }}
   annotations:
     reloader.stakater.com/auto: "true"
-    {{- with .Values.annotations }}
+    {{- with $w.annotations }}
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  {{- if eq (.Values.kind | default "Deployment") "CronJob" }}
+  {{- if eq $w.kind "CronJob" }}
   restartPolicy: OnFailure
   {{- end }}
   securityContext:
@@ -18,24 +21,24 @@ spec:
     seccompProfile:
       type: RuntimeDefault
   containers:
-    - name: {{ .Values.name }}
-      image: {{ .Values.image }}:{{ .Values.tag }}
+    - name: {{ $w.name }}
+      image: {{ $w.image }}:{{ $tag }}
       imagePullPolicy: IfNotPresent
       securityContext:
         allowPrivilegeEscalation: false
-        readOnlyRootFilesystem: {{ ne .Values.readOnlyRootFilesystem false }}
+        readOnlyRootFilesystem: {{ ne $w.readOnlyRootFilesystem false }}
         capabilities:
           drop:
             - ALL
       resources:
-        {{- toYaml .Values.resources | nindent 8 }}
-      {{- with .Values.port }}
+        {{- toYaml $w.resources | nindent 8 }}
+      {{- with $w.port }}
       ports:
-        - name: {{ $.Values.service.portName | default "http" }}
+        - name: {{ $service.portName | default "http" }}
           containerPort: {{ . }}
       {{- end }}
-      {{- with .Values.probes }}
-      {{- $port := .port | default $.Values.port }}
+      {{- with $w.probes }}
+      {{- $port := .port | default $w.port }}
       readinessProbe:
         httpGet:
           path: {{ .path }}
@@ -48,11 +51,11 @@ spec:
         initialDelaySeconds: 3
         periodSeconds: 30
       {{- end }}
-      {{- with .Values.env }}
+      {{- with $w.env }}
       env:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.envFrom }}
+      {{- with $w.envFrom }}
       envFrom:
         {{- toYaml . | nindent 8 }}
       {{- end }}

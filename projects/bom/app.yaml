@@ -1,25 +1,26 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: bom
 repository: https://github.com/Accurate0/bom
-workload:
-  image: ghcr.io/accurate0/bom
-  port: 8000
-  health: /health
-  service:
-    name: bom-api
-    portName: api
-  resources:
-    requests:
-      cpu: 30m
-      memory: 56Mi
-    limits:
-      memory: 512Mi
-  env:
-    - name: BUCKET_NAME
-      value: bom-images
+workloads:
+  bom:
+    image: ghcr.io/accurate0/bom
+    port: 8000
+    health: /health
+    service:
+      name: bom-api
+      portName: api
+    resources:
+      requests:
+        cpu: 30m
+        memory: 56Mi
+      limits:
+        memory: 512Mi
+    env:
+      - name: BUCKET_NAME
+        value: bom-images
 database: {}
 secrets:
   - bom
 network:
-  callers:
+  ingress:
     - home-gateway

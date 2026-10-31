@@ -4,77 +4,180 @@
   "title": "app.yaml",
   "type": "object",
   "additionalProperties": false,
-  "required": ["name", "network"],
+  "required": [
+    "name",
+    "network"
+  ],
   "properties": {
-    "name": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
-    "repository": { "type": "string" },
-    "charts": { "type": "object", "description": "Pin chart versions for this app.", "additionalProperties": { "type": "string" } },
-    "workload": {
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$"
+    },
+    "repository": {
+      "type": "string"
+    },
+    "charts": {
       "type": "object",
-      "additionalProperties": false,
-      "required": ["image"],
-      "properties": {
-        "image": { "type": "string" },
-        "port": { "type": "integer" },
-        "kind": { "enum": ["Deployment", "DaemonSet", "CronJob"] },
-        "replicas": { "type": "integer" },
-        "schedule": { "type": "string" },
-        "service": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "name": { "type": "string" },
-            "port": { "type": "integer" },
-            "portName": { "type": "string" }
-          }
-        },
-        "health": { "type": "string", "description": "HTTP path for readiness and liveness." },
-        "resources": { "type": "object" },
-        "env": { "type": "array", "items": { "type": "object" } },
-        "envFrom": { "type": "array", "items": { "type": "object" } },
-        "readOnlyRootFilesystem": { "type": "boolean" }
+      "description": "Pin chart versions for this app.",
+      "additionalProperties": {
+        "type": "string"
       }
     },
     "route": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["host"],
+      "required": [
+        "host"
+      ],
       "properties": {
-        "host": { "type": "string" },
-        "gateway": { "type": "string" },
-        "unauthenticated": { "type": "boolean", "description": "Required for a route with no oidc block." }
+        "host": {
+          "type": "string"
+        },
+        "gateway": {
+          "type": "string"
+        },
+        "unauthenticated": {
+          "type": "boolean",
+          "description": "Required for a route with no oidc block."
+        },
+        "workload": {
+          "type": "string",
+          "description": "Required with several ported workloads."
+        }
       }
     },
     "oidc": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "public": { "type": "boolean" },
-        "displayName": { "type": "string" },
-        "allowLocalhostRedirect": { "type": "boolean" }
+        "public": {
+          "type": "boolean"
+        },
+        "displayName": {
+          "type": "string"
+        },
+        "allowLocalhostRedirect": {
+          "type": "boolean"
+        }
       }
     },
     "database": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "databaseName": { "type": "string" },
-        "secretName": { "type": "string" }
+        "databaseName": {
+          "type": "string"
+        },
+        "secretName": {
+          "type": "string"
+        }
       }
     },
-    "secrets": { "type": "array", "items": { "type": "string" } },
+    "secrets": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "network": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["callers"],
-      "properties": { "callers": { "type": "array", "items": { "type": "string" } } }
+      "required": [
+        "ingress"
+      ],
+      "properties": {
+        "ingress": {
+          "type": "array",
+          "description": "Namespaces allowed to reach this app.",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
     },
     "metrics": {
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "path": { "type": "string" },
-        "interval": { "type": "string" }
+        "path": {
+          "type": "string"
+        },
+        "interval": {
+          "type": "string"
+        },
+        "workload": {
+          "type": "string",
+          "description": "Required with several ported workloads."
+        }
+      }
+    },
+    "workloads": {
+      "type": "object",
+      "description": "Keyed by workload name.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string"
+          },
+          "port": {
+            "type": "integer"
+          },
+          "kind": {
+            "enum": [
+              "Deployment",
+              "DaemonSet",
+              "CronJob"
+            ]
+          },
+          "replicas": {
+            "type": "integer"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "service": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              },
+              "portName": {
+                "type": "string"
+              }
+            }
+          },
+          "health": {
+            "type": "string",
+            "description": "HTTP path for readiness and liveness."
+          },
+          "resources": {
+            "type": "object"
+          },
+          "env": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "envFrom": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "readOnlyRootFilesystem": {
+            "type": "boolean"
+          }
+        }
       }
     }
   }

@@ -1,5 +1,4 @@
-{{- $namespace := .Values.namespace | default .Values.name }}
-{{- $kind := .Values.kind | default "Deployment" }}
+{{- $namespace := .Values.namespace }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -8,64 +7,70 @@ metadata:
   labels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- range $workload := .Values.workloads }}
+{{- $w := merge (deepCopy $workload) (deepCopy ($.Values.defaults | default dict)) }}
+{{- $ctx := dict "workload" $w "images" $.Values.images }}
+{{- $service := $w.service | default dict }}
+{{- $replicas := ternary $w.replicas 1 (hasKey $w "replicas") }}
 ---
-{{- if eq $kind "CronJob" }}
+{{- if eq $w.kind "CronJob" }}
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: {{ .Values.name }}
+  name: {{ $w.name }}
   namespace: {{ $namespace }}
 spec:
-  schedule: {{ required "schedule is required for a CronJob" .Values.schedule | quote }}
+  schedule: {{ required "schedule is required for a CronJob" $w.schedule | quote }}
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
       template:
-        {{- include "k8s-workload.pod" . | nindent 8 }}
+        {{- include "k8s-workload.pod" $ctx | nindent 8 }}
 {{- else }}
 apiVersion: apps/v1
-kind: {{ $kind }}
+kind: {{ $w.kind }}
 metadata:
-  name: {{ .Values.name }}
+  name: {{ $w.name }}
   namespace: {{ $namespace }}
 spec:
-  {{- if eq $kind "Deployment" }}
-  replicas: {{ .Values.replicas }}
+  {{- if eq $w.kind "Deployment" }}
+  replicas: {{ $replicas }}
   {{- end }}
   selector:
     matchLabels:
-      app: {{ .Values.name }}
+      app: {{ $w.name }}
   template:
-    {{- include "k8s-workload.pod" . | nindent 4 }}
+    {{- include "k8s-workload.pod" $ctx | nindent 4 }}
 {{- end }}
-{{- if and .Values.port (ne $kind "CronJob") }}
+{{- if and $w.port (ne $w.kind "CronJob") }}
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.service.name | default .Values.name }}
+  name: {{ $service.name | default $w.name }}
   namespace: {{ $namespace }}
   labels:
-    app: {{ .Values.name }}
+    app: {{ $w.name }}
 spec:
   selector:
-    app: {{ .Values.name }}
+    app: {{ $w.name }}
   ports:
-    - name: {{ .Values.service.portName | default "http" }}
+    - name: {{ $service.portName | default "http" }}
       protocol: TCP
-      port: {{ .Values.service.port | default .Values.port }}
-      targetPort: {{ .Values.port }}
+      port: {{ $service.port | default $w.port }}
+      targetPort: {{ $w.port }}
 {{- end }}
-{{- if and (eq $kind "Deployment") (gt (int .Values.replicas) 1) }}
+{{- if and (eq $w.kind "Deployment") (gt (int $replicas) 1) }}
 ---
 apiVersion: policy/v1
 kind: PodDisruptionBudget
 metadata:
-  name: {{ .Values.name }}
+  name: {{ $w.name }}
   namespace: {{ $namespace }}
 spec:
   maxUnavailable: 1
   selector:
     matchLabels:
-      app: {{ .Values.name }}
+      app: {{ $w.name }}
+{{- end }}
 {{- end }}

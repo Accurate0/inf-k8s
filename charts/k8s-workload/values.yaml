@@ -1,14 +1,15 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/charts/k8s-workload.json
-name: example
-image: ghcr.io/accurate0/example
-tag: latest
-kind: Deployment
-replicas: 1
-service: {}
-readOnlyRootFilesystem: true
-resources:
-  requests:
-    cpu: 10m
-    memory: 64Mi
-  limits:
-    memory: 512Mi
+namespace: example
+images:
+  ghcr.io/accurate0/example: latest
+defaults:
+  kind: Deployment
+  resources:
+    requests:
+      cpu: 10m
+      memory: 64Mi
+    limits:
+      memory: 512Mi
+workloads:
+  - name: example
+    image: ghcr.io/accurate0/example

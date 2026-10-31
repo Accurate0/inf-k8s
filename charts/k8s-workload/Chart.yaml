@@ -1,6 +1,6 @@
 apiVersion: v2
 name: k8s-workload
-description: Namespace, workload and Service with platform defaults for probes, resources and security
+description: Namespace, workloads and Services with platform defaults for probes, resources and security
 type: application
-version: 0.1.0
+version: 0.2.0
 appVersion: "0.1.0"

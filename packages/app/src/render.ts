@@ -6,29 +6,31 @@ const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.j
 
 export const HEADER = '# generated from app.yaml by `ortzi app render`; edit app.yaml instead';
 
+export interface Workload {
+  image: string;
+  port?: number;
+  kind?: 'Deployment' | 'DaemonSet' | 'CronJob';
+  replicas?: number;
+  schedule?: string;
+  service?: { name?: string; port?: number; portName?: string };
+  health?: string;
+  resources?: Record<string, unknown>;
+  env?: Record<string, unknown>[];
+  envFrom?: Record<string, unknown>[];
+  readOnlyRootFilesystem?: boolean;
+}
+
 export interface App {
   name: string;
   repository?: string;
   charts?: Record<string, string>;
-  workload?: {
-    image: string;
-    port?: number;
-    kind?: 'Deployment' | 'DaemonSet' | 'CronJob';
-    replicas?: number;
-    schedule?: string;
-    service?: { name?: string; port?: number; portName?: string };
-    health?: string;
-    resources?: Record<string, unknown>;
-    env?: Record<string, unknown>[];
-    envFrom?: Record<string, unknown>[];
-    readOnlyRootFilesystem?: boolean;
-  };
-  route?: { host: string; gateway?: string; unauthenticated?: boolean };
+  workloads?: Record<string, Workload>;
+  route?: { host: string; gateway?: string; unauthenticated?: boolean; workload?: string };
   oidc?: { public?: boolean; displayName?: string; allowLocalhostRedirect?: boolean };
   database?: { databaseName?: string; secretName?: string };
   secrets?: string[];
-  network: { callers: string[] };
-  metrics?: { path?: string; interval?: string };
+  network: { ingress: string[] };
+  metrics?: { path?: string; interval?: string; workload?: string };
 }
 
 export type Versions = Record<string, string>;
@@ -38,7 +40,15 @@ export interface Target {
   hasManifests: boolean;
 }
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workload', 'route', 'oidc', 'database', 'secrets', 'network', 'metrics', 'build', 'lint']);
+function served(app: App, wanted: string | undefined, block: string): [string, Workload] {
+  const workloads = Object.entries(app.workloads ?? {}).filter(([, w]) => w.port);
+  const found = wanted ? workloads.find(([name]) => name === wanted) : workloads[0];
+  if (!found) throw new Error(`${block} needs a workload with a port`);
+  if (!wanted && workloads.length > 1) throw new Error(`${block}.workload is required with several ported workloads`);
+  return found;
+}
+
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'route', 'oidc', 'database', 'secrets', 'network', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -50,17 +60,23 @@ export function validate(raw: unknown, where: string): App {
     if (!ALLOWED.has(key)) fail(`unknown block "${key}"`);
   }
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(app.name ?? '')) fail('name must be kebab-case');
-  if (!Array.isArray(app.network?.callers)) {
-    fail('network.callers is required (use [] for no callers)');
+  if (!Array.isArray(app.network?.ingress)) {
+    fail('network.ingress is required (use [] for none)');
   }
-  if (app.workload && !app.workload.image) fail('workload.image is required');
+  for (const [name, workload] of Object.entries(app.workloads ?? {})) {
+    if (!workload.image) fail(`workloads.${name}.image is required`);
+  }
   if (app.route && !app.route.host) fail('route.host is required');
-  if (app.route && !app.workload?.port) fail('route needs workload.port');
   if (app.route && !app.oidc && !app.route.unauthenticated) {
     fail('route needs oidc so that every route authenticates, or route.unauthenticated: true');
   }
   if (app.oidc && !app.route) fail('oidc needs route');
-  if (app.metrics && !app.workload?.port) fail('metrics needs workload.port');
+  try {
+    if (app.route) served(app, app.route.workload, 'route');
+    if (app.metrics) served(app, app.metrics.workload, 'metrics');
+  } catch (e) {
+    fail((e as Error).message);
+  }
   return app;
 }
 
@@ -83,10 +99,8 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   const dir = `${target.location}/${name}`;
   const sources: Record<string, unknown>[] = [];
 
-  if (app.workload) {
-    const { health, envFrom, ...workload } = app.workload;
+  if (app.workloads && Object.keys(app.workloads).length) {
     const refs = [
-      ...(envFrom ?? []),
       ...(app.secrets ?? []).map((s) => ({ secretRef: { name: `${s}-managed-secrets` } })),
       ...(app.database ? [{ secretRef: { name: secretName } }] : []),
     ];
@@ -95,10 +109,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
       chart(app, versions, 'k8s-workload', {
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
         valuesObject: {
-          name,
-          ...workload,
-          ...(health ? { probes: { path: health } } : {}),
-          ...(refs.length ? { envFrom: refs } : {}),
+          namespace: name,
           ...(app.route
             ? {
                 namespaceLabels: {
@@ -106,24 +117,34 @@ export function renderApplication(app: App, versions: Versions, target: Target):
                 },
               }
             : {}),
+          workloads: Object.entries(app.workloads).map(([workload, spec]) => {
+            const { health, envFrom, ...rest } = spec;
+            const from = [...(envFrom ?? []), ...refs];
+            return {
+              name: workload,
+              ...rest,
+              ...(health ? { probes: { path: health } } : {}),
+              ...(from.length ? { envFrom: from } : {}),
+            };
+          }),
         },
       }),
     );
   }
 
-  const callers = [
+  const ingress = [
     ...(app.route ? ['envoy-gateway-system'] : []),
     ...(app.metrics ? ['monitoring'] : []),
-    ...app.network.callers,
+    ...app.network.ingress,
   ];
   sources.push(
     chart(app, versions, 'k8s-network', {
-      valuesObject: { namespace: name, callers: [...new Set(callers)] },
+      valuesObject: { namespace: name, ingress: [...new Set(ingress)] },
     }),
   );
 
   if (app.route) {
-    const service = app.workload?.service;
+    const [workload, spec] = served(app, app.route.workload, 'route');
     sources.push(
       chart(app, versions, 'k8s-http-routes', {
         valuesObject: {
@@ -139,8 +160,8 @@ export function renderApplication(app: App, versions: Versions, target: Target):
                 {
                   backendRefs: [
                     {
-                      name: service?.name ?? name,
-                      port: service?.port ?? app.workload?.port,
+                      name: spec.service?.name ?? workload,
+                      port: spec.service?.port ?? spec.port,
                     },
                   ],
                   matches: [{ path: { type: 'PathPrefix', value: '/' } }],
@@ -209,12 +230,15 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   }
 
   if (app.metrics) {
+    const { workload: _workload, ...metrics } = app.metrics;
+    const [workload, spec] = served(app, app.metrics.workload, 'metrics');
     sources.push(
       chart(app, versions, 'k8s-observability', {
         valuesObject: {
-          name,
-          ...(app.workload?.service?.portName ? { port: app.workload.service.portName } : {}),
-          ...app.metrics,
+          name: workload,
+          namespace: name,
+          ...(spec.service?.portName ? { port: spec.service.portName } : {}),
+          ...metrics,
         },
       }),
     );

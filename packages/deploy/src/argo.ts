@@ -15,7 +15,7 @@ export interface Source {
   path?: string;
   ref?: string;
   chart?: string;
-  helm?: { valueFiles?: string[]; valuesObject?: { image?: string } };
+  helm?: { valueFiles?: string[] };
 }
 
 export interface Revisions {

@@ -1,6 +1,6 @@
 import { fetchText } from '@ortzi/kit';
 import type { Application, Revisions } from './argo';
-import { parseKustomizationImages, parseValuesTag } from './images';
+import { parseKustomizationImages, parseValuesImages } from './images';
 
 const REPO = 'Accurate0/inf-k8s';
 
@@ -23,11 +23,9 @@ function workloadTags(app: Application, revision: string | undefined): Map<strin
   const helm = app.spec.sources?.find((s) => s.chart === 'k8s-workload')?.helm;
   if (!helm) return undefined;
   const file = helm.valueFiles?.[0]?.replace('$values/', '');
-  const image = helm.valuesObject?.image;
-  if (!file || !image || !revision) return new Map();
+  if (!file || !revision) return new Map();
   const text = fetchText(`https://raw.githubusercontent.com/${REPO}/${revision}/${file}`);
-  const tag = text ? parseValuesTag(text) : undefined;
-  return new Map(tag ? [[image, tag]] : []);
+  return text ? parseValuesImages(text) : new Map();
 }
 
 export function tagsAt(app: Application, revision: string | undefined): Map<string, string> {

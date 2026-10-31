@@ -19,7 +19,7 @@ const source = (rendered: { spec: { sources: Record<string, any>[] } }, chart: s
   rendered.spec.sources.find((s) => s.chart === chart);
 
 test('only enables charts for declared blocks', () => {
-  const rendered = render({ name: 'foo', network: { callers: [] } });
+  const rendered = render({ name: 'foo', network: { ingress: [] } });
   assert.deepEqual(
     rendered.spec.sources.map((s: { chart: string }) => s.chart),
     ['k8s-network'],
@@ -30,12 +30,12 @@ test('only enables charts for declared blocks', () => {
 test('wires database and secrets into the workload', () => {
   const rendered = render({
     name: 'foo-bar',
-    workload: { image: 'ghcr.io/accurate0/foo-bar', port: 3000 },
+    workloads: { 'foo-bar': { image: 'ghcr.io/accurate0/foo-bar', port: 3000 } },
     database: {},
     secrets: ['foo-bar'],
-    network: { callers: [] },
+    network: { ingress: [] },
   });
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.envFrom, [
+  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].envFrom, [
     { secretRef: { name: 'foo-bar-managed-secrets' } },
     { secretRef: { name: 'foo-bar-database-secret' } },
   ]);
@@ -48,31 +48,67 @@ test('wires database and secrets into the workload', () => {
 test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
-    workload: { image: 'i', port: 3000 },
+    workloads: { foo: { image: 'i', port: 3000 } },
     route: { host: 'foo.anurag.sh' },
     oidc: {},
     metrics: {},
-    network: { callers: ['ai-gateway', 'monitoring'] },
+    network: { ingress: ['ai-gateway', 'monitoring'] },
   });
-  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.callers, [
+  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
     'envoy-gateway-system',
     'monitoring',
     'ai-gateway',
   ]);
 });
 
+test('renders several workloads and routes to the named one', () => {
+  const rendered = render({
+    name: 'foo',
+    workloads: {
+      api: { image: 'i', port: 3000, service: { name: 'api-svc' } },
+      web: { image: 'j', port: 8080 },
+      sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
+    },
+    route: { host: 'foo.anurag.sh', workload: 'web', unauthenticated: true },
+    secrets: ['foo'],
+    network: { ingress: [] },
+  });
+  const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
+  assert.deepEqual(values.workloads.map((w: { name: string }) => w.name), ['api', 'web', 'sync']);
+  assert.equal(values.workloads[2].envFrom.length, 1);
+  assert.deepEqual(source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0].rules[0].backendRefs, [
+    { name: 'web', port: 8080 },
+  ]);
+});
+
+test('requires route.workload when several workloads have ports', () => {
+  assert.throws(
+    () =>
+      validate(
+        {
+          name: 'foo',
+          workloads: { a: { image: 'i', port: 1 }, b: { image: 'j', port: 2 } },
+          route: { host: 'foo.anurag.sh', unauthenticated: true },
+          network: { ingress: [] },
+        },
+        'x',
+      ),
+    /route.workload is required/,
+  );
+});
+
 test('an app can pin a chart version', () => {
   const rendered = render({
     name: 'foo',
     charts: { 'k8s-network': '0.0.9' },
-    network: { callers: [] },
+    network: { ingress: [] },
   });
   assert.equal(source(rendered, 'k8s-network')?.targetRevision, '0.0.9');
 });
 
 test('keeps manifests as an optional source', () => {
   const rendered = render(
-    { name: 'foo', network: { callers: [] } },
+    { name: 'foo', network: { ingress: [] } },
     { location: 'platform-services', hasManifests: true },
   );
   assert.equal(rendered.spec.sources.at(-1).path, 'platform-services/foo/manifests');
@@ -80,7 +116,7 @@ test('keeps manifests as an optional source', () => {
 
 test('does not emit yaml anchors', () => {
   const output = renderApplication(
-    { name: 'foo', database: {}, secrets: ['foo'], network: { callers: [] } },
+    { name: 'foo', database: {}, secrets: ['foo'], network: { ingress: [] } },
     versions,
     target,
   );
@@ -88,22 +124,22 @@ test('does not emit yaml anchors', () => {
 });
 
 test('output is stable', () => {
-  const app: App = { name: 'foo', network: { callers: [] } };
+  const app: App = { name: 'foo', network: { ingress: [] } };
   assert.equal(renderApplication(app, versions, target), renderApplication(app, versions, target));
 });
 
 test('rejects invalid apps', () => {
-  assert.throws(() => validate({ name: 'foo' }, 'x'), /network.callers/);
-  assert.throws(() => validate({ name: 'Foo', network: { callers: [] } }, 'x'), /kebab-case/);
-  assert.throws(() => validate({ name: 'foo', nope: 1, network: { callers: [] } }, 'x'), /unknown block/);
+  assert.throws(() => validate({ name: 'foo' }, 'x'), /network.ingress/);
+  assert.throws(() => validate({ name: 'Foo', network: { ingress: [] } }, 'x'), /kebab-case/);
+  assert.throws(() => validate({ name: 'foo', nope: 1, network: { ingress: [] } }, 'x'), /unknown block/);
   assert.throws(
     () =>
       validate(
         {
           name: 'foo',
-          workload: { image: 'i', port: 1 },
+          workloads: { foo: { image: 'i', port: 1 } },
           route: { host: 'foo.anurag.sh' },
-          network: { callers: [] },
+          network: { ingress: [] },
         },
         'x',
       ),

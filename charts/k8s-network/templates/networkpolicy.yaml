@@ -18,9 +18,9 @@ spec:
   policyTypes:
     - Ingress
   ingress:
-    {{- range $caller := append .Values.callers .Values.namespace }}
+    {{- range $from := append .Values.ingress .Values.namespace }}
     - from:
         - namespaceSelector:
             matchLabels:
-              kubernetes.io/metadata.name: {{ $caller }}
+              kubernetes.io/metadata.name: {{ $from }}
     {{- end }}

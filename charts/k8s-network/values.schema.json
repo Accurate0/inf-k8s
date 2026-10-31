@@ -3,11 +3,11 @@
   "title": "k8s-network values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["namespace", "callers"],
+  "required": ["namespace", "ingress"],
   "properties": {
     "global": { "type": "object" },
     "namespace": { "type": "string" },
-    "callers": {
+    "ingress": {
       "type": "array",
       "description": "Namespaces allowed to reach this one. The namespace itself is always allowed.",
       "items": { "type": "string" }

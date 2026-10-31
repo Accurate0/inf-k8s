@@ -1,6 +1,6 @@
 import { fs } from '@ortzi/host';
 import { cli } from '@ortzi/kit';
-import { parse } from 'yaml';
+import { parse, stringify } from 'yaml';
 import { type App, imageValuesPath, renderApplication, type Target, validate } from './render';
 
 const LOCATIONS = ['projects', 'platform-services'];
@@ -50,8 +50,14 @@ function render(check: boolean): number {
       `${target.location}/${app.name}/application.yaml`,
       renderApplication(app, versions, target),
     );
-    const values = imageValuesPath(app, target);
-    if (app.workload && !fs.exists(values)) sync(values, 'tag: latest\n');
+    if (app.workloads) {
+      const path = imageValuesPath(app, target);
+      const current = fs.exists(path) ? parse(fs.readText(path)) : {};
+      const images = { ...current?.images };
+      for (const { image } of Object.values(app.workloads)) images[image] ??= 'latest';
+      const wanted = stringify({ images });
+      if (!fs.exists(path) || stringify({ images: current?.images ?? {} }) !== wanted) sync(path, wanted);
+    }
   }
   return check && stale > 0 ? 1 : 0;
 }

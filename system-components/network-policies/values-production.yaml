@@ -35,9 +35,6 @@ namespaces:
   anurag-sh:
     ingress:
       - envoy-gateway-system
-  bom:
-    ingress:
-      - home-gateway
   dragonfly:
     ingress:
       - dragonfly-system

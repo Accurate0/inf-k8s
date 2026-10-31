@@ -20,8 +20,21 @@ export function parseKustomizationImages(text: string): Map<string, string> {
   return images;
 }
 
-export const parseValuesTag = (text: string): string | undefined =>
-  text.match(/^tag:\s*["']?([^"'\s]+)/m)?.[1];
+export function parseValuesImages(text: string): Map<string, string> {
+  const images = new Map<string, string>();
+  let inImages = false;
+  for (const line of text.split('\n')) {
+    if (/^images:\s*$/.test(line)) {
+      inImages = true;
+      continue;
+    }
+    if (!inImages) continue;
+    if (/^\S/.test(line)) break;
+    const match = line.match(/^\s+["']?([^"'\s:]+(?::\d+)?[^"'\s:]*)["']?:\s*["']?([^"'\s]+)/);
+    if (match) images.set(match[1], match[2]);
+  }
+  return images;
+}
 
 export function previousTags(
   running: Map<string, string>,
