@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T04:24:55.562Z
+# generated at 2026-10-31T05:15:24.455Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,6 +16,126 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.3.0
+      helm:
+        valueFiles:
+          - $values/platform-services/ai-gateway/image.values.yaml
+        valuesObject:
+          namespace: ai-gateway
+          namespaceLabels:
+            internal-gateway-access: "true"
+          workloads:
+            - name: ai-gateway
+              image: ghcr.io/accurate0/ai-gateway
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              ports:
+                - containerPort: 3000
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 15
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 60
+              env:
+                - name: CONFIG_PATH
+                  value: /etc/ai-gateway/config.yaml
+                - name: PGUSER
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-gateway-database-secret
+                      key: PGUSER
+                - name: PGPASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-gateway-database-secret
+                      key: PGPASSWORD
+                - name: PGDATABASE
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-gateway-database-secret
+                      key: PGDATABASE
+                - name: DATABASE_URL
+                  value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+                - name: FEATURE_FLAGS_URL
+                  value: http://api.feature-flags.svc.cluster.local:50051
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+                - name: REDIS_URL
+                  value: redis://replicated.dragonfly.svc.cluster.local
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/ai-gateway
+                  readOnly: true
+              replicas: 2
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
+              affinity:
+                podAntiAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    - topologyKey: kubernetes.io/hostname
+                      labelSelector:
+                        matchLabels:
+                          app: ai-gateway
+              topologySpreadConstraints:
+                - topologyKey: inf-k8s.net/location
+                  maxSkew: 1
+                  whenUnsatisfiable: ScheduleAnyway
+                  labelSelector:
+                    matchLabels:
+                      app: ai-gateway
+              volumes:
+                - name: config
+                  configMap:
+                    name: ai-gateway-config
+              service:
+                name: api
+                ports:
+                  - name: http
+                    protocol: TCP
+                    port: 80
+                    targetPort: 3000
+              envFrom:
+                - secretRef:
+                    name: ai-gateway-managed-secrets
+            - name: ai-gateway-pricing-sync
+              image: ghcr.io/accurate0/ai-gateway
+              command:
+                - aig
+                - prices
+                - sync
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              env:
+                - name: AIG_URL
+                  value: http://api.ai-gateway.svc.cluster.local
+                - name: AIG_ADMIN_TOKEN
+                  valueFrom:
+                    secretKeyRef:
+                      name: ai-gateway-managed-secrets
+                      key: ADMIN_TOKEN
+              kind: CronJob
+              schedule: 17 4 * * *
+              backoffLimit: 2
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0
@@ -24,10 +144,10 @@ spec:
           namespace: ai-gateway
           ingress:
             - envoy-gateway-system
+            - monitoring
             - maccas-api
             - tldr-bot
             - janitor-bot
-            - monitoring
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.3.1
@@ -103,6 +223,16 @@ spec:
             - name: ai-gateway
               managedSecrets:
                 - secretName: ai-gateway-managed-secrets
+    - chart: k8s-observability
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
+      targetRevision: 0.1.0
+      helm:
+        valuesObject:
+          name: ai-gateway
+          namespace: ai-gateway
+          path: /admin/metrics
+          port: http
+          interval: 30s
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: platform-services/ai-gateway
