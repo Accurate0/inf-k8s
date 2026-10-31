@@ -45,8 +45,7 @@ test('a workload only gets the secrets it lists', () => {
         envFrom: ['foo-bar-managed-secrets', 'foo-bar-database-secret'],
       },
     },
-    resources: [{ name: 'foo-bar', type: 'database' }],
-    secrets: ['foo-bar'],
+    resources: [{ name: 'foo-bar', type: 'secret' }, { name: 'foo-bar', type: 'database' }],
     network: { ingress: [] },
   });
   assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].envFrom, [
@@ -84,7 +83,7 @@ test('renders several workloads and routes to the named one', () => {
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
     routes: { foo: { hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } } },
-    secrets: ['foo'],
+    resources: [{ name: 'foo', type: 'secret' }],
     network: { ingress: [] },
   });
   const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
@@ -208,7 +207,7 @@ test('keeps manifests as an optional source', () => {
 
 test('does not emit yaml anchors', () => {
   const output = renderApplication(
-    { name: 'foo', resources: [{ name: 'foo', type: 'database' }], secrets: ['foo'], network: { ingress: [] } },
+    { name: 'foo', resources: [{ name: 'foo', type: 'secret' }, { name: 'foo', type: 'database' }], network: { ingress: [] } },
     versions,
     target,
     { platform, apps: [] },
@@ -665,21 +664,6 @@ test('rejects the old databases block', () => {
   assert.throws(() => validate({ ...base, databases: { foo: {} } }, 'test'), /unknown block "databases"/);
 });
 
-test('a secret resource renders like a secrets entry', () => {
-  const asResource = validate(
-    {
-      ...base,
-      resources: [
-        { name: 'foo', type: 'secret' },
-        { name: 'other', type: 'secret', secretName: 'custom' },
-      ],
-    },
-    'test',
-  );
-  const asBlock = validate({ ...base, secrets: ['foo', { name: 'other', secretName: 'custom' }] }, 'test');
-  assert.deepEqual(source(render(asResource), 'k8s-secrets'), source(render(asBlock), 'k8s-secrets'));
-});
-
 test('a secret can share a name with a database', () => {
   const app = validate(
     {
@@ -723,4 +707,25 @@ test('a cache resource picks its instance', () => {
 
 test('rejects a cache resource without an instance', () => {
   assert.throws(() => validate({ ...base, resources: [{ name: 'c', type: 'cache' }] }, 'test'), /resources/);
+});
+
+test('secret resources default their kubernetes secret name', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'foo', type: 'secret' },
+        { name: 'other', type: 'secret', secretName: 'custom' },
+      ],
+    },
+    'test',
+  );
+  assert.deepEqual(source(render(app), 'k8s-secrets')?.helm.valuesObject.secrets.map((s: { managedSecrets: unknown }) => s.managedSecrets), [
+    [{ secretName: 'foo-managed-secrets' }],
+    [{ secretName: 'custom' }],
+  ]);
+});
+
+test('rejects the old secrets block', () => {
+  assert.throws(() => validate({ ...base, secrets: ['foo'] }, 'test'), /unknown block "secrets"/);
 });

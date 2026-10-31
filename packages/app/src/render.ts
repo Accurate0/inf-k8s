@@ -72,8 +72,6 @@ export interface Export {
   port?: string | number;
 }
 
-export type Secret = string | { name: string; secretName: string };
-
 export type RouteAuth =
   | { mode: 'jwt'; clients: string[] }
   | { mode: 'oidc'; client: string }
@@ -115,7 +113,6 @@ export interface App {
   workloads?: Record<string, Workload>;
   routes?: Record<string, Route>;
   oidc?: Record<string, OidcClient>;
-  secrets?: Secret[];
   resources?: Resource[];
   exports?: Export[];
   sources?: Record<string, unknown>[];
@@ -185,11 +182,6 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   return { name: env, value: provided[0].url };
 }
 
-const secretFor = (secret: Secret) =>
-  typeof secret === 'string'
-    ? { name: secret, secretName: `${secret}-managed-secrets` }
-    : secret;
-
 function served(app: App, wanted: string | undefined, block: string): [string, Workload] {
   const workloads = Object.entries(app.workloads ?? {}).filter(([, w]) => w.port || w.service?.ports);
   const found = wanted ? workloads.find(([name]) => name === wanted) : workloads[0];
@@ -205,7 +197,7 @@ function servedPort(spec: Workload): number | undefined {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'secrets', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -579,14 +571,11 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
 }
 
 export function appSecrets(app: App): { name: string; secretName: string }[] {
-  return [
-    ...(app.secrets ?? []).map(secretFor),
-    ...(app.resources ?? []).flatMap((resource) =>
-      resource.type === 'secret'
-        ? [{ name: resource.name, secretName: resource.secretName ?? `${resource.name}-managed-secrets` }]
-        : [],
-    ),
-  ];
+  return (app.resources ?? []).flatMap((resource) =>
+    resource.type === 'secret'
+      ? [{ name: resource.name, secretName: resource.secretName ?? `${resource.name}-managed-secrets` }]
+      : [],
+  );
 }
 
 export function appDatabases(app: App): Record<string, DatabaseSpec> {
