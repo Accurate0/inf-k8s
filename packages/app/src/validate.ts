@@ -31,6 +31,8 @@ function walk(dir: string, visit: (dir: string, file: string) => void) {
 
 export function validateManifests(generated: Map<string, string>): string[] {
   const failures: string[] = [];
+  const report = (where: string, before: number) =>
+    console.error(`  ${failures.length > before ? '✗' : '✓'} ${where}`);
   const cache = schemaCache();
   const kubeconform = (where: string, paths: string[], stdin?: string, flags: string[] = []) => {
     const output = run(
@@ -52,7 +54,9 @@ export function validateManifests(generated: Map<string, string>): string[] {
     if (!output.ok) failures.push(`${where}\n${output.stdout}${output.stderr}`);
   };
 
+  console.error(`validating ${generated.size} apps`);
   for (const [path, rendered] of generated) {
+    const before = failures.length;
     const documents = [rendered];
     for (const { args, values } of helmTemplates(rendered)) {
       const output = run('helm', args, { stdin: values, stdout: 'piped', stderr: 'piped', check: false });
@@ -60,6 +64,7 @@ export function validateManifests(generated: Map<string, string>): string[] {
       else failures.push(`${path}: helm ${args[2]}\n${output.stderr}`);
     }
     kubeconform(path, [], documents.join('\n---\n'));
+    report(path, before);
   }
 
   const kustomizations: string[] = [];
@@ -74,16 +79,25 @@ export function validateManifests(generated: Map<string, string>): string[] {
     });
   }
 
-  if (applications.length) kubeconform('applications', applications);
+  if (applications.length) {
+    console.error(`validating ${applications.length} other applications`);
+    const before = failures.length;
+    kubeconform('applications', applications);
+    report('applications', before);
+  }
+  console.error(`validating ${kustomizations.length} kustomizations`);
   for (const dir of kustomizations) {
+    const before = failures.length;
     const output = run('kustomize', ['build', dir], { stdout: 'piped', stderr: 'piped', check: false });
     if (!output.ok) {
       failures.push(`${dir}: kustomize\n${output.stderr}`);
+      report(dir, before);
       continue;
     }
     const flagsPath = `${dir}/.kubeconform-flags`;
     const flags = fs.exists(flagsPath) ? fs.readText(flagsPath).split(/\s+/).filter(Boolean) : [];
     kubeconform(dir, [], output.stdout, flags);
+    report(dir, before);
   }
   return failures;
 }

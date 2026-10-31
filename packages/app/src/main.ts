@@ -154,6 +154,7 @@ function render(check: boolean): number {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
     if (!check) fs.write(path, wanted);
   }
+  if (!stale.length) console.log('everything is up to date');
   return check && stale.length > 0 ? 1 : 0;
 }
 
