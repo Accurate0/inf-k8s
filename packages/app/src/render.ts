@@ -27,6 +27,7 @@ export interface Workload {
   envFrom?: Record<string, unknown>[];
   readOnlyRootFilesystem?: boolean;
   secrets?: string[];
+  databases?: string[];
 }
 
 export type Secret = string | { name: string; secretName: string };
@@ -51,7 +52,7 @@ export interface App {
   workloads?: Record<string, Workload>;
   route?: Route;
   oidc?: { host?: string; public?: boolean; displayName?: string } & Record<string, unknown>;
-  database?: { databaseName?: string; secretName?: string };
+  databases?: Record<string, { databaseName?: string; secretName?: string }>;
   secrets?: Secret[];
   sources?: Record<string, unknown>[];
   network: { ingress: string[] };
@@ -78,7 +79,7 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
   return found;
 }
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'route', 'oidc', 'database', 'secrets', 'sources', 'network', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'route', 'oidc', 'databases', 'secrets', 'sources', 'network', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -101,6 +102,9 @@ export function validate(raw: unknown, where: string): App {
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     for (const secret of workload.secrets ?? []) {
       if (!secretNames.includes(secret)) fail(`workloads.${name}.secrets: no secret named ${secret}`);
+    }
+    for (const database of workload.databases ?? []) {
+      if (!app.databases?.[database]) fail(`workloads.${name}.databases: no database named ${database}`);
     }
   }
   if (app.route && !app.oidc && !app.route.unauthenticated) {
@@ -131,13 +135,13 @@ export function renderApplication(app: App, versions: Versions, target: Target):
     'inf-k8s.net/app': name,
     'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
   };
-  const secretName = app.database?.secretName ?? `${name}-database-secret`;
+  const databaseSecret = (database: string) =>
+    app.databases?.[database].secretName ?? `${database}-database-secret`;
   const dir = `${target.location}/${name}`;
   const sources: Record<string, unknown>[] = [];
 
   if (app.workloads && Object.keys(app.workloads).length) {
     const secrets = (app.secrets ?? []).map(secretFor);
-    const database = app.database ? [{ secretRef: { name: secretName } }] : [];
     sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
     sources.push(
       chart(app, versions, 'k8s-workload', {
@@ -155,13 +159,19 @@ export function renderApplication(app: App, versions: Versions, target: Target):
               }
             : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const { health, envFrom, secrets: only, ...rest } = spec;
+            const { health, envFrom, secrets: only, databases: dbs, ...rest } = spec;
+            const chosen = dbs ?? Object.keys(app.databases ?? {});
             const from = [
               ...(envFrom ?? []),
               ...secrets
                 .filter((s) => !only || only.includes(s.name))
                 .map((s) => ({ secretRef: { name: s.secretName } })),
-              ...database,
+              ...chosen.map((database) => ({
+                ...(chosen.length > 1
+                  ? { prefix: `${database.toUpperCase().replaceAll('-', '_')}_` }
+                  : {}),
+                secretRef: { name: databaseSecret(database) },
+              })),
             ];
             return {
               name: workload,
@@ -245,19 +255,17 @@ export function renderApplication(app: App, versions: Versions, target: Target):
     );
   }
 
-  if (app.database) {
+  if (app.databases && Object.keys(app.databases).length) {
     sources.push(
       chart(app, versions, 'k8s-postgres', {
         valuesObject: {
-          databases: [
-            {
-              name,
-              namespace: name,
-              databaseName: app.database.databaseName ?? name.replaceAll('-', '_'),
-              secretName,
-              annotations,
-            },
-          ],
+          databases: Object.entries(app.databases).map(([database, spec]) => ({
+            name: database,
+            namespace: name,
+            databaseName: spec.databaseName ?? database.replaceAll('-', '_'),
+            secretName: databaseSecret(database),
+            annotations,
+          })),
         },
       }),
     );

@@ -31,7 +31,7 @@ test('wires database and secrets into the workload', () => {
   const rendered = render({
     name: 'foo-bar',
     workloads: { 'foo-bar': { image: 'ghcr.io/accurate0/foo-bar', port: 3000 } },
-    database: {},
+    databases: { 'foo-bar': {} },
     secrets: ['foo-bar'],
     network: { ingress: [] },
   });
@@ -139,6 +139,31 @@ test('routes to an explicit backend without a workload', () => {
   assert.equal(rendered.spec.sources.at(-1).name, 'config');
 });
 
+test('prefixes database variables when a workload gets several', () => {
+  const rendered = render({
+    name: 'foo',
+    workloads: {
+      api: { image: 'i' },
+      web: { image: 'j', databases: ['foo'] },
+      worker: { image: 'k', databases: [] },
+    },
+    databases: { foo: { secretName: 'foo-db' }, 'foo-events': { databaseName: 'events' } },
+    network: { ingress: [] },
+  });
+  const [api, web, worker] = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads;
+  assert.deepEqual(api.envFrom, [
+    { prefix: 'FOO_', secretRef: { name: 'foo-db' } },
+    { prefix: 'FOO_EVENTS_', secretRef: { name: 'foo-events-database-secret' } },
+  ]);
+  assert.deepEqual(web.envFrom, [{ secretRef: { name: 'foo-db' } }]);
+  assert.equal(worker.envFrom, undefined);
+  const databases = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
+  assert.deepEqual(
+    databases.map((d: { name: string; databaseName: string }) => [d.name, d.databaseName]),
+    [['foo', 'foo'], ['foo-events', 'events']],
+  );
+});
+
 test('an app can pin a chart version', () => {
   const rendered = render({
     name: 'foo',
@@ -158,7 +183,7 @@ test('keeps manifests as an optional source', () => {
 
 test('does not emit yaml anchors', () => {
   const output = renderApplication(
-    { name: 'foo', database: {}, secrets: ['foo'], network: { ingress: [] } },
+    { name: 'foo', databases: { foo: {} }, secrets: ['foo'], network: { ingress: [] } },
     versions,
     target,
   );

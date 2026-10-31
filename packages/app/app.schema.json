@@ -100,18 +100,6 @@
         }
       }
     },
-    "database": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "databaseName": {
-          "type": "string"
-        },
-        "secretName": {
-          "type": "string"
-        }
-      }
-    },
     "secrets": {
       "type": "array",
       "items": {
@@ -242,6 +230,13 @@
             "items": {
               "type": "string"
             }
+          },
+          "databases": {
+            "type": "array",
+            "description": "Only these databases. Defaults to all.",
+            "items": {
+              "type": "string"
+            }
           }
         }
       }
@@ -251,6 +246,22 @@
       "description": "Extra Argo sources.",
       "items": {
         "type": "object"
+      }
+    },
+    "databases": {
+      "type": "object",
+      "description": "Keyed by database name. A workload given several gets prefixed variables.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "databaseName": {
+            "type": "string"
+          },
+          "secretName": {
+            "type": "string"
+          }
+        }
       }
     }
   }

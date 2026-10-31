@@ -43,8 +43,9 @@ oidc:
       - email
       - profile
       - groups
-database:
-  secretName: home-gateway-db-credentials
+databases:
+  home-gateway:
+    secretName: home-gateway-db-credentials
 secrets:
   - home-gateway
   - name: terraform
