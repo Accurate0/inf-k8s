@@ -1,0 +1,7 @@
+images:
+  ghcr.io/accurate0/maccas-api: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
+  ghcr.io/accurate0/maccas-clustering: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
+  ghcr.io/accurate0/maccas-migration: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
+  ghcr.io/accurate0/maccas-recommendations: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
+  ghcr.io/accurate0/maccas-scheduler: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7
+  ghcr.io/accurate0/maccas-web: 49074ba1f414bc47bd17f845e2d9b7bc99651bf7

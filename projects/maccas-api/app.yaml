@@ -33,3 +33,230 @@ secrets:
     secretName: maccas-migration-managed-secrets
 network:
   ingress: []
+workloads:
+  maccas-api:
+    image: ghcr.io/accurate0/maccas-api
+    resources:
+      requests:
+        memory: 144Mi
+        cpu: 10m
+    ports:
+      - containerPort: 8000
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /v1/health/self
+        port: 8000
+        scheme: HTTP
+      initialDelaySeconds: 3
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 1
+    env:
+      - name: OPENAI_BASE_URL
+        value: http://api.ai-gateway.svc.cluster.local/v1
+      - name: RECOMMENDATIONS_API_BASE
+        value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
+      - name: SENSORDATA_API_BASE
+        value: http://maccas-sensordata.maccas-api.svc.cluster.local
+      - name: FEATURE_FLAGS_URL
+        value: http://api.feature-flags.svc.cluster.local:50051
+      - name: REDIS_CONNECTION_STRING
+        value: redis://replicated.dragonfly.svc.cluster.local
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+    envFrom:
+      - secretRef:
+          name: maccas-common-managed-secrets
+      - secretRef:
+          name: maccas-api-managed-secrets
+    secrets: []
+    databases: []
+    replicas: 3
+    topologySpreadConstraints:
+      - maxSkew: 2
+        topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            app: maccas-api
+        whenUnsatisfiable: ScheduleAnyway
+    initContainers:
+      - image: ghcr.io/accurate0/maccas-migration
+        name: maccas-migration
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        envFrom:
+          - secretRef:
+              name: maccas-migration-managed-secrets
+    service:
+      name: maccas-api
+      ports:
+        - name: api
+          protocol: TCP
+          port: 8000
+          targetPort: 8000
+      trafficDistribution: PreferSameNode
+  maccas-web:
+    image: ghcr.io/accurate0/maccas-web
+    resources:
+      requests:
+        memory: 312Mi
+        cpu: 10m
+    ports:
+      - containerPort: 3000
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /health
+        port: 3000
+        scheme: HTTP
+      initialDelaySeconds: 3
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 1
+    env:
+      - name: ADDRESS_HEADER
+        value: x-real-ip
+      - name: OLD_API_BASE_URL
+        value: https://api.maccas.one/v1
+      - name: API_BASE_URL
+        value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      - name: EVENT_BASE_URL
+        value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      - name: FEATURE_FLAGS_URL
+        value: api.feature-flags.svc.cluster.local:50051
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+    envFrom:
+      - secretRef:
+          name: maccas-web-managed-secrets
+    secrets: []
+    databases: []
+    replicas: 3
+    topologySpreadConstraints:
+      - maxSkew: 2
+        topologyKey: kubernetes.io/hostname
+        labelSelector:
+          matchLabels:
+            app: maccas-web
+        whenUnsatisfiable: ScheduleAnyway
+    runAsNonRoot: false
+    service:
+      name: maccas-web
+      ports:
+        - name: web
+          protocol: TCP
+          port: 3000
+          targetPort: 3000
+  maccas-scheduler:
+    image: ghcr.io/accurate0/maccas-scheduler
+    resources:
+      requests:
+        memory: 32Mi
+        cpu: 10m
+    env:
+      - name: EVENT_API_BASE
+        value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+    envFrom:
+      - secretRef:
+          name: maccas-common-managed-secrets
+      - secretRef:
+          name: maccas-api-managed-secrets
+    secrets: []
+    databases: []
+    replicas: 1
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchLabels:
+                app: maccas-scheduler
+            topologyKey: kubernetes.io/hostname
+  maccas-recommendations:
+    image: ghcr.io/accurate0/maccas-recommendations
+    resources:
+      requests:
+        memory: 48Mi
+        cpu: 10m
+      limits:
+        memory: 1000Mi
+    ports:
+      - containerPort: 8003
+    livenessProbe:
+      failureThreshold: 3
+      httpGet:
+        path: /health
+        port: 8003
+        scheme: HTTP
+      initialDelaySeconds: 3
+      periodSeconds: 30
+      successThreshold: 1
+      timeoutSeconds: 5
+    env:
+      - name: OPENAI_BASE_URL
+        value: http://api.ai-gateway.svc.cluster.local/v1
+      - name: FLIPT_URL
+        value: http://flipt.flipt.svc.cluster.local:8080
+      - name: CLUSTERING_API_BASE
+        value: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+    envFrom:
+      - secretRef:
+          name: maccas-common-managed-secrets
+      - secretRef:
+          name: maccas-api-managed-secrets
+    secrets: []
+    databases: []
+    replicas: 1
+    initContainers:
+      - image: ghcr.io/accurate0/maccas-migration
+        name: maccas-migration
+        resources:
+          requests:
+            cpu: 50m
+            memory: 64Mi
+        envFrom:
+          - secretRef:
+              name: maccas-migration-managed-secrets
+    sidecars:
+      - image: ghcr.io/accurate0/maccas-clustering
+        name: maccas-clustering
+        resources:
+          requests:
+            cpu: 10m
+            memory: 192Mi
+        ports:
+          - containerPort: 8004
+        livenessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /health
+            port: 8004
+            scheme: HTTP
+          initialDelaySeconds: 3
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 1
+        envFrom:
+          - secretRef:
+              name: maccas-common-managed-secrets
+          - secretRef:
+              name: maccas-api-managed-secrets
+    service:
+      name: maccas-recommendations
+      ports:
+        - name: api
+          protocol: TCP
+          port: 8003
+          targetPort: 8003
+        - name: clustering
+          protocol: TCP
+          port: 8004
+          targetPort: 8004
+namespaceLabels:
+  gateway.inf-k8s.net/maccas-one: "true"
