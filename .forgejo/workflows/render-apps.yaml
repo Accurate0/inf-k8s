@@ -11,6 +11,7 @@ on:
       - "**/kustomization.yaml"
       - charts/**
       - platform/versions.yaml
+      - platform/exports/**
       - packages/app/**
       - packages/ortzi-host/**
       - packages/ortzi-kit/**

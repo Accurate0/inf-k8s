@@ -107,17 +107,23 @@ export interface Target {
   rootKustomization?: boolean;
 }
 
-const TRACING_URL = 'http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces';
+export interface PlatformExport {
+  name: string;
+  type: string;
+  url: string;
+  env: string;
+}
 
 const useFor = (use: Use) => (typeof use === 'string' ? { name: use } : use);
 
-function resourceEnv(app: App, use: Use): { name: string; value: string }[] {
+function resourceEnv(app: App, use: Use, platform: PlatformExport[]): { name: string; value: string }[] {
   const { name, env } = useFor(use);
   const resource = app.resources?.find((r) => r.name === name) as Resource;
-  switch (resource.type) {
-    case 'tracing':
-      return [{ name: env ?? 'OTEL_TRACING_URL', value: TRACING_URL }];
+  const provided = platform.filter((e) => e.type === resource.type);
+  if (provided.length !== 1) {
+    throw new Error(`${app.name}: resources.${name}: expected one platform export of type ${resource.type}, found ${provided.length}`);
   }
+  return [{ name: env ?? provided[0].env, value: provided[0].url }];
 }
 
 const secretFor = (secret: Secret) =>
@@ -205,14 +211,9 @@ export function validate(raw: unknown, where: string): App {
     if (resourceNames.indexOf(name) !== resourceNames.lastIndexOf(name)) fail(`resources: duplicate name ${name}`);
   }
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
-    const seen = new Set((workload.env ?? []).map((e) => e.name as string));
     for (const use of workload.uses ?? []) {
       const used = useFor(use).name;
       if (!resourceNames.includes(used)) fail(`workloads.${name}.uses: no resource named ${used}`);
-      for (const { name: env } of resourceEnv(app, use)) {
-        if (seen.has(env)) fail(`workloads.${name}.uses: ${used} sets ${env}, which is already set`);
-        seen.add(env);
-      }
     }
   }
   return app;
@@ -226,6 +227,20 @@ export function validateIngress(apps: App[]) {
     for (const from of app.network.ingress) {
       if (!known.has(from) && !SYSTEM_NAMESPACES.has(from)) {
         throw new Error(`${app.name}: network.ingress: no app or namespace named ${from}`);
+      }
+    }
+  }
+}
+
+export function validateResources(apps: App[], platform: PlatformExport[]) {
+  for (const app of apps) {
+    for (const [name, workload] of Object.entries(app.workloads ?? {})) {
+      const seen = new Set((workload.env ?? []).map((e) => e.name as string));
+      for (const use of workload.uses ?? []) {
+        for (const { name: env } of resourceEnv(app, use, platform)) {
+          if (seen.has(env)) throw new Error(`${app.name}: workloads.${name}.uses: ${useFor(use).name} sets ${env}, which is already set`);
+          seen.add(env);
+        }
       }
     }
   }
@@ -300,7 +315,7 @@ export function renderWorkflow(app: App, target: Target): string {
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
-export function renderApplication(app: App, versions: Versions, target: Target): string {
+export function renderApplication(app: App, versions: Versions, target: Target, platform: PlatformExport[]): string {
   const { name } = app;
   const annotations = {
     'inf-k8s.net/app': name,
@@ -339,7 +354,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
             const { health, envFrom, secrets: only, databases: dbs, uses, ...rest } = spec;
-            const injected = (uses ?? []).flatMap((use) => resourceEnv(app, use));
+            const injected = (uses ?? []).flatMap((use) => resourceEnv(app, use, platform));
             const chosen = dbs ?? Object.keys(app.databases ?? {});
             const from = [
               ...(envFrom ?? []),

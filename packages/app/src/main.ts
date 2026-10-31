@@ -10,12 +10,14 @@ import {
   type App,
   imageValuesPath,
   isCurrent,
+  type PlatformExport,
   renderApplication,
   renderWorkflow,
   stamped,
   type Target,
   validate,
   validateIngress,
+  validateResources,
   workflowPath,
   workloadImages,
 } from './render';
@@ -23,6 +25,13 @@ import { validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services'];
 const VERSIONS = 'platform/versions.yaml';
+const PLATFORM_EXPORTS = 'platform/exports';
+
+const platformExports = (): PlatformExport[] =>
+  fs
+    .readDir(PLATFORM_EXPORTS)
+    .filter((entry) => !entry.dir && entry.name.endsWith('.yaml'))
+    .flatMap((entry) => parse(fs.readText(`${PLATFORM_EXPORTS}/${entry.name}`)).exports);
 
 const USAGE = `usage: ortzi app <command> [flags]
 
@@ -99,18 +108,20 @@ function discover(): { app: App; target: Target }[] {
     }
   }
   validateIngress(found.map(({ app }) => app));
+  validateResources(found.map(({ app }) => app), platformExports());
   return found;
 }
 
 function staleFiles(only?: string): { path: string; wanted: string }[] {
   const versions = parse(fs.readText(VERSIONS)).charts;
+  const platform = platformExports();
   const stale = [];
   const apps = discover();
   if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
   for (const { app, target } of apps) {
     if (only && app.name !== only) continue;
     const path = `${target.location}/${app.name}/application.yaml`;
-    const wanted = renderApplication(app, versions, target);
+    const wanted = renderApplication(app, versions, target, platform);
     if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
       stale.push({ path, wanted: stamped(wanted, new Date()) });
     }
@@ -137,10 +148,11 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
 
 function render(check: boolean): number {
   const versions = parse(fs.readText(VERSIONS)).charts;
+  const platform = platformExports();
   const generated = new Map(
     discover().map(({ app, target }) => [
       `${target.location}/${app.name}/application.yaml`,
-      renderApplication(app, versions, target),
+      renderApplication(app, versions, target, platform),
     ]),
   );
   const failures = validateManifests(generated);

@@ -32,7 +32,7 @@ pre-commit:
       run: tofu -chdir=terraform validate
 
     render-apps:
-      glob: "{**/app.yaml,platform/versions.yaml,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml}}"
+      glob: "{**/app.yaml,platform/versions.yaml,platform/exports/**,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml}}"
       run: ortzi update app && ortzi app render
       stage_fixed: true
 

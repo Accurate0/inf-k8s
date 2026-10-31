@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { type App, HEADER, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress } from './render.ts';
+import { type App, HEADER, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress, validateResources } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -14,7 +14,9 @@ const versions = {
 };
 const target = { location: 'projects', hasManifests: false };
 
-const render = (app: App, t = target) => parse(renderApplication(app, versions, t));
+const platform = [{ name: 'tracing', type: 'tracing', url: 'http://tempo/traces', env: 'OTEL_TRACING_URL' }];
+
+const render = (app: App, t = target) => parse(renderApplication(app, versions, t, platform));
 const source = (rendered: { spec: { sources: Record<string, any>[] } }, chart: string) =>
   rendered.spec.sources.find((s) => s.chart === chart);
 
@@ -289,7 +291,7 @@ test('generates a workflow from the build block', () => {
 
 test('output is stable', () => {
   const app: App = { name: 'foo', network: { ingress: [] } };
-  assert.equal(renderApplication(app, versions, target), renderApplication(app, versions, target));
+  assert.equal(renderApplication(app, versions, target, platform), renderApplication(app, versions, target, platform));
 });
 
 test('rejects invalid apps', () => {
@@ -345,7 +347,7 @@ test('injects a used resource after the env set by hand', () => {
   const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
   assert.deepEqual(workload.env, [
     { name: 'A', value: 'b' },
-    { name: 'OTEL_TRACING_URL', value: 'http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces' },
+    { name: 'OTEL_TRACING_URL', value: 'http://tempo/traces' },
   ]);
   assert.equal(workload.uses, undefined);
 });
@@ -364,9 +366,10 @@ test('only workloads that use a resource get it', () => {
 test('rejects bad resources', () => {
   assert.throws(() => validate(traced(['nope']), 'test'), /no resource named nope/);
   assert.throws(
-    () => validate(traced(['traces'], { env: [{ name: 'OTEL_TRACING_URL', value: 'x' }] }), 'test'),
+    () => validateResources([validate(traced(['traces'], { env: [{ name: 'OTEL_TRACING_URL', value: 'x' }] }), 'test')], platform),
     /already set/,
   );
+  assert.throws(() => validateResources([validate(traced(['traces']), 'test')], []), /one platform export of type tracing/);
   assert.throws(
     () => validate({ ...traced([]), resources: [{ name: 'a', type: 'tracing' }, { name: 'a', type: 'tracing' }] }, 'test'),
     /duplicate name a/,
