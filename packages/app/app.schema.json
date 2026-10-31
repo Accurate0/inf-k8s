@@ -768,6 +768,29 @@
               "name",
               "type"
             ]
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "export"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "platform"
+                ]
+              },
+              "export": {
+                "type": "string",
+                "description": "An export in platform/exports."
+              }
+            }
           }
         ]
       }

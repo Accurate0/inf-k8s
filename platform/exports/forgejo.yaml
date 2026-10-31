@@ -1,0 +1,4 @@
+exports:
+  - name: forgejo
+    type: platform
+    url: http://forgejo-http.forgejo.svc.cluster.local:3000

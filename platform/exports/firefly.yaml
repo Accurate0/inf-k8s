@@ -1,0 +1,4 @@
+exports:
+  - name: firefly
+    type: platform
+    url: http://firefly.firefly.svc.cluster.local

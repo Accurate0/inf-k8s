@@ -17,7 +17,8 @@ const versions = {
 const target = { location: 'projects', hasManifests: false };
 
 const platform = [
-  { name: 'tracing', type: 'tracing', url: 'http://tempo/traces' },
+  { name: 'tracing', type: 'platform', url: 'http://tempo/traces' },
+  { name: 'argocd', type: 'platform', url: 'http://argocd' },
   { name: 'replicated', type: 'cache', url: 'redis://replicated' },
   { name: 'perth', type: 'cache', url: 'redis://perth' },
 ];
@@ -517,7 +518,7 @@ test('rejects bad resources', () => {
   assert.throws(() => validate({ ...app, resources: [app.resources[0], app.resources[0]] }, 'test'), /duplicate name a/);
   assert.throws(() => validate({ ...app, resources: [{ name: 'a', type: 'nope' }] }, 'test'), /resources/);
   const traced = validate({ ...app, workloads: { foo: { image: 'i', env: { T: { resource: 'a' } } } } }, 'test');
-  assert.throws(() => validateResources({ platform: [], apps: [traced] }), /one platform export of type tracing/);
+  assert.throws(() => validateResources({ platform: [], apps: [traced] }), /platform platform export named tracing/);
 });
 
 test('rejects unknown workload fields', () => {
@@ -691,7 +692,7 @@ test('a cache resource picks its instance', () => {
   assert.deepEqual(source(render(cached('perth')), 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
     { name: 'REDIS_URL', value: 'redis://perth' },
   ]);
-  assert.throws(() => validateResources({ platform, apps: [cached('nope')] }), /cache instance nope/);
+  assert.throws(() => validateResources({ platform, apps: [cached('nope')] }), /platform cache export named nope/);
   assert.deepEqual(buildGraph([cached('perth')]).edges, [{ from: 'foo', to: 'cache/perth' }]);
 });
 
@@ -837,4 +838,25 @@ test('rejects resources without a secret name and unknown references', () => {
     () => validateResources({ platform, apps: [validate({ ...base, workloads: { foo: { image: 'i', envFrom: [{ secret: 'nope' }] } } }, 'test')] }),
     /no secret resource named nope/,
   );
+});
+
+test('a platform resource uses a named export', () => {
+  const app = (name: string) =>
+    validate(
+      {
+        ...base,
+        resources: [{ name: 'argo', type: 'platform', export: name }],
+        workloads: { foo: { image: 'i', env: { ARGOCD_SERVER: { resource: 'argo' } } } },
+      },
+      'test',
+    );
+  assert.deepEqual(source(render(app('argocd')), 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+    { name: 'ARGOCD_SERVER', value: 'http://argocd' },
+  ]);
+  assert.throws(() => validateResources({ platform, apps: [app('nope')] }), /export named nope/);
+  assert.deepEqual(buildGraph([app('argocd')]).edges, [{ from: 'foo', to: 'platform/argocd' }]);
+});
+
+test('a platform resource needs an export', () => {
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'platform' }] }, 'test'), /resources/);
 });

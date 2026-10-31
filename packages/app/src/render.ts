@@ -46,6 +46,7 @@ export interface Workload {
 
 export type Resource =
   | { name: string; type: 'tracing' }
+  | { name: string; type: 'platform'; export: string }
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
@@ -180,12 +181,13 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   if (resource.type === 'database') {
     throw new Error(`${app.name}: resources.${name}: list a database's secret in envFrom, not env`);
   }
-  const provided = platform.filter(
-    (e) => e.type === resource.type && (resource.type !== 'cache' || e.name === resource.instance),
-  );
+  const wanted =
+    resource.type === 'cache'
+      ? { type: 'cache', name: resource.instance }
+      : { type: 'platform', name: resource.type === 'platform' ? resource.export : 'tracing' };
+  const provided = platform.filter((e) => e.type === wanted.type && e.name === wanted.name);
   if (provided.length !== 1) {
-    const wanted = resource.type === 'cache' ? `cache instance ${resource.instance}` : `export of type ${resource.type}`;
-    throw new Error(`${app.name}: resources.${name}: expected one platform ${wanted}, found ${provided.length}`);
+    throw new Error(`${app.name}: resources.${name}: expected one platform ${wanted.type} export named ${wanted.name}, found ${provided.length}`);
   }
   return { name: env, value: provided[0].url };
 }

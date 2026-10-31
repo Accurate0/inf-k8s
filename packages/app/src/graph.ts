@@ -30,13 +30,15 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
         edges.push({ from: app.name, to: resource.app, label: resource.export });
       } else if (['database', 'secret', 'route', 'oidc', 'metrics'].includes(resource.type)) {
         continue;
+      } else if (resource.type === 'platform') {
+        edges.push({ from: app.name, to: node(`platform/${resource.export}`, resource.export, 'platform') });
       } else if (resource.type === 'cache') {
         edges.push({ from: app.name, to: node(`cache/${resource.instance}`, `cache ${resource.instance}`, 'platform') });
       } else if (resource.type === 'bucket') {
         const name = bucketName(app, resource);
         edges.push({ from: app.name, to: node(`bucket/${name}`, `${name} (${resource.provider})`, 'database') });
       } else {
-        edges.push({ from: app.name, to: node(`platform/${resource.type}`, resource.type, 'platform') });
+        edges.push({ from: app.name, to: node('platform/tracing', 'tracing', 'platform') });
       }
     }
     for (const [database, spec] of Object.entries(appDatabases(app))) {
