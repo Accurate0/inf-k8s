@@ -1,0 +1,30 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: ai-gateway
+routes:
+  ai-gateway:
+    gateway: internal-gateway
+    hosts:
+      - ai-gateway.ortzi.cloud
+    backend:
+      name: api
+      port: 80
+oidc:
+  ai-gateway:
+    displayName: AI Gateway
+    public: true
+    allowLocalhostRedirect: true
+    scopes:
+      - openid
+      - email
+      - profile
+      - groups
+databases:
+  ai-gateway: {}
+secrets:
+  - ai-gateway
+network:
+  ingress:
+    - maccas-api
+    - tldr-bot
+    - janitor-bot
+    - monitoring
