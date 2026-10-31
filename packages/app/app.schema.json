@@ -226,6 +226,39 @@
             "type": "boolean",
             "description": "Required for a route with no oidc block."
           },
+          "auth": {
+            "type": "object",
+            "description": "How this route authenticates. jwt and oidc are enforced at the gateway; app and none need a reason.",
+            "additionalProperties": false,
+            "required": [
+              "mode"
+            ],
+            "properties": {
+              "mode": {
+                "enum": [
+                  "jwt",
+                  "oidc",
+                  "app",
+                  "none"
+                ]
+              },
+              "clients": {
+                "type": "array",
+                "description": "oidc clients whose tokens are accepted, for jwt.",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "client": {
+                "type": "string",
+                "description": "oidc client with a securityPolicy targeting this route, for oidc."
+              },
+              "reason": {
+                "type": "string",
+                "description": "Why the gateway does not authenticate, for app and none."
+              }
+            }
+          },
           "workload": {
             "type": "string",
             "description": "Required with several ported workloads."

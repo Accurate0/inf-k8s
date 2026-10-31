@@ -27,6 +27,13 @@
         "rules"
       ],
       "properties": {
+        "jwtClients": {
+          "type": "array",
+          "description": "Kanidm OIDC clients whose JWTs the gateway requires on this route.",
+          "items": {
+            "type": "string"
+          }
+        },
         "name": {
           "type": "string",
           "description": "Name of the generated HTTPRoute. The rate limit policy is named <name>-ratelimit-policy."

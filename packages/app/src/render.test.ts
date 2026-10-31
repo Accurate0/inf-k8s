@@ -182,6 +182,36 @@ test('connection pooling is left to the chart unless set', () => {
   assert.equal(direct.enableConnectionPooling, false);
 });
 
+test('jwt routes pass their clients to the chart', () => {
+  const rendered = render({
+    name: 'foo',
+    routes: {
+      api: { hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } },
+      web: { hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } },
+    },
+    oidc: { foo: {}, 'foo-cli': {} },
+    network: { ingress: [] },
+  });
+  const [api, web] = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes;
+  assert.deepEqual(api.jwtClients, ['foo', 'foo-cli']);
+  assert.equal('jwtClients' in web, false);
+});
+
+test('rejects invalid route auth', () => {
+  const app = (auth: unknown, oidc: unknown = { foo: {} }) => ({
+    name: 'foo',
+    routes: { foo: { hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth } },
+    oidc,
+    network: { ingress: [] },
+  });
+  assert.throws(() => validate(app({ mode: 'jwt', clients: [] }), 'x'), /auth.clients is required/);
+  assert.throws(() => validate(app({ mode: 'jwt', clients: ['nope'] }), 'x'), /no oidc client named nope/);
+  assert.throws(() => validate(app({ mode: 'oidc', client: 'foo' }), 'x'), /securityPolicy must target this route/);
+  assert.throws(() => validate(app({ mode: 'none' }), 'x'), /auth.reason is required/);
+  assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode must be/);
+  validate(app({ mode: 'oidc', client: 'foo' }, { foo: { securityPolicy: { httpRoute: 'foo' } } }), 'x');
+});
+
 test('an app can pin a chart version', () => {
   const rendered = render({
     name: 'foo',
