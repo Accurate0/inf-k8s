@@ -10,15 +10,17 @@ where
 {
     use CommitStatusState::*;
 
-    Ok(Option::<String>::deserialize(d)?.and_then(|s| match s.as_str() {
-        "pending" => Some(Pending),
-        "success" => Some(Success),
-        "error" => Some(Error),
-        "failure" => Some(Failure),
-        "warning" => Some(Warning),
-        "skipped" => Some(Skipped),
-        _ => None,
-    }))
+    Ok(
+        Option::<String>::deserialize(d)?.and_then(|s| match s.as_str() {
+            "pending" => Some(Pending),
+            "success" => Some(Success),
+            "error" => Some(Error),
+            "failure" => Some(Failure),
+            "warning" => Some(Warning),
+            "skipped" => Some(Skipped),
+            _ => None,
+        }),
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -89,16 +91,14 @@ mod tests {
 
     #[test]
     fn unknown_state_decodes_to_none() {
-        let raw: RawCombinedStatus =
-            serde_json::from_str(r#"{"state":"queued"}"#).unwrap();
+        let raw: RawCombinedStatus = serde_json::from_str(r#"{"state":"queued"}"#).unwrap();
 
         assert_eq!(raw.state, None);
     }
 
     #[test]
     fn known_state_decodes() {
-        let raw: RawCombinedStatus =
-            serde_json::from_str(r#"{"state":"success"}"#).unwrap();
+        let raw: RawCombinedStatus = serde_json::from_str(r#"{"state":"success"}"#).unwrap();
 
         assert_eq!(raw.state, Some(CommitStatusState::Success));
     }

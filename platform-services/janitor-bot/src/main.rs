@@ -137,7 +137,8 @@ async fn main() -> anyhow::Result<()> {
             .with_run_async(Box::new(move |uuid, mut _lock| {
                 let state = Arc::clone(&poll_state);
                 Box::pin(async move {
-                    let span = tracing::info_span!(parent: None, "cron.evaluate_open_prs", job = %uuid);
+                    let span =
+                        tracing::info_span!(parent: None, "cron.evaluate_open_prs", job = %uuid);
                     async move {
                         tracing::info!("running PR poll: {uuid}");
                         evaluate_open_prs(&state).await;

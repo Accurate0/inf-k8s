@@ -689,7 +689,10 @@ impl Action {
                 };
 
                 if pr.source_branch.is_empty() {
-                    tracing::warn!(pr = pr.pr_number, "delete_branch: no source branch on event");
+                    tracing::warn!(
+                        pr = pr.pr_number,
+                        "delete_branch: no source branch on event"
+                    );
                     return;
                 }
 

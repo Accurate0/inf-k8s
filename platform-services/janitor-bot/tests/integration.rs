@@ -3,8 +3,8 @@ use std::path::PathBuf;
 use std::slice;
 use std::sync::Arc;
 
-use insta::assert_yaml_snapshot;
 use insta::assert_snapshot;
+use insta::assert_yaml_snapshot;
 use insta::internals::Content;
 use janitor_bot::feature_flag::FeatureFlagClient;
 use rstest::rstest;

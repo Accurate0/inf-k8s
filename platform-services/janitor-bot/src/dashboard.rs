@@ -61,7 +61,8 @@ async fn build_repo_view(clients: &Clients, owner: &str, repo: &str) -> RepoView
 
     let mut pr_views = Vec::new();
     for pr in prs {
-        let is_renovate = pr.user.as_ref().and_then(|u| u.login.as_deref()) == Some(RENOVATE_AUTHOR);
+        let is_renovate =
+            pr.user.as_ref().and_then(|u| u.login.as_deref()) == Some(RENOVATE_AUTHOR);
         if !is_renovate {
             continue;
         }
@@ -95,7 +96,11 @@ async fn build_repo_view(clients: &Clients, owner: &str, repo: &str) -> RepoView
         pr_views.push(PrView {
             number: pr.number.unwrap_or_default(),
             title: pr.title.clone().unwrap_or_default(),
-            html_url: pr.html_url.as_ref().map(|u| u.to_string()).unwrap_or_default(),
+            html_url: pr
+                .html_url
+                .as_ref()
+                .map(|u| u.to_string())
+                .unwrap_or_default(),
             labels: pr
                 .labels
                 .as_ref()
@@ -120,7 +125,9 @@ pub async fn render_dashboard(clients: &Clients, orchestrator: &RulesOrchestrato
     }
 
     let dashboard = RenovateDashboard {
-        generated_at: chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC").to_string(),
+        generated_at: chrono::Utc::now()
+            .format("%Y-%m-%d %H:%M:%S UTC")
+            .to_string(),
         repos,
     };
 
