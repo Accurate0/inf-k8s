@@ -58,14 +58,13 @@ oidc:
     secretKeys:
       clientId: client-id
       clientSecret: client-secret
-databases:
-  waf-manager:
-    secretName: waf-manager-db-credentials
 secrets:
   - waf-manager
 network:
   ingress:
     - monitoring
+resources:
+  - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
 workloads:
   waf-manager:
     image: ghcr.io/accurate0/waf-manager

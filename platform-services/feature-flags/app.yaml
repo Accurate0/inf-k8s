@@ -21,9 +21,6 @@ oidc:
     displayName: Feature Flags
     public: true
     allowLocalhostRedirect: true
-databases:
-  feature-flags:
-    secretName: feature-flags-db-credentials
 secrets:
   - feature-flags
 network:
@@ -33,6 +30,7 @@ exports:
     workload: feature-flags
     port: grpc
 resources:
+  - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
   - name: traces
     type: tracing
 workloads:

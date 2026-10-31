@@ -27,8 +27,6 @@ oidc:
         - email
         - profile
         - groups
-databases:
-  registry: {}
 secrets:
   - registry
   - name: signing
@@ -38,6 +36,7 @@ network:
     - forgejo
     - monitoring
 resources:
+  - {name: registry, type: database}
   - {name: storage, type: bucket, provider: r2, bucket: registry}
   - name: traces
     type: tracing

@@ -26,9 +26,6 @@ routes:
           limit:
             requests: 5
             unit: Second
-databases:
-  home-gateway:
-    secretName: home-gateway-db-credentials
 secrets:
   - home-gateway
   - name: terraform
@@ -72,6 +69,7 @@ oidc:
         - profile
         - groups
 resources:
+  - {name: home-gateway, type: database, secretName: home-gateway-db-credentials}
   - {name: storage, type: bucket, provider: s3, bucket: home-gateway-bucket, user: home-gateway}
   - name: flags
     type: app

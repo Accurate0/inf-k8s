@@ -21,8 +21,6 @@ oidc:
       - email
       - profile
       - groups
-databases:
-  ai-gateway: {}
 secrets:
   - ai-gateway
 network:
@@ -34,11 +32,12 @@ exports:
     workload: ai-gateway
     port: http
 resources:
+  - {name: ai-gateway, type: database}
   - name: flags
     type: app
     app: feature-flags
     export: api
-  - name: ai-gateway
+  - name: self
     type: app
     app: ai-gateway
     export: api
@@ -100,7 +99,7 @@ workloads:
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
       AIG_ADMIN_TOKEN: {secret: ai-gateway-managed-secrets, key: ADMIN_TOKEN}
-      AIG_URL: {resource: ai-gateway}
+      AIG_URL: {resource: self}
 namespace:
   labels:
     internal-gateway-access: "true"
