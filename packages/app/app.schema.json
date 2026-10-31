@@ -555,6 +555,29 @@
                 "description": "Defaults to <name>-managed-secrets."
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "instance"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "cache"
+                ]
+              },
+              "instance": {
+                "type": "string",
+                "description": "A cache export in platform/exports."
+              }
+            }
           }
         ]
       }

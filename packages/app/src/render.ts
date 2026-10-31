@@ -49,7 +49,8 @@ export type Resource =
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
-  | { name: string; type: 'secret'; secretName?: string };
+  | { name: string; type: 'secret'; secretName?: string }
+  | { name: string; type: 'cache'; instance: string };
 
 export interface DatabaseSpec {
   databaseName?: string;
@@ -174,9 +175,12 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   if (resource.type === 'database') {
     throw new Error(`${app.name}: resources.${name}: list a database's secret in envFrom, not env`);
   }
-  const provided = platform.filter((e) => e.type === resource.type);
+  const provided = platform.filter(
+    (e) => e.type === resource.type && (resource.type !== 'cache' || e.name === resource.instance),
+  );
   if (provided.length !== 1) {
-    throw new Error(`${app.name}: resources.${name}: expected one platform export of type ${resource.type}, found ${provided.length}`);
+    const wanted = resource.type === 'cache' ? `cache instance ${resource.instance}` : `export of type ${resource.type}`;
+    throw new Error(`${app.name}: resources.${name}: expected one platform ${wanted}, found ${provided.length}`);
   }
   return { name: env, value: provided[0].url };
 }

@@ -16,7 +16,11 @@ const versions = {
 };
 const target = { location: 'projects', hasManifests: false };
 
-const platform = [{ name: 'tracing', type: 'tracing', url: 'http://tempo/traces' }];
+const platform = [
+  { name: 'tracing', type: 'tracing', url: 'http://tempo/traces' },
+  { name: 'replicated', type: 'cache', url: 'redis://replicated' },
+  { name: 'perth', type: 'cache', url: 'redis://perth' },
+];
 
 const render = (app: App, t = target, apps: App[] = []) => parse(renderApplication(app, versions, t, { platform, apps }));
 const source = (rendered: { spec: { sources: Record<string, any>[] } }, chart: string) =>
@@ -698,4 +702,25 @@ test('rejects duplicate secrets and a secret used in env', () => {
     () => validate({ ...base, resources: [secret], workloads: { foo: { image: 'i', env: { A: { resource: 'foo' } } } } }, 'test'),
     /list a secret in envFrom/,
   );
+});
+
+test('a cache resource picks its instance', () => {
+  const cached = (instance: string) =>
+    validate(
+      {
+        ...base,
+        resources: [{ name: 'sessions', type: 'cache', instance }],
+        workloads: { foo: { image: 'i', env: { REDIS_URL: { resource: 'sessions' } } } },
+      },
+      'test',
+    );
+  assert.deepEqual(source(render(cached('perth')), 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+    { name: 'REDIS_URL', value: 'redis://perth' },
+  ]);
+  assert.throws(() => validateResources({ platform, apps: [cached('nope')] }), /cache instance nope/);
+  assert.deepEqual(buildGraph([cached('perth')]).edges, [{ from: 'foo', to: 'cache/perth' }]);
+});
+
+test('rejects a cache resource without an instance', () => {
+  assert.throws(() => validate({ ...base, resources: [{ name: 'c', type: 'cache' }] }, 'test'), /resources/);
 });

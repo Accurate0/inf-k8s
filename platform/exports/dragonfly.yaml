@@ -1,0 +1,16 @@
+exports:
+  - name: replicated
+    type: cache
+    url: redis://replicated.dragonfly.svc.cluster.local
+  - name: local
+    type: cache
+    url: redis://cache.dragonfly.svc.cluster.local
+  - name: perth
+    type: cache
+    url: redis://perth.dragonfly.svc.cluster.local
+  - name: australind
+    type: cache
+    url: redis://australind.dragonfly.svc.cluster.local
+  - name: dragonfly
+    type: cache
+    url: redis://dragonfly.dragonfly-system.svc.cluster.local
