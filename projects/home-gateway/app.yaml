@@ -72,6 +72,7 @@ oidc:
         - profile
         - groups
 resources:
+  - {name: storage, type: bucket, provider: s3, bucket: home-gateway-bucket, user: home-gateway}
   - name: flags
     type: app
     app: feature-flags
@@ -89,6 +90,8 @@ workloads:
       readiness: {every: 10, timeout: 2}
       liveness: {delay: 3, every: 30}
     env:
+      AWS_ACCESS_KEY_ID: {secret: storage-bucket-secrets, key: S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: {secret: storage-bucket-secrets, key: S3_SECRET_ACCESS_KEY}
       CONFIG_DIR: /etc/home-gateway/config
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}

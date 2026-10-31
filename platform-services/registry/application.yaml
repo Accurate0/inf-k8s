@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:17:27.825Z
+# generated at 2026-10-31T11:39:56.108Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -38,6 +38,21 @@ spec:
               ports:
                 - containerPort: 3000
               env:
+                - name: S3_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: storage-bucket-secrets
+                      key: S3_ENDPOINT
+                - name: S3_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: storage-bucket-secrets
+                      key: S3_ACCESS_KEY_ID
+                - name: S3_SECRET_ACCESS_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: storage-bucket-secrets
+                      key: S3_SECRET_ACCESS_KEY
                 - name: CONFIG_PATH
                   value: /etc/registry/config.yaml
                 - name: OTEL_TRACING_URL
@@ -189,6 +204,9 @@ spec:
             - name: signing
               managedSecrets:
                 - secretName: registry-signing-secrets
+            - name: resource-storage
+              managedSecrets:
+                - secretName: storage-bucket-secrets
     - chart: k8s-observability
       repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
       targetRevision: 0.1.0

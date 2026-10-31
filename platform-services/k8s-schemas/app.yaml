@@ -4,6 +4,8 @@ secrets:
   - k8s-schemas
 network:
   ingress: []
+resources:
+  - {name: schemas, type: bucket, provider: r2, bucket: k8s-schemas}
 workloads:
   k8s-schemas:
     image: ghcr.io/accurate0/k8s-schemas
@@ -12,6 +14,10 @@ workloads:
     backoffLimit: 2
     resources: {cpu: 50m, memory: 128Mi, memoryLimit: 512Mi}
     env:
+      S3_BUCKET: {resource: schemas}
+      S3_ENDPOINT: {secret: schemas-bucket-secrets, key: S3_ENDPOINT}
+      AWS_ACCESS_KEY_ID: {secret: schemas-bucket-secrets, key: S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: {secret: schemas-bucket-secrets, key: S3_SECRET_ACCESS_KEY}
       K8S_VERSION: v1.37.1
     envFrom:
       - k8s-schemas-managed-secrets

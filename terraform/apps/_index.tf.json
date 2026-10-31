@@ -10,6 +10,15 @@
         "registry",
         "waf-manager"
       ]
+    },
+    "s3_access_keys": {
+      "sensitive": true,
+      "value": {
+        "home-gateway-storage": {
+          "id": "${aws_iam_access_key.home-gateway-storage.id}",
+          "secret": "${aws_iam_access_key.home-gateway-storage.secret}"
+        }
+      }
     }
   }
 }

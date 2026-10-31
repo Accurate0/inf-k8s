@@ -1,0 +1,38 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "cloudflare_r2_bucket": {
+      "maccas-api-images": {
+        "account_id": "${var.cloudflare_account_id}",
+        "name": "maccas-images",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "cloudflare_account_token": {
+      "maccas-api-images": {
+        "account_id": "${var.cloudflare_account_id}",
+        "name": "r2-maccas-images",
+        "policies": [
+          {
+            "effect": "allow",
+            "permission_groups": [
+              {
+                "id": "${var.r2_write_permission_group}"
+              }
+            ],
+            "resources": "{\"com.cloudflare.edge.r2.bucket.${var.cloudflare_account_id}_default_${cloudflare_r2_bucket.maccas-api-images.name}\":\"*\"}"
+          }
+        ]
+      }
+    },
+    "vault_kv_secret_v2": {
+      "maccas-api-images": {
+        "mount": "${var.kv_mount}",
+        "name": "maccas-api/resource-images",
+        "data_json": "{\"S3_BUCKET\":\"${cloudflare_r2_bucket.maccas-api-images.name}\",\"S3_ENDPOINT\":\"https://${var.cloudflare_account_id}.r2.cloudflarestorage.com\",\"S3_REGION\":\"auto\",\"S3_ACCESS_KEY_ID\":\"${cloudflare_account_token.maccas-api-images.id}\",\"S3_SECRET_ACCESS_KEY\":\"${sha256(cloudflare_account_token.maccas-api-images.value)}\"}"
+      }
+    }
+  }
+}

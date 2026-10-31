@@ -31,6 +31,39 @@
         ],
         "token_ttl": 3600
       }
+    },
+    "cloudflare_r2_bucket": {
+      "registry-storage": {
+        "account_id": "${var.cloudflare_account_id}",
+        "name": "registry",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "cloudflare_account_token": {
+      "registry-storage": {
+        "account_id": "${var.cloudflare_account_id}",
+        "name": "r2-registry",
+        "policies": [
+          {
+            "effect": "allow",
+            "permission_groups": [
+              {
+                "id": "${var.r2_write_permission_group}"
+              }
+            ],
+            "resources": "{\"com.cloudflare.edge.r2.bucket.${var.cloudflare_account_id}_default_${cloudflare_r2_bucket.registry-storage.name}\":\"*\"}"
+          }
+        ]
+      }
+    },
+    "vault_kv_secret_v2": {
+      "registry-storage": {
+        "mount": "${var.kv_mount}",
+        "name": "registry/resource-storage",
+        "data_json": "{\"S3_BUCKET\":\"${cloudflare_r2_bucket.registry-storage.name}\",\"S3_ENDPOINT\":\"https://${var.cloudflare_account_id}.r2.cloudflarestorage.com\",\"S3_REGION\":\"auto\",\"S3_ACCESS_KEY_ID\":\"${cloudflare_account_token.registry-storage.id}\",\"S3_SECRET_ACCESS_KEY\":\"${sha256(cloudflare_account_token.registry-storage.value)}\"}"
+      }
     }
   }
 }

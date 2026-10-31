@@ -1,0 +1,38 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "cloudflare_r2_bucket": {
+      "k8s-schemas-schemas": {
+        "account_id": "${var.cloudflare_account_id}",
+        "name": "k8s-schemas",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "cloudflare_account_token": {
+      "k8s-schemas-schemas": {
+        "account_id": "${var.cloudflare_account_id}",
+        "name": "r2-k8s-schemas",
+        "policies": [
+          {
+            "effect": "allow",
+            "permission_groups": [
+              {
+                "id": "${var.r2_write_permission_group}"
+              }
+            ],
+            "resources": "{\"com.cloudflare.edge.r2.bucket.${var.cloudflare_account_id}_default_${cloudflare_r2_bucket.k8s-schemas-schemas.name}\":\"*\"}"
+          }
+        ]
+      }
+    },
+    "vault_kv_secret_v2": {
+      "k8s-schemas-schemas": {
+        "mount": "${var.kv_mount}",
+        "name": "k8s-schemas/resource-schemas",
+        "data_json": "{\"S3_BUCKET\":\"${cloudflare_r2_bucket.k8s-schemas-schemas.name}\",\"S3_ENDPOINT\":\"https://${var.cloudflare_account_id}.r2.cloudflarestorage.com\",\"S3_REGION\":\"auto\",\"S3_ACCESS_KEY_ID\":\"${cloudflare_account_token.k8s-schemas-schemas.id}\",\"S3_SECRET_ACCESS_KEY\":\"${sha256(cloudflare_account_token.k8s-schemas-schemas.value)}\"}"
+      }
+    }
+  }
+}

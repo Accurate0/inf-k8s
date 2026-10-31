@@ -31,6 +31,53 @@
         ],
         "token_ttl": 3600
       }
+    },
+    "aws_s3_bucket": {
+      "home-gateway-storage": {
+        "bucket": "home-gateway-bucket",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "aws_s3_bucket_public_access_block": {
+      "home-gateway-storage": {
+        "bucket": "${aws_s3_bucket.home-gateway-storage.id}",
+        "block_public_acls": true,
+        "block_public_policy": true,
+        "restrict_public_buckets": true,
+        "ignore_public_acls": true
+      }
+    },
+    "aws_iam_user": {
+      "home-gateway-storage": {
+        "name": "home-gateway"
+      }
+    },
+    "aws_iam_policy": {
+      "home-gateway-storage": {
+        "name": "home-gateway-access",
+        "description": "Access policy for home-gateway application",
+        "policy": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Sid\":\"AllowBucketAccess\",\"Effect\":\"Allow\",\"Action\":[\"s3:DeleteObject\",\"s3:GetObject\",\"s3:PutObject\",\"s3:ListBucket\"],\"Resource\":[\"${aws_s3_bucket.home-gateway-storage.arn}\",\"${aws_s3_bucket.home-gateway-storage.arn}/*\"]}]}"
+      }
+    },
+    "aws_iam_user_policy_attachment": {
+      "home-gateway-storage": {
+        "user": "${aws_iam_user.home-gateway-storage.name}",
+        "policy_arn": "${aws_iam_policy.home-gateway-storage.arn}"
+      }
+    },
+    "aws_iam_access_key": {
+      "home-gateway-storage": {
+        "user": "${aws_iam_user.home-gateway-storage.name}"
+      }
+    },
+    "vault_kv_secret_v2": {
+      "home-gateway-storage": {
+        "mount": "${var.kv_mount}",
+        "name": "home-gateway/resource-storage",
+        "data_json": "{\"S3_BUCKET\":\"${aws_s3_bucket.home-gateway-storage.bucket}\",\"S3_ENDPOINT\":\"https://${aws_s3_bucket.home-gateway-storage.bucket_regional_domain_name}\",\"S3_REGION\":\"${aws_s3_bucket.home-gateway-storage.region}\",\"S3_ACCESS_KEY_ID\":\"${aws_iam_access_key.home-gateway-storage.id}\",\"S3_SECRET_ACCESS_KEY\":\"${aws_iam_access_key.home-gateway-storage.secret}\"}"
+      }
     }
   }
 }
