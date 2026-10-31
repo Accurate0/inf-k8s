@@ -218,6 +218,67 @@ struct KustomizeImage {
     new_tag: Option<String>,
 }
 
+#[derive(serde::Deserialize)]
+struct ImageValues {
+    images: std::collections::HashMap<String, String>,
+}
+
+async fn deployed_images(
+    clients: &Clients,
+    pr: &PrEvent,
+    path: &str,
+) -> Option<std::collections::HashMap<String, String>> {
+    let path = path.trim_end_matches('/');
+    let values = clients
+        .forgejo
+        .get_raw_file(
+            &pr.owner,
+            &pr.repo,
+            &format!("{path}/image.values.yaml"),
+            &pr.target_branch,
+        )
+        .await;
+    if let Ok(raw) = values {
+        return match yaml_serde::from_str::<ImageValues>(&raw) {
+            Ok(values) => Some(values.images),
+            Err(e) => {
+                tracing::warn!(pr = pr.pr_number, "failed to parse image values: {e}");
+                None
+            }
+        };
+    }
+
+    let raw = match clients
+        .forgejo
+        .get_raw_file(
+            &pr.owner,
+            &pr.repo,
+            &format!("{path}/kustomization.yaml"),
+            &pr.target_branch,
+        )
+        .await
+    {
+        Ok(raw) => raw,
+        Err(e) => {
+            tracing::warn!(pr = pr.pr_number, "failed to read deployed tags: {e}");
+            return None;
+        }
+    };
+
+    match yaml_serde::from_str::<Kustomization>(&raw) {
+        Ok(k) => Some(
+            k.images
+                .into_iter()
+                .filter_map(|i| i.new_tag.map(|t| (i.name, t)))
+                .collect(),
+        ),
+        Err(e) => {
+            tracing::warn!(pr = pr.pr_number, "failed to parse kustomization: {e}");
+            None
+        }
+    }
+}
+
 pub(crate) async fn image_committed_at_cached(
     clients: &Clients,
     cache: &ResourceCache,
@@ -275,37 +336,13 @@ pub(super) async fn is_latest_published_image(
         return true;
     };
 
-    let kustomization_path = format!("{}/kustomization.yaml", path.trim_end_matches('/'));
-    let raw = match clients
-        .forgejo
-        .get_raw_file(&pr.owner, &pr.repo, &kustomization_path, &pr.target_branch)
-        .await
-    {
-        Ok(raw) => raw,
-        Err(e) => {
-            tracing::warn!(pr = pr.pr_number, "failed to read deployed kustomization: {e}");
-            return true;
-        }
-    };
-
-    let deployed: std::collections::HashMap<String, String> = match yaml_serde::from_str::<
-        Kustomization,
-    >(&raw)
-    {
-        Ok(k) => k
-            .images
-            .into_iter()
-            .filter_map(|i| i.new_tag.map(|t| (i.name, t)))
-            .collect(),
-        Err(e) => {
-            tracing::warn!(pr = pr.pr_number, "failed to parse kustomization: {e}");
-            return true;
-        }
+    let Some(deployed) = deployed_images(clients, pr, path).await else {
+        return true;
     };
 
     for image in images.split(',').map(str::trim).filter(|s| !s.is_empty()) {
         let Some(deployed_tag) = deployed.get(image) else {
-            tracing::warn!(image, "image not present in deployed kustomization");
+            tracing::warn!(image, "image not present in deployed tags");
             continue;
         };
         if deployed_tag == tag {

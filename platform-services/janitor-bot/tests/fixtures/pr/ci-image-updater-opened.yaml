@@ -70,6 +70,13 @@ mocks:
     body: []
   - service: forgejo
     method: GET
+    path: /api/v1/repos/anurag/k8s/raw/platform-services/janitor-bot/image.values.yaml
+    query:
+      ref: main
+    status: 404
+    body_text: not found
+  - service: forgejo
+    method: GET
     path: /api/v1/repos/anurag/k8s/raw/platform-services/janitor-bot/kustomization.yaml
     query:
       ref: main
