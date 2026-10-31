@@ -27,7 +27,7 @@ export interface WaitOptions {
 export function heal(kube: Kube, name: string, state: 'on' | 'off', yes: boolean): number {
   assertChangeable(name);
   if (!getApp(kube, name).spec.syncPolicy?.automated) {
-    console.error(`auto-sync is off for ${name}, so self-heal has no effect; see \`ortzi deploy autosync\``);
+    console.error(`auto-sync is off for ${name}, so self-heal has no effect; see \`ortzi app autosync\``);
     return 1;
   }
   console.log(`${yes ? 'setting' : 'would set'} self-heal ${state} for ${name}`);
@@ -87,7 +87,7 @@ function autosyncOn(kube: Kube, app: Application, yes: boolean, options: WaitOpt
   restoreAutosync(kube, name, automated);
   if (!options.wait) return 0;
   if (!waitForGit(kube, app, driftedWorkloads(app, workloads), options.timeoutMinutes)) {
-    console.error(`${name} did not return to git; check \`ortzi deploy status ${name}\``);
+    console.error(`${name} did not return to git; check \`ortzi app status ${name}\``);
     return 1;
   }
   console.log(`${name} is back on what git says`);

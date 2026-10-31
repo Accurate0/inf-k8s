@@ -1,10 +1,10 @@
 package:
   name: app
-  description: render app.yaml files into argo applications
-  version: 0.1.8
+  description: define apps in app.yaml, render them to argo, and see or roll back what's deployed
+  version: 0.2.0
   completions: cobra
 permissions:
-  exec: [diff]
+  exec: [diff, kubectl, curl]
   fs: [.]
 build:
   kind: wasm

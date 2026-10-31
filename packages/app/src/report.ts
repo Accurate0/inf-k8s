@@ -49,7 +49,7 @@ function appProblems(app: Application): Problem[] {
   if (isEmergency(app)) {
     problems.push({
       severe: true,
-      text: `auto-sync turned off; undo: ortzi deploy autosync ${app.metadata.name} on --yes`,
+      text: `auto-sync turned off; undo: ortzi app autosync ${app.metadata.name} on --yes`,
     });
   } else if (!automated && !isManualSync(app)) {
     problems.push({ severe: false, text: 'auto-sync is off' });

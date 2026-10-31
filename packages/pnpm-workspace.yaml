@@ -4,7 +4,6 @@ packages:
   - ortzi-kit
   - ortzi-example
   - schemas
-  - deploy
   - app
 
 allowBuilds:

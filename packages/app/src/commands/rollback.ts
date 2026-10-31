@@ -106,7 +106,7 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
 
   turnAutosyncOff(kube, app);
   for (const edit of edits) applyEdit(kube, edit);
-  const undo = `auto-sync is off; to return to git: ortzi deploy autosync ${name} on --yes`;
+  const undo = `auto-sync is off; to return to git: ortzi app autosync ${name} on --yes`;
   if (!options.wait) {
     console.log(undo);
     return 0;
@@ -114,7 +114,7 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
 
   const changed = [...new Set(edits.map((edit) => edit.workload))];
   if (!waitForRollouts(kube, changed, options.timeoutMinutes)) {
-    console.error(`rollback of ${name} did not finish; check \`ortzi deploy status ${name}\``);
+    console.error(`rollback of ${name} did not finish; check \`ortzi app status ${name}\``);
     console.error(undo);
     return 1;
   }

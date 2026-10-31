@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test src/render.test.ts"
+    "test": "node --test src/render.test.ts src/images.test.ts"
   },
   "dependencies": {
     "@ortzi/host": "workspace:*",
