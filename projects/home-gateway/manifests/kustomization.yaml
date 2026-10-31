@@ -1,19 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
-  - home-gateway/home-gateway.deployment.yaml
-  - home-gateway/home-gateway.service.yaml
-  - home-gateway/home-gateway.servicemonitor.yaml
-  - home-gateway/home-web.deployment.yaml
-  - home-gateway/home-web.service.yaml
   - home-gateway/home-web.httproute.yaml
   - home-gateway/home-web-lan.httproute.yaml
-  - namespace.yaml
-commonAnnotations:
-  inf-k8s.net/app: home-gateway
-  inf-k8s.net/repository: https://github.com/Accurate0/home-gateway
-images:
-  - name: ghcr.io/accurate0/home-gateway
-    newTag: e0f5643ff9ef0f6b27040b74821d353de994e8e5
-  - name: ghcr.io/accurate0/home-gateway-web
-    newTag: 7af15998654264a233f20bd04be9713f137c314f
