@@ -8,12 +8,18 @@ routes:
     gateway: internal-gateway
     hosts:
       - janitor-bot.ortzi.cloud
+    backend:
+      name: api
+      port: 80
   janitor-bot-public-route:
     auth:
       mode: app
       reason: github webhook, verified by its signature
     hosts:
       - janitor-bot.anurag.sh
+    backend:
+      name: api
+      port: 80
     paths:
       - type: Exact
         value: /github/webhook

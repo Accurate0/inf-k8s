@@ -8,6 +8,9 @@ routes:
     gateway: internal-gateway
     hosts:
       - feature-flags.ortzi.cloud
+    backend:
+      name: api
+      port: 50051
     paths:
       - /featureflag.v1.Admin/
       - /featureflag.v1.Evaluation/

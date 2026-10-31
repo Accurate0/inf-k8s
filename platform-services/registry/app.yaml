@@ -8,6 +8,9 @@ routes:
     gateway: internal-gateway
     hosts:
       - registry.ortzi.cloud
+    backend:
+      name: api
+      port: 80
 oidc:
   registry:
     displayName: Registry

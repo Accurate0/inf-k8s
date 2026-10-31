@@ -8,7 +8,9 @@ routes:
       reason: public website, the app handles its own logins
     hosts:
       - maccas.one
-    workload: maccas-web
+    backend:
+      name: maccas-web
+      port: 3000
     annotations:
       external-dns.kubernetes.io/managed: "true"
       external-dns.kubernetes.io/cloudflare-proxied: "true"
@@ -76,9 +78,12 @@ workloads:
         value: http://maccas-sensordata.maccas-api.svc.cluster.local
       - name: REDIS_CONNECTION_STRING
         value: redis://replicated.dragonfly.svc.cluster.local
-    secrets:
-      - common
-      - api
+    envFrom:
+      - secretRef:
+          name: maccas-common-managed-secrets
+      - secretRef:
+          name: maccas-api-managed-secrets
+    secrets: []
     replicas: 3
     topologySpreadConstraints:
       - maxSkew: 2
@@ -135,8 +140,10 @@ workloads:
         value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
       - name: FEATURE_FLAGS_URL
         value: api.feature-flags.svc.cluster.local:50051
-    secrets:
-      - web
+    envFrom:
+      - secretRef:
+          name: maccas-web-managed-secrets
+    secrets: []
     replicas: 3
     topologySpreadConstraints:
       - maxSkew: 2
@@ -163,9 +170,12 @@ workloads:
     env:
       - name: EVENT_API_BASE
         value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
-    secrets:
-      - common
-      - api
+    envFrom:
+      - secretRef:
+          name: maccas-common-managed-secrets
+      - secretRef:
+          name: maccas-api-managed-secrets
+    secrets: []
     affinity:
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
@@ -201,9 +211,12 @@ workloads:
         value: http://flipt.flipt.svc.cluster.local:8080
       - name: CLUSTERING_API_BASE
         value: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
-    secrets:
-      - common
-      - api
+    envFrom:
+      - secretRef:
+          name: maccas-common-managed-secrets
+      - secretRef:
+          name: maccas-api-managed-secrets
+    secrets: []
     initContainers:
       - image: ghcr.io/accurate0/maccas-migration
         name: maccas-migration
