@@ -1,3 +1,4 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,6 +15,51 @@ spec:
       selfHeal: true
   project: projects
   sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.2.0
+      helm:
+        valueFiles:
+          - $values/projects/ozbargain/image.values.yaml
+        valuesObject:
+          namespace: ozbargain
+          workloads:
+            - name: ozb-discord-bot
+              image: ghcr.io/accurate0/ozb-discord-bot
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+              envFrom:
+                - secretRef:
+                    name: ozb-managed-secrets
+            - name: ozb-finder
+              image: ghcr.io/accurate0/ozb-finder
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+              envFrom:
+                - secretRef:
+                    name: ozb-managed-secrets
+            - name: ozb-trigger
+              image: ghcr.io/accurate0/ozb-trigger
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 16Mi
+              envFrom:
+                - secretRef:
+                    name: ozb-managed-secrets
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: ozbargain
+          ingress: []
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.6.0
@@ -30,10 +76,6 @@ spec:
             - name: ozbargain
               managedSecrets:
                 - secretName: ozb-managed-secrets
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
-      name: application
-      path: projects/ozbargain/manifests
-
   destination:
     server: https://kubernetes.default.svc
     namespace: ozbargain

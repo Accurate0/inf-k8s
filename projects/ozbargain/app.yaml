@@ -1,0 +1,27 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: ozbargain
+repository: https://github.com/Accurate0/ozb
+workloads:
+  ozb-discord-bot:
+    image: ghcr.io/accurate0/ozb-discord-bot
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+  ozb-finder:
+    image: ghcr.io/accurate0/ozb-finder
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+  ozb-trigger:
+    image: ghcr.io/accurate0/ozb-trigger
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+secrets:
+  - name: ozbargain
+    secretName: ozb-managed-secrets
+network:
+  ingress: []
