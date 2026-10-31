@@ -10,6 +10,10 @@ workloads:
       port: 80
 network:
   ingress: []
+namespace:
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"
+    gateway.inf-k8s.net/anurag-id-au: "true"
 resources:
   - name: anurag-sh-route
     type: route
