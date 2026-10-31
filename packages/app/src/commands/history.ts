@@ -17,11 +17,10 @@ export function history(kube: Kube, name: string): number {
     return 0;
   }
   const rows = entries.map((entry) => {
-    const revision = gitRevision(app, entry);
     return [
       minuteTimestamp(entry.deployedAt ?? '-'),
-      short(revision ?? '-'),
-      describeTags(tagsAt(app, revision)),
+      short(gitRevision(app, entry) ?? '-'),
+      describeTags(tagsAt(app, entry)),
     ];
   });
   console.log(columns(['DEPLOYED (UTC)', 'REVISION', 'IMAGES'], rows));

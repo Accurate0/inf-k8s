@@ -1,26 +1,24 @@
 import { fetchText } from '@ortzi/kit';
-import type { Application, Revisions } from './argo';
+import type { Application, Revisions, Source } from './argo';
 import { parseKustomizationImages, parseValuesImages } from './images';
 
 const REPO = 'Accurate0/inf-k8s';
 
-function sourceIndex(app: Application): number {
-  return (app.spec.sources ?? []).findIndex((s) => (s.path || s.ref) && s.repoURL?.includes(REPO));
-}
+type Entry = Revisions & { sources?: Source[] };
 
-function sourcePath(app: Application): string | undefined {
-  const index = sourceIndex(app);
-  if (index >= 0) return app.spec.sources?.[index].path;
-  return app.spec.source?.repoURL?.includes(REPO) ? app.spec.source.path : undefined;
-}
+const sourcesOf = (app: Application, entry: Entry | undefined) =>
+  entry?.sources ?? app.spec.sources ?? [];
 
-export function gitRevision(app: Application, entry: Revisions | undefined): string | undefined {
-  const index = sourceIndex(app);
+const repoSource = (sources: Source[]) =>
+  sources.findIndex((s) => (s.path || s.ref) && s.repoURL?.includes(REPO));
+
+export function gitRevision(app: Application, entry: Entry | undefined): string | undefined {
+  const index = repoSource(sourcesOf(app, entry));
   return (index >= 0 ? entry?.revisions?.[index] : undefined) ?? entry?.revision;
 }
 
-function workloadTags(app: Application, revision: string | undefined): Map<string, string> | undefined {
-  const helm = app.spec.sources?.find((s) => s.chart === 'k8s-workload')?.helm;
+function workloadTags(sources: Source[], revision: string | undefined): Map<string, string> | undefined {
+  const helm = sources.find((s) => s.chart === 'k8s-workload')?.helm;
   if (!helm) return undefined;
   const file = helm.valueFiles?.[0]?.replace('$values/', '');
   if (!file || !revision) return new Map();
@@ -28,10 +26,13 @@ function workloadTags(app: Application, revision: string | undefined): Map<strin
   return text ? parseValuesImages(text) : new Map();
 }
 
-export function tagsAt(app: Application, revision: string | undefined): Map<string, string> {
-  const workload = workloadTags(app, revision);
+export function tagsAt(app: Application, entry: Entry | undefined): Map<string, string> {
+  const sources = sourcesOf(app, entry);
+  const revision = gitRevision(app, entry);
+  const workload = workloadTags(sources, revision);
   if (workload) return workload;
-  const path = sourcePath(app);
+  const source = sources.find((s) => s.path && s.repoURL?.includes(REPO)) ?? app.spec.source;
+  const path = source?.repoURL?.includes(REPO) ? source.path : undefined;
   if (!path || !revision) return new Map();
   for (const dir of [path, `${path}/manifests`]) {
     const text = fetchText(
@@ -43,4 +44,4 @@ export function tagsAt(app: Application, revision: string | undefined): Map<stri
   return new Map();
 }
 
-export const syncedTags = (app: Application) => tagsAt(app, gitRevision(app, app.status?.sync));
+export const syncedTags = (app: Application) => tagsAt(app, app.status?.sync);

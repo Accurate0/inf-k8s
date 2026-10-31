@@ -6,7 +6,7 @@ import {
   historyNewestFirst,
   turnAutosyncOff,
 } from '../argo';
-import { gitRevision, syncedTags, tagsAt } from '../git';
+import { syncedTags, tagsAt } from '../git';
 import { previousTags } from '../images';
 import {
   type Workload,
@@ -34,7 +34,7 @@ function chooseTargets(
   if (tag) return new Map([...syncedTags(app).keys()].map((image) => [image, tag]));
   const previous = previousTags(
     runningTags(workloads),
-    historyNewestFirst(app).map((entry) => tagsAt(app, gitRevision(app, entry))),
+    historyNewestFirst(app).map((entry) => tagsAt(app, entry)),
   );
   if (!previous) throw new Error(`no different tags in ${app.metadata.name}'s history; pass a tag`);
   return previous;

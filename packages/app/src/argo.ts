@@ -25,6 +25,7 @@ export interface Revisions {
 
 export interface HistoryEntry extends Revisions {
   deployedAt?: string;
+  sources?: Source[];
 }
 
 export interface Application {
