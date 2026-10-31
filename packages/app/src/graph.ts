@@ -28,7 +28,7 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') {
         edges.push({ from: app.name, to: resource.app, label: resource.export });
-      } else if (resource.type === 'database') {
+      } else if (resource.type === 'database' || resource.type === 'secret') {
         continue;
       } else if (resource.type === 'bucket') {
         const name = bucketName(app, resource);

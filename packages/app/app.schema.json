@@ -533,6 +533,28 @@
                 "description": "Connect through the pooler. Defaults to true."
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "secret"
+                ]
+              },
+              "secretName": {
+                "type": "string",
+                "description": "Defaults to <name>-managed-secrets."
+              }
+            }
           }
         ]
       }

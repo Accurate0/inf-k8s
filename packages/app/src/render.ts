@@ -48,7 +48,8 @@ export type Resource =
   | { name: string; type: 'tracing' }
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
-  | ({ name: string; type: 'database' } & DatabaseSpec);
+  | ({ name: string; type: 'database' } & DatabaseSpec)
+  | { name: string; type: 'secret'; secretName?: string };
 
 export interface DatabaseSpec {
   databaseName?: string;
@@ -167,7 +168,7 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
 }
 
 function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
-  const resource = app.resources?.find((r) => r.name === name) as Resource;
+  const resource = app.resources?.find((r) => r.name === name && r.type !== 'secret') as Resource;
   if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
   if (resource.type === 'bucket') return { name: env, value: bucketName(app, resource) };
   if (resource.type === 'database') {
@@ -222,7 +223,9 @@ export function validate(raw: unknown, where: string): App {
     for (const key of overrideConflicts(workload)) fail(`workloads.${name}.overrides.${key} is already set on the workload`);
     for (const value of Object.values(!workload.env || Array.isArray(workload.env) ? {} : workload.env)) {
       const used = (value as { resource?: string } | null)?.resource;
-      if (used && !app.resources?.some((r) => r.name === used)) fail(`workloads.${name}.env: no resource named ${used}`);
+      if (used && !app.resources?.some((r) => r.name === used && r.type !== 'secret')) {
+        fail(`workloads.${name}.env: no resource named ${used}; list a secret in envFrom`);
+      }
     }
   }
   const routes = Object.entries(app.routes ?? {});
@@ -265,9 +268,9 @@ export function validate(raw: unknown, where: string): App {
   }
   const [invalid] = appSchema.validate(app, schema as unknown as Schema).errors;
   if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
-  const resourceNames = (app.resources ?? []).map((r) => r.name);
-  for (const name of resourceNames) {
-    if (resourceNames.indexOf(name) !== resourceNames.lastIndexOf(name)) fail(`resources: duplicate name ${name}`);
+  const resourceKeys = (app.resources ?? []).map((r) => `${r.type === 'secret' ? 'secret' : 'value'}/${r.name}`);
+  for (const key of resourceKeys) {
+    if (resourceKeys.indexOf(key) !== resourceKeys.lastIndexOf(key)) fail(`resources: duplicate name ${key.split('/')[1]}`);
   }
   const exportNames = (app.exports ?? []).map((e) => e.name);
   for (const exported of app.exports ?? []) {
@@ -515,12 +518,12 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
     resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: bucketSecretName(resource) }] : [],
   );
-  if (app.secrets?.length || bucketSecrets.length) {
+  if (appSecrets(app).length || bucketSecrets.length) {
     sources.push(
       chart(app, versions, 'k8s-secrets', {
         valuesObject: {
           defaults: { namespace: name, provider: 'openbao', resyncInterval: 900, annotations },
-          secrets: [...(app.secrets ?? []).map(secretFor), ...bucketSecrets].map((s) => ({
+          secrets: [...appSecrets(app), ...bucketSecrets].map((s) => ({
             name: s.name,
             managedSecrets: [{ secretName: s.secretName }],
           })),
@@ -569,6 +572,17 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   };
 
   return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
+
+export function appSecrets(app: App): { name: string; secretName: string }[] {
+  return [
+    ...(app.secrets ?? []).map(secretFor),
+    ...(app.resources ?? []).flatMap((resource) =>
+      resource.type === 'secret'
+        ? [{ name: resource.name, secretName: resource.secretName ?? `${resource.name}-managed-secrets` }]
+        : [],
+    ),
+  ];
 }
 
 export function appDatabases(app: App): Record<string, DatabaseSpec> {

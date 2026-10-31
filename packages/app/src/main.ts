@@ -11,6 +11,7 @@ import {
   addRoles,
   type App,
   appDatabases,
+  appSecrets,
   appRoles,
   databasePath,
   imageValuesPath,
@@ -259,7 +260,7 @@ export const run = cli({
         count(app.routes),
         count(app.oidc),
         count(appDatabases(app)),
-        count(app.secrets),
+        count(appSecrets(app)),
         app.metrics ? 'yes' : '-',
         app.network.ingress.join(',') || '-',
       ]);

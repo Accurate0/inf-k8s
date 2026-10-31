@@ -660,3 +660,42 @@ test('rejects a database resource used in env', () => {
 test('rejects the old databases block', () => {
   assert.throws(() => validate({ ...base, databases: { foo: {} } }, 'test'), /unknown block "databases"/);
 });
+
+test('a secret resource renders like a secrets entry', () => {
+  const asResource = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'foo', type: 'secret' },
+        { name: 'other', type: 'secret', secretName: 'custom' },
+      ],
+    },
+    'test',
+  );
+  const asBlock = validate({ ...base, secrets: ['foo', { name: 'other', secretName: 'custom' }] }, 'test');
+  assert.deepEqual(source(render(asResource), 'k8s-secrets'), source(render(asBlock), 'k8s-secrets'));
+});
+
+test('a secret can share a name with a database', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'foo', type: 'secret' },
+        { name: 'foo', type: 'database' },
+      ],
+    },
+    'test',
+  );
+  assert.equal(source(render(app), 'k8s-secrets')?.helm.valuesObject.secrets[0].name, 'foo');
+  assert.equal(source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].name, 'foo');
+});
+
+test('rejects duplicate secrets and a secret used in env', () => {
+  const secret = { name: 'foo', type: 'secret' };
+  assert.throws(() => validate({ ...base, resources: [secret, secret] }, 'test'), /duplicate name foo/);
+  assert.throws(
+    () => validate({ ...base, resources: [secret], workloads: { foo: { image: 'i', env: { A: { resource: 'foo' } } } } }, 'test'),
+    /list a secret in envFrom/,
+  );
+});
