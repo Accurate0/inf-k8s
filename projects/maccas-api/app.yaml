@@ -258,5 +258,6 @@ workloads:
           protocol: TCP
           port: 8004
           targetPort: 8004
-namespaceLabels:
-  gateway.inf-k8s.net/maccas-one: "true"
+namespace:
+  labels:
+    gateway.inf-k8s.net/maccas-one: "true"

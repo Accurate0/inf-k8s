@@ -95,8 +95,9 @@ workloads:
           targetPort: grpc
           appProtocol: grpc
       trafficDistribution: PreferSameNode
-namespaceLabels:
-  internal-gateway-access: "true"
+namespace:
+  labels:
+    internal-gateway-access: "true"
 build:
   image: ghcr.io/accurate0/feature-flags
   context: .

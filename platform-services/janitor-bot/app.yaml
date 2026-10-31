@@ -147,9 +147,10 @@ workloads:
           protocol: TCP
           port: 80
           targetPort: 3000
-namespaceLabels:
-  internal-gateway-access: "true"
-  gateway.inf-k8s.net/anurag-sh: "true"
+namespace:
+  labels:
+    internal-gateway-access: "true"
+    gateway.inf-k8s.net/anurag-sh: "true"
 metrics:
   workload: janitor-bot
   path: /admin/metrics

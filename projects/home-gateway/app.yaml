@@ -37,10 +37,11 @@ sources:
 network:
   ingress:
     - monitoring
-namespaceLabels:
-  gateway.inf-k8s.net/anurag-sh: "true"
-  internal-gateway-access: "true"
-  inf-k8s.net/lan-gateway-access: "true"
+namespace:
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"
+    internal-gateway-access: "true"
+    inf-k8s.net/lan-gateway-access: "true"
 metrics:
   workload: home-gateway
   path: /metrics

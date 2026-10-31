@@ -188,8 +188,9 @@ workloads:
           protocol: TCP
           port: 80
           targetPort: 3000
-namespaceLabels:
-  internal-gateway-access: "true"
+namespace:
+  labels:
+    internal-gateway-access: "true"
 serviceAccounts:
   - waf-manager
 metrics:

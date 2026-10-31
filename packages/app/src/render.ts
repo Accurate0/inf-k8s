@@ -82,7 +82,7 @@ export interface App {
   build?: Build;
   network: { ingress: string[] };
   metrics?: { path?: string; port?: string; interval?: string; workload?: string };
-  namespaceLabels?: Record<string, string>;
+  namespace?: { labels?: Record<string, string> };
   serviceAccounts?: string[];
 }
 
@@ -107,7 +107,7 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
   return found;
 }
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'namespaceLabels', 'serviceAccounts', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -245,10 +245,10 @@ export function renderApplication(app: App, versions: Versions, target: Target):
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
         valuesObject: {
           namespace: name,
-          ...(routes.length || app.namespaceLabels
+          ...(routes.length || app.namespace?.labels
             ? {
                 namespaceLabels:
-                  app.namespaceLabels ??
+                  app.namespace?.labels ??
                   Object.fromEntries(
                     routes.flatMap(([, route]) =>
                       (route.gateway ?? 'public-gateway') === 'internal-gateway'

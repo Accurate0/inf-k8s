@@ -140,8 +140,9 @@ workloads:
     kind: CronJob
     schedule: 17 4 * * *
     backoffLimit: 2
-namespaceLabels:
-  internal-gateway-access: "true"
+namespace:
+  labels:
+    internal-gateway-access: "true"
 metrics:
   workload: ai-gateway
   path: /admin/metrics

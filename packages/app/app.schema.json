@@ -306,12 +306,6 @@
         }
       }
     },
-    "namespaceLabels": {
-      "type": "object",
-      "additionalProperties": {
-        "type": "string"
-      }
-    },
     "serviceAccounts": {
       "type": "array",
       "items": {
@@ -376,6 +370,18 @@
             "setup": {
               "type": "string"
             }
+          }
+        }
+      }
+    },
+    "namespace": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
           }
         }
       }

@@ -119,8 +119,9 @@ workloads:
           protocol: TCP
           port: 80
           targetPort: 3000
-namespaceLabels:
-  internal-gateway-access: "true"
+namespace:
+  labels:
+    internal-gateway-access: "true"
 metrics:
   workload: registry
   path: /metrics
