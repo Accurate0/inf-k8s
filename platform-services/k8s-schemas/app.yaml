@@ -4,3 +4,32 @@ secrets:
   - k8s-schemas
 network:
   ingress: []
+workloads:
+  k8s-schemas:
+    image: ghcr.io/accurate0/k8s-schemas
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+      limits:
+        memory: 512Mi
+    env:
+      - name: K8S_VERSION
+        value: v1.37.1
+    envFrom:
+      - secretRef:
+          name: k8s-schemas-managed-secrets
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
+    secrets: []
+    databases: []
+    kind: CronJob
+    schedule: 0 0 * * 0
+    backoffLimit: 2
+    serviceAccountName: k8s-schemas
+    volumes:
+      - name: tmp
+        emptyDir: {}
+serviceAccounts:
+  - k8s-schemas
