@@ -22,19 +22,44 @@ on:
 enable-openid-connect: true
 
 jobs:
+  changes:
+    runs-on: ortzi
+    outputs:
+      package: ${{ steps.package.outputs.changed }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          fetch-depth: 0
+      - id: package
+        env:
+          BEFORE: ${{ github.event.before }}
+        run: |
+          changed=true
+          if [ "${{ github.event_name }}" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
+            && git diff --quiet "$BEFORE" HEAD -- packages/app packages/ortzi-host packages/ortzi-kit packages/pnpm-lock.yaml; then
+            changed=false
+          fi
+          echo "changed=$changed" >> "$GITHUB_OUTPUT"
+
   test:
+    needs: changes
     runs-on: ortzi
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: needs.changes.outputs.package == 'true'
       - run: pnpm --dir packages install --frozen-lockfile
+        if: needs.changes.outputs.package == 'true'
       - run: pnpm --dir packages/app test && pnpm --dir packages/app check
+        if: needs.changes.outputs.package == 'true'
 
   publish:
-    needs: test
+    needs: [changes, test]
     runs-on: ortzi
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: needs.changes.outputs.package == 'true'
       - run: ortzi publish packages/app
+        if: needs.changes.outputs.package == 'true'
 
   render:
     needs: publish
