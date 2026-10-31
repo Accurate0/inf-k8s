@@ -3,7 +3,7 @@ name: waf-manager
 network:
   ingress: []
 resources:
-  - {name: waf-manager, type: secret}
+  - {name: waf-manager, type: secret, secretName: waf-manager-managed-secrets}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
   - name: waf-manager-route
     type: route
@@ -84,7 +84,7 @@ workloads:
     env:
       POD_NAMESPACE: {field: metadata.namespace}
       POD_NAME: {field: metadata.name}
-      DATABASE_URL: {secret: waf-manager-db-credentials, key: DATABASE_URL}
+      DATABASE_URL: {database: waf-manager, key: DATABASE_URL}
       LOKI_URL: http://monitoring-loki.monitoring.svc.cluster.local:3100
       POLICY_NAMESPACE: envoy-gateway-system
       RESYNC_SECONDS: "300"
@@ -96,9 +96,8 @@ workloads:
       OIDC_CLI_ISSUER: https://idm.anurag.sh/oauth2/openid/waf-manager-cli
       OIDC_CLI_AUDIENCE: {secret: kanidm-waf-manager-cli-oidc, key: client-id, optional: true}
     envFrom:
-      - secretRef:
-          name: waf-manager-managed-secrets
-          optional: true
+      - secret: waf-manager
+        optional: true
     mounts:
       workflows:
         path: /etc/waf-manager/config

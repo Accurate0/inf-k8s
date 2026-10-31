@@ -3,7 +3,7 @@ name: firefly-up-sync
 network:
   ingress: []
 resources:
-  - {name: firefly-up-sync, type: secret}
+  - {name: firefly-up-sync, type: secret, secretName: firefly-up-sync-managed-secrets}
 workloads:
   firefly-up-sync:
     image: ghcr.io/accurate0/firefly-up-sync
@@ -26,7 +26,7 @@ workloads:
           {"name": "Spendings", "matches": ["Spendings"]}
         ]
     envFrom:
-      - firefly-up-sync-managed-secrets
+      - secret: firefly-up-sync
     overrides:
       restartPolicy: Never
       automountServiceAccountToken: false

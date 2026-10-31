@@ -5,7 +5,7 @@ network:
     - argocd
     - forgejo
 resources:
-  - {name: janitor-bot, type: secret}
+  - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
   - name: flags
     type: app
     app: feature-flags
@@ -89,7 +89,7 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
     envFrom:
-      - janitor-bot-managed-secrets
+      - secret: janitor-bot
     mounts:
       tmp: {path: /tmp, emptyDir: true}
       rules:

@@ -8,16 +8,16 @@ workloads:
     image: ghcr.io/accurate0/ozb-discord-bot
     resources: {memory: 16Mi}
     envFrom:
-      - ozb-managed-secrets
+      - secret: ozbargain
   ozb-finder:
     image: ghcr.io/accurate0/ozb-finder
     resources: {memory: 16Mi}
     envFrom:
-      - ozb-managed-secrets
+      - secret: ozbargain
   ozb-trigger:
     image: ghcr.io/accurate0/ozb-trigger
     resources: {memory: 16Mi}
     envFrom:
-      - ozb-managed-secrets
+      - secret: ozbargain
 network:
   ingress: []

@@ -9,7 +9,8 @@ workloads:
     env:
       KANIDM_URL: https://idm.anurag.sh
     envFrom:
-      - kanidm-sync-managed-secrets
+      - secretRef:
+          name: kanidm-sync-managed-secrets
     serviceAccountName: kanidm-sync
 serviceAccounts:
   - kanidm-sync

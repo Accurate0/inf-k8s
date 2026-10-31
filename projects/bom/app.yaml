@@ -2,9 +2,9 @@
 name: bom
 repository: https://github.com/Accurate0/bom
 resources:
-  - {name: bom, type: secret}
-  - {name: bom, type: database}
-  - {name: images, type: bucket, provider: r2, bucket: bom-images}
+  - {name: bom, type: secret, secretName: bom-managed-secrets}
+  - {name: bom, type: database, secretName: bom-database-secret}
+  - {name: images, type: bucket, provider: r2, bucket: bom-images, secretName: images-bucket-secrets}
 workloads:
   bom:
     image: ghcr.io/accurate0/bom
@@ -13,12 +13,12 @@ workloads:
     resources: {cpu: 30m, memory: 56Mi, memoryLimit: 512Mi}
     env:
       BUCKET_NAME: {resource: images}
-      BUCKET_ENDPOINT: {secret: images-bucket-secrets, key: S3_ENDPOINT}
-      BUCKET_ACCESS_KEY_ID: {secret: images-bucket-secrets, key: S3_ACCESS_KEY_ID}
-      BUCKET_ACCESS_SECRET_KEY: {secret: images-bucket-secrets, key: S3_SECRET_ACCESS_KEY}
+      BUCKET_ENDPOINT: {bucket: images, key: S3_ENDPOINT}
+      BUCKET_ACCESS_KEY_ID: {bucket: images, key: S3_ACCESS_KEY_ID}
+      BUCKET_ACCESS_SECRET_KEY: {bucket: images, key: S3_SECRET_ACCESS_KEY}
     envFrom:
-      - bom-managed-secrets
-      - bom-database-secret
+      - secret: bom
+      - database: bom
     service:
       name: bom-api
       portName: api

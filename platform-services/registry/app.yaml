@@ -4,10 +4,10 @@ network:
   ingress:
     - forgejo
 resources:
-  - {name: registry, type: secret}
+  - {name: registry, type: secret, secretName: registry-managed-secrets}
   - {name: signing, type: secret, secretName: registry-signing-secrets}
-  - {name: registry, type: database}
-  - {name: storage, type: bucket, provider: r2, bucket: registry}
+  - {name: registry, type: database, secretName: registry-database-secret}
+  - {name: storage, type: bucket, provider: r2, bucket: registry, secretName: storage-bucket-secrets}
   - name: traces
     type: tracing
   - name: registry
@@ -54,15 +54,15 @@ workloads:
       readiness: {delay: 5, every: 15}
       liveness: {delay: 5, every: 60}
     env:
-      S3_ENDPOINT: {secret: storage-bucket-secrets, key: S3_ENDPOINT}
-      S3_ACCESS_KEY_ID: {secret: storage-bucket-secrets, key: S3_ACCESS_KEY_ID}
-      S3_SECRET_ACCESS_KEY: {secret: storage-bucket-secrets, key: S3_SECRET_ACCESS_KEY}
+      S3_ENDPOINT: {bucket: storage, key: S3_ENDPOINT}
+      S3_ACCESS_KEY_ID: {bucket: storage, key: S3_ACCESS_KEY_ID}
+      S3_SECRET_ACCESS_KEY: {bucket: storage, key: S3_SECRET_ACCESS_KEY}
       CONFIG_PATH: /etc/registry/config.yaml
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - registry-managed-secrets
-      - registry-signing-secrets
-      - registry-database-secret
+      - secret: registry
+      - secret: signing
+      - database: registry
     mounts:
       config: {path: /etc/registry, configMap: registry-config}
     service:

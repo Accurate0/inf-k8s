@@ -7,9 +7,9 @@ exports:
     workload: ai-gateway
     port: http
 resources:
-  - {name: ai-gateway, type: secret}
+  - {name: ai-gateway, type: secret, secretName: ai-gateway-managed-secrets}
   - {name: cache, type: cache, instance: replicated}
-  - {name: ai-gateway, type: database}
+  - {name: ai-gateway, type: database, secretName: ai-gateway-database-secret}
   - name: flags
     type: app
     app: feature-flags
@@ -59,8 +59,8 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
     envFrom:
-      - ai-gateway-managed-secrets
-      - ai-gateway-database-secret
+      - secret: ai-gateway
+      - database: ai-gateway
     mounts:
       config: {path: /etc/ai-gateway, configMap: ai-gateway-config}
     service:
@@ -98,7 +98,7 @@ workloads:
       - sync
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
-      AIG_ADMIN_TOKEN: {secret: ai-gateway-managed-secrets, key: ADMIN_TOKEN}
+      AIG_ADMIN_TOKEN: {secret: ai-gateway, key: ADMIN_TOKEN}
       AIG_URL: http://api.ai-gateway.svc.cluster.local
 namespace:
   labels:
