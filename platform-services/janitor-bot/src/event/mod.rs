@@ -190,8 +190,8 @@ impl BotEvent<'_> {
                 let state = match cr.conclusion.as_str() {
                     "success" => "success",
                     "failure" | "timed_out" | "action_required" => "failure",
-                    "cancelled" | "skipped" | "stale" => "error",
-                    "neutral" => "success",
+                    "cancelled" | "stale" => "error",
+                    "neutral" | "skipped" => "success",
                     _ if cr.status == "in_progress" || cr.status == "queued" => "pending",
                     _ => "pending",
                 };
