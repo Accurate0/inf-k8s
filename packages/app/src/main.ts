@@ -108,20 +108,20 @@ function discover(): { app: App; target: Target }[] {
     }
   }
   validateIngress(found.map(({ app }) => app));
-  validateResources(found.map(({ app }) => app), platformExports());
+  validateResources({ platform: platformExports(), apps: found.map(({ app }) => app) });
   return found;
 }
 
 function staleFiles(only?: string): { path: string; wanted: string }[] {
   const versions = parse(fs.readText(VERSIONS)).charts;
-  const platform = platformExports();
   const stale = [];
   const apps = discover();
+  const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
   if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
   for (const { app, target } of apps) {
     if (only && app.name !== only) continue;
     const path = `${target.location}/${app.name}/application.yaml`;
-    const wanted = renderApplication(app, versions, target, platform);
+    const wanted = renderApplication(app, versions, target, world);
     if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
       stale.push({ path, wanted: stamped(wanted, new Date()) });
     }
@@ -148,11 +148,12 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
 
 function render(check: boolean): number {
   const versions = parse(fs.readText(VERSIONS)).charts;
-  const platform = platformExports();
+  const apps = discover();
+  const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
   const generated = new Map(
-    discover().map(({ app, target }) => [
+    apps.map(({ app, target }) => [
       `${target.location}/${app.name}/application.yaml`,
-      renderApplication(app, versions, target, platform),
+      renderApplication(app, versions, target, world),
     ]),
   );
   const failures = validateManifests(generated);

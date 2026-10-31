@@ -16,7 +16,7 @@ const target = { location: 'projects', hasManifests: false };
 
 const platform = [{ name: 'tracing', type: 'tracing', url: 'http://tempo/traces', env: 'OTEL_TRACING_URL' }];
 
-const render = (app: App, t = target) => parse(renderApplication(app, versions, t, platform));
+const render = (app: App, t = target, apps: App[] = []) => parse(renderApplication(app, versions, t, { platform, apps }));
 const source = (rendered: { spec: { sources: Record<string, any>[] } }, chart: string) =>
   rendered.spec.sources.find((s) => s.chart === chart);
 
@@ -242,6 +242,7 @@ test('does not emit yaml anchors', () => {
     { name: 'foo', databases: { foo: {} }, secrets: ['foo'], network: { ingress: [] } },
     versions,
     target,
+    { platform, apps: [] },
   );
   assert.doesNotMatch(output, /[&*]a1/);
 });
@@ -291,7 +292,7 @@ test('generates a workflow from the build block', () => {
 
 test('output is stable', () => {
   const app: App = { name: 'foo', network: { ingress: [] } };
-  assert.equal(renderApplication(app, versions, target, platform), renderApplication(app, versions, target, platform));
+  assert.equal(renderApplication(app, versions, target, { platform, apps: [] }), renderApplication(app, versions, target, { platform, apps: [] }));
 });
 
 test('rejects invalid apps', () => {
@@ -318,6 +319,7 @@ test('templates generated charts from the local charts directory', () => {
     { name: 'foo', workloads: { foo: { image: 'i' } }, network: { ingress: [] } },
     versions,
     { location: 'projects', hasManifests: false },
+    { platform, apps: [] },
   );
   const templates = helmTemplates(rendered);
   assert.deepEqual(templates[0].args, [
@@ -366,13 +368,58 @@ test('only workloads that use a resource get it', () => {
 test('rejects bad resources', () => {
   assert.throws(() => validate(traced(['nope']), 'test'), /no resource named nope/);
   assert.throws(
-    () => validateResources([validate(traced(['traces'], { env: [{ name: 'OTEL_TRACING_URL', value: 'x' }] }), 'test')], platform),
+    () => validateResources({ platform, apps: [validate(traced(['traces'], { env: [{ name: 'OTEL_TRACING_URL', value: 'x' }] }), 'test')] }),
     /already set/,
   );
-  assert.throws(() => validateResources([validate(traced(['traces']), 'test')], []), /one platform export of type tracing/);
+  assert.throws(() => validateResources({ platform: [], apps: [validate(traced(['traces']), 'test')] }), /one platform export of type tracing/);
   assert.throws(
     () => validate({ ...traced([]), resources: [{ name: 'a', type: 'tracing' }, { name: 'a', type: 'tracing' }] }, 'test'),
     /duplicate name a/,
   );
-  assert.throws(() => validate({ ...traced([]), resources: [{ name: 'a', type: 'nope' }] }, 'test'), /type/);
+  assert.throws(() => validate({ ...traced([]), resources: [{ name: 'a', type: 'nope' }] }, 'test'), /resources/);
+});
+
+const provider = (port: unknown = 'http', extra: Record<string, unknown> = {}) =>
+  validate({
+    name: 'gw',
+    network: { ingress: [] },
+    exports: [{ name: 'api', workload: 'gw', port }],
+    workloads: { gw: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }, { name: 'grpc', port: 50051 }] } } },
+    ...extra,
+  }, 'test');
+
+const consumer = (resource: Record<string, unknown> = {}) =>
+  validate({
+    name: 'caller',
+    network: { ingress: [] },
+    resources: [{ name: 'llm', type: 'app', app: 'gw', export: 'api', ...resource }],
+    workloads: { caller: { image: 'i', uses: [{ name: 'llm' }] } },
+  }, 'test');
+
+const url = (gw: App, caller: App) =>
+  source(render(caller, target, [gw, caller]), 'k8s-workload')?.helm.valuesObject.workloads[0].env[0];
+
+test('an exported workload renders to its service url', () => {
+  assert.deepEqual(url(provider(), consumer()), { name: 'LLM_URL', value: 'http://api.gw.svc.cluster.local' });
+  assert.equal(url(provider('grpc'), consumer()).value, 'http://api.gw.svc.cluster.local:50051');
+  assert.equal(url(provider(), consumer({ path: '/v1' })).value, 'http://api.gw.svc.cluster.local/v1');
+});
+
+test('using an export opens the provider to the caller', () => {
+  const gw = provider('http', { network: { ingress: ['monitoring', 'caller'] } });
+  const caller = consumer();
+  assert.deepEqual(source(render(gw, target, [gw, caller]), 'k8s-network')?.helm.valuesObject.ingress, ['monitoring', 'caller']);
+  const open = provider();
+  assert.deepEqual(source(render(open, target, [open, caller]), 'k8s-network')?.helm.valuesObject.ingress, ['caller']);
+  assert.deepEqual(source(render(caller, target, [open, caller]), 'k8s-network')?.helm.valuesObject.ingress, []);
+});
+
+test('rejects bad exports', () => {
+  assert.throws(() => provider('nope'), /no matching port/);
+  assert.throws(
+    () => validate({ name: 'x', network: { ingress: [] }, exports: [{ name: 'a', workload: 'nope' }] }, 'test'),
+    /no workload named nope/,
+  );
+  assert.throws(() => validateResources({ platform, apps: [consumer()] }), /no app named gw/);
+  assert.throws(() => validateResources({ platform, apps: [consumer({ export: 'nope' }), provider()] }), /no export named nope/);
 });

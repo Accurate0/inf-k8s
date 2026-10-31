@@ -52,7 +52,7 @@ jobs:
           git add -A projects platform-services .github/workflows
           git diff --cached --quiet && exit 0
           skip_ci=" [skip ci]"
-          git diff --cached --quiet -- .github/workflows || skip_ci=""
+          git diff --cached --quiet -- .github/workflows terraform system-components/postgres-cluster || skip_ci=""
           git config user.name "reconciler[bot]"
           git config user.email "reconciler@noreply.git.anurag.sh"
           git commit -m "chore(render): update generated applications${skip_ci}"

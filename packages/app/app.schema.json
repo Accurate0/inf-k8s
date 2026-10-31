@@ -213,20 +213,81 @@
       "type": "array",
       "description": "Named dependencies that workloads select with uses.",
       "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "tracing"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "app",
+              "export"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "app"
+                ]
+              },
+              "app": {
+                "type": "string"
+              },
+              "export": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string",
+                "description": "Appended to the exported URL."
+              }
+            }
+          }
+        ]
+      }
+    },
+    "exports": {
+      "type": "array",
+      "description": "Workloads other apps can use as a resource.",
+      "items": {
         "type": "object",
         "additionalProperties": false,
         "required": [
           "name",
-          "type"
+          "workload"
         ],
         "properties": {
           "name": {
             "type": "string"
           },
-          "type": {
-            "enum": [
-              "tracing"
-            ]
+          "workload": {
+            "type": "string"
+          },
+          "port": {
+            "type": [
+              "string",
+              "integer"
+            ],
+            "description": "Service port name or number. Optional with a single port."
           }
         }
       }

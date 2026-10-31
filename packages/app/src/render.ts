@@ -43,7 +43,15 @@ export interface Workload {
 
 export type Use = string | { name: string; env?: string };
 
-export type Resource = { name: string; type: 'tracing' };
+export type Resource =
+  | { name: string; type: 'tracing' }
+  | { name: string; type: 'app'; app: string; export: string; path?: string };
+
+export interface Export {
+  name: string;
+  workload: string;
+  port?: string | number;
+}
 
 export type Secret = string | { name: string; secretName: string };
 
@@ -91,6 +99,7 @@ export interface App {
   databases?: Record<string, { databaseName?: string; secretName?: string; enableConnectionPooling?: boolean }>;
   secrets?: Secret[];
   resources?: Resource[];
+  exports?: Export[];
   sources?: Record<string, unknown>[];
   build?: Build;
   network: { ingress: string[] };
@@ -116,9 +125,40 @@ export interface PlatformExport {
 
 const useFor = (use: Use) => (typeof use === 'string' ? { name: use } : use);
 
-function resourceEnv(app: App, use: Use, platform: PlatformExport[]): { name: string; value: string }[] {
+export interface World {
+  platform: PlatformExport[];
+  apps: App[];
+}
+
+function exportPort(provider: App, exported: Export): number {
+  const spec = provider.workloads?.[exported.workload];
+  const ports = (spec?.service?.ports ?? []) as { name?: string; port: number }[];
+  const port =
+    typeof exported.port === 'number'
+      ? exported.port
+      : exported.port
+        ? ports.find((p) => p.name === exported.port)?.port
+        : (spec?.service?.port ?? spec?.port ?? (ports.length === 1 ? ports[0].port : undefined));
+  if (!port) throw new Error(`${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`);
+  return port;
+}
+
+function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, apps: App[]): string {
+  const provider = apps.find((a) => a.name === resource.app);
+  if (!provider) throw new Error(`${app.name}: resources.${resource.name}: no app named ${resource.app}`);
+  const exported = provider.exports?.find((e) => e.name === resource.export);
+  if (!exported) throw new Error(`${app.name}: resources.${resource.name}: ${resource.app} has no export named ${resource.export}`);
+  const service = provider.workloads?.[exported.workload]?.service?.name ?? exported.workload;
+  const port = exportPort(provider, exported);
+  return `http://${service}.${provider.name}.svc.cluster.local${port === 80 ? '' : `:${port}`}${resource.path ?? ''}`;
+}
+
+function resourceEnv(app: App, use: Use, { platform, apps }: World): { name: string; value: string }[] {
   const { name, env } = useFor(use);
   const resource = app.resources?.find((r) => r.name === name) as Resource;
+  if (resource.type === 'app') {
+    return [{ name: env ?? `${name.toUpperCase().replaceAll('-', '_')}_URL`, value: appExportUrl(app, resource, apps) }];
+  }
   const provided = platform.filter((e) => e.type === resource.type);
   if (provided.length !== 1) {
     throw new Error(`${app.name}: resources.${name}: expected one platform export of type ${resource.type}, found ${provided.length}`);
@@ -141,7 +181,7 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'resources', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -210,6 +250,12 @@ export function validate(raw: unknown, where: string): App {
   for (const name of resourceNames) {
     if (resourceNames.indexOf(name) !== resourceNames.lastIndexOf(name)) fail(`resources: duplicate name ${name}`);
   }
+  const exportNames = (app.exports ?? []).map((e) => e.name);
+  for (const exported of app.exports ?? []) {
+    if (exportNames.indexOf(exported.name) !== exportNames.lastIndexOf(exported.name)) fail(`exports: duplicate name ${exported.name}`);
+    if (!app.workloads?.[exported.workload]) fail(`exports.${exported.name}: no workload named ${exported.workload}`);
+    exportPort(app, exported);
+  }
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     for (const use of workload.uses ?? []) {
       const used = useFor(use).name;
@@ -232,12 +278,15 @@ export function validateIngress(apps: App[]) {
   }
 }
 
-export function validateResources(apps: App[], platform: PlatformExport[]) {
-  for (const app of apps) {
+export function validateResources(world: World) {
+  for (const app of world.apps) {
+    for (const resource of app.resources ?? []) {
+      if (resource.type === 'app') appExportUrl(app, resource, world.apps);
+    }
     for (const [name, workload] of Object.entries(app.workloads ?? {})) {
       const seen = new Set((workload.env ?? []).map((e) => e.name as string));
       for (const use of workload.uses ?? []) {
-        for (const { name: env } of resourceEnv(app, use, platform)) {
+        for (const { name: env } of resourceEnv(app, use, world)) {
           if (seen.has(env)) throw new Error(`${app.name}: workloads.${name}.uses: ${useFor(use).name} sets ${env}, which is already set`);
           seen.add(env);
         }
@@ -315,7 +364,7 @@ export function renderWorkflow(app: App, target: Target): string {
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
-export function renderApplication(app: App, versions: Versions, target: Target, platform: PlatformExport[]): string {
+export function renderApplication(app: App, versions: Versions, target: Target, world: World): string {
   const { name } = app;
   const annotations = {
     'inf-k8s.net/app': name,
@@ -354,7 +403,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
             const { health, envFrom, secrets: only, databases: dbs, uses, ...rest } = spec;
-            const injected = (uses ?? []).flatMap((use) => resourceEnv(app, use, platform));
+            const injected = (uses ?? []).flatMap((use) => resourceEnv(app, use, world));
             const chosen = dbs ?? Object.keys(app.databases ?? {});
             const from = [
               ...(envFrom ?? []),
@@ -385,6 +434,10 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     ...(routes.length ? ['envoy-gateway-system'] : []),
     ...(app.metrics ? ['monitoring'] : []),
     ...app.network.ingress,
+    ...world.apps
+      .filter((other) => other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name))
+      .map((other) => other.name)
+      .sort(),
   ];
   sources.push(
     chart(app, versions, 'k8s-network', {
