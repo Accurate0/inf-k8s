@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T04:17:32.337Z
+# generated at 2026-10-31T04:24:55.548Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -71,12 +71,12 @@ spec:
               namespace: home-gateway
               displayName: Home Gateway
               host: home.ortzi.cloud
-              public: true
               preferShortUsername: true
               callbackPath: /callback
               extraRedirectUrls:
                 - net.infk8s.homegateway:/oauth2redirect
                 - https://home.internal/callback
+              public: true
               allowLocalhostRedirect: true
               groups:
                 home_gateway_admins:

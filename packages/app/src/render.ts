@@ -34,24 +34,25 @@ export type Secret = string | { name: string; secretName: string };
 
 export interface Route {
   hosts: string[];
-  name?: string;
   gateway?: string;
   unauthenticated?: boolean;
   workload?: string;
   backend?: { name: string; port: number };
-  paths?: string[];
+  paths?: (string | { type: string; value: string })[];
   annotations?: Record<string, string>;
   ratelimit?: Record<string, unknown>;
   timeouts?: Record<string, unknown>;
 }
+
+export type OidcClient = { host?: string; displayName?: string } & Record<string, unknown>;
 
 export interface App {
   name: string;
   repository?: string;
   charts?: Record<string, string>;
   workloads?: Record<string, Workload>;
-  route?: Route;
-  oidc?: { host?: string; public?: boolean; displayName?: string } & Record<string, unknown>;
+  routes?: Record<string, Route>;
+  oidc?: Record<string, OidcClient>;
   databases?: Record<string, { databaseName?: string; secretName?: string }>;
   secrets?: Secret[];
   sources?: Record<string, unknown>[];
@@ -64,6 +65,7 @@ export type Versions = Record<string, string>;
 export interface Target {
   location: string;
   hasManifests: boolean;
+  rootKustomization?: boolean;
 }
 
 const secretFor = (secret: Secret) =>
@@ -79,7 +81,7 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
   return found;
 }
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'route', 'oidc', 'databases', 'secrets', 'sources', 'network', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -97,7 +99,17 @@ export function validate(raw: unknown, where: string): App {
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
   }
-  if (app.route && !app.route.hosts?.length) fail('route.hosts is required');
+  const routes = Object.entries(app.routes ?? {});
+  const clients = Object.entries(app.oidc ?? {});
+  for (const [name, route] of routes) {
+    if (!route.hosts?.length) fail(`routes.${name}.hosts is required`);
+    if (!clients.length && !route.unauthenticated) {
+      fail(`routes.${name} needs oidc so that every route authenticates, or unauthenticated: true`);
+    }
+  }
+  for (const [name, client] of clients) {
+    if (!client.host && !routes.length) fail(`oidc.${name} needs a route or a host`);
+  }
   const secretNames = (app.secrets ?? []).map(secretFor).map((s) => s.name);
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     for (const secret of workload.secrets ?? []) {
@@ -107,12 +119,10 @@ export function validate(raw: unknown, where: string): App {
       if (!app.databases?.[database]) fail(`workloads.${name}.databases: no database named ${database}`);
     }
   }
-  if (app.route && !app.oidc && !app.route.unauthenticated) {
-    fail('route needs oidc so that every route authenticates, or route.unauthenticated: true');
-  }
-  if (app.oidc && !app.oidc.host && !app.route) fail('oidc needs route or oidc.host');
   try {
-    if (app.route && !app.route.backend) served(app, app.route.workload, 'route');
+    for (const [name, route] of routes) {
+      if (!route.backend) served(app, route.workload, `routes.${name}`);
+    }
     if (app.metrics) served(app, app.metrics.workload, 'metrics');
   } catch (e) {
     fail((e as Error).message);
@@ -138,6 +148,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   const databaseSecret = (database: string) =>
     app.databases?.[database].secretName ?? `${database}-database-secret`;
   const dir = `${target.location}/${name}`;
+  const routes = Object.entries(app.routes ?? {});
   const sources: Record<string, unknown>[] = [];
 
   if (app.workloads && Object.keys(app.workloads).length) {
@@ -148,13 +159,17 @@ export function renderApplication(app: App, versions: Versions, target: Target):
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
         valuesObject: {
           namespace: name,
-          ...(app.route
+          ...(routes.length
             ? {
                 namespaceLabels: Object.fromEntries(
-                  app.route.hosts.map((host) => [
-                    `gateway.inf-k8s.net/${host.replaceAll('.', '-')}`,
-                    'true',
-                  ]),
+                  routes.flatMap(([, route]) =>
+                    (route.gateway ?? 'public-gateway') === 'internal-gateway'
+                      ? [['internal-gateway-access', 'true']]
+                      : route.hosts.map((host) => [
+                          `gateway.inf-k8s.net/${host.replaceAll('.', '-')}`,
+                          'true',
+                        ]),
+                  ),
                 ),
               }
             : {}),
@@ -186,7 +201,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   }
 
   const ingress = [
-    ...(app.route ? ['envoy-gateway-system'] : []),
+    ...(routes.length ? ['envoy-gateway-system'] : []),
     ...(app.metrics ? ['monitoring'] : []),
     ...app.network.ingress,
   ];
@@ -196,19 +211,21 @@ export function renderApplication(app: App, versions: Versions, target: Target):
     }),
   );
 
-  if (app.route) {
-    const { route } = app;
-    let backend = route.backend;
-    if (!backend) {
-      const [workload, spec] = served(app, route.workload, 'route');
-      backend = { name: spec.service?.name ?? workload, port: spec.service?.port ?? (spec.port as number) };
-    }
+  if (routes.length) {
     sources.push(
       chart(app, versions, 'k8s-http-routes', {
         valuesObject: {
-          routes: [
-            {
-              name: route.name ?? name,
+          routes: routes.map(([routeName, route]) => {
+            let backend = route.backend;
+            if (!backend) {
+              const [workload, spec] = served(app, route.workload, `routes.${routeName}`);
+              backend = {
+                name: spec.service?.name ?? workload,
+                port: spec.service?.port ?? (spec.port as number),
+              };
+            }
+            return {
+              name: routeName,
               gateway: {
                 name: route.gateway ?? 'public-gateway',
                 namespace: 'envoy-gateway-system',
@@ -219,37 +236,34 @@ export function renderApplication(app: App, versions: Versions, target: Target):
               rules: [
                 {
                   backendRefs: [{ group: '', kind: 'Service', ...backend, weight: 1 }],
-                  matches: (route.paths ?? ['/']).map((value) => ({
-                    path: { type: 'PathPrefix', value },
+                  matches: (route.paths ?? ['/']).map((match) => ({
+                    path: typeof match === 'string' ? { type: 'PathPrefix', value: match } : match,
                   })),
                   ...(route.timeouts ? { timeouts: route.timeouts } : {}),
                 },
               ],
-            },
-          ],
+            };
+          }),
         },
       }),
     );
   }
 
-  if (app.oidc) {
+  if (app.oidc && Object.keys(app.oidc).length) {
     sources.push(
       chart(app, versions, 'k8s-oidc', {
         valuesObject: {
-          clients: [
-            {
-              name,
-              namespace: name,
-              displayName: name,
-              host: app.route?.hosts[0],
-              public: false,
-              preferShortUsername: true,
-              ...app.oidc,
-              secretName: `kanidm-${name}-oidc`,
-              secretNamespace: name,
-              annotations,
-            },
-          ],
+          clients: Object.entries(app.oidc).map(([client, spec]) => ({
+            name: client,
+            namespace: name,
+            displayName: client,
+            host: routes[0]?.[1].hosts[0],
+            preferShortUsername: true,
+            ...spec,
+            secretName: `kanidm-${client}-oidc`,
+            secretNamespace: name,
+            annotations,
+          })),
         },
       }),
     );
@@ -301,7 +315,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   }
 
   if (target.hasManifests) {
-    sources.push({ repoURL: CONFIG_REPO, name: 'application', path: `${dir}/manifests` });
+    sources.push({ repoURL: CONFIG_REPO, name: 'application', path: target.rootKustomization ? dir : `${dir}/manifests` });
   }
   sources.push(...(app.sources ?? []));
 

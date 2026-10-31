@@ -37,7 +37,11 @@ function discover(): { app: App; target: Target }[] {
       if (app.name !== entry.name) throw new Error(`${path}: name must match its directory`);
       found.push({
         app,
-        target: { location, hasManifests: fs.exists(`${location}/${entry.name}/manifests`) },
+        target: {
+          location,
+          hasManifests: fs.exists(`${location}/${entry.name}/manifests`),
+          rootKustomization: fs.exists(`${location}/${entry.name}/kustomization.yaml`),
+        },
       });
     }
   }

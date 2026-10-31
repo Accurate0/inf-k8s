@@ -23,83 +23,6 @@
         "type": "string"
       }
     },
-    "route": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "hosts"
-      ],
-      "properties": {
-        "gateway": {
-          "type": "string"
-        },
-        "unauthenticated": {
-          "type": "boolean",
-          "description": "Required for a route with no oidc block."
-        },
-        "workload": {
-          "type": "string",
-          "description": "Required with several ported workloads."
-        },
-        "hosts": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "name": {
-          "type": "string"
-        },
-        "backend": {
-          "type": "object",
-          "required": [
-            "name",
-            "port"
-          ],
-          "properties": {
-            "name": {
-              "type": "string"
-            },
-            "port": {
-              "type": "integer"
-            }
-          }
-        },
-        "paths": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
-        },
-        "annotations": {
-          "type": "object"
-        },
-        "ratelimit": {
-          "type": "object"
-        },
-        "timeouts": {
-          "type": "object"
-        }
-      }
-    },
-    "oidc": {
-      "type": "object",
-      "additionalProperties": true,
-      "properties": {
-        "public": {
-          "type": "boolean"
-        },
-        "displayName": {
-          "type": "string"
-        },
-        "allowLocalhostRedirect": {
-          "type": "boolean"
-        },
-        "host": {
-          "type": "string"
-        }
-      }
-    },
     "secrets": {
       "type": "array",
       "items": {
@@ -259,6 +182,107 @@
             "type": "string"
           },
           "secretName": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "routes": {
+      "type": "object",
+      "description": "Keyed by route name.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "hosts"
+        ],
+        "properties": {
+          "gateway": {
+            "type": "string"
+          },
+          "unauthenticated": {
+            "type": "boolean",
+            "description": "Required for a route with no oidc block."
+          },
+          "workload": {
+            "type": "string",
+            "description": "Required with several ported workloads."
+          },
+          "hosts": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "backend": {
+            "type": "object",
+            "required": [
+              "name",
+              "port"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "port": {
+                "type": "integer"
+              }
+            }
+          },
+          "paths": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "type",
+                    "value"
+                  ],
+                  "properties": {
+                    "type": {
+                      "type": "string"
+                    },
+                    "value": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "annotations": {
+            "type": "object"
+          },
+          "ratelimit": {
+            "type": "object"
+          },
+          "timeouts": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "description": "Keyed by client name.",
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": true,
+        "properties": {
+          "public": {
+            "type": "boolean"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "allowLocalhostRedirect": {
+            "type": "boolean"
+          },
+          "host": {
             "type": "string"
           }
         }

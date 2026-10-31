@@ -49,8 +49,8 @@ test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
     workloads: { foo: { image: 'i', port: 3000 } },
-    route: { hosts: ['foo.anurag.sh'] },
-    oidc: {},
+    routes: { foo: { hosts: ['foo.anurag.sh'] } },
+    oidc: { foo: {} },
     metrics: {},
     network: { ingress: ['ai-gateway', 'monitoring'] },
   });
@@ -69,7 +69,7 @@ test('renders several workloads and routes to the named one', () => {
       web: { image: 'j', port: 8080 },
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
-    route: { hosts: ['foo.anurag.sh'], workload: 'web', unauthenticated: true },
+    routes: { foo: { hosts: ['foo.anurag.sh'], workload: 'web', unauthenticated: true } },
     secrets: ['foo'],
     network: { ingress: [] },
   });
@@ -88,12 +88,12 @@ test('requires route.workload when several workloads have ports', () => {
         {
           name: 'foo',
           workloads: { a: { image: 'i', port: 1 }, b: { image: 'j', port: 2 } },
-          route: { hosts: ['foo.anurag.sh'], unauthenticated: true },
+          routes: { foo: { hosts: ['foo.anurag.sh'], unauthenticated: true } },
           network: { ingress: [] },
         },
         'x',
       ),
-    /route.workload is required/,
+    /routes.foo.workload is required/,
   );
 });
 
@@ -118,14 +118,16 @@ test('a workload can limit which secrets it receives', () => {
 test('routes to an explicit backend without a workload', () => {
   const rendered = render({
     name: 'foo',
-    route: {
-      hosts: ['a.sh', 'b.sh'],
-      name: 'foo-route',
-      backend: { name: 'svc', port: 80 },
-      paths: ['/v1'],
-      unauthenticated: true,
+    routes: {
+      'foo-route': {
+        hosts: ['a.sh', 'b.sh'],
+        backend: { name: 'svc', port: 80 },
+        paths: ['/v1', { type: 'Exact', value: '/hook' }],
+        unauthenticated: true,
+      },
+      'foo-api': { hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } },
     },
-    oidc: { host: 'c.sh', groups: { admins: ['x'] } },
+    oidc: { foo: { host: 'c.sh', groups: { admins: ['x'] } }, 'foo-cli': { public: true } },
     sources: [{ repoURL: 'r', name: 'config', path: 'config' }],
     network: { ingress: [] },
   });
@@ -133,9 +135,14 @@ test('routes to an explicit backend without a workload', () => {
   assert.equal(route.name, 'foo-route');
   assert.deepEqual(route.hostnames, ['a.sh', 'b.sh']);
   assert.equal(route.rules[0].matches[0].path.value, '/v1');
+  assert.deepEqual(route.rules[0].matches[1].path, { type: 'Exact', value: '/hook' });
+  assert.equal(source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[1].name, 'foo-api');
   const client = source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[0];
   assert.equal(client.host, 'c.sh');
   assert.deepEqual(client.groups, { admins: ['x'] });
+  const cli = source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[1];
+  assert.equal(cli.secretName, 'kanidm-foo-cli-oidc');
+  assert.equal(cli.host, 'a.sh');
   assert.equal(rendered.spec.sources.at(-1).name, 'config');
 });
 
@@ -199,6 +206,14 @@ test('the generated time only matters when content changes', () => {
   assert.ok(!isCurrent(rendered, rendered));
 });
 
+test('uses the app directory when it has its own kustomization', () => {
+  const rendered = render(
+    { name: 'foo', network: { ingress: [] } },
+    { location: 'platform-services', hasManifests: true, rootKustomization: true },
+  );
+  assert.equal(rendered.spec.sources.at(-1).path, 'platform-services/foo');
+});
+
 test('output is stable', () => {
   const app: App = { name: 'foo', network: { ingress: [] } };
   assert.equal(renderApplication(app, versions, target), renderApplication(app, versions, target));
@@ -214,7 +229,7 @@ test('rejects invalid apps', () => {
         {
           name: 'foo',
           workloads: { foo: { image: 'i', port: 1 } },
-          route: { hosts: ['foo.anurag.sh'] },
+          routes: { foo: { hosts: ['foo.anurag.sh'] } },
           network: { ingress: [] },
         },
         'x',

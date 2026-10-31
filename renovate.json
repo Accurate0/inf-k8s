@@ -16,7 +16,14 @@
     "projects/home-gateway/application.yaml",
     "projects/maccas-api/application.yaml",
     "projects/ozbargain/application.yaml",
-    "projects/tldr-bot/application.yaml"
+    "projects/tldr-bot/application.yaml",
+    "platform-services/ai-gateway/application.yaml",
+    "platform-services/feature-flags/application.yaml",
+    "platform-services/janitor-bot/application.yaml",
+    "platform-services/k8s-schemas/application.yaml",
+    "platform-services/kanidm-sync/application.yaml",
+    "platform-services/registry/application.yaml",
+    "platform-services/waf-manager/application.yaml"
   ],
   "customManagers": [
     {

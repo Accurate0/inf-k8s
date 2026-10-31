@@ -1,48 +1,49 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: home-gateway
 repository: https://github.com/Accurate0/home-gateway
-route:
-  name: api-route
-  hosts:
-    - home.anurag.sh
-  backend:
-    name: home-gateway
-    port: 80
-  paths:
-    - /v1
-  annotations:
-    external-dns.kubernetes.io/managed: "true"
-    external-dns.kubernetes.io/cloudflare-proxied: "false"
-  ratelimit:
-    rules:
-      - clientSelectors:
-          - headers:
-              - name: x-real-ip
-                type: Distinct
-                invert: false
-        limit:
-          requests: 5
-          unit: Second
+routes:
+  api-route:
+    hosts:
+      - home.anurag.sh
+    backend:
+      name: home-gateway
+      port: 80
+    paths:
+      - /v1
+    annotations:
+      external-dns.kubernetes.io/managed: "true"
+      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    ratelimit:
+      rules:
+        - clientSelectors:
+            - headers:
+                - name: x-real-ip
+                  type: Distinct
+                  invert: false
+          limit:
+            requests: 5
+            unit: Second
 oidc:
-  host: home.ortzi.cloud
-  displayName: Home Gateway
-  callbackPath: /callback
-  extraRedirectUrls:
-    - net.infk8s.homegateway:/oauth2redirect
-    - https://home.internal/callback
-  public: true
-  allowLocalhostRedirect: true
-  groups:
-    home_gateway_admins:
-      - platform_admins
-    home_gateway_readers:
-      - home_gateway_admins
-  scopeMaps:
-    home_gateway_readers:
-      - openid
-      - email
-      - profile
-      - groups
+  home-gateway:
+    host: home.ortzi.cloud
+    displayName: Home Gateway
+    callbackPath: /callback
+    extraRedirectUrls:
+      - net.infk8s.homegateway:/oauth2redirect
+      - https://home.internal/callback
+    public: true
+    allowLocalhostRedirect: true
+    groups:
+      home_gateway_admins:
+        - platform_admins
+      home_gateway_readers:
+        - home_gateway_admins
+    scopeMaps:
+      home_gateway_readers:
+        - openid
+        - email
+        - profile
+        - groups
 databases:
   home-gateway:
     secretName: home-gateway-db-credentials
