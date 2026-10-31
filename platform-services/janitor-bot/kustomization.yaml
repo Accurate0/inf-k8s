@@ -1,7 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources:
-  - manifests
 configMapGenerator:
   - name: janitor-bot-rules
     namespace: janitor-bot
@@ -21,3 +19,5 @@ configMapGenerator:
       - rules/merge-on-label.yaml
       - rules/clear-queued-on-unmergeable.yaml
       - rules/label-eink-firmware-update.yaml
+generatorOptions:
+  disableNameSuffixHash: true

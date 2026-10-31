@@ -7,6 +7,8 @@ on:
       - platform-services/janitor-bot/**
       - "!platform-services/janitor-bot/manifests/**"
       - "!platform-services/janitor-bot/application.yaml"
+      - "!platform-services/janitor-bot/app.yaml"
+      - "!platform-services/janitor-bot/image.values.yaml"
       - .github/workflows/build-deploy-janitor-bot.yaml
   workflow_dispatch:
 
@@ -44,11 +46,12 @@ jobs:
     needs:
       - build
       - test
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
     with:
       service-name: janitor-bot
       images: ghcr.io/accurate0/janitor-bot
-      manifests-path: platform-services/janitor-bot/manifests
+      manifests-path: platform-services/janitor-bot
+      values-file: platform-services/janitor-bot/image.values.yaml
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}
