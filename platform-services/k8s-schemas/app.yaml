@@ -1,0 +1,6 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: k8s-schemas
+secrets:
+  - k8s-schemas
+network:
+  ingress: []

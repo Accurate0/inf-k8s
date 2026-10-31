@@ -1,3 +1,5 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T04:24:55.572Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,6 +16,13 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: k8s-schemas
+          ingress: []
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.6.0
@@ -23,12 +32,23 @@ spec:
             namespace: k8s-schemas
             provider: openbao
             resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: k8s-schemas
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
           secrets:
             - name: k8s-schemas
               managedSecrets:
                 - secretName: k8s-schemas-managed-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
+      name: application
       path: platform-services/k8s-schemas/manifests
   destination:
     server: https://kubernetes.default.svc
     namespace: k8s-schemas
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    prune: true
+    syncStrategy:
+      hook: {}
