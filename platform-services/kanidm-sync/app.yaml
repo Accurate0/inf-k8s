@@ -1,0 +1,4 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: kanidm-sync
+network:
+  ingress: []
