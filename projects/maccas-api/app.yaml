@@ -35,6 +35,9 @@ secrets:
     secretName: maccas-migration-managed-secrets
 network:
   ingress: []
+resources:
+  - name: traces
+    type: tracing
 workloads:
   maccas-api:
     image: ghcr.io/accurate0/maccas-api
@@ -54,6 +57,8 @@ workloads:
       periodSeconds: 30
       successThreshold: 1
       timeoutSeconds: 1
+    uses:
+      - traces
     env:
       - name: OPENAI_BASE_URL
         value: http://api.ai-gateway.svc.cluster.local/v1
@@ -65,8 +70,6 @@ workloads:
         value: http://api.feature-flags.svc.cluster.local:50051
       - name: REDIS_CONNECTION_STRING
         value: redis://replicated.dragonfly.svc.cluster.local
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
     envFrom:
       - secretRef:
           name: maccas-common-managed-secrets
@@ -118,6 +121,8 @@ workloads:
       periodSeconds: 30
       successThreshold: 1
       timeoutSeconds: 1
+    uses:
+      - traces
     env:
       - name: ADDRESS_HEADER
         value: x-real-ip
@@ -129,8 +134,6 @@ workloads:
         value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
       - name: FEATURE_FLAGS_URL
         value: api.feature-flags.svc.cluster.local:50051
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
     envFrom:
       - secretRef:
           name: maccas-web-managed-secrets
@@ -158,11 +161,11 @@ workloads:
       requests:
         memory: 32Mi
         cpu: 10m
+    uses:
+      - traces
     env:
       - name: EVENT_API_BASE
         value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
     envFrom:
       - secretRef:
           name: maccas-common-managed-secrets
@@ -198,6 +201,8 @@ workloads:
       periodSeconds: 30
       successThreshold: 1
       timeoutSeconds: 5
+    uses:
+      - traces
     env:
       - name: OPENAI_BASE_URL
         value: http://api.ai-gateway.svc.cluster.local/v1
@@ -205,8 +210,6 @@ workloads:
         value: http://flipt.flipt.svc.cluster.local:8080
       - name: CLUSTERING_API_BASE
         value: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
     envFrom:
       - secretRef:
           name: maccas-common-managed-secrets

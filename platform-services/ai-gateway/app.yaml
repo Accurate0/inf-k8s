@@ -31,6 +31,9 @@ network:
     - tldr-bot
     - janitor-bot
     - monitoring
+resources:
+  - name: traces
+    type: tracing
 workloads:
   ai-gateway:
     image: ghcr.io/accurate0/ai-gateway
@@ -52,13 +55,13 @@ workloads:
         port: 3000
       initialDelaySeconds: 5
       periodSeconds: 60
+    uses:
+      - traces
     env:
       - name: CONFIG_PATH
         value: /etc/ai-gateway/config.yaml
       - name: FEATURE_FLAGS_URL
         value: http://api.feature-flags.svc.cluster.local:50051
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
       - name: REDIS_URL
         value: redis://replicated.dragonfly.svc.cluster.local
     envFrom:

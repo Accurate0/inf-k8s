@@ -37,6 +37,9 @@ network:
   ingress:
     - forgejo
     - monitoring
+resources:
+  - name: traces
+    type: tracing
 workloads:
   registry:
     image: ghcr.io/accurate0/registry
@@ -58,11 +61,11 @@ workloads:
         port: 3000
       initialDelaySeconds: 5
       periodSeconds: 60
+    uses:
+      - traces
     env:
       - name: CONFIG_PATH
         value: /etc/registry/config.yaml
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
     envFrom:
       - secretRef:
           name: registry-managed-secrets

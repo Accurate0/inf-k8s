@@ -54,6 +54,9 @@ network:
     - argocd
     - forgejo
     - monitoring
+resources:
+  - name: traces
+    type: tracing
 workloads:
   janitor-bot:
     image: ghcr.io/accurate0/janitor-bot
@@ -75,6 +78,8 @@ workloads:
         port: 3000
       initialDelaySeconds: 5
       periodSeconds: 60
+    uses:
+      - traces
     env:
       - name: OIDC_ISSUER
         value: https://idm.anurag.sh/oauth2/openid/janitor-bot
@@ -88,8 +93,6 @@ workloads:
         value: http://api.feature-flags.svc.cluster.local:50051
       - name: ARGOCD_SERVER
         value: http://argocd-server.argocd.svc.cluster.local:80
-      - name: OTEL_TRACING_URL
-        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
       - name: FORGEJO_INSTANCE_URL
         value: http://forgejo-http.forgejo.svc.cluster.local:3000
     envFrom:

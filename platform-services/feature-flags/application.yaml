@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T06:36:09.921Z
+# generated at 2026-10-31T10:38:57.793Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -49,14 +49,14 @@ spec:
                 initialDelaySeconds: 5
                 periodSeconds: 60
               env:
-                - name: OTEL_TRACING_URL
-                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: REDIS_URL
                   value: redis://replicated.dragonfly.svc.cluster.local
                 - name: OIDC_ISSUER
                   value: https://idm.anurag.sh/oauth2/openid/feature-flags
                 - name: OIDC_AUDIENCE
                   value: feature-flags
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
               kind: DaemonSet
               updateStrategy:
                 type: RollingUpdate
