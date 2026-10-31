@@ -1,5 +1,5 @@
 charts:
-  k8s-workload: 0.2.0
+  k8s-workload: 0.3.0
   k8s-network: 0.2.0
   k8s-observability: 0.1.0
   k8s-http-routes: 2.3.1
