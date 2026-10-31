@@ -11,6 +11,7 @@ import {
   addRoles,
   type App,
   appDatabases,
+  appFiles,
   appMetrics,
   appOidc,
   appRoutes,
@@ -19,13 +20,20 @@ import {
   databasePath,
   imageValuesPath,
   isCurrent,
+  kustomizationPath,
+  needsKustomization,
+  rbacPath,
+  type Listener,
   type PlatformExport,
   renderApplication,
   renderDatabase,
+  renderKustomization,
+  renderRbac,
   renderWorkflow,
   stamped,
   type Target,
   validate,
+  validateGatewayAccess,
   validateIngress,
   validateResources,
   workflowPath,
@@ -37,6 +45,7 @@ import { validateManifests } from './validate';
 const LOCATIONS = ['projects', 'platform-services'];
 const VERSIONS = 'platform/versions.yaml';
 const PLATFORM_EXPORTS = 'platform/exports';
+const GATEWAYS = 'system-components/envoy';
 const POSTGRES_CLUSTER = 'system-components/postgres-cluster/postgres.yaml';
 
 const platformExports = (): PlatformExport[] =>
@@ -44,6 +53,19 @@ const platformExports = (): PlatformExport[] =>
     .readDir(PLATFORM_EXPORTS)
     .filter((entry) => !entry.dir && entry.name.endsWith('.yaml'))
     .flatMap((entry) => parse(fs.readText(`${PLATFORM_EXPORTS}/${entry.name}`)).exports);
+
+const gatewayListeners = (): Listener[] =>
+  fs
+    .readDir(GATEWAYS)
+    .filter((entry) => entry.dir && fs.exists(`${GATEWAYS}/${entry.name}/gateway.yaml`))
+    .flatMap((entry) => {
+      const gateway = parse(fs.readText(`${GATEWAYS}/${entry.name}/gateway.yaml`));
+      return gateway.spec.listeners.map((listener: Record<string, any>) => ({
+        gateway: gateway.metadata.name,
+        hostname: listener.hostname,
+        labels: listener.allowedRoutes?.namespaces?.selector?.matchLabels,
+      }));
+    });
 
 const USAGE = `usage: ortzi app <command> [flags]
 
@@ -111,18 +133,20 @@ function discover(): { app: App; target: Target }[] {
       if (!fs.exists(path)) continue;
       const app = validate(parse(fs.readText(path)), path);
       if (app.name !== entry.name) throw new Error(`${path}: name must match its directory`);
-      found.push({
-        app,
-        target: {
-          location,
-          hasManifests: fs.exists(`${location}/${entry.name}/manifests`),
-          rootKustomization: fs.exists(`${location}/${entry.name}/kustomization.yaml`),
-        },
-      });
+      const target = {
+        location,
+        hasManifests: fs.exists(`${location}/${entry.name}/manifests/kustomization.yaml`),
+        rootKustomization: needsKustomization(app) || fs.exists(`${location}/${entry.name}/kustomization.yaml`),
+      };
+      for (const file of appFiles(app, target)) {
+        if (!fs.exists(file)) throw new Error(`${path}: no file named ${file}`);
+      }
+      found.push({ app, target });
     }
   }
   validateIngress(found.map(({ app }) => app));
   validateResources({ platform: platformExports(), apps: found.map(({ app }) => app) });
+  validateGatewayAccess(found.map(({ app }) => app), gatewayListeners());
   return found;
 }
 
@@ -174,6 +198,13 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
   for (const app of world.apps) {
     const terraform = renderAppTerraform(app);
     if (terraform) generated.set(appTerraformPath(app), terraform);
+  }
+  for (const { app, target } of apps) {
+    if (only && app.name !== only) continue;
+    const kustomization = renderKustomization(app, target);
+    if (kustomization) generated.set(kustomizationPath(app, target), kustomization);
+    const rbac = renderRbac(app);
+    if (rbac) generated.set(rbacPath(app, target), rbac);
   }
   for (const [path, wanted] of generated) {
     if (!fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });

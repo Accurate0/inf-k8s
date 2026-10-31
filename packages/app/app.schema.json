@@ -246,7 +246,34 @@
             "type": "array",
             "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
             "items": {
-              "type": "object"
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "secret": {
+                  "type": "string"
+                },
+                "database": {
+                  "type": "string"
+                },
+                "bucket": {
+                  "type": "string"
+                },
+                "oidc": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "boolean"
+                },
+                "prefix": {
+                  "type": "string"
+                },
+                "secretRef": {
+                  "type": "object"
+                },
+                "configMapRef": {
+                  "type": "object"
+                }
+              }
             }
           },
           "readOnlyRootFilesystem": {
@@ -374,6 +401,10 @@
                 },
                 "emptyDir": {
                   "type": "boolean"
+                },
+                "config": {
+                  "type": "string",
+                  "description": "A config resource."
                 }
               }
             }
@@ -389,7 +420,8 @@
                   "type": "object"
                 }
               ]
-            }
+            },
+            "description": "{name, container, service}. service adds the port to the workload's Service."
           },
           "overrides": {
             "type": "object",
@@ -421,13 +453,17 @@
             "items": {
               "type": "object"
             }
+          },
+          "serviceAccount": {
+            "type": "string",
+            "description": "A serviceAccount resource."
           }
         }
       }
     },
     "resources": {
       "type": "array",
-      "description": "Named dependencies that workloads select with uses.",
+      "description": "Named dependencies and what the app exposes.",
       "items": {
         "oneOf": [
           {
@@ -622,6 +658,25 @@
                   "reason": {
                     "type": "string",
                     "description": "Why the gateway does not authenticate, for app and none."
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "description": "Login scopes, for oidc.",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "forwardAccessToken": {
+                    "type": "boolean",
+                    "description": "For oidc."
+                  },
+                  "logoutPath": {
+                    "type": "string",
+                    "description": "For oidc."
+                  },
+                  "jwt": {
+                    "type": "object",
+                    "description": "Verify the login token at the gateway, for oidc."
                   }
                 }
               },
@@ -637,6 +692,7 @@
               },
               "backend": {
                 "type": "object",
+                "additionalProperties": false,
                 "required": [
                   "name",
                   "port"
@@ -683,12 +739,67 @@
               },
               "timeouts": {
                 "type": "object"
+              },
+              "rules": {
+                "type": "array",
+                "description": "Send paths to different backends. Replaces paths and backend.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "paths",
+                    "backend"
+                  ],
+                  "properties": {
+                    "paths": {
+                      "type": "array",
+                      "items": {
+                        "oneOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "object",
+                            "required": [
+                              "type",
+                              "value"
+                            ],
+                            "properties": {
+                              "type": {
+                                "type": "string"
+                              },
+                              "value": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    "backend": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "name",
+                        "port"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string"
+                        },
+                        "port": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
               }
             }
           },
           {
             "type": "object",
-            "additionalProperties": true,
+            "additionalProperties": false,
             "properties": {
               "name": {
                 "type": "string"
@@ -697,6 +808,57 @@
                 "enum": [
                   "oidc"
                 ]
+              },
+              "allowInsecureClientDisablePkce": {
+                "type": "boolean"
+              },
+              "callbackPath": {
+                "type": "string"
+              },
+              "claimMaps": {
+                "type": "object"
+              },
+              "enableLegacyCrypto": {
+                "type": "boolean"
+              },
+              "extraRedirectUrls": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "groups": {
+                "type": "object"
+              },
+              "icon": {
+                "type": "object"
+              },
+              "origin": {
+                "type": "string"
+              },
+              "preferShortUsername": {
+                "type": "boolean"
+              },
+              "scopeMapGroup": {
+                "type": "string"
+              },
+              "scopeMaps": {
+                "type": "object"
+              },
+              "scopes": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              },
+              "secretKeys": {
+                "type": "object"
+              },
+              "secretLabels": {
+                "type": "object"
+              },
+              "securityPolicy": {
+                "type": "object"
               },
               "public": {
                 "type": "boolean"
@@ -771,6 +933,90 @@
               "export": {
                 "type": "string",
                 "description": "An export in platform/exports."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "configMap",
+              "files"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "config"
+                ]
+              },
+              "configMap": {
+                "type": "string"
+              },
+              "files": {
+                "type": "array",
+                "description": "Relative to the app directory. Mounted at the same relative path; the key is the basename.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "configMap",
+              "file"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "dashboard"
+                ]
+              },
+              "configMap": {
+                "type": "string"
+              },
+              "file": {
+                "type": "string",
+                "description": "Grafana dashboard json, relative to the app directory."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "serviceAccount"
+                ]
+              },
+              "clusterRole": {
+                "type": "string"
+              },
+              "clusterRules": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
               }
             }
           }

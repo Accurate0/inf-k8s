@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { parse } from 'yaml';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
 import { renderAppTerraform, renderTerraformIndex } from './terraform.ts';
-import { addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress, validateResources } from './render.ts';
+import { addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderKustomization, renderRbac, renderWorkflow, stamped, validate, validateGatewayAccess, validateIngress, validateResources } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -166,7 +166,7 @@ test('rejects invalid route auth', () => {
   });
   assert.throws(() => validate(app({ mode: 'jwt', clients: [] }), 'x'), /auth.clients is required/);
   assert.throws(() => validate(app({ mode: 'jwt', clients: ['nope'] }), 'x'), /no oidc client named nope/);
-  assert.throws(() => validate(app({ mode: 'oidc', client: 'foo' }), 'x'), /securityPolicy must target this route/);
+  assert.throws(() => validate(app({ mode: 'oidc', client: 'foo' }, { securityPolicy: { httpRoute: 'other' } }), 'x'), /securityPolicy must target this route/);
   assert.throws(() => validate(app({ mode: 'none' }), 'x'), /auth.reason is required/);
   assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode must be/);
   validate(app({ mode: 'oidc', client: 'foo' }, { securityPolicy: { httpRoute: 'foo' } }), 'x');
@@ -863,4 +863,193 @@ test('a platform resource needs an export', () => {
 
 test('rejects the old tracing resource type', () => {
   assert.throws(() => validate({ ...base, resources: [{ name: 't', type: 'tracing' }] }, 'test'), /resources/);
+});
+
+const checkRefs = (app: Record<string, unknown>) =>
+  validateResources({ platform, apps: [validate({ ...base, ...app }, 'test')] });
+
+test('rejects a route backend that is not a service in the app', () => {
+  const route = (backend: unknown) => ({
+    workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
+    resources: [{ name: 'r', type: 'route', hosts: ['a.sh'], backend, auth: { mode: 'none', reason: 'public' } }],
+  });
+  checkRefs(route({ name: 'api', port: 80 }));
+  assert.throws(() => checkRefs(route({ name: 'nope', port: 80 })), /no service named nope/);
+  assert.throws(() => checkRefs(route({ name: 'api', port: 81 })), /has no port 81/);
+});
+
+test('rejects metrics on a port the service does not have', () => {
+  const scrape = (port: string) => ({
+    workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
+    resources: [{ name: 'm', type: 'metrics', workload: 'foo', port }],
+  });
+  checkRefs(scrape('http'));
+  assert.throws(() => checkRefs(scrape('nope')), /no service port named nope/);
+});
+
+test('rejects a bucket key terraform does not write', () => {
+  const bucket = (key: string) => ({
+    resources: [{ name: 'b', type: 'bucket', provider: 'r2', secretName: 's' }],
+    workloads: { foo: { image: 'i', env: { A: { bucket: 'b', key } } } },
+  });
+  checkRefs(bucket('S3_ENDPOINT'));
+  assert.throws(() => checkRefs(bucket('S3_NOPE')), /no key named S3_NOPE/);
+});
+
+test('rejects a resource no workload uses', () => {
+  const unused = (resource: Record<string, unknown>) => ({ resources: [resource], workloads: { foo: { image: 'i' } } });
+  assert.throws(() => checkRefs(unused({ name: 'a', type: 'platform', export: 'tracing' })), /no workload uses this platform/);
+  assert.throws(() => checkRefs(unused({ name: 'a', type: 'secret', secretName: 's' })), /no workload uses this secret/);
+  checkRefs({
+    resources: [{ name: 'a', type: 'secret', secretName: 's' }],
+    workloads: { foo: { image: 'i', initContainers: [{ image: 'j', envFrom: [{ secret: 'a' }] }] } },
+  });
+});
+
+test('rejects a build image no workload runs', () => {
+  const build = (image: string) => ({ build: { image }, workloads: { foo: { image: 'i' } } });
+  checkRefs(build('i'));
+  assert.throws(() => checkRefs(build('j')), /build.image j/);
+});
+
+test('rejects a route whose namespace lacks the listener label', () => {
+  const listeners = [
+    { gateway: 'public-gateway', hostname: '*.anurag.sh', labels: { wild: 'true' } },
+    { gateway: 'public-gateway', hostname: 'git.anurag.sh', labels: { exact: 'true' } },
+    { gateway: 'public-gateway', hostname: '*.same.sh' },
+  ];
+  const app = (host: string, labels?: Record<string, string>): App => ({
+    ...base,
+    namespace: { labels },
+    resources: [{ name: 'r', type: 'route', hosts: [host], auth: { mode: 'none', reason: 'public' } }],
+  });
+  validateGatewayAccess([app('a.anurag.sh', { wild: 'true' })], listeners);
+  validateGatewayAccess([app('git.anurag.sh', { exact: 'true' })], listeners);
+  assert.throws(() => validateGatewayAccess([app('a.anurag.sh')], listeners), /needs namespace.labels wild/);
+  assert.throws(() => validateGatewayAccess([app('git.anurag.sh', { wild: 'true' })], listeners), /needs namespace.labels exact/);
+  assert.throws(() => validateGatewayAccess([app('a.same.sh')], listeners), /no public-gateway listener accepts a.same.sh/);
+  assert.throws(() => validateGatewayAccess([app('nope.sh')], listeners), /no public-gateway listener/);
+});
+
+test('rejects unknown oidc fields and envFrom keys', () => {
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'oidc', secretName: 's', host: 'a.sh', nope: 1 }] }, 'test'), /resources/);
+  assert.throws(() => validate({ ...base, workloads: { foo: { image: 'i', envFrom: [{ secrets: 'a' }] } } }, 'test'), /envFrom/);
+});
+
+test('one ports list fills the container and the service', () => {
+  const app = validate({
+    ...base,
+    workloads: {
+      foo: {
+        image: 'i',
+        ports: [{ name: 'grpc', container: 50051, service: 80, appProtocol: 'grpc' }, { name: 'admin', container: 9000 }],
+        service: { name: 'api' },
+        sidecars: [{ image: 'j', name: 's', ports: [{ name: 'side', container: 8004, service: 8004 }] }],
+      },
+    },
+    exports: [{ name: 'side', workload: 'foo', port: 'side' }],
+  }, 'test');
+  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  assert.deepEqual(workload.ports, [{ name: 'grpc', containerPort: 50051 }, { name: 'admin', containerPort: 9000 }]);
+  assert.deepEqual(workload.sidecars[0].ports, [{ name: 'side', containerPort: 8004 }]);
+  assert.deepEqual(workload.service, {
+    name: 'api',
+    ports: [
+      { name: 'grpc', port: 80, targetPort: 50051, appProtocol: 'grpc', protocol: 'TCP' },
+      { name: 'side', port: 8004, targetPort: 8004, protocol: 'TCP' },
+    ],
+  });
+  validateResources({ platform, apps: [app] });
+});
+
+test('route rules send paths to different backends', () => {
+  const app = validate({
+    ...base,
+    workloads: {
+      a: { image: 'i', ports: [{ name: 'http', container: 1, service: 80 }], service: { name: 'a' } },
+      b: { image: 'j', ports: [{ name: 'http', container: 2, service: 81 }], service: { name: 'b' } },
+    },
+    resources: [{ name: 'r', type: 'route', hosts: ['a.sh'], gateway: 'lan-gateway', auth: { mode: 'app', reason: 'r' }, rules: [
+      { paths: ['/v1'], backend: { name: 'a', port: 80 } },
+      { paths: ['/'], backend: { name: 'b', port: 81 } },
+    ] }],
+  }, 'test');
+  validateResources({ platform, apps: [app] });
+  const { rules, gateway } = source(render(app), 'k8s-http-routes')?.helm.valuesObject.routes[0];
+  assert.equal(gateway.name, 'lan-gateway');
+  assert.deepEqual(rules.map((r: any) => [r.matches[0].path.value, r.backendRefs[0].name, r.backendRefs[0].port]), [['/v1', 'a', 80], ['/', 'b', 81]]);
+});
+
+test('the login policy on a route reaches its oidc client', () => {
+  const app = validate({
+    ...base,
+    resources: [
+      { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 's', port: 1 }, auth: { mode: 'oidc', client: 'c', scopes: ['openid'], forwardAccessToken: true } },
+      { name: 'c', type: 'oidc', host: 'a.sh', secretName: 's' },
+    ],
+  }, 'test');
+  const client = source(render(app), 'k8s-oidc')?.helm.valuesObject.clients[0];
+  assert.deepEqual(client.securityPolicy, { httpRoute: 'web', scopes: ['openid'], forwardAccessToken: true });
+  const bare = validate({
+    ...base,
+    resources: [
+      { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 's', port: 1 }, auth: { mode: 'oidc', client: 'c' } },
+      { name: 'c', type: 'oidc', host: 'a.sh', secretName: 's' },
+    ],
+  }, 'test');
+  assert.deepEqual(source(render(bare), 'k8s-oidc')?.helm.valuesObject.clients[0].securityPolicy, { httpRoute: 'web' });
+  assert.throws(() => validate({
+    ...base,
+    resources: [
+      { name: 'a', type: 'route', hosts: ['a.sh'], backend: { name: 's', port: 1 }, auth: { mode: 'oidc', client: 'c' } },
+      { name: 'b', type: 'route', hosts: ['a.sh'], backend: { name: 's', port: 1 }, auth: { mode: 'oidc', client: 'c' } },
+      { name: 'c', type: 'oidc', host: 'a.sh', secretName: 's' },
+    ],
+  }, 'test'), /used by another oidc route/);
+});
+
+test('a config resource generates its configmap and mount', () => {
+  const app = validate({
+    ...base,
+    resources: [{ name: 'rules', type: 'config', configMap: 'foo-rules', files: ['config.yaml', 'rules/a.yaml'] }],
+    workloads: { foo: { image: 'i', mounts: { rules: { path: '/etc/rules', config: 'rules' } } } },
+  }, 'test');
+  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  assert.deepEqual(workload.volumes, [
+    { name: 'rules', configMap: { name: 'foo-rules', items: [{ key: 'config.yaml', path: 'config.yaml' }, { key: 'a.yaml', path: 'rules/a.yaml' }] } },
+  ]);
+  assert.deepEqual(parse(renderKustomization(app, target) as string).configMapGenerator, [
+    { name: 'foo-rules', namespace: 'foo', files: ['config.yaml', 'rules/a.yaml'] },
+  ]);
+  assert.throws(
+    () => validateResources({ platform, apps: [validate({ ...base, workloads: { foo: { image: 'i', mounts: { r: { path: '/r', config: 'nope' } } } } }, 'test')] }),
+    /no config resource named nope/,
+  );
+});
+
+test('a dashboard resource generates a labelled configmap', () => {
+  const app = validate({ ...base, resources: [{ name: 'd', type: 'dashboard', configMap: 'foo-dashboard', file: 'dashboards/foo.json' }] }, 'test');
+  const { configMapGenerator, resources } = parse(renderKustomization(app, { ...target, hasManifests: true }) as string);
+  assert.equal(configMapGenerator[0].options.labels['inf-k8s.net/grafana-dashboard'], 'true');
+  assert.deepEqual(configMapGenerator[0].files, ['dashboards/foo.json']);
+  assert.deepEqual(resources, ['manifests']);
+  validateResources({ platform, apps: [app] });
+});
+
+test('a serviceAccount resource generates its account and cluster role', () => {
+  const rules = [{ apiGroups: [''], resources: ['secrets'], verbs: ['get'] }];
+  const app = validate({
+    ...base,
+    resources: [{ name: 'sa', type: 'serviceAccount', clusterRole: 'foo-access', clusterRules: rules }],
+    workloads: { foo: { image: 'i', serviceAccount: 'sa' } },
+  }, 'test');
+  const values = source(render(app), 'k8s-workload')?.helm.valuesObject;
+  assert.deepEqual(values.serviceAccounts, ['sa']);
+  assert.equal(values.workloads[0].serviceAccountName, 'sa');
+  assert.equal(values.workloads[0].serviceAccount, undefined);
+  const rbac = renderRbac(app) as string;
+  assert.match(rbac, /kind: ClusterRole\nmetadata:\n  name: foo-access/);
+  assert.match(rbac, /kind: ClusterRoleBinding\nmetadata:\n  name: sa/);
+  assert.deepEqual(parse(renderKustomization(app, target) as string).resources, ['manifests/rbac.generated.yaml']);
+  assert.throws(() => checkRefs({ workloads: { foo: { image: 'i', serviceAccount: 'nope' } } }), /no serviceAccount resource named nope/);
 });
