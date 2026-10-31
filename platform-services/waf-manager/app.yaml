@@ -2,6 +2,9 @@
 name: waf-manager
 routes:
   waf-manager-route:
+    auth:
+      mode: oidc
+      client: waf-manager
     gateway: internal-gateway
     hosts:
       - waf-manager.ortzi.cloud
@@ -9,6 +12,9 @@ routes:
       name: api
       port: 80
   waf-manager-api:
+    auth:
+      mode: app
+      reason: raw SecurityPolicy in manifests
     gateway: internal-gateway
     hosts:
       - waf-manager.ortzi.cloud

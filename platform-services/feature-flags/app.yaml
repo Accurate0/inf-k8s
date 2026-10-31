@@ -2,6 +2,9 @@
 name: feature-flags
 routes:
   feature-flags-api:
+    auth:
+      mode: app
+      reason: admin verified by the app; evaluation only checks client-id, gateway JWT not rolled out yet
     gateway: internal-gateway
     hosts:
       - feature-flags.ortzi.cloud

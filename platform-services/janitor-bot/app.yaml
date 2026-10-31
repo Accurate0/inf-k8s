@@ -2,6 +2,9 @@
 name: janitor-bot
 routes:
   janitor-bot-route:
+    auth:
+      mode: app
+      reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
     gateway: internal-gateway
     hosts:
       - janitor-bot.ortzi.cloud
@@ -9,6 +12,9 @@ routes:
       name: api
       port: 80
   janitor-bot-public-route:
+    auth:
+      mode: app
+      reason: github webhook, verified by its signature
     hosts:
       - janitor-bot.anurag.sh
     backend:

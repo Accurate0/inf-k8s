@@ -48,8 +48,7 @@ export type RouteAuth =
 export interface Route {
   hosts: string[];
   gateway?: string;
-  unauthenticated?: boolean;
-  auth?: RouteAuth;
+  auth: RouteAuth;
   workload?: string;
   backend?: { name: string; port: number };
   paths?: (string | { type: string; value: string })[];
@@ -135,27 +134,25 @@ export function validate(raw: unknown, where: string): App {
   const clients = Object.entries(app.oidc ?? {});
   for (const [name, route] of routes) {
     if (!route.hosts?.length) fail(`routes.${name}.hosts is required`);
-    if (route.auth) {
-      const auth = route.auth;
-      if (auth.mode === 'jwt') {
-        if (!auth.clients?.length) fail(`routes.${name}.auth.clients is required for jwt`);
-        for (const client of auth.clients) {
-          if (!app.oidc?.[client]) fail(`routes.${name}.auth: no oidc client named ${client}`);
-        }
-      } else if (auth.mode === 'oidc') {
-        const client = app.oidc?.[auth.client];
-        if (!client) fail(`routes.${name}.auth: no oidc client named ${auth.client}`);
-        const policy = client?.securityPolicy as { httpRoute?: string } | undefined;
-        if ((policy?.httpRoute ?? auth.client) !== name || !policy) {
-          fail(`routes.${name}.auth: oidc.${auth.client}.securityPolicy must target this route`);
-        }
-      } else if (auth.mode === 'app' || auth.mode === 'none') {
-        if (!auth.reason?.trim()) fail(`routes.${name}.auth.reason is required for ${auth.mode}`);
-      } else {
-        fail(`routes.${name}.auth.mode must be jwt, oidc, app or none`);
+    const auth = route.auth;
+    if (!auth) {
+      fail(`routes.${name}.auth is required`);
+    } else if (auth.mode === 'jwt') {
+      if (!auth.clients?.length) fail(`routes.${name}.auth.clients is required for jwt`);
+      for (const client of auth.clients ?? []) {
+        if (!app.oidc?.[client]) fail(`routes.${name}.auth: no oidc client named ${client}`);
       }
-    } else if (!clients.length && !route.unauthenticated) {
-      fail(`routes.${name} needs oidc so that every route authenticates, or unauthenticated: true`);
+    } else if (auth.mode === 'oidc') {
+      const client = app.oidc?.[auth.client];
+      if (!client) fail(`routes.${name}.auth: no oidc client named ${auth.client}`);
+      const policy = client?.securityPolicy as { httpRoute?: string } | undefined;
+      if (!policy || (policy.httpRoute ?? auth.client) !== name) {
+        fail(`routes.${name}.auth: oidc.${auth.client}.securityPolicy must target this route`);
+      }
+    } else if (auth.mode === 'app' || auth.mode === 'none') {
+      if (!auth.reason?.trim()) fail(`routes.${name}.auth.reason is required for ${auth.mode}`);
+    } else {
+      fail(`routes.${name}.auth.mode must be jwt, oidc, app or none`);
     }
   }
   for (const [name, client] of clients) {

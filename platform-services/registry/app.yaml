@@ -2,6 +2,9 @@
 name: registry
 routes:
   registry:
+    auth:
+      mode: app
+      reason: accepts opaque registry tokens and forgejo OIDC
     gateway: internal-gateway
     hosts:
       - registry.ortzi.cloud

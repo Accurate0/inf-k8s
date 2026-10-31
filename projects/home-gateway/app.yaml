@@ -3,6 +3,9 @@ name: home-gateway
 repository: https://github.com/Accurate0/home-gateway
 routes:
   api-route:
+    auth:
+      mode: app
+      reason: accepts X-Api-Key as well as JWTs
     hosts:
       - home.anurag.sh
     backend:

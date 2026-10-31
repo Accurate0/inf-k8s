@@ -2,6 +2,9 @@
 name: ai-gateway
 routes:
   ai-gateway:
+    auth:
+      mode: app
+      reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
     gateway: internal-gateway
     hosts:
       - ai-gateway.ortzi.cloud

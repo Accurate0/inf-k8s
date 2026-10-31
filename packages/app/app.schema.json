@@ -216,15 +216,12 @@
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "hosts"
+          "hosts",
+          "auth"
         ],
         "properties": {
           "gateway": {
             "type": "string"
-          },
-          "unauthenticated": {
-            "type": "boolean",
-            "description": "Required for a route with no oidc block."
           },
           "auth": {
             "type": "object",

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T04:31:58.385Z
+# generated at 2026-10-31T06:22:09.218Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -106,7 +106,7 @@ spec:
             - janitor-bot
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
-      targetRevision: 2.3.1
+      targetRevision: 2.4.0
       helm:
         valuesObject:
           routes:

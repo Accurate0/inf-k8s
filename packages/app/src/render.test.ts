@@ -49,7 +49,7 @@ test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
     workloads: { foo: { image: 'i', port: 3000 } },
-    routes: { foo: { hosts: ['foo.anurag.sh'] } },
+    routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] } } },
     oidc: { foo: {} },
     metrics: {},
     network: { ingress: ['ai-gateway', 'monitoring'] },
@@ -69,7 +69,7 @@ test('renders several workloads and routes to the named one', () => {
       web: { image: 'j', port: 8080 },
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
-    routes: { foo: { hosts: ['foo.anurag.sh'], workload: 'web', unauthenticated: true } },
+    routes: { foo: { hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } } },
     secrets: ['foo'],
     network: { ingress: [] },
   });
@@ -88,7 +88,7 @@ test('requires route.workload when several workloads have ports', () => {
         {
           name: 'foo',
           workloads: { a: { image: 'i', port: 1 }, b: { image: 'j', port: 2 } },
-          routes: { foo: { hosts: ['foo.anurag.sh'], unauthenticated: true } },
+          routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } } },
           network: { ingress: [] },
         },
         'x',
@@ -123,7 +123,7 @@ test('routes to an explicit backend without a workload', () => {
         hosts: ['a.sh', 'b.sh'],
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
-        unauthenticated: true,
+        auth: { mode: 'none', reason: 'public' },
       },
       'foo-api': { hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } },
     },
@@ -301,6 +301,6 @@ test('rejects invalid apps', () => {
         },
         'x',
       ),
-    /every route authenticates/,
+    /routes.foo.auth is required/,
   );
 });
