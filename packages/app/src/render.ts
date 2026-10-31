@@ -178,6 +178,19 @@ export function validate(raw: unknown, where: string): App {
   return app;
 }
 
+const SYSTEM_NAMESPACES = new Set(['argocd', 'dragonfly', 'envoy-gateway-system', 'forgejo', 'immich', 'monitoring']);
+
+export function validateIngress(apps: App[]) {
+  const known = new Set(apps.map((app) => app.name));
+  for (const app of apps) {
+    for (const from of app.network.ingress) {
+      if (!known.has(from) && !SYSTEM_NAMESPACES.has(from)) {
+        throw new Error(`${app.name}: network.ingress: no app or namespace named ${from}`);
+      }
+    }
+  }
+}
+
 function chart(app: App, versions: Versions, name: string, helm: Record<string, unknown>) {
   const targetRevision = app.charts?.[name] ?? versions[name];
   if (!targetRevision) throw new Error(`${app.name}: no version for chart ${name}`);

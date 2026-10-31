@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { type App, HEADER, isCurrent, renderApplication, renderWorkflow, stamped, validate } from './render.ts';
+import { type App, HEADER, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -210,6 +210,12 @@ test('rejects invalid route auth', () => {
   assert.throws(() => validate(app({ mode: 'none' }), 'x'), /auth.reason is required/);
   assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode must be/);
   validate(app({ mode: 'oidc', client: 'foo' }, { foo: { securityPolicy: { httpRoute: 'foo' } } }), 'x');
+});
+
+test('rejects ingress from an unknown namespace', () => {
+  const app = (name: string, ingress: string[]) => ({ name, network: { ingress } });
+  validateIngress([app('foo', ['bar', 'monitoring']), app('bar', [])]);
+  assert.throws(() => validateIngress([app('foo', ['baz'])]), /no app or namespace named baz/);
 });
 
 test('an app can pin a chart version', () => {

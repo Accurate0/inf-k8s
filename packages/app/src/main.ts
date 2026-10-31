@@ -15,6 +15,7 @@ import {
   stamped,
   type Target,
   validate,
+  validateIngress,
   workflowPath,
   workloadImages,
 } from './render';
@@ -96,6 +97,7 @@ function discover(): { app: App; target: Target }[] {
       });
     }
   }
+  validateIngress(found.map(({ app }) => app));
   return found;
 }
 
