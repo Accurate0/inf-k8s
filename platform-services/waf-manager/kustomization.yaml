@@ -30,3 +30,5 @@ configMapGenerator:
       disableNameSuffixHash: true
       labels:
         inf-k8s.net/grafana-dashboard: "true"
+generatorOptions:
+  disableNameSuffixHash: true
