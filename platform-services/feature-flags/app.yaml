@@ -1,0 +1,31 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: feature-flags
+routes:
+  feature-flags-api:
+    gateway: internal-gateway
+    hosts:
+      - feature-flags.ortzi.cloud
+    backend:
+      name: api
+      port: 50051
+    paths:
+      - /featureflag.v1.Admin/
+      - /featureflag.v1.Evaluation/
+    timeouts:
+      request: 0s
+oidc:
+  feature-flags:
+    displayName: Feature Flags
+    public: true
+    allowLocalhostRedirect: true
+databases:
+  feature-flags:
+    secretName: feature-flags-db-credentials
+secrets:
+  - feature-flags
+network:
+  ingress:
+    - ai-gateway
+    - home-gateway
+    - maccas-api
+    - janitor-bot
