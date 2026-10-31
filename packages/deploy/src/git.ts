@@ -1,11 +1,11 @@
 import { fetchText } from '@ortzi/kit';
 import type { Application, Revisions } from './argo';
-import { parseKustomizationImages } from './images';
+import { parseKustomizationImages, parseValuesTag } from './images';
 
 const REPO = 'Accurate0/inf-k8s';
 
 function sourceIndex(app: Application): number {
-  return (app.spec.sources ?? []).findIndex((s) => s.path && s.repoURL?.includes(REPO));
+  return (app.spec.sources ?? []).findIndex((s) => (s.path || s.ref) && s.repoURL?.includes(REPO));
 }
 
 function sourcePath(app: Application): string | undefined {
@@ -19,7 +19,20 @@ export function gitRevision(app: Application, entry: Revisions | undefined): str
   return (index >= 0 ? entry?.revisions?.[index] : undefined) ?? entry?.revision;
 }
 
+function workloadTags(app: Application, revision: string | undefined): Map<string, string> | undefined {
+  const helm = app.spec.sources?.find((s) => s.chart === 'k8s-workload')?.helm;
+  if (!helm) return undefined;
+  const file = helm.valueFiles?.[0]?.replace('$values/', '');
+  const image = helm.valuesObject?.image;
+  if (!file || !image || !revision) return new Map();
+  const text = fetchText(`https://raw.githubusercontent.com/${REPO}/${revision}/${file}`);
+  const tag = text ? parseValuesTag(text) : undefined;
+  return new Map(tag ? [[image, tag]] : []);
+}
+
 export function tagsAt(app: Application, revision: string | undefined): Map<string, string> {
+  const workload = workloadTags(app, revision);
+  if (workload) return workload;
   const path = sourcePath(app);
   if (!path || !revision) return new Map();
   for (const dir of [path, `${path}/manifests`]) {

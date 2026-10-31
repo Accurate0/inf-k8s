@@ -20,6 +20,9 @@ export function parseKustomizationImages(text: string): Map<string, string> {
   return images;
 }
 
+export const parseValuesTag = (text: string): string | undefined =>
+  text.match(/^tag:\s*["']?([^"'\s]+)/m)?.[1];
+
 export function previousTags(
   running: Map<string, string>,
   history: Map<string, string>[],

@@ -13,6 +13,9 @@ export interface Automated {
 export interface Source {
   repoURL?: string;
   path?: string;
+  ref?: string;
+  chart?: string;
+  helm?: { valueFiles?: string[]; valuesObject?: { image?: string } };
 }
 
 export interface Revisions {

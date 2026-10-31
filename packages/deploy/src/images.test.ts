@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parseKustomizationImages, previousTags } from './images.ts';
+import { parseKustomizationImages, parseValuesTag, previousTags } from './images.ts';
 
 test('reads images from a kustomization', () => {
   const text = `resources:
@@ -31,4 +31,10 @@ test('finds the most recent different tags', () => {
   const history = [new Map([['api', 'c']]), new Map([['api', 'b']]), new Map([['api', 'a']])];
   assert.equal(previousTags(running, history)?.get('api'), 'b');
   assert.equal(previousTags(running, [new Map([['api', 'c']])]), undefined);
+});
+
+test('reads the tag from an image values file', () => {
+  assert.equal(parseValuesTag('tag: abc\n'), 'abc');
+  assert.equal(parseValuesTag('other: 1\ntag: "def"\n'), 'def');
+  assert.equal(parseValuesTag('other: 1\n'), undefined);
 });
