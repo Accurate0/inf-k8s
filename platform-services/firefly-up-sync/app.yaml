@@ -3,6 +3,7 @@ name: firefly-up-sync
 network:
   ingress: []
 resources:
+  - {name: firefly, type: platform, export: firefly}
   - {name: firefly-up-sync, type: secret, secretName: firefly-up-sync-managed-secrets}
 workloads:
   firefly-up-sync:
@@ -12,7 +13,7 @@ workloads:
     backoffLimit: 1
     resources: {memoryLimit: 256Mi, memory: 64Mi}
     env:
-      FIREFLY_URL: http://firefly.firefly.svc.cluster.local
+      FIREFLY_URL: {resource: firefly}
       LOOKBACK_DAYS: "14"
       PAYOFF_PIGGY_BANK: Home loan payoff
       LINKED_ACCOUNTS: |

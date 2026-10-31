@@ -3,6 +3,7 @@ name: waf-manager
 network:
   ingress: []
 resources:
+  - {name: logs, type: platform, export: logs}
   - {name: waf-manager, type: secret, secretName: waf-manager-managed-secrets}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
   - name: waf-manager-route
@@ -87,7 +88,7 @@ workloads:
       POD_NAMESPACE: {field: metadata.namespace}
       POD_NAME: {field: metadata.name}
       DATABASE_URL: {database: waf-manager, key: DATABASE_URL}
-      LOKI_URL: http://monitoring-loki.monitoring.svc.cluster.local:3100
+      LOKI_URL: {resource: logs}
       POLICY_NAMESPACE: envoy-gateway-system
       RESYNC_SECONDS: "300"
       FAST_RESYNC_SECONDS: "20"

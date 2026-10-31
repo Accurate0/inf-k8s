@@ -8,8 +8,7 @@ resources:
   - {name: signing, type: secret, secretName: registry-signing-secrets}
   - {name: registry, type: database, secretName: registry-database-secret}
   - {name: storage, type: bucket, provider: r2, bucket: registry, secretName: storage-bucket-secrets}
-  - name: traces
-    type: tracing
+  - {name: traces, type: platform, export: tracing}
   - name: registry
     type: route
     auth:

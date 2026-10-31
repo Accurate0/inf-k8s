@@ -21,8 +21,7 @@ resources:
     type: app
     app: feature-flags
     export: api
-  - name: traces
-    type: tracing
+  - {name: traces, type: platform, export: tracing}
   - name: api-route
     type: route
     auth:

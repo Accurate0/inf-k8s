@@ -5,13 +5,14 @@ network:
     - argocd
     - forgejo
 resources:
+  - {name: argocd, type: platform, export: argocd}
+  - {name: forgejo, type: platform, export: forgejo}
   - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
   - name: flags
     type: app
     app: feature-flags
     export: api
-  - name: traces
-    type: tracing
+  - {name: traces, type: platform, export: tracing}
   - name: janitor-bot-route
     type: route
     auth:
@@ -85,8 +86,8 @@ workloads:
       OIDC_AUDIENCE: janitor-bot
       OIDC_GROUPS: janitor_bot_admins
       RULES_CONFIGMAP_PATH: /etc/janitor-bot/rules/config.yaml
-      ARGOCD_SERVER: http://argocd-server.argocd.svc.cluster.local:80
-      FORGEJO_INSTANCE_URL: http://forgejo-http.forgejo.svc.cluster.local:3000
+      ARGOCD_SERVER: {resource: argocd}
+      FORGEJO_INSTANCE_URL: {resource: forgejo}
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
     envFrom:

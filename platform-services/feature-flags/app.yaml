@@ -10,8 +10,7 @@ resources:
   - {name: feature-flags, type: secret, secretName: feature-flags-managed-secrets}
   - {name: cache, type: cache, instance: replicated}
   - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
-  - name: traces
-    type: tracing
+  - {name: traces, type: platform, export: tracing}
   - name: feature-flags-api
     type: route
     auth:
