@@ -9,6 +9,7 @@ import {
   stamped,
   type Target,
   validate,
+  workloadImages,
 } from './render';
 
 const LOCATIONS = ['projects', 'platform-services'];
@@ -64,7 +65,7 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
       const values = imageValuesPath(app, target);
       const current = fs.exists(values) ? parse(fs.readText(values)) : {};
       const images = { ...current?.images };
-      for (const { image } of Object.values(app.workloads)) images[image] ??= 'latest';
+      for (const image of workloadImages(app)) images[image] ??= 'latest';
       const output = stringify({ images });
       if (!fs.exists(values) || stringify({ images: current?.images ?? {} }) !== output) {
         stale.push({ path: values, wanted: output });

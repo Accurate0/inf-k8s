@@ -20,7 +20,15 @@ export interface Workload {
   kind?: 'Deployment' | 'DaemonSet' | 'CronJob';
   replicas?: number;
   schedule?: string;
-  service?: { name?: string; port?: number; portName?: string };
+  service?: {
+    name?: string;
+    port?: number;
+    portName?: string;
+    ports?: Record<string, unknown>[];
+    trafficDistribution?: string;
+  };
+  initContainers?: { image: string }[];
+  sidecars?: { image: string }[];
   health?: string;
   resources?: Record<string, unknown>;
   env?: Record<string, unknown>[];
@@ -57,7 +65,9 @@ export interface App {
   secrets?: Secret[];
   sources?: Record<string, unknown>[];
   network: { ingress: string[] };
-  metrics?: { path?: string; interval?: string; workload?: string };
+  metrics?: { path?: string; port?: string; interval?: string; workload?: string };
+  namespaceLabels?: Record<string, string>;
+  serviceAccounts?: string[];
 }
 
 export type Versions = Record<string, string>;
@@ -74,14 +84,14 @@ const secretFor = (secret: Secret) =>
     : secret;
 
 function served(app: App, wanted: string | undefined, block: string): [string, Workload] {
-  const workloads = Object.entries(app.workloads ?? {}).filter(([, w]) => w.port);
+  const workloads = Object.entries(app.workloads ?? {}).filter(([, w]) => w.port || w.service?.ports);
   const found = wanted ? workloads.find(([name]) => name === wanted) : workloads[0];
   if (!found) throw new Error(`${block} needs a workload with a port`);
   if (!wanted && workloads.length > 1) throw new Error(`${block}.workload is required with several ported workloads`);
   return found;
 }
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'namespaceLabels', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -136,6 +146,13 @@ function chart(app: App, versions: Versions, name: string, helm: Record<string, 
   return { chart: name, repoURL: `${CHART_REGISTRY}/${name}`, targetRevision, helm };
 }
 
+export const workloadImages = (app: App) =>
+  Object.values(app.workloads ?? {}).flatMap((w) => [
+    w.image,
+    ...(w.initContainers ?? []).map((c) => c.image),
+    ...(w.sidecars ?? []).map((c) => c.image),
+  ]);
+
 export const imageValuesPath = (app: App, target: Target) =>
   `${target.location}/${app.name}/image.values.yaml`;
 
@@ -159,20 +176,23 @@ export function renderApplication(app: App, versions: Versions, target: Target):
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
         valuesObject: {
           namespace: name,
-          ...(routes.length
+          ...(routes.length || app.namespaceLabels
             ? {
-                namespaceLabels: Object.fromEntries(
-                  routes.flatMap(([, route]) =>
-                    (route.gateway ?? 'public-gateway') === 'internal-gateway'
-                      ? [['internal-gateway-access', 'true']]
-                      : route.hosts.map((host) => [
-                          `gateway.inf-k8s.net/${host.replaceAll('.', '-')}`,
-                          'true',
-                        ]),
+                namespaceLabels:
+                  app.namespaceLabels ??
+                  Object.fromEntries(
+                    routes.flatMap(([, route]) =>
+                      (route.gateway ?? 'public-gateway') === 'internal-gateway'
+                        ? [['internal-gateway-access', 'true']]
+                        : route.hosts.map((host) => [
+                            `gateway.inf-k8s.net/${host.replaceAll('.', '-')}`,
+                            'true',
+                          ]),
+                    ),
                   ),
-                ),
               }
             : {}),
+          ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
             const { health, envFrom, secrets: only, databases: dbs, ...rest } = spec;
             const chosen = dbs ?? Object.keys(app.databases ?? {});
@@ -314,7 +334,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
     );
   }
 
-  if (target.hasManifests) {
+  if (target.hasManifests || target.rootKustomization) {
     sources.push({ repoURL: CONFIG_REPO, name: 'application', path: target.rootKustomization ? dir : `${dir}/manifests` });
   }
   sources.push(...(app.sources ?? []));

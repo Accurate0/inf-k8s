@@ -78,6 +78,9 @@
         "workload": {
           "type": "string",
           "description": "Required with several ported workloads."
+        },
+        "port": {
+          "type": "string"
         }
       }
     },
@@ -86,7 +89,7 @@
       "description": "Keyed by workload name.",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": false,
+        "additionalProperties": true,
         "required": [
           "image"
         ],
@@ -121,6 +124,15 @@
                 "type": "integer"
               },
               "portName": {
+                "type": "string"
+              },
+              "ports": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              "trafficDistribution": {
                 "type": "string"
               }
             }
@@ -160,6 +172,12 @@
             "items": {
               "type": "string"
             }
+          },
+          "runAsNonRoot": {
+            "type": "boolean"
+          },
+          "serviceAccountName": {
+            "type": "string"
           }
         }
       }
@@ -286,6 +304,18 @@
             "type": "string"
           }
         }
+      }
+    },
+    "namespaceLabels": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "serviceAccounts": {
+      "type": "array",
+      "items": {
+        "type": "string"
       }
     }
   }

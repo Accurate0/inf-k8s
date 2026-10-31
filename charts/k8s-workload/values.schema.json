@@ -3,55 +3,217 @@
   "title": "k8s-workload values",
   "type": "object",
   "additionalProperties": false,
-  "required": ["namespace", "images", "workloads"],
+  "required": [
+    "namespace",
+    "images",
+    "workloads"
+  ],
   "definitions": {
     "workload": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "image"],
+      "required": [
+        "name",
+        "image"
+      ],
       "properties": {
-        "name": { "type": "string" },
-        "image": { "type": "string" },
-        "kind": { "enum": ["Deployment", "DaemonSet", "CronJob"] },
-        "replicas": { "type": "integer", "minimum": 0 },
-        "schedule": { "type": "string", "description": "Required when kind is CronJob." },
-        "port": { "type": "integer", "description": "Container port. Omit for workers." },
+        "name": {
+          "type": "string"
+        },
+        "image": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "Deployment",
+            "DaemonSet",
+            "CronJob"
+          ]
+        },
+        "replicas": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "schedule": {
+          "type": "string",
+          "description": "Required when kind is CronJob."
+        },
+        "port": {
+          "type": "integer",
+          "description": "Container port. Omit for workers."
+        },
         "service": {
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "name": { "type": "string", "description": "Defaults to name." },
-            "port": { "type": "integer", "description": "Defaults to the container port." },
-            "portName": { "type": "string", "description": "Defaults to http." }
+            "name": {
+              "type": "string",
+              "description": "Defaults to name."
+            },
+            "port": {
+              "type": "integer",
+              "description": "Defaults to the container port."
+            },
+            "portName": {
+              "type": "string",
+              "description": "Defaults to http."
+            },
+            "ports": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            },
+            "trafficDistribution": {
+              "type": "string"
+            }
           }
         },
         "probes": {
           "type": "object",
           "additionalProperties": false,
-          "required": ["path"],
+          "required": [
+            "path"
+          ],
           "properties": {
-            "path": { "type": "string" },
-            "port": { "type": "integer", "description": "Defaults to the container port." }
+            "path": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer",
+              "description": "Defaults to the container port."
+            }
           }
         },
-        "resources": { "type": "object" },
-        "env": { "type": "array", "items": { "type": "object" } },
-        "envFrom": { "type": "array", "items": { "type": "object" } },
-        "readOnlyRootFilesystem": { "type": "boolean" },
-        "annotations": { "type": "object", "additionalProperties": { "type": "string" } }
+        "resources": {
+          "type": "object"
+        },
+        "env": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "envFrom": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        },
+        "readOnlyRootFilesystem": {
+          "type": "boolean"
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "ports": {
+          "type": "array"
+        },
+        "volumes": {
+          "type": "array"
+        },
+        "volumeMounts": {
+          "type": "array"
+        },
+        "initContainers": {
+          "type": "array"
+        },
+        "sidecars": {
+          "type": "array"
+        },
+        "hostAliases": {
+          "type": "array"
+        },
+        "topologySpreadConstraints": {
+          "type": "array"
+        },
+        "command": {
+          "type": "array"
+        },
+        "args": {
+          "type": "array"
+        },
+        "affinity": {
+          "type": "object"
+        },
+        "strategy": {
+          "type": "object"
+        },
+        "updateStrategy": {
+          "type": "object"
+        },
+        "readinessProbe": {
+          "type": "object"
+        },
+        "livenessProbe": {
+          "type": "object"
+        },
+        "startupProbe": {
+          "type": "object"
+        },
+        "minReadySeconds": {
+          "type": "integer"
+        },
+        "progressDeadlineSeconds": {
+          "type": "integer"
+        },
+        "backoffLimit": {
+          "type": "integer"
+        },
+        "serviceAccountName": {
+          "type": "string"
+        },
+        "automountServiceAccountToken": {
+          "type": "boolean"
+        },
+        "restartPolicy": {
+          "type": "string"
+        },
+        "runAsNonRoot": {
+          "type": "boolean",
+          "description": "Set false for images that must run as root; drops the security contexts."
+        }
       }
     }
   },
   "properties": {
-    "global": { "type": "object" },
-    "namespace": { "type": "string" },
-    "namespaceLabels": { "type": "object", "additionalProperties": { "type": "string" } },
+    "global": {
+      "type": "object"
+    },
+    "namespace": {
+      "type": "string"
+    },
+    "namespaceLabels": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
     "images": {
       "type": "object",
       "description": "Image tag, keyed by image name.",
-      "additionalProperties": { "type": "string" }
+      "additionalProperties": {
+        "type": "string"
+      }
     },
-    "defaults": { "type": "object", "description": "Merged under every workload." },
-    "workloads": { "type": "array", "items": { "$ref": "#/definitions/workload" } }
+    "defaults": {
+      "type": "object",
+      "description": "Merged under every workload."
+    },
+    "workloads": {
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/workload"
+      }
+    },
+    "serviceAccounts": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
   }
 }

@@ -7,6 +7,14 @@ metadata:
   labels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- range .Values.serviceAccounts }}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ . }}
+  namespace: {{ $namespace }}
+{{- end }}
 {{- range $workload := .Values.workloads }}
 {{- $w := merge (deepCopy $workload) (deepCopy ($.Values.defaults | default dict)) }}
 {{- $ctx := dict "workload" $w "images" $.Values.images }}
@@ -22,8 +30,13 @@ metadata:
 spec:
   schedule: {{ required "schedule is required for a CronJob" $w.schedule | quote }}
   concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
   jobTemplate:
     spec:
+      {{- with $w.backoffLimit }}
+      backoffLimit: {{ . }}
+      {{- end }}
       template:
         {{- include "k8s-workload.pod" $ctx | nindent 8 }}
 {{- else }}
@@ -35,6 +48,22 @@ metadata:
 spec:
   {{- if eq $w.kind "Deployment" }}
   replicas: {{ $replicas }}
+  {{- with $w.strategy }}
+  strategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- with $w.progressDeadlineSeconds }}
+  progressDeadlineSeconds: {{ . }}
+  {{- end }}
+  {{- end }}
+  {{- if eq $w.kind "DaemonSet" }}
+  {{- with $w.updateStrategy }}
+  updateStrategy:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  {{- end }}
+  {{- with $w.minReadySeconds }}
+  minReadySeconds: {{ . }}
   {{- end }}
   selector:
     matchLabels:
@@ -42,7 +71,7 @@ spec:
   template:
     {{- include "k8s-workload.pod" $ctx | nindent 4 }}
 {{- end }}
-{{- if and $w.port (ne $w.kind "CronJob") }}
+{{- if and (or $w.port $service.ports) (ne $w.kind "CronJob") }}
 ---
 apiVersion: v1
 kind: Service
@@ -54,11 +83,18 @@ metadata:
 spec:
   selector:
     app: {{ $w.name }}
+  {{- with $service.trafficDistribution }}
+  trafficDistribution: {{ . }}
+  {{- end }}
   ports:
+    {{- if $service.ports }}
+    {{- toYaml $service.ports | nindent 4 }}
+    {{- else }}
     - name: {{ $service.portName | default "http" }}
       protocol: TCP
       port: {{ $service.port | default $w.port }}
       targetPort: {{ $w.port }}
+    {{- end }}
 {{- end }}
 {{- if and (eq $w.kind "Deployment") (gt (int $replicas) 1) }}
 ---
