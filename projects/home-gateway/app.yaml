@@ -43,7 +43,6 @@ resources:
             - headers:
                 - name: x-real-ip
                   type: Distinct
-                  invert: false
           limit:
             requests: 5
             unit: Second
