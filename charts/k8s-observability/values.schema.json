@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-observability values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name"],
+  "properties": {
+    "global": { "type": "object" },
+    "name": { "type": "string", "description": "Matches the Service's app label." },
+    "namespace": { "type": "string", "description": "Defaults to name." },
+    "path": { "type": "string" },
+    "port": { "type": "string", "description": "Name of the Service port." },
+    "interval": { "type": "string" },
+    "scrapeTimeout": { "type": "string" }
+  }
+}

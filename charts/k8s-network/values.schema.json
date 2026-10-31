@@ -1,0 +1,16 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-network values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["namespace", "callers"],
+  "properties": {
+    "global": { "type": "object" },
+    "namespace": { "type": "string" },
+    "callers": {
+      "type": "array",
+      "description": "Namespaces allowed to reach this one. The namespace itself is always allowed.",
+      "items": { "type": "string" }
+    }
+  }
+}

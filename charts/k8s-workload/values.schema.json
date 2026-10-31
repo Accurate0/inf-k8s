@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "k8s-workload values",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "image", "tag"],
+  "properties": {
+    "global": { "type": "object" },
+    "name": { "type": "string" },
+    "namespace": { "type": "string", "description": "Defaults to name." },
+    "image": { "type": "string" },
+    "tag": { "type": "string" },
+    "kind": { "enum": ["Deployment", "DaemonSet", "CronJob"] },
+    "replicas": { "type": "integer", "minimum": 0 },
+    "schedule": { "type": "string", "description": "Required when kind is CronJob." },
+    "port": { "type": "integer", "description": "Container port. Omit for workers." },
+    "service": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": { "type": "string", "description": "Defaults to name." },
+        "port": { "type": "integer", "description": "Defaults to the container port." },
+        "portName": { "type": "string", "description": "Defaults to http." }
+      }
+    },
+    "probes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path"],
+      "properties": {
+        "path": { "type": "string" },
+        "port": { "type": "integer", "description": "Defaults to the container port." }
+      }
+    },
+    "resources": { "type": "object" },
+    "env": { "type": "array", "items": { "type": "object" } },
+    "envFrom": { "type": "array", "items": { "type": "object" } },
+    "readOnlyRootFilesystem": { "type": "boolean" },
+    "annotations": { "type": "object", "additionalProperties": { "type": "string" } },
+    "namespaceLabels": { "type": "object", "additionalProperties": { "type": "string" } }
+  }
+}

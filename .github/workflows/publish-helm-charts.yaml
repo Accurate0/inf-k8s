@@ -38,6 +38,9 @@ jobs:
           helm package charts/k8s-http-routes
           helm package charts/k8s-oidc
           helm package charts/k8s-postgres
+          helm package charts/k8s-workload
+          helm package charts/k8s-network
+          helm package charts/k8s-observability
 
       - name: Push charts to GHCR
         run: |

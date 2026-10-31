@@ -1,0 +1,71 @@
+{{- $namespace := .Values.namespace | default .Values.name }}
+{{- $kind := .Values.kind | default "Deployment" }}
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: {{ $namespace }}
+  {{- with .Values.namespaceLabels }}
+  labels:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+---
+{{- if eq $kind "CronJob" }}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ $namespace }}
+spec:
+  schedule: {{ required "schedule is required for a CronJob" .Values.schedule | quote }}
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        {{- include "k8s-workload.pod" . | nindent 8 }}
+{{- else }}
+apiVersion: apps/v1
+kind: {{ $kind }}
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ $namespace }}
+spec:
+  {{- if eq $kind "Deployment" }}
+  replicas: {{ .Values.replicas }}
+  {{- end }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    {{- include "k8s-workload.pod" . | nindent 4 }}
+{{- end }}
+{{- if and .Values.port (ne $kind "CronJob") }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.service.name | default .Values.name }}
+  namespace: {{ $namespace }}
+  labels:
+    app: {{ .Values.name }}
+spec:
+  selector:
+    app: {{ .Values.name }}
+  ports:
+    - name: {{ .Values.service.portName | default "http" }}
+      protocol: TCP
+      port: {{ .Values.service.port | default .Values.port }}
+      targetPort: {{ .Values.port }}
+{{- end }}
+{{- if and (eq $kind "Deployment") (gt (int .Values.replicas) 1) }}
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ $namespace }}
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+{{- end }}

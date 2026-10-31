@@ -1,0 +1,6 @@
+apiVersion: v2
+name: k8s-network
+description: Default-deny ingress for a namespace, with an allowlist of calling namespaces
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

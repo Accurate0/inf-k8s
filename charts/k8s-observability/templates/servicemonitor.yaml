@@ -1,0 +1,20 @@
+{{- $namespace := .Values.namespace | default .Values.name }}
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: {{ .Values.name }}
+  namespace: {{ $namespace }}
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  namespaceSelector:
+    matchNames:
+      - {{ $namespace }}
+  endpoints:
+    - port: {{ .Values.port }}
+      path: {{ .Values.path }}
+      interval: {{ .Values.interval }}
+      scrapeTimeout: {{ .Values.scrapeTimeout }}
