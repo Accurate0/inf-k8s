@@ -391,6 +391,17 @@ async fn publish_then_install_round_trip(pool: PgPool) {
     assert_eq!(latest["auth"]["token_env"], "FFCTL_TOKEN");
     assert_eq!(latest["auth"]["scopes"], "openid email profile groups");
 
+    let (status, many) = registry
+        .call(
+            "POST",
+            "/cli/v1/latest",
+            Some(&reader),
+            Some(json!({ "target": "darwin-arm64", "names": ["ff", "missing"] })),
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(many, json!({ "ff": "0.10.0" }));
+
     let expected = b"ff-0.10.0-darwin-arm64";
     let (status, bytes, header) = registry
         .download(

@@ -13,6 +13,7 @@ use crate::state::AppState;
 pub fn router() -> Router<AppState> {
     Router::new()
         .route("/packages", get(packages::list).post(packages::create))
+        .route("/latest", post(packages::latest_many))
         .route(
             "/packages/{name}",
             get(packages::get)

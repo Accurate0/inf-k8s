@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 use axum::{
     Json,
@@ -6,8 +6,8 @@ use axum::{
     http::StatusCode,
 };
 use registry_api::{
-    CreatePackage, ECOSYSTEM_CLI, Package, PackageDetail, Target, UpdatePackage, Version,
-    validate_package_name,
+    CreatePackage, ECOSYSTEM_CLI, LatestRequest, Package, PackageDetail, Target, UpdatePackage,
+    Version, validate_package_name,
 };
 use serde::Deserialize;
 use serde_json::json;
@@ -315,6 +315,36 @@ pub struct LatestQuery {
     target: Option<Target>,
     #[serde(default)]
     prerelease: bool,
+}
+
+const MAX_LATEST_NAMES: usize = 200;
+
+pub async fn latest_many(
+    State(state): State<AppState>,
+    principal: Principal,
+    Json(request): Json<LatestRequest>,
+) -> Result<Json<BTreeMap<String, String>>> {
+    principal.require_reader()?;
+
+    if request.names.len() > MAX_LATEST_NAMES {
+        return Err(ApiError::BadRequest(format!(
+            "at most {MAX_LATEST_NAMES} names per request"
+        )));
+    }
+
+    let mut latest = BTreeMap::new();
+    for name in request.names {
+        let package = match db::find_package(&state.pool, &name).await {
+            Ok(package) => package,
+            Err(ApiError::NotFound(_)) => continue,
+            Err(e) => return Err(e),
+        };
+        let versions = db::versions(&state.pool, package.id).await?;
+        if let Some(version) = db::latest(&versions, Some(request.target), false) {
+            latest.insert(name, version.version.clone());
+        }
+    }
+    Ok(Json(latest))
 }
 
 pub async fn latest(

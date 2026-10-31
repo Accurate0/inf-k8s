@@ -443,6 +443,12 @@ pub struct Artifact {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LatestRequest {
+    pub target: Target,
+    pub names: Vec<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ArtifactUrl {
     pub url: String,
     pub expires_at: DateTime<Utc>,

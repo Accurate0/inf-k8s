@@ -1,11 +1,13 @@
-use std::path::Path;
+use std::{collections::BTreeMap, path::Path};
 
 use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
-    Package, PackageDetail, Permissions, Target, Version, validate_binary_name,
+    LatestRequest, Package, PackageDetail, Permissions, Target, Version, validate_binary_name,
     validate_package_name, version_key,
 };
+
+use reqwest::{Method, StatusCode};
 
 use crate::{
     client::{self, Client},
@@ -56,6 +58,31 @@ pub async fn resolve(
         Some(version) => format!("{name}@{version} not found"),
         None => format!("no published {name} for {target}; see `ortzi search`"),
     })
+}
+
+pub async fn latest_versions(
+    client: &Client,
+    names: &[&str],
+    target: Target,
+) -> anyhow::Result<BTreeMap<String, String>> {
+    let request = LatestRequest {
+        target,
+        names: names.iter().map(|name| (*name).to_owned()).collect(),
+    };
+    match client.send(Method::POST, "/cli/v1/latest", &request).await {
+        Ok(latest) => return Ok(latest),
+        Err(e) if client::api_error(&e).is_some_and(|e| e.status == StatusCode::NOT_FOUND) => {}
+        Err(e) => return Err(e),
+    }
+
+    let mut latest = BTreeMap::new();
+    for name in names {
+        let path = format!("/cli/v1/packages/{name}/latest?target={target}");
+        if let Some(version) = client.find::<Version>(&path).await? {
+            latest.insert((*name).to_owned(), version.version);
+        }
+    }
+    Ok(latest)
 }
 
 async fn install_version(
@@ -490,9 +517,30 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
     let mut updated = 0;
 
     let everything = names.is_empty();
-    if (everything || names.iter().any(|n| n == SELF)) && installed.self_pinned {
+    let update_self = everything || names.iter().any(|n| n == SELF);
+    let names: Vec<String> = if everything {
+        installed.packages.keys().cloned().collect()
+    } else {
+        names.iter().filter(|n| *n != SELF).cloned().collect()
+    };
+
+    let mut checked: Vec<&str> = names
+        .iter()
+        .filter(|n| installed.packages.get(*n).is_some_and(|p| !p.pinned))
+        .map(String::as_str)
+        .collect();
+    if update_self && !installed.self_pinned {
+        checked.push(SELF);
+    }
+    let latest = latest_versions(&client, &checked, target).await?;
+
+    if update_self && installed.self_pinned {
         println!("ortzi is pinned at {}; skipping", env!("ORTZI_VERSION"));
-    } else if everything || names.iter().any(|n| n == SELF) {
+    } else if update_self
+        && latest
+            .get(SELF)
+            .is_some_and(|version| is_newer(version, env!("ORTZI_VERSION")))
+    {
         match self_update_with(&client, target, None, false).await {
             Ok(true) => updated += 1,
             Ok(false) => {}
@@ -500,12 +548,6 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
             Err(e) => return Err(e),
         }
     }
-
-    let names: Vec<String> = if everything {
-        installed.packages.keys().cloned().collect()
-    } else {
-        names.iter().filter(|n| *n != SELF).cloned().collect()
-    };
 
     let mut failed = Vec::new();
     for name in &names {
@@ -516,7 +558,7 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
             println!("{name} is pinned at {}; skipping", current.version);
             continue;
         }
-        match update_one(&client, &store, name, current, target).await {
+        match update_one(&client, &store, name, current, latest.get(name), target).await {
             Ok(true) => updated += 1,
             Ok(false) => {}
             Err(e) => {
@@ -540,12 +582,15 @@ async fn update_one(
     store: &Store,
     name: &str,
     current: &InstalledPackage,
+    latest: Option<&String>,
     target: Target,
 ) -> anyhow::Result<bool> {
-    let latest = resolve(client, name, None, target).await?;
-    let newer = is_newer(&latest.version, &current.version);
+    let latest =
+        latest.with_context(|| format!("no published {name} for {target}; see `ortzi search`"))?;
+    let newer = is_newer(latest, &current.version);
     if newer {
-        install_version(client, store, name, &latest, target, false).await?;
+        let release = resolve(client, name, Some(latest), target).await?;
+        install_version(client, store, name, &release, target, false).await?;
     }
     Ok(newer)
 }

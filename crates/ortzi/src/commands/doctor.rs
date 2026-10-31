@@ -1,4 +1,7 @@
-use std::{collections::BTreeSet, path::Path};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    path::Path,
+};
 
 use cli_auth::Credentials;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
@@ -82,14 +85,32 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
         }
     };
 
+    let mut latest = None;
     if let (Some(client), Some(target)) = (&client, target) {
-        findings.push(self_finding(client, target, installed.self_pinned).await);
+        let names: Vec<&str> = installed
+            .packages
+            .iter()
+            .filter(|(_, package)| !package.pinned)
+            .map(|(name, _)| name.as_str())
+            .chain((!installed.self_pinned).then_some(SELF))
+            .collect();
+        match packages::latest_versions(client, &names, target).await {
+            Ok(versions) => latest = Some(versions),
+            Err(e) => findings.push(Finding::new(
+                "registry",
+                Level::Warn,
+                format!("could not check for updates: {e:#}"),
+            )),
+        }
+        if let Some(versions) = &latest {
+            findings.push(self_finding(versions, installed.self_pinned));
+        }
     }
 
     for (name, package) in &installed.packages {
         let mut problems = package_findings(&store, name, package).await;
         if let Some(client) = &client {
-            problems.extend(remote_findings(client, name, package, target).await);
+            problems.extend(remote_findings(client, name, package, latest.as_ref()).await);
         }
         if problems.is_empty() {
             let pin = if package.pinned { " (pinned)" } else { "" };
@@ -248,22 +269,19 @@ async fn package_findings(store: &Store, name: &str, package: &InstalledPackage)
     findings
 }
 
-async fn self_finding(client: &Client, target: Target, pinned: bool) -> Finding {
+fn self_finding(latest: &BTreeMap<String, String>, pinned: bool) -> Finding {
     let running = env!("ORTZI_VERSION");
     if pinned {
         return Finding::new(SELF, Level::Ok, format!("{running} (pinned)"));
     }
-    match packages::resolve(client, SELF, None, target).await {
-        Ok(latest) if packages::is_newer(&latest.version, running) => Finding::new(
+    match latest.get(SELF) {
+        Some(version) if packages::is_newer(version, running) => Finding::new(
             SELF,
             Level::Warn,
-            format!(
-                "{running} installed, {} available; run `ortzi self-update`",
-                latest.version
-            ),
+            format!("{running} installed, {version} available; run `ortzi self-update`"),
         ),
-        Ok(_) => Finding::new(SELF, Level::Ok, running),
-        Err(e) => Finding::new(SELF, Level::Warn, format!("{e:#}")),
+        Some(_) => Finding::new(SELF, Level::Ok, running),
+        None => Finding::new(SELF, Level::Warn, "no published build for this platform"),
     }
 }
 
@@ -271,7 +289,7 @@ async fn remote_findings(
     client: &Client,
     name: &str,
     package: &InstalledPackage,
-    target: Option<Target>,
+    latest: Option<&BTreeMap<String, String>>,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
 
@@ -314,20 +332,24 @@ async fn remote_findings(
         Err(e) => findings.push(Finding::new(name, Level::Warn, format!("{e:#}"))),
     }
 
-    if let Some(target) = target.filter(|_| !package.pinned) {
-        match packages::resolve(client, name, None, target).await {
-            Ok(latest) if packages::is_newer(&latest.version, &package.version) => {
+    if let Some(latest) = latest.filter(|_| !package.pinned) {
+        match latest.get(name) {
+            Some(version) if packages::is_newer(version, &package.version) => {
                 findings.push(Finding::new(
                     name,
                     Level::Warn,
                     format!(
-                        "{} installed, {} available; run `ortzi update {name}`",
-                        package.version, latest.version
+                        "{} installed, {version} available; run `ortzi update {name}`",
+                        package.version
                     ),
                 ));
             }
-            Ok(_) => {}
-            Err(e) => findings.push(Finding::new(name, Level::Warn, format!("{e:#}"))),
+            Some(_) => {}
+            None => findings.push(Finding::new(
+                name,
+                Level::Warn,
+                "no published build for this platform",
+            )),
         }
     }
     findings
