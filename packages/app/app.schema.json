@@ -499,6 +499,10 @@
               "bucket": {
                 "type": "string",
                 "description": "Defaults to <app>-<name>."
+              },
+              "user": {
+                "type": "string",
+                "description": "IAM user name, for s3. Defaults to the bucket name."
               }
             }
           }

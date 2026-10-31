@@ -629,3 +629,18 @@ test('a bucket resource wires its name and managed secret', () => {
     { name: 'resource-images', managedSecrets: [{ secretName: 'images-bucket-secrets' }] },
   ]);
 });
+
+test('an s3 bucket can keep an existing iam user', () => {
+  const app: App = { ...base, resources: [{ name: 'storage', type: 'bucket', provider: 's3', bucket: 'named', user: 'existing' }] };
+  const { resource } = JSON.parse(renderAppTerraform(app) as string);
+  assert.equal(resource.aws_iam_user['foo-storage'].name, 'existing');
+  assert.equal(resource.aws_iam_policy['foo-storage'].name, 'existing-access');
+  assert.equal(resource.aws_iam_policy['foo-storage'].description, 'Access policy for foo application');
+  const index = JSON.parse(renderTerraformIndex([app]));
+  assert.equal(index.output.s3_access_keys.value['foo-storage'].id, '${aws_iam_access_key.foo-storage.id}');
+  assert.equal(index.output.s3_access_keys.sensitive, true);
+});
+
+test('the terraform index has no key output without s3 buckets', () => {
+  assert.equal(JSON.parse(renderTerraformIndex([base])).output.s3_access_keys, undefined);
+});

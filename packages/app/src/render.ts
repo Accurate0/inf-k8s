@@ -54,6 +54,7 @@ export interface Bucket {
   type: 'bucket';
   provider: 'r2' | 's3';
   bucket?: string;
+  user?: string;
 }
 
 export interface Export {

@@ -80,6 +80,7 @@ function r2Resources(app: App, id: string, resource: Bucket, bucket: string): Bl
 
 function s3Resources(app: App, id: string, resource: Bucket, bucket: string): Block {
   const arn = ref(`aws_s3_bucket.${id}.arn`);
+  const user = resource.user ?? bucket;
   return {
     aws_s3_bucket: { [id]: { bucket, lifecycle: { prevent_destroy: true } } },
     aws_s3_bucket_public_access_block: {
@@ -91,14 +92,16 @@ function s3Resources(app: App, id: string, resource: Bucket, bucket: string): Bl
         ignore_public_acls: true,
       },
     },
-    aws_iam_user: { [id]: { name: bucket } },
+    aws_iam_user: { [id]: { name: user } },
     aws_iam_policy: {
       [id]: {
-        name: `${bucket}-access`,
+        name: `${user}-access`,
+        description: `Access policy for ${app.name} application`,
         policy: JSON.stringify({
           Version: '2012-10-17',
           Statement: [
             {
+              Sid: 'AllowBucketAccess',
               Effect: 'Allow',
               Action: ['s3:DeleteObject', 's3:GetObject', 's3:PutObject', 's3:ListBucket'],
               Resource: [arn, `${arn}/*`],
@@ -154,5 +157,29 @@ export function renderAppTerraform(app: App): string | undefined {
 
 export function renderTerraformIndex(apps: App[]): string {
   const names = apps.flatMap((app) => Object.keys(app.databases ?? {})).sort();
-  return json({ output: { database_names: { value: names } } });
+  const s3 = apps
+    .flatMap((app) =>
+      (app.resources ?? []).flatMap((resource) =>
+        resource.type === 'bucket' && resource.provider === 's3' ? [`${app.name}-${resource.name}`] : [],
+      ),
+    )
+    .sort();
+  return json({
+    output: {
+      database_names: { value: names },
+      ...(s3.length
+        ? {
+            s3_access_keys: {
+              sensitive: true,
+              value: Object.fromEntries(
+                s3.map((id) => [
+                  id,
+                  { id: ref(`aws_iam_access_key.${id}.id`), secret: ref(`aws_iam_access_key.${id}.secret`) },
+                ]),
+              ),
+            },
+          }
+        : {}),
+    },
+  });
 }
