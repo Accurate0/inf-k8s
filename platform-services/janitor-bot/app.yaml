@@ -1,0 +1,157 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: janitor-bot
+routes:
+  janitor-bot-route:
+    gateway: internal-gateway
+    hosts:
+      - janitor-bot.ortzi.cloud
+    backend:
+      name: api
+      port: 80
+  janitor-bot-public-route:
+    hosts:
+      - janitor-bot.anurag.sh
+    backend:
+      name: api
+      port: 80
+    paths:
+      - type: Exact
+        value: /github/webhook
+    annotations:
+      external-dns.kubernetes.io/managed: "true"
+      external-dns.kubernetes.io/cloudflare-proxied: "true"
+    ratelimit:
+      rules:
+        - clientSelectors:
+            - headers:
+                - name: x-real-ip
+                  invert: false
+                  type: Distinct
+          limit:
+            requests: 5
+            unit: Second
+oidc:
+  janitor-bot:
+    displayName: Janitor Bot
+    host: janitor-bot.ortzi.cloud
+    public: true
+    allowLocalhostRedirect: true
+    scopes:
+      - openid
+      - email
+      - profile
+      - groups
+secrets:
+  - janitor-bot
+network:
+  ingress:
+    - argocd
+    - forgejo
+    - monitoring
+workloads:
+  janitor-bot:
+    image: ghcr.io/accurate0/janitor-bot
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    ports:
+      - containerPort: 3000
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 5
+      periodSeconds: 15
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 5
+      periodSeconds: 60
+    env:
+      - name: OIDC_ISSUER
+        value: https://idm.anurag.sh/oauth2/openid/janitor-bot
+      - name: OIDC_AUDIENCE
+        value: janitor-bot
+      - name: OIDC_GROUPS
+        value: janitor_bot_admins
+      - name: RULES_CONFIGMAP_PATH
+        value: /etc/janitor-bot/rules/config.yaml
+      - name: FEATURE_FLAGS_URL
+        value: http://api.feature-flags.svc.cluster.local:50051
+      - name: ARGOCD_SERVER
+        value: http://argocd-server.argocd.svc.cluster.local:80
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+      - name: FORGEJO_INSTANCE_URL
+        value: http://forgejo-http.forgejo.svc.cluster.local:3000
+    envFrom:
+      - secretRef:
+          name: janitor-bot-managed-secrets
+    volumeMounts:
+      - name: tmp
+        mountPath: /tmp
+      - name: rules
+        mountPath: /etc/janitor-bot/rules
+        readOnly: true
+    secrets: []
+    databases: []
+    replicas: 1
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    volumes:
+      - name: tmp
+        emptyDir: {}
+      - name: rules
+        configMap:
+          name: janitor-bot-rules
+          items:
+            - key: config.yaml
+              path: config.yaml
+            - key: manage-ci-image-updater.yaml
+              path: rules/manage-ci-image-updater.yaml
+            - key: manage-renovate-workflows.yaml
+              path: rules/manage-renovate-workflows.yaml
+            - key: manage-renovate-dockerfiles.yaml
+              path: rules/manage-renovate-dockerfiles.yaml
+            - key: automerge-renovate-terraform.yaml
+              path: rules/automerge-renovate-terraform.yaml
+            - key: automerge-renovate-rust.yaml
+              path: rules/automerge-renovate-rust.yaml
+            - key: retry-renovate-workflow.yaml
+              path: rules/retry-renovate-workflow.yaml
+            - key: argocd-diff-renovate.yaml
+              path: rules/argocd-diff-renovate.yaml
+            - key: mirror-commit-status.yaml
+              path: rules/mirror-commit-status.yaml
+            - key: argocd-sync-status.yaml
+              path: rules/argocd-sync-status.yaml
+            - key: forward-push-to-argocd.yaml
+              path: rules/forward-push-to-argocd.yaml
+            - key: cleanup-on-merge.yaml
+              path: rules/cleanup-on-merge.yaml
+            - key: merge-on-label.yaml
+              path: rules/merge-on-label.yaml
+            - key: clear-queued-on-unmergeable.yaml
+              path: rules/clear-queued-on-unmergeable.yaml
+            - key: label-eink-firmware-update.yaml
+              path: rules/label-eink-firmware-update.yaml
+    service:
+      name: api
+      ports:
+        - name: http
+          protocol: TCP
+          port: 80
+          targetPort: 3000
+namespaceLabels:
+  internal-gateway-access: "true"
+  gateway.inf-k8s.net/anurag-sh: "true"
+metrics:
+  workload: janitor-bot
+  path: /admin/metrics
+  port: http
+  interval: 30s

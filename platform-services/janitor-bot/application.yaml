@@ -1,3 +1,5 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T05:15:24.471Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -15,46 +17,126 @@ spec:
   project: platform-services
   sources:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: platform-services/janitor-bot
-    - chart: k8s-oidc
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.4.0
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.3.0
+      helm:
+        valueFiles:
+          - $values/platform-services/janitor-bot/image.values.yaml
+        valuesObject:
+          namespace: janitor-bot
+          namespaceLabels:
+            internal-gateway-access: "true"
+            gateway.inf-k8s.net/anurag-sh: "true"
+          workloads:
+            - name: janitor-bot
+              image: ghcr.io/accurate0/janitor-bot
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              ports:
+                - containerPort: 3000
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 15
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 60
+              env:
+                - name: OIDC_ISSUER
+                  value: https://idm.anurag.sh/oauth2/openid/janitor-bot
+                - name: OIDC_AUDIENCE
+                  value: janitor-bot
+                - name: OIDC_GROUPS
+                  value: janitor_bot_admins
+                - name: RULES_CONFIGMAP_PATH
+                  value: /etc/janitor-bot/rules/config.yaml
+                - name: FEATURE_FLAGS_URL
+                  value: http://api.feature-flags.svc.cluster.local:50051
+                - name: ARGOCD_SERVER
+                  value: http://argocd-server.argocd.svc.cluster.local:80
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+                - name: FORGEJO_INSTANCE_URL
+                  value: http://forgejo-http.forgejo.svc.cluster.local:3000
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: rules
+                  mountPath: /etc/janitor-bot/rules
+                  readOnly: true
+              replicas: 1
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
+              volumes:
+                - name: tmp
+                  emptyDir: {}
+                - name: rules
+                  configMap:
+                    name: janitor-bot-rules
+                    items:
+                      - key: config.yaml
+                        path: config.yaml
+                      - key: manage-ci-image-updater.yaml
+                        path: rules/manage-ci-image-updater.yaml
+                      - key: manage-renovate-workflows.yaml
+                        path: rules/manage-renovate-workflows.yaml
+                      - key: manage-renovate-dockerfiles.yaml
+                        path: rules/manage-renovate-dockerfiles.yaml
+                      - key: automerge-renovate-terraform.yaml
+                        path: rules/automerge-renovate-terraform.yaml
+                      - key: automerge-renovate-rust.yaml
+                        path: rules/automerge-renovate-rust.yaml
+                      - key: retry-renovate-workflow.yaml
+                        path: rules/retry-renovate-workflow.yaml
+                      - key: argocd-diff-renovate.yaml
+                        path: rules/argocd-diff-renovate.yaml
+                      - key: mirror-commit-status.yaml
+                        path: rules/mirror-commit-status.yaml
+                      - key: argocd-sync-status.yaml
+                        path: rules/argocd-sync-status.yaml
+                      - key: forward-push-to-argocd.yaml
+                        path: rules/forward-push-to-argocd.yaml
+                      - key: cleanup-on-merge.yaml
+                        path: rules/cleanup-on-merge.yaml
+                      - key: merge-on-label.yaml
+                        path: rules/merge-on-label.yaml
+                      - key: clear-queued-on-unmergeable.yaml
+                        path: rules/clear-queued-on-unmergeable.yaml
+                      - key: label-eink-firmware-update.yaml
+                        path: rules/label-eink-firmware-update.yaml
+              service:
+                name: api
+                ports:
+                  - name: http
+                    protocol: TCP
+                    port: 80
+                    targetPort: 3000
+              envFrom:
+                - secretRef:
+                    name: janitor-bot-managed-secrets
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
       helm:
         valuesObject:
-          clients:
-            - name: janitor-bot
-              namespace: janitor-bot
-              displayName: Janitor Bot
-              host: janitor-bot.ortzi.cloud
-              public: true
-              allowLocalhostRedirect: true
-              preferShortUsername: true
-              scopes:
-                - openid
-                - email
-                - profile
-                - groups
-              secretName: kanidm-janitor-bot-oidc
-              secretNamespace: janitor-bot
-              annotations:
-                inf-k8s.net/app: janitor-bot
-                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
-    - chart: k8s-secrets
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.6.0
-      helm:
-        valuesObject:
-          defaults:
-            namespace: janitor-bot
-            provider: openbao
-            resyncInterval: 900
-            annotations:
-              inf-k8s.net/app: janitor-bot
-              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
-          secrets:
-            - name: janitor-bot
-              managedSecrets:
-                - secretName: janitor-bot-managed-secrets
+          namespace: janitor-bot
+          ingress:
+            - envoy-gateway-system
+            - monitoring
+            - argocd
+            - forgejo
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.3.1
@@ -108,6 +190,58 @@ spec:
                     - path:
                         type: Exact
                         value: /github/webhook
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.4.0
+      helm:
+        valuesObject:
+          clients:
+            - name: janitor-bot
+              namespace: janitor-bot
+              displayName: Janitor Bot
+              host: janitor-bot.ortzi.cloud
+              preferShortUsername: true
+              public: true
+              allowLocalhostRedirect: true
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
+              secretName: kanidm-janitor-bot-oidc
+              secretNamespace: janitor-bot
+              annotations:
+                inf-k8s.net/app: janitor-bot
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: janitor-bot
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: janitor-bot
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          secrets:
+            - name: janitor-bot
+              managedSecrets:
+                - secretName: janitor-bot-managed-secrets
+    - chart: k8s-observability
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
+      targetRevision: 0.1.0
+      helm:
+        valuesObject:
+          name: janitor-bot
+          namespace: janitor-bot
+          path: /admin/metrics
+          port: http
+          interval: 30s
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      name: application
+      path: platform-services/janitor-bot
   destination:
     server: https://kubernetes.default.svc
     namespace: janitor-bot
