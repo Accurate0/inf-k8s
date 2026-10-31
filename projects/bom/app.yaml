@@ -11,7 +11,7 @@ workloads:
       portName: api
     resources:
       requests:
-        cpu: 30m
+        cpu: 31m
         memory: 56Mi
       limits:
         memory: 512Mi
