@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T04:24:55.582Z
+# generated at 2026-10-31T05:15:24.496Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,6 +16,148 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.3.0
+      helm:
+        valueFiles:
+          - $values/platform-services/waf-manager/image.values.yaml
+        valuesObject:
+          namespace: waf-manager
+          namespaceLabels:
+            internal-gateway-access: "true"
+          serviceAccounts:
+            - waf-manager
+          workloads:
+            - name: waf-manager
+              image: ghcr.io/accurate0/waf-manager
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              ports:
+                - containerPort: 3000
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 15
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 60
+              env:
+                - name: POD_NAMESPACE
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.namespace
+                - name: POD_NAME
+                  valueFrom:
+                    fieldRef:
+                      fieldPath: metadata.name
+                - name: DATABASE_URL
+                  valueFrom:
+                    secretKeyRef:
+                      name: waf-manager-db-credentials
+                      key: DATABASE_URL
+                - name: LOKI_URL
+                  value: http://monitoring-loki.monitoring.svc.cluster.local:3100
+                - name: POLICY_NAMESPACE
+                  value: envoy-gateway-system
+                - name: RESYNC_SECONDS
+                  value: "300"
+                - name: FAST_RESYNC_SECONDS
+                  value: "20"
+                - name: WORKFLOWS_CONFIGMAP_PATH
+                  value: /etc/waf-manager/config/config.yaml
+                - name: OIDC_ISSUER
+                  value: https://idm.anurag.sh/oauth2/openid/waf-manager
+                - name: OIDC_JWKS_URI
+                  value: https://idm.anurag.sh/oauth2/openid/waf-manager/public_key.jwk
+                - name: OIDC_AUDIENCE
+                  valueFrom:
+                    secretKeyRef:
+                      name: kanidm-waf-manager-oidc
+                      key: client-id
+                - name: OIDC_CLI_ISSUER
+                  value: https://idm.anurag.sh/oauth2/openid/waf-manager-cli
+                - name: OIDC_CLI_AUDIENCE
+                  valueFrom:
+                    secretKeyRef:
+                      name: kanidm-waf-manager-cli-oidc
+                      key: client-id
+                      optional: true
+              volumeMounts:
+                - name: workflows
+                  mountPath: /etc/waf-manager/config
+                  readOnly: true
+              replicas: 2
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
+              serviceAccountName: waf-manager
+              topologySpreadConstraints:
+                - maxSkew: 1
+                  topologyKey: kubernetes.io/hostname
+                  whenUnsatisfiable: ScheduleAnyway
+                  labelSelector:
+                    matchLabels:
+                      app: waf-manager
+              volumes:
+                - name: workflows
+                  configMap:
+                    name: waf-manager-workflows
+                    items:
+                      - key: config.yaml
+                        path: config.yaml
+                      - key: credential-file-probes.yaml
+                        path: workflows/credential-file-probes.yaml
+                      - key: admin-panel-probes.yaml
+                        path: workflows/admin-panel-probes.yaml
+                      - key: shell-and-rce-probes.yaml
+                        path: workflows/shell-and-rce-probes.yaml
+                      - key: backup-and-dump-files.yaml
+                        path: workflows/backup-and-dump-files.yaml
+                      - key: java-exploit-attempts.yaml
+                        path: workflows/java-exploit-attempts.yaml
+                      - key: path-traversal.yaml
+                        path: workflows/path-traversal.yaml
+                      - key: scanner-user-agents.yaml
+                        path: workflows/scanner-user-agents.yaml
+                      - key: repo-exposure.yaml
+                        path: workflows/repo-exposure.yaml
+                      - key: known-exploit-paths.yaml
+                        path: workflows/known-exploit-paths.yaml
+                      - key: directory-bruteforce.yaml
+                        path: workflows/directory-bruteforce.yaml
+                      - key: high-volume-scanner.yaml
+                        path: workflows/high-volume-scanner.yaml
+                      - key: broad-rule-fanout.yaml
+                        path: workflows/broad-rule-fanout.yaml
+                      - key: nextjs-middleware-bypass.yaml
+                        path: workflows/nextjs-middleware-bypass.yaml
+                      - key: dev-server-file-leaks.yaml
+                        path: workflows/dev-server-file-leaks.yaml
+                      - key: management-endpoint-probes.yaml
+                        path: workflows/management-endpoint-probes.yaml
+              service:
+                name: api
+                ports:
+                  - name: http
+                    protocol: TCP
+                    port: 80
+                    targetPort: 3000
+              envFrom:
+                - secretRef:
+                    name: waf-manager-managed-secrets
+                    optional: true
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0
@@ -147,6 +289,16 @@ spec:
             - name: waf-manager
               managedSecrets:
                 - secretName: waf-manager-managed-secrets
+    - chart: k8s-observability
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
+      targetRevision: 0.1.0
+      helm:
+        valuesObject:
+          name: waf-manager
+          namespace: waf-manager
+          path: /metrics
+          port: http
+          interval: 30s
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: platform-services/waf-manager
