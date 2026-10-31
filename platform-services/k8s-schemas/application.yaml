@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:39:56.096Z
+# generated at 2026-10-31T17:31:51.119Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -42,7 +42,10 @@ spec:
                   memory: 512Mi
               env:
                 - name: S3_BUCKET
-                  value: k8s-schemas
+                  valueFrom:
+                    secretKeyRef:
+                      name: schemas-bucket-secrets
+                      key: S3_BUCKET
                 - name: S3_ENDPOINT
                   valueFrom:
                     secretKeyRef:
@@ -63,13 +66,13 @@ spec:
               envFrom:
                 - secretRef:
                     name: k8s-schemas-managed-secrets
-              serviceAccountName: k8s-schemas
               volumes:
                 - name: tmp
                   emptyDir: {}
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
+              serviceAccountName: k8s-schemas
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0
@@ -98,7 +101,7 @@ spec:
                 - secretName: schemas-bucket-secrets
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
-      path: platform-services/k8s-schemas/manifests
+      path: platform-services/k8s-schemas
   destination:
     server: https://kubernetes.default.svc
     namespace: k8s-schemas

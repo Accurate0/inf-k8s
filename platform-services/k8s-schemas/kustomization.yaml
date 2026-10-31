@@ -1,0 +1,5 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - manifests/rbac.generated.yaml

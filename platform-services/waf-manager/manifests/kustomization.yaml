@@ -2,8 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - crd.yaml
-  - rbac.clusterrole.yaml
-  - rbac.clusterrolebinding.yaml
 images:
   - name: ghcr.io/accurate0/waf-manager
     newTag: 733fb6786cd71317051c4dbb5488e1f2a474296e

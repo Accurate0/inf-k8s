@@ -3,6 +3,37 @@ name: waf-manager
 network:
   ingress: []
 resources:
+  - name: waf-manager
+    type: serviceAccount
+    clusterRole: waf-manager-access
+    clusterRules:
+      - {apiGroups: [inf-k8s.net], resources: [wafblocks, wafpolicies], verbs: [get, list, watch, create, patch, delete]}
+      - {apiGroups: [inf-k8s.net], resources: [wafblocks/status, wafpolicies/status], verbs: [get, update, patch]}
+      - {apiGroups: [gateway.envoyproxy.io], resources: [securitypolicies], verbs: [get, list, watch, create, patch, update, delete]}
+      - {apiGroups: [""], resources: [namespaces], verbs: [get]}
+      - {apiGroups: [""], resources: [configmaps], verbs: [get, list, delete]}
+      - {apiGroups: [coordination.k8s.io], resources: [leases], verbs: [get, create, update, patch]}
+  - name: workflows
+    type: config
+    configMap: waf-manager-workflows
+    files:
+      - config.yaml
+      - workflows/credential-file-probes.yaml
+      - workflows/admin-panel-probes.yaml
+      - workflows/shell-and-rce-probes.yaml
+      - workflows/backup-and-dump-files.yaml
+      - workflows/java-exploit-attempts.yaml
+      - workflows/path-traversal.yaml
+      - workflows/scanner-user-agents.yaml
+      - workflows/repo-exposure.yaml
+      - workflows/known-exploit-paths.yaml
+      - workflows/directory-bruteforce.yaml
+      - workflows/high-volume-scanner.yaml
+      - workflows/broad-rule-fanout.yaml
+      - workflows/nextjs-middleware-bypass.yaml
+      - workflows/dev-server-file-leaks.yaml
+      - workflows/management-endpoint-probes.yaml
+  - {name: dashboard, type: dashboard, configMap: waf-manager-dashboard, file: dashboards/waf-manager.json}
   - {name: logs, type: platform, export: logs}
   - {name: waf-manager, type: secret, secretName: waf-manager-managed-secrets}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
@@ -11,6 +42,22 @@ resources:
     auth:
       mode: oidc
       client: waf-manager
+      scopes:
+        - openid
+        - email
+        - profile
+      forwardAccessToken: true
+      jwt:
+        cacheDuration: 3600s
+        claimToHeaders:
+          - claim: preferred_username
+            header: x-waf-user
+          - claim: name
+            header: x-waf-user-name
+          - claim: email
+            header: x-waf-user-email
+          - claim: sub
+            header: x-waf-user-sub
     gateway: internal-gateway
     hosts:
       - waf-manager.ortzi.cloud
@@ -35,29 +82,12 @@ resources:
   - name: waf-manager
     type: oidc
     secretName: kanidm-waf-manager-oidc
+    host: waf-manager.ortzi.cloud
     displayName: WAF Manager
     allowInsecureClientDisablePkce: true
     secretKeys:
       clientId: client-id
       clientSecret: client-secret
-    securityPolicy:
-      httpRoute: waf-manager-route
-      scopes:
-        - openid
-        - email
-        - profile
-      forwardAccessToken: true
-      jwt:
-        cacheDuration: 3600s
-        claimToHeaders:
-          - claim: preferred_username
-            header: x-waf-user
-          - claim: name
-            header: x-waf-user-name
-          - claim: email
-            header: x-waf-user-email
-          - claim: sub
-            header: x-waf-user-sub
   - name: waf-manager-cli
     type: oidc
     secretName: kanidm-waf-manager-cli-oidc
@@ -79,7 +109,8 @@ workloads:
     image: ghcr.io/accurate0/waf-manager
     replicas: 2
     resources: {memory: 32Mi}
-    ports: [3000]
+    ports:
+      - {name: http, container: 3000, service: 80}
     probes:
       http: {path: /health, port: 3000}
       readiness: {delay: 5, every: 15}
@@ -102,31 +133,10 @@ workloads:
       - secret: waf-manager
         optional: true
     mounts:
-      workflows:
-        path: /etc/waf-manager/config
-        configMap: waf-manager-workflows
-        items:
-          - config.yaml
-          - workflows/credential-file-probes.yaml
-          - workflows/admin-panel-probes.yaml
-          - workflows/shell-and-rce-probes.yaml
-          - workflows/backup-and-dump-files.yaml
-          - workflows/java-exploit-attempts.yaml
-          - workflows/path-traversal.yaml
-          - workflows/scanner-user-agents.yaml
-          - workflows/repo-exposure.yaml
-          - workflows/known-exploit-paths.yaml
-          - workflows/directory-bruteforce.yaml
-          - workflows/high-volume-scanner.yaml
-          - workflows/broad-rule-fanout.yaml
-          - workflows/nextjs-middleware-bypass.yaml
-          - workflows/dev-server-file-leaks.yaml
-          - workflows/management-endpoint-probes.yaml
-    serviceAccountName: waf-manager
+      workflows: {path: /etc/waf-manager/config, config: workflows}
+    serviceAccount: waf-manager
     service:
       name: api
-      ports:
-        - {name: http, port: 80, targetPort: 3000}
     overrides:
       strategy:
         type: RollingUpdate
@@ -143,8 +153,6 @@ workloads:
 namespace:
   labels:
     internal-gateway-access: "true"
-serviceAccounts:
-  - waf-manager
 build:
   image: ghcr.io/accurate0/waf-manager
   args:

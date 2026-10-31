@@ -1,12 +1,11 @@
-# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/rbac.authorization.k8s.io/clusterrole_v1.json
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  namespace: waf-manager
   name: waf-manager-access
 rules:
   - apiGroups:
-      - "inf-k8s.net"
+      - inf-k8s.net
     resources:
       - wafblocks
       - wafpolicies
@@ -18,7 +17,7 @@ rules:
       - patch
       - delete
   - apiGroups:
-      - "inf-k8s.net"
+      - inf-k8s.net
     resources:
       - wafblocks/status
       - wafpolicies/status
@@ -27,7 +26,7 @@ rules:
       - update
       - patch
   - apiGroups:
-      - "gateway.envoyproxy.io"
+      - gateway.envoyproxy.io
     resources:
       - securitypolicies
     verbs:
@@ -53,7 +52,7 @@ rules:
       - list
       - delete
   - apiGroups:
-      - "coordination.k8s.io"
+      - coordination.k8s.io
     resources:
       - leases
     verbs:
@@ -61,3 +60,16 @@ rules:
       - create
       - update
       - patch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: waf-manager
+subjects:
+  - kind: ServiceAccount
+    name: waf-manager
+    namespace: waf-manager
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: waf-manager-access

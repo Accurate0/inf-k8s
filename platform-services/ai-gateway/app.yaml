@@ -7,6 +7,8 @@ exports:
     workload: ai-gateway
     port: http
 resources:
+  - {name: config, type: config, configMap: ai-gateway-config, files: [config.yaml]}
+  - {name: dashboard, type: dashboard, configMap: ai-gateway-dashboard, file: dashboards/ai-gateway.json}
   - {name: ai-gateway, type: secret, secretName: ai-gateway-managed-secrets}
   - {name: cache, type: cache, instance: replicated}
   - {name: ai-gateway, type: database, secretName: ai-gateway-database-secret}
@@ -29,6 +31,7 @@ resources:
   - name: ai-gateway
     type: oidc
     secretName: kanidm-ai-gateway-oidc
+    host: ai-gateway.ortzi.cloud
     displayName: AI Gateway
     public: true
     allowLocalhostRedirect: true
@@ -48,7 +51,8 @@ workloads:
     image: ghcr.io/accurate0/ai-gateway
     replicas: 2
     resources: {memory: 32Mi}
-    ports: [3000]
+    ports:
+      - {name: http, container: 3000, service: 80}
     probes:
       http: {path: /health, port: 3000}
       readiness: {delay: 5, every: 15}
@@ -62,11 +66,9 @@ workloads:
       - secret: ai-gateway
       - database: ai-gateway
     mounts:
-      config: {path: /etc/ai-gateway, configMap: ai-gateway-config}
+      config: {path: /etc/ai-gateway, config: config}
     service:
       name: api
-      ports:
-        - {name: http, port: 80, targetPort: 3000}
     overrides:
       strategy:
         type: RollingUpdate

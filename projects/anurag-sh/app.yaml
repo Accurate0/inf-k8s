@@ -4,10 +4,11 @@ repository: https://github.com/Accurate0/anurag.sh
 workloads:
   anurag-sh:
     image: ghcr.io/accurate0/anurag-sh
-    port: 3000
+    ports:
+      - {name: http, container: 3000, service: 80}
     resources: {memory: 16Mi}
     service:
-      port: 80
+      name: anurag-sh
 network:
   ingress: []
 namespace:
@@ -23,6 +24,9 @@ resources:
     hosts:
       - anurag.sh
       - anurag.id.au
+    backend:
+      name: anurag-sh
+      port: 80
     annotations:
       external-dns.kubernetes.io/managed: "true"
       external-dns.kubernetes.io/cloudflare-proxied: "true"

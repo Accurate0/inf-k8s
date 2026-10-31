@@ -13,6 +13,37 @@ namespace:
     internal-gateway-access: "true"
     inf-k8s.net/lan-gateway-access: "true"
 resources:
+  - name: home-web
+    type: route
+    auth:
+      mode: app
+      reason: home-gateway verifies JWTs and api keys on /v1, the rest is a static spa
+    gateway: internal-gateway
+    hosts:
+      - home.ortzi.cloud
+    annotations:
+      external-dns.kubernetes.io/managed: "true"
+      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    rules:
+      - paths: [/v1]
+        backend: {name: home-gateway, port: 80}
+      - paths: [/]
+        backend: {name: home-web, port: 80}
+  - name: home-web-lan
+    type: route
+    auth:
+      mode: app
+      reason: home-gateway verifies JWTs and api keys on /v1, the rest is a static spa
+    gateway: lan-gateway
+    hosts:
+      - home.internal
+    annotations:
+      external-dns.kubernetes.io/managed-unifi: "true"
+    rules:
+      - paths: [/v1]
+        backend: {name: home-gateway, port: 80}
+      - paths: [/]
+        backend: {name: home-web, port: 80}
   - {name: home-gateway, type: secret, secretName: home-gateway-managed-secrets}
   - {name: terraform, type: secret, secretName: home-gateway-terraform-secrets}
   - {name: home-gateway, type: database, secretName: home-gateway-db-credentials}
@@ -78,7 +109,8 @@ workloads:
   home-gateway:
     image: ghcr.io/accurate0/home-gateway
     resources: {cpu: 30m, memory: 336Mi}
-    ports: [8000]
+    ports:
+      - {name: api, container: 8000, service: 80}
     probes:
       http: {path: /v1/health, port: 8000}
       startup: {every: 2, timeout: 2, failures: 30}
@@ -110,8 +142,6 @@ workloads:
     runAsNonRoot: false
     service:
       name: home-gateway
-      ports:
-        - {name: api, port: 80, targetPort: 8000}
     overrides:
       strategy:
         type: RollingUpdate
@@ -136,15 +166,14 @@ workloads:
   home-web:
     image: ghcr.io/accurate0/home-gateway-web
     resources: {memory: 32Mi}
-    ports: [8080]
+    ports:
+      - {name: http, container: 8080, service: 80}
     probes:
       http: {path: /, port: 8080}
       readiness: {delay: 3, every: 30}
     runAsNonRoot: false
     service:
       name: home-web
-      ports:
-        - {name: http, port: 80, targetPort: 8080}
     overrides:
       affinity:
         nodeAffinity:

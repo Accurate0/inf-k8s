@@ -5,6 +5,25 @@ network:
     - argocd
     - forgejo
 resources:
+  - name: rules
+    type: config
+    configMap: janitor-bot-rules
+    files:
+      - config.yaml
+      - rules/manage-ci-image-updater.yaml
+      - rules/manage-renovate-workflows.yaml
+      - rules/manage-renovate-dockerfiles.yaml
+      - rules/automerge-renovate-terraform.yaml
+      - rules/automerge-renovate-rust.yaml
+      - rules/retry-renovate-workflow.yaml
+      - rules/argocd-diff-renovate.yaml
+      - rules/mirror-commit-status.yaml
+      - rules/argocd-sync-status.yaml
+      - rules/forward-push-to-argocd.yaml
+      - rules/cleanup-on-merge.yaml
+      - rules/merge-on-label.yaml
+      - rules/clear-queued-on-unmergeable.yaml
+      - rules/label-eink-firmware-update.yaml
   - {name: argocd, type: platform, export: argocd}
   - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
@@ -71,7 +90,8 @@ workloads:
   janitor-bot:
     image: ghcr.io/accurate0/janitor-bot
     resources: {memory: 32Mi}
-    ports: [3000]
+    ports:
+      - {name: http, container: 3000, service: 80}
     probes:
       http: {path: /health, port: 3000}
       readiness: {delay: 5, every: 15}
@@ -89,29 +109,9 @@ workloads:
       - secret: janitor-bot
     mounts:
       tmp: {path: /tmp, emptyDir: true}
-      rules:
-        path: /etc/janitor-bot/rules
-        configMap: janitor-bot-rules
-        items:
-          - config.yaml
-          - rules/manage-ci-image-updater.yaml
-          - rules/manage-renovate-workflows.yaml
-          - rules/manage-renovate-dockerfiles.yaml
-          - rules/automerge-renovate-terraform.yaml
-          - rules/automerge-renovate-rust.yaml
-          - rules/retry-renovate-workflow.yaml
-          - rules/argocd-diff-renovate.yaml
-          - rules/mirror-commit-status.yaml
-          - rules/argocd-sync-status.yaml
-          - rules/forward-push-to-argocd.yaml
-          - rules/cleanup-on-merge.yaml
-          - rules/merge-on-label.yaml
-          - rules/clear-queued-on-unmergeable.yaml
-          - rules/label-eink-firmware-update.yaml
+      rules: {path: /etc/janitor-bot/rules, config: rules}
     service:
       name: api
-      ports:
-        - {name: http, port: 80, targetPort: 3000}
     overrides:
       strategy:
         type: RollingUpdate

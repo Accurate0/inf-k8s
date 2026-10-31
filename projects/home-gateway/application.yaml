@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T12:05:04.226Z
+# generated at 2026-10-31T17:31:51.065Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -38,7 +38,8 @@ spec:
                   cpu: 30m
                   memory: 336Mi
               ports:
-                - containerPort: 8000
+                - name: api
+                  containerPort: 8000
               env:
                 - name: AWS_ACCESS_KEY_ID
                   valueFrom:
@@ -190,7 +191,8 @@ spec:
                 requests:
                   memory: 32Mi
               ports:
-                - containerPort: 8080
+                - name: http
+                  containerPort: 8080
               runAsNonRoot: false
               service:
                 name: home-web
@@ -229,6 +231,65 @@ spec:
       helm:
         valuesObject:
           routes:
+            - name: home-web
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "false"
+              hostnames:
+                - home.ortzi.cloud
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: home-gateway
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /v1
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: home-web
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+            - name: home-web-lan
+              gateway:
+                name: lan-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed-unifi: "true"
+              hostnames:
+                - home.internal
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: home-gateway
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /v1
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: home-web
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
             - name: api-route
               gateway:
                 name: public-gateway
@@ -244,7 +305,6 @@ spec:
                       - headers:
                           - name: x-real-ip
                             type: Distinct
-                            invert: false
                     limit:
                       requests: 5
                       unit: Second
@@ -337,9 +397,6 @@ spec:
           path: /metrics
           port: api
           interval: 30s
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
-      name: application
-      path: projects/home-gateway/manifests
     - repoURL: https://github.com/Accurate0/home-gateway.git
       name: config
       path: config

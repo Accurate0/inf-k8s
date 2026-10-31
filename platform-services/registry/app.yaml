@@ -4,6 +4,7 @@ network:
   ingress:
     - forgejo
 resources:
+  - {name: config, type: config, configMap: registry-config, files: [config.yaml]}
   - {name: registry, type: secret, secretName: registry-managed-secrets}
   - {name: signing, type: secret, secretName: registry-signing-secrets}
   - {name: registry, type: database, secretName: registry-database-secret}
@@ -23,6 +24,7 @@ resources:
   - name: registry
     type: oidc
     secretName: kanidm-registry-oidc
+    host: registry.ortzi.cloud
     displayName: Registry
     public: true
     allowLocalhostRedirect: true
@@ -48,7 +50,8 @@ workloads:
     image: ghcr.io/accurate0/registry
     replicas: 2
     resources: {memory: 64Mi}
-    ports: [3000]
+    ports:
+      - {name: http, container: 3000, service: 80}
     probes:
       http: {path: /health, port: 3000}
       readiness: {delay: 5, every: 15}
@@ -64,11 +67,9 @@ workloads:
       - secret: signing
       - database: registry
     mounts:
-      config: {path: /etc/registry, configMap: registry-config}
+      config: {path: /etc/registry, config: config}
     service:
       name: api
-      ports:
-        - {name: http, port: 80, targetPort: 3000}
     overrides:
       strategy:
         type: RollingUpdate

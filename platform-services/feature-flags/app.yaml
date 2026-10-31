@@ -30,6 +30,7 @@ resources:
   - name: feature-flags
     type: oidc
     secretName: kanidm-feature-flags-oidc
+    host: feature-flags.ortzi.cloud
     displayName: Feature Flags
     public: true
     allowLocalhostRedirect: true
@@ -39,8 +40,7 @@ workloads:
     kind: DaemonSet
     resources: {memory: 32Mi}
     ports:
-      - name: grpc
-        containerPort: 50051
+      - {name: grpc, container: 50051, service: 50051, appProtocol: grpc}
     probes:
       grpc: {port: 50051}
       readiness: {delay: 5, every: 15}
@@ -55,8 +55,6 @@ workloads:
       - database: feature-flags
     service:
       name: api
-      ports:
-        - {name: grpc, port: 50051, targetPort: grpc, appProtocol: grpc}
       trafficDistribution: PreferSameNode
     overrides:
       updateStrategy:

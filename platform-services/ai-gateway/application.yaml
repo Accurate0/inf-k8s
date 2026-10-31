@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T12:05:04.254Z
+# generated at 2026-10-31T17:31:51.092Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -36,7 +36,8 @@ spec:
                 requests:
                   memory: 32Mi
               ports:
-                - containerPort: 3000
+                - name: http
+                  containerPort: 3000
               env:
                 - name: CONFIG_PATH
                   value: /etc/ai-gateway/config.yaml
@@ -74,6 +75,9 @@ spec:
                 - name: config
                   configMap:
                     name: ai-gateway-config
+                    items:
+                      - key: config.yaml
+                        path: config.yaml
               volumeMounts:
                 - name: config
                   mountPath: /etc/ai-gateway
@@ -128,7 +132,6 @@ spec:
           ingress:
             - envoy-gateway-system
             - monitoring
-            - janitor-bot
             - maccas-api
             - tldr-bot
     - chart: k8s-http-routes

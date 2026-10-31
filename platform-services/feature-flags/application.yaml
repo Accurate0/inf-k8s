@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T12:05:04.261Z
+# generated at 2026-10-31T17:31:51.100Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -54,13 +54,13 @@ spec:
                     name: feature-flags-db-credentials
               service:
                 name: api
+                trafficDistribution: PreferSameNode
                 ports:
                   - name: grpc
                     port: 50051
-                    targetPort: grpc
+                    targetPort: 50051
                     appProtocol: grpc
                     protocol: TCP
-                trafficDistribution: PreferSameNode
               readinessProbe:
                 grpc:
                   port: 50051

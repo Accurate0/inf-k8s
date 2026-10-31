@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:32:10.318Z
+# generated at 2026-10-31T17:31:51.050Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -29,7 +29,9 @@ spec:
           workloads:
             - name: bom
               image: ghcr.io/accurate0/bom
-              port: 8000
+              ports:
+                - name: api
+                  containerPort: 8000
               resources:
                 requests:
                   cpu: 30m
@@ -38,7 +40,10 @@ spec:
                   memory: 512Mi
               env:
                 - name: BUCKET_NAME
-                  value: bom-images
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_BUCKET
                 - name: BUCKET_ENDPOINT
                   valueFrom:
                     secretKeyRef:
@@ -61,9 +66,22 @@ spec:
                     name: bom-database-secret
               service:
                 name: bom-api
-                portName: api
-              probes:
-                path: /health
+                ports:
+                  - name: api
+                    port: 8000
+                    targetPort: 8000
+                    protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 8000
+                periodSeconds: 10
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 8000
+                initialDelaySeconds: 3
+                periodSeconds: 30
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0

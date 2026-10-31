@@ -2,6 +2,16 @@
 name: kanidm-sync
 network:
   ingress: []
+resources:
+  - name: kanidm-sync
+    type: serviceAccount
+    clusterRole: kanidm-sync-access
+    clusterRules:
+      - {apiGroups: [inf-k8s.net], resources: [kanidmoauth2clients, kanidmgroups, kanidmusers], verbs: [get, list, watch]}
+      - {apiGroups: [inf-k8s.net], resources: [kanidmoauth2clients, kanidmgroups, kanidmusers], verbs: [update, patch]}
+      - {apiGroups: [inf-k8s.net], resources: [kanidmoauth2clients/status, kanidmgroups/status, kanidmusers/status], verbs: [get, update, patch]}
+      - {apiGroups: [""], resources: [secrets], verbs: [get, list, create, update, patch]}
+      - {apiGroups: [""], resources: [configmaps], verbs: [get, list, watch]}
 workloads:
   kanidm-sync:
     image: ghcr.io/accurate0/kanidm-sync
@@ -11,9 +21,7 @@ workloads:
     envFrom:
       - secretRef:
           name: kanidm-sync-managed-secrets
-    serviceAccountName: kanidm-sync
-serviceAccounts:
-  - kanidm-sync
+    serviceAccount: kanidm-sync
 build:
   image: ghcr.io/accurate0/kanidm-sync
   args:
