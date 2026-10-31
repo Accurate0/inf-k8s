@@ -4,6 +4,15 @@ use anyhow::{Context, bail};
 
 use crate::{package_auth, session::Settings, store::Store, wasm};
 
+const PACKAGE_ENV: &[(&str, &str, &str)] = &[("bao", "BAO_ADDR", "https://vault.ortzi.cloud")];
+
+fn package_env(name: &str) -> impl Iterator<Item = (&'static str, &'static str)> + '_ {
+    PACKAGE_ENV
+        .iter()
+        .filter(move |(package, _, _)| *package == name)
+        .map(|(_, key, value)| (*key, *value))
+}
+
 pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()> {
     let mut args = args.into_iter();
     let command = args
@@ -61,6 +70,11 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
 
             let mut process = Command::new(binary);
             process.arg0(&command).env("ORTZI_PACKAGE", name);
+            for (key, value) in package_env(name) {
+                if std::env::var_os(key).is_none() {
+                    process.env(key, value);
+                }
+            }
             if let Some((key, value)) = token {
                 process.env(key, value);
             }
@@ -105,6 +119,15 @@ mod tests {
 
     fn args(list: &[&str]) -> Vec<OsString> {
         list.iter().map(OsString::from).collect()
+    }
+
+    #[test]
+    fn bao_gets_its_address() {
+        assert_eq!(
+            package_env("bao").collect::<Vec<_>>(),
+            [("BAO_ADDR", "https://vault.ortzi.cloud")]
+        );
+        assert_eq!(package_env("cnpg").count(), 0);
     }
 
     #[test]
