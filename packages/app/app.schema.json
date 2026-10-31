@@ -118,7 +118,7 @@
             }
           },
           "env": {
-            "description": "Map of variable to a string, {resource}, {secret|database|bucket, key} or {field}. A list is the raw form.",
+            "description": "Map of variable to a string, {resource}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
             "oneOf": [
               {
                 "type": "array",
@@ -217,6 +217,25 @@
                           "type": "boolean"
                         }
                       }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "oidc",
+                        "key"
+                      ],
+                      "properties": {
+                        "oidc": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
                     }
                   ]
                 }
@@ -225,7 +244,7 @@
           },
           "envFrom": {
             "type": "array",
-            "description": "{secret|database|bucket: resource name}, or a raw secretRef object.",
+            "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
             "items": {
               "oneOf": [
                 {
@@ -712,6 +731,9 @@
                 "type": "boolean"
               },
               "host": {
+                "type": "string"
+              },
+              "secretName": {
                 "type": "string"
               }
             },

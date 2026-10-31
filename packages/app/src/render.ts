@@ -306,8 +306,11 @@ export function validateIngress(apps: App[]) {
   }
 }
 
+const oidcSecretName = (client: string, spec: OidcClient) => (spec.secretName as string | undefined) ?? `kanidm-${client}-oidc`;
+
 function secretRef(app: App, kind: SecretKind, name: string): string {
   if (kind === 'secret') return appSecrets(app).find((s) => s.name === name)?.secretName ?? name;
+  if (kind === 'oidc' && appOidc(app)[name]) return oidcSecretName(name, appOidc(app)[name]);
   if (kind === 'database' && appDatabases(app)[name]) return appDatabases(app)[name].secretName ?? `${name}-database-secret`;
   const bucket = declared(app, 'bucket').find((b) => b.name === name);
   if (kind === 'bucket' && bucket) return bucketSecretName(bucket);
@@ -513,7 +516,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             host: routes[0]?.[1].hosts[0],
             preferShortUsername: true,
             ...spec,
-            secretName: `kanidm-${client}-oidc`,
+            secretName: oidcSecretName(client, spec),
             secretNamespace: name,
             annotations,
           })),

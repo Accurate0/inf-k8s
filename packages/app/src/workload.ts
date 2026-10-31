@@ -1,13 +1,13 @@
 type Values = Record<string, any>;
 
-export type SecretKind = 'secret' | 'database' | 'bucket';
+export type SecretKind = 'secret' | 'database' | 'bucket' | 'oidc';
 
 export interface Refs {
   resource: (resource: string, env: string) => { name: string; value: string };
   secret: (kind: SecretKind, name: string) => string;
 }
 
-const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket'];
+const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket', 'oidc'];
 
 const secretKind = (value: Values) => SECRET_KINDS.find((kind) => value[kind]);
 

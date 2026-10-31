@@ -809,3 +809,19 @@ test('rejects the old routes, oidc and metrics blocks', () => {
     assert.throws(() => validate({ ...base, [block]: {} }, 'test'), new RegExp(`unknown block "${block}"`));
   }
 });
+
+test('an oidc client secret can be referenced by resource name', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [{ name: 'foo', type: 'oidc', host: 'a.sh', secretName: 'foo-oidc' }],
+      workloads: { foo: { image: 'i', env: { AUD: { oidc: 'foo', key: 'client-id', optional: true } } } },
+    },
+    'test',
+  );
+  const rendered = render(app);
+  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+    { name: 'AUD', valueFrom: { secretKeyRef: { name: 'foo-oidc', key: 'client-id', optional: true } } },
+  ]);
+  assert.equal(source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[0].secretName, 'foo-oidc');
+});
