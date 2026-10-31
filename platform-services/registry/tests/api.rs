@@ -321,6 +321,7 @@ impl Registry {
                 artifacts,
                 permissions: None,
                 completions: None,
+                env: Default::default(),
             },
         );
         self.call(
@@ -990,6 +991,7 @@ async fn releases_are_signed_end_to_end(pool: PgPool) {
             artifacts: claimed(sha(b"real")),
             permissions: None,
             completions: None,
+            env: Default::default(),
         },
     );
     let (status, _) = registry

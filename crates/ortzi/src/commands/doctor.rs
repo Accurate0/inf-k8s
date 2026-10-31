@@ -348,6 +348,7 @@ mod tests {
             auth: None,
             permissions: None,
             completions: None,
+            env: Default::default(),
             pinned: false,
             previous: None,
         }

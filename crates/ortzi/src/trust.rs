@@ -1,3 +1,5 @@
+use std::collections::BTreeMap;
+
 use anyhow::{Context, bail};
 use registry_api::{
     Artifact, Completions, Permissions, Target, Version,
@@ -17,6 +19,7 @@ pub struct Verified {
     pub artifact: Artifact,
     pub permissions: Option<Permissions>,
     pub completions: Option<Completions>,
+    pub env: BTreeMap<String, String>,
 }
 
 pub fn verified_artifact(name: &str, version: &Version, host: Target) -> anyhow::Result<Verified> {
@@ -31,6 +34,7 @@ pub fn verified_artifact(name: &str, version: &Version, host: Target) -> anyhow:
         artifact,
         permissions: statement.permissions,
         completions: statement.completions,
+        env: statement.env,
     })
 }
 

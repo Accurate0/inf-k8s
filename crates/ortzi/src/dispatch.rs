@@ -1,16 +1,12 @@
-use std::{ffi::OsString, os::unix::process::CommandExt, process::Command};
+use std::{collections::BTreeMap, ffi::OsString, os::unix::process::CommandExt, process::Command};
 
 use anyhow::{Context, bail};
 
 use crate::{package_auth, session::Settings, store::Store, wasm};
 
-const PACKAGE_ENV: &[(&str, &str, &str)] = &[("bao", "BAO_ADDR", "https://vault.ortzi.cloud")];
-
-fn package_env(name: &str) -> impl Iterator<Item = (&'static str, &'static str)> + '_ {
-    PACKAGE_ENV
-        .iter()
-        .filter(move |(package, _, _)| *package == name)
-        .map(|(_, key, value)| (*key, *value))
+fn unset_env(env: &BTreeMap<String, String>) -> impl Iterator<Item = (&String, &String)> {
+    env.iter()
+        .filter(|(key, _)| std::env::var_os(key).is_none())
 }
 
 pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()> {
@@ -54,6 +50,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                     .map_err(|_| anyhow::anyhow!("arguments must be valid utf-8"))?;
                 let mut vars = vec![("ORTZI_REGISTRY_URL".to_owned(), settings.registry.clone())];
                 vars.extend(token);
+                vars.extend(unset_env(&package.env).map(|(k, v)| (k.clone(), v.clone())));
                 let sandbox = wasm::Sandbox::new(
                     name,
                     &package.permissions.clone().unwrap_or_default(),
@@ -70,11 +67,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
 
             let mut process = Command::new(binary);
             process.arg0(&command).env("ORTZI_PACKAGE", name);
-            for (key, value) in package_env(name) {
-                if std::env::var_os(key).is_none() {
-                    process.env(key, value);
-                }
-            }
+            process.envs(unset_env(&package.env));
             if let Some((key, value)) = token {
                 process.env(key, value);
             }
@@ -122,12 +115,13 @@ mod tests {
     }
 
     #[test]
-    fn bao_gets_its_address() {
-        assert_eq!(
-            package_env("bao").collect::<Vec<_>>(),
-            [("BAO_ADDR", "https://vault.ortzi.cloud")]
-        );
-        assert_eq!(package_env("cnpg").count(), 0);
+    fn package_env_does_not_override_the_caller() {
+        let env = BTreeMap::from([
+            ("PATH".to_owned(), "nope".to_owned()),
+            ("ORTZI_TEST_UNSET".to_owned(), "yes".to_owned()),
+        ]);
+        let set: Vec<_> = unset_env(&env).map(|(k, _)| k.as_str()).collect();
+        assert_eq!(set, ["ORTZI_TEST_UNSET"]);
     }
 
     #[test]

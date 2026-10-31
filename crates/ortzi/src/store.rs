@@ -30,6 +30,8 @@ pub struct InstalledPackage {
     pub permissions: Option<Permissions>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completions: Option<Completions>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -167,6 +169,7 @@ mod tests {
             auth: None,
             permissions: None,
             completions: None,
+            env: BTreeMap::new(),
             pinned: false,
             previous: None,
         }

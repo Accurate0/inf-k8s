@@ -67,6 +67,8 @@ pub struct PackageSection {
     pub version: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub completions: Option<Completions>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub env: BTreeMap<String, String>,
 }
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]

@@ -220,6 +220,7 @@ mod tests {
             auth: None,
             permissions: None,
             completions: Some(Completions::Clap),
+            env: Default::default(),
             pinned: false,
             previous: None,
         }

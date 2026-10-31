@@ -71,6 +71,7 @@ async fn install_version(
         artifact,
         permissions,
         completions,
+        env,
     } = trust::verified_artifact(name, version, target)?;
     let target = artifact.target;
     validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
@@ -146,6 +147,7 @@ async fn install_version(
         auth: version.auth.clone(),
         permissions: permissions.clone(),
         completions,
+        env,
         pinned: false,
         previous: None,
     };

@@ -73,6 +73,7 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
             aliases: Vec::new(),
             version: Some(version.unwrap_or_else(|| "0.1.0".to_owned())),
             completions: None,
+            env: Default::default(),
         },
         auth: None,
         permissions: (kind == Kind::Wasm).then(registry_api::Permissions::default),
