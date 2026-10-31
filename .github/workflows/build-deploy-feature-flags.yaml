@@ -7,6 +7,8 @@ on:
       - platform-services/feature-flags/**
       - "!platform-services/feature-flags/manifests/**"
       - "!platform-services/feature-flags/application.yaml"
+      - "!platform-services/feature-flags/app.yaml"
+      - "!platform-services/feature-flags/image.values.yaml"
       - crates/feature-flag/feature-flag-proto/**
       - crates/feature-flag/feature-flag-engine/**
       - .github/workflows/build-deploy-feature-flags.yaml
@@ -71,11 +73,12 @@ jobs:
     needs:
       - build
       - test
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
     with:
       service-name: feature-flags
       images: ghcr.io/accurate0/feature-flags
-      manifests-path: platform-services/feature-flags/manifests
+      manifests-path: platform-services/feature-flags
+      values-file: platform-services/feature-flags/image.values.yaml
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}

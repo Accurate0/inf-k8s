@@ -29,3 +29,71 @@ network:
     - home-gateway
     - maccas-api
     - janitor-bot
+workloads:
+  feature-flags:
+    image: ghcr.io/accurate0/feature-flags
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    ports:
+      - name: grpc
+        containerPort: 50051
+    readinessProbe:
+      grpc:
+        port: 50051
+      initialDelaySeconds: 5
+      periodSeconds: 15
+    livenessProbe:
+      grpc:
+        port: 50051
+      initialDelaySeconds: 5
+      periodSeconds: 60
+    env:
+      - name: PGUSER
+        valueFrom:
+          secretKeyRef:
+            name: feature-flags-db-credentials
+            key: PGUSER
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: feature-flags-db-credentials
+            key: PGPASSWORD
+      - name: PGDATABASE
+        valueFrom:
+          secretKeyRef:
+            name: feature-flags-db-credentials
+            key: PGDATABASE
+      - name: DATABASE_URL
+        value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+      - name: REDIS_URL
+        value: redis://replicated.dragonfly.svc.cluster.local
+      - name: OIDC_ISSUER
+        value: https://idm.anurag.sh/oauth2/openid/feature-flags
+      - name: OIDC_AUDIENCE
+        value: feature-flags
+    envFrom:
+      - secretRef:
+          name: feature-flags-managed-secrets
+    secrets: []
+    databases: []
+    kind: DaemonSet
+    updateStrategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    service:
+      name: api
+      ports:
+        - name: grpc
+          protocol: TCP
+          port: 50051
+          targetPort: grpc
+          appProtocol: grpc
+      trafficDistribution: PreferSameNode
+namespaceLabels:
+  internal-gateway-access: "true"
