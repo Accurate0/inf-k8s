@@ -29,15 +29,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
-          token: ${{ secrets.RECONCILER_TOKEN }}
+          persist-credentials: false
       - run: ortzi install app --force
       - run: ortzi app render
       - name: Commit changes
+        env:
+          RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
         run: |
           git add -A projects platform-services
           git diff --cached --quiet && exit 0
           git config user.name "reconciler[bot]"
           git config user.email "reconciler@noreply.git.anurag.sh"
           git commit -m "chore(render): update generated applications [skip ci]"
-          git pull --rebase
+          git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
+          git pull --rebase origin main
           git push origin HEAD:main
