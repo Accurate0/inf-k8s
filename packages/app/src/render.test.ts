@@ -384,7 +384,7 @@ test('expands the env map', () => {
         F: { field: 'metadata.name' },
       },
     },
-    { resources: [{ name: 'traces', type: 'tracing' }, { name: 'foo', type: 'secret', secretName: 'foo-secret' }] },
+    { resources: [{ name: 'traces', type: 'platform', export: 'tracing' }, { name: 'foo', type: 'secret', secretName: 'foo-secret' }] },
   );
   assert.deepEqual(env, [
     { name: 'A', value: 'b' },
@@ -477,7 +477,7 @@ const graphApps = [
     network: { ingress: [] },
     resources: [
       { name: 'llm', type: 'app', app: 'gw', export: 'api' },
-      { name: 'traces', type: 'tracing' },
+      { name: 'traces', type: 'platform', export: 'tracing' },
       { name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' },
     ],
   }, 'test'),
@@ -514,7 +514,7 @@ test('graph renders mermaid and dot', () => {
 });
 
 test('rejects bad resources', () => {
-  const app = { name: 'foo', network: { ingress: [] }, resources: [{ name: 'a', type: 'tracing' }] };
+  const app = { name: 'foo', network: { ingress: [] }, resources: [{ name: 'a', type: 'platform', export: 'tracing' }] };
   assert.throws(() => validate({ ...app, resources: [app.resources[0], app.resources[0]] }, 'test'), /duplicate name a/);
   assert.throws(() => validate({ ...app, resources: [{ name: 'a', type: 'nope' }] }, 'test'), /resources/);
   const traced = validate({ ...app, workloads: { foo: { image: 'i', env: { T: { resource: 'a' } } } } }, 'test');
@@ -595,7 +595,7 @@ test('terraform covers an s3 bucket with its own user', () => {
 });
 
 test('an app with nothing for terraform gets no file', () => {
-  assert.equal(renderAppTerraform({ ...base, resources: [{ name: 't', type: 'tracing' }] }), undefined);
+  assert.equal(renderAppTerraform({ ...base, resources: [{ name: 't', type: 'platform', export: 'tracing' }] }), undefined);
 });
 
 test('the terraform index lists database names sorted', () => {
@@ -859,4 +859,8 @@ test('a platform resource uses a named export', () => {
 
 test('a platform resource needs an export', () => {
   assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'platform' }] }, 'test'), /resources/);
+});
+
+test('rejects the old tracing resource type', () => {
+  assert.throws(() => validate({ ...base, resources: [{ name: 't', type: 'tracing' }] }, 'test'), /resources/);
 });

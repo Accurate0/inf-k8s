@@ -45,7 +45,6 @@ export interface Workload {
 }
 
 export type Resource =
-  | { name: string; type: 'tracing' }
   | { name: string; type: 'platform'; export: string }
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
@@ -184,7 +183,7 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   const wanted =
     resource.type === 'cache'
       ? { type: 'cache', name: resource.instance }
-      : { type: 'platform', name: resource.type === 'platform' ? resource.export : 'tracing' };
+      : { type: 'platform', name: (resource as { export: string }).export };
   const provided = platform.filter((e) => e.type === wanted.type && e.name === wanted.name);
   if (provided.length !== 1) {
     throw new Error(`${app.name}: resources.${name}: expected one platform ${wanted.type} export named ${wanted.name}, found ${provided.length}`);

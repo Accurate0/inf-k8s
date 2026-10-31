@@ -435,24 +435,6 @@
             "additionalProperties": false,
             "required": [
               "name",
-              "type"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "tracing"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
               "type",
               "app",
               "export"

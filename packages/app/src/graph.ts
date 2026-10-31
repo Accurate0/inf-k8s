@@ -37,8 +37,6 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
       } else if (resource.type === 'bucket') {
         const name = bucketName(app, resource);
         edges.push({ from: app.name, to: node(`bucket/${name}`, `${name} (${resource.provider})`, 'database') });
-      } else {
-        edges.push({ from: app.name, to: node('platform/tracing', 'tracing', 'platform') });
       }
     }
     for (const [database, spec] of Object.entries(appDatabases(app))) {
