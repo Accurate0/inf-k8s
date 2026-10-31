@@ -1,5 +1,5 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
-import { parse, stringify } from 'yaml';
+import { parse, parseDocument, stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
 import { expandWorkload, overrideConflicts, type ResolveResource } from './workload.ts';
 
@@ -481,7 +481,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           databases: Object.entries(app.databases).map(([database, spec]) => ({
             name: database,
             namespace: name,
-            databaseName: spec.databaseName ?? database.replaceAll('-', '_'),
+            databaseName: databaseRole(database, spec),
             secretName: databaseSecret(database),
             ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
             annotations,
@@ -545,6 +545,41 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   };
 
   return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
+
+const databaseRole = (database: string, spec: { databaseName?: string }) =>
+  spec.databaseName ?? database.replaceAll('-', '_');
+
+export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;
+
+export function renderDatabase(database: string, spec: { databaseName?: string }): string {
+  const name = databaseRole(database, spec);
+  const manifest = {
+    apiVersion: 'postgresql.cnpg.io/v1',
+    kind: 'Database',
+    metadata: { name: database, namespace: 'cnpg-system' },
+    spec: {
+      name,
+      owner: name,
+      cluster: { name: 'cloudnative-pg-cluster' },
+      databaseReclaimPolicy: 'retain',
+    },
+  };
+  return `${HEADER}\n# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/database_v1.json\n${stringify(manifest)}`;
+}
+
+export const appRoles = (apps: App[]) =>
+  apps.flatMap((app) => Object.entries(app.databases ?? {}).map(([database, spec]) => databaseRole(database, spec)));
+
+export function addRoles(cluster: string, roles: string[]): string {
+  const doc = parseDocument(cluster);
+  const existing = (doc.toJS().spec.managed.roles as { name: string }[]).map((role) => role.name);
+  const missing = roles.filter((role) => !existing.includes(role));
+  if (!missing.length) return cluster;
+  for (const name of missing) {
+    doc.addIn(['spec', 'managed', 'roles'], { name, ensure: 'present', connectionLimit: -1, inherit: true, login: true });
+  }
+  return doc.toString({ lineWidth: 0 });
 }
 
 interface ChartSource {

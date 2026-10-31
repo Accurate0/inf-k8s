@@ -8,11 +8,15 @@ import { rollback } from './commands/rollback';
 import { status } from './commands/status';
 import { parse, stringify } from 'yaml';
 import {
+  addRoles,
   type App,
+  appRoles,
+  databasePath,
   imageValuesPath,
   isCurrent,
   type PlatformExport,
   renderApplication,
+  renderDatabase,
   renderWorkflow,
   stamped,
   type Target,
@@ -27,6 +31,7 @@ import { validateManifests } from './validate';
 const LOCATIONS = ['projects', 'platform-services'];
 const VERSIONS = 'platform/versions.yaml';
 const PLATFORM_EXPORTS = 'platform/exports';
+const POSTGRES_CLUSTER = 'system-components/postgres-cluster/postgres.yaml';
 
 const platformExports = (): PlatformExport[] =>
   fs
@@ -146,6 +151,19 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
       }
     }
   }
+  for (const { app } of apps) {
+    if (only && app.name !== only) continue;
+    for (const [database, spec] of Object.entries(app.databases ?? {})) {
+      const path = databasePath(database);
+      const wanted = renderDatabase(database, spec);
+      if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
+        stale.push({ path, wanted: stamped(wanted, new Date()) });
+      }
+    }
+  }
+  const cluster = fs.readText(POSTGRES_CLUSTER);
+  const withRoles = addRoles(cluster, appRoles(world.apps));
+  if (withRoles !== cluster) stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
   return stale;
 }
 

@@ -49,7 +49,7 @@ jobs:
         env:
           RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
         run: |
-          git add -A projects platform-services .github/workflows
+          git add -A projects platform-services .github/workflows system-components/postgres-cluster
           git diff --cached --quiet && exit 0
           skip_ci=" [skip ci]"
           git diff --cached --quiet -- .github/workflows terraform system-components/postgres-cluster || skip_ci=""

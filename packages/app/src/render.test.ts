@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
-import { type App, HEADER, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress, validateResources } from './render.ts';
+import { addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress, validateResources } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -529,4 +529,34 @@ test('rejects bad resources', () => {
 test('rejects unknown workload fields', () => {
   assert.throws(() => short({ uses: ['a'] }), /uses/);
   assert.throws(() => short({ strategy: {} }), /strategy/);
+});
+
+test('renders a database owned by its role', () => {
+  assert.deepEqual(parse(renderDatabase('foo-bar', {})), {
+    apiVersion: 'postgresql.cnpg.io/v1',
+    kind: 'Database',
+    metadata: { name: 'foo-bar', namespace: 'cnpg-system' },
+    spec: {
+      name: 'foo_bar',
+      owner: 'foo_bar',
+      cluster: { name: 'cloudnative-pg-cluster' },
+      databaseReclaimPolicy: 'retain',
+    },
+  });
+  assert.equal(parse(renderDatabase('foo', { databaseName: 'bar' })).spec.owner, 'bar');
+});
+
+test('only adds missing roles and never removes one', () => {
+  const cluster = '# keep\nspec:\n  managed:\n    roles:\n      - name: old\n        login: true\n';
+  assert.equal(addRoles(cluster, ['old']), cluster);
+  const added = addRoles(cluster, ['new']);
+  assert.match(added, /# keep/);
+  assert.deepEqual(parse(added).spec.managed.roles, [
+    { name: 'old', login: true },
+    { name: 'new', ensure: 'present', connectionLimit: -1, inherit: true, login: true },
+  ]);
+  assert.deepEqual(
+    appRoles([{ name: 'a', network: { ingress: [] }, databases: { 'foo-bar': {}, baz: { databaseName: 'qux' } } }]),
+    ['foo_bar', 'qux'],
+  );
 });
