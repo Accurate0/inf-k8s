@@ -1,0 +1,128 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: registry
+routes:
+  registry:
+    gateway: internal-gateway
+    hosts:
+      - registry.ortzi.cloud
+    backend:
+      name: api
+      port: 80
+oidc:
+  registry:
+    displayName: Registry
+    public: true
+    allowLocalhostRedirect: true
+    groups:
+      registry_admins:
+        - platform_admins
+      registry_users:
+        - registry_admins
+    scopeMaps:
+      registry_users:
+        - openid
+        - email
+        - profile
+        - groups
+databases:
+  registry: {}
+secrets:
+  - registry
+  - name: signing
+    secretName: registry-signing-secrets
+network:
+  ingress:
+    - forgejo
+    - monitoring
+workloads:
+  registry:
+    image: ghcr.io/accurate0/registry
+    resources:
+      requests:
+        cpu: 10m
+        memory: 64Mi
+    ports:
+      - containerPort: 3000
+    readinessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 5
+      periodSeconds: 15
+    livenessProbe:
+      httpGet:
+        path: /health
+        port: 3000
+      initialDelaySeconds: 5
+      periodSeconds: 60
+    env:
+      - name: CONFIG_PATH
+        value: /etc/registry/config.yaml
+      - name: PGUSER
+        valueFrom:
+          secretKeyRef:
+            name: registry-database-secret
+            key: PGUSER
+      - name: PGPASSWORD
+        valueFrom:
+          secretKeyRef:
+            name: registry-database-secret
+            key: PGPASSWORD
+      - name: PGDATABASE
+        valueFrom:
+          secretKeyRef:
+            name: registry-database-secret
+            key: PGDATABASE
+      - name: DATABASE_URL
+        value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
+      - name: OTEL_TRACING_URL
+        value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+    envFrom:
+      - secretRef:
+          name: registry-managed-secrets
+      - secretRef:
+          name: registry-signing-secrets
+    volumeMounts:
+      - name: config
+        mountPath: /etc/registry
+        readOnly: true
+    secrets: []
+    databases: []
+    replicas: 2
+    strategy:
+      type: RollingUpdate
+      rollingUpdate:
+        maxUnavailable: 0
+        maxSurge: 1
+    affinity:
+      podAntiAffinity:
+        requiredDuringSchedulingIgnoredDuringExecution:
+          - topologyKey: kubernetes.io/hostname
+            labelSelector:
+              matchLabels:
+                app: registry
+    topologySpreadConstraints:
+      - topologyKey: inf-k8s.net/location
+        maxSkew: 1
+        whenUnsatisfiable: ScheduleAnyway
+        labelSelector:
+          matchLabels:
+            app: registry
+    volumes:
+      - name: config
+        configMap:
+          name: registry-config
+    service:
+      name: api
+      ports:
+        - name: http
+          protocol: TCP
+          port: 80
+          targetPort: 3000
+namespaceLabels:
+  internal-gateway-access: "true"
+metrics:
+  workload: registry
+  path: /metrics
+  port: http
+  interval: 30s
