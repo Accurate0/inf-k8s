@@ -1,3 +1,5 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T11:17:27.904Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/database_v1.json
 apiVersion: postgresql.cnpg.io/v1
 kind: Database

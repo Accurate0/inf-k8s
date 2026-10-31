@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:07:53.391Z
+# generated at 2026-10-31T11:17:27.825Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -42,6 +42,13 @@ spec:
                   value: /etc/registry/config.yaml
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              envFrom:
+                - secretRef:
+                    name: registry-managed-secrets
+                - secretRef:
+                    name: registry-signing-secrets
+                - secretRef:
+                    name: registry-database-secret
               service:
                 name: api
                 ports:
@@ -88,13 +95,6 @@ spec:
                   labelSelector:
                     matchLabels:
                       app: registry
-              envFrom:
-                - secretRef:
-                    name: registry-managed-secrets
-                - secretRef:
-                    name: registry-signing-secrets
-                - secretRef:
-                    name: registry-database-secret
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0

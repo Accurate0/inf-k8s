@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:07:53.337Z
+# generated at 2026-10-31T11:17:27.551Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -50,6 +50,11 @@ spec:
                   value: http://api.ai-gateway.svc.cluster.local/v1
                 - name: FEATURE_FLAGS_URL
                   value: http://api.feature-flags.svc.cluster.local:50051
+              envFrom:
+                - secretRef:
+                    name: maccas-common-managed-secrets
+                - secretRef:
+                    name: maccas-api-managed-secrets
               initContainers:
                 - image: ghcr.io/accurate0/maccas-migration
                   name: maccas-migration
@@ -81,11 +86,6 @@ spec:
                     matchLabels:
                       app: maccas-api
                   whenUnsatisfiable: ScheduleAnyway
-              envFrom:
-                - secretRef:
-                    name: maccas-common-managed-secrets
-                - secretRef:
-                    name: maccas-api-managed-secrets
             - name: maccas-web
               image: ghcr.io/accurate0/maccas-web
               replicas: 3
@@ -107,6 +107,9 @@ spec:
                   value: api.feature-flags.svc.cluster.local:50051
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              envFrom:
+                - secretRef:
+                    name: maccas-web-managed-secrets
               runAsNonRoot: false
               service:
                 name: maccas-web
@@ -128,9 +131,6 @@ spec:
                     matchLabels:
                       app: maccas-web
                   whenUnsatisfiable: ScheduleAnyway
-              envFrom:
-                - secretRef:
-                    name: maccas-web-managed-secrets
             - name: maccas-scheduler
               image: ghcr.io/accurate0/maccas-scheduler
               resources:
@@ -141,6 +141,11 @@ spec:
                   value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              envFrom:
+                - secretRef:
+                    name: maccas-common-managed-secrets
+                - secretRef:
+                    name: maccas-api-managed-secrets
               affinity:
                 podAntiAffinity:
                   requiredDuringSchedulingIgnoredDuringExecution:
@@ -148,11 +153,6 @@ spec:
                         matchLabels:
                           app: maccas-scheduler
                       topologyKey: kubernetes.io/hostname
-              envFrom:
-                - secretRef:
-                    name: maccas-common-managed-secrets
-                - secretRef:
-                    name: maccas-api-managed-secrets
             - name: maccas-recommendations
               image: ghcr.io/accurate0/maccas-recommendations
               resources:
@@ -171,6 +171,11 @@ spec:
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: OPENAI_BASE_URL
                   value: http://api.ai-gateway.svc.cluster.local/v1
+              envFrom:
+                - secretRef:
+                    name: maccas-common-managed-secrets
+                - secretRef:
+                    name: maccas-api-managed-secrets
               initContainers:
                 - image: ghcr.io/accurate0/maccas-migration
                   name: maccas-migration
@@ -219,11 +224,6 @@ spec:
                 initialDelaySeconds: 3
                 periodSeconds: 30
                 timeoutSeconds: 5
-              envFrom:
-                - secretRef:
-                    name: maccas-common-managed-secrets
-                - secretRef:
-                    name: maccas-api-managed-secrets
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:07:53.379Z
+# generated at 2026-10-31T11:17:27.765Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -43,6 +43,9 @@ spec:
               env:
                 - name: K8S_VERSION
                   value: v1.37.1
+              envFrom:
+                - secretRef:
+                    name: k8s-schemas-managed-secrets
               serviceAccountName: k8s-schemas
               volumes:
                 - name: tmp
@@ -50,9 +53,6 @@ spec:
               volumeMounts:
                 - name: tmp
                   mountPath: /tmp
-              envFrom:
-                - secretRef:
-                    name: k8s-schemas-managed-secrets
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0

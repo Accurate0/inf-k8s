@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:07:53.327Z
+# generated at 2026-10-31T11:17:27.494Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -46,6 +46,13 @@ spec:
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: FEATURE_FLAGS_URL
                   value: http://api.feature-flags.svc.cluster.local:50051
+              envFrom:
+                - secretRef:
+                    name: home-gateway-managed-secrets
+                - secretRef:
+                    name: home-gateway-terraform-secrets
+                - secretRef:
+                    name: home-gateway-db-credentials
               runAsNonRoot: false
               service:
                 name: home-gateway
@@ -167,13 +174,6 @@ spec:
                 - ip: 10.0.2.15
                   hostnames:
                     - home-assistant.internal
-              envFrom:
-                - secretRef:
-                    name: home-gateway-managed-secrets
-                - secretRef:
-                    name: home-gateway-terraform-secrets
-                - secretRef:
-                    name: home-gateway-db-credentials
             - name: home-web
               image: ghcr.io/accurate0/home-gateway-web
               resources:
