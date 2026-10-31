@@ -138,7 +138,7 @@ function exportPort(provider: App, exported: Export): number {
       ? exported.port
       : exported.port
         ? ports.find((p) => p.name === exported.port)?.port
-        : (spec?.service?.port ?? spec?.port ?? (ports.length === 1 ? ports[0].port : undefined));
+        : (spec && servedPort(spec));
   if (!port) throw new Error(`${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`);
   return port;
 }
@@ -179,6 +179,11 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
   return found;
 }
 
+function servedPort(spec: Workload): number | undefined {
+  const ports = (spec.service?.ports ?? []) as { port: number }[];
+  return spec.service?.port ?? spec.port ?? (ports.length === 1 ? ports[0].port : undefined);
+}
+
 const appSchema = new Validator();
 
 const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
@@ -198,6 +203,7 @@ export function validate(raw: unknown, where: string): App {
   }
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
+    if (workload.health && !workload.port) fail(`workloads.${name}.health needs port`);
   }
   const routes = Object.entries(app.routes ?? {});
   const clients = Object.entries(app.oidc ?? {});
@@ -238,7 +244,9 @@ export function validate(raw: unknown, where: string): App {
   }
   try {
     for (const [name, route] of routes) {
-      if (!route.backend) served(app, route.workload, `routes.${name}`);
+      if (route.backend) continue;
+      const [workload, spec] = served(app, route.workload, `routes.${name}`);
+      if (!servedPort(spec)) fail(`routes.${name}: workload ${workload} has several service ports, so set backend`);
     }
     if (app.metrics) served(app, app.metrics.workload, 'metrics');
   } catch (e) {
@@ -407,9 +415,9 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             const chosen = dbs ?? Object.keys(app.databases ?? {});
             const from = [
               ...(envFrom ?? []),
-              ...secrets
-                .filter((s) => !only || only.includes(s.name))
-                .map((s) => ({ secretRef: { name: s.secretName } })),
+              ...(only ? only.map((o) => secrets.find((s) => s.name === o)!) : secrets).map((s) => ({
+                secretRef: { name: s.secretName },
+              })),
               ...chosen.map((database) => ({
                 ...(chosen.length > 1
                   ? { prefix: `${database.toUpperCase().replaceAll('-', '_')}_` }
@@ -455,7 +463,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
               const [workload, spec] = served(app, route.workload, `routes.${routeName}`);
               backend = {
                 name: spec.service?.name ?? workload,
-                port: spec.service?.port ?? (spec.port as number),
+                port: servedPort(spec) as number,
               };
             }
             return {

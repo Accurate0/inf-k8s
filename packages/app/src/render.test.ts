@@ -423,3 +423,44 @@ test('rejects bad exports', () => {
   assert.throws(() => validateResources({ platform, apps: [consumer()] }), /no app named gw/);
   assert.throws(() => validateResources({ platform, apps: [consumer({ export: 'nope' }), provider()] }), /no export named nope/);
 });
+
+test('workload secrets keep their listed order', () => {
+  const rendered = render({
+    name: 'foo',
+    secrets: ['a', 'b', 'c'],
+    workloads: { foo: { image: 'i', secrets: ['c', 'a'] } },
+    network: { ingress: [] },
+  });
+  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].envFrom, [
+    { secretRef: { name: 'c-managed-secrets' } },
+    { secretRef: { name: 'a-managed-secrets' } },
+  ]);
+});
+
+test('a route backend comes from a single service port', () => {
+  const app = validate({
+    name: 'foo',
+    routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } } },
+    workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
+    network: { ingress: [] },
+  }, 'test');
+  assert.deepEqual(source(render(app), 'k8s-http-routes')?.helm.valuesObject.routes[0].rules[0].backendRefs, [
+    { group: '', kind: 'Service', name: 'api', port: 80, weight: 1 },
+  ]);
+});
+
+test('rejects a route that cannot pick a service port', () => {
+  assert.throws(() => validate({
+    name: 'foo',
+    routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } } },
+    workloads: { foo: { image: 'i', service: { ports: [{ port: 80 }, { port: 81 }] } } },
+    network: { ingress: [] },
+  }, 'test'), /several service ports/);
+});
+
+test('rejects health without a port', () => {
+  assert.throws(
+    () => validate({ name: 'foo', workloads: { foo: { image: 'i', health: '/health' } }, network: { ingress: [] } }, 'test'),
+    /health needs port/,
+  );
+});
