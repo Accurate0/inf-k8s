@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { type App, renderApplication, validate } from './render.ts';
+import { type App, HEADER, isCurrent, renderApplication, stamped, validate } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -163,6 +163,15 @@ test('does not emit yaml anchors', () => {
     target,
   );
   assert.doesNotMatch(output, /[&*]a1/);
+});
+
+test('the generated time only matters when content changes', () => {
+  const rendered = `${HEADER}\nbody: 1\n`;
+  const file = stamped(rendered, new Date('2026-10-31T00:00:00Z'));
+  assert.match(file, /^# generated at 2026-10-31T00:00:00.000Z$/m);
+  assert.ok(isCurrent(file, rendered));
+  assert.ok(!isCurrent(file, `${HEADER}\nbody: 2\n`));
+  assert.ok(!isCurrent(rendered, rendered));
 });
 
 test('output is stable', () => {

@@ -1,7 +1,15 @@
 import { fs, run as exec } from '@ortzi/host';
 import { cli } from '@ortzi/kit';
 import { parse, stringify } from 'yaml';
-import { type App, imageValuesPath, renderApplication, type Target, validate } from './render';
+import {
+  type App,
+  imageValuesPath,
+  isCurrent,
+  renderApplication,
+  stamped,
+  type Target,
+  validate,
+} from './render';
 
 const LOCATIONS = ['projects', 'platform-services'];
 const VERSIONS = 'platform/versions.yaml';
@@ -45,7 +53,9 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
     if (only && app.name !== only) continue;
     const path = `${target.location}/${app.name}/application.yaml`;
     const wanted = renderApplication(app, versions, target);
-    if (!fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
+    if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
+      stale.push({ path, wanted: stamped(wanted, new Date()) });
+    }
     if (app.workloads) {
       const values = imageValuesPath(app, target);
       const current = fs.exists(values) ? parse(fs.readText(values)) : {};

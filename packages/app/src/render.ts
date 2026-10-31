@@ -6,6 +6,14 @@ const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.j
 
 export const HEADER = '# generated from app.yaml by `ortzi app render`; edit app.yaml instead';
 
+const STAMP = /^# generated at .*\n/m;
+
+export const stamped = (rendered: string, now: Date) =>
+  rendered.replace(`${HEADER}\n`, `${HEADER}\n# generated at ${now.toISOString()}\n`);
+
+export const isCurrent = (existing: string, rendered: string) =>
+  STAMP.test(existing) && existing.replace(STAMP, '') === rendered;
+
 export interface Workload {
   image: string;
   port?: number;
