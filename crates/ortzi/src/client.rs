@@ -28,10 +28,19 @@ pub fn api_error(e: &anyhow::Error) -> Option<&ApiError> {
     e.downcast_ref::<ApiError>()
 }
 
+const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30 * 60);
+
 pub struct Client {
     base: String,
     bearer: String,
     http: reqwest::Client,
+    uploads: reqwest::Client,
+}
+
+fn http_client() -> reqwest::ClientBuilder {
+    reqwest::Client::builder()
+        .user_agent(concat!("ortzi/", env!("ORTZI_VERSION")))
+        .connect_timeout(Duration::from_secs(10))
 }
 
 impl Client {
@@ -39,10 +48,12 @@ impl Client {
         Self {
             base: base.trim_end_matches('/').to_owned(),
             bearer,
-            http: reqwest::Client::builder()
-                .user_agent(concat!("ortzi/", env!("ORTZI_VERSION")))
-                .connect_timeout(Duration::from_secs(10))
+            http: http_client()
                 .read_timeout(Duration::from_secs(60))
+                .build()
+                .expect("failed to build http client"),
+            uploads: http_client()
+                .timeout(UPLOAD_TIMEOUT)
                 .build()
                 .expect("failed to build http client"),
         }
@@ -141,7 +152,9 @@ impl Client {
         let body = reqwest::Body::wrap_stream(ReaderStream::new(handle));
 
         Self::json(
-            self.request(Method::PUT, path)
+            self.uploads
+                .put(format!("{}{path}", self.base))
+                .bearer_auth(&self.bearer)
                 .header(SHA256_HEADER, sha256)
                 .header(reqwest::header::CONTENT_LENGTH, size)
                 .body(body),
