@@ -15,7 +15,7 @@ const versions = {
 };
 const target = { location: 'projects', hasManifests: false };
 
-const platform = [{ name: 'tracing', type: 'tracing', url: 'http://tempo/traces', env: 'OTEL_TRACING_URL' }];
+const platform = [{ name: 'tracing', type: 'tracing', url: 'http://tempo/traces' }];
 
 const render = (app: App, t = target, apps: App[] = []) => parse(renderApplication(app, versions, t, { platform, apps }));
 const source = (rendered: { spec: { sources: Record<string, any>[] } }, chart: string) =>
@@ -301,48 +301,6 @@ test('rejects app.yaml fields outside the schema', () => {
   );
 });
 
-const traced = (uses: unknown[], extra: Record<string, unknown> = {}) => ({
-  name: 'foo',
-  network: { ingress: [] },
-  resources: [{ name: 'traces', type: 'tracing' }],
-  workloads: { foo: { image: 'i', uses, ...extra } },
-});
-
-test('injects a used resource after the env set by hand', () => {
-  const app = validate(traced(['traces'], { env: [{ name: 'A', value: 'b' }] }), 'test');
-  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
-  assert.deepEqual(workload.env, [
-    { name: 'A', value: 'b' },
-    { name: 'OTEL_TRACING_URL', value: 'http://tempo/traces' },
-  ]);
-  assert.equal(workload.uses, undefined);
-});
-
-test('a used resource can rename its variable', () => {
-  const app = validate(traced([{ name: 'traces', env: 'TRACES' }]), 'test');
-  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
-  assert.equal(workload.env[0].name, 'TRACES');
-});
-
-test('only workloads that use a resource get it', () => {
-  const app = validate({ ...traced([]), workloads: { foo: { image: 'i' } } }, 'test');
-  assert.equal(source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0].env, undefined);
-});
-
-test('rejects bad resources', () => {
-  assert.throws(() => validate(traced(['nope']), 'test'), /no resource named nope/);
-  assert.throws(
-    () => validateResources({ platform, apps: [validate(traced(['traces'], { env: [{ name: 'OTEL_TRACING_URL', value: 'x' }] }), 'test')] }),
-    /already set/,
-  );
-  assert.throws(() => validateResources({ platform: [], apps: [validate(traced(['traces']), 'test')] }), /one platform export of type tracing/);
-  assert.throws(
-    () => validate({ ...traced([]), resources: [{ name: 'a', type: 'tracing' }, { name: 'a', type: 'tracing' }] }, 'test'),
-    /duplicate name a/,
-  );
-  assert.throws(() => validate({ ...traced([]), resources: [{ name: 'a', type: 'nope' }] }, 'test'), /resources/);
-});
-
 const provider = (port: unknown = 'http', extra: Record<string, unknown> = {}) =>
   validate({
     name: 'gw',
@@ -357,7 +315,7 @@ const consumer = (resource: Record<string, unknown> = {}) =>
     name: 'caller',
     network: { ingress: [] },
     resources: [{ name: 'llm', type: 'app', app: 'gw', export: 'api', ...resource }],
-    workloads: { caller: { image: 'i', uses: [{ name: 'llm' }] } },
+    workloads: { caller: { image: 'i', env: { LLM_URL: { resource: 'llm' } } } },
   }, 'test');
 
 const url = (gw: App, caller: App) =>
@@ -558,4 +516,17 @@ test('graph renders mermaid and dot', () => {
   const dot = toDot(graph);
   assert.match(dot, /"caller" -> "gw" \[label="api"\];/);
   assert.match(dot, /"other" -> "gw" \[label="ingress", style=dashed\];/);
+});
+
+test('rejects bad resources', () => {
+  const app = { name: 'foo', network: { ingress: [] }, resources: [{ name: 'a', type: 'tracing' }] };
+  assert.throws(() => validate({ ...app, resources: [app.resources[0], app.resources[0]] }, 'test'), /duplicate name a/);
+  assert.throws(() => validate({ ...app, resources: [{ name: 'a', type: 'nope' }] }, 'test'), /resources/);
+  const traced = validate({ ...app, workloads: { foo: { image: 'i', env: { T: { resource: 'a' } } } } }, 'test');
+  assert.throws(() => validateResources({ platform: [], apps: [traced] }), /one platform export of type tracing/);
+});
+
+test('rejects unknown workload fields', () => {
+  assert.throws(() => short({ uses: ['a'] }), /uses/);
+  assert.throws(() => short({ strategy: {} }), /strategy/);
 });

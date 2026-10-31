@@ -40,12 +40,7 @@ export interface Workload {
   mounts?: Record<string, unknown>;
   overrides?: Record<string, unknown>;
   readOnlyRootFilesystem?: boolean;
-  secrets?: string[];
-  databases?: string[];
-  uses?: Use[];
 }
-
-export type Use = string | { name: string; env?: string };
 
 export type Resource =
   | { name: string; type: 'tracing' }
@@ -124,10 +119,7 @@ export interface PlatformExport {
   name: string;
   type: string;
   url: string;
-  env: string;
 }
-
-const useFor = (use: Use) => (typeof use === 'string' ? { name: use } : use);
 
 export interface World {
   platform: PlatformExport[];
@@ -157,17 +149,14 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
   return `http://${service}.${provider.name}.svc.cluster.local${port === 80 ? '' : `:${port}`}${resource.path ?? ''}`;
 }
 
-function resourceEnv(app: App, use: Use, { platform, apps }: World): { name: string; value: string }[] {
-  const { name, env } = useFor(use);
+function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
   const resource = app.resources?.find((r) => r.name === name) as Resource;
-  if (resource.type === 'app') {
-    return [{ name: env ?? `${name.toUpperCase().replaceAll('-', '_')}_URL`, value: appExportUrl(app, resource, apps) }];
-  }
+  if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
   const provided = platform.filter((e) => e.type === resource.type);
   if (provided.length !== 1) {
     throw new Error(`${app.name}: resources.${name}: expected one platform export of type ${resource.type}, found ${provided.length}`);
   }
-  return [{ name: env ?? provided[0].env, value: provided[0].url }];
+  return { name: env, value: provided[0].url };
 }
 
 const secretFor = (secret: Secret) =>
@@ -243,15 +232,6 @@ export function validate(raw: unknown, where: string): App {
   for (const [name, client] of clients) {
     if (!client.host && !routes.length) fail(`oidc.${name} needs a route or a host`);
   }
-  const secretNames = (app.secrets ?? []).map(secretFor).map((s) => s.name);
-  for (const [name, workload] of Object.entries(app.workloads ?? {})) {
-    for (const secret of workload.secrets ?? []) {
-      if (!secretNames.includes(secret)) fail(`workloads.${name}.secrets: no secret named ${secret}`);
-    }
-    for (const database of workload.databases ?? []) {
-      if (!app.databases?.[database]) fail(`workloads.${name}.databases: no database named ${database}`);
-    }
-  }
   try {
     for (const [name, route] of routes) {
       if (route.backend) continue;
@@ -274,12 +254,6 @@ export function validate(raw: unknown, where: string): App {
     if (!app.workloads?.[exported.workload]) fail(`exports.${exported.name}: no workload named ${exported.workload}`);
     exportPort(app, exported);
   }
-  for (const [name, workload] of Object.entries(app.workloads ?? {})) {
-    for (const use of workload.uses ?? []) {
-      const used = useFor(use).name;
-      if (!resourceNames.includes(used)) fail(`workloads.${name}.uses: no resource named ${used}`);
-    }
-  }
   return app;
 }
 
@@ -301,16 +275,8 @@ export function validateResources(world: World) {
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') appExportUrl(app, resource, world.apps);
     }
-    for (const [name, workload] of Object.entries(app.workloads ?? {})) {
-      const resolve: ResolveResource = (resource, env) => resourceEnv(app, { name: resource, env }, world)[0];
-      const expanded = expandWorkload({ env: workload.env }, resolve).env ?? [];
-      const seen = new Set((expanded as { name: string }[]).map((e) => e.name));
-      for (const use of workload.uses ?? []) {
-        for (const { name: env } of resourceEnv(app, use, world)) {
-          if (seen.has(env)) throw new Error(`${app.name}: workloads.${name}.uses: ${useFor(use).name} sets ${env}, which is already set`);
-          seen.add(env);
-        }
-      }
+    for (const spec of Object.values(app.workloads ?? {})) {
+      expandWorkload(spec, (resource, env) => resourceEnv(app, resource, env, world));
     }
   }
 }
@@ -421,17 +387,12 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             : {}),
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const resolve: ResolveResource = (resource, env) => resourceEnv(app, { name: resource, env }, world)[0];
-            const { health, secrets: _secrets, databases: _databases, uses, ...rest } = expandWorkload(spec, resolve);
-            const from = rest.envFrom as Record<string, unknown>[] | undefined;
-            delete rest.envFrom;
-            const injected = (uses ?? []).flatMap((use: Use) => resourceEnv(app, use, world));
+            const resolve: ResolveResource = (resource, env) => resourceEnv(app, resource, env, world);
+            const { health, ...rest } = expandWorkload(spec, resolve);
             return {
               name: workload,
               ...rest,
-              ...(injected.length ? { env: [...(rest.env ?? []), ...injected] } : {}),
               ...(health ? { probes: { path: health } } : {}),
-              ...(from?.length ? { envFrom: from } : {}),
             };
           }),
         },

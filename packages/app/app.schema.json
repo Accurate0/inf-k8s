@@ -89,7 +89,7 @@
       "description": "Keyed by workload name.",
       "additionalProperties": {
         "type": "object",
-        "additionalProperties": true,
+        "additionalProperties": false,
         "required": [
           "image"
         ],
@@ -247,47 +247,6 @@
           "readOnlyRootFilesystem": {
             "type": "boolean"
           },
-          "secrets": {
-            "type": "array",
-            "description": "Only these app secrets. Defaults to all.",
-            "items": {
-              "type": "string"
-            }
-          },
-          "databases": {
-            "type": "array",
-            "description": "Only these databases. Defaults to all.",
-            "items": {
-              "type": "string"
-            }
-          },
-          "uses": {
-            "type": "array",
-            "description": "Resources to inject into this workload's environment.",
-            "items": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "object",
-                  "required": [
-                    "name"
-                  ],
-                  "additionalProperties": false,
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "env": {
-                      "type": "string",
-                      "description": "Overrides the default variable name."
-                    }
-                  }
-                }
-              ]
-            }
-          },
           "runAsNonRoot": {
             "type": "boolean"
           },
@@ -430,6 +389,33 @@
           "overrides": {
             "type": "object",
             "description": "Written directly to the k8s-workload values for this workload."
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "backoffLimit": {
+            "type": "integer"
+          },
+          "initContainers": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sidecars": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
           }
         }
       }
