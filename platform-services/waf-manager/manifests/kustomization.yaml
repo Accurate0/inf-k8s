@@ -5,3 +5,6 @@ resources:
   - rbac.clusterrole.yaml
   - rbac.clusterrolebinding.yaml
   - securitypolicy.api.yaml
+images:
+  - name: ghcr.io/accurate0/waf-manager
+    newTag: 733fb6786cd71317051c4dbb5488e1f2a474296e
