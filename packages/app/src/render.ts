@@ -2,7 +2,7 @@ import { type Schema, Validator } from 'jsonschema/lib/index.js';
 import { parse, parseDocument, stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
 import { bucketName, bucketSecretName } from './terraform.ts';
-import { expandWorkload, overrideConflicts, type ResolveResource } from './workload.ts';
+import { expandWorkload, overrideConflicts, type Refs, type SecretKind } from './workload.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
 export const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
@@ -74,6 +74,7 @@ export interface Bucket {
   provider: 'r2' | 's3';
   bucket?: string;
   user?: string;
+  secretName?: string;
 }
 
 export interface Export {
@@ -121,14 +122,11 @@ export interface App {
   repository?: string;
   charts?: Record<string, string>;
   workloads?: Record<string, Workload>;
-  routes?: Record<string, Route>;
-  oidc?: Record<string, OidcClient>;
   resources?: Resource[];
   exports?: Export[];
   sources?: Record<string, unknown>[];
   build?: Build;
   network: { ingress: string[] };
-  metrics?: Metrics;
   namespace?: { labels?: Record<string, string> };
   serviceAccounts?: string[];
 }
@@ -207,7 +205,7 @@ function servedPort(spec: Workload): number | undefined {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -308,13 +306,26 @@ export function validateIngress(apps: App[]) {
   }
 }
 
+function secretRef(app: App, kind: SecretKind, name: string): string {
+  if (kind === 'secret') return appSecrets(app).find((s) => s.name === name)?.secretName ?? name;
+  if (kind === 'database' && appDatabases(app)[name]) return appDatabases(app)[name].secretName ?? `${name}-database-secret`;
+  const bucket = declared(app, 'bucket').find((b) => b.name === name);
+  if (kind === 'bucket' && bucket) return bucketSecretName(bucket);
+  throw new Error(`${app.name}: no ${kind} resource named ${name}`);
+}
+
+const refsFor = (app: App, world: World): Refs => ({
+  resource: (resource, env) => resourceEnv(app, resource, env, world),
+  secret: (kind, name) => secretRef(app, kind, name),
+});
+
 export function validateResources(world: World) {
   for (const app of world.apps) {
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') appExportUrl(app, resource, world.apps);
     }
     for (const spec of Object.values(app.workloads ?? {})) {
-      expandWorkload(spec, (resource, env) => resourceEnv(app, resource, env, world));
+      expandWorkload(spec, refsFor(app, world));
     }
   }
 }
@@ -425,8 +436,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             : {}),
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const resolve: ResolveResource = (resource, env) => resourceEnv(app, resource, env, world);
-            const { health, ...rest } = expandWorkload(spec, resolve);
+            const { health, ...rest } = expandWorkload(spec, refsFor(app, world));
             return {
               name: workload,
               ...rest,
@@ -595,15 +605,15 @@ const specs = <S extends { name: string; type: string }>(resources: S[]) =>
   resources.map(({ name, type: _type, ...spec }) => [name, spec] as const);
 
 export function appRoutes(app: App): Record<string, Route> {
-  return { ...app.routes, ...Object.fromEntries(specs(declared(app, 'route'))) } as Record<string, Route>;
+  return Object.fromEntries(specs(declared(app, 'route'))) as Record<string, Route>;
 }
 
 export function appOidc(app: App): Record<string, OidcClient> {
-  return { ...app.oidc, ...Object.fromEntries(specs(declared(app, 'oidc'))) } as Record<string, OidcClient>;
+  return Object.fromEntries(specs(declared(app, 'oidc'))) as Record<string, OidcClient>;
 }
 
 export function appMetrics(app: App): Metrics[] {
-  return [...(app.metrics ? [app.metrics] : []), ...specs(declared(app, 'metrics')).map(([, spec]) => spec as Metrics)];
+  return specs(declared(app, 'metrics')).map(([, spec]) => spec as Metrics);
 }
 
 export function appSecrets(app: App): { name: string; secretName: string }[] {

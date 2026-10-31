@@ -1,17 +1,27 @@
 type Values = Record<string, any>;
 
-export type ResolveResource = (resource: string, env: string) => { name: string; value: string };
+export type SecretKind = 'secret' | 'database' | 'bucket';
+
+export interface Refs {
+  resource: (resource: string, env: string) => { name: string; value: string };
+  secret: (kind: SecretKind, name: string) => string;
+}
+
+const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket'];
+
+const secretKind = (value: Values) => SECRET_KINDS.find((kind) => value[kind]);
 
 const PROBES = { startup: 'startupProbe', readiness: 'readinessProbe', liveness: 'livenessProbe' } as const;
 const TIMINGS = { delay: 'initialDelaySeconds', every: 'periodSeconds', timeout: 'timeoutSeconds', failures: 'failureThreshold' } as const;
 
-function expandEnv(env: Values, resolve: ResolveResource) {
+function expandEnv(env: Values, refs: Refs) {
   return Object.entries(env).map(([name, value]) => {
     if (typeof value !== 'object' || value === null) return { name, value: String(value) };
-    if (value.resource) return resolve(value.resource, name);
-    if (value.secret) {
+    if (value.resource) return refs.resource(value.resource, name);
+    const kind = secretKind(value);
+    if (kind) {
       const optional = value.optional === undefined ? {} : { optional: value.optional };
-      return { name, valueFrom: { secretKeyRef: { name: value.secret, key: value.key, ...optional } } };
+      return { name, valueFrom: { secretKeyRef: { name: refs.secret(kind, value[kind]), key: value.key, ...optional } } };
     }
     if (value.field) return { name, valueFrom: { fieldRef: { fieldPath: value.field } } };
     return { name, ...value };
@@ -66,11 +76,23 @@ function expandResources({ cpu, memory, memoryLimit, ...raw }: Values) {
   };
 }
 
-export function expandContainer(spec: Values, resolve: ResolveResource): Values {
+function expandEnvFrom(from: unknown, refs: Refs) {
+  if (typeof from === 'string') return { secretRef: { name: from } };
+  const value = from as Values;
+  const kind = secretKind(value);
+  if (!kind) return value;
+  const { [kind]: name, optional, prefix } = value;
+  return {
+    ...(prefix ? { prefix } : {}),
+    secretRef: { name: refs.secret(kind, name), ...(optional === undefined ? {} : { optional }) },
+  };
+}
+
+export function expandContainer(spec: Values, refs: Refs): Values {
   const { probes, mounts, ...out } = spec;
-  if (out.env && !Array.isArray(out.env)) out.env = expandEnv(out.env, resolve);
+  if (out.env && !Array.isArray(out.env)) out.env = expandEnv(out.env, refs);
   if (out.envFrom) {
-    out.envFrom = out.envFrom.map((from: unknown) => (typeof from === 'string' ? { secretRef: { name: from } } : from));
+    out.envFrom = out.envFrom.map((from: unknown) => expandEnvFrom(from, refs));
   }
   if (out.resources) out.resources = expandResources(out.resources);
   if (out.ports) {
@@ -79,11 +101,11 @@ export function expandContainer(spec: Values, resolve: ResolveResource): Values 
   return { ...out, ...(probes ? expandProbes(probes) : {}), ...(mounts ? expandMounts(mounts) : {}) };
 }
 
-export function expandWorkload(spec: Values, resolve: ResolveResource): Values {
+export function expandWorkload(spec: Values, refs: Refs): Values {
   const { overrides, ...rest } = spec;
-  const out = expandContainer(rest, resolve);
+  const out = expandContainer(rest, refs);
   for (const key of ['initContainers', 'sidecars']) {
-    if (out[key]) out[key] = out[key].map((container: Values) => expandContainer(container, resolve));
+    if (out[key]) out[key] = out[key].map((container: Values) => expandContainer(container, refs));
   }
   if (out.service?.ports) {
     out.service = {

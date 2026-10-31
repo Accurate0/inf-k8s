@@ -39,25 +39,6 @@
         }
       }
     },
-    "metrics": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "path": {
-          "type": "string"
-        },
-        "interval": {
-          "type": "string"
-        },
-        "workload": {
-          "type": "string",
-          "description": "Required with several ported workloads."
-        },
-        "port": {
-          "type": "string"
-        }
-      }
-    },
     "workloads": {
       "type": "object",
       "description": "Keyed by workload name.",
@@ -137,7 +118,7 @@
             }
           },
           "env": {
-            "description": "Map of variable to a string, {resource}, {secret, key} or {field}. A list is the raw form.",
+            "description": "Map of variable to a string, {resource}, {secret|database|bucket, key} or {field}. A list is the raw form.",
             "oneOf": [
               {
                 "type": "array",
@@ -172,6 +153,18 @@
                       "type": "object",
                       "additionalProperties": false,
                       "required": [
+                        "field"
+                      ],
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
                         "secret",
                         "key"
                       ],
@@ -191,11 +184,37 @@
                       "type": "object",
                       "additionalProperties": false,
                       "required": [
-                        "field"
+                        "database",
+                        "key"
                       ],
                       "properties": {
-                        "field": {
+                        "database": {
                           "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "bucket",
+                        "key"
+                      ],
+                      "properties": {
+                        "bucket": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
                         }
                       }
                     }
@@ -206,7 +225,7 @@
           },
           "envFrom": {
             "type": "array",
-            "description": "Secret names, or objects for optional and prefix.",
+            "description": "{secret|database|bucket: resource name}, or a raw secretRef object.",
             "items": {
               "oneOf": [
                 {
@@ -477,6 +496,9 @@
               "user": {
                 "type": "string",
                 "description": "IAM user name, for s3. Defaults to the bucket name."
+              },
+              "secretName": {
+                "type": "string"
               }
             }
           },
@@ -764,137 +786,6 @@
       "description": "Extra Argo sources.",
       "items": {
         "type": "object"
-      }
-    },
-    "routes": {
-      "type": "object",
-      "description": "Keyed by route name.",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "hosts",
-          "auth"
-        ],
-        "properties": {
-          "gateway": {
-            "type": "string"
-          },
-          "auth": {
-            "type": "object",
-            "description": "How this route authenticates. jwt and oidc are enforced at the gateway; app and none need a reason.",
-            "additionalProperties": false,
-            "required": [
-              "mode"
-            ],
-            "properties": {
-              "mode": {
-                "enum": [
-                  "jwt",
-                  "oidc",
-                  "app",
-                  "none"
-                ]
-              },
-              "clients": {
-                "type": "array",
-                "description": "oidc clients whose tokens are accepted, for jwt.",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "client": {
-                "type": "string",
-                "description": "oidc client with a securityPolicy targeting this route, for oidc."
-              },
-              "reason": {
-                "type": "string",
-                "description": "Why the gateway does not authenticate, for app and none."
-              }
-            }
-          },
-          "workload": {
-            "type": "string",
-            "description": "Required with several ported workloads."
-          },
-          "hosts": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "backend": {
-            "type": "object",
-            "required": [
-              "name",
-              "port"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "port": {
-                "type": "integer"
-              }
-            }
-          },
-          "paths": {
-            "type": "array",
-            "items": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "object",
-                  "required": [
-                    "type",
-                    "value"
-                  ],
-                  "properties": {
-                    "type": {
-                      "type": "string"
-                    },
-                    "value": {
-                      "type": "string"
-                    }
-                  }
-                }
-              ]
-            }
-          },
-          "annotations": {
-            "type": "object"
-          },
-          "ratelimit": {
-            "type": "object"
-          },
-          "timeouts": {
-            "type": "object"
-          }
-        }
-      }
-    },
-    "oidc": {
-      "type": "object",
-      "description": "Keyed by client name.",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": true,
-        "properties": {
-          "public": {
-            "type": "boolean"
-          },
-          "displayName": {
-            "type": "string"
-          },
-          "allowLocalhostRedirect": {
-            "type": "boolean"
-          },
-          "host": {
-            "type": "string"
-          }
-        }
       }
     },
     "serviceAccounts": {

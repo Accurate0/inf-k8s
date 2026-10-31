@@ -62,9 +62,7 @@ test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
     workloads: { foo: { image: 'i', port: 3000 } },
-    routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] } } },
-    oidc: { foo: {} },
-    metrics: {},
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] } }, { name: 'foo', type: 'oidc' }, { name: 'scrape', type: 'metrics' }],
     network: { ingress: ['ai-gateway', 'monitoring'] },
   });
   assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
@@ -82,8 +80,7 @@ test('renders several workloads and routes to the named one', () => {
       web: { image: 'j', port: 8080 },
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
-    routes: { foo: { hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } } },
-    resources: [{ name: 'foo', type: 'secret' }],
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } }, { name: 'foo', type: 'secret' }],
     network: { ingress: [] },
   });
   const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
@@ -101,7 +98,7 @@ test('requires route.workload when several workloads have ports', () => {
         {
           name: 'foo',
           workloads: { a: { image: 'i', port: 1 }, b: { image: 'j', port: 2 } },
-          routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } } },
+          resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } }],
           network: { ingress: [] },
         },
         'x',
@@ -113,16 +110,10 @@ test('requires route.workload when several workloads have ports', () => {
 test('routes to an explicit backend without a workload', () => {
   const rendered = render({
     name: 'foo',
-    routes: {
-      'foo-route': {
-        hosts: ['a.sh', 'b.sh'],
+    resources: [{ name: 'foo-route', type: 'route', hosts: ['a.sh', 'b.sh'],
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
-        auth: { mode: 'none', reason: 'public' },
-      },
-      'foo-api': { hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } },
-    },
-    oidc: { foo: { host: 'c.sh', groups: { admins: ['x'] } }, 'foo-cli': { public: true } },
+        auth: { mode: 'none', reason: 'public' }, }, { name: 'foo-api', type: 'route', hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } }, { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } }, { name: 'foo-cli', type: 'oidc', public: true }],
     sources: [{ repoURL: 'r', name: 'config', path: 'config' }],
     network: { ingress: [] },
   });
@@ -155,11 +146,7 @@ test('connection pooling is left to the chart unless set', () => {
 test('jwt routes pass their clients to the chart', () => {
   const rendered = render({
     name: 'foo',
-    routes: {
-      api: { hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } },
-      web: { hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } },
-    },
-    oidc: { foo: {}, 'foo-cli': {} },
+    resources: [{ name: 'api', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } }, { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } }, { name: 'foo', type: 'oidc' }, { name: 'foo-cli', type: 'oidc' }],
     network: { ingress: [] },
   });
   const [api, web] = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes;
@@ -168,10 +155,12 @@ test('jwt routes pass their clients to the chart', () => {
 });
 
 test('rejects invalid route auth', () => {
-  const app = (auth: unknown, oidc: unknown = { foo: {} }) => ({
+  const app = (auth: unknown, client: Record<string, unknown> = {}) => ({
     name: 'foo',
-    routes: { foo: { hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth } },
-    oidc,
+    resources: [
+      { name: 'foo', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth },
+      { name: 'foo', type: 'oidc', ...client },
+    ],
     network: { ingress: [] },
   });
   assert.throws(() => validate(app({ mode: 'jwt', clients: [] }), 'x'), /auth.clients is required/);
@@ -179,7 +168,7 @@ test('rejects invalid route auth', () => {
   assert.throws(() => validate(app({ mode: 'oidc', client: 'foo' }), 'x'), /securityPolicy must target this route/);
   assert.throws(() => validate(app({ mode: 'none' }), 'x'), /auth.reason is required/);
   assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode must be/);
-  validate(app({ mode: 'oidc', client: 'foo' }, { foo: { securityPolicy: { httpRoute: 'foo' } } }), 'x');
+  validate(app({ mode: 'oidc', client: 'foo' }, { securityPolicy: { httpRoute: 'foo' } }), 'x');
 });
 
 test('rejects ingress from an unknown namespace', () => {
@@ -273,7 +262,7 @@ test('rejects invalid apps', () => {
         {
           name: 'foo',
           workloads: { foo: { image: 'i', port: 1 } },
-          routes: { foo: { hosts: ['foo.anurag.sh'] } },
+          resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'] }],
           network: { ingress: [] },
         },
         'x',
@@ -353,7 +342,7 @@ test('rejects bad exports', () => {
 test('a route backend comes from a single service port', () => {
   const app = validate({
     name: 'foo',
-    routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } } },
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } }],
     workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
     network: { ingress: [] },
   }, 'test');
@@ -365,7 +354,7 @@ test('a route backend comes from a single service port', () => {
 test('rejects a route that cannot pick a service port', () => {
   assert.throws(() => validate({
     name: 'foo',
-    routes: { foo: { hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } } },
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } }],
     workloads: { foo: { image: 'i', service: { ports: [{ port: 80 }, { port: 81 }] } } },
     network: { ingress: [] },
   }, 'test'), /several service ports/);
@@ -730,24 +719,6 @@ test('rejects the old secrets block', () => {
   assert.throws(() => validate({ ...base, secrets: ['foo'] }, 'test'), /unknown block "secrets"/);
 });
 
-test('routes and oidc clients as resources render like the blocks', () => {
-  const route = { hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] }, backend: { name: 'api', port: 80 } };
-  const asResource = validate(
-    {
-      ...base,
-      resources: [
-        { name: 'foo', type: 'route', ...route },
-        { name: 'foo', type: 'oidc', displayName: 'Foo' },
-      ],
-    },
-    'test',
-  );
-  const asBlock = validate({ ...base, routes: { foo: route }, oidc: { foo: { displayName: 'Foo' } } }, 'test');
-  for (const chart of ['k8s-http-routes', 'k8s-oidc', 'k8s-network']) {
-    assert.deepEqual(source(render(asResource), chart), source(render(asBlock), chart));
-  }
-});
-
 test('an app can scrape several workloads', () => {
   const app = validate(
     {
@@ -789,4 +760,52 @@ test('rejects bad route and metrics resources', () => {
     () => validate({ ...base, resources: [{ name: 'r', type: 'route', hosts: ['a'], backend: { name: 'x', port: 1 } }] }, 'test'),
     /auth is required/,
   );
+});
+
+test('workloads reference secrets by resource name', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'foo', type: 'secret', secretName: 'foo-secret' },
+        { name: 'foo', type: 'database', secretName: 'foo-db' },
+        { name: 'images', type: 'bucket', provider: 'r2', secretName: 'images-secret' },
+      ],
+      workloads: {
+        foo: {
+          image: 'i',
+          env: {
+            A: { secret: 'foo', key: 'K' },
+            B: { bucket: 'images', key: 'S3_ENDPOINT' },
+          },
+          envFrom: [{ secret: 'foo', optional: true }, { database: 'foo' }, { bucket: 'images', prefix: 'X_' }],
+        },
+      },
+    },
+    'test',
+  );
+  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  assert.deepEqual(workload.envFrom, [
+    { secretRef: { name: 'foo-secret', optional: true } },
+    { secretRef: { name: 'foo-db' } },
+    { prefix: 'X_', secretRef: { name: 'images-secret' } },
+  ]);
+  assert.deepEqual(workload.env, [
+    { name: 'A', valueFrom: { secretKeyRef: { name: 'foo-secret', key: 'K' } } },
+    { name: 'B', valueFrom: { secretKeyRef: { name: 'images-secret', key: 'S3_ENDPOINT' } } },
+  ]);
+  assert.deepEqual(source(render(app), 'k8s-secrets')?.helm.valuesObject.secrets[1].managedSecrets, [{ secretName: 'images-secret' }]);
+});
+
+test('rejects references to missing database and bucket resources', () => {
+  const missing = (envFrom: unknown[]) =>
+    validateResources({ platform, apps: [validate({ ...base, workloads: { foo: { image: 'i', envFrom } } }, 'test')] });
+  assert.throws(() => missing([{ database: 'nope' }]), /no database resource named nope/);
+  assert.throws(() => missing([{ bucket: 'nope' }]), /no bucket resource named nope/);
+});
+
+test('rejects the old routes, oidc and metrics blocks', () => {
+  for (const block of ['routes', 'oidc', 'metrics']) {
+    assert.throws(() => validate({ ...base, [block]: {} }, 'test'), new RegExp(`unknown block "${block}"`));
+  }
 });
