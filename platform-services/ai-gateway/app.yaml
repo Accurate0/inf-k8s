@@ -1,30 +1,7 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: ai-gateway
-routes:
-  ai-gateway:
-    auth:
-      mode: app
-      reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
-    gateway: internal-gateway
-    hosts:
-      - ai-gateway.ortzi.cloud
-    backend:
-      name: api
-      port: 80
-oidc:
-  ai-gateway:
-    displayName: AI Gateway
-    public: true
-    allowLocalhostRedirect: true
-    scopes:
-      - openid
-      - email
-      - profile
-      - groups
 network:
-  ingress:
-    - janitor-bot
-    - monitoring
+  ingress: []
 exports:
   - name: api
     workload: ai-gateway
@@ -39,6 +16,33 @@ resources:
     export: api
   - name: traces
     type: tracing
+  - name: ai-gateway
+    type: route
+    auth:
+      mode: app
+      reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
+    gateway: internal-gateway
+    hosts:
+      - ai-gateway.ortzi.cloud
+    backend:
+      name: api
+      port: 80
+  - name: ai-gateway
+    type: oidc
+    displayName: AI Gateway
+    public: true
+    allowLocalhostRedirect: true
+    scopes:
+      - openid
+      - email
+      - profile
+      - groups
+  - name: ai-gateway
+    type: metrics
+    workload: ai-gateway
+    path: /admin/metrics
+    port: http
+    interval: 30s
 workloads:
   ai-gateway:
     image: ghcr.io/accurate0/ai-gateway
@@ -99,11 +103,6 @@ workloads:
 namespace:
   labels:
     internal-gateway-access: "true"
-metrics:
-  workload: ai-gateway
-  path: /admin/metrics
-  port: http
-  interval: 30s
 build:
   image: ghcr.io/accurate0/ai-gateway
   context: .

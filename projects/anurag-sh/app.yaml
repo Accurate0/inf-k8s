@@ -8,8 +8,11 @@ workloads:
     resources: {memory: 16Mi}
     service:
       port: 80
-routes:
-  anurag-sh-route:
+network:
+  ingress: []
+resources:
+  - name: anurag-sh-route
+    type: route
     auth:
       mode: none
       reason: public website
@@ -19,5 +22,3 @@ routes:
     annotations:
       external-dns.kubernetes.io/managed: "true"
       external-dns.kubernetes.io/cloudflare-proxied: "true"
-network:
-  ingress: []

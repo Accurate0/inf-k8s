@@ -1,7 +1,19 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: janitor-bot
-routes:
-  janitor-bot-route:
+network:
+  ingress:
+    - argocd
+    - forgejo
+resources:
+  - {name: janitor-bot, type: secret}
+  - name: flags
+    type: app
+    app: feature-flags
+    export: api
+  - name: traces
+    type: tracing
+  - name: janitor-bot-route
+    type: route
     auth:
       mode: app
       reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
@@ -11,7 +23,8 @@ routes:
     backend:
       name: api
       port: 80
-  janitor-bot-public-route:
+  - name: janitor-bot-public-route
+    type: route
     auth:
       mode: app
       reason: github webhook, verified by its signature
@@ -36,8 +49,8 @@ routes:
           limit:
             requests: 5
             unit: Second
-oidc:
-  janitor-bot:
+  - name: janitor-bot
+    type: oidc
     displayName: Janitor Bot
     host: janitor-bot.ortzi.cloud
     public: true
@@ -47,19 +60,16 @@ oidc:
       - email
       - profile
       - groups
-network:
-  ingress:
-    - argocd
-    - forgejo
-    - monitoring
-resources:
-  - {name: janitor-bot, type: secret}
-  - name: flags
+  - name: janitor-bot
+    type: metrics
+    workload: janitor-bot
+    path: /admin/metrics
+    port: http
+    interval: 30s
+  - name: ai-gateway
     type: app
-    app: feature-flags
+    app: ai-gateway
     export: api
-  - name: traces
-    type: tracing
 workloads:
   janitor-bot:
     image: ghcr.io/accurate0/janitor-bot
@@ -115,11 +125,6 @@ namespace:
   labels:
     internal-gateway-access: "true"
     gateway.inf-k8s.net/anurag-sh: "true"
-metrics:
-  workload: janitor-bot
-  path: /admin/metrics
-  port: http
-  interval: 30s
 build:
   image: ghcr.io/accurate0/janitor-bot
   args:

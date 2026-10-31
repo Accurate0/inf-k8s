@@ -1,7 +1,19 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: feature-flags
-routes:
-  feature-flags-api:
+network:
+  ingress: []
+exports:
+  - name: api
+    workload: feature-flags
+    port: grpc
+resources:
+  - {name: feature-flags, type: secret}
+  - {name: cache, type: cache, instance: replicated}
+  - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
+  - name: traces
+    type: tracing
+  - name: feature-flags-api
+    type: route
     auth:
       mode: app
       reason: admin verified by the app; evaluation only checks client-id, gateway JWT not rolled out yet
@@ -16,23 +28,11 @@ routes:
       - /featureflag.v1.Evaluation/
     timeouts:
       request: 0s
-oidc:
-  feature-flags:
+  - name: feature-flags
+    type: oidc
     displayName: Feature Flags
     public: true
     allowLocalhostRedirect: true
-network:
-  ingress: []
-exports:
-  - name: api
-    workload: feature-flags
-    port: grpc
-resources:
-  - {name: feature-flags, type: secret}
-  - {name: cache, type: cache, instance: replicated}
-  - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
-  - name: traces
-    type: tracing
 workloads:
   feature-flags:
     image: ghcr.io/accurate0/feature-flags

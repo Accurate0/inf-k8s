@@ -1,7 +1,17 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: registry
-routes:
-  registry:
+network:
+  ingress:
+    - forgejo
+resources:
+  - {name: registry, type: secret}
+  - {name: signing, type: secret, secretName: registry-signing-secrets}
+  - {name: registry, type: database}
+  - {name: storage, type: bucket, provider: r2, bucket: registry}
+  - name: traces
+    type: tracing
+  - name: registry
+    type: route
     auth:
       mode: app
       reason: accepts opaque registry tokens and forgejo OIDC
@@ -11,8 +21,8 @@ routes:
     backend:
       name: api
       port: 80
-oidc:
-  registry:
+  - name: registry
+    type: oidc
     displayName: Registry
     public: true
     allowLocalhostRedirect: true
@@ -27,17 +37,12 @@ oidc:
         - email
         - profile
         - groups
-network:
-  ingress:
-    - forgejo
-    - monitoring
-resources:
-  - {name: registry, type: secret}
-  - {name: signing, type: secret, secretName: registry-signing-secrets}
-  - {name: registry, type: database}
-  - {name: storage, type: bucket, provider: r2, bucket: registry}
-  - name: traces
-    type: tracing
+  - name: registry
+    type: metrics
+    workload: registry
+    path: /metrics
+    port: http
+    interval: 30s
 workloads:
   registry:
     image: ghcr.io/accurate0/registry
@@ -87,11 +92,6 @@ workloads:
 namespace:
   labels:
     internal-gateway-access: "true"
-metrics:
-  workload: registry
-  path: /metrics
-  port: http
-  interval: 30s
 build:
   image: ghcr.io/accurate0/registry
   args:

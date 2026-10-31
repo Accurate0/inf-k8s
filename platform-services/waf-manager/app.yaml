@@ -1,7 +1,12 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: waf-manager
-routes:
-  waf-manager-route:
+network:
+  ingress: []
+resources:
+  - {name: waf-manager, type: secret}
+  - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
+  - name: waf-manager-route
+    type: route
     auth:
       mode: oidc
       client: waf-manager
@@ -11,7 +16,8 @@ routes:
     backend:
       name: api
       port: 80
-  waf-manager-api:
+  - name: waf-manager-api
+    type: route
     auth:
       mode: jwt
       clients:
@@ -25,8 +31,8 @@ routes:
       port: 80
     paths:
       - /api/
-oidc:
-  waf-manager:
+  - name: waf-manager
+    type: oidc
     displayName: WAF Manager
     allowInsecureClientDisablePkce: true
     secretKeys:
@@ -50,7 +56,8 @@ oidc:
             header: x-waf-user-email
           - claim: sub
             header: x-waf-user-sub
-  waf-manager-cli:
+  - name: waf-manager-cli
+    type: oidc
     displayName: WAF Manager CLI
     host: waf-manager.ortzi.cloud
     public: true
@@ -58,12 +65,12 @@ oidc:
     secretKeys:
       clientId: client-id
       clientSecret: client-secret
-network:
-  ingress:
-    - monitoring
-resources:
-  - {name: waf-manager, type: secret}
-  - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
+  - name: waf-manager
+    type: metrics
+    workload: waf-manager
+    path: /metrics
+    port: http
+    interval: 30s
 workloads:
   waf-manager:
     image: ghcr.io/accurate0/waf-manager
@@ -136,11 +143,6 @@ namespace:
     internal-gateway-access: "true"
 serviceAccounts:
   - waf-manager
-metrics:
-  workload: waf-manager
-  path: /metrics
-  port: http
-  interval: 30s
 build:
   image: ghcr.io/accurate0/waf-manager
   args:

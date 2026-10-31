@@ -1,8 +1,28 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: maccas-api
 repository: https://github.com/Accurate0/maccas-api
-routes:
-  maccas-web-route:
+network:
+  ingress: []
+resources:
+  - {name: api, type: secret, secretName: maccas-api-managed-secrets}
+  - {name: common, type: secret, secretName: maccas-common-managed-secrets}
+  - {name: web, type: secret, secretName: maccas-web-managed-secrets}
+  - {name: migration, type: secret, secretName: maccas-migration-managed-secrets}
+  - {name: cache, type: cache, instance: replicated}
+  - {name: images, type: bucket, provider: r2, bucket: maccas-images}
+  - name: llm
+    type: app
+    app: ai-gateway
+    export: api
+    path: /v1
+  - name: flags
+    type: app
+    app: feature-flags
+    export: api
+  - name: traces
+    type: tracing
+  - name: maccas-web-route
+    type: route
     auth:
       mode: none
       reason: public website, the app handles its own logins
@@ -24,26 +44,6 @@ routes:
           limit:
             requests: 5
             unit: Second
-network:
-  ingress: []
-resources:
-  - {name: api, type: secret, secretName: maccas-api-managed-secrets}
-  - {name: common, type: secret, secretName: maccas-common-managed-secrets}
-  - {name: web, type: secret, secretName: maccas-web-managed-secrets}
-  - {name: migration, type: secret, secretName: maccas-migration-managed-secrets}
-  - {name: cache, type: cache, instance: replicated}
-  - {name: images, type: bucket, provider: r2, bucket: maccas-images}
-  - name: llm
-    type: app
-    app: ai-gateway
-    export: api
-    path: /v1
-  - name: flags
-    type: app
-    app: feature-flags
-    export: api
-  - name: traces
-    type: tracing
 workloads:
   maccas-api:
     image: ghcr.io/accurate0/maccas-api
