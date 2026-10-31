@@ -1,0 +1,24 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: anurag-sh
+repository: https://github.com/Accurate0/anurag.sh
+workloads:
+  anurag-sh:
+    image: ghcr.io/accurate0/anurag-sh
+    port: 3000
+    service:
+      port: 80
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+route:
+  name: anurag-sh-route
+  hosts:
+    - anurag.sh
+    - anurag.id.au
+  unauthenticated: true
+  annotations:
+    external-dns.kubernetes.io/managed: "true"
+    external-dns.kubernetes.io/cloudflare-proxied: "true"
+network:
+  ingress: []
