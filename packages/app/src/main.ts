@@ -1,4 +1,4 @@
-import { fs } from '@ortzi/host';
+import { fs, run as exec } from '@ortzi/host';
 import { cli } from '@ortzi/kit';
 import { parse, stringify } from 'yaml';
 import { type App, imageValuesPath, renderApplication, type Target, validate } from './render';
@@ -12,6 +12,7 @@ run from the root of the k8s repo
 
 commands:
   render           write application.yaml for every app.yaml
+  diff [app]       show what render would change, exit 1 if anything would
   list             list apps and the blocks they use
 
 flags:
@@ -35,31 +36,49 @@ function discover(): { app: App; target: Target }[] {
   return found;
 }
 
-function render(check: boolean): number {
+function staleFiles(only?: string): { path: string; wanted: string }[] {
   const versions = parse(fs.readText(VERSIONS)).charts;
-  let stale = 0;
-  const sync = (path: string, wanted: string) => {
-    if (fs.exists(path) && fs.readText(path) === wanted) return;
-    stale++;
-    console.log(`${check ? 'stale' : 'wrote'} ${path}`);
-    if (!check) fs.write(path, wanted);
-  };
-
-  for (const { app, target } of discover()) {
-    sync(
-      `${target.location}/${app.name}/application.yaml`,
-      renderApplication(app, versions, target),
-    );
+  const stale = [];
+  const apps = discover();
+  if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
+  for (const { app, target } of apps) {
+    if (only && app.name !== only) continue;
+    const path = `${target.location}/${app.name}/application.yaml`;
+    const wanted = renderApplication(app, versions, target);
+    if (!fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
     if (app.workloads) {
-      const path = imageValuesPath(app, target);
-      const current = fs.exists(path) ? parse(fs.readText(path)) : {};
+      const values = imageValuesPath(app, target);
+      const current = fs.exists(values) ? parse(fs.readText(values)) : {};
       const images = { ...current?.images };
       for (const { image } of Object.values(app.workloads)) images[image] ??= 'latest';
-      const wanted = stringify({ images });
-      if (!fs.exists(path) || stringify({ images: current?.images ?? {} }) !== wanted) sync(path, wanted);
+      const output = stringify({ images });
+      if (!fs.exists(values) || stringify({ images: current?.images ?? {} }) !== output) {
+        stale.push({ path: values, wanted: output });
+      }
     }
   }
-  return check && stale > 0 ? 1 : 0;
+  return stale;
+}
+
+function render(check: boolean): number {
+  const stale = staleFiles();
+  for (const { path, wanted } of stale) {
+    console.log(`${check ? 'stale' : 'wrote'} ${path}`);
+    if (!check) fs.write(path, wanted);
+  }
+  return check && stale.length > 0 ? 1 : 0;
+}
+
+function diff(only?: string): number {
+  const stale = staleFiles(only);
+  for (const { path, wanted } of stale) {
+    const old = fs.exists(path) ? path : '/dev/null';
+    exec('diff', ['-u', '-L', `a/${path}`, '-L', `b/${path}`, old, '-'], {
+      stdin: wanted,
+      check: false,
+    });
+  }
+  return stale.length > 0 ? 1 : 0;
 }
 
 export const run = cli({
@@ -68,6 +87,7 @@ export const run = cli({
   setup: () => undefined,
   commands: {
     render: (_ctx, values) => render(values.check),
+    diff: (_ctx, _values, rest) => diff(rest[0]),
     list: () => {
       for (const { app, target } of discover()) {
         const blocks = Object.keys(app).filter((k) => k !== 'name');

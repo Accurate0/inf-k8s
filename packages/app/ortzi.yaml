@@ -1,9 +1,10 @@
 package:
   name: app
   description: render app.yaml files into argo applications
-  version: 0.1.1
+  version: 0.1.2
   completions: cobra
 permissions:
+  exec: [diff]
   fs: [.]
 build:
   kind: wasm
