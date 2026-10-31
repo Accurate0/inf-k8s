@@ -1,5 +1,5 @@
 import { fs, run as exec } from '@ortzi/host';
-import { cli } from '@ortzi/kit';
+import { cli, columns } from '@ortzi/kit';
 import { parse, stringify } from 'yaml';
 import {
   type App,
@@ -104,10 +104,27 @@ export const run = cli({
     render: (_ctx, values) => render(values.check),
     diff: (_ctx, _values, rest) => diff(rest[0]),
     list: () => {
-      for (const { app, target } of discover()) {
-        const blocks = Object.keys(app).filter((k) => k !== 'name');
-        console.log(`${target.location}/${app.name}\t${blocks.join(' ')}`);
-      }
+      const count = (block?: object) => {
+        const size = block ? Object.keys(block).length : 0;
+        return size ? String(size) : '-';
+      };
+      const rows = discover().map(({ app, target }) => [
+        app.name,
+        target.location,
+        count(app.workloads),
+        count(app.routes),
+        count(app.oidc),
+        count(app.databases),
+        count(app.secrets),
+        app.metrics ? 'yes' : '-',
+        app.network.ingress.join(',') || '-',
+      ]);
+      console.log(
+        columns(
+          ['APP', 'LOCATION', 'WORKLOADS', 'ROUTES', 'OIDC', 'DATABASES', 'SECRETS', 'METRICS', 'INGRESS'],
+          rows,
+        ),
+      );
       return 0;
     },
   },
