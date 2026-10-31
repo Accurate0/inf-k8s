@@ -70,17 +70,27 @@ impl Settings {
         Ok(TokenSource::acquire(self.oauth()).await?.access_token())
     }
 
+    async fn ambient_reader(&self) -> anyhow::Result<Option<Client>> {
+        if let Some(token) = self.token() {
+            return Ok(Some(Client::new(&self.registry, token)));
+        }
+        if std::env::var_os("ACTIONS_ID_TOKEN_REQUEST_URL").is_some() {
+            let token = forgejo_id_token(&self.audience).await?;
+            return Ok(Some(Client::new(&self.registry, token)));
+        }
+        Ok(None)
+    }
+
     pub async fn reader(&self) -> anyhow::Result<Client> {
-        let bearer = match self.token() {
-            Some(token) => token,
-            None => self.user_bearer().await?,
-        };
-        Ok(Client::new(&self.registry, bearer))
+        if let Some(client) = self.ambient_reader().await? {
+            return Ok(client);
+        }
+        Ok(Client::new(&self.registry, self.user_bearer().await?))
     }
 
     pub async fn reader_without_login(&self) -> anyhow::Result<Option<Client>> {
-        if let Some(token) = self.token() {
-            return Ok(Some(Client::new(&self.registry, token)));
+        if let Some(client) = self.ambient_reader().await? {
+            return Ok(Some(client));
         }
         let oauth = self.oauth();
         let Some(credentials) = Credentials::load(APP, oauth.issuer(), oauth.client_id()) else {
