@@ -1,29 +1,4 @@
 namespaces:
-  feature-flags:
-    ingress:
-      - envoy-gateway-system
-      - ai-gateway
-      - home-gateway
-      - maccas-api
-      - janitor-bot
-  ai-gateway:
-    ingress:
-      - envoy-gateway-system
-      - maccas-api
-      - tldr-bot
-      - janitor-bot
-      - monitoring
-  janitor-bot:
-    ingress:
-      - envoy-gateway-system
-      - argocd
-      - forgejo
-      - monitoring
-  registry:
-    ingress:
-      - envoy-gateway-system
-      - forgejo
-      - monitoring
   dragonfly:
     ingress:
       - dragonfly-system
@@ -41,5 +16,3 @@ namespaces:
     ingress:
       - envoy-gateway-system
       - home-gateway
-  kanidm-sync: {}
-  k8s-schemas: {}
