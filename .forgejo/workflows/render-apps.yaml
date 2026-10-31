@@ -25,10 +25,8 @@ jobs:
     runs-on: ortzi
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: pnpm install --frozen-lockfile
-        working-directory: packages
-      - run: pnpm test && pnpm check
-        working-directory: packages/app
+      - run: pnpm --dir packages install --frozen-lockfile
+      - run: pnpm --dir packages/app test && pnpm --dir packages/app check
 
   publish:
     needs: test
