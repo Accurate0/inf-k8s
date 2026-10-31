@@ -317,6 +317,68 @@
       "items": {
         "type": "string"
       }
+    },
+    "build": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "image"
+      ],
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "context": {
+          "type": "string",
+          "description": "Defaults to the app directory."
+        },
+        "dockerfile": {
+          "type": "string",
+          "description": "Defaults to <app directory>/Dockerfile."
+        },
+        "args": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "paths": {
+          "type": "array",
+          "description": "Extra paths that trigger a build.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "test": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "run"
+          ],
+          "properties": {
+            "run": {
+              "type": "string",
+              "description": "Runs in the app directory."
+            },
+            "db": {
+              "type": "string",
+              "description": "Postgres image, pinned by digest."
+            },
+            "dbName": {
+              "type": "string"
+            },
+            "packages": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            },
+            "setup": {
+              "type": "string"
+            }
+          }
+        }
+      }
     }
   }
 }

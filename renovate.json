@@ -28,6 +28,14 @@
   "customManagers": [
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^(projects|platform-services)/[^/]+/app\\.yaml$/"],
+      "matchStrings": [
+        "db:\\s*(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": [
         "/system-components/.*\\.application\\.yaml$/",
         "/selfhosted/.*\\.application\\.yaml$/",

@@ -11,9 +11,11 @@ import {
   imageValuesPath,
   isCurrent,
   renderApplication,
+  renderWorkflow,
   stamped,
   type Target,
   validate,
+  workflowPath,
   workloadImages,
 } from './render';
 
@@ -108,6 +110,13 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
     const wanted = renderApplication(app, versions, target);
     if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
       stale.push({ path, wanted: stamped(wanted, new Date()) });
+    }
+    if (app.build) {
+      const workflow = workflowPath(app);
+      const rendered = renderWorkflow(app, target);
+      if (!fs.exists(workflow) || !isCurrent(fs.readText(workflow), rendered)) {
+        stale.push({ path: workflow, wanted: stamped(rendered, new Date()) });
+      }
     }
     if (app.workloads) {
       const values = imageValuesPath(app, target);

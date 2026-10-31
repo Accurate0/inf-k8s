@@ -21,3 +21,7 @@ workloads:
     serviceAccountName: kanidm-sync
 serviceAccounts:
   - kanidm-sync
+build:
+  image: ghcr.io/accurate0/kanidm-sync
+  args:
+    BINARY_NAME: kanidm-sync

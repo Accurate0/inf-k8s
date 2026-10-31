@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { type App, HEADER, isCurrent, renderApplication, stamped, validate } from './render.ts';
+import { type App, HEADER, isCurrent, renderApplication, renderWorkflow, stamped, validate } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -212,6 +212,32 @@ test('uses the app directory when it has its own kustomization', () => {
     { location: 'platform-services', hasManifests: true, rootKustomization: true },
   );
   assert.equal(rendered.spec.sources.at(-1).path, 'platform-services/foo');
+});
+
+test('generates a workflow from the build block', () => {
+  const app: App = {
+    name: 'foo',
+    build: {
+      image: 'ghcr.io/accurate0/foo',
+      context: '.',
+      args: { BINARY_NAME: 'foo' },
+      paths: ['crates/x/**'],
+      test: { run: 'cargo test', db: 'postgres:17', dbName: 'foo', packages: ['a', 'b'] },
+    },
+    network: { ingress: [] },
+  };
+  const workflow = parse(renderWorkflow(app, { location: 'projects', hasManifests: false }));
+  const paths = workflow.on.push.paths;
+  assert.ok(paths.includes('projects/foo/**'));
+  assert.ok(paths.includes('!projects/foo/image.values.yaml'));
+  assert.ok(paths.includes('crates/x/**'));
+  assert.ok(paths.includes('.github/workflows/app-foo.yaml'));
+  const inputs = workflow.jobs.app.with;
+  assert.equal(inputs.dockerfile, 'projects/foo/Dockerfile');
+  assert.equal(inputs.context, '.');
+  assert.equal(inputs['build-args'], 'BINARY_NAME=foo');
+  assert.equal(inputs['test-packages'], 'a b');
+  assert.equal(workflow.jobs.app.uses, './.github/workflows/app-build.yaml');
 });
 
 test('output is stable', () => {

@@ -36,11 +36,13 @@ jobs:
         env:
           RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
         run: |
-          git add -A projects platform-services
+          git add -A projects platform-services .github/workflows
           git diff --cached --quiet && exit 0
+          skip_ci=" [skip ci]"
+          git diff --cached --quiet -- .github/workflows || skip_ci=""
           git config user.name "reconciler[bot]"
           git config user.email "reconciler@noreply.git.anurag.sh"
-          git commit -m "chore(render): update generated applications [skip ci]"
+          git commit -m "chore(render): update generated applications${skip_ci}"
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
           git pull --rebase origin main
           git push origin HEAD:main

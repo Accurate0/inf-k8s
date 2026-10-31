@@ -54,6 +54,21 @@ export interface Route {
 
 export type OidcClient = { host?: string; displayName?: string } & Record<string, unknown>;
 
+export interface Build {
+  image: string;
+  context?: string;
+  dockerfile?: string;
+  args?: Record<string, string>;
+  paths?: string[];
+  test?: {
+    run: string;
+    db?: string;
+    dbName?: string;
+    packages?: string[];
+    setup?: string;
+  };
+}
+
 export interface App {
   name: string;
   repository?: string;
@@ -64,6 +79,7 @@ export interface App {
   databases?: Record<string, { databaseName?: string; secretName?: string }>;
   secrets?: Secret[];
   sources?: Record<string, unknown>[];
+  build?: Build;
   network: { ingress: string[] };
   metrics?: { path?: string; port?: string; interval?: string; workload?: string };
   namespaceLabels?: Record<string, string>;
@@ -155,6 +171,59 @@ export const workloadImages = (app: App) =>
 
 export const imageValuesPath = (app: App, target: Target) =>
   `${target.location}/${app.name}/image.values.yaml`;
+
+export const workflowPath = (app: App) => `.github/workflows/app-${app.name}.yaml`;
+
+export function renderWorkflow(app: App, target: Target): string {
+  const build = app.build as Build;
+  const dir = `${target.location}/${app.name}`;
+  const context = build.context ?? dir;
+  const args = Object.entries(build.args ?? {}).map(([k, v]) => `${k}=${v}`);
+  const test = build.test;
+  const workflow = {
+    name: `app ${app.name}`,
+    on: {
+      push: {
+        paths: [
+          `${dir}/**`,
+          `!${dir}/manifests/**`,
+          `!${dir}/application.yaml`,
+          `!${dir}/app.yaml`,
+          `!${dir}/image.values.yaml`,
+          ...(build.paths ?? []),
+          workflowPath(app),
+        ],
+      },
+      workflow_dispatch: null,
+    },
+    jobs: {
+      app: {
+        permissions: { contents: 'read', packages: 'write' },
+        uses: './.github/workflows/app-build.yaml',
+        with: {
+          service: app.name,
+          directory: dir,
+          image: build.image,
+          context,
+          dockerfile: build.dockerfile ?? `${dir}/Dockerfile`,
+          ...(args.length ? { 'build-args': args.join('\n') } : {}),
+          ...(test
+            ? {
+                'test-run': test.run,
+                ...(test.db ? { 'test-db-image': test.db } : {}),
+                ...(test.dbName ? { 'test-db-name': test.dbName } : {}),
+                ...(test.packages ? { 'test-packages': test.packages.join(' ') } : {}),
+                ...(test.setup ? { 'test-setup': test.setup } : {}),
+              }
+            : {}),
+          deploy: "${{ github.ref == 'refs/heads/main' }}",
+        },
+        secrets: 'inherit',
+      },
+    },
+  };
+  return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
 
 export function renderApplication(app: App, versions: Versions, target: Target): string {
   const { name } = app;

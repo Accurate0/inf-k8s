@@ -1,0 +1,126 @@
+name: App build
+on:
+  workflow_call:
+    inputs:
+      service:
+        required: true
+        type: string
+      directory:
+        required: true
+        type: string
+      image:
+        required: true
+        type: string
+      context:
+        required: true
+        type: string
+      dockerfile:
+        required: true
+        type: string
+      build-args:
+        required: false
+        type: string
+        default: ""
+      test-run:
+        required: false
+        type: string
+        default: ""
+      test-db-image:
+        required: false
+        type: string
+        default: ""
+      test-db-name:
+        required: false
+        type: string
+        default: postgres
+      test-packages:
+        required: false
+        type: string
+        default: ""
+      test-setup:
+        required: false
+        type: string
+        default: ""
+      deploy:
+        required: true
+        type: boolean
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      packages: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - name: Compute commit metadata
+        id: commit-meta
+        run: echo "committed-at=$(git show -s --format=%ct ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4
+        if: inputs.deploy
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7
+        with:
+          context: ${{ inputs.context }}
+          file: ${{ inputs.dockerfile }}
+          push: ${{ inputs.deploy }}
+          tags: ${{ inputs.image }}:latest,${{ inputs.image }}:${{ github.sha }}
+          labels: |
+            net.inf-k8s.commit-sha=${{ github.sha }}
+            net.inf-k8s.committed-at=${{ steps.commit-meta.outputs.committed-at }}
+          build-args: ${{ inputs.build-args }}
+          cache-from: type=gha,scope=${{ inputs.service }}
+          cache-to: type=gha,mode=max,scope=${{ inputs.service }}
+
+  test:
+    if: inputs.test-run != ''
+    runs-on: ubuntu-latest
+    services:
+      db:
+        image: ${{ inputs.test-db-image }}
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ${{ inputs.test-db-name }}
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/${{ inputs.test-db-name }}
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - if: inputs.test-packages != ''
+        run: sudo apt-get update && sudo apt-get install -y ${{ inputs.test-packages }}
+      - if: inputs.test-setup != ''
+        run: ${{ inputs.test-setup }}
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6
+        with:
+          path: ${{ inputs.directory }}/target
+          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-${{ inputs.service }}
+      - run: ${{ inputs.test-run }}
+        working-directory: ${{ inputs.directory }}
+
+  deploy:
+    needs:
+      - build
+      - test
+    if: >-
+      inputs.deploy && !cancelled() && needs.build.result == 'success'
+      && (needs.test.result == 'success' || needs.test.result == 'skipped')
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
+    with:
+      service-name: ${{ inputs.service }}
+      images: ${{ inputs.image }}
+      manifests-path: ${{ inputs.directory }}
+      values-file: ${{ inputs.directory }}/image.values.yaml
+      tag: ${{ github.sha }}
+    secrets:
+      FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}
