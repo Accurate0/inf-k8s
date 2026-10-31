@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
+import { buildGraph, toDot, toMermaid } from './graph.ts';
 import { type App, HEADER, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress, validateResources } from './render.ts';
 
 const versions = {
@@ -29,10 +30,16 @@ test('only enables charts for declared blocks', () => {
   assert.equal(rendered.spec.project, 'projects');
 });
 
-test('wires database and secrets into the workload', () => {
+test('a workload only gets the secrets it lists', () => {
   const rendered = render({
     name: 'foo-bar',
-    workloads: { 'foo-bar': { image: 'ghcr.io/accurate0/foo-bar', port: 3000 } },
+    workloads: {
+      'foo-bar': {
+        image: 'ghcr.io/accurate0/foo-bar',
+        port: 3000,
+        envFrom: ['foo-bar-managed-secrets', 'foo-bar-database-secret'],
+      },
+    },
     databases: { 'foo-bar': {} },
     secrets: ['foo-bar'],
     network: { ingress: [] },
@@ -77,7 +84,7 @@ test('renders several workloads and routes to the named one', () => {
   });
   const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
   assert.deepEqual(values.workloads.map((w: { name: string }) => w.name), ['api', 'web', 'sync']);
-  assert.equal(values.workloads[2].envFrom.length, 1);
+  assert.equal(values.workloads[2].envFrom, undefined);
   assert.deepEqual(source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0].rules[0].backendRefs, [
     { group: '', kind: 'Service', name: 'web', port: 8080, weight: 1 },
   ]);
@@ -97,24 +104,6 @@ test('requires route.workload when several workloads have ports', () => {
       ),
     /routes.foo.workload is required/,
   );
-});
-
-test('a workload can limit which secrets it receives', () => {
-  const rendered = render({
-    name: 'foo',
-    workloads: {
-      api: { image: 'i', secrets: ['api'] },
-      web: { image: 'j', secrets: [] },
-      all: { image: 'k' },
-    },
-    secrets: ['api', { name: 'web', secretName: 'custom' }],
-    network: { ingress: [] },
-  });
-  const [api, web, all] = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads;
-  assert.deepEqual(api.envFrom, [{ secretRef: { name: 'api-managed-secrets' } }]);
-  assert.equal(web.envFrom, undefined);
-  assert.equal(all.envFrom.length, 2);
-  assert.equal(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets[1].managedSecrets[0].secretName, 'custom');
 });
 
 test('routes to an explicit backend without a workload', () => {
@@ -146,31 +135,6 @@ test('routes to an explicit backend without a workload', () => {
   assert.equal(cli.secretName, 'kanidm-foo-cli-oidc');
   assert.equal(cli.host, 'a.sh');
   assert.equal(rendered.spec.sources.at(-1).name, 'config');
-});
-
-test('prefixes database variables when a workload gets several', () => {
-  const rendered = render({
-    name: 'foo',
-    workloads: {
-      api: { image: 'i' },
-      web: { image: 'j', databases: ['foo'] },
-      worker: { image: 'k', databases: [] },
-    },
-    databases: { foo: { secretName: 'foo-db' }, 'foo-events': { databaseName: 'events' } },
-    network: { ingress: [] },
-  });
-  const [api, web, worker] = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads;
-  assert.deepEqual(api.envFrom, [
-    { prefix: 'FOO_', secretRef: { name: 'foo-db' } },
-    { prefix: 'FOO_EVENTS_', secretRef: { name: 'foo-events-database-secret' } },
-  ]);
-  assert.deepEqual(web.envFrom, [{ secretRef: { name: 'foo-db' } }]);
-  assert.equal(worker.envFrom, undefined);
-  const databases = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
-  assert.deepEqual(
-    databases.map((d: { name: string; databaseName: string }) => [d.name, d.databaseName]),
-    [['foo', 'foo'], ['foo-events', 'events']],
-  );
 });
 
 test('connection pooling is left to the chart unless set', () => {
@@ -424,19 +388,6 @@ test('rejects bad exports', () => {
   assert.throws(() => validateResources({ platform, apps: [consumer({ export: 'nope' }), provider()] }), /no export named nope/);
 });
 
-test('workload secrets keep their listed order', () => {
-  const rendered = render({
-    name: 'foo',
-    secrets: ['a', 'b', 'c'],
-    workloads: { foo: { image: 'i', secrets: ['c', 'a'] } },
-    network: { ingress: [] },
-  });
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].envFrom, [
-    { secretRef: { name: 'c-managed-secrets' } },
-    { secretRef: { name: 'a-managed-secrets' } },
-  ]);
-});
-
 test('a route backend comes from a single service port', () => {
   const app = validate({
     name: 'foo',
@@ -559,4 +510,52 @@ test('rejects overrides that clash with the workload', () => {
   );
   assert.throws(() => short({ port: 1, health: '/', probes: {} }), /health or probes/);
   assert.throws(() => short({ env: { A: { resource: 'nope' } } }), /no resource named nope/);
+});
+
+const graphApps = [
+  validate({
+    name: 'gw',
+    network: { ingress: ['caller', 'monitoring', 'other'] },
+    exports: [{ name: 'api', workload: 'gw', port: 80 }],
+    workloads: { gw: { image: 'i', port: 80 } },
+  }, 'test'),
+  validate({
+    name: 'caller',
+    network: { ingress: [] },
+    resources: [
+      { name: 'llm', type: 'app', app: 'gw', export: 'api' },
+      { name: 'traces', type: 'tracing' },
+    ],
+    databases: { 'foo-bar': {} },
+  }, 'test'),
+  validate({ name: 'other', network: { ingress: [] } }, 'test'),
+];
+
+test('graph shows resources, databases and hand written ingress', () => {
+  const { edges } = buildGraph(graphApps);
+  assert.deepEqual(edges, [
+    { from: 'caller', to: 'gw', label: 'api' },
+    { from: 'caller', to: 'platform/tracing' },
+    { from: 'caller', to: 'database/foo_bar' },
+    { from: 'monitoring', to: 'gw', label: 'ingress', dashed: true },
+    { from: 'other', to: 'gw', label: 'ingress', dashed: true },
+  ]);
+});
+
+test('graph can focus on one app', () => {
+  const { nodes, edges } = buildGraph(graphApps, 'other');
+  assert.deepEqual(nodes.map((n) => n.id).sort(), ['gw', 'other']);
+  assert.equal(edges.length, 1);
+});
+
+test('graph renders mermaid and dot', () => {
+  const graph = buildGraph(graphApps);
+  const mermaid = toMermaid(graph);
+  assert.match(mermaid, /^graph LR/);
+  assert.match(mermaid, /caller -->\|api\| gw/);
+  assert.match(mermaid, /other -\.->\|ingress\| gw/);
+  assert.match(mermaid, /database_foo_bar\[\("foo_bar"\)\]/);
+  const dot = toDot(graph);
+  assert.match(dot, /"caller" -> "gw" \[label="api"\];/);
+  assert.match(dot, /"other" -> "gw" \[label="ingress", style=dashed\];/);
 });

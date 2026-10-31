@@ -397,7 +397,6 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   const sources: Record<string, unknown>[] = [];
 
   if (app.workloads && Object.keys(app.workloads).length) {
-    const secrets = (app.secrets ?? []).map(secretFor);
     sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
     sources.push(
       chart(app, versions, 'k8s-workload', {
@@ -423,29 +422,16 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
             const resolve: ResolveResource = (resource, env) => resourceEnv(app, { name: resource, env }, world)[0];
-            const { health, secrets: only, databases: dbs, uses, ...rest } = expandWorkload(spec, resolve);
-            const envFrom = rest.envFrom as Record<string, unknown>[] | undefined;
+            const { health, secrets: _secrets, databases: _databases, uses, ...rest } = expandWorkload(spec, resolve);
+            const from = rest.envFrom as Record<string, unknown>[] | undefined;
             delete rest.envFrom;
             const injected = (uses ?? []).flatMap((use: Use) => resourceEnv(app, use, world));
-            const chosen: string[] = dbs ?? Object.keys(app.databases ?? {});
-            const from = [
-              ...(envFrom ?? []),
-              ...(only ? (only as string[]).map((o) => secrets.find((s) => s.name === o)!) : secrets).map((s) => ({
-                secretRef: { name: s.secretName },
-              })),
-              ...chosen.map((database) => ({
-                ...(chosen.length > 1
-                  ? { prefix: `${database.toUpperCase().replaceAll('-', '_')}_` }
-                  : {}),
-                secretRef: { name: databaseSecret(database) },
-              })),
-            ];
             return {
               name: workload,
               ...rest,
               ...(injected.length ? { env: [...(rest.env ?? []), ...injected] } : {}),
               ...(health ? { probes: { path: health } } : {}),
-              ...(from.length ? { envFrom: from } : {}),
+              ...(from?.length ? { envFrom: from } : {}),
             };
           }),
         },

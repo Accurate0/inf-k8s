@@ -1,6 +1,7 @@
 import { fs, run as exec } from '@ortzi/host';
 import { cli, columns, Kube, parseMinutes, UsageError } from '@ortzi/kit';
 import { listApps } from './argo';
+import { buildGraph, toDot, toMermaid } from './graph';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { rollback } from './commands/rollback';
@@ -39,6 +40,7 @@ definition (run from the root of the k8s repo):
   render                   validate manifests, then write application.yaml for every app.yaml
   diff [app]               show what render would change, exit 1 if anything would
   list                     list apps and what they declare
+  graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
 
 cluster:
   status                   what needs attention (--all lists every app)
@@ -50,6 +52,7 @@ cluster:
   autosync <app> on|off    turn argo auto-sync off, or restore it (returns the app to git)
 
 flags:
+  --format FMT     graph: mermaid or dot (default mermaid)
   --check          render: write nothing, exit 1 if invalid or out of date
   --context CTX    kube context (default: current)
   --all            status: list every app
@@ -187,6 +190,7 @@ export const run = cli({
   usage: USAGE,
   flags: {
     check: { type: 'boolean' },
+    format: { type: 'string' },
     context: { type: 'string' },
     all: { type: 'boolean' },
     latest: { type: 'boolean' },
@@ -226,6 +230,16 @@ export const run = cli({
       );
       return 0;
     },
+    graph: (_ctx, values, [name]) => {
+      if (values.format && values.format !== 'mermaid' && values.format !== 'dot') {
+        throw new UsageError('--format must be mermaid or dot');
+      }
+      const apps = discover().map(({ app }) => app);
+      if (name && !apps.some((app) => app.name === name)) throw new Error(`no app named ${name}`);
+      const graph = buildGraph(apps, name);
+      console.log(values.format === 'dot' ? toDot(graph) : toMermaid(graph));
+      return 0;
+    },
     status: (ctx, values, [name]) => status(ctx.kube(), name, values.all, values.latest),
     history: (ctx, _, [name]) => history(ctx.kube(), requireApp(name, 'history')),
     rollback: (ctx, values, [name, tag]) =>
@@ -249,6 +263,7 @@ export const run = cli({
     },
   },
   completers: {
+    graph: appNames,
     status: appNames,
     history: appNames,
     rollback: appNames,
