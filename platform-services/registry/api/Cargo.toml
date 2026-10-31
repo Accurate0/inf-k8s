@@ -12,4 +12,5 @@ base64 = "0.22"
 hex = "0.4"
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem"] }
 rand = "0.10"
+semver = "1"
 sha2 = "0.11"

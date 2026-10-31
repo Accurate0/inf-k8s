@@ -4,7 +4,7 @@ set -eu
 
 dir="${1:?usage: upstream-digests.sh packages/upstream/<name>}"
 manifest="$dir/ortzi.yaml"
-version=$(sed -n 's/^  version: *//p' "$manifest" | head -n1)
+version=$(sed -n 's/^  version: *//p' "$manifest" | head -n1 | sed 's/-[0-9]*$//')
 [ -n "$version" ] || { echo "no package.version in $manifest" >&2; exit 1; }
 
 if command -v sha256sum >/dev/null; then sha="sha256sum"; else sha="shasum -a 256"; fi

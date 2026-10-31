@@ -146,7 +146,7 @@ pub async fn get(
     let package = db::find_package(&state.pool, &name).await?;
     let mut versions = db::versions(&state.pool, package.id).await?;
     versions.retain(VersionRow::is_published);
-    versions.sort_by_key(|v| std::cmp::Reverse(v.semver()));
+    versions.sort_by_key(|v| std::cmp::Reverse(v.semver().map(|s| registry_api::version_key(&s))));
 
     let latest = db::latest(&versions, None, false).cloned();
     Ok(Json(PackageDetail {

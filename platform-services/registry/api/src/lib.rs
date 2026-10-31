@@ -6,6 +6,40 @@ use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub fn revision(version: &semver::Version) -> Option<u64> {
+    version.pre.as_str().parse().ok()
+}
+
+pub fn is_release(version: &semver::Version) -> bool {
+    version.pre.is_empty() || revision(version).is_some()
+}
+
+pub fn version_key(version: &semver::Version) -> impl Ord + use<> {
+    let revision = revision(version);
+    (
+        (version.major, version.minor, version.patch),
+        revision.is_some() || version.pre.is_empty(),
+        if revision.is_some() {
+            semver::Prerelease::EMPTY
+        } else {
+            version.pre.clone()
+        },
+        revision.unwrap_or(0),
+        version.build.clone(),
+    )
+}
+
+pub fn upstream_version(version: &str) -> &str {
+    match version.rsplit_once('-') {
+        Some((base, revision))
+            if !revision.is_empty() && revision.bytes().all(|b| b.is_ascii_digit()) =>
+        {
+            base
+        }
+        _ => version,
+    }
+}
+
 pub const ECOSYSTEM_CLI: &str = "cli";
 
 pub const SHA256_HEADER: &str = "x-ortzi-sha256";
@@ -436,6 +470,32 @@ pub struct Yanked {
 pub struct Yank {
     #[serde(default)]
     pub reason: Option<String>,
+}
+
+#[cfg(test)]
+mod version_tests {
+    use super::*;
+
+    fn key(version: &str) -> impl Ord + use<> {
+        version_key(&semver::Version::parse(version).unwrap())
+    }
+
+    #[test]
+    fn revisions_sort_above_their_release() {
+        assert!(key("2.7.2-rc.1") < key("2.7.2"));
+        assert!(key("2.7.2") < key("2.7.2-1"));
+        assert!(key("2.7.2-2") < key("2.7.2-10"));
+        assert!(key("2.7.2-10") < key("2.7.3-rc.1"));
+    }
+
+    #[test]
+    fn revisions_are_releases_and_expand_to_the_upstream_version() {
+        assert!(is_release(&semver::Version::parse("2.7.2-2").unwrap()));
+        assert!(!is_release(&semver::Version::parse("2.7.2-rc.1").unwrap()));
+        assert_eq!(upstream_version("2.7.2-2"), "2.7.2");
+        assert_eq!(upstream_version("2.7.2"), "2.7.2");
+        assert_eq!(upstream_version("2.7.2-rc.1"), "2.7.2-rc.1");
+    }
 }
 
 #[cfg(test)]

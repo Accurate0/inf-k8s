@@ -4,7 +4,7 @@ use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
     Package, PackageDetail, Permissions, Target, Version, validate_binary_name,
-    validate_package_name,
+    validate_package_name, version_key,
 };
 
 use crate::{
@@ -434,7 +434,7 @@ pub fn is_newer(candidate: &str, current: &str) -> bool {
         semver::Version::parse(candidate),
         semver::Version::parse(current),
     ) {
-        (Ok(candidate), Ok(current)) => candidate > current,
+        (Ok(candidate), Ok(current)) => version_key(&candidate) > version_key(&current),
         _ => candidate != current,
     }
 }
@@ -684,6 +684,19 @@ pub fn urlencode(value: &str) -> String {
             _ => format!("%{b:02X}"),
         })
         .collect()
+}
+
+#[cfg(test)]
+mod revision_tests {
+    use super::is_newer;
+
+    #[test]
+    fn revision_is_newer_than_its_release() {
+        assert!(is_newer("2.7.2-2", "2.7.2"));
+        assert!(is_newer("2.7.3", "2.7.2-2"));
+        assert!(!is_newer("2.7.2", "2.7.2-2"));
+        assert!(!is_newer("2.7.2-rc.1", "2.7.2"));
+    }
 }
 
 #[cfg(test)]

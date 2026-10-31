@@ -6,7 +6,8 @@ use std::{
 
 use anyhow::{Context, bail};
 use registry_api::{
-    Completions, DEFAULT_SCOPES, PackageAuth, Permissions, Target, validate_package_name,
+    Completions, DEFAULT_SCOPES, PackageAuth, Permissions, Target, upstream_version,
+    validate_package_name,
 };
 use serde::{Deserialize, Serialize};
 
@@ -288,7 +289,9 @@ impl Loaded {
         match self.manifest.build.kind {
             Kind::Prebuilt => match &self.manifest.build.prebuilt[&target] {
                 Prebuilt::Path(pattern) => {
-                    let path = self.dir.join(pattern.replace("${version}", version));
+                    let path = self
+                        .dir
+                        .join(pattern.replace("${version}", upstream_version(version)));
                     if !path.is_file() {
                         bail!(
                             "prebuilt {target} artifact {} does not exist",
@@ -304,7 +307,7 @@ impl Loaded {
                 } => {
                     self.fetch(
                         target,
-                        &url.replace("${version}", version),
+                        &url.replace("${version}", upstream_version(version)),
                         sha256,
                         extract.as_deref(),
                         version,

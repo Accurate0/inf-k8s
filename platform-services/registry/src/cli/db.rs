@@ -127,8 +127,8 @@ pub fn latest(
         .filter(|v| v.is_published() && v.yanked_at.is_none())
         .filter(|v| target.is_none_or(|t| v.targets().iter().any(|v| v.runs_on(t))))
         .filter_map(|v| Some((v.semver()?, v)))
-        .filter(|(semver, _)| prerelease || semver.pre.is_empty())
-        .max_by(|(a, _), (b, _)| a.cmp(b))
+        .filter(|(semver, _)| prerelease || registry_api::is_release(semver))
+        .max_by_key(|(semver, _)| registry_api::version_key(semver))
         .map(|(_, v)| v)
 }
 
@@ -257,6 +257,14 @@ mod tests {
             version("1.1.0-rc.1", true, false, &both),
             version("2.0.0", false, false, &both),
         ];
+        let revised = vec![
+            version("3.0.0", true, false, &both),
+            version("3.0.0-2", true, false, &both),
+        ];
+        assert_eq!(
+            latest(&revised, None, false).map(|v| v.version.as_str()),
+            Some("3.0.0-2")
+        );
 
         let pick = |target, pre| latest(&versions, target, pre).map(|v| v.version.as_str());
 
