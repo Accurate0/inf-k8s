@@ -45,7 +45,6 @@ resources:
         - clientSelectors:
             - headers:
                 - name: x-real-ip
-                  invert: false
                   type: Distinct
           limit:
             requests: 5
@@ -68,10 +67,6 @@ resources:
     path: /admin/metrics
     port: http
     interval: 30s
-  - name: ai-gateway
-    type: app
-    app: ai-gateway
-    export: api
 workloads:
   janitor-bot:
     image: ghcr.io/accurate0/janitor-bot
