@@ -8,7 +8,6 @@ export class Kube {
 
   static connect(context?: string): Kube {
     const resolved = context ?? capture('kubectl', ['config', 'current-context']).trim();
-    console.error(`context ${resolved}`);
     return new Kube(resolved);
   }
 
