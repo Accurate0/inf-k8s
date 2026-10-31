@@ -183,9 +183,9 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
   }
   for (const { app } of apps) {
     if (only && app.name !== only) continue;
-    for (const [database, spec] of Object.entries(appDatabases(app))) {
+    for (const database of Object.keys(appDatabases(app))) {
       const path = databasePath(database);
-      const wanted = renderDatabase(database, spec);
+      const wanted = renderDatabase(database);
       if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
         stale.push({ path, wanted: stamped(wanted, new Date()) });
       }

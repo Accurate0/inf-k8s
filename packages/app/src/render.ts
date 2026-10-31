@@ -1,7 +1,6 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
 import { parse, parseDocument, stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
-import { bucketName } from './terraform.ts';
 import { declaredPorts, expandWorkload, overrideConflicts, type Refs, type SecretKind } from './workload.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
@@ -21,20 +20,12 @@ export const isCurrent = (existing: string, rendered: string) =>
 
 export interface Workload {
   image: string;
-  port?: number;
   kind?: 'Deployment' | 'DaemonSet' | 'CronJob';
   replicas?: number;
   schedule?: string;
-  service?: {
-    name?: string;
-    port?: number;
-    portName?: string;
-    ports?: Record<string, unknown>[];
-    trafficDistribution?: string;
-  };
+  service?: { name: string; trafficDistribution?: string };
   initContainers?: { image: string }[];
   sidecars?: { image: string }[];
-  health?: string;
   resources?: Record<string, unknown>;
   env?: Record<string, unknown>[] | Record<string, unknown>;
   envFrom?: (string | Record<string, unknown>)[];
@@ -42,7 +33,7 @@ export interface Workload {
   mounts?: Record<string, unknown>;
   overrides?: Record<string, unknown>;
   readOnlyRootFilesystem?: boolean;
-  ports?: unknown[];
+  ports?: { name: string; container: number; service?: number; appProtocol?: string }[];
   serviceAccount?: string;
 }
 
@@ -69,13 +60,12 @@ export interface ServiceAccount {
 
 export interface Metrics {
   path?: string;
-  port?: string;
+  port: string;
   interval?: string;
-  workload?: string;
+  workload: string;
 }
 
 export interface DatabaseSpec {
-  databaseName?: string;
   secretName: string;
   enableConnectionPooling?: boolean;
 }
@@ -84,7 +74,7 @@ export interface Bucket {
   name: string;
   type: 'bucket';
   provider: 'r2' | 's3';
-  bucket?: string;
+  bucket: string;
   user?: string;
   secretName: string;
 }
@@ -92,7 +82,7 @@ export interface Bucket {
 export interface Export {
   name: string;
   workload: string;
-  port?: string | number;
+  port: string | number;
 }
 
 export type RouteAuth =
@@ -104,7 +94,6 @@ export interface Route {
   hosts: string[];
   gateway?: string;
   auth: RouteAuth;
-  workload?: string;
   backend?: { name: string; port: number };
   paths?: (string | { type: string; value: string })[];
   rules?: { paths: (string | { type: string; value: string })[]; backend: { name: string; port: number } }[];
@@ -113,7 +102,7 @@ export interface Route {
   timeouts?: Record<string, unknown>;
 }
 
-export type OidcClient = { host?: string; displayName?: string } & Record<string, unknown>;
+export type OidcClient = { host: string; displayName?: string; secretName: string } & Record<string, unknown>;
 
 export interface Build {
   image: string;
@@ -141,7 +130,6 @@ export interface App {
   build?: Build;
   network: { ingress: string[] };
   namespace?: { labels?: Record<string, string> };
-  serviceAccounts?: string[];
 }
 
 export type Versions = Record<string, string>;
@@ -164,24 +152,16 @@ export interface World {
 }
 
 function servicePorts(workload: string, spec: Workload) {
-  const declared = declaredPorts(spec).filter((p) => p.service).map((p) => ({ name: p.name as string, port: p.service as number }));
-  const ports = (declared.length
-    ? declared
-    : spec.service?.ports ?? (spec.port ? [{ name: spec.service?.portName ?? 'http', port: spec.service?.port ?? spec.port }] : [])) as { name?: string; port: number }[];
+  const ports = declaredPorts(spec).filter((p) => p.service).map((p) => ({ name: p.name as string, port: p.service as number }));
   return { workload, service: spec.service?.name ?? workload, ports };
 }
 
 function exportPort(provider: App, exported: Export): number {
   const spec = provider.workloads?.[exported.workload];
   const ports = spec ? servicePorts(exported.workload, spec).ports : [];
-  const port =
-    typeof exported.port === 'number'
-      ? exported.port
-      : exported.port
-        ? ports.find((p) => p.name === exported.port)?.port
-        : (spec && servedPort(spec));
-  if (!port) throw new Error(`${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`);
-  return port;
+  const found = ports.find((p) => p.name === exported.port || p.port === exported.port)?.port;
+  if (!found) throw new Error(`${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`);
+  return found;
 }
 
 const OWN_NAMES = new Set(['secret', 'route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount']);
@@ -199,7 +179,9 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
 function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
   const resource = app.resources?.find((r) => r.name === name && !OWN_NAMES.has(r.type)) as Resource;
   if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
-  if (resource.type === 'bucket') return { name: env, value: bucketName(app, resource) };
+  if (resource.type === 'bucket') {
+    throw new Error(`${app.name}: resources.${name}: read a bucket with {bucket, key}, not {resource}`);
+  }
   if (resource.type === 'database') {
     throw new Error(`${app.name}: resources.${name}: list a database's secret in envFrom, not env`);
   }
@@ -213,20 +195,6 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   }
   return { name: env, value: provided[0].url };
 }
-
-function served(app: App, wanted: string | undefined, block: string): [string, Workload] {
-  const workloads = Object.entries(app.workloads ?? {}).filter(([name, w]) => servicePorts(name, w).ports.length);
-  const found = wanted ? workloads.find(([name]) => name === wanted) : workloads[0];
-  if (!found) throw new Error(`${block} needs a workload with a port`);
-  if (!wanted && workloads.length > 1) throw new Error(`${block}.workload is required with several ported workloads`);
-  return found;
-}
-
-function servedPort(spec: Workload): number | undefined {
-  const { ports } = servicePorts('', spec);
-  return spec.service?.port ?? spec.port ?? (ports.length === 1 ? ports[0].port : undefined);
-}
-
 
 const appServices = (app: App) =>
   Object.entries(app.workloads ?? {}).map(([workload, spec]) => servicePorts(workload, spec));
@@ -275,7 +243,8 @@ function validateRefs(app: App) {
   }
   for (const { workload, port } of appMetrics(app)) {
     const service = services.find((s) => s.workload === workload);
-    if (port && service && !service.ports.some((p) => p.name === port)) {
+    if (!service?.ports.length) fail(`metrics: workload ${workload} has no service ports`);
+    if (!service?.ports.some((p) => p.name === port)) {
       fail(`metrics: workload ${workload} has no service port named ${port}`);
     }
   }
@@ -314,7 +283,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'build']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -331,8 +300,7 @@ export function validate(raw: unknown, where: string): App {
   }
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
-    if (workload.health && !workload.port) fail(`workloads.${name}.health needs port`);
-    if (workload.health && workload.probes) fail(`workloads.${name}: use health or probes, not both`);
+    if (declaredPorts(workload).length && !workload.service?.name) fail(`workloads.${name}.service.name is required with ports`);
     for (const key of overrideConflicts(workload)) fail(`workloads.${name}.overrides.${key} is already set on the workload`);
     for (const value of Object.values(!workload.env || Array.isArray(workload.env) ? {} : workload.env)) {
       const used = (value as { resource?: string } | null)?.resource;
@@ -344,9 +312,9 @@ export function validate(raw: unknown, where: string): App {
   const validResources = Array.isArray(app.resources);
   const routes = Object.entries(validResources || !app.resources ? appRoutes(app) : {});
   const oidc = validResources || !app.resources ? appOidc(app) : {};
-  const clients = Object.entries(oidc);
   for (const [name, route] of routes) {
     if (!route.hosts?.length) fail(`routes.${name}.hosts is required`);
+    if (!route.backend === !route.rules) fail(`routes.${name} needs either backend or rules`);
     const auth = route.auth;
     if (!auth) {
       fail(`routes.${name}.auth is required`);
@@ -356,12 +324,7 @@ export function validate(raw: unknown, where: string): App {
         if (!oidc[client]) fail(`routes.${name}.auth: no oidc client named ${client}`);
       }
     } else if (auth.mode === 'oidc') {
-      const client = oidc[auth.client];
-      if (!client) fail(`routes.${name}.auth: no oidc client named ${auth.client}`);
-      const policy = client?.securityPolicy as { httpRoute?: string } | undefined;
-      if (policy && (policy.httpRoute ?? auth.client) !== name) {
-        fail(`routes.${name}.auth: oidc.${auth.client}.securityPolicy must target this route`);
-      }
+      if (!oidc[auth.client]) fail(`routes.${name}.auth: no oidc client named ${auth.client}`);
       if (routes.some(([other, r]) => other !== name && r.auth?.mode === 'oidc' && r.auth.client === auth.client)) {
         fail(`routes.${name}.auth: oidc client ${auth.client} is used by another oidc route`);
       }
@@ -371,23 +334,11 @@ export function validate(raw: unknown, where: string): App {
       fail(`routes.${name}.auth.mode must be jwt, oidc, app or none`);
     }
   }
-  for (const [name, client] of clients) {
-    if (!client.host && !routes.length) fail(`oidc.${name} needs a route or a host`);
-  }
-  try {
-    for (const [name, route] of routes) {
-      if (route.backend || route.rules) continue;
-      const [workload, spec] = served(app, route.workload, `routes.${name}`);
-      if (!servedPort(spec)) fail(`routes.${name}: workload ${workload} has several service ports, so set backend`);
+  if (validResources || !app.resources) {
+    const scraped = appMetrics(app).map((metrics) => metrics.workload);
+    for (const workload of scraped) {
+      if (scraped.indexOf(workload) !== scraped.lastIndexOf(workload)) fail(`metrics: ${workload} is listed twice`);
     }
-    if (validResources || !app.resources) {
-      const scraped = appMetrics(app).map((metrics) => served(app, metrics.workload, 'metrics')[0]);
-      for (const workload of scraped) {
-        if (scraped.indexOf(workload) !== scraped.lastIndexOf(workload)) fail(`metrics: ${workload} is listed twice`);
-      }
-    }
-  } catch (e) {
-    fail((e as Error).message);
   }
   const [invalid] = appSchema.validate(app, schema as unknown as Schema).errors;
   if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
@@ -581,7 +532,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   const dir = `${target.location}/${name}`;
   const routes = Object.entries(appRoutes(app));
   const sources: Record<string, unknown>[] = [];
-  const serviceAccounts = [...(app.serviceAccounts ?? []), ...declared(app, 'serviceAccount').map((account) => account.name)];
+  const serviceAccounts = [...declared(app, 'serviceAccount').map((account) => account.name)];
   const loginPolicy = (client: string) => {
     const route = routes.find(([, r]) => r.auth?.mode === 'oidc' && r.auth.client === client);
     if (!route) return {};
@@ -596,22 +547,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
         valuesObject: {
           namespace: name,
-          ...(routes.length || app.namespace?.labels
-            ? {
-                namespaceLabels:
-                  app.namespace?.labels ??
-                  Object.fromEntries(
-                    routes.flatMap(([, route]) =>
-                      (route.gateway ?? 'public-gateway') === 'internal-gateway'
-                        ? [['internal-gateway-access', 'true']]
-                        : route.hosts.map((host) => [
-                            `gateway.inf-k8s.net/${host.replaceAll('.', '-')}`,
-                            'true',
-                          ]),
-                    ),
-                  ),
-              }
-            : {}),
+          ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
           ...(serviceAccounts.length ? { serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
             const { health, ...rest } = expandWorkload(spec, refsFor(app, world));
@@ -646,14 +582,6 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
       chart(app, versions, 'k8s-http-routes', {
         valuesObject: {
           routes: routes.map(([routeName, route]) => {
-            let backend = route.backend;
-            if (!backend && !route.rules) {
-              const [workload, spec] = served(app, route.workload, `routes.${routeName}`);
-              backend = {
-                name: spec.service?.name ?? workload,
-                port: servedPort(spec) as number,
-              };
-            }
             return {
               name: routeName,
               ...(route.auth?.mode === 'jwt' ? { jwtClients: route.auth.clients } : {}),
@@ -664,7 +592,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
               ...(route.annotations ? { annotations: route.annotations } : {}),
               hostnames: route.hosts,
               ...(route.ratelimit ? { ratelimit: route.ratelimit } : {}),
-              rules: (route.rules ?? [{ paths: route.paths ?? ['/'], backend: backend as { name: string; port: number } }]).map((rule) => ({
+              rules: (route.rules ?? [{ paths: route.paths ?? ['/'], backend: route.backend as { name: string; port: number } }]).map((rule) => ({
                 backendRefs: [{ group: '', kind: 'Service', ...rule.backend, weight: 1 }],
                 matches: rule.paths.map((match) => ({
                   path: typeof match === 'string' ? { type: 'PathPrefix', value: match } : match,
@@ -686,7 +614,6 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             name: client,
             namespace: name,
             displayName: client,
-            host: routes[0]?.[1].hosts[0],
             preferShortUsername: true,
             ...spec,
             ...loginPolicy(client),
@@ -706,7 +633,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           databases: Object.entries(appDatabases(app)).map(([database, spec]) => ({
             name: database,
             namespace: name,
-            databaseName: databaseRole(database, spec),
+            databaseName: databaseRole(database),
             secretName: databaseSecret(database),
             ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
             annotations,
@@ -734,14 +661,12 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   }
 
   for (const scrape of appMetrics(app)) {
-    const { workload: _workload, ...metrics } = scrape;
-    const [workload, spec] = served(app, scrape.workload, 'metrics');
+    const { workload, ...metrics } = scrape;
     sources.push(
       chart(app, versions, 'k8s-observability', {
         valuesObject: {
           name: workload,
           namespace: name,
-          ...(spec.service?.portName ? { port: spec.service.portName } : {}),
           ...metrics,
         },
       }),
@@ -810,13 +735,12 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
   return Object.fromEntries(declared);
 }
 
-export const databaseRole = (database: string, spec: { databaseName?: string }) =>
-  spec.databaseName ?? database.replaceAll('-', '_');
+export const databaseRole = (database: string) => database.replaceAll('-', '_');
 
 export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;
 
-export function renderDatabase(database: string, spec: { databaseName?: string }): string {
-  const name = databaseRole(database, spec);
+export function renderDatabase(database: string): string {
+  const name = databaseRole(database);
   const manifest = {
     apiVersion: 'postgresql.cnpg.io/v1',
     kind: 'Database',
@@ -832,7 +756,7 @@ export function renderDatabase(database: string, spec: { databaseName?: string }
 }
 
 export const appRoles = (apps: App[]) =>
-  apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
+  apps.flatMap((app) => Object.keys(appDatabases(app)).map(databaseRole));
 
 export function addRoles(cluster: string, roles: string[]): string {
   const doc = parseDocument(cluster);

@@ -136,18 +136,14 @@ const json = (value: Record<string, unknown>) => `${JSON.stringify({ '//': HEADE
 
 export const appTerraformPath = (app: App) => `${TERRAFORM_APPS}/${app.name}.tf.json`;
 
-export const bucketName = (app: App, resource: Bucket) => resource.bucket ?? `${app.name}-${resource.name}`;
-
 export function renderAppTerraform(app: App): string | undefined {
   const blocks = [
-    ...Object.entries(appDatabases(app)).map(([database, spec]) =>
-      databaseResources(app, database, databaseRole(database, spec)),
-    ),
+    ...Object.keys(appDatabases(app)).map((database) => databaseResources(app, database, databaseRole(database))),
     ...(app.resources ?? []).flatMap((resource) => {
       if (resource.type !== 'bucket') return [];
       const id = `${app.name}-${resource.name}`;
       const render = resource.provider === 'r2' ? r2Resources : s3Resources;
-      return [render(app, id, resource, bucketName(app, resource))];
+      return [render(app, id, resource, resource.bucket)];
     }),
   ];
   return blocks.length ? json({ resource: merge(blocks) }) : undefined;

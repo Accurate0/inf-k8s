@@ -52,9 +52,6 @@
           "image": {
             "type": "string"
           },
-          "port": {
-            "type": "integer"
-          },
           "kind": {
             "enum": [
               "Deployment",
@@ -75,26 +72,13 @@
               "name": {
                 "type": "string"
               },
-              "port": {
-                "type": "integer"
-              },
-              "portName": {
-                "type": "string"
-              },
-              "ports": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              },
               "trafficDistribution": {
                 "type": "string"
               }
-            }
-          },
-          "health": {
-            "type": "string",
-            "description": "HTTP path for readiness and liveness."
+            },
+            "required": [
+              "name"
+            ]
           },
           "resources": {
             "type": "object",
@@ -108,12 +92,6 @@
               },
               "memoryLimit": {
                 "type": "string"
-              },
-              "requests": {
-                "type": "object"
-              },
-              "limits": {
-                "type": "object"
               }
             }
           },
@@ -282,9 +260,6 @@
           "runAsNonRoot": {
             "type": "boolean"
           },
-          "serviceAccountName": {
-            "type": "string"
-          },
           "probes": {
             "type": "object",
             "additionalProperties": false,
@@ -392,13 +367,6 @@
                 "configMap": {
                   "type": "string"
                 },
-                "items": {
-                  "type": "array",
-                  "description": "Paths in the volume; the key is the basename.",
-                  "items": {
-                    "type": "string"
-                  }
-                },
                 "emptyDir": {
                   "type": "boolean"
                 },
@@ -411,17 +379,29 @@
           },
           "ports": {
             "type": "array",
+            "description": "{name, container, service}. service adds the port to the workload's Service.",
             "items": {
-              "oneOf": [
-                {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "container"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "container": {
                   "type": "integer"
                 },
-                {
-                  "type": "object"
+                "service": {
+                  "type": "integer"
+                },
+                "appProtocol": {
+                  "type": "string"
                 }
-              ]
-            },
-            "description": "{name, container, service}. service adds the port to the workload's Service."
+              }
+            }
           },
           "overrides": {
             "type": "object",
@@ -451,7 +431,35 @@
           "sidecars": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "ports": {
+                  "type": "array",
+                  "description": "{name, container, service}. service adds the port to the workload's Service.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "container"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "container": {
+                        "type": "integer"
+                      },
+                      "service": {
+                        "type": "integer"
+                      },
+                      "appProtocol": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
             }
           },
           "serviceAccount": {
@@ -503,7 +511,8 @@
               "name",
               "type",
               "provider",
-              "secretName"
+              "secretName",
+              "bucket"
             ],
             "properties": {
               "name": {
@@ -521,8 +530,7 @@
                 ]
               },
               "bucket": {
-                "type": "string",
-                "description": "Defaults to <app>-<name>."
+                "type": "string"
               },
               "user": {
                 "type": "string",
@@ -549,9 +557,6 @@
                 "enum": [
                   "database"
                 ]
-              },
-              "databaseName": {
-                "type": "string"
               },
               "secretName": {
                 "type": "string"
@@ -679,10 +684,6 @@
                     "description": "Verify the login token at the gateway, for oidc."
                   }
                 }
-              },
-              "workload": {
-                "type": "string",
-                "description": "Required with several ported workloads."
               },
               "hosts": {
                 "type": "array",
@@ -857,9 +858,6 @@
               "secretLabels": {
                 "type": "object"
               },
-              "securityPolicy": {
-                "type": "object"
-              },
               "public": {
                 "type": "boolean"
               },
@@ -879,7 +877,8 @@
             "required": [
               "name",
               "type",
-              "secretName"
+              "secretName",
+              "host"
             ]
           },
           {
@@ -901,8 +900,7 @@
                 "type": "string"
               },
               "workload": {
-                "type": "string",
-                "description": "Required with several ported workloads."
+                "type": "string"
               },
               "port": {
                 "type": "string"
@@ -910,7 +908,9 @@
             },
             "required": [
               "name",
-              "type"
+              "type",
+              "workload",
+              "port"
             ]
           },
           {
@@ -1031,7 +1031,8 @@
         "additionalProperties": false,
         "required": [
           "name",
-          "workload"
+          "workload",
+          "port"
         ],
         "properties": {
           "name": {
@@ -1045,7 +1046,7 @@
               "string",
               "integer"
             ],
-            "description": "Service port name or number. Optional with a single port."
+            "description": "Service port name or number."
           }
         }
       }
@@ -1055,12 +1056,6 @@
       "description": "Extra Argo sources.",
       "items": {
         "type": "object"
-      }
-    },
-    "serviceAccounts": {
-      "type": "array",
-      "items": {
-        "type": "string"
       }
     },
     "build": {

@@ -1,6 +1,5 @@
 import type { App } from './render.ts';
-import { appDatabases } from './render.ts';
-import { bucketName } from './terraform.ts';
+import { appDatabases, databaseRole } from './render.ts';
 
 interface Node {
   id: string;
@@ -35,12 +34,12 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
       } else if (resource.type === 'cache') {
         edges.push({ from: app.name, to: node(`cache/${resource.instance}`, `cache ${resource.instance}`, 'platform') });
       } else if (resource.type === 'bucket') {
-        const name = bucketName(app, resource);
+        const name = resource.bucket;
         edges.push({ from: app.name, to: node(`bucket/${name}`, `${name} (${resource.provider})`, 'database') });
       }
     }
-    for (const [database, spec] of Object.entries(appDatabases(app))) {
-      const name = spec.databaseName ?? database.replaceAll('-', '_');
+    for (const database of Object.keys(appDatabases(app))) {
+      const name = databaseRole(database);
       edges.push({ from: app.name, to: node(`database/${name}`, name, 'database') });
     }
   }

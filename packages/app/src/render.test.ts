@@ -42,7 +42,6 @@ test('a workload only gets the secrets it lists', () => {
     workloads: {
       'foo-bar': {
         image: 'ghcr.io/accurate0/foo-bar',
-        port: 3000,
         envFrom: [{ secret: 'foo-bar' }, { database: 'foo-bar' }],
       },
     },
@@ -62,8 +61,8 @@ test('a workload only gets the secrets it lists', () => {
 test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
-    workloads: { foo: { image: 'i', port: 3000 } },
-    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] } }, { name: 'foo', type: 'oidc', secretName: 'kanidm-foo-oidc' }, { name: 'scrape', type: 'metrics' }],
+    workloads: { foo: { image: 'i', ports: [{ name: 'http', container: 3000, service: 3000 }], service: { name: 'foo' } } },
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], backend: { name: 'foo', port: 3000 }, auth: { mode: 'jwt', clients: ['foo'] } }, { name: 'foo', type: 'oidc', host: 'foo.anurag.sh', secretName: 'kanidm-foo-oidc' }, { name: 'scrape', type: 'metrics', workload: 'foo', port: 'http' }],
     network: { ingress: ['ai-gateway', 'monitoring'] },
   });
   assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
@@ -77,11 +76,11 @@ test('renders several workloads and routes to the named one', () => {
   const rendered = render({
     name: 'foo',
     workloads: {
-      api: { image: 'i', port: 3000, service: { name: 'api-svc' } },
-      web: { image: 'j', port: 8080 },
+      api: { image: 'i', ports: [{ name: 'http', container: 3000, service: 3000 }], service: { name: 'api-svc' } },
+      web: { image: 'j', ports: [{ name: 'http', container: 8080, service: 8080 }], service: { name: 'web' } },
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
-    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } }, { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' }],
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], backend: { name: 'web', port: 8080 }, auth: { mode: 'none', reason: 'public' } }, { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' }],
     network: { ingress: [] },
   });
   const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
@@ -92,29 +91,13 @@ test('renders several workloads and routes to the named one', () => {
   ]);
 });
 
-test('requires route.workload when several workloads have ports', () => {
-  assert.throws(
-    () =>
-      validate(
-        {
-          name: 'foo',
-          workloads: { a: { image: 'i', port: 1 }, b: { image: 'j', port: 2 } },
-          resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } }],
-          network: { ingress: [] },
-        },
-        'x',
-      ),
-    /routes.foo.workload is required/,
-  );
-});
-
 test('routes to an explicit backend without a workload', () => {
   const rendered = render({
     name: 'foo',
     resources: [{ name: 'foo-route', type: 'route', hosts: ['a.sh', 'b.sh'],
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
-        auth: { mode: 'none', reason: 'public' }, }, { name: 'foo-api', type: 'route', hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } }, { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } }, { name: 'foo-cli', type: 'oidc', secretName: 'kanidm-foo-cli-oidc', public: true }],
+        auth: { mode: 'none', reason: 'public' }, }, { name: 'foo-api', type: 'route', hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } }, { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } }, { name: 'foo-cli', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-cli-oidc', public: true }],
     sources: [{ repoURL: 'r', name: 'config', path: 'config' }],
     network: { ingress: [] },
   });
@@ -147,7 +130,7 @@ test('connection pooling is left to the chart unless set', () => {
 test('jwt routes pass their clients to the chart', () => {
   const rendered = render({
     name: 'foo',
-    resources: [{ name: 'api', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } }, { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } }, { name: 'foo', type: 'oidc', secretName: 'kanidm-foo-oidc' }, { name: 'foo-cli', type: 'oidc', secretName: 'kanidm-foo-cli-oidc' }],
+    resources: [{ name: 'api', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } }, { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } }, { name: 'foo', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-oidc' }, { name: 'foo-cli', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-cli-oidc' }],
     network: { ingress: [] },
   });
   const [api, web] = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes;
@@ -160,16 +143,17 @@ test('rejects invalid route auth', () => {
     name: 'foo',
     resources: [
       { name: 'foo', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth },
-      { name: 'foo', type: 'oidc', secretName: 'kanidm-foo-oidc', ...client },
+      { name: 'foo', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-oidc', ...client },
     ],
     network: { ingress: [] },
   });
   assert.throws(() => validate(app({ mode: 'jwt', clients: [] }), 'x'), /auth.clients is required/);
   assert.throws(() => validate(app({ mode: 'jwt', clients: ['nope'] }), 'x'), /no oidc client named nope/);
-  assert.throws(() => validate(app({ mode: 'oidc', client: 'foo' }, { securityPolicy: { httpRoute: 'other' } }), 'x'), /securityPolicy must target this route/);
+  assert.throws(() => validate(app({ mode: 'oidc', client: 'nope' }), 'x'), /no oidc client named nope/);
   assert.throws(() => validate(app({ mode: 'none' }), 'x'), /auth.reason is required/);
   assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode must be/);
-  validate(app({ mode: 'oidc', client: 'foo' }, { securityPolicy: { httpRoute: 'foo' } }), 'x');
+  validate(app({ mode: 'oidc', client: 'foo' }), 'x');
+  assert.throws(() => validate(app({ mode: 'oidc', client: 'foo' }, { securityPolicy: {} }), 'x'), /resources/);
 });
 
 test('rejects ingress from an unknown namespace', () => {
@@ -262,8 +246,8 @@ test('rejects invalid apps', () => {
       validate(
         {
           name: 'foo',
-          workloads: { foo: { image: 'i', port: 1 } },
-          resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'] }],
+          workloads: { foo: { image: 'i', ports: [{ name: 'http', container: 1, service: 1 }], service: { name: 'foo' } } },
+          resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], backend: { name: 'foo', port: 1 } }],
           network: { ingress: [] },
         },
         'x',
@@ -300,7 +284,7 @@ const provider = (port: unknown = 'http', extra: Record<string, unknown> = {}) =
     name: 'gw',
     network: { ingress: [] },
     exports: [{ name: 'api', workload: 'gw', port }],
-    workloads: { gw: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }, { name: 'grpc', port: 50051 }] } } },
+    workloads: { gw: { image: 'i', service: { name: 'api' }, ports: [{ name: 'http', container: 3000, service: 80 }, { name: 'grpc', container: 50051, service: 50051 }] } },
     ...extra,
   }, 'test');
 
@@ -333,39 +317,11 @@ test('using an export opens the provider to the caller', () => {
 test('rejects bad exports', () => {
   assert.throws(() => provider('nope'), /no matching port/);
   assert.throws(
-    () => validate({ name: 'x', network: { ingress: [] }, exports: [{ name: 'a', workload: 'nope' }] }, 'test'),
+    () => validate({ name: 'x', network: { ingress: [] }, exports: [{ name: 'a', workload: 'nope', port: 'http' }] }, 'test'),
     /no workload named nope/,
   );
   assert.throws(() => validateResources({ platform, apps: [consumer()] }), /no app named gw/);
   assert.throws(() => validateResources({ platform, apps: [consumer({ export: 'nope' }), provider()] }), /no export named nope/);
-});
-
-test('a route backend comes from a single service port', () => {
-  const app = validate({
-    name: 'foo',
-    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } }],
-    workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
-    network: { ingress: [] },
-  }, 'test');
-  assert.deepEqual(source(render(app), 'k8s-http-routes')?.helm.valuesObject.routes[0].rules[0].backendRefs, [
-    { group: '', kind: 'Service', name: 'api', port: 80, weight: 1 },
-  ]);
-});
-
-test('rejects a route that cannot pick a service port', () => {
-  assert.throws(() => validate({
-    name: 'foo',
-    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'none', reason: 'public' } }],
-    workloads: { foo: { image: 'i', service: { ports: [{ port: 80 }, { port: 81 }] } } },
-    network: { ingress: [] },
-  }, 'test'), /several service ports/);
-});
-
-test('rejects health without a port', () => {
-  assert.throws(
-    () => validate({ name: 'foo', workloads: { foo: { image: 'i', health: '/health' } }, network: { ingress: [] } }, 'test'),
-    /health needs port/,
-  );
 });
 
 const short = (workload: Record<string, unknown>, extra: Record<string, unknown> = {}) => {
@@ -420,14 +376,14 @@ test('expands mounts to volumes and volume mounts', () => {
   const out = short({
     mounts: {
       tmp: { path: '/tmp', emptyDir: true },
-      rules: { path: '/etc/rules', configMap: 'cm', items: ['config.yaml', 'rules/a.yaml'] },
+      rules: { path: '/etc/rules', configMap: 'cm' },
     },
   });
   assert.deepEqual(out.volumes, [
     { name: 'tmp', emptyDir: {} },
     {
       name: 'rules',
-      configMap: { name: 'cm', items: [{ key: 'config.yaml', path: 'config.yaml' }, { key: 'a.yaml', path: 'rules/a.yaml' }] },
+      configMap: { name: 'cm' },
     },
   ]);
   assert.deepEqual(out.volumeMounts, [
@@ -439,11 +395,11 @@ test('expands mounts to volumes and volume mounts', () => {
 test('expands flat resources, ports and service protocol', () => {
   const out = short({
     resources: { cpu: '30m', memory: '56Mi', memoryLimit: '128Mi' },
-    ports: [3000],
-    service: { name: 'api', ports: [{ name: 'http', port: 80, targetPort: 3000 }] },
+    ports: [{ name: 'http', container: 3000, service: 80 }],
+    service: { name: 'api' },
   });
   assert.deepEqual(out.resources, { requests: { cpu: '30m', memory: '56Mi' }, limits: { memory: '128Mi' } });
-  assert.deepEqual(out.ports, [{ containerPort: 3000 }]);
+  assert.deepEqual(out.ports, [{ name: 'http', containerPort: 3000 }]);
   assert.equal(out.service.ports[0].protocol, 'TCP');
 });
 
@@ -461,8 +417,10 @@ test('rejects overrides that clash with the workload', () => {
     () => short({ probes: { http: { path: '/', port: 1 }, liveness: {} }, overrides: { livenessProbe: {} } }),
     /overrides.livenessProbe is already set/,
   );
-  assert.throws(() => short({ port: 1, health: '/', probes: {} }), /health or probes/);
+  assert.throws(() => short({ health: '/' }), /health/);
   assert.throws(() => short({ env: { A: { resource: 'nope' } } }), /no resource named nope/);
+  assert.throws(() => short({ ports: [{ name: 'http', container: 1 }] }), /service.name is required with ports/);
+  assert.throws(() => short({ ports: [3000], service: { name: 'a' } }), /ports/);
 });
 
 const graphApps = [
@@ -470,7 +428,7 @@ const graphApps = [
     name: 'gw',
     network: { ingress: ['caller', 'monitoring', 'other'] },
     exports: [{ name: 'api', workload: 'gw', port: 80 }],
-    workloads: { gw: { image: 'i', port: 80 } },
+    workloads: { gw: { image: 'i', ports: [{ name: 'http', container: 80, service: 80 }], service: { name: 'gw' } } },
   }, 'test'),
   validate({
     name: 'caller',
@@ -527,7 +485,7 @@ test('rejects unknown workload fields', () => {
 });
 
 test('renders a database owned by its role', () => {
-  assert.deepEqual(parse(renderDatabase('foo-bar', {})), {
+  assert.deepEqual(parse(renderDatabase('foo-bar')), {
     apiVersion: 'postgresql.cnpg.io/v1',
     kind: 'Database',
     metadata: { name: 'foo-bar', namespace: 'cnpg-system' },
@@ -538,8 +496,7 @@ test('renders a database owned by its role', () => {
       databaseReclaimPolicy: 'retain',
     },
   });
-  assert.equal(parse(renderDatabase('foo', { databaseName: 'bar' })).spec.owner, 'bar');
-});
+  });
 
 test('only adds missing roles and never removes one', () => {
   const cluster = '# keep\nspec:\n  managed:\n    roles:\n      - name: old\n        login: true\n';
@@ -551,8 +508,8 @@ test('only adds missing roles and never removes one', () => {
     { name: 'new', ensure: 'present', connectionLimit: -1, inherit: true, login: true },
   ]);
   assert.deepEqual(
-    appRoles([{ name: 'a', network: { ingress: [] }, resources: [{ name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' }, { name: 'baz', type: 'database', secretName: 'baz-database-secret', databaseName: 'qux' }] }]),
-    ['foo_bar', 'qux'],
+    appRoles([{ name: 'a', network: { ingress: [] }, resources: [{ name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' }, { name: 'baz', type: 'database', secretName: 'baz-database-secret' }] }]),
+    ['foo_bar', 'baz'],
   );
 });
 
@@ -567,7 +524,7 @@ test('terraform covers an app database', () => {
 
 test('terraform covers an r2 bucket with a token for that bucket only', () => {
   const { resource } = JSON.parse(
-    renderAppTerraform({ ...base, resources: [{ name: 'images', type: 'bucket', secretName: 'images-bucket-secrets', provider: 'r2' }] }) as string,
+    renderAppTerraform({ ...base, resources: [{ name: 'images', type: 'bucket', bucket: 'foo-images', secretName: 'images-bucket-secrets', provider: 'r2' }] }) as string,
   );
   const id = 'foo-images';
   assert.equal(resource.cloudflare_r2_bucket[id].name, 'foo-images');
@@ -612,13 +569,13 @@ test('a bucket resource wires its name and managed secret', () => {
   const app = validate(
     {
       ...base,
-      resources: [{ name: 'images', type: 'bucket', secretName: 'images-bucket-secrets', provider: 'r2' }],
-      workloads: { foo: { image: 'i', env: { BUCKET: { resource: 'images' } }, envFrom: [{ bucket: 'images' }] } },
+      resources: [{ name: 'images', type: 'bucket', bucket: 'foo-images', secretName: 'images-bucket-secrets', provider: 'r2' }],
+      workloads: { foo: { image: 'i', env: { BUCKET: { bucket: 'images', key: 'S3_BUCKET' } }, envFrom: [{ bucket: 'images' }] } },
     },
     'test',
   );
   const rendered = render(app);
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].env, [{ name: 'BUCKET', value: 'foo-images' }]);
+  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].env, [{ name: 'BUCKET', valueFrom: { secretKeyRef: { name: 'images-bucket-secrets', key: 'S3_BUCKET' } } }]);
   assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets, [
     { name: 'resource-images', managedSecrets: [{ secretName: 'images-bucket-secrets' }] },
   ]);
@@ -726,23 +683,23 @@ test('an app can scrape several workloads', () => {
     {
       ...base,
       resources: [
-        { name: 'api', type: 'metrics', workload: 'api', path: '/metrics' },
-        { name: 'web', type: 'metrics', workload: 'web', interval: '10s' },
+        { name: 'api', type: 'metrics', workload: 'api', port: 'http', path: '/metrics' },
+        { name: 'web', type: 'metrics', workload: 'web', port: 'http', interval: '10s' },
       ],
-      workloads: { api: { image: 'i', port: 1 }, web: { image: 'i', port: 2 } },
+      workloads: { api: { image: 'i', ports: [{ name: 'http', container: 1, service: 1 }], service: { name: 'api' } }, web: { image: 'i', ports: [{ name: 'http', container: 2, service: 2 }], service: { name: 'web' } } },
     },
     'test',
   );
   const scrapes = render(app).spec.sources.filter((s: { chart: string }) => s.chart === 'k8s-observability');
   assert.deepEqual(scrapes.map((s: any) => s.helm.valuesObject), [
-    { name: 'api', namespace: 'foo', path: '/metrics' },
-    { name: 'web', namespace: 'foo', interval: '10s' },
+    { name: 'api', namespace: 'foo', port: 'http', path: '/metrics' },
+    { name: 'web', namespace: 'foo', port: 'http', interval: '10s' },
   ]);
   assert.deepEqual(source(render(app), 'k8s-network')?.helm.valuesObject.ingress, ['monitoring']);
 });
 
 test('rejects bad route and metrics resources', () => {
-  const workloads = { api: { image: 'i', port: 1 } };
+  const workloads = { api: { image: 'i', ports: [{ name: 'http', container: 1, service: 1 }], service: { name: 'api' } } };
   assert.throws(
     () =>
       validate(
@@ -750,8 +707,8 @@ test('rejects bad route and metrics resources', () => {
           ...base,
           workloads,
           resources: [
-            { name: 'a', type: 'metrics', workload: 'api' },
-            { name: 'b', type: 'metrics', workload: 'api' },
+            { name: 'a', type: 'metrics', workload: 'api', port: 'http' },
+            { name: 'b', type: 'metrics', workload: 'api', port: 'http' },
           ],
         },
         'test',
@@ -771,7 +728,7 @@ test('workloads reference secrets by resource name', () => {
       resources: [
         { name: 'foo', type: 'secret', secretName: 'foo-secret' },
         { name: 'foo', type: 'database', secretName: 'foo-db' },
-        { name: 'images', type: 'bucket', provider: 'r2', secretName: 'images-secret' },
+        { name: 'images', type: 'bucket', bucket: 'b', provider: 'r2', secretName: 'images-secret' },
       ],
       workloads: {
         foo: {
@@ -870,7 +827,7 @@ const checkRefs = (app: Record<string, unknown>) =>
 
 test('rejects a route backend that is not a service in the app', () => {
   const route = (backend: unknown) => ({
-    workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
+    workloads: { foo: { image: 'i', service: { name: 'api' }, ports: [{ name: 'http', container: 3000, service: 80 }] } },
     resources: [{ name: 'r', type: 'route', hosts: ['a.sh'], backend, auth: { mode: 'none', reason: 'public' } }],
   });
   checkRefs(route({ name: 'api', port: 80 }));
@@ -880,7 +837,7 @@ test('rejects a route backend that is not a service in the app', () => {
 
 test('rejects metrics on a port the service does not have', () => {
   const scrape = (port: string) => ({
-    workloads: { foo: { image: 'i', service: { name: 'api', ports: [{ name: 'http', port: 80 }] } } },
+    workloads: { foo: { image: 'i', service: { name: 'api' }, ports: [{ name: 'http', container: 3000, service: 80 }] } },
     resources: [{ name: 'm', type: 'metrics', workload: 'foo', port }],
   });
   checkRefs(scrape('http'));
@@ -889,7 +846,7 @@ test('rejects metrics on a port the service does not have', () => {
 
 test('rejects a bucket key terraform does not write', () => {
   const bucket = (key: string) => ({
-    resources: [{ name: 'b', type: 'bucket', provider: 'r2', secretName: 's' }],
+    resources: [{ name: 'b', type: 'bucket', bucket: 'b', provider: 'r2', secretName: 's' }],
     workloads: { foo: { image: 'i', env: { A: { bucket: 'b', key } } } },
   });
   checkRefs(bucket('S3_ENDPOINT'));
@@ -1052,4 +1009,22 @@ test('a serviceAccount resource generates its account and cluster role', () => {
   assert.match(rbac, /kind: ClusterRoleBinding\nmetadata:\n  name: sa/);
   assert.deepEqual(parse(renderKustomization(app, target) as string).resources, ['manifests/rbac.generated.yaml']);
   assert.throws(() => checkRefs({ workloads: { foo: { image: 'i', serviceAccount: 'nope' } } }), /no serviceAccount resource named nope/);
+});
+
+test('rejects the removed shorthands', () => {
+  const route = (extra: Record<string, unknown>) => ({ name: 'r', type: 'route', hosts: ['a.sh'], auth: { mode: 'none', reason: 'public' }, ...extra });
+  const rules = [{ paths: ['/'], backend: { name: 's', port: 1 } }];
+  assert.throws(() => validate({ ...base, resources: [route({})] }, 'test'), /needs either backend or rules/);
+  assert.throws(() => validate({ ...base, resources: [route({ rules, backend: { name: 's', port: 1 } })] }, 'test'), /needs either backend or rules/);
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'bucket', provider: 'r2', secretName: 's' }] }, 'test'), /resources/);
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'oidc', secretName: 's' }] }, 'test'), /resources/);
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'metrics', workload: 'foo' }] }, 'test'), /resources/);
+  assert.throws(() => validate({ ...base, serviceAccounts: ['a'] }, 'test'), /unknown block/);
+  assert.throws(() => validate({ ...base, workloads: { foo: { image: 'i', service: { name: 'a', port: 80 } } } }, 'test'), /port/);
+  const reads = validate({
+    ...base,
+    resources: [{ name: 'b', type: 'bucket', bucket: 'b', provider: 'r2', secretName: 's' }],
+    workloads: { foo: { image: 'i', env: { B: { resource: 'b' } } } },
+  }, 'test');
+  assert.throws(() => validateResources({ platform, apps: [reads] }), /read a bucket with \{bucket, key\}/);
 });
