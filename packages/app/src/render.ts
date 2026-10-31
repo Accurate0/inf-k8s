@@ -76,7 +76,7 @@ export interface App {
   workloads?: Record<string, Workload>;
   routes?: Record<string, Route>;
   oidc?: Record<string, OidcClient>;
-  databases?: Record<string, { databaseName?: string; secretName?: string }>;
+  databases?: Record<string, { databaseName?: string; secretName?: string; enableConnectionPooling?: boolean }>;
   secrets?: Secret[];
   sources?: Record<string, unknown>[];
   build?: Build;
@@ -367,6 +367,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
             namespace: name,
             databaseName: spec.databaseName ?? database.replaceAll('-', '_'),
             secretName: databaseSecret(database),
+            ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
             annotations,
           })),
         },

@@ -201,6 +201,10 @@
           },
           "secretName": {
             "type": "string"
+          },
+          "enableConnectionPooling": {
+            "type": "boolean",
+            "description": "Connect through the pooler. Defaults to true."
           }
         }
       }

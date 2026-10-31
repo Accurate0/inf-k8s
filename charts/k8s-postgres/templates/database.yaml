@@ -1,6 +1,5 @@
 {{- $defaults := .Values.defaults | default dict }}
 {{- $releaseNamespace := .Release.Namespace }}
-{{- $host := $defaults.host | default "cloudnative-pg-cluster-rw.cnpg-system" }}
 {{- $port := $defaults.port | default 5432 }}
 {{- $openbaoServer := $defaults.openbaoServer | default "http://openbao-active.openbao.svc.cluster.local:8200" }}
 {{- $resync := $defaults.resyncInterval | default 300 }}
@@ -11,6 +10,7 @@
 {{- $annotations := merge (dict) ($db.annotations | default dict) ($defaults.annotations | default dict) }}
 {{- $databaseName := $db.databaseName | default ($db.name | replace "-" "_") }}
 {{- $generatorName := printf "%s-database" $db.name }}
+{{- $host := $defaults.host | default (ternary "cloudnative-pg-cluster-pooler-rw.cnpg-system" "cloudnative-pg-cluster-rw.cnpg-system" (ne $db.enableConnectionPooling false)) }}
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: VaultDynamicSecret
 metadata:

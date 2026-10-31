@@ -171,6 +171,17 @@ test('prefixes database variables when a workload gets several', () => {
   );
 });
 
+test('connection pooling is left to the chart unless set', () => {
+  const rendered = render({
+    name: 'foo',
+    databases: { foo: {}, direct: { enableConnectionPooling: false } },
+    network: { ingress: [] },
+  });
+  const [pooled, direct] = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
+  assert.equal('enableConnectionPooling' in pooled, false);
+  assert.equal(direct.enableConnectionPooling, false);
+});
+
 test('an app can pin a chart version', () => {
   const rendered = render({
     name: 'foo',
