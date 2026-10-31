@@ -155,3 +155,15 @@ metrics:
   path: /admin/metrics
   port: http
   interval: 30s
+build:
+  image: ghcr.io/accurate0/janitor-bot
+  args:
+    BINARY_NAME: janitor-bot
+  test:
+    run: cargo test
+    packages:
+      - protobuf-compiler
+      - libprotobuf-dev
+    setup: |
+      curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      chmod +x /usr/local/bin/argocd

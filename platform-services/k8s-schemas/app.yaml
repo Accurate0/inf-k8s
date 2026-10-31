@@ -33,3 +33,5 @@ workloads:
         emptyDir: {}
 serviceAccounts:
   - k8s-schemas
+build:
+  image: ghcr.io/accurate0/k8s-schemas

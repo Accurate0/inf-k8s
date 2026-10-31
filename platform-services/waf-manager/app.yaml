@@ -197,3 +197,7 @@ metrics:
   path: /metrics
   port: http
   interval: 30s
+build:
+  image: ghcr.io/accurate0/waf-manager
+  args:
+    BINARY_NAME: waf-manager

@@ -1,0 +1,31 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T06:01:45.142Z
+name: app registry
+on:
+  push:
+    paths:
+      - platform-services/registry/**
+      - "!platform-services/registry/manifests/**"
+      - "!platform-services/registry/application.yaml"
+      - "!platform-services/registry/app.yaml"
+      - "!platform-services/registry/image.values.yaml"
+      - .github/workflows/app-registry.yaml
+  workflow_dispatch: null
+jobs:
+  app:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/app-build.yaml
+    with:
+      service: registry
+      directory: platform-services/registry
+      image: ghcr.io/accurate0/registry
+      context: platform-services/registry
+      dockerfile: platform-services/registry/Dockerfile
+      build-args: BINARY_NAME=registry
+      test-run: cargo test --workspace
+      test-db-image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+      test-db-name: registry
+      deploy: ${{ github.ref == 'refs/heads/main' }}
+    secrets: inherit

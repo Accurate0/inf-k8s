@@ -1,0 +1,28 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T06:01:45.154Z
+name: app waf-manager
+on:
+  push:
+    paths:
+      - platform-services/waf-manager/**
+      - "!platform-services/waf-manager/manifests/**"
+      - "!platform-services/waf-manager/application.yaml"
+      - "!platform-services/waf-manager/app.yaml"
+      - "!platform-services/waf-manager/image.values.yaml"
+      - .github/workflows/app-waf-manager.yaml
+  workflow_dispatch: null
+jobs:
+  app:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/app-build.yaml
+    with:
+      service: waf-manager
+      directory: platform-services/waf-manager
+      image: ghcr.io/accurate0/waf-manager
+      context: platform-services/waf-manager
+      dockerfile: platform-services/waf-manager/Dockerfile
+      build-args: BINARY_NAME=waf-manager
+      deploy: ${{ github.ref == 'refs/heads/main' }}
+    secrets: inherit

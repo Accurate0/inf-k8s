@@ -1,0 +1,33 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T06:01:45.106Z
+name: app ai-gateway
+on:
+  push:
+    paths:
+      - platform-services/ai-gateway/**
+      - "!platform-services/ai-gateway/manifests/**"
+      - "!platform-services/ai-gateway/application.yaml"
+      - "!platform-services/ai-gateway/app.yaml"
+      - "!platform-services/ai-gateway/image.values.yaml"
+      - crates/cli-auth/**
+      - .github/workflows/app-ai-gateway.yaml
+  workflow_dispatch: null
+jobs:
+  app:
+    permissions:
+      contents: read
+      packages: write
+    uses: ./.github/workflows/app-build.yaml
+    with:
+      service: ai-gateway
+      directory: platform-services/ai-gateway
+      image: ghcr.io/accurate0/ai-gateway
+      context: .
+      dockerfile: platform-services/ai-gateway/Dockerfile
+      build-args: BINARY_NAME=ai-gateway
+      test-run: cargo test
+      test-db-image: timescale/timescaledb:latest-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538
+      test-db-name: ai_gateway
+      test-packages: protobuf-compiler libprotobuf-dev
+      deploy: ${{ github.ref == 'refs/heads/main' }}
+    secrets: inherit

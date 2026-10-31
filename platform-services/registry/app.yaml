@@ -126,3 +126,11 @@ metrics:
   path: /metrics
   port: http
   interval: 30s
+build:
+  image: ghcr.io/accurate0/registry
+  args:
+    BINARY_NAME: registry
+  test:
+    run: cargo test --workspace
+    db: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+    dbName: registry

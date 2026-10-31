@@ -97,3 +97,19 @@ workloads:
       trafficDistribution: PreferSameNode
 namespaceLabels:
   internal-gateway-access: "true"
+build:
+  image: ghcr.io/accurate0/feature-flags
+  context: .
+  paths:
+    - crates/feature-flag/feature-flag-proto/**
+    - crates/feature-flag/feature-flag-engine/**
+  test:
+    run: |
+      cargo test
+      cd ../../crates/feature-flag
+      cargo test
+    db: postgres:18@sha256:979bccfde35445db618c65107d27d08c6c21339d8dc3ad4c830c6633947be0e4
+    dbName: feature_flags
+    packages:
+      - protobuf-compiler
+      - libprotobuf-dev
