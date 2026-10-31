@@ -15,7 +15,7 @@ jobs:
     permissions:
       packages: write
 
-    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
+    uses: Accurate0/workflows/.github/workflows/build-push-docker.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
     with:
       directory: ./platform-services/firefly-up-sync
       image-name: firefly-up-sync
@@ -25,7 +25,7 @@ jobs:
   deploy:
     needs:
       - build
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
     with:
       service-name: firefly-up-sync
       images: ghcr.io/accurate0/firefly-up-sync
