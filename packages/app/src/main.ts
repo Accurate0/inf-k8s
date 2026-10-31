@@ -19,6 +19,7 @@ import {
   workflowPath,
   workloadImages,
 } from './render';
+import { validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services'];
 const VERSIONS = 'platform/versions.yaml';
@@ -26,7 +27,7 @@ const VERSIONS = 'platform/versions.yaml';
 const USAGE = `usage: ortzi app <command> [flags]
 
 definition (run from the root of the k8s repo):
-  render                   write application.yaml for every app.yaml
+  render                   validate manifests, then write application.yaml for every app.yaml
   diff [app]               show what render would change, exit 1 if anything would
   list                     list apps and what they declare
 
@@ -40,7 +41,7 @@ cluster:
   autosync <app> on|off    turn argo auto-sync off, or restore it (returns the app to git)
 
 flags:
-  --check          render: write nothing, exit 1 if anything is out of date
+  --check          render: write nothing, exit 1 if invalid or out of date
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
@@ -135,6 +136,19 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
 }
 
 function render(check: boolean): number {
+  const versions = parse(fs.readText(VERSIONS)).charts;
+  const generated = new Map(
+    discover().map(({ app, target }) => [
+      `${target.location}/${app.name}/application.yaml`,
+      renderApplication(app, versions, target),
+    ]),
+  );
+  const failures = validateManifests(generated);
+  if (failures.length) {
+    for (const failure of failures) console.error(failure);
+    console.error(`${failures.length} validation failure(s), nothing written`);
+    return 1;
+  }
   const stale = staleFiles();
   for (const { path, wanted } of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);

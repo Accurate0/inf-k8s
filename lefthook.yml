@@ -31,12 +31,8 @@ pre-commit:
       glob: "*.tf"
       run: tofu -chdir=terraform validate
 
-    validate-manifests:
-      glob: "{**/application.yaml,**/manifests/*.{yml,yaml},**/kustomization.{yml,yaml}}"
-      run: scripts/validate-manifests.sh {staged_files}
-
     render-apps:
-      glob: "{**/app.yaml,platform/versions.yaml}"
+      glob: "{**/app.yaml,platform/versions.yaml,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml}}"
       run: ortzi update app && ortzi app render
       stage_fixed: true
 

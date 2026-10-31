@@ -178,6 +178,9 @@ importers:
       '@ortzi/kit':
         specifier: workspace:*
         version: link:../ortzi-kit
+      jsonschema:
+        specifier: ^1.5.0
+        version: 1.5.0
       yaml:
         specifier: ^2.8.0
         version: 2.9.1
@@ -1399,6 +1402,9 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
+  jsonschema@1.5.0:
+    resolution: {integrity: sha512-K+A9hhqbn0f3pJX17Q/7H6yQfD/5OXgdrR5UE12gMXCiN9D5Xq2o5mddV2QEcX/bjla99ASsAAQUyMCCRWAEhw==}
+
   lodash.camelcase@4.3.0:
     resolution: {integrity: sha512-TwuEnCnxbc3rAvhf/LbG7tJUDzhqXyFnv3dtzLOPgCG/hODL7WFnsbwktkD7yUV0RrreP/l1PALq/YSg6VvjlA==}
 
@@ -2398,6 +2404,8 @@ snapshots:
   is-fullwidth-code-point@3.0.0: {}
 
   jsesc@3.1.0: {}
+
+  jsonschema@1.5.0: {}
 
   lodash.camelcase@4.3.0: {}
 

@@ -1,7 +1,9 @@
-import { stringify } from 'yaml';
+import { type Schema, Validator } from 'jsonschema/lib/index.js';
+import { parse, stringify } from 'yaml';
+import schema from '../app.schema.json' with { type: 'json' };
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
-const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
+export const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
 const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
 
 export const HEADER = '# generated from app.yaml by `ortzi app render`; edit app.yaml instead';
@@ -112,6 +114,8 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
   return found;
 }
 
+const appSchema = new Validator();
+
 const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
@@ -175,6 +179,8 @@ export function validate(raw: unknown, where: string): App {
   } catch (e) {
     fail((e as Error).message);
   }
+  const [invalid] = appSchema.validate(app, schema as Schema).errors;
+  if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
   return app;
 }
 
@@ -465,4 +471,31 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   };
 
   return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
+
+interface ChartSource {
+  chart: string;
+  repoURL: string;
+  helm?: { valueFiles?: string[]; valuesObject?: unknown };
+}
+
+export function helmTemplates(rendered: string): { args: string[]; values: string }[] {
+  const application = parse(rendered);
+  const name: string = application.metadata.name;
+  const sources: ChartSource[] = application.spec.sources;
+  return sources
+    .filter((source) => source.chart && source.repoURL?.startsWith(CHART_REGISTRY))
+    .map((source) => ({
+      args: [
+        'template',
+        name,
+        `charts/${source.chart}`,
+        '--namespace',
+        name,
+        ...(source.helm?.valueFiles ?? []).flatMap((file) => ['-f', file.replace(/^\$values\//, '')]),
+        '-f',
+        '-',
+      ],
+      values: JSON.stringify(source.helm?.valuesObject ?? {}),
+    }));
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { type App, HEADER, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress } from './render.ts';
+import { type App, HEADER, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -308,5 +308,27 @@ test('rejects invalid apps', () => {
         'x',
       ),
     /routes.foo.auth is required/,
+  );
+});
+
+test('templates generated charts from the local charts directory', () => {
+  const rendered = renderApplication(
+    { name: 'foo', workloads: { foo: { image: 'i' } }, network: { ingress: [] } },
+    versions,
+    { location: 'projects', hasManifests: false },
+  );
+  const templates = helmTemplates(rendered);
+  assert.deepEqual(templates[0].args, [
+    'template', 'foo', 'charts/k8s-workload', '--namespace', 'foo',
+    '-f', 'projects/foo/image.values.yaml', '-f', '-',
+  ]);
+  assert.equal(JSON.parse(templates[1].values).namespace, 'foo');
+  assert.deepEqual(templates.map((t) => t.args[2]), ['charts/k8s-workload', 'charts/k8s-network']);
+});
+
+test('rejects app.yaml fields outside the schema', () => {
+  assert.throws(
+    () => validate({ name: 'x', network: { ingress: [] }, databases: { x: { nope: true } } }, 'x'),
+    /nope/,
   );
 });

@@ -10,6 +10,7 @@
   "dependencies": {
     "@ortzi/host": "workspace:*",
     "@ortzi/kit": "workspace:*",
+    "jsonschema": "^1.5.0",
     "yaml": "^2.8.0"
   },
   "devDependencies": {
