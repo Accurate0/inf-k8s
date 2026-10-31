@@ -113,7 +113,6 @@ export interface App {
   workloads?: Record<string, Workload>;
   routes?: Record<string, Route>;
   oidc?: Record<string, OidcClient>;
-  databases?: Record<string, DatabaseSpec>;
   secrets?: Secret[];
   resources?: Resource[];
   exports?: Export[];
@@ -201,7 +200,7 @@ function servedPort(spec: Workload): number | undefined {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'secrets', 'resources', 'exports', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -578,7 +577,7 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
     const { name, type: _type, ...spec } = resource;
     return [[name, spec] as const];
   });
-  return { ...app.databases, ...Object.fromEntries(declared) };
+  return Object.fromEntries(declared);
 }
 
 export const databaseRole = (database: string, spec: { databaseName?: string }) =>

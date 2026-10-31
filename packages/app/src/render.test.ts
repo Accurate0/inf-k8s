@@ -41,7 +41,7 @@ test('a workload only gets the secrets it lists', () => {
         envFrom: ['foo-bar-managed-secrets', 'foo-bar-database-secret'],
       },
     },
-    databases: { 'foo-bar': {} },
+    resources: [{ name: 'foo-bar', type: 'database' }],
     secrets: ['foo-bar'],
     network: { ingress: [] },
   });
@@ -141,7 +141,7 @@ test('routes to an explicit backend without a workload', () => {
 test('connection pooling is left to the chart unless set', () => {
   const rendered = render({
     name: 'foo',
-    databases: { foo: {}, direct: { enableConnectionPooling: false } },
+    resources: [{ name: 'foo', type: 'database' }, { name: 'direct', type: 'database', enableConnectionPooling: false }],
     network: { ingress: [] },
   });
   const [pooled, direct] = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
@@ -204,7 +204,7 @@ test('keeps manifests as an optional source', () => {
 
 test('does not emit yaml anchors', () => {
   const output = renderApplication(
-    { name: 'foo', databases: { foo: {} }, secrets: ['foo'], network: { ingress: [] } },
+    { name: 'foo', resources: [{ name: 'foo', type: 'database' }], secrets: ['foo'], network: { ingress: [] } },
     versions,
     target,
     { platform, apps: [] },
@@ -297,8 +297,8 @@ test('templates generated charts from the local charts directory', () => {
 
 test('rejects app.yaml fields outside the schema', () => {
   assert.throws(
-    () => validate({ name: 'x', network: { ingress: [] }, databases: { x: { nope: true } } }, 'x'),
-    /nope/,
+    () => validate({ name: 'x', network: { ingress: [] }, resources: [{ name: 'x', type: 'database', nope: true }] }, 'x'),
+    /resources/,
   );
 });
 
@@ -484,8 +484,8 @@ const graphApps = [
     resources: [
       { name: 'llm', type: 'app', app: 'gw', export: 'api' },
       { name: 'traces', type: 'tracing' },
+      { name: 'foo-bar', type: 'database' },
     ],
-    databases: { 'foo-bar': {} },
   }, 'test'),
   validate({ name: 'other', network: { ingress: [] } }, 'test'),
 ];
@@ -557,7 +557,7 @@ test('only adds missing roles and never removes one', () => {
     { name: 'new', ensure: 'present', connectionLimit: -1, inherit: true, login: true },
   ]);
   assert.deepEqual(
-    appRoles([{ name: 'a', network: { ingress: [] }, databases: { 'foo-bar': {}, baz: { databaseName: 'qux' } } }]),
+    appRoles([{ name: 'a', network: { ingress: [] }, resources: [{ name: 'foo-bar', type: 'database' }, { name: 'baz', type: 'database', databaseName: 'qux' }] }]),
     ['foo_bar', 'qux'],
   );
 });
@@ -565,7 +565,7 @@ test('only adds missing roles and never removes one', () => {
 const base = { name: 'foo', network: { ingress: [] } };
 
 test('terraform covers an app database', () => {
-  const { resource } = JSON.parse(renderAppTerraform({ ...base, databases: { 'foo-bar': {} } }) as string);
+  const { resource } = JSON.parse(renderAppTerraform({ ...base, resources: [{ name: 'foo-bar', type: 'database' }] }) as string);
   assert.deepEqual(resource.vault_database_secret_backend_static_role['foo-bar'].username, 'foo_bar');
   assert.equal(resource.vault_policy['foo-bar'].name, 'db-foo-bar');
   assert.deepEqual(resource.vault_kubernetes_auth_backend_role['foo-bar'].bound_service_account_namespaces, ['foo']);
@@ -607,8 +607,8 @@ test('an app with nothing for terraform gets no file', () => {
 test('the terraform index lists database names sorted', () => {
   const index = JSON.parse(
     renderTerraformIndex([
-      { ...base, databases: { z: {} } },
-      { ...base, name: 'a', databases: { b: {} } },
+      { ...base, resources: [{ name: 'z', type: 'database' }] },
+      { ...base, name: 'a', resources: [{ name: 'b', type: 'database' }] },
     ]),
   );
   assert.deepEqual(index.output.database_names.value, ['b', 'z']);
@@ -645,20 +645,6 @@ test('the terraform index has no key output without s3 buckets', () => {
   assert.equal(JSON.parse(renderTerraformIndex([base])).output.s3_access_keys, undefined);
 });
 
-test('a database resource renders like a databases entry', () => {
-  const declared = { name: 'foo-bar', type: 'database', secretName: 'creds', enableConnectionPooling: false };
-  const asResource = validate({ ...base, name: 'foo-bar', resources: [declared] }, 'test');
-  const asBlock = validate(
-    { ...base, name: 'foo-bar', databases: { 'foo-bar': { secretName: 'creds', enableConnectionPooling: false } } },
-    'test',
-  );
-  assert.deepEqual(source(render(asResource), 'k8s-postgres'), source(render(asBlock), 'k8s-postgres'));
-  assert.equal(renderAppTerraform(asResource), renderAppTerraform(asBlock));
-  assert.deepEqual(appRoles([asResource]), ['foo_bar']);
-  assert.deepEqual(JSON.parse(renderTerraformIndex([asResource])).output.database_names.value, ['foo-bar']);
-  assert.deepEqual(buildGraph([asResource]).edges, buildGraph([asBlock]).edges);
-});
-
 test('rejects a database resource used in env', () => {
   const app = validate(
     {
@@ -669,4 +655,8 @@ test('rejects a database resource used in env', () => {
     'test',
   );
   assert.throws(() => validateResources({ platform, apps: [app] }), /in envFrom, not env/);
+});
+
+test('rejects the old databases block', () => {
+  assert.throws(() => validate({ ...base, databases: { foo: {} } }, 'test'), /unknown block "databases"/);
 });

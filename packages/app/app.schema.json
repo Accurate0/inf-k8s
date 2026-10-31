@@ -571,26 +571,6 @@
         "type": "object"
       }
     },
-    "databases": {
-      "type": "object",
-      "description": "Keyed by database name. A workload given several gets prefixed variables.",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "properties": {
-          "databaseName": {
-            "type": "string"
-          },
-          "secretName": {
-            "type": "string"
-          },
-          "enableConnectionPooling": {
-            "type": "boolean",
-            "description": "Connect through the pooler. Defaults to true."
-          }
-        }
-      }
-    },
     "routes": {
       "type": "object",
       "description": "Keyed by route name.",
