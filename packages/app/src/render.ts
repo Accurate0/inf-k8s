@@ -50,7 +50,17 @@ export type Resource =
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
   | { name: string; type: 'secret'; secretName?: string }
-  | { name: string; type: 'cache'; instance: string };
+  | { name: string; type: 'cache'; instance: string }
+  | ({ name: string; type: 'route' } & Route)
+  | ({ name: string; type: 'oidc' } & OidcClient)
+  | ({ name: string; type: 'metrics' } & Metrics);
+
+export interface Metrics {
+  path?: string;
+  port?: string;
+  interval?: string;
+  workload?: string;
+}
 
 export interface DatabaseSpec {
   databaseName?: string;
@@ -118,7 +128,7 @@ export interface App {
   sources?: Record<string, unknown>[];
   build?: Build;
   network: { ingress: string[] };
-  metrics?: { path?: string; port?: string; interval?: string; workload?: string };
+  metrics?: Metrics;
   namespace?: { labels?: Record<string, string> };
   serviceAccounts?: string[];
 }
@@ -166,7 +176,7 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
 }
 
 function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
-  const resource = app.resources?.find((r) => r.name === name && r.type !== 'secret') as Resource;
+  const resource = app.resources?.find((r) => r.name === name && !['secret', 'route', 'oidc', 'metrics'].includes(r.type)) as Resource;
   if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
   if (resource.type === 'bucket') return { name: env, value: bucketName(app, resource) };
   if (resource.type === 'database') {
@@ -219,13 +229,15 @@ export function validate(raw: unknown, where: string): App {
     for (const key of overrideConflicts(workload)) fail(`workloads.${name}.overrides.${key} is already set on the workload`);
     for (const value of Object.values(!workload.env || Array.isArray(workload.env) ? {} : workload.env)) {
       const used = (value as { resource?: string } | null)?.resource;
-      if (used && !app.resources?.some((r) => r.name === used && r.type !== 'secret')) {
+      if (used && !app.resources?.some((r) => r.name === used && !['secret', 'route', 'oidc', 'metrics'].includes(r.type))) {
         fail(`workloads.${name}.env: no resource named ${used}; list a secret in envFrom`);
       }
     }
   }
-  const routes = Object.entries(app.routes ?? {});
-  const clients = Object.entries(app.oidc ?? {});
+  const validResources = Array.isArray(app.resources);
+  const routes = Object.entries(validResources || !app.resources ? appRoutes(app) : {});
+  const oidc = validResources || !app.resources ? appOidc(app) : {};
+  const clients = Object.entries(oidc);
   for (const [name, route] of routes) {
     if (!route.hosts?.length) fail(`routes.${name}.hosts is required`);
     const auth = route.auth;
@@ -234,10 +246,10 @@ export function validate(raw: unknown, where: string): App {
     } else if (auth.mode === 'jwt') {
       if (!auth.clients?.length) fail(`routes.${name}.auth.clients is required for jwt`);
       for (const client of auth.clients ?? []) {
-        if (!app.oidc?.[client]) fail(`routes.${name}.auth: no oidc client named ${client}`);
+        if (!oidc[client]) fail(`routes.${name}.auth: no oidc client named ${client}`);
       }
     } else if (auth.mode === 'oidc') {
-      const client = app.oidc?.[auth.client];
+      const client = oidc[auth.client];
       if (!client) fail(`routes.${name}.auth: no oidc client named ${auth.client}`);
       const policy = client?.securityPolicy as { httpRoute?: string } | undefined;
       if (!policy || (policy.httpRoute ?? auth.client) !== name) {
@@ -258,13 +270,19 @@ export function validate(raw: unknown, where: string): App {
       const [workload, spec] = served(app, route.workload, `routes.${name}`);
       if (!servedPort(spec)) fail(`routes.${name}: workload ${workload} has several service ports, so set backend`);
     }
-    if (app.metrics) served(app, app.metrics.workload, 'metrics');
+    if (validResources || !app.resources) {
+      const scraped = appMetrics(app).map((metrics) => served(app, metrics.workload, 'metrics')[0]);
+      for (const workload of scraped) {
+        if (scraped.indexOf(workload) !== scraped.lastIndexOf(workload)) fail(`metrics: ${workload} is listed twice`);
+      }
+    }
   } catch (e) {
     fail((e as Error).message);
   }
   const [invalid] = appSchema.validate(app, schema as unknown as Schema).errors;
   if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
-  const resourceKeys = (app.resources ?? []).map((r) => `${r.type === 'secret' ? 'secret' : 'value'}/${r.name}`);
+  const OWN_NAMES = new Set(['secret', 'route', 'oidc', 'metrics']);
+  const resourceKeys = (app.resources ?? []).map((r) => `${OWN_NAMES.has(r.type) ? r.type : 'value'}/${r.name}`);
   for (const key of resourceKeys) {
     if (resourceKeys.indexOf(key) !== resourceKeys.lastIndexOf(key)) fail(`resources: duplicate name ${key.split('/')[1]}`);
   }
@@ -379,7 +397,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   const databaseSecret = (database: string) =>
     appDatabases(app)[database].secretName ?? `${database}-database-secret`;
   const dir = `${target.location}/${name}`;
-  const routes = Object.entries(app.routes ?? {});
+  const routes = Object.entries(appRoutes(app));
   const sources: Record<string, unknown>[] = [];
 
   if (app.workloads && Object.keys(app.workloads).length) {
@@ -422,7 +440,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
 
   const ingress = [
     ...(routes.length ? ['envoy-gateway-system'] : []),
-    ...(app.metrics ? ['monitoring'] : []),
+    ...(appMetrics(app).length ? ['monitoring'] : []),
     ...app.network.ingress,
     ...world.apps
       .filter((other) => other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name))
@@ -474,11 +492,11 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
-  if (app.oidc && Object.keys(app.oidc).length) {
+  if (Object.keys(appOidc(app)).length) {
     sources.push(
       chart(app, versions, 'k8s-oidc', {
         valuesObject: {
-          clients: Object.entries(app.oidc).map(([client, spec]) => ({
+          clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
             name: client,
             namespace: name,
             displayName: client,
@@ -528,9 +546,9 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
-  if (app.metrics) {
-    const { workload: _workload, ...metrics } = app.metrics;
-    const [workload, spec] = served(app, app.metrics.workload, 'metrics');
+  for (const scrape of appMetrics(app)) {
+    const { workload: _workload, ...metrics } = scrape;
+    const [workload, spec] = served(app, scrape.workload, 'metrics');
     sources.push(
       chart(app, versions, 'k8s-observability', {
         valuesObject: {
@@ -568,6 +586,24 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   };
 
   return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
+
+const declared = <T extends Resource['type']>(app: App, type: T) =>
+  (app.resources ?? []).filter((resource): resource is Extract<Resource, { type: T }> => resource.type === type);
+
+const specs = <S extends { name: string; type: string }>(resources: S[]) =>
+  resources.map(({ name, type: _type, ...spec }) => [name, spec] as const);
+
+export function appRoutes(app: App): Record<string, Route> {
+  return { ...app.routes, ...Object.fromEntries(specs(declared(app, 'route'))) } as Record<string, Route>;
+}
+
+export function appOidc(app: App): Record<string, OidcClient> {
+  return { ...app.oidc, ...Object.fromEntries(specs(declared(app, 'oidc'))) } as Record<string, OidcClient>;
+}
+
+export function appMetrics(app: App): Metrics[] {
+  return [...(app.metrics ? [app.metrics] : []), ...specs(declared(app, 'metrics')).map(([, spec]) => spec as Metrics)];
 }
 
 export function appSecrets(app: App): { name: string; secretName: string }[] {

@@ -729,3 +729,64 @@ test('secret resources default their kubernetes secret name', () => {
 test('rejects the old secrets block', () => {
   assert.throws(() => validate({ ...base, secrets: ['foo'] }, 'test'), /unknown block "secrets"/);
 });
+
+test('routes and oidc clients as resources render like the blocks', () => {
+  const route = { hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] }, backend: { name: 'api', port: 80 } };
+  const asResource = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'foo', type: 'route', ...route },
+        { name: 'foo', type: 'oidc', displayName: 'Foo' },
+      ],
+    },
+    'test',
+  );
+  const asBlock = validate({ ...base, routes: { foo: route }, oidc: { foo: { displayName: 'Foo' } } }, 'test');
+  for (const chart of ['k8s-http-routes', 'k8s-oidc', 'k8s-network']) {
+    assert.deepEqual(source(render(asResource), chart), source(render(asBlock), chart));
+  }
+});
+
+test('an app can scrape several workloads', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'api', type: 'metrics', workload: 'api', path: '/metrics' },
+        { name: 'web', type: 'metrics', workload: 'web', interval: '10s' },
+      ],
+      workloads: { api: { image: 'i', port: 1 }, web: { image: 'i', port: 2 } },
+    },
+    'test',
+  );
+  const scrapes = render(app).spec.sources.filter((s: { chart: string }) => s.chart === 'k8s-observability');
+  assert.deepEqual(scrapes.map((s: any) => s.helm.valuesObject), [
+    { name: 'api', namespace: 'foo', path: '/metrics' },
+    { name: 'web', namespace: 'foo', interval: '10s' },
+  ]);
+  assert.deepEqual(source(render(app), 'k8s-network')?.helm.valuesObject.ingress, ['monitoring']);
+});
+
+test('rejects bad route and metrics resources', () => {
+  const workloads = { api: { image: 'i', port: 1 } };
+  assert.throws(
+    () =>
+      validate(
+        {
+          ...base,
+          workloads,
+          resources: [
+            { name: 'a', type: 'metrics', workload: 'api' },
+            { name: 'b', type: 'metrics', workload: 'api' },
+          ],
+        },
+        'test',
+      ),
+    /api is listed twice/,
+  );
+  assert.throws(
+    () => validate({ ...base, resources: [{ name: 'r', type: 'route', hosts: ['a'], backend: { name: 'x', port: 1 } }] }, 'test'),
+    /auth is required/,
+  );
+});
