@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.637Z
+# generated at 2026-10-31T11:07:53.375Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -37,18 +37,6 @@ spec:
                   memory: 32Mi
               ports:
                 - containerPort: 3000
-              readinessProbe:
-                httpGet:
-                  path: /health
-                  port: 3000
-                initialDelaySeconds: 5
-                periodSeconds: 15
-              livenessProbe:
-                httpGet:
-                  path: /health
-                  port: 3000
-                initialDelaySeconds: 5
-                periodSeconds: 60
               env:
                 - name: OIDC_ISSUER
                   value: https://idm.anurag.sh/oauth2/openid/janitor-bot
@@ -66,17 +54,25 @@ spec:
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: FEATURE_FLAGS_URL
                   value: http://api.feature-flags.svc.cluster.local:50051
-              volumeMounts:
-                - name: tmp
-                  mountPath: /tmp
-                - name: rules
-                  mountPath: /etc/janitor-bot/rules
-                  readOnly: true
-              strategy:
-                type: RollingUpdate
-                rollingUpdate:
-                  maxUnavailable: 0
-                  maxSurge: 1
+              service:
+                name: api
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 3000
+                    protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 15
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 60
               volumes:
                 - name: tmp
                   emptyDir: {}
@@ -114,13 +110,17 @@ spec:
                         path: rules/clear-queued-on-unmergeable.yaml
                       - key: label-eink-firmware-update.yaml
                         path: rules/label-eink-firmware-update.yaml
-              service:
-                name: api
-                ports:
-                  - name: http
-                    protocol: TCP
-                    port: 80
-                    targetPort: 3000
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
+                - name: rules
+                  mountPath: /etc/janitor-bot/rules
+                  readOnly: true
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
               envFrom:
                 - secretRef:
                     name: janitor-bot-managed-secrets

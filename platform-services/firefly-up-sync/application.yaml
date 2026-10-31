@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.627Z
+# generated at 2026-10-31T11:07:53.364Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -32,9 +32,9 @@ spec:
               kind: CronJob
               schedule: 15,45 * * * *
               backoffLimit: 1
-              restartPolicy: Never
-              automountServiceAccountToken: false
               resources:
+                requests:
+                  memory: 64Mi
                 limits:
                   memory: 256Mi
               env:
@@ -55,6 +55,8 @@ spec:
                       {"name": "Rent", "matches": ["Forward to Rent", "Transfer from Rent"]},
                       {"name": "Spendings", "matches": ["Spendings"]}
                     ]
+              restartPolicy: Never
+              automountServiceAccountToken: false
               envFrom:
                 - secretRef:
                     name: firefly-up-sync-managed-secrets

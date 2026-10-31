@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.588Z
+# generated at 2026-10-31T11:07:53.327Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -39,34 +39,6 @@ spec:
                   memory: 336Mi
               ports:
                 - containerPort: 8000
-              startupProbe:
-                failureThreshold: 30
-                httpGet:
-                  path: /v1/health
-                  port: 8000
-                  scheme: HTTP
-                periodSeconds: 2
-                successThreshold: 1
-                timeoutSeconds: 2
-              readinessProbe:
-                failureThreshold: 3
-                httpGet:
-                  path: /v1/health
-                  port: 8000
-                  scheme: HTTP
-                periodSeconds: 10
-                successThreshold: 1
-                timeoutSeconds: 2
-              livenessProbe:
-                failureThreshold: 3
-                httpGet:
-                  path: /v1/health
-                  port: 8000
-                  scheme: HTTP
-                initialDelaySeconds: 3
-                periodSeconds: 30
-                successThreshold: 1
-                timeoutSeconds: 1
               env:
                 - name: CONFIG_DIR
                   value: /etc/home-gateway/config
@@ -74,6 +46,70 @@ spec:
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: FEATURE_FLAGS_URL
                   value: http://api.feature-flags.svc.cluster.local:50051
+              runAsNonRoot: false
+              service:
+                name: home-gateway
+                ports:
+                  - name: api
+                    port: 80
+                    targetPort: 8000
+                    protocol: TCP
+              startupProbe:
+                httpGet:
+                  path: /v1/health
+                  port: 8000
+                periodSeconds: 2
+                timeoutSeconds: 2
+                failureThreshold: 30
+              readinessProbe:
+                httpGet:
+                  path: /v1/health
+                  port: 8000
+                periodSeconds: 10
+                timeoutSeconds: 2
+              livenessProbe:
+                httpGet:
+                  path: /v1/health
+                  port: 8000
+                initialDelaySeconds: 3
+                periodSeconds: 30
+              volumes:
+                - name: config
+                  configMap:
+                    name: home-gateway-config
+                - name: config-sections
+                  configMap:
+                    name: home-gateway-config-sections
+                - name: config-devices
+                  configMap:
+                    name: home-gateway-config-devices
+                - name: config-workflows
+                  configMap:
+                    name: home-gateway-config-workflows
+                - name: config-lua-lib
+                  configMap:
+                    name: home-gateway-config-lua-lib
+                - name: config-lua-model-lib
+                  configMap:
+                    name: home-gateway-config-lua-model-lib
+                - name: config-lua-workflows
+                  configMap:
+                    name: home-gateway-config-lua-workflows
+                - name: config-lua-integrations
+                  configMap:
+                    name: home-gateway-config-lua-integrations
+                - name: config-lua-mqtt
+                  configMap:
+                    name: home-gateway-config-lua-mqtt
+                - name: config-lua-home-assistant
+                  configMap:
+                    name: home-gateway-config-lua-home-assistant
+                - name: config-lua-esphome-native-api
+                  configMap:
+                    name: home-gateway-config-lua-esphome-native-api
+                - name: config-lua-tuya
+                  configMap:
+                    name: home-gateway-config-lua-tuya
               volumeMounts:
                 - name: config
                   mountPath: /etc/home-gateway/config
@@ -116,12 +152,6 @@ spec:
                 rollingUpdate:
                   maxUnavailable: 0
                   maxSurge: 1
-              minReadySeconds: 15
-              progressDeadlineSeconds: 300
-              hostAliases:
-                - ip: 10.0.2.15
-                  hostnames:
-                    - home-assistant.internal
               affinity:
                 nodeAffinity:
                   requiredDuringSchedulingIgnoredDuringExecution:
@@ -131,51 +161,12 @@ spec:
                             operator: In
                             values:
                               - perth
-              volumes:
-                - name: config
-                  configMap:
-                    name: home-gateway-config
-                - name: config-sections
-                  configMap:
-                    name: home-gateway-config-sections
-                - name: config-devices
-                  configMap:
-                    name: home-gateway-config-devices
-                - name: config-workflows
-                  configMap:
-                    name: home-gateway-config-workflows
-                - name: config-lua-lib
-                  configMap:
-                    name: home-gateway-config-lua-lib
-                - name: config-lua-model-lib
-                  configMap:
-                    name: home-gateway-config-lua-model-lib
-                - name: config-lua-workflows
-                  configMap:
-                    name: home-gateway-config-lua-workflows
-                - name: config-lua-integrations
-                  configMap:
-                    name: home-gateway-config-lua-integrations
-                - name: config-lua-mqtt
-                  configMap:
-                    name: home-gateway-config-lua-mqtt
-                - name: config-lua-home-assistant
-                  configMap:
-                    name: home-gateway-config-lua-home-assistant
-                - name: config-lua-esphome-native-api
-                  configMap:
-                    name: home-gateway-config-lua-esphome-native-api
-                - name: config-lua-tuya
-                  configMap:
-                    name: home-gateway-config-lua-tuya
-              runAsNonRoot: false
-              service:
-                name: home-gateway
-                ports:
-                  - name: api
-                    protocol: TCP
-                    port: 80
-                    targetPort: 8000
+              minReadySeconds: 15
+              progressDeadlineSeconds: 300
+              hostAliases:
+                - ip: 10.0.2.15
+                  hostnames:
+                    - home-assistant.internal
               envFrom:
                 - secretRef:
                     name: home-gateway-managed-secrets
@@ -190,11 +181,18 @@ spec:
                   memory: 32Mi
               ports:
                 - containerPort: 8080
+              runAsNonRoot: false
+              service:
+                name: home-web
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 8080
+                    protocol: TCP
               readinessProbe:
                 httpGet:
                   path: /
                   port: 8080
-                  scheme: HTTP
                 initialDelaySeconds: 3
                 periodSeconds: 30
               affinity:
@@ -206,14 +204,6 @@ spec:
                             operator: In
                             values:
                               - perth
-              runAsNonRoot: false
-              service:
-                name: home-web
-                ports:
-                  - name: http
-                    protocol: TCP
-                    port: 80
-                    targetPort: 8080
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0

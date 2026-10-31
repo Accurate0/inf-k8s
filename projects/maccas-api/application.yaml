@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.600Z
+# generated at 2026-10-31T11:07:53.337Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -31,21 +31,12 @@ spec:
           workloads:
             - name: maccas-api
               image: ghcr.io/accurate0/maccas-api
+              replicas: 3
               resources:
                 requests:
                   memory: 144Mi
               ports:
                 - containerPort: 8000
-              livenessProbe:
-                failureThreshold: 3
-                httpGet:
-                  path: /v1/health/self
-                  port: 8000
-                  scheme: HTTP
-                initialDelaySeconds: 3
-                periodSeconds: 30
-                successThreshold: 1
-                timeoutSeconds: 1
               env:
                 - name: RECOMMENDATIONS_API_BASE
                   value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
@@ -59,14 +50,6 @@ spec:
                   value: http://api.ai-gateway.svc.cluster.local/v1
                 - name: FEATURE_FLAGS_URL
                   value: http://api.feature-flags.svc.cluster.local:50051
-              replicas: 3
-              topologySpreadConstraints:
-                - maxSkew: 2
-                  topologyKey: kubernetes.io/hostname
-                  labelSelector:
-                    matchLabels:
-                      app: maccas-api
-                  whenUnsatisfiable: ScheduleAnyway
               initContainers:
                 - image: ghcr.io/accurate0/maccas-migration
                   name: maccas-migration
@@ -81,10 +64,23 @@ spec:
                 name: maccas-api
                 ports:
                   - name: api
-                    protocol: TCP
                     port: 8000
                     targetPort: 8000
+                    protocol: TCP
                 trafficDistribution: PreferSameNode
+              livenessProbe:
+                httpGet:
+                  path: /v1/health/self
+                  port: 8000
+                initialDelaySeconds: 3
+                periodSeconds: 30
+              topologySpreadConstraints:
+                - maxSkew: 2
+                  topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      app: maccas-api
+                  whenUnsatisfiable: ScheduleAnyway
               envFrom:
                 - secretRef:
                     name: maccas-common-managed-secrets
@@ -92,21 +88,12 @@ spec:
                     name: maccas-api-managed-secrets
             - name: maccas-web
               image: ghcr.io/accurate0/maccas-web
+              replicas: 3
               resources:
                 requests:
                   memory: 312Mi
               ports:
                 - containerPort: 3000
-              livenessProbe:
-                failureThreshold: 3
-                httpGet:
-                  path: /health
-                  port: 3000
-                  scheme: HTTP
-                initialDelaySeconds: 3
-                periodSeconds: 30
-                successThreshold: 1
-                timeoutSeconds: 1
               env:
                 - name: ADDRESS_HEADER
                   value: x-real-ip
@@ -120,7 +107,20 @@ spec:
                   value: api.feature-flags.svc.cluster.local:50051
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
-              replicas: 3
+              runAsNonRoot: false
+              service:
+                name: maccas-web
+                ports:
+                  - name: web
+                    port: 3000
+                    targetPort: 3000
+                    protocol: TCP
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 3
+                periodSeconds: 30
               topologySpreadConstraints:
                 - maxSkew: 2
                   topologyKey: kubernetes.io/hostname
@@ -128,14 +128,6 @@ spec:
                     matchLabels:
                       app: maccas-web
                   whenUnsatisfiable: ScheduleAnyway
-              runAsNonRoot: false
-              service:
-                name: maccas-web
-                ports:
-                  - name: web
-                    protocol: TCP
-                    port: 3000
-                    targetPort: 3000
               envFrom:
                 - secretRef:
                     name: maccas-web-managed-secrets
@@ -170,16 +162,6 @@ spec:
                   memory: 1000Mi
               ports:
                 - containerPort: 8003
-              livenessProbe:
-                failureThreshold: 3
-                httpGet:
-                  path: /health
-                  port: 8003
-                  scheme: HTTP
-                initialDelaySeconds: 3
-                periodSeconds: 30
-                successThreshold: 1
-                timeoutSeconds: 5
               env:
                 - name: FLIPT_URL
                   value: http://flipt.flipt.svc.cluster.local:8080
@@ -208,32 +190,35 @@ spec:
                       memory: 192Mi
                   ports:
                     - containerPort: 8004
-                  livenessProbe:
-                    failureThreshold: 3
-                    httpGet:
-                      path: /health
-                      port: 8004
-                      scheme: HTTP
-                    initialDelaySeconds: 3
-                    periodSeconds: 30
-                    successThreshold: 1
-                    timeoutSeconds: 1
                   envFrom:
                     - secretRef:
                         name: maccas-common-managed-secrets
                     - secretRef:
                         name: maccas-api-managed-secrets
+                  livenessProbe:
+                    httpGet:
+                      path: /health
+                      port: 8004
+                    initialDelaySeconds: 3
+                    periodSeconds: 30
               service:
                 name: maccas-recommendations
                 ports:
                   - name: api
-                    protocol: TCP
                     port: 8003
                     targetPort: 8003
-                  - name: clustering
                     protocol: TCP
+                  - name: clustering
                     port: 8004
                     targetPort: 8004
+                    protocol: TCP
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 8003
+                initialDelaySeconds: 3
+                periodSeconds: 30
+                timeoutSeconds: 5
               envFrom:
                 - secretRef:
                     name: maccas-common-managed-secrets

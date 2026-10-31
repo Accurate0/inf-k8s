@@ -10,12 +10,12 @@ resources:
 workloads:
   tldr-bot:
     image: ghcr.io/accurate0/tldr-bot
-    resources:
-      requests:
-        memory: 32Mi
-    uses:
-      - name: llm
-        env: OPENAI_API_BASE
+    resources: {memory: 32Mi}
+    env:
+      OPENAI_API_BASE: {resource: llm}
+    envFrom:
+      - tldr-bot-managed-secrets
+    secrets: []
 secrets:
   - tldr-bot
 network:

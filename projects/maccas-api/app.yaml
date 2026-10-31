@@ -50,218 +50,129 @@ resources:
 workloads:
   maccas-api:
     image: ghcr.io/accurate0/maccas-api
-    resources:
-      requests:
-        memory: 144Mi
-    ports:
-      - containerPort: 8000
-    livenessProbe:
-      failureThreshold: 3
-      httpGet:
-        path: /v1/health/self
-        port: 8000
-        scheme: HTTP
-      initialDelaySeconds: 3
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 1
-    uses:
-      - traces
-      - name: llm
-        env: OPENAI_BASE_URL
-      - name: flags
-        env: FEATURE_FLAGS_URL
-    env:
-      - name: RECOMMENDATIONS_API_BASE
-        value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
-      - name: SENSORDATA_API_BASE
-        value: http://maccas-sensordata.maccas-api.svc.cluster.local
-      - name: REDIS_CONNECTION_STRING
-        value: redis://replicated.dragonfly.svc.cluster.local
-    envFrom:
-      - secretRef:
-          name: maccas-common-managed-secrets
-      - secretRef:
-          name: maccas-api-managed-secrets
-    secrets: []
     replicas: 3
-    topologySpreadConstraints:
-      - maxSkew: 2
-        topologyKey: kubernetes.io/hostname
-        labelSelector:
-          matchLabels:
-            app: maccas-api
-        whenUnsatisfiable: ScheduleAnyway
+    resources: {memory: 144Mi}
+    ports: [8000]
+    probes:
+      http: {path: /v1/health/self, port: 8000}
+      liveness: {delay: 3, every: 30}
+    env:
+      RECOMMENDATIONS_API_BASE: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
+      SENSORDATA_API_BASE: http://maccas-sensordata.maccas-api.svc.cluster.local
+      REDIS_CONNECTION_STRING: redis://replicated.dragonfly.svc.cluster.local
+      OTEL_TRACING_URL: {resource: traces}
+      OPENAI_BASE_URL: {resource: llm}
+      FEATURE_FLAGS_URL: {resource: flags}
+    envFrom:
+      - maccas-common-managed-secrets
+      - maccas-api-managed-secrets
+    secrets: []
     initContainers:
       - image: ghcr.io/accurate0/maccas-migration
         name: maccas-migration
-        resources:
-          requests:
-            cpu: 50m
-            memory: 64Mi
+        resources: {cpu: 50m, memory: 64Mi}
         envFrom:
-          - secretRef:
-              name: maccas-migration-managed-secrets
+          - maccas-migration-managed-secrets
     service:
       name: maccas-api
       ports:
-        - name: api
-          protocol: TCP
-          port: 8000
-          targetPort: 8000
+        - {name: api, port: 8000, targetPort: 8000}
       trafficDistribution: PreferSameNode
+    overrides:
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app: maccas-api
+          whenUnsatisfiable: ScheduleAnyway
   maccas-web:
     image: ghcr.io/accurate0/maccas-web
-    resources:
-      requests:
-        memory: 312Mi
-    ports:
-      - containerPort: 3000
-    livenessProbe:
-      failureThreshold: 3
-      httpGet:
-        path: /health
-        port: 3000
-        scheme: HTTP
-      initialDelaySeconds: 3
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 1
-    uses:
-      - traces
-    env:
-      - name: ADDRESS_HEADER
-        value: x-real-ip
-      - name: OLD_API_BASE_URL
-        value: https://api.maccas.one/v1
-      - name: API_BASE_URL
-        value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
-      - name: EVENT_BASE_URL
-        value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
-      - name: FEATURE_FLAGS_URL
-        value: api.feature-flags.svc.cluster.local:50051
-    envFrom:
-      - secretRef:
-          name: maccas-web-managed-secrets
-    secrets: []
     replicas: 3
-    topologySpreadConstraints:
-      - maxSkew: 2
-        topologyKey: kubernetes.io/hostname
-        labelSelector:
-          matchLabels:
-            app: maccas-web
-        whenUnsatisfiable: ScheduleAnyway
+    resources: {memory: 312Mi}
+    ports: [3000]
+    probes:
+      http: {path: /health, port: 3000}
+      liveness: {delay: 3, every: 30}
+    env:
+      ADDRESS_HEADER: x-real-ip
+      OLD_API_BASE_URL: https://api.maccas.one/v1
+      API_BASE_URL: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      EVENT_BASE_URL: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      FEATURE_FLAGS_URL: api.feature-flags.svc.cluster.local:50051
+      OTEL_TRACING_URL: {resource: traces}
+    envFrom:
+      - maccas-web-managed-secrets
+    secrets: []
     runAsNonRoot: false
     service:
       name: maccas-web
       ports:
-        - name: web
-          protocol: TCP
-          port: 3000
-          targetPort: 3000
+        - {name: web, port: 3000, targetPort: 3000}
+    overrides:
+      topologySpreadConstraints:
+        - maxSkew: 2
+          topologyKey: kubernetes.io/hostname
+          labelSelector:
+            matchLabels:
+              app: maccas-web
+          whenUnsatisfiable: ScheduleAnyway
   maccas-scheduler:
     image: ghcr.io/accurate0/maccas-scheduler
-    resources:
-      requests:
-        memory: 32Mi
-    uses:
-      - traces
+    resources: {memory: 32Mi}
     env:
-      - name: EVENT_API_BASE
-        value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      EVENT_API_BASE: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - secretRef:
-          name: maccas-common-managed-secrets
-      - secretRef:
-          name: maccas-api-managed-secrets
+      - maccas-common-managed-secrets
+      - maccas-api-managed-secrets
     secrets: []
-    affinity:
-      podAntiAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          - labelSelector:
-              matchLabels:
-                app: maccas-scheduler
-            topologyKey: kubernetes.io/hostname
+    overrides:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app: maccas-scheduler
+              topologyKey: kubernetes.io/hostname
   maccas-recommendations:
     image: ghcr.io/accurate0/maccas-recommendations
-    resources:
-      requests:
-        memory: 48Mi
-      limits:
-        memory: 1000Mi
-    ports:
-      - containerPort: 8003
-    livenessProbe:
-      failureThreshold: 3
-      httpGet:
-        path: /health
-        port: 8003
-        scheme: HTTP
-      initialDelaySeconds: 3
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 5
-    uses:
-      - traces
-      - name: llm
-        env: OPENAI_BASE_URL
+    resources: {memory: 48Mi, memoryLimit: 1000Mi}
+    ports: [8003]
+    probes:
+      http: {path: /health, port: 8003}
+      liveness: {delay: 3, every: 30, timeout: 5}
     env:
-      - name: FLIPT_URL
-        value: http://flipt.flipt.svc.cluster.local:8080
-      - name: CLUSTERING_API_BASE
-        value: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
+      FLIPT_URL: http://flipt.flipt.svc.cluster.local:8080
+      CLUSTERING_API_BASE: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
+      OTEL_TRACING_URL: {resource: traces}
+      OPENAI_BASE_URL: {resource: llm}
     envFrom:
-      - secretRef:
-          name: maccas-common-managed-secrets
-      - secretRef:
-          name: maccas-api-managed-secrets
+      - maccas-common-managed-secrets
+      - maccas-api-managed-secrets
     secrets: []
     initContainers:
       - image: ghcr.io/accurate0/maccas-migration
         name: maccas-migration
-        resources:
-          requests:
-            cpu: 50m
-            memory: 64Mi
+        resources: {cpu: 50m, memory: 64Mi}
         envFrom:
-          - secretRef:
-              name: maccas-migration-managed-secrets
+          - maccas-migration-managed-secrets
     sidecars:
       - image: ghcr.io/accurate0/maccas-clustering
         name: maccas-clustering
-        resources:
-          requests:
-            cpu: 10m
-            memory: 192Mi
-        ports:
-          - containerPort: 8004
-        livenessProbe:
-          failureThreshold: 3
-          httpGet:
-            path: /health
-            port: 8004
-            scheme: HTTP
-          initialDelaySeconds: 3
-          periodSeconds: 30
-          successThreshold: 1
-          timeoutSeconds: 1
+        resources: {cpu: 10m, memory: 192Mi}
+        ports: [8004]
         envFrom:
-          - secretRef:
-              name: maccas-common-managed-secrets
-          - secretRef:
-              name: maccas-api-managed-secrets
+          - maccas-common-managed-secrets
+          - maccas-api-managed-secrets
+        probes:
+          http: {path: /health, port: 8004}
+          liveness: {delay: 3, every: 30}
     service:
       name: maccas-recommendations
       ports:
-        - name: api
-          protocol: TCP
-          port: 8003
-          targetPort: 8003
-        - name: clustering
-          protocol: TCP
-          port: 8004
-          targetPort: 8004
+        - {name: api, port: 8003, targetPort: 8003}
+        - {name: clustering, port: 8004, targetPort: 8004}
 namespace:
   labels:
     gateway.inf-k8s.net/maccas-one: "true"

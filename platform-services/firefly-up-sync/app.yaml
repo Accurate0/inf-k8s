@@ -10,28 +10,26 @@ workloads:
     kind: CronJob
     schedule: 15,45 * * * *
     backoffLimit: 1
-    restartPolicy: Never
-    automountServiceAccountToken: false
-    resources:
-      limits:
-        memory: 256Mi
+    resources: {memoryLimit: 256Mi, memory: 64Mi}
     env:
-      - name: FIREFLY_URL
-        value: http://firefly.firefly.svc.cluster.local
-      - name: LOOKBACK_DAYS
-        value: "14"
-      - name: PAYOFF_PIGGY_BANK
-        value: Home loan payoff
-      - name: LINKED_ACCOUNTS
-        value: |
-          [
-            {"name": "Amex", "matches": ["American Express"]},
-            {"name": "ING", "matches": ["ING Savings", "ING Transactional"]},
-            {"name": "Ubank", "matches": ["ubank Savings", "ubank Transactional"]},
-            {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]},
-            {"name": "Vanguard", "matches": ["Vanguard"]},
-            {"name": "Rent", "matches": ["Forward to Rent", "Transfer from Rent"]},
-            {"name": "Spendings", "matches": ["Spendings"]}
-          ]
+      FIREFLY_URL: http://firefly.firefly.svc.cluster.local
+      LOOKBACK_DAYS: "14"
+      PAYOFF_PIGGY_BANK: Home loan payoff
+      LINKED_ACCOUNTS: |
+        [
+          {"name": "Amex", "matches": ["American Express"]},
+          {"name": "ING", "matches": ["ING Savings", "ING Transactional"]},
+          {"name": "Ubank", "matches": ["ubank Savings", "ubank Transactional"]},
+          {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]},
+          {"name": "Vanguard", "matches": ["Vanguard"]},
+          {"name": "Rent", "matches": ["Forward to Rent", "Transfer from Rent"]},
+          {"name": "Spendings", "matches": ["Spendings"]}
+        ]
+    envFrom:
+      - firefly-up-sync-managed-secrets
+    secrets: []
+    overrides:
+      restartPolicy: Never
+      automountServiceAccountToken: false
 build:
   image: ghcr.io/accurate0/firefly-up-sync

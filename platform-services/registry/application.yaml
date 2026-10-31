@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.652Z
+# generated at 2026-10-31T11:07:53.391Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -31,8 +31,24 @@ spec:
           workloads:
             - name: registry
               image: ghcr.io/accurate0/registry
+              replicas: 2
+              resources:
+                requests:
+                  memory: 64Mi
               ports:
                 - containerPort: 3000
+              env:
+                - name: CONFIG_PATH
+                  value: /etc/registry/config.yaml
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              service:
+                name: api
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 3000
+                    protocol: TCP
               readinessProbe:
                 httpGet:
                   path: /health
@@ -45,16 +61,14 @@ spec:
                   port: 3000
                 initialDelaySeconds: 5
                 periodSeconds: 60
-              env:
-                - name: CONFIG_PATH
-                  value: /etc/registry/config.yaml
-                - name: OTEL_TRACING_URL
-                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              volumes:
+                - name: config
+                  configMap:
+                    name: registry-config
               volumeMounts:
                 - name: config
                   mountPath: /etc/registry
                   readOnly: true
-              replicas: 2
               strategy:
                 type: RollingUpdate
                 rollingUpdate:
@@ -74,17 +88,6 @@ spec:
                   labelSelector:
                     matchLabels:
                       app: registry
-              volumes:
-                - name: config
-                  configMap:
-                    name: registry-config
-              service:
-                name: api
-                ports:
-                  - name: http
-                    protocol: TCP
-                    port: 80
-                    targetPort: 3000
               envFrom:
                 - secretRef:
                     name: registry-managed-secrets

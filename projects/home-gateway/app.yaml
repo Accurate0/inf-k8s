@@ -81,179 +81,83 @@ resources:
 workloads:
   home-gateway:
     image: ghcr.io/accurate0/home-gateway
-    resources:
-      requests:
-        cpu: 30m
-        memory: 336Mi
-    ports:
-      - containerPort: 8000
-    startupProbe:
-      failureThreshold: 30
-      httpGet:
-        path: /v1/health
-        port: 8000
-        scheme: HTTP
-      periodSeconds: 2
-      successThreshold: 1
-      timeoutSeconds: 2
-    readinessProbe:
-      failureThreshold: 3
-      httpGet:
-        path: /v1/health
-        port: 8000
-        scheme: HTTP
-      periodSeconds: 10
-      successThreshold: 1
-      timeoutSeconds: 2
-    livenessProbe:
-      failureThreshold: 3
-      httpGet:
-        path: /v1/health
-        port: 8000
-        scheme: HTTP
-      initialDelaySeconds: 3
-      periodSeconds: 30
-      successThreshold: 1
-      timeoutSeconds: 1
-    uses:
-      - traces
-      - name: flags
-        env: FEATURE_FLAGS_URL
+    resources: {cpu: 30m, memory: 336Mi}
+    ports: [8000]
+    probes:
+      http: {path: /v1/health, port: 8000}
+      startup: {every: 2, timeout: 2, failures: 30}
+      readiness: {every: 10, timeout: 2}
+      liveness: {delay: 3, every: 30}
     env:
-      - name: CONFIG_DIR
-        value: /etc/home-gateway/config
-    volumeMounts:
-      - name: config
-        mountPath: /etc/home-gateway/config
-        readOnly: true
-      - name: config-sections
-        mountPath: /etc/home-gateway/config/sections
-        readOnly: true
-      - name: config-devices
-        mountPath: /etc/home-gateway/config/devices
-        readOnly: true
-      - name: config-workflows
-        mountPath: /etc/home-gateway/config/workflows
-        readOnly: true
-      - name: config-lua-lib
-        mountPath: /etc/home-gateway/config/lua/lib
-        readOnly: true
-      - name: config-lua-model-lib
-        mountPath: /etc/home-gateway/config/lua/models/lib
-        readOnly: true
-      - name: config-lua-workflows
-        mountPath: /etc/home-gateway/config/lua/workflows
-        readOnly: true
-      - name: config-lua-integrations
-        mountPath: /etc/home-gateway/config/lua/integrations
-        readOnly: true
-      - name: config-lua-mqtt
-        mountPath: /etc/home-gateway/config/lua/models/mqtt
-        readOnly: true
-      - name: config-lua-home-assistant
-        mountPath: /etc/home-gateway/config/lua/models/home_assistant
-        readOnly: true
-      - name: config-lua-esphome-native-api
-        mountPath: /etc/home-gateway/config/lua/models/esphome_native_api
-        readOnly: true
-      - name: config-lua-tuya
-        mountPath: /etc/home-gateway/config/lua/models/tuya
-        readOnly: true
-    strategy:
-      type: RollingUpdate
-      rollingUpdate:
-        maxUnavailable: 0
-        maxSurge: 1
-    minReadySeconds: 15
-    progressDeadlineSeconds: 300
-    hostAliases:
-      - ip: 10.0.2.15
-        hostnames:
-          - home-assistant.internal
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: inf-k8s.net/location
-                  operator: In
-                  values:
-                    - perth
-    volumes:
-      - name: config
-        configMap:
-          name: home-gateway-config
-      - name: config-sections
-        configMap:
-          name: home-gateway-config-sections
-      - name: config-devices
-        configMap:
-          name: home-gateway-config-devices
-      - name: config-workflows
-        configMap:
-          name: home-gateway-config-workflows
-      - name: config-lua-lib
-        configMap:
-          name: home-gateway-config-lua-lib
-      - name: config-lua-model-lib
-        configMap:
-          name: home-gateway-config-lua-model-lib
-      - name: config-lua-workflows
-        configMap:
-          name: home-gateway-config-lua-workflows
-      - name: config-lua-integrations
-        configMap:
-          name: home-gateway-config-lua-integrations
-      - name: config-lua-mqtt
-        configMap:
-          name: home-gateway-config-lua-mqtt
-      - name: config-lua-home-assistant
-        configMap:
-          name: home-gateway-config-lua-home-assistant
-      - name: config-lua-esphome-native-api
-        configMap:
-          name: home-gateway-config-lua-esphome-native-api
-      - name: config-lua-tuya
-        configMap:
-          name: home-gateway-config-lua-tuya
+      CONFIG_DIR: /etc/home-gateway/config
+      OTEL_TRACING_URL: {resource: traces}
+      FEATURE_FLAGS_URL: {resource: flags}
+    envFrom:
+      - home-gateway-managed-secrets
+      - home-gateway-terraform-secrets
+      - home-gateway-db-credentials
+    secrets: []
+    databases: []
+    mounts:
+      config: {path: /etc/home-gateway/config, configMap: home-gateway-config}
+      config-sections: {path: /etc/home-gateway/config/sections, configMap: home-gateway-config-sections}
+      config-devices: {path: /etc/home-gateway/config/devices, configMap: home-gateway-config-devices}
+      config-workflows: {path: /etc/home-gateway/config/workflows, configMap: home-gateway-config-workflows}
+      config-lua-lib: {path: /etc/home-gateway/config/lua/lib, configMap: home-gateway-config-lua-lib}
+      config-lua-model-lib: {path: /etc/home-gateway/config/lua/models/lib, configMap: home-gateway-config-lua-model-lib}
+      config-lua-workflows: {path: /etc/home-gateway/config/lua/workflows, configMap: home-gateway-config-lua-workflows}
+      config-lua-integrations: {path: /etc/home-gateway/config/lua/integrations, configMap: home-gateway-config-lua-integrations}
+      config-lua-mqtt: {path: /etc/home-gateway/config/lua/models/mqtt, configMap: home-gateway-config-lua-mqtt}
+      config-lua-home-assistant: {path: /etc/home-gateway/config/lua/models/home_assistant, configMap: home-gateway-config-lua-home-assistant}
+      config-lua-esphome-native-api: {path: /etc/home-gateway/config/lua/models/esphome_native_api, configMap: home-gateway-config-lua-esphome-native-api}
+      config-lua-tuya: {path: /etc/home-gateway/config/lua/models/tuya, configMap: home-gateway-config-lua-tuya}
     runAsNonRoot: false
     service:
       name: home-gateway
       ports:
-        - name: api
-          protocol: TCP
-          port: 80
-          targetPort: 8000
+        - {name: api, port: 80, targetPort: 8000}
+    overrides:
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - perth
+      minReadySeconds: 15
+      progressDeadlineSeconds: 300
+      hostAliases:
+        - ip: 10.0.2.15
+          hostnames:
+            - home-assistant.internal
   home-web:
     image: ghcr.io/accurate0/home-gateway-web
-    resources:
-      requests:
-        memory: 32Mi
-    ports:
-      - containerPort: 8080
-    readinessProbe:
-      httpGet:
-        path: /
-        port: 8080
-        scheme: HTTP
-      initialDelaySeconds: 3
-      periodSeconds: 30
+    resources: {memory: 32Mi}
+    ports: [8080]
+    probes:
+      http: {path: /, port: 8080}
+      readiness: {delay: 3, every: 30}
     secrets: []
     databases: []
-    affinity:
-      nodeAffinity:
-        requiredDuringSchedulingIgnoredDuringExecution:
-          nodeSelectorTerms:
-            - matchExpressions:
-                - key: inf-k8s.net/location
-                  operator: In
-                  values:
-                    - perth
     runAsNonRoot: false
     service:
       name: home-web
       ports:
-        - name: http
-          protocol: TCP
-          port: 80
-          targetPort: 8080
+        - {name: http, port: 80, targetPort: 8080}
+    overrides:
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - perth

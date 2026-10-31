@@ -64,95 +64,55 @@ resources:
 workloads:
   janitor-bot:
     image: ghcr.io/accurate0/janitor-bot
-    resources:
-      requests:
-        memory: 32Mi
-    ports:
-      - containerPort: 3000
-    readinessProbe:
-      httpGet:
-        path: /health
-        port: 3000
-      initialDelaySeconds: 5
-      periodSeconds: 15
-    livenessProbe:
-      httpGet:
-        path: /health
-        port: 3000
-      initialDelaySeconds: 5
-      periodSeconds: 60
-    uses:
-      - traces
-      - name: flags
-        env: FEATURE_FLAGS_URL
+    resources: {memory: 32Mi}
+    ports: [3000]
+    probes:
+      http: {path: /health, port: 3000}
+      readiness: {delay: 5, every: 15}
+      liveness: {delay: 5, every: 60}
     env:
-      - name: OIDC_ISSUER
-        value: https://idm.anurag.sh/oauth2/openid/janitor-bot
-      - name: OIDC_AUDIENCE
-        value: janitor-bot
-      - name: OIDC_GROUPS
-        value: janitor_bot_admins
-      - name: RULES_CONFIGMAP_PATH
-        value: /etc/janitor-bot/rules/config.yaml
-      - name: ARGOCD_SERVER
-        value: http://argocd-server.argocd.svc.cluster.local:80
-      - name: FORGEJO_INSTANCE_URL
-        value: http://forgejo-http.forgejo.svc.cluster.local:3000
-    volumeMounts:
-      - name: tmp
-        mountPath: /tmp
-      - name: rules
-        mountPath: /etc/janitor-bot/rules
-        readOnly: true
-    strategy:
-      type: RollingUpdate
-      rollingUpdate:
-        maxUnavailable: 0
-        maxSurge: 1
-    volumes:
-      - name: tmp
-        emptyDir: {}
-      - name: rules
-        configMap:
-          name: janitor-bot-rules
-          items:
-            - key: config.yaml
-              path: config.yaml
-            - key: manage-ci-image-updater.yaml
-              path: rules/manage-ci-image-updater.yaml
-            - key: manage-renovate-workflows.yaml
-              path: rules/manage-renovate-workflows.yaml
-            - key: manage-renovate-dockerfiles.yaml
-              path: rules/manage-renovate-dockerfiles.yaml
-            - key: automerge-renovate-terraform.yaml
-              path: rules/automerge-renovate-terraform.yaml
-            - key: automerge-renovate-rust.yaml
-              path: rules/automerge-renovate-rust.yaml
-            - key: retry-renovate-workflow.yaml
-              path: rules/retry-renovate-workflow.yaml
-            - key: argocd-diff-renovate.yaml
-              path: rules/argocd-diff-renovate.yaml
-            - key: mirror-commit-status.yaml
-              path: rules/mirror-commit-status.yaml
-            - key: argocd-sync-status.yaml
-              path: rules/argocd-sync-status.yaml
-            - key: forward-push-to-argocd.yaml
-              path: rules/forward-push-to-argocd.yaml
-            - key: cleanup-on-merge.yaml
-              path: rules/cleanup-on-merge.yaml
-            - key: merge-on-label.yaml
-              path: rules/merge-on-label.yaml
-            - key: clear-queued-on-unmergeable.yaml
-              path: rules/clear-queued-on-unmergeable.yaml
-            - key: label-eink-firmware-update.yaml
-              path: rules/label-eink-firmware-update.yaml
+      OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/janitor-bot
+      OIDC_AUDIENCE: janitor-bot
+      OIDC_GROUPS: janitor_bot_admins
+      RULES_CONFIGMAP_PATH: /etc/janitor-bot/rules/config.yaml
+      ARGOCD_SERVER: http://argocd-server.argocd.svc.cluster.local:80
+      FORGEJO_INSTANCE_URL: http://forgejo-http.forgejo.svc.cluster.local:3000
+      OTEL_TRACING_URL: {resource: traces}
+      FEATURE_FLAGS_URL: {resource: flags}
+    envFrom:
+      - janitor-bot-managed-secrets
+    secrets: []
+    mounts:
+      tmp: {path: /tmp, emptyDir: true}
+      rules:
+        path: /etc/janitor-bot/rules
+        configMap: janitor-bot-rules
+        items:
+          - config.yaml
+          - rules/manage-ci-image-updater.yaml
+          - rules/manage-renovate-workflows.yaml
+          - rules/manage-renovate-dockerfiles.yaml
+          - rules/automerge-renovate-terraform.yaml
+          - rules/automerge-renovate-rust.yaml
+          - rules/retry-renovate-workflow.yaml
+          - rules/argocd-diff-renovate.yaml
+          - rules/mirror-commit-status.yaml
+          - rules/argocd-sync-status.yaml
+          - rules/forward-push-to-argocd.yaml
+          - rules/cleanup-on-merge.yaml
+          - rules/merge-on-label.yaml
+          - rules/clear-queued-on-unmergeable.yaml
+          - rules/label-eink-firmware-update.yaml
     service:
       name: api
       ports:
-        - name: http
-          protocol: TCP
-          port: 80
-          targetPort: 3000
+        - {name: http, port: 80, targetPort: 3000}
+    overrides:
+      strategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
 namespace:
   labels:
     internal-gateway-access: "true"

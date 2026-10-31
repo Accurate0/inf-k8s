@@ -5,11 +5,9 @@ workloads:
   anurag-sh:
     image: ghcr.io/accurate0/anurag-sh
     port: 3000
+    resources: {memory: 16Mi}
     service:
       port: 80
-    resources:
-      requests:
-        memory: 16Mi
 routes:
   anurag-sh-route:
     auth:

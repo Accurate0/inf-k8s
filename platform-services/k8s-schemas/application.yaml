@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.641Z
+# generated at 2026-10-31T11:07:53.379Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -31,23 +31,25 @@ spec:
           workloads:
             - name: k8s-schemas
               image: ghcr.io/accurate0/k8s-schemas
+              kind: CronJob
+              schedule: 0 0 * * 0
+              backoffLimit: 2
               resources:
                 requests:
                   cpu: 50m
                   memory: 128Mi
+                limits:
+                  memory: 512Mi
               env:
                 - name: K8S_VERSION
                   value: v1.37.1
-              volumeMounts:
-                - name: tmp
-                  mountPath: /tmp
-              kind: CronJob
-              schedule: 0 0 * * 0
-              backoffLimit: 2
               serviceAccountName: k8s-schemas
               volumes:
                 - name: tmp
                   emptyDir: {}
+              volumeMounts:
+                - name: tmp
+                  mountPath: /tmp
               envFrom:
                 - secretRef:
                     name: k8s-schemas-managed-secrets

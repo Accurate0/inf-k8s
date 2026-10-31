@@ -38,46 +38,36 @@ resources:
 workloads:
   feature-flags:
     image: ghcr.io/accurate0/feature-flags
-    resources:
-      requests:
-        memory: 32Mi
+    kind: DaemonSet
+    resources: {memory: 32Mi}
     ports:
       - name: grpc
         containerPort: 50051
-    readinessProbe:
-      grpc:
-        port: 50051
-      initialDelaySeconds: 5
-      periodSeconds: 15
-    livenessProbe:
-      grpc:
-        port: 50051
-      initialDelaySeconds: 5
-      periodSeconds: 60
-    uses:
-      - traces
+    probes:
+      grpc: {port: 50051}
+      readiness: {delay: 5, every: 15}
+      liveness: {delay: 5, every: 60}
     env:
-      - name: REDIS_URL
-        value: redis://replicated.dragonfly.svc.cluster.local
-      - name: OIDC_ISSUER
-        value: https://idm.anurag.sh/oauth2/openid/feature-flags
-      - name: OIDC_AUDIENCE
-        value: feature-flags
-    kind: DaemonSet
-    updateStrategy:
-      type: RollingUpdate
-      rollingUpdate:
-        maxUnavailable: 0
-        maxSurge: 1
+      REDIS_URL: redis://replicated.dragonfly.svc.cluster.local
+      OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/feature-flags
+      OIDC_AUDIENCE: feature-flags
+      OTEL_TRACING_URL: {resource: traces}
+    envFrom:
+      - feature-flags-managed-secrets
+      - feature-flags-db-credentials
+    secrets: []
+    databases: []
     service:
       name: api
       ports:
-        - name: grpc
-          protocol: TCP
-          port: 50051
-          targetPort: grpc
-          appProtocol: grpc
+        - {name: grpc, port: 50051, targetPort: grpc, appProtocol: grpc}
       trafficDistribution: PreferSameNode
+    overrides:
+      updateStrategy:
+        type: RollingUpdate
+        rollingUpdate:
+          maxUnavailable: 0
+          maxSurge: 1
 namespace:
   labels:
     internal-gateway-access: "true"

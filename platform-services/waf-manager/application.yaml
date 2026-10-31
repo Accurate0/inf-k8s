@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:50:55.664Z
+# generated at 2026-10-31T11:07:53.403Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -33,23 +33,12 @@ spec:
           workloads:
             - name: waf-manager
               image: ghcr.io/accurate0/waf-manager
+              replicas: 2
               resources:
                 requests:
                   memory: 32Mi
               ports:
                 - containerPort: 3000
-              readinessProbe:
-                httpGet:
-                  path: /health
-                  port: 3000
-                initialDelaySeconds: 5
-                periodSeconds: 15
-              livenessProbe:
-                httpGet:
-                  path: /health
-                  port: 3000
-                initialDelaySeconds: 5
-                periodSeconds: 60
               env:
                 - name: POD_NAMESPACE
                   valueFrom:
@@ -91,24 +80,26 @@ spec:
                       name: kanidm-waf-manager-cli-oidc
                       key: client-id
                       optional: true
-              volumeMounts:
-                - name: workflows
-                  mountPath: /etc/waf-manager/config
-                  readOnly: true
-              replicas: 2
-              strategy:
-                type: RollingUpdate
-                rollingUpdate:
-                  maxUnavailable: 0
-                  maxSurge: 1
               serviceAccountName: waf-manager
-              topologySpreadConstraints:
-                - maxSkew: 1
-                  topologyKey: kubernetes.io/hostname
-                  whenUnsatisfiable: ScheduleAnyway
-                  labelSelector:
-                    matchLabels:
-                      app: waf-manager
+              service:
+                name: api
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 3000
+                    protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 15
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 3000
+                initialDelaySeconds: 5
+                periodSeconds: 60
               volumes:
                 - name: workflows
                   configMap:
@@ -146,13 +137,22 @@ spec:
                         path: workflows/dev-server-file-leaks.yaml
                       - key: management-endpoint-probes.yaml
                         path: workflows/management-endpoint-probes.yaml
-              service:
-                name: api
-                ports:
-                  - name: http
-                    protocol: TCP
-                    port: 80
-                    targetPort: 3000
+              volumeMounts:
+                - name: workflows
+                  mountPath: /etc/waf-manager/config
+                  readOnly: true
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
+              topologySpreadConstraints:
+                - maxSkew: 1
+                  topologyKey: kubernetes.io/hostname
+                  whenUnsatisfiable: ScheduleAnyway
+                  labelSelector:
+                    matchLabels:
+                      app: waf-manager
               envFrom:
                 - secretRef:
                     name: waf-manager-managed-secrets

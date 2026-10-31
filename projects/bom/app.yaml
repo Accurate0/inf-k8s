@@ -6,16 +6,17 @@ workloads:
     image: ghcr.io/accurate0/bom
     port: 8000
     health: /health
+    resources: {cpu: 30m, memory: 56Mi, memoryLimit: 512Mi}
+    env:
+      BUCKET_NAME: bom-images
+    envFrom:
+      - bom-managed-secrets
+      - bom-database-secret
+    secrets: []
+    databases: []
     service:
       name: bom-api
       portName: api
-    resources:
-      requests:
-        cpu: 30m
-        memory: 56Mi
-    env:
-      - name: BUCKET_NAME
-        value: bom-images
 databases:
   bom: {}
 secrets:

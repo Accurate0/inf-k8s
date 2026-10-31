@@ -7,23 +7,18 @@ network:
 workloads:
   k8s-schemas:
     image: ghcr.io/accurate0/k8s-schemas
-    resources:
-      requests:
-        cpu: 50m
-        memory: 128Mi
-    env:
-      - name: K8S_VERSION
-        value: v1.37.1
-    volumeMounts:
-      - name: tmp
-        mountPath: /tmp
     kind: CronJob
     schedule: 0 0 * * 0
     backoffLimit: 2
+    resources: {cpu: 50m, memory: 128Mi, memoryLimit: 512Mi}
+    env:
+      K8S_VERSION: v1.37.1
+    envFrom:
+      - k8s-schemas-managed-secrets
+    secrets: []
+    mounts:
+      tmp: {path: /tmp, emptyDir: true}
     serviceAccountName: k8s-schemas
-    volumes:
-      - name: tmp
-        emptyDir: {}
 serviceAccounts:
   - k8s-schemas
 build:

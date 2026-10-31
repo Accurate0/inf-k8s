@@ -5,15 +5,11 @@ network:
 workloads:
   kanidm-sync:
     image: ghcr.io/accurate0/kanidm-sync
-    resources:
-      requests:
-        memory: 16Mi
+    resources: {memory: 16Mi}
     env:
-      - name: KANIDM_URL
-        value: https://idm.anurag.sh
+      KANIDM_URL: https://idm.anurag.sh
     envFrom:
-      - secretRef:
-          name: kanidm-sync-managed-secrets
+      - kanidm-sync-managed-secrets
     serviceAccountName: kanidm-sync
 serviceAccounts:
   - kanidm-sync

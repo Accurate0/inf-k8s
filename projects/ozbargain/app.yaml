@@ -4,19 +4,22 @@ repository: https://github.com/Accurate0/ozb
 workloads:
   ozb-discord-bot:
     image: ghcr.io/accurate0/ozb-discord-bot
-    resources:
-      requests:
-        memory: 16Mi
+    resources: {memory: 16Mi}
+    envFrom:
+      - ozb-managed-secrets
+    secrets: []
   ozb-finder:
     image: ghcr.io/accurate0/ozb-finder
-    resources:
-      requests:
-        memory: 16Mi
+    resources: {memory: 16Mi}
+    envFrom:
+      - ozb-managed-secrets
+    secrets: []
   ozb-trigger:
     image: ghcr.io/accurate0/ozb-trigger
-    resources:
-      requests:
-        memory: 16Mi
+    resources: {memory: 16Mi}
+    envFrom:
+      - ozb-managed-secrets
+    secrets: []
 secrets:
   - name: ozbargain
     secretName: ozb-managed-secrets
