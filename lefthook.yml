@@ -35,5 +35,10 @@ pre-commit:
       glob: "{**/application.yaml,**/manifests/*.{yml,yaml},**/kustomization.{yml,yaml}}"
       run: scripts/validate-manifests.sh {staged_files}
 
+    render-apps:
+      glob: "{**/app.yaml,platform/versions.yaml}"
+      run: ortzi update app && ortzi app render
+      stage_fixed: true
+
     check-merge-conflict:
       run: 'git diff --cached --check'

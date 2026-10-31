@@ -1,0 +1,8 @@
+charts:
+  k8s-workload: 0.1.0
+  k8s-network: 0.1.0
+  k8s-observability: 0.1.0
+  k8s-http-routes: 2.3.1
+  k8s-oidc: 0.4.0
+  k8s-postgres: 1.0.1
+  k8s-secrets: 0.6.0

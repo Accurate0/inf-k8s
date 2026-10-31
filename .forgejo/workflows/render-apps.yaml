@@ -1,0 +1,41 @@
+name: Publish and render apps
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "**/app.yaml"
+      - "**/application.yaml"
+      - platform/versions.yaml
+      - packages/app/**
+      - packages/ortzi-host/**
+      - packages/ortzi-kit/**
+      - packages/pnpm-lock.yaml
+      - .forgejo/workflows/render-apps.yaml
+  workflow_dispatch:
+
+enable-openid-connect: true
+
+jobs:
+  publish:
+    runs-on: ortzi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: ortzi publish packages/app
+
+  render:
+    needs: publish
+    runs-on: ortzi
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: ortzi install app --force
+      - run: ortzi app render
+      - name: Commit changes
+        run: |
+          git add -A projects platform-services
+          git diff --cached --quiet && exit 0
+          git config user.name "ci-image-updater"
+          git config user.email "ci-image-updater@git.anurag.sh"
+          git commit -m "chore(render): update generated applications [skip ci]"
+          git pull --rebase
+          git push origin HEAD:main

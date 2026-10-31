@@ -27,11 +27,9 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^scripts/new-project\\.sh$/"],
-      "matchStrings": [
-        "(?<depName>routes|secrets|oidc|postgres)_chart_version=\"\\$\\{[A-Z_]+:-(?<currentValue>[^}]+)\\}\""
-      ],
-      "packageNameTemplate": "ghcr.io/accurate0/charts/k8s-{{#if (equals depName 'routes')}}http-routes{{else}}{{{depName}}}{{/if}}",
+      "managerFilePatterns": ["/^platform/versions\\.yaml$/"],
+      "matchStrings": ["(?<depName>k8s-[a-z-]+):\\s*(?<currentValue>\\S+)"],
+      "packageNameTemplate": "ghcr.io/accurate0/charts/{{{depName}}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
     },

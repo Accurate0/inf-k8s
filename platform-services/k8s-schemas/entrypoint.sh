@@ -33,8 +33,9 @@ python3 /reorganize-schemas.py "$BUILTIN_TMP_DIR" "$OUTPUT_DIR"
 echo "Publishing helm chart values schemas..."
 REPO_DIR="/tmp/inf-k8s"
 git clone --depth 1 --filter=blob:none --sparse https://github.com/Accurate0/inf-k8s.git "$REPO_DIR"
-git -C "$REPO_DIR" sparse-checkout set charts
+git -C "$REPO_DIR" sparse-checkout set charts packages/app
 python3 /patch-application-schema.py "$OUTPUT_DIR" "$REPO_DIR/charts"
+cp "$REPO_DIR/packages/app/app.schema.json" "$OUTPUT_DIR/app.json"
 
 echo "Building index.json..."
 python3 /build-index.py "$OUTPUT_DIR"

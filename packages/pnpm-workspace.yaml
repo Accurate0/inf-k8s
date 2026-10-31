@@ -5,6 +5,7 @@ packages:
   - ortzi-example
   - schemas
   - deploy
+  - app
 
 allowBuilds:
   grpc-tools: true

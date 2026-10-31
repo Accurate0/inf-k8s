@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://k8s-schemas.anurag.sh/app.json",
+  "title": "app.yaml",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["name", "network"],
+  "properties": {
+    "name": { "type": "string", "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$" },
+    "repository": { "type": "string" },
+    "charts": { "type": "object", "description": "Pin chart versions for this app.", "additionalProperties": { "type": "string" } },
+    "workload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["image"],
+      "properties": {
+        "image": { "type": "string" },
+        "port": { "type": "integer" },
+        "kind": { "enum": ["Deployment", "DaemonSet", "CronJob"] },
+        "replicas": { "type": "integer" },
+        "schedule": { "type": "string" },
+        "service": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": { "type": "string" },
+            "port": { "type": "integer" },
+            "portName": { "type": "string" }
+          }
+        },
+        "health": { "type": "string", "description": "HTTP path for readiness and liveness." },
+        "resources": { "type": "object" },
+        "env": { "type": "array", "items": { "type": "object" } },
+        "envFrom": { "type": "array", "items": { "type": "object" } },
+        "readOnlyRootFilesystem": { "type": "boolean" }
+      }
+    },
+    "route": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["host"],
+      "properties": {
+        "host": { "type": "string" },
+        "gateway": { "type": "string" },
+        "unauthenticated": { "type": "boolean", "description": "Required for a route with no oidc block." }
+      }
+    },
+    "oidc": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "public": { "type": "boolean" },
+        "displayName": { "type": "string" },
+        "allowLocalhostRedirect": { "type": "boolean" }
+      }
+    },
+    "database": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "databaseName": { "type": "string" },
+        "secretName": { "type": "string" }
+      }
+    },
+    "secrets": { "type": "array", "items": { "type": "string" } },
+    "network": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["callers"],
+      "properties": { "callers": { "type": "array", "items": { "type": "string" } } }
+    },
+    "metrics": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "path": { "type": "string" },
+        "interval": { "type": "string" }
+      }
+    }
+  }
+}

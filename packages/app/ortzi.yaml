@@ -1,0 +1,11 @@
+package:
+  name: app
+  description: render app.yaml files into argo applications
+  version: 0.1.0
+  completions: cobra
+permissions:
+  fs: [.]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts
