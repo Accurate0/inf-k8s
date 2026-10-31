@@ -13,8 +13,10 @@ routes:
       port: 80
   waf-manager-api:
     auth:
-      mode: app
-      reason: raw SecurityPolicy in manifests
+      mode: jwt
+      clients:
+        - waf-manager-cli
+        - waf-manager
     gateway: internal-gateway
     hosts:
       - waf-manager.ortzi.cloud
