@@ -7,6 +7,8 @@ on:
       - platform-services/registry/**
       - "!platform-services/registry/manifests/**"
       - "!platform-services/registry/application.yaml"
+      - "!platform-services/registry/app.yaml"
+      - "!platform-services/registry/image.values.yaml"
       - .github/workflows/build-deploy-registry.yaml
   workflow_dispatch:
 
@@ -55,11 +57,12 @@ jobs:
     needs:
       - build
       - test
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
     with:
       service-name: registry
       images: ghcr.io/accurate0/registry
-      manifests-path: platform-services/registry/manifests
+      manifests-path: platform-services/registry
+      values-file: platform-services/registry/image.values.yaml
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}
