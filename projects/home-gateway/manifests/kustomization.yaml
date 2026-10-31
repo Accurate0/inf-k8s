@@ -4,5 +4,7 @@ resources:
   - home-gateway/home-web.httproute.yaml
   - home-gateway/home-web-lan.httproute.yaml
 images:
+  - name: ghcr.io/accurate0/home-gateway
+    newTag: 33623c817840bd611a1ea4fd703228687b74a660
   - name: ghcr.io/accurate0/home-gateway-web
     newTag: 33623c817840bd611a1ea4fd703228687b74a660
