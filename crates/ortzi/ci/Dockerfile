@@ -12,6 +12,14 @@ RUN apk add --no-cache bash git nodejs npm gcompat libgcc cmake make perl protob
     npm install -g pnpm@12.6.0
 RUN rustup target add aarch64-apple-darwin x86_64-unknown-linux-gnu
 
+ARG HELM_VERSION=v4.3.1
+ARG KUSTOMIZE_VERSION=v5.7.1
+ARG KUBECONFORM_VERSION=v0.7.0
+RUN apk add --no-cache curl && \
+    curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz" | tar -xz -C /usr/local/bin --strip-components=1 linux-amd64/helm && \
+    curl -fsSL "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F${KUSTOMIZE_VERSION}/kustomize_${KUSTOMIZE_VERSION}_linux_amd64.tar.gz" | tar -xz -C /usr/local/bin kustomize && \
+    curl -fsSL "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz" | tar -xz -C /usr/local/bin kubeconform
+
 COPY --from=zigbuild /opt/MacOSX11.3.sdk /opt/MacOSX11.3.sdk
 COPY --from=zigbuild /opt/zig /opt/zig
 RUN ln -s /opt/zig/zig /usr/local/bin/zig
