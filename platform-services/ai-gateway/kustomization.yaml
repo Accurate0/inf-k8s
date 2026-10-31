@@ -1,7 +1,5 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources:
-  - manifests
 configMapGenerator:
   - name: ai-gateway-config
     namespace: ai-gateway
@@ -15,3 +13,5 @@ configMapGenerator:
       disableNameSuffixHash: true
       labels:
         inf-k8s.net/grafana-dashboard: "true"
+generatorOptions:
+  disableNameSuffixHash: true

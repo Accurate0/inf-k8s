@@ -7,6 +7,8 @@ on:
       - platform-services/ai-gateway/**
       - "!platform-services/ai-gateway/manifests/**"
       - "!platform-services/ai-gateway/application.yaml"
+      - "!platform-services/ai-gateway/app.yaml"
+      - "!platform-services/ai-gateway/image.values.yaml"
       - crates/cli-auth/**
       - .github/workflows/build-deploy-ai-gateway.yaml
   workflow_dispatch:
@@ -77,11 +79,12 @@ jobs:
     needs:
       - build
       - test
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@9611c57c4fee8a271c037bfc3c9a389d39b52d2f # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@ac9012a26474aa89e9ab8f6926d64ca34c9dc36c # main
     with:
       service-name: ai-gateway
       images: ghcr.io/accurate0/ai-gateway
-      manifests-path: platform-services/ai-gateway/manifests
+      manifests-path: platform-services/ai-gateway
+      values-file: platform-services/ai-gateway/image.values.yaml
       tag: ${{ github.sha }}
     secrets:
       FORGEJO_TOKEN: ${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}
