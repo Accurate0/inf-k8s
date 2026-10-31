@@ -155,7 +155,11 @@ impl Storage {
         }
     }
 
-    pub async fn presign_get(&self, key: &str, expiry_secs: u32) -> Result<Option<String>, ApiError> {
+    pub async fn presign_get(
+        &self,
+        key: &str,
+        expiry_secs: u32,
+    ) -> Result<Option<String>, ApiError> {
         match self {
             Storage::S3(bucket) => bucket
                 .presign_get(key, expiry_secs, None)

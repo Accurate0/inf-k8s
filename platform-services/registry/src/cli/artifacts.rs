@@ -154,7 +154,10 @@ pub async fn download_url(
         .presign_get(&artifact.object_key, PRESIGN_SECS)
         .await?
         .ok_or_else(|| {
-            ApiError::NotFound("this registry serves artifacts directly; download them from the artifact path".to_owned())
+            ApiError::NotFound(
+                "this registry serves artifacts directly; download them from the artifact path"
+                    .to_owned(),
+            )
         })?;
     metrics::record_download(ECOSYSTEM_CLI, &name, target.as_str());
 

@@ -78,9 +78,7 @@ impl Sandbox {
 
     fn resolve(&self, path: &str) -> Result<PathBuf, String> {
         let raw = match path.strip_prefix("~/") {
-            Some(rest) => dirs::home_dir()
-                .ok_or("no home directory")?
-                .join(rest),
+            Some(rest) => dirs::home_dir().ok_or("no home directory")?.join(rest),
             None => self.cwd.join(path),
         };
 

@@ -85,7 +85,8 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
 }
 
 fn wants_help(args: &[OsString]) -> bool {
-    args.first().is_some_and(|a| a == "help" || a == "__complete")
+    args.first()
+        .is_some_and(|a| a == "help" || a == "__complete")
         || args
             .iter()
             .take_while(|a| *a != "--")

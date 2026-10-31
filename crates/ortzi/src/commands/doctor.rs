@@ -93,7 +93,11 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
         }
         if problems.is_empty() {
             let pin = if package.pinned { " (pinned)" } else { "" };
-            findings.push(Finding::new(name, Level::Ok, format!("{}{pin}", package.version)));
+            findings.push(Finding::new(
+                name,
+                Level::Ok,
+                format!("{}{pin}", package.version),
+            ));
         } else {
             findings.extend(problems);
         }
