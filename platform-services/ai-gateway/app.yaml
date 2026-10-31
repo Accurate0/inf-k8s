@@ -29,6 +29,7 @@ resources:
       port: 80
   - name: ai-gateway
     type: oidc
+    secretName: kanidm-ai-gateway-oidc
     displayName: AI Gateway
     public: true
     allowLocalhostRedirect: true

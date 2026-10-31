@@ -51,6 +51,7 @@ resources:
             unit: Second
   - name: janitor-bot
     type: oidc
+    secretName: kanidm-janitor-bot-oidc
     displayName: Janitor Bot
     host: janitor-bot.ortzi.cloud
     public: true

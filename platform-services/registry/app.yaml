@@ -23,6 +23,7 @@ resources:
       port: 80
   - name: registry
     type: oidc
+    secretName: kanidm-registry-oidc
     displayName: Registry
     public: true
     allowLocalhostRedirect: true

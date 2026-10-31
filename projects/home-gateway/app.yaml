@@ -50,6 +50,7 @@ resources:
             unit: Second
   - name: home-gateway
     type: oidc
+    secretName: kanidm-home-gateway-oidc
     host: home.ortzi.cloud
     displayName: Home Gateway
     callbackPath: /callback

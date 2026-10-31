@@ -33,6 +33,7 @@ resources:
       - /api/
   - name: waf-manager
     type: oidc
+    secretName: kanidm-waf-manager-oidc
     displayName: WAF Manager
     allowInsecureClientDisablePkce: true
     secretKeys:
@@ -58,6 +59,7 @@ resources:
             header: x-waf-user-sub
   - name: waf-manager-cli
     type: oidc
+    secretName: kanidm-waf-manager-cli-oidc
     displayName: WAF Manager CLI
     host: waf-manager.ortzi.cloud
     public: true
@@ -92,9 +94,9 @@ workloads:
       WORKFLOWS_CONFIGMAP_PATH: /etc/waf-manager/config/config.yaml
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/waf-manager
       OIDC_JWKS_URI: https://idm.anurag.sh/oauth2/openid/waf-manager/public_key.jwk
-      OIDC_AUDIENCE: {secret: kanidm-waf-manager-oidc, key: client-id}
+      OIDC_AUDIENCE: {oidc: waf-manager, key: client-id}
       OIDC_CLI_ISSUER: https://idm.anurag.sh/oauth2/openid/waf-manager-cli
-      OIDC_CLI_AUDIENCE: {secret: kanidm-waf-manager-cli-oidc, key: client-id, optional: true}
+      OIDC_CLI_AUDIENCE: {oidc: waf-manager-cli, key: client-id, optional: true}
     envFrom:
       - secret: waf-manager
         optional: true

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:17:27.743Z
+# generated at 2026-10-31T12:05:04.275Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -199,6 +199,7 @@ spec:
               displayName: Janitor Bot
               host: janitor-bot.ortzi.cloud
               preferShortUsername: true
+              secretName: kanidm-janitor-bot-oidc
               public: true
               allowLocalhostRedirect: true
               scopes:
@@ -206,7 +207,6 @@ spec:
                 - email
                 - profile
                 - groups
-              secretName: kanidm-janitor-bot-oidc
               secretNamespace: janitor-bot
               annotations:
                 inf-k8s.net/app: janitor-bot
