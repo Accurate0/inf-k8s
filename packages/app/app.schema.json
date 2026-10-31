@@ -246,14 +246,7 @@
             "type": "array",
             "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
             "items": {
-              "oneOf": [
-                {
-                  "type": "string"
-                },
-                {
-                  "type": "object"
-                }
-              ]
+              "type": "object"
             }
           },
           "readOnlyRootFilesystem": {
@@ -491,7 +484,8 @@
             "required": [
               "name",
               "type",
-              "provider"
+              "provider",
+              "secretName"
             ],
             "properties": {
               "name": {
@@ -526,7 +520,8 @@
             "additionalProperties": false,
             "required": [
               "name",
-              "type"
+              "type",
+              "secretName"
             ],
             "properties": {
               "name": {
@@ -554,7 +549,8 @@
             "additionalProperties": false,
             "required": [
               "name",
-              "type"
+              "type",
+              "secretName"
             ],
             "properties": {
               "name": {
@@ -566,8 +562,7 @@
                 ]
               },
               "secretName": {
-                "type": "string",
-                "description": "Defaults to <name>-managed-secrets."
+                "type": "string"
               }
             }
           },
@@ -739,7 +734,8 @@
             },
             "required": [
               "name",
-              "type"
+              "type",
+              "secretName"
             ]
           },
           {

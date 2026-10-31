@@ -42,10 +42,10 @@ test('a workload only gets the secrets it lists', () => {
       'foo-bar': {
         image: 'ghcr.io/accurate0/foo-bar',
         port: 3000,
-        envFrom: ['foo-bar-managed-secrets', 'foo-bar-database-secret'],
+        envFrom: [{ secret: 'foo-bar' }, { database: 'foo-bar' }],
       },
     },
-    resources: [{ name: 'foo-bar', type: 'secret' }, { name: 'foo-bar', type: 'database' }],
+    resources: [{ name: 'foo-bar', type: 'secret', secretName: 'foo-bar-managed-secrets' }, { name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' }],
     network: { ingress: [] },
   });
   assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].envFrom, [
@@ -62,7 +62,7 @@ test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
     workloads: { foo: { image: 'i', port: 3000 } },
-    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] } }, { name: 'foo', type: 'oidc' }, { name: 'scrape', type: 'metrics' }],
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], auth: { mode: 'jwt', clients: ['foo'] } }, { name: 'foo', type: 'oidc', secretName: 'kanidm-foo-oidc' }, { name: 'scrape', type: 'metrics' }],
     network: { ingress: ['ai-gateway', 'monitoring'] },
   });
   assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
@@ -80,7 +80,7 @@ test('renders several workloads and routes to the named one', () => {
       web: { image: 'j', port: 8080 },
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
-    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } }, { name: 'foo', type: 'secret' }],
+    resources: [{ name: 'foo', type: 'route', hosts: ['foo.anurag.sh'], workload: 'web', auth: { mode: 'none', reason: 'public' } }, { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' }],
     network: { ingress: [] },
   });
   const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
@@ -113,7 +113,7 @@ test('routes to an explicit backend without a workload', () => {
     resources: [{ name: 'foo-route', type: 'route', hosts: ['a.sh', 'b.sh'],
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
-        auth: { mode: 'none', reason: 'public' }, }, { name: 'foo-api', type: 'route', hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } }, { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } }, { name: 'foo-cli', type: 'oidc', public: true }],
+        auth: { mode: 'none', reason: 'public' }, }, { name: 'foo-api', type: 'route', hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } }, { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } }, { name: 'foo-cli', type: 'oidc', secretName: 'kanidm-foo-cli-oidc', public: true }],
     sources: [{ repoURL: 'r', name: 'config', path: 'config' }],
     network: { ingress: [] },
   });
@@ -135,7 +135,7 @@ test('routes to an explicit backend without a workload', () => {
 test('connection pooling is left to the chart unless set', () => {
   const rendered = render({
     name: 'foo',
-    resources: [{ name: 'foo', type: 'database' }, { name: 'direct', type: 'database', enableConnectionPooling: false }],
+    resources: [{ name: 'foo', type: 'database', secretName: 'foo-database-secret' }, { name: 'direct', type: 'database', secretName: 'direct-database-secret', enableConnectionPooling: false }],
     network: { ingress: [] },
   });
   const [pooled, direct] = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
@@ -146,7 +146,7 @@ test('connection pooling is left to the chart unless set', () => {
 test('jwt routes pass their clients to the chart', () => {
   const rendered = render({
     name: 'foo',
-    resources: [{ name: 'api', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } }, { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } }, { name: 'foo', type: 'oidc' }, { name: 'foo-cli', type: 'oidc' }],
+    resources: [{ name: 'api', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] } }, { name: 'web', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth: { mode: 'app', reason: 'api keys' } }, { name: 'foo', type: 'oidc', secretName: 'kanidm-foo-oidc' }, { name: 'foo-cli', type: 'oidc', secretName: 'kanidm-foo-cli-oidc' }],
     network: { ingress: [] },
   });
   const [api, web] = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes;
@@ -159,7 +159,7 @@ test('rejects invalid route auth', () => {
     name: 'foo',
     resources: [
       { name: 'foo', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth },
-      { name: 'foo', type: 'oidc', ...client },
+      { name: 'foo', type: 'oidc', secretName: 'kanidm-foo-oidc', ...client },
     ],
     network: { ingress: [] },
   });
@@ -196,7 +196,7 @@ test('keeps manifests as an optional source', () => {
 
 test('does not emit yaml anchors', () => {
   const output = renderApplication(
-    { name: 'foo', resources: [{ name: 'foo', type: 'secret' }, { name: 'foo', type: 'database' }], network: { ingress: [] } },
+    { name: 'foo', resources: [{ name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' }, { name: 'foo', type: 'database', secretName: 'foo-database-secret' }], network: { ingress: [] } },
     versions,
     target,
     { platform, apps: [] },
@@ -289,7 +289,7 @@ test('templates generated charts from the local charts directory', () => {
 
 test('rejects app.yaml fields outside the schema', () => {
   assert.throws(
-    () => validate({ name: 'x', network: { ingress: [] }, resources: [{ name: 'x', type: 'database', nope: true }] }, 'x'),
+    () => validate({ name: 'x', network: { ingress: [] }, resources: [{ name: 'x', type: 'database', secretName: 'x-database-secret', nope: true }] }, 'x'),
     /resources/,
   );
 });
@@ -379,11 +379,11 @@ test('expands the env map', () => {
         A: 'b',
         N: 300,
         T: { resource: 'traces' },
-        S: { secret: 'foo-secret', key: 'K', optional: true },
+        S: { secret: 'foo', key: 'K', optional: true },
         F: { field: 'metadata.name' },
       },
     },
-    { resources: [{ name: 'traces', type: 'tracing' }] },
+    { resources: [{ name: 'traces', type: 'tracing' }, { name: 'foo', type: 'secret', secretName: 'foo-secret' }] },
   );
   assert.deepEqual(env, [
     { name: 'A', value: 'b' },
@@ -394,9 +394,10 @@ test('expands the env map', () => {
   ]);
 });
 
-test('expands envFrom names in order', () => {
-  const { envFrom } = short({ envFrom: ['b', { secretRef: { name: 'a', optional: true } }] });
-  assert.deepEqual(envFrom, [{ secretRef: { name: 'b' } }, { secretRef: { name: 'a', optional: true } }]);
+test('keeps raw secretRef entries in envFrom', () => {
+  const { envFrom } = short({ envFrom: [{ secretRef: { name: 'a', optional: true } }] });
+  assert.deepEqual(envFrom, [{ secretRef: { name: 'a', optional: true } }]);
+  assert.throws(() => short({ envFrom: ['a'] }), /envFrom/);
 });
 
 test('expands probes around a shared target', () => {
@@ -476,7 +477,7 @@ const graphApps = [
     resources: [
       { name: 'llm', type: 'app', app: 'gw', export: 'api' },
       { name: 'traces', type: 'tracing' },
-      { name: 'foo-bar', type: 'database' },
+      { name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' },
     ],
   }, 'test'),
   validate({ name: 'other', network: { ingress: [] } }, 'test'),
@@ -549,7 +550,7 @@ test('only adds missing roles and never removes one', () => {
     { name: 'new', ensure: 'present', connectionLimit: -1, inherit: true, login: true },
   ]);
   assert.deepEqual(
-    appRoles([{ name: 'a', network: { ingress: [] }, resources: [{ name: 'foo-bar', type: 'database' }, { name: 'baz', type: 'database', databaseName: 'qux' }] }]),
+    appRoles([{ name: 'a', network: { ingress: [] }, resources: [{ name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' }, { name: 'baz', type: 'database', secretName: 'baz-database-secret', databaseName: 'qux' }] }]),
     ['foo_bar', 'qux'],
   );
 });
@@ -557,7 +558,7 @@ test('only adds missing roles and never removes one', () => {
 const base = { name: 'foo', network: { ingress: [] } };
 
 test('terraform covers an app database', () => {
-  const { resource } = JSON.parse(renderAppTerraform({ ...base, resources: [{ name: 'foo-bar', type: 'database' }] }) as string);
+  const { resource } = JSON.parse(renderAppTerraform({ ...base, resources: [{ name: 'foo-bar', type: 'database', secretName: 'foo-bar-database-secret' }] }) as string);
   assert.deepEqual(resource.vault_database_secret_backend_static_role['foo-bar'].username, 'foo_bar');
   assert.equal(resource.vault_policy['foo-bar'].name, 'db-foo-bar');
   assert.deepEqual(resource.vault_kubernetes_auth_backend_role['foo-bar'].bound_service_account_namespaces, ['foo']);
@@ -565,7 +566,7 @@ test('terraform covers an app database', () => {
 
 test('terraform covers an r2 bucket with a token for that bucket only', () => {
   const { resource } = JSON.parse(
-    renderAppTerraform({ ...base, resources: [{ name: 'images', type: 'bucket', provider: 'r2' }] }) as string,
+    renderAppTerraform({ ...base, resources: [{ name: 'images', type: 'bucket', secretName: 'images-bucket-secrets', provider: 'r2' }] }) as string,
   );
   const id = 'foo-images';
   assert.equal(resource.cloudflare_r2_bucket[id].name, 'foo-images');
@@ -580,7 +581,7 @@ test('terraform covers an s3 bucket with its own user', () => {
   const { resource } = JSON.parse(
     renderAppTerraform({
       ...base,
-      resources: [{ name: 'images', type: 'bucket', provider: 's3', bucket: 'named' }],
+      resources: [{ name: 'images', type: 'bucket', secretName: 'images-bucket-secrets', provider: 's3', bucket: 'named' }],
     }) as string,
   );
   const id = 'foo-images';
@@ -599,8 +600,8 @@ test('an app with nothing for terraform gets no file', () => {
 test('the terraform index lists database names sorted', () => {
   const index = JSON.parse(
     renderTerraformIndex([
-      { ...base, resources: [{ name: 'z', type: 'database' }] },
-      { ...base, name: 'a', resources: [{ name: 'b', type: 'database' }] },
+      { ...base, resources: [{ name: 'z', type: 'database', secretName: 'z-database-secret' }] },
+      { ...base, name: 'a', resources: [{ name: 'b', type: 'database', secretName: 'b-database-secret' }] },
     ]),
   );
   assert.deepEqual(index.output.database_names.value, ['b', 'z']);
@@ -610,8 +611,8 @@ test('a bucket resource wires its name and managed secret', () => {
   const app = validate(
     {
       ...base,
-      resources: [{ name: 'images', type: 'bucket', provider: 'r2' }],
-      workloads: { foo: { image: 'i', env: { BUCKET: { resource: 'images' } }, envFrom: ['images-bucket-secrets'] } },
+      resources: [{ name: 'images', type: 'bucket', secretName: 'images-bucket-secrets', provider: 'r2' }],
+      workloads: { foo: { image: 'i', env: { BUCKET: { resource: 'images' } }, envFrom: [{ bucket: 'images' }] } },
     },
     'test',
   );
@@ -623,7 +624,7 @@ test('a bucket resource wires its name and managed secret', () => {
 });
 
 test('an s3 bucket can keep an existing iam user', () => {
-  const app: App = { ...base, resources: [{ name: 'storage', type: 'bucket', provider: 's3', bucket: 'named', user: 'existing' }] };
+  const app: App = { ...base, resources: [{ name: 'storage', type: 'bucket', secretName: 'storage-bucket-secrets', provider: 's3', bucket: 'named', user: 'existing' }] };
   const { resource } = JSON.parse(renderAppTerraform(app) as string);
   assert.equal(resource.aws_iam_user['foo-storage'].name, 'existing');
   assert.equal(resource.aws_iam_policy['foo-storage'].name, 'existing-access');
@@ -641,7 +642,7 @@ test('rejects a database resource used in env', () => {
   const app = validate(
     {
       ...base,
-      resources: [{ name: 'db', type: 'database' }],
+      resources: [{ name: 'db', type: 'database', secretName: 'db-database-secret' }],
       workloads: { foo: { image: 'i', env: { DB: { resource: 'db' } } } },
     },
     'test',
@@ -658,8 +659,8 @@ test('a secret can share a name with a database', () => {
     {
       ...base,
       resources: [
-        { name: 'foo', type: 'secret' },
-        { name: 'foo', type: 'database' },
+        { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' },
+        { name: 'foo', type: 'database', secretName: 'foo-database-secret' },
       ],
     },
     'test',
@@ -669,7 +670,7 @@ test('a secret can share a name with a database', () => {
 });
 
 test('rejects duplicate secrets and a secret used in env', () => {
-  const secret = { name: 'foo', type: 'secret' };
+  const secret = { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' };
   assert.throws(() => validate({ ...base, resources: [secret, secret] }, 'test'), /duplicate name foo/);
   assert.throws(
     () => validate({ ...base, resources: [secret], workloads: { foo: { image: 'i', env: { A: { resource: 'foo' } } } } }, 'test'),
@@ -703,7 +704,7 @@ test('secret resources default their kubernetes secret name', () => {
     {
       ...base,
       resources: [
-        { name: 'foo', type: 'secret' },
+        { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' },
         { name: 'other', type: 'secret', secretName: 'custom' },
       ],
     },
@@ -824,4 +825,16 @@ test('an oidc client secret can be referenced by resource name', () => {
     { name: 'AUD', valueFrom: { secretKeyRef: { name: 'foo-oidc', key: 'client-id', optional: true } } },
   ]);
   assert.equal(source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[0].secretName, 'foo-oidc');
+});
+
+test('rejects resources without a secret name and unknown references', () => {
+  for (const type of ['secret', 'database']) {
+    assert.throws(() => validate({ ...base, resources: [{ name: 'a', type }] }, 'test'), /resources/);
+  }
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'oidc', host: 'a.sh' }] }, 'test'), /resources/);
+  assert.throws(() => validate({ ...base, resources: [{ name: 'a', type: 'bucket', provider: 'r2' }] }, 'test'), /resources/);
+  assert.throws(
+    () => validateResources({ platform, apps: [validate({ ...base, workloads: { foo: { image: 'i', envFrom: [{ secret: 'nope' }] } } }, 'test')] }),
+    /no secret resource named nope/,
+  );
 });

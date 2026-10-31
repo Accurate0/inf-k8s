@@ -138,8 +138,6 @@ export const appTerraformPath = (app: App) => `${TERRAFORM_APPS}/${app.name}.tf.
 
 export const bucketName = (app: App, resource: Bucket) => resource.bucket ?? `${app.name}-${resource.name}`;
 
-export const bucketSecretName = (resource: Bucket) => resource.secretName ?? `${resource.name}-bucket-secrets`;
-
 export function renderAppTerraform(app: App): string | undefined {
   const blocks = [
     ...Object.entries(appDatabases(app)).map(([database, spec]) =>

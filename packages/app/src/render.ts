@@ -1,7 +1,7 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
 import { parse, parseDocument, stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
-import { bucketName, bucketSecretName } from './terraform.ts';
+import { bucketName } from './terraform.ts';
 import { expandWorkload, overrideConflicts, type Refs, type SecretKind } from './workload.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
@@ -49,7 +49,7 @@ export type Resource =
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
-  | { name: string; type: 'secret'; secretName?: string }
+  | { name: string; type: 'secret'; secretName: string }
   | { name: string; type: 'cache'; instance: string }
   | ({ name: string; type: 'route' } & Route)
   | ({ name: string; type: 'oidc' } & OidcClient)
@@ -64,7 +64,7 @@ export interface Metrics {
 
 export interface DatabaseSpec {
   databaseName?: string;
-  secretName?: string;
+  secretName: string;
   enableConnectionPooling?: boolean;
 }
 
@@ -74,7 +74,7 @@ export interface Bucket {
   provider: 'r2' | 's3';
   bucket?: string;
   user?: string;
-  secretName?: string;
+  secretName: string;
 }
 
 export interface Export {
@@ -306,15 +306,10 @@ export function validateIngress(apps: App[]) {
   }
 }
 
-const oidcSecretName = (client: string, spec: OidcClient) => (spec.secretName as string | undefined) ?? `kanidm-${client}-oidc`;
-
 function secretRef(app: App, kind: SecretKind, name: string): string {
-  if (kind === 'secret') return appSecrets(app).find((s) => s.name === name)?.secretName ?? name;
-  if (kind === 'oidc' && appOidc(app)[name]) return oidcSecretName(name, appOidc(app)[name]);
-  if (kind === 'database' && appDatabases(app)[name]) return appDatabases(app)[name].secretName ?? `${name}-database-secret`;
-  const bucket = declared(app, 'bucket').find((b) => b.name === name);
-  if (kind === 'bucket' && bucket) return bucketSecretName(bucket);
-  throw new Error(`${app.name}: no ${kind} resource named ${name}`);
+  const found = (app.resources ?? []).find((r) => r.type === kind && r.name === name) as { secretName?: string } | undefined;
+  if (!found) throw new Error(`${app.name}: no ${kind} resource named ${name}`);
+  return found.secretName as string;
 }
 
 const refsFor = (app: App, world: World): Refs => ({
@@ -409,7 +404,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
   };
   const databaseSecret = (database: string) =>
-    appDatabases(app)[database].secretName ?? `${database}-database-secret`;
+    appDatabases(app)[database].secretName;
   const dir = `${target.location}/${name}`;
   const routes = Object.entries(appRoutes(app));
   const sources: Record<string, unknown>[] = [];
@@ -516,7 +511,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
             host: routes[0]?.[1].hosts[0],
             preferShortUsername: true,
             ...spec,
-            secretName: oidcSecretName(client, spec),
+            secretName: spec.secretName,
             secretNamespace: name,
             annotations,
           })),
@@ -543,7 +538,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   }
 
   const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
-    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: bucketSecretName(resource) }] : [],
+    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: resource.secretName }] : [],
   );
   if (appSecrets(app).length || bucketSecrets.length) {
     sources.push(
@@ -622,7 +617,7 @@ export function appMetrics(app: App): Metrics[] {
 export function appSecrets(app: App): { name: string; secretName: string }[] {
   return (app.resources ?? []).flatMap((resource) =>
     resource.type === 'secret'
-      ? [{ name: resource.name, secretName: resource.secretName ?? `${resource.name}-managed-secrets` }]
+      ? [{ name: resource.name, secretName: resource.secretName }]
       : [],
   );
 }

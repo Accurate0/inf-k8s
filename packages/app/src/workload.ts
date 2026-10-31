@@ -77,7 +77,6 @@ function expandResources({ cpu, memory, memoryLimit, ...raw }: Values) {
 }
 
 function expandEnvFrom(from: unknown, refs: Refs) {
-  if (typeof from === 'string') return { secretRef: { name: from } };
   const value = from as Values;
   const kind = secretKind(value);
   if (!kind) return value;
