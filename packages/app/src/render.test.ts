@@ -49,7 +49,7 @@ test('route and metrics open the network to their callers', () => {
   const rendered = render({
     name: 'foo',
     workloads: { foo: { image: 'i', port: 3000 } },
-    route: { host: 'foo.anurag.sh' },
+    route: { hosts: ['foo.anurag.sh'] },
     oidc: {},
     metrics: {},
     network: { ingress: ['ai-gateway', 'monitoring'] },
@@ -69,7 +69,7 @@ test('renders several workloads and routes to the named one', () => {
       web: { image: 'j', port: 8080 },
       sync: { image: 'i', kind: 'CronJob', schedule: '0 1 * * *' },
     },
-    route: { host: 'foo.anurag.sh', workload: 'web', unauthenticated: true },
+    route: { hosts: ['foo.anurag.sh'], workload: 'web', unauthenticated: true },
     secrets: ['foo'],
     network: { ingress: [] },
   });
@@ -77,7 +77,7 @@ test('renders several workloads and routes to the named one', () => {
   assert.deepEqual(values.workloads.map((w: { name: string }) => w.name), ['api', 'web', 'sync']);
   assert.equal(values.workloads[2].envFrom.length, 1);
   assert.deepEqual(source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0].rules[0].backendRefs, [
-    { name: 'web', port: 8080 },
+    { group: '', kind: 'Service', name: 'web', port: 8080, weight: 1 },
   ]);
 });
 
@@ -88,13 +88,55 @@ test('requires route.workload when several workloads have ports', () => {
         {
           name: 'foo',
           workloads: { a: { image: 'i', port: 1 }, b: { image: 'j', port: 2 } },
-          route: { host: 'foo.anurag.sh', unauthenticated: true },
+          route: { hosts: ['foo.anurag.sh'], unauthenticated: true },
           network: { ingress: [] },
         },
         'x',
       ),
     /route.workload is required/,
   );
+});
+
+test('a workload can limit which secrets it receives', () => {
+  const rendered = render({
+    name: 'foo',
+    workloads: {
+      api: { image: 'i', secrets: ['api'] },
+      web: { image: 'j', secrets: [] },
+      all: { image: 'k' },
+    },
+    secrets: ['api', { name: 'web', secretName: 'custom' }],
+    network: { ingress: [] },
+  });
+  const [api, web, all] = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads;
+  assert.deepEqual(api.envFrom, [{ secretRef: { name: 'api-managed-secrets' } }]);
+  assert.equal(web.envFrom, undefined);
+  assert.equal(all.envFrom.length, 2);
+  assert.equal(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets[1].managedSecrets[0].secretName, 'custom');
+});
+
+test('routes to an explicit backend without a workload', () => {
+  const rendered = render({
+    name: 'foo',
+    route: {
+      hosts: ['a.sh', 'b.sh'],
+      name: 'foo-route',
+      backend: { name: 'svc', port: 80 },
+      paths: ['/v1'],
+      unauthenticated: true,
+    },
+    oidc: { host: 'c.sh', groups: { admins: ['x'] } },
+    sources: [{ repoURL: 'r', name: 'config', path: 'config' }],
+    network: { ingress: [] },
+  });
+  const route = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0];
+  assert.equal(route.name, 'foo-route');
+  assert.deepEqual(route.hostnames, ['a.sh', 'b.sh']);
+  assert.equal(route.rules[0].matches[0].path.value, '/v1');
+  const client = source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[0];
+  assert.equal(client.host, 'c.sh');
+  assert.deepEqual(client.groups, { admins: ['x'] });
+  assert.equal(rendered.spec.sources.at(-1).name, 'config');
 });
 
 test('an app can pin a chart version', () => {
@@ -138,7 +180,7 @@ test('rejects invalid apps', () => {
         {
           name: 'foo',
           workloads: { foo: { image: 'i', port: 1 } },
-          route: { host: 'foo.anurag.sh' },
+          route: { hosts: ['foo.anurag.sh'] },
           network: { ingress: [] },
         },
         'x',

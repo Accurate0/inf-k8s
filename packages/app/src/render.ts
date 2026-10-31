@@ -18,6 +18,22 @@ export interface Workload {
   env?: Record<string, unknown>[];
   envFrom?: Record<string, unknown>[];
   readOnlyRootFilesystem?: boolean;
+  secrets?: string[];
+}
+
+export type Secret = string | { name: string; secretName: string };
+
+export interface Route {
+  hosts: string[];
+  name?: string;
+  gateway?: string;
+  unauthenticated?: boolean;
+  workload?: string;
+  backend?: { name: string; port: number };
+  paths?: string[];
+  annotations?: Record<string, string>;
+  ratelimit?: Record<string, unknown>;
+  timeouts?: Record<string, unknown>;
 }
 
 export interface App {
@@ -25,10 +41,11 @@ export interface App {
   repository?: string;
   charts?: Record<string, string>;
   workloads?: Record<string, Workload>;
-  route?: { host: string; gateway?: string; unauthenticated?: boolean; workload?: string };
-  oidc?: { public?: boolean; displayName?: string; allowLocalhostRedirect?: boolean };
+  route?: Route;
+  oidc?: { host?: string; public?: boolean; displayName?: string } & Record<string, unknown>;
   database?: { databaseName?: string; secretName?: string };
-  secrets?: string[];
+  secrets?: Secret[];
+  sources?: Record<string, unknown>[];
   network: { ingress: string[] };
   metrics?: { path?: string; interval?: string; workload?: string };
 }
@@ -40,6 +57,11 @@ export interface Target {
   hasManifests: boolean;
 }
 
+const secretFor = (secret: Secret) =>
+  typeof secret === 'string'
+    ? { name: secret, secretName: `${secret}-managed-secrets` }
+    : secret;
+
 function served(app: App, wanted: string | undefined, block: string): [string, Workload] {
   const workloads = Object.entries(app.workloads ?? {}).filter(([, w]) => w.port);
   const found = wanted ? workloads.find(([name]) => name === wanted) : workloads[0];
@@ -48,7 +70,7 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
   return found;
 }
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'route', 'oidc', 'database', 'secrets', 'network', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'route', 'oidc', 'database', 'secrets', 'sources', 'network', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -66,13 +88,19 @@ export function validate(raw: unknown, where: string): App {
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
   }
-  if (app.route && !app.route.host) fail('route.host is required');
+  if (app.route && !app.route.hosts?.length) fail('route.hosts is required');
+  const secretNames = (app.secrets ?? []).map(secretFor).map((s) => s.name);
+  for (const [name, workload] of Object.entries(app.workloads ?? {})) {
+    for (const secret of workload.secrets ?? []) {
+      if (!secretNames.includes(secret)) fail(`workloads.${name}.secrets: no secret named ${secret}`);
+    }
+  }
   if (app.route && !app.oidc && !app.route.unauthenticated) {
     fail('route needs oidc so that every route authenticates, or route.unauthenticated: true');
   }
-  if (app.oidc && !app.route) fail('oidc needs route');
+  if (app.oidc && !app.oidc.host && !app.route) fail('oidc needs route or oidc.host');
   try {
-    if (app.route) served(app, app.route.workload, 'route');
+    if (app.route && !app.route.backend) served(app, app.route.workload, 'route');
     if (app.metrics) served(app, app.metrics.workload, 'metrics');
   } catch (e) {
     fail((e as Error).message);
@@ -100,10 +128,8 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   const sources: Record<string, unknown>[] = [];
 
   if (app.workloads && Object.keys(app.workloads).length) {
-    const refs = [
-      ...(app.secrets ?? []).map((s) => ({ secretRef: { name: `${s}-managed-secrets` } })),
-      ...(app.database ? [{ secretRef: { name: secretName } }] : []),
-    ];
+    const secrets = (app.secrets ?? []).map(secretFor);
+    const database = app.database ? [{ secretRef: { name: secretName } }] : [];
     sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
     sources.push(
       chart(app, versions, 'k8s-workload', {
@@ -112,14 +138,23 @@ export function renderApplication(app: App, versions: Versions, target: Target):
           namespace: name,
           ...(app.route
             ? {
-                namespaceLabels: {
-                  [`gateway.inf-k8s.net/${app.route.host.replaceAll('.', '-')}`]: 'true',
-                },
+                namespaceLabels: Object.fromEntries(
+                  app.route.hosts.map((host) => [
+                    `gateway.inf-k8s.net/${host.replaceAll('.', '-')}`,
+                    'true',
+                  ]),
+                ),
               }
             : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const { health, envFrom, ...rest } = spec;
-            const from = [...(envFrom ?? []), ...refs];
+            const { health, envFrom, secrets: only, ...rest } = spec;
+            const from = [
+              ...(envFrom ?? []),
+              ...secrets
+                .filter((s) => !only || only.includes(s.name))
+                .map((s) => ({ secretRef: { name: s.secretName } })),
+              ...database,
+            ];
             return {
               name: workload,
               ...rest,
@@ -144,27 +179,32 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   );
 
   if (app.route) {
-    const [workload, spec] = served(app, app.route.workload, 'route');
+    const { route } = app;
+    let backend = route.backend;
+    if (!backend) {
+      const [workload, spec] = served(app, route.workload, 'route');
+      backend = { name: spec.service?.name ?? workload, port: spec.service?.port ?? (spec.port as number) };
+    }
     sources.push(
       chart(app, versions, 'k8s-http-routes', {
         valuesObject: {
           routes: [
             {
-              name,
+              name: route.name ?? name,
               gateway: {
-                name: app.route.gateway ?? 'public-gateway',
+                name: route.gateway ?? 'public-gateway',
                 namespace: 'envoy-gateway-system',
               },
-              hostnames: [app.route.host],
+              ...(route.annotations ? { annotations: route.annotations } : {}),
+              hostnames: route.hosts,
+              ...(route.ratelimit ? { ratelimit: route.ratelimit } : {}),
               rules: [
                 {
-                  backendRefs: [
-                    {
-                      name: spec.service?.name ?? workload,
-                      port: spec.service?.port ?? spec.port,
-                    },
-                  ],
-                  matches: [{ path: { type: 'PathPrefix', value: '/' } }],
+                  backendRefs: [{ group: '', kind: 'Service', ...backend, weight: 1 }],
+                  matches: (route.paths ?? ['/']).map((value) => ({
+                    path: { type: 'PathPrefix', value },
+                  })),
+                  ...(route.timeouts ? { timeouts: route.timeouts } : {}),
                 },
               ],
             },
@@ -182,11 +222,11 @@ export function renderApplication(app: App, versions: Versions, target: Target):
             {
               name,
               namespace: name,
-              displayName: app.oidc.displayName ?? name,
-              host: app.route?.host,
-              public: app.oidc.public ?? false,
-              ...(app.oidc.allowLocalhostRedirect ? { allowLocalhostRedirect: true } : {}),
+              displayName: name,
+              host: app.route?.hosts[0],
+              public: false,
               preferShortUsername: true,
+              ...app.oidc,
               secretName: `kanidm-${name}-oidc`,
               secretNamespace: name,
               annotations,
@@ -220,9 +260,9 @@ export function renderApplication(app: App, versions: Versions, target: Target):
       chart(app, versions, 'k8s-secrets', {
         valuesObject: {
           defaults: { namespace: name, provider: 'openbao', resyncInterval: 900, annotations },
-          secrets: app.secrets.map((s) => ({
-            name: s,
-            managedSecrets: [{ secretName: `${s}-managed-secrets` }],
+          secrets: app.secrets.map(secretFor).map((s) => ({
+            name: s.name,
+            managedSecrets: [{ secretName: s.secretName }],
           })),
         },
       }),
@@ -247,6 +287,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
   if (target.hasManifests) {
     sources.push({ repoURL: CONFIG_REPO, name: 'application', path: `${dir}/manifests` });
   }
+  sources.push(...(app.sources ?? []));
 
   const application = {
     apiVersion: 'argoproj.io/v1alpha1',

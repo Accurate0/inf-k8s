@@ -11,7 +11,12 @@
   },
   "ignorePaths": [
     "system-components/redis.application.yaml",
-    "projects/bom/application.yaml"
+    "projects/anurag-sh/application.yaml",
+    "projects/bom/application.yaml",
+    "projects/home-gateway/application.yaml",
+    "projects/maccas-api/application.yaml",
+    "projects/ozbargain/application.yaml",
+    "projects/tldr-bot/application.yaml"
   ],
   "customManagers": [
     {

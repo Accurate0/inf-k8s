@@ -27,12 +27,9 @@
       "type": "object",
       "additionalProperties": false,
       "required": [
-        "host"
+        "hosts"
       ],
       "properties": {
-        "host": {
-          "type": "string"
-        },
         "gateway": {
           "type": "string"
         },
@@ -43,12 +40,51 @@
         "workload": {
           "type": "string",
           "description": "Required with several ported workloads."
+        },
+        "hosts": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "name": {
+          "type": "string"
+        },
+        "backend": {
+          "type": "object",
+          "required": [
+            "name",
+            "port"
+          ],
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "port": {
+              "type": "integer"
+            }
+          }
+        },
+        "paths": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "annotations": {
+          "type": "object"
+        },
+        "ratelimit": {
+          "type": "object"
+        },
+        "timeouts": {
+          "type": "object"
         }
       }
     },
     "oidc": {
       "type": "object",
-      "additionalProperties": false,
+      "additionalProperties": true,
       "properties": {
         "public": {
           "type": "boolean"
@@ -58,6 +94,9 @@
         },
         "allowLocalhostRedirect": {
           "type": "boolean"
+        },
+        "host": {
+          "type": "string"
         }
       }
     },
@@ -76,7 +115,27 @@
     "secrets": {
       "type": "array",
       "items": {
-        "type": "string"
+        "oneOf": [
+          {
+            "type": "string"
+          },
+          {
+            "type": "object",
+            "required": [
+              "name",
+              "secretName"
+            ],
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "secretName": {
+                "type": "string"
+              }
+            }
+          }
+        ]
       }
     },
     "network": {
@@ -176,8 +235,22 @@
           },
           "readOnlyRootFilesystem": {
             "type": "boolean"
+          },
+          "secrets": {
+            "type": "array",
+            "description": "Only these app secrets. Defaults to all.",
+            "items": {
+              "type": "string"
+            }
           }
         }
+      }
+    },
+    "sources": {
+      "type": "array",
+      "description": "Extra Argo sources.",
+      "items": {
+        "type": "object"
       }
     }
   }
