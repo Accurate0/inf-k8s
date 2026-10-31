@@ -49,7 +49,6 @@ workloads:
     image: ghcr.io/accurate0/ai-gateway
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
     ports:
       - containerPort: 3000
@@ -74,14 +73,10 @@ workloads:
         value: /etc/ai-gateway/config.yaml
       - name: REDIS_URL
         value: redis://replicated.dragonfly.svc.cluster.local
-    envFrom:
-      - secretRef:
-          name: ai-gateway-managed-secrets
     volumeMounts:
       - name: config
         mountPath: /etc/ai-gateway
         readOnly: true
-    secrets: []
     replicas: 2
     strategy:
       type: RollingUpdate
@@ -121,7 +116,6 @@ workloads:
       - sync
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
       limits:
         memory: 128Mi

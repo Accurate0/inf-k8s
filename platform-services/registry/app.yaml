@@ -43,10 +43,6 @@ resources:
 workloads:
   registry:
     image: ghcr.io/accurate0/registry
-    resources:
-      requests:
-        cpu: 10m
-        memory: 64Mi
     ports:
       - containerPort: 3000
     readinessProbe:
@@ -66,16 +62,10 @@ workloads:
     env:
       - name: CONFIG_PATH
         value: /etc/registry/config.yaml
-    envFrom:
-      - secretRef:
-          name: registry-managed-secrets
-      - secretRef:
-          name: registry-signing-secrets
     volumeMounts:
       - name: config
         mountPath: /etc/registry
         readOnly: true
-    secrets: []
     replicas: 2
     strategy:
       type: RollingUpdate

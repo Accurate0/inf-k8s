@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T04:31:58.366Z
+# generated at 2026-10-31T10:50:55.604Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -31,7 +31,6 @@ spec:
               image: ghcr.io/accurate0/ozb-discord-bot
               resources:
                 requests:
-                  cpu: 10m
                   memory: 16Mi
               envFrom:
                 - secretRef:
@@ -40,7 +39,6 @@ spec:
               image: ghcr.io/accurate0/ozb-finder
               resources:
                 requests:
-                  cpu: 10m
                   memory: 16Mi
               envFrom:
                 - secretRef:
@@ -49,7 +47,6 @@ spec:
               image: ghcr.io/accurate0/ozb-trigger
               resources:
                 requests:
-                  cpu: 10m
                   memory: 16Mi
               envFrom:
                 - secretRef:

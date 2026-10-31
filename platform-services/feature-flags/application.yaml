@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:46:20.915Z
+# generated at 2026-10-31T10:50:55.622Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -33,7 +33,6 @@ spec:
               image: ghcr.io/accurate0/feature-flags
               resources:
                 requests:
-                  cpu: 10m
                   memory: 32Mi
               ports:
                 - name: grpc

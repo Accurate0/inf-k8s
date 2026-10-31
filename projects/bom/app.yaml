@@ -13,8 +13,6 @@ workloads:
       requests:
         cpu: 30m
         memory: 56Mi
-      limits:
-        memory: 512Mi
     env:
       - name: BUCKET_NAME
         value: bom-images

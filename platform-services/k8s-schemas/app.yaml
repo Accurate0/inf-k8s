@@ -11,19 +11,12 @@ workloads:
       requests:
         cpu: 50m
         memory: 128Mi
-      limits:
-        memory: 512Mi
     env:
       - name: K8S_VERSION
         value: v1.37.1
-    envFrom:
-      - secretRef:
-          name: k8s-schemas-managed-secrets
     volumeMounts:
       - name: tmp
         mountPath: /tmp
-    secrets: []
-    databases: []
     kind: CronJob
     schedule: 0 0 * * 0
     backoffLimit: 2

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:46:20.881Z
+# generated at 2026-10-31T10:50:55.588Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -111,7 +111,6 @@ spec:
                 - name: config-lua-tuya
                   mountPath: /etc/home-gateway/config/lua/models/tuya
                   readOnly: true
-              replicas: 1
               strategy:
                 type: RollingUpdate
                 rollingUpdate:
@@ -188,7 +187,6 @@ spec:
               image: ghcr.io/accurate0/home-gateway-web
               resources:
                 requests:
-                  cpu: 10m
                   memory: 32Mi
               ports:
                 - containerPort: 8080
@@ -199,7 +197,6 @@ spec:
                   scheme: HTTP
                 initialDelaySeconds: 3
                 periodSeconds: 30
-              replicas: 1
               affinity:
                 nodeAffinity:
                   requiredDuringSchedulingIgnoredDuringExecution:

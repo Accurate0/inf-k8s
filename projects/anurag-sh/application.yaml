@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T06:22:09.167Z
+# generated at 2026-10-31T10:50:55.572Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -37,7 +37,6 @@ spec:
                 port: 80
               resources:
                 requests:
-                  cpu: 10m
                   memory: 16Mi
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network

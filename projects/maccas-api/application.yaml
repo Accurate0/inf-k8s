@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T10:46:20.892Z
+# generated at 2026-10-31T10:50:55.600Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -34,7 +34,6 @@ spec:
               resources:
                 requests:
                   memory: 144Mi
-                  cpu: 10m
               ports:
                 - containerPort: 8000
               livenessProbe:
@@ -96,7 +95,6 @@ spec:
               resources:
                 requests:
                   memory: 312Mi
-                  cpu: 10m
               ports:
                 - containerPort: 3000
               livenessProbe:
@@ -146,13 +144,11 @@ spec:
               resources:
                 requests:
                   memory: 32Mi
-                  cpu: 10m
               env:
                 - name: EVENT_API_BASE
                   value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
-              replicas: 1
               affinity:
                 podAntiAffinity:
                   requiredDuringSchedulingIgnoredDuringExecution:
@@ -170,7 +166,6 @@ spec:
               resources:
                 requests:
                   memory: 48Mi
-                  cpu: 10m
                 limits:
                   memory: 1000Mi
               ports:
@@ -194,7 +189,6 @@ spec:
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: OPENAI_BASE_URL
                   value: http://api.ai-gateway.svc.cluster.local/v1
-              replicas: 1
               initContainers:
                 - image: ghcr.io/accurate0/maccas-migration
                   name: maccas-migration

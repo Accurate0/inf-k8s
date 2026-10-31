@@ -40,7 +40,6 @@ workloads:
     image: ghcr.io/accurate0/feature-flags
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
     ports:
       - name: grpc
@@ -64,10 +63,6 @@ workloads:
         value: https://idm.anurag.sh/oauth2/openid/feature-flags
       - name: OIDC_AUDIENCE
         value: feature-flags
-    envFrom:
-      - secretRef:
-          name: feature-flags-managed-secrets
-    secrets: []
     kind: DaemonSet
     updateStrategy:
       type: RollingUpdate

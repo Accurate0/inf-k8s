@@ -122,13 +122,6 @@ workloads:
     env:
       - name: CONFIG_DIR
         value: /etc/home-gateway/config
-    envFrom:
-      - secretRef:
-          name: home-gateway-managed-secrets
-      - secretRef:
-          name: home-gateway-terraform-secrets
-      - secretRef:
-          name: home-gateway-db-credentials
     volumeMounts:
       - name: config
         mountPath: /etc/home-gateway/config
@@ -166,9 +159,6 @@ workloads:
       - name: config-lua-tuya
         mountPath: /etc/home-gateway/config/lua/models/tuya
         readOnly: true
-    secrets: []
-    databases: []
-    replicas: 1
     strategy:
       type: RollingUpdate
       rollingUpdate:
@@ -238,7 +228,6 @@ workloads:
     image: ghcr.io/accurate0/home-gateway-web
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
     ports:
       - containerPort: 8080
@@ -251,7 +240,6 @@ workloads:
       periodSeconds: 30
     secrets: []
     databases: []
-    replicas: 1
     affinity:
       nodeAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:

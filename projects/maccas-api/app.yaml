@@ -53,7 +53,6 @@ workloads:
     resources:
       requests:
         memory: 144Mi
-        cpu: 10m
     ports:
       - containerPort: 8000
     livenessProbe:
@@ -85,7 +84,6 @@ workloads:
       - secretRef:
           name: maccas-api-managed-secrets
     secrets: []
-    databases: []
     replicas: 3
     topologySpreadConstraints:
       - maxSkew: 2
@@ -117,7 +115,6 @@ workloads:
     resources:
       requests:
         memory: 312Mi
-        cpu: 10m
     ports:
       - containerPort: 3000
     livenessProbe:
@@ -147,7 +144,6 @@ workloads:
       - secretRef:
           name: maccas-web-managed-secrets
     secrets: []
-    databases: []
     replicas: 3
     topologySpreadConstraints:
       - maxSkew: 2
@@ -169,7 +165,6 @@ workloads:
     resources:
       requests:
         memory: 32Mi
-        cpu: 10m
     uses:
       - traces
     env:
@@ -181,8 +176,6 @@ workloads:
       - secretRef:
           name: maccas-api-managed-secrets
     secrets: []
-    databases: []
-    replicas: 1
     affinity:
       podAntiAffinity:
         requiredDuringSchedulingIgnoredDuringExecution:
@@ -195,7 +188,6 @@ workloads:
     resources:
       requests:
         memory: 48Mi
-        cpu: 10m
       limits:
         memory: 1000Mi
     ports:
@@ -225,8 +217,6 @@ workloads:
       - secretRef:
           name: maccas-api-managed-secrets
     secrets: []
-    databases: []
-    replicas: 1
     initContainers:
       - image: ghcr.io/accurate0/maccas-migration
         name: maccas-migration

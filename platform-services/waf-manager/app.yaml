@@ -71,7 +71,6 @@ workloads:
     image: ghcr.io/accurate0/waf-manager
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
     ports:
       - containerPort: 3000

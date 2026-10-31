@@ -9,7 +9,6 @@ workloads:
       port: 80
     resources:
       requests:
-        cpu: 10m
         memory: 16Mi
 routes:
   anurag-sh-route:

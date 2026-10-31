@@ -12,7 +12,6 @@ workloads:
     image: ghcr.io/accurate0/tldr-bot
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
     uses:
       - name: llm

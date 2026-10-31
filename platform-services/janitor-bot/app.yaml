@@ -66,7 +66,6 @@ workloads:
     image: ghcr.io/accurate0/janitor-bot
     resources:
       requests:
-        cpu: 10m
         memory: 32Mi
     ports:
       - containerPort: 3000
@@ -99,18 +98,12 @@ workloads:
         value: http://argocd-server.argocd.svc.cluster.local:80
       - name: FORGEJO_INSTANCE_URL
         value: http://forgejo-http.forgejo.svc.cluster.local:3000
-    envFrom:
-      - secretRef:
-          name: janitor-bot-managed-secrets
     volumeMounts:
       - name: tmp
         mountPath: /tmp
       - name: rules
         mountPath: /etc/janitor-bot/rules
         readOnly: true
-    secrets: []
-    databases: []
-    replicas: 1
     strategy:
       type: RollingUpdate
       rollingUpdate:
