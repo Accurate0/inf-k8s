@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: maccas-api
+repository: https://github.com/Accurate0/maccas-api
+route:
+  name: maccas-web-route
+  hosts:
+    - maccas.one
+  backend:
+    name: maccas-web
+    port: 3000
+  unauthenticated: true
+  annotations:
+    external-dns.kubernetes.io/managed: "true"
+    external-dns.kubernetes.io/cloudflare-proxied: "true"
+  ratelimit:
+    rules:
+      - clientSelectors:
+          - headers:
+              - name: x-real-ip
+                invert: false
+                type: Distinct
+        limit:
+          requests: 5
+          unit: Second
+secrets:
+  - name: api
+    secretName: maccas-api-managed-secrets
+  - name: common
+    secretName: maccas-common-managed-secrets
+  - name: web
+    secretName: maccas-web-managed-secrets
+  - name: migration
+    secretName: maccas-migration-managed-secrets
+network:
+  ingress: []
