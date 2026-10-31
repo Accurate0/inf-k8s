@@ -96,8 +96,6 @@ workloads:
       - home-gateway-managed-secrets
       - home-gateway-terraform-secrets
       - home-gateway-db-credentials
-    secrets: []
-    databases: []
     mounts:
       config: {path: /etc/home-gateway/config, configMap: home-gateway-config}
       config-sections: {path: /etc/home-gateway/config/sections, configMap: home-gateway-config-sections}
@@ -144,8 +142,6 @@ workloads:
     probes:
       http: {path: /, port: 8080}
       readiness: {delay: 3, every: 30}
-    secrets: []
-    databases: []
     runAsNonRoot: false
     service:
       name: home-web

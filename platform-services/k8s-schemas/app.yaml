@@ -15,7 +15,6 @@ workloads:
       K8S_VERSION: v1.37.1
     envFrom:
       - k8s-schemas-managed-secrets
-    secrets: []
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     serviceAccountName: k8s-schemas

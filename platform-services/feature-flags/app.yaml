@@ -55,8 +55,6 @@ workloads:
     envFrom:
       - feature-flags-managed-secrets
       - feature-flags-db-credentials
-    secrets: []
-    databases: []
     service:
       name: api
       ports:

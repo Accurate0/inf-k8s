@@ -81,7 +81,6 @@ workloads:
       FEATURE_FLAGS_URL: {resource: flags}
     envFrom:
       - janitor-bot-managed-secrets
-    secrets: []
     mounts:
       tmp: {path: /tmp, emptyDir: true}
       rules:

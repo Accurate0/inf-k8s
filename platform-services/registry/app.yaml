@@ -57,8 +57,6 @@ workloads:
       - registry-managed-secrets
       - registry-signing-secrets
       - registry-database-secret
-    secrets: []
-    databases: []
     mounts:
       config: {path: /etc/registry, configMap: registry-config}
     service:

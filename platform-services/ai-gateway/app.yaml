@@ -62,8 +62,6 @@ workloads:
     envFrom:
       - ai-gateway-managed-secrets
       - ai-gateway-database-secret
-    secrets: []
-    databases: []
     mounts:
       config: {path: /etc/ai-gateway, configMap: ai-gateway-config}
     service:
@@ -103,8 +101,6 @@ workloads:
     env:
       AIG_ADMIN_TOKEN: {secret: ai-gateway-managed-secrets, key: ADMIN_TOKEN}
       AIG_URL: {resource: ai-gateway}
-    secrets: []
-    databases: []
 namespace:
   labels:
     internal-gateway-access: "true"

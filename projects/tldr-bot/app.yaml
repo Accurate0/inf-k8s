@@ -15,7 +15,6 @@ workloads:
       OPENAI_API_BASE: {resource: llm}
     envFrom:
       - tldr-bot-managed-secrets
-    secrets: []
 secrets:
   - tldr-bot
 network:

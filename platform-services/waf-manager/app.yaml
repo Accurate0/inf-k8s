@@ -94,8 +94,6 @@ workloads:
       - secretRef:
           name: waf-manager-managed-secrets
           optional: true
-    secrets: []
-    databases: []
     mounts:
       workflows:
         path: /etc/waf-manager/config

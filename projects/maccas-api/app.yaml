@@ -66,7 +66,6 @@ workloads:
     envFrom:
       - maccas-common-managed-secrets
       - maccas-api-managed-secrets
-    secrets: []
     initContainers:
       - image: ghcr.io/accurate0/maccas-migration
         name: maccas-migration
@@ -103,7 +102,6 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - maccas-web-managed-secrets
-    secrets: []
     runAsNonRoot: false
     service:
       name: maccas-web
@@ -126,7 +124,6 @@ workloads:
     envFrom:
       - maccas-common-managed-secrets
       - maccas-api-managed-secrets
-    secrets: []
     overrides:
       affinity:
         podAntiAffinity:
@@ -150,7 +147,6 @@ workloads:
     envFrom:
       - maccas-common-managed-secrets
       - maccas-api-managed-secrets
-    secrets: []
     initContainers:
       - image: ghcr.io/accurate0/maccas-migration
         name: maccas-migration

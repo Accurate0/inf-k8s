@@ -12,8 +12,6 @@ workloads:
     envFrom:
       - bom-managed-secrets
       - bom-database-secret
-    secrets: []
-    databases: []
     service:
       name: bom-api
       portName: api

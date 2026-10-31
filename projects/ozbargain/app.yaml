@@ -7,19 +7,16 @@ workloads:
     resources: {memory: 16Mi}
     envFrom:
       - ozb-managed-secrets
-    secrets: []
   ozb-finder:
     image: ghcr.io/accurate0/ozb-finder
     resources: {memory: 16Mi}
     envFrom:
       - ozb-managed-secrets
-    secrets: []
   ozb-trigger:
     image: ghcr.io/accurate0/ozb-trigger
     resources: {memory: 16Mi}
     envFrom:
       - ozb-managed-secrets
-    secrets: []
 secrets:
   - name: ozbargain
     secretName: ozb-managed-secrets

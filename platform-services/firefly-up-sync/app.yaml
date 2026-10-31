@@ -27,7 +27,6 @@ workloads:
         ]
     envFrom:
       - firefly-up-sync-managed-secrets
-    secrets: []
     overrides:
       restartPolicy: Never
       automountServiceAccountToken: false
