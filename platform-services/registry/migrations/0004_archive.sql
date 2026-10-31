@@ -1,0 +1,1 @@
+ALTER TABLE cli_packages ADD COLUMN IF NOT EXISTS archived_at TIMESTAMPTZ;

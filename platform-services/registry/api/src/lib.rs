@@ -86,8 +86,9 @@ pub struct Permissions {
 impl Permissions {
     pub fn validate(&self) -> Result<(), String> {
         for program in &self.exec {
-            validate_binary_name(program)
-                .map_err(|_| format!("permissions.exec: {program:?} must be a bare program name"))?;
+            validate_binary_name(program).map_err(|_| {
+                format!("permissions.exec: {program:?} must be a bare program name")
+            })?;
         }
         for name in &self.env {
             if !is_env_name(name) {
@@ -95,10 +96,8 @@ impl Permissions {
             }
         }
         for path in &self.fs {
-            let valid = path == "."
-                || path == "~"
-                || path.starts_with("~/")
-                || path.starts_with('/');
+            let valid =
+                path == "." || path == "~" || path.starts_with("~/") || path.starts_with('/');
             if !valid || path.split('/').any(|part| part == "..") {
                 return Err(format!(
                     "permissions.fs: {path:?} must be \".\", \"~\", \"~/...\" or absolute, without \"..\""
@@ -289,6 +288,8 @@ pub struct Package {
     pub aliases: Vec<String>,
     pub latest: Option<String>,
     pub created_at: DateTime<Utc>,
+    #[serde(default)]
+    pub archived: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -485,10 +486,22 @@ mod tests {
         };
         assert!(ok.validate().is_ok());
         for bad in [
-            Permissions { exec: vec!["/bin/sh".to_owned()], ..Default::default() },
-            Permissions { env: vec!["lower".to_owned()], ..Default::default() },
-            Permissions { fs: vec!["relative".to_owned()], ..Default::default() },
-            Permissions { fs: vec!["~/../etc".to_owned()], ..Default::default() },
+            Permissions {
+                exec: vec!["/bin/sh".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                env: vec!["lower".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                fs: vec!["relative".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                fs: vec!["~/../etc".to_owned()],
+                ..Default::default()
+            },
         ] {
             assert!(bad.validate().is_err(), "{bad:?}");
         }

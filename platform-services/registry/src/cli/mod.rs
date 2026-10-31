@@ -19,6 +19,8 @@ pub fn router() -> Router<AppState> {
                 .patch(packages::update)
                 .delete(packages::delete),
         )
+        .route("/packages/{name}/archive", post(packages::archive))
+        .route("/packages/{name}/unarchive", post(packages::unarchive))
         .route("/packages/{name}/latest", get(packages::latest))
         .route("/packages/{name}/versions", post(versions::create))
         .route("/packages/{name}/versions/{version}", get(versions::get))

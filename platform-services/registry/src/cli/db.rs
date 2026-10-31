@@ -18,6 +18,7 @@ pub struct PackageRow {
     pub binary_name: String,
     pub aliases: Vec<String>,
     pub created_at: DateTime<Utc>,
+    pub archived_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone)]
@@ -134,7 +135,7 @@ pub fn latest(
 pub async fn find_package(pool: &PgPool, name: &str) -> Result<PackageRow> {
     sqlx::query_as!(
         PackageRow,
-        "SELECT id, name, description, binary_name, aliases, created_at
+        "SELECT id, name, description, binary_name, aliases, created_at, archived_at
          FROM cli_packages WHERE name = $1",
         name
     )
@@ -147,9 +148,9 @@ pub async fn all_packages(pool: &PgPool, query: Option<&str>) -> Result<Vec<Pack
     let pattern = query.map(|q| format!("%{}%", q.replace('%', "\\%").replace('_', "\\_")));
     Ok(sqlx::query_as!(
         PackageRow,
-        "SELECT id, name, description, binary_name, aliases, created_at
+        "SELECT id, name, description, binary_name, aliases, created_at, archived_at
          FROM cli_packages
-         WHERE $1::text IS NULL OR name ILIKE $1 OR description ILIKE $1
+         WHERE archived_at IS NULL AND ($1::text IS NULL OR name ILIKE $1 OR description ILIKE $1)
          ORDER BY name",
         pattern
     )

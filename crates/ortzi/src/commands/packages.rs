@@ -366,9 +366,12 @@ fn rollback_self() -> anyhow::Result<()> {
 
     let exe = std::env::current_exe()?.canonicalize()?;
     let staged = exe.with_file_name(format!(".ortzi-rollback-{}", std::process::id()));
-    std::fs::copy(&backup, &staged).with_context(|| format!("writing next to {}", exe.display()))?;
+    std::fs::copy(&backup, &staged)
+        .with_context(|| format!("writing next to {}", exe.display()))?;
     set_executable(&staged)?;
-    let held = store.tmp_dir().join(format!("ortzi-{}", std::process::id()));
+    let held = store
+        .tmp_dir()
+        .join(format!("ortzi-{}", std::process::id()));
     std::fs::create_dir_all(store.tmp_dir())?;
     std::fs::copy(&exe, &held)?;
     std::fs::rename(&staged, &exe).with_context(|| format!("replacing {}", exe.display()))?;
@@ -397,7 +400,10 @@ pub fn set_pinned(name: &str, pinned: bool) -> anyhow::Result<()> {
             .resolve(name)
             .map(|(n, _)| n.clone())
             .with_context(|| format!("{name} is not installed"))?;
-        let package = installed.packages.get_mut(&resolved).context("package vanished")?;
+        let package = installed
+            .packages
+            .get_mut(&resolved)
+            .context("package vanished")?;
         package.pinned = pinned;
         (resolved, package.version.clone())
     };
@@ -408,7 +414,10 @@ pub fn set_pinned(name: &str, pinned: bool) -> anyhow::Result<()> {
 
 pub async fn self_update(settings: &Settings, version: Option<&str>) -> anyhow::Result<()> {
     if version.is_none() && Store::open()?.load()?.self_pinned {
-        println!("ortzi is pinned at {}; run `ortzi unpin ortzi`", env!("ORTZI_VERSION"));
+        println!(
+            "ortzi is pinned at {}; run `ortzi unpin ortzi`",
+            env!("ORTZI_VERSION")
+        );
         return Ok(());
     }
     let client = settings.reader().await?;
@@ -419,7 +428,10 @@ pub async fn self_update(settings: &Settings, version: Option<&str>) -> anyhow::
 }
 
 pub fn is_newer(candidate: &str, current: &str) -> bool {
-    match (semver::Version::parse(candidate), semver::Version::parse(current)) {
+    match (
+        semver::Version::parse(candidate),
+        semver::Version::parse(current),
+    ) {
         (Ok(candidate), Ok(current)) => candidate > current,
         _ => candidate != current,
     }
@@ -545,14 +557,17 @@ pub fn list() -> anyhow::Result<()> {
     }
 
     let mut table = Table::new();
-    table
-        .load_preset(UTF8_BORDERS_ONLY)
-        .set_header(["package", "version", "previous", "pinned", "binary", "aliases"]);
+    table.load_preset(UTF8_BORDERS_ONLY).set_header([
+        "package", "version", "previous", "pinned", "binary", "aliases",
+    ]);
     for (name, package) in &installed.packages {
         table.add_row([
             name.as_str(),
             &package.version,
-            package.previous.as_ref().map_or("-", |p| p.version.as_str()),
+            package
+                .previous
+                .as_ref()
+                .map_or("-", |p| p.version.as_str()),
             if package.pinned { "yes" } else { "" },
             &package.binary,
             &package.aliases.join(", "),
@@ -603,6 +618,9 @@ pub async fn info(settings: &Settings, name: &str) -> anyhow::Result<()> {
     let package = &detail.package;
 
     println!("{}  {}", package.name, package.description);
+    if package.archived {
+        println!("archived; hidden from search and closed to new versions");
+    }
     println!("binary   {}", package.binary_name);
     if !package.aliases.is_empty() {
         println!("aliases  {}", package.aliases.join(", "));

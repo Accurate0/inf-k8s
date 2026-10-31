@@ -32,6 +32,7 @@ fn to_api(row: PackageRow, latest: Option<&VersionRow>) -> Package {
         aliases: row.aliases,
         latest: latest.map(|v| v.version.clone()),
         created_at: row.created_at,
+        archived: row.archived_at.is_some(),
     }
 }
 
@@ -102,7 +103,7 @@ pub async fn create(
         PackageRow,
         "INSERT INTO cli_packages (name, description, binary_name, aliases, created_by)
          VALUES ($1, $2, $3, $4, $5)
-         RETURNING id, name, description, binary_name, aliases, created_at",
+         RETURNING id, name, description, binary_name, aliases, created_at, archived_at",
         request.name,
         request.description,
         binary_name,
@@ -177,7 +178,7 @@ pub async fn update(
             aliases = COALESCE($4, aliases),
             updated_at = now()
          WHERE name = $1
-         RETURNING id, name, description, binary_name, aliases, created_at",
+         RETURNING id, name, description, binary_name, aliases, created_at, archived_at",
         name,
         request.description,
         request.binary_name,
@@ -205,6 +206,66 @@ pub async fn update(
     Ok(Json(to_api(row, latest.as_ref())))
 }
 
+async fn set_archived(
+    state: &AppState,
+    principal: &Principal,
+    name: &str,
+    archived: bool,
+) -> Result<Package> {
+    principal.require_admin()?;
+
+    let row = sqlx::query_as!(
+        PackageRow,
+        "UPDATE cli_packages SET
+            archived_at = CASE WHEN $2 THEN COALESCE(archived_at, now()) END,
+            updated_at = now()
+         WHERE name = $1
+         RETURNING id, name, description, binary_name, aliases, created_at, archived_at",
+        name,
+        archived
+    )
+    .fetch_optional(&state.pool)
+    .await?
+    .ok_or_else(|| ApiError::NotFound(format!("package {name} not found")))?;
+
+    audit::record_as(
+        &state.pool,
+        principal,
+        Event {
+            action: if archived {
+                "package.archive"
+            } else {
+                "package.unarchive"
+            },
+            ecosystem: Some(ECOSYSTEM_CLI),
+            package: Some(name),
+            version: None,
+            detail: json!({}),
+        },
+    )
+    .await?;
+
+    let versions = db::versions(&state.pool, row.id).await?;
+    let latest = db::latest(&versions, None, false).cloned();
+    Ok(to_api(row, latest.as_ref()))
+}
+
+pub async fn archive(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(name): Path<String>,
+) -> Result<Json<Package>> {
+    Ok(Json(set_archived(&state, &principal, &name, true).await?))
+}
+
+pub async fn unarchive(
+    State(state): State<AppState>,
+    principal: Principal,
+    Path(name): Path<String>,
+) -> Result<Json<Package>> {
+    Ok(Json(set_archived(&state, &principal, &name, false).await?))
+}
+
 pub async fn delete(
     State(state): State<AppState>,
     principal: Principal,
@@ -217,7 +278,7 @@ pub async fn delete(
     if versions.iter().any(VersionRow::is_published) {
         return Err(ApiError::Conflict(
             "has_published_versions",
-            format!("{name} has published versions; yank them instead"),
+            format!("{name} has published versions; archive it instead"),
         ));
     }
 

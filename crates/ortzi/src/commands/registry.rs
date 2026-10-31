@@ -74,6 +74,10 @@ pub enum PackageAction {
         #[arg(long = "alias")]
         aliases: Option<Vec<String>>,
     },
+    /// Hide a package from search; installs and updates keep working, new versions are refused
+    Archive { name: String },
+    /// Restore an archived package
+    Unarchive { name: String },
     /// Delete a package that has never been published
     Delete { name: String },
 }
@@ -210,6 +214,18 @@ async fn package(client: &Client, action: PackageAction) -> anyhow::Result<()> {
                 )
                 .await?;
             println!("updated {}", package.name);
+        }
+        PackageAction::Archive { name } => {
+            let _: Package = client
+                .post_empty(&format!("/cli/v1/packages/{name}/archive"))
+                .await?;
+            println!("archived {name}");
+        }
+        PackageAction::Unarchive { name } => {
+            let _: Package = client
+                .post_empty(&format!("/cli/v1/packages/{name}/unarchive"))
+                .await?;
+            println!("unarchived {name}");
         }
         PackageAction::Delete { name } => {
             client.delete(&format!("/cli/v1/packages/{name}")).await?;

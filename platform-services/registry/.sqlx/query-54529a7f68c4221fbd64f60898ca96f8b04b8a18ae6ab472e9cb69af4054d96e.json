@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "INSERT INTO cli_packages (name, description, binary_name, aliases, created_by)\n         VALUES ($1, $2, $3, $4, $5)\n         RETURNING id, name, description, binary_name, aliases, created_at",
+  "query": "INSERT INTO cli_packages (name, description, binary_name, aliases, created_by)\n         VALUES ($1, $2, $3, $4, $5)\n         RETURNING id, name, description, binary_name, aliases, created_at, archived_at",
   "describe": {
     "columns": [
       {
@@ -68,6 +68,17 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "archived_at"
+          }
+        }
       }
     ],
     "parameters": {
@@ -85,8 +96,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "ebdade2bf2146dd95135e824d559c8a2e4ef0432cf5271ba75b3df31eb9e9d80"
+  "hash": "54529a7f68c4221fbd64f60898ca96f8b04b8a18ae6ab472e9cb69af4054d96e"
 }

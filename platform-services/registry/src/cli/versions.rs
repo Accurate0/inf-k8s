@@ -46,6 +46,12 @@ pub async fn create(
     authorize_publish(&state, &principal, ECOSYSTEM_CLI, &name).await?;
 
     let package = db::find_package(&state.pool, &name).await?;
+    if package.archived_at.is_some() {
+        return Err(ApiError::Conflict(
+            "package_archived",
+            format!("{name} is archived; unarchive it to publish"),
+        ));
+    }
     let version = db::parse_version(&request.version)?.to_string();
 
     let targets: BTreeSet<Target> = request.targets.iter().copied().collect();

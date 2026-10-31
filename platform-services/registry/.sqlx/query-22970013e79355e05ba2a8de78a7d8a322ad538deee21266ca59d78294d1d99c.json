@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id, name, description, binary_name, aliases, created_at\n         FROM cli_packages WHERE name = $1",
+  "query": "UPDATE cli_packages SET\n            description = COALESCE($2, description),\n            binary_name = COALESCE($3, binary_name),\n            aliases = COALESCE($4, aliases),\n            updated_at = now()\n         WHERE name = $1\n         RETURNING id, name, description, binary_name, aliases, created_at, archived_at",
   "describe": {
     "columns": [
       {
@@ -68,11 +68,25 @@
             "name": "created_at"
           }
         }
+      },
+      {
+        "ordinal": 6,
+        "name": "archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "archived_at"
+          }
+        }
       }
     ],
     "parameters": {
       "Left": [
-        "Text"
+        "Text",
+        "Text",
+        "Text",
+        "TextArray"
       ]
     },
     "nullable": [
@@ -81,8 +95,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "74b57548fae4d520394aea1077670203d3f0b08f045b4983d85429694348a160"
+  "hash": "22970013e79355e05ba2a8de78a7d8a322ad538deee21266ca59d78294d1d99c"
 }

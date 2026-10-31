@@ -441,6 +441,95 @@ async fn publishing_latest_updates_package_description(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn archived_packages_leave_search_but_stay_installable(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("ff").await;
+    assert_eq!(registry.publish(&registry.admin, "ff", "1.0.0").await, 200);
+
+    let names = |body: &serde_json::Value| body.as_array().unwrap().len();
+    let (_, body) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages",
+            Some(registry.admin.as_str()),
+            None,
+        )
+        .await;
+    assert_eq!(names(&body), 1);
+
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/cli/v1/packages/ff/archive",
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["archived"], true);
+
+    let (_, body) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages",
+            Some(registry.admin.as_str()),
+            None,
+        )
+        .await;
+    assert_eq!(names(&body), 0);
+    let (_, body) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages?q=ff",
+            Some(registry.admin.as_str()),
+            None,
+        )
+        .await;
+    assert_eq!(names(&body), 0);
+
+    let (status, body) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages/ff/latest?target=darwin-arm64",
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    let (status, _) = registry
+        .call("GET", "/cli/v1/packages/ff", Some(&registry.admin), None)
+        .await;
+    assert_eq!(status, 200);
+
+    assert_eq!(registry.publish(&registry.admin, "ff", "1.1.0").await, 409);
+
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/cli/v1/packages/ff/unarchive",
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["archived"], false);
+    assert_eq!(registry.publish(&registry.admin, "ff", "1.1.0").await, 200);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn only_admins_can_archive(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("ff").await;
+    let reader = registry
+        .kanidm
+        .user("friend", &["registry_users@idm.example.test"]);
+    let (status, _) = registry
+        .call("POST", "/cli/v1/packages/ff/archive", Some(&reader), None)
+        .await;
+    assert_eq!(status, 403);
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn published_versions_are_immutable(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
     registry.create_package("ff").await;
