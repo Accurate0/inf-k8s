@@ -5,8 +5,6 @@ name: Terraform plan
   pull_request:
     paths:
       - "terraform/**"
-      - "projects/*/app.yaml"
-      - "platform-services/*/app.yaml"
       - ".forgejo/workflows/terraform-plan.yaml"
 
 concurrency:

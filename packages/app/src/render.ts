@@ -1,13 +1,15 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
 import { parse, parseDocument, stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
+import { bucketName, bucketSecretName } from './terraform.ts';
 import { expandWorkload, overrideConflicts, type ResolveResource } from './workload.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
 export const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
 const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
 
-export const HEADER = '# generated from app.yaml by `ortzi app render`; edit app.yaml instead';
+export const HEADER_TEXT = 'generated from app.yaml by `ortzi app render`; edit app.yaml instead';
+export const HEADER = `# ${HEADER_TEXT}`;
 
 const STAMP = /^# generated at .*\n/m;
 
@@ -44,7 +46,15 @@ export interface Workload {
 
 export type Resource =
   | { name: string; type: 'tracing' }
-  | { name: string; type: 'app'; app: string; export: string; path?: string };
+  | { name: string; type: 'app'; app: string; export: string; path?: string }
+  | Bucket;
+
+export interface Bucket {
+  name: string;
+  type: 'bucket';
+  provider: 'r2' | 's3';
+  bucket?: string;
+}
 
 export interface Export {
   name: string;
@@ -152,6 +162,7 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
 function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
   const resource = app.resources?.find((r) => r.name === name) as Resource;
   if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
+  if (resource.type === 'bucket') return { name: env, value: bucketName(app, resource) };
   const provided = platform.filter((e) => e.type === resource.type);
   if (provided.length !== 1) {
     throw new Error(`${app.name}: resources.${name}: expected one platform export of type ${resource.type}, found ${provided.length}`);
@@ -242,7 +253,7 @@ export function validate(raw: unknown, where: string): App {
   } catch (e) {
     fail((e as Error).message);
   }
-  const [invalid] = appSchema.validate(app, schema as Schema).errors;
+  const [invalid] = appSchema.validate(app, schema as unknown as Schema).errors;
   if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
   const resourceNames = (app.resources ?? []).map((r) => r.name);
   for (const name of resourceNames) {
@@ -491,12 +502,15 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
-  if (app.secrets?.length) {
+  const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
+    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: bucketSecretName(resource) }] : [],
+  );
+  if (app.secrets?.length || bucketSecrets.length) {
     sources.push(
       chart(app, versions, 'k8s-secrets', {
         valuesObject: {
           defaults: { namespace: name, provider: 'openbao', resyncInterval: 900, annotations },
-          secrets: app.secrets.map(secretFor).map((s) => ({
+          secrets: [...(app.secrets ?? []).map(secretFor), ...bucketSecrets].map((s) => ({
             name: s.name,
             managedSecrets: [{ secretName: s.secretName }],
           })),
@@ -547,7 +561,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
-const databaseRole = (database: string, spec: { databaseName?: string }) =>
+export const databaseRole = (database: string, spec: { databaseName?: string }) =>
   spec.databaseName ?? database.replaceAll('-', '_');
 
 export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;

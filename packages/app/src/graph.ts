@@ -1,4 +1,5 @@
 import type { App } from './render.ts';
+import { bucketName } from './terraform.ts';
 
 interface Node {
   id: string;
@@ -26,6 +27,9 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') {
         edges.push({ from: app.name, to: resource.app, label: resource.export });
+      } else if (resource.type === 'bucket') {
+        const name = bucketName(app, resource);
+        edges.push({ from: app.name, to: node(`bucket/${name}`, `${name} (${resource.provider})`, 'database') });
       } else {
         edges.push({ from: app.name, to: node(`platform/${resource.type}`, resource.type, 'platform') });
       }

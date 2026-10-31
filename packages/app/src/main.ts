@@ -26,6 +26,7 @@ import {
   workflowPath,
   workloadImages,
 } from './render';
+import { appTerraformPath, renderAppTerraform, renderTerraformIndex, TERRAFORM_APPS } from './terraform';
 import { validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services'];
@@ -164,7 +165,23 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
   const cluster = fs.readText(POSTGRES_CLUSTER);
   const withRoles = addRoles(cluster, appRoles(world.apps));
   if (withRoles !== cluster) stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
+  const generated = new Map([[`${TERRAFORM_APPS}/_index.tf.json`, renderTerraformIndex(world.apps)]]);
+  for (const app of world.apps) {
+    const terraform = renderAppTerraform(app);
+    if (terraform) generated.set(appTerraformPath(app), terraform);
+  }
+  for (const [path, wanted] of generated) {
+    if (!fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
+  }
   return stale;
+}
+
+function staleTerraform(apps: App[]): string[] {
+  const wanted = new Set(apps.filter((app) => renderAppTerraform(app)).map(appTerraformPath));
+  return fs
+    .readDir(TERRAFORM_APPS)
+    .map((entry) => `${TERRAFORM_APPS}/${entry.name}`)
+    .filter((path) => path.endsWith('.tf.json') && !path.endsWith('/_index.tf.json') && !wanted.has(path));
 }
 
 function render(check: boolean): number {
@@ -188,8 +205,13 @@ function render(check: boolean): number {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
     if (!check) fs.write(path, wanted);
   }
-  if (!stale.length) console.log('everything is up to date');
-  return check && stale.length > 0 ? 1 : 0;
+  const removed = staleTerraform(world.apps);
+  for (const path of removed) {
+    console.log(`${check ? 'stale' : 'removed'} ${path}`);
+    if (!check) fs.remove(path);
+  }
+  if (!stale.length && !removed.length) console.log('everything is up to date');
+  return check && stale.length + removed.length > 0 ? 1 : 0;
 }
 
 function diff(only?: string): number {

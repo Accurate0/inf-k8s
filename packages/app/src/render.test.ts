@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
+import { renderAppTerraform, renderTerraformIndex } from './terraform.ts';
 import { addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderWorkflow, stamped, validate, validateIngress, validateResources } from './render.ts';
 
 const versions = {
@@ -559,4 +560,72 @@ test('only adds missing roles and never removes one', () => {
     appRoles([{ name: 'a', network: { ingress: [] }, databases: { 'foo-bar': {}, baz: { databaseName: 'qux' } } }]),
     ['foo_bar', 'qux'],
   );
+});
+
+const base = { name: 'foo', network: { ingress: [] } };
+
+test('terraform covers an app database', () => {
+  const { resource } = JSON.parse(renderAppTerraform({ ...base, databases: { 'foo-bar': {} } }) as string);
+  assert.deepEqual(resource.vault_database_secret_backend_static_role['foo-bar'].username, 'foo_bar');
+  assert.equal(resource.vault_policy['foo-bar'].name, 'db-foo-bar');
+  assert.deepEqual(resource.vault_kubernetes_auth_backend_role['foo-bar'].bound_service_account_namespaces, ['foo']);
+});
+
+test('terraform covers an r2 bucket with a token for that bucket only', () => {
+  const { resource } = JSON.parse(
+    renderAppTerraform({ ...base, resources: [{ name: 'images', type: 'bucket', provider: 'r2' }] }) as string,
+  );
+  const id = 'foo-images';
+  assert.equal(resource.cloudflare_r2_bucket[id].name, 'foo-images');
+  assert.equal(resource.cloudflare_r2_bucket[id].lifecycle.prevent_destroy, true);
+  assert.match(resource.cloudflare_account_token[id].policies[0].resources, /r2\.bucket\..*_default_/);
+  assert.equal(resource.vault_kv_secret_v2[id].name, 'foo/resource-images');
+  assert.match(resource.vault_kv_secret_v2[id].data_json, /sha256\(cloudflare_account_token\.foo-images\.value\)/);
+  assert.equal(resource.aws_s3_bucket, undefined);
+});
+
+test('terraform covers an s3 bucket with its own user', () => {
+  const { resource } = JSON.parse(
+    renderAppTerraform({
+      ...base,
+      resources: [{ name: 'images', type: 'bucket', provider: 's3', bucket: 'named' }],
+    }) as string,
+  );
+  const id = 'foo-images';
+  assert.equal(resource.aws_s3_bucket[id].bucket, 'named');
+  assert.equal(resource.aws_s3_bucket[id].lifecycle.prevent_destroy, true);
+  assert.equal(resource.aws_s3_bucket_public_access_block[id].block_public_policy, true);
+  assert.match(resource.aws_iam_policy[id].policy, /aws_s3_bucket\.foo-images\.arn/);
+  assert.equal(resource.vault_kv_secret_v2[id].name, 'foo/resource-images');
+  assert.equal(resource.cloudflare_r2_bucket, undefined);
+});
+
+test('an app with nothing for terraform gets no file', () => {
+  assert.equal(renderAppTerraform({ ...base, resources: [{ name: 't', type: 'tracing' }] }), undefined);
+});
+
+test('the terraform index lists database names sorted', () => {
+  const index = JSON.parse(
+    renderTerraformIndex([
+      { ...base, databases: { z: {} } },
+      { ...base, name: 'a', databases: { b: {} } },
+    ]),
+  );
+  assert.deepEqual(index.output.database_names.value, ['b', 'z']);
+});
+
+test('a bucket resource wires its name and managed secret', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [{ name: 'images', type: 'bucket', provider: 'r2' }],
+      workloads: { foo: { image: 'i', env: { BUCKET: { resource: 'images' } }, envFrom: ['images-bucket-secrets'] } },
+    },
+    'test',
+  );
+  const rendered = render(app);
+  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].env, [{ name: 'BUCKET', value: 'foo-images' }]);
+  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets, [
+    { name: 'resource-images', managedSecrets: [{ secretName: 'images-bucket-secrets' }] },
+  ]);
 });

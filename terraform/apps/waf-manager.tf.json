@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "waf-manager": {
+        "backend": "${var.database_mount}",
+        "name": "waf-manager",
+        "db_name": "${var.database_name}",
+        "username": "waf_manager",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "waf-manager": {
+        "name": "db-waf-manager",
+        "policy": "path \"${var.database_mount}/static-creds/waf-manager\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "waf-manager": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-waf-manager",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "waf-manager"
+        ],
+        "token_policies": [
+          "${vault_policy.waf-manager.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}

@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "home-gateway": {
+        "backend": "${var.database_mount}",
+        "name": "home-gateway",
+        "db_name": "${var.database_name}",
+        "username": "home_gateway",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "home-gateway": {
+        "name": "db-home-gateway",
+        "policy": "path \"${var.database_mount}/static-creds/home-gateway\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "home-gateway": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-home-gateway",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "home-gateway"
+        ],
+        "token_policies": [
+          "${vault_policy.home-gateway.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}

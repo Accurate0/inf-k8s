@@ -472,6 +472,35 @@
                 "description": "Appended to the exported URL."
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "provider"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "bucket"
+                ]
+              },
+              "provider": {
+                "enum": [
+                  "r2",
+                  "s3"
+                ]
+              },
+              "bucket": {
+                "type": "string",
+                "description": "Defaults to <app>-<name>."
+              }
+            }
           }
         ]
       }

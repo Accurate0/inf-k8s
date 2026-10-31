@@ -1,0 +1,15 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "output": {
+    "database_names": {
+      "value": [
+        "ai-gateway",
+        "bom",
+        "feature-flags",
+        "home-gateway",
+        "registry",
+        "waf-manager"
+      ]
+    }
+  }
+}

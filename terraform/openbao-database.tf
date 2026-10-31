@@ -21,7 +21,7 @@ resource "vault_database_secrets_mount" "database" {
     username                = "openbao_db_admin"
     password                = random_password.openbao-db-admin.result
     password_authentication = "scram-sha-256"
-    allowed_roles           = keys(local.databases)
+    allowed_roles           = sort(concat(keys(local.databases), module.apps.database_names))
   }
 }
 
@@ -72,12 +72,10 @@ resource "azurerm_key_vault_secret" "openbao-database" {
 }
 
 locals {
-  selfhosted_databases = {
+  databases = {
     dawarich = { namespace = "dawarich", role = "dawarich_2" }
     forgejo  = { namespace = "forgejo", role = "forgejo" }
     firefly  = { namespace = "firefly", role = "firefly" }
     immich   = { namespace = "immich", role = "immich" }
   }
-
-  databases = merge(local.selfhosted_databases, local.app_databases)
 }

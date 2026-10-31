@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "bom": {
+        "backend": "${var.database_mount}",
+        "name": "bom",
+        "db_name": "${var.database_name}",
+        "username": "bom",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "bom": {
+        "name": "db-bom",
+        "policy": "path \"${var.database_mount}/static-creds/bom\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "bom": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-bom",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "bom"
+        ],
+        "token_policies": [
+          "${vault_policy.bom.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}

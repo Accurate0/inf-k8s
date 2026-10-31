@@ -7,8 +7,6 @@ name: Terraform apply
       - main
     paths:
       - "terraform/**"
-      - "projects/*/app.yaml"
-      - "platform-services/*/app.yaml"
       - ".forgejo/workflows/terraform-apply.yaml"
 
 concurrency:

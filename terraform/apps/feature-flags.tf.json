@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "feature-flags": {
+        "backend": "${var.database_mount}",
+        "name": "feature-flags",
+        "db_name": "${var.database_name}",
+        "username": "feature_flags",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "feature-flags": {
+        "name": "db-feature-flags",
+        "policy": "path \"${var.database_mount}/static-creds/feature-flags\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "feature-flags": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-feature-flags",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "feature-flags"
+        ],
+        "token_policies": [
+          "${vault_policy.feature-flags.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}

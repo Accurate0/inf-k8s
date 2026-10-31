@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "registry": {
+        "backend": "${var.database_mount}",
+        "name": "registry",
+        "db_name": "${var.database_name}",
+        "username": "registry",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "registry": {
+        "name": "db-registry",
+        "policy": "path \"${var.database_mount}/static-creds/registry\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "registry": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-registry",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "registry"
+        ],
+        "token_policies": [
+          "${vault_policy.registry.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}
