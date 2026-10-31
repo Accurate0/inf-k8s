@@ -332,3 +332,44 @@ test('rejects app.yaml fields outside the schema', () => {
     /nope/,
   );
 });
+
+const traced = (uses: unknown[], extra: Record<string, unknown> = {}) => ({
+  name: 'foo',
+  network: { ingress: [] },
+  resources: [{ name: 'traces', type: 'tracing' }],
+  workloads: { foo: { image: 'i', uses, ...extra } },
+});
+
+test('injects a used resource after the env set by hand', () => {
+  const app = validate(traced(['traces'], { env: [{ name: 'A', value: 'b' }] }), 'test');
+  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  assert.deepEqual(workload.env, [
+    { name: 'A', value: 'b' },
+    { name: 'OTEL_TRACING_URL', value: 'http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces' },
+  ]);
+  assert.equal(workload.uses, undefined);
+});
+
+test('a used resource can rename its variable', () => {
+  const app = validate(traced([{ name: 'traces', env: 'TRACES' }]), 'test');
+  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  assert.equal(workload.env[0].name, 'TRACES');
+});
+
+test('only workloads that use a resource get it', () => {
+  const app = validate({ ...traced([]), workloads: { foo: { image: 'i' } } }, 'test');
+  assert.equal(source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0].env, undefined);
+});
+
+test('rejects bad resources', () => {
+  assert.throws(() => validate(traced(['nope']), 'test'), /no resource named nope/);
+  assert.throws(
+    () => validate(traced(['traces'], { env: [{ name: 'OTEL_TRACING_URL', value: 'x' }] }), 'test'),
+    /already set/,
+  );
+  assert.throws(
+    () => validate({ ...traced([]), resources: [{ name: 'a', type: 'tracing' }, { name: 'a', type: 'tracing' }] }, 'test'),
+    /duplicate name a/,
+  );
+  assert.throws(() => validate({ ...traced([]), resources: [{ name: 'a', type: 'nope' }] }, 'test'), /type/);
+});

@@ -38,7 +38,12 @@ export interface Workload {
   readOnlyRootFilesystem?: boolean;
   secrets?: string[];
   databases?: string[];
+  uses?: Use[];
 }
+
+export type Use = string | { name: string; env?: string };
+
+export type Resource = { name: string; type: 'tracing' };
 
 export type Secret = string | { name: string; secretName: string };
 
@@ -85,6 +90,7 @@ export interface App {
   oidc?: Record<string, OidcClient>;
   databases?: Record<string, { databaseName?: string; secretName?: string; enableConnectionPooling?: boolean }>;
   secrets?: Secret[];
+  resources?: Resource[];
   sources?: Record<string, unknown>[];
   build?: Build;
   network: { ingress: string[] };
@@ -99,6 +105,19 @@ export interface Target {
   location: string;
   hasManifests: boolean;
   rootKustomization?: boolean;
+}
+
+const TRACING_URL = 'http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces';
+
+const useFor = (use: Use) => (typeof use === 'string' ? { name: use } : use);
+
+function resourceEnv(app: App, use: Use): { name: string; value: string }[] {
+  const { name, env } = useFor(use);
+  const resource = app.resources?.find((r) => r.name === name) as Resource;
+  switch (resource.type) {
+    case 'tracing':
+      return [{ name: env ?? 'OTEL_TRACING_URL', value: TRACING_URL }];
+  }
 }
 
 const secretFor = (secret: Secret) =>
@@ -116,7 +135,7 @@ function served(app: App, wanted: string | undefined, block: string): [string, W
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'routes', 'oidc', 'databases', 'secrets', 'resources', 'sources', 'network', 'namespace', 'serviceAccounts', 'metrics', 'build', 'lint']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -181,6 +200,21 @@ export function validate(raw: unknown, where: string): App {
   }
   const [invalid] = appSchema.validate(app, schema as Schema).errors;
   if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
+  const resourceNames = (app.resources ?? []).map((r) => r.name);
+  for (const name of resourceNames) {
+    if (resourceNames.indexOf(name) !== resourceNames.lastIndexOf(name)) fail(`resources: duplicate name ${name}`);
+  }
+  for (const [name, workload] of Object.entries(app.workloads ?? {})) {
+    const seen = new Set((workload.env ?? []).map((e) => e.name as string));
+    for (const use of workload.uses ?? []) {
+      const used = useFor(use).name;
+      if (!resourceNames.includes(used)) fail(`workloads.${name}.uses: no resource named ${used}`);
+      for (const { name: env } of resourceEnv(app, use)) {
+        if (seen.has(env)) fail(`workloads.${name}.uses: ${used} sets ${env}, which is already set`);
+        seen.add(env);
+      }
+    }
+  }
   return app;
 }
 
@@ -304,7 +338,8 @@ export function renderApplication(app: App, versions: Versions, target: Target):
             : {}),
           ...(app.serviceAccounts ? { serviceAccounts: app.serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const { health, envFrom, secrets: only, databases: dbs, ...rest } = spec;
+            const { health, envFrom, secrets: only, databases: dbs, uses, ...rest } = spec;
+            const injected = (uses ?? []).flatMap((use) => resourceEnv(app, use));
             const chosen = dbs ?? Object.keys(app.databases ?? {});
             const from = [
               ...(envFrom ?? []),
@@ -321,6 +356,7 @@ export function renderApplication(app: App, versions: Versions, target: Target):
             return {
               name: workload,
               ...rest,
+              ...(injected.length ? { env: [...(spec.env ?? []), ...injected] } : {}),
               ...(health ? { probes: { path: health } } : {}),
               ...(from.length ? { envFrom: from } : {}),
             };

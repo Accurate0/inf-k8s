@@ -173,11 +173,60 @@
               "type": "string"
             }
           },
+          "uses": {
+            "type": "array",
+            "description": "Resources to inject into this workload's environment.",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "required": [
+                    "name"
+                  ],
+                  "additionalProperties": false,
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "env": {
+                      "type": "string",
+                      "description": "Overrides the default variable name."
+                    }
+                  }
+                }
+              ]
+            }
+          },
           "runAsNonRoot": {
             "type": "boolean"
           },
           "serviceAccountName": {
             "type": "string"
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "array",
+      "description": "Named dependencies that workloads select with uses.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "type"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "enum": [
+              "tracing"
+            ]
           }
         }
       }
