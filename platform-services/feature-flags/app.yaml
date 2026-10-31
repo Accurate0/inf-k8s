@@ -53,23 +53,6 @@ workloads:
       initialDelaySeconds: 5
       periodSeconds: 60
     env:
-      - name: PGUSER
-        valueFrom:
-          secretKeyRef:
-            name: feature-flags-db-credentials
-            key: PGUSER
-      - name: PGPASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: feature-flags-db-credentials
-            key: PGPASSWORD
-      - name: PGDATABASE
-        valueFrom:
-          secretKeyRef:
-            name: feature-flags-db-credentials
-            key: PGDATABASE
-      - name: DATABASE_URL
-        value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
       - name: OTEL_TRACING_URL
         value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
       - name: REDIS_URL
@@ -82,7 +65,6 @@ workloads:
       - secretRef:
           name: feature-flags-managed-secrets
     secrets: []
-    databases: []
     kind: DaemonSet
     updateStrategy:
       type: RollingUpdate

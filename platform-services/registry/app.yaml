@@ -61,23 +61,6 @@ workloads:
     env:
       - name: CONFIG_PATH
         value: /etc/registry/config.yaml
-      - name: PGUSER
-        valueFrom:
-          secretKeyRef:
-            name: registry-database-secret
-            key: PGUSER
-      - name: PGPASSWORD
-        valueFrom:
-          secretKeyRef:
-            name: registry-database-secret
-            key: PGPASSWORD
-      - name: PGDATABASE
-        valueFrom:
-          secretKeyRef:
-            name: registry-database-secret
-            key: PGDATABASE
-      - name: DATABASE_URL
-        value: postgresql://$(PGUSER):$(PGPASSWORD)@cloudnative-pg-cluster-pooler-rw.cnpg-system.svc.cluster.local:5432/$(PGDATABASE)
       - name: OTEL_TRACING_URL
         value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
     envFrom:
@@ -90,7 +73,6 @@ workloads:
         mountPath: /etc/registry
         readOnly: true
     secrets: []
-    databases: []
     replicas: 2
     strategy:
       type: RollingUpdate
