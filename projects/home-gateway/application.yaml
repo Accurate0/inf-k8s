@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T04:24:55.548Z
+# generated at 2026-10-31T05:15:24.428Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,6 +16,207 @@ spec:
       selfHeal: true
   project: projects
   sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.3.0
+      helm:
+        valueFiles:
+          - $values/projects/home-gateway/image.values.yaml
+        valuesObject:
+          namespace: home-gateway
+          namespaceLabels:
+            gateway.inf-k8s.net/anurag-sh: "true"
+            internal-gateway-access: "true"
+            inf-k8s.net/lan-gateway-access: "true"
+          workloads:
+            - name: home-gateway
+              image: ghcr.io/accurate0/home-gateway
+              resources:
+                requests:
+                  cpu: 30m
+                  memory: 336Mi
+              ports:
+                - containerPort: 8000
+              startupProbe:
+                failureThreshold: 30
+                httpGet:
+                  path: /v1/health
+                  port: 8000
+                  scheme: HTTP
+                periodSeconds: 2
+                successThreshold: 1
+                timeoutSeconds: 2
+              readinessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /v1/health
+                  port: 8000
+                  scheme: HTTP
+                periodSeconds: 10
+                successThreshold: 1
+                timeoutSeconds: 2
+              livenessProbe:
+                failureThreshold: 3
+                httpGet:
+                  path: /v1/health
+                  port: 8000
+                  scheme: HTTP
+                initialDelaySeconds: 3
+                periodSeconds: 30
+                successThreshold: 1
+                timeoutSeconds: 1
+              env:
+                - name: FEATURE_FLAGS_URL
+                  value: http://api.feature-flags.svc.cluster.local:50051
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+                - name: CONFIG_DIR
+                  value: /etc/home-gateway/config
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/home-gateway/config
+                  readOnly: true
+                - name: config-sections
+                  mountPath: /etc/home-gateway/config/sections
+                  readOnly: true
+                - name: config-devices
+                  mountPath: /etc/home-gateway/config/devices
+                  readOnly: true
+                - name: config-workflows
+                  mountPath: /etc/home-gateway/config/workflows
+                  readOnly: true
+                - name: config-lua-lib
+                  mountPath: /etc/home-gateway/config/lua/lib
+                  readOnly: true
+                - name: config-lua-model-lib
+                  mountPath: /etc/home-gateway/config/lua/models/lib
+                  readOnly: true
+                - name: config-lua-workflows
+                  mountPath: /etc/home-gateway/config/lua/workflows
+                  readOnly: true
+                - name: config-lua-integrations
+                  mountPath: /etc/home-gateway/config/lua/integrations
+                  readOnly: true
+                - name: config-lua-mqtt
+                  mountPath: /etc/home-gateway/config/lua/models/mqtt
+                  readOnly: true
+                - name: config-lua-home-assistant
+                  mountPath: /etc/home-gateway/config/lua/models/home_assistant
+                  readOnly: true
+                - name: config-lua-esphome-native-api
+                  mountPath: /etc/home-gateway/config/lua/models/esphome_native_api
+                  readOnly: true
+                - name: config-lua-tuya
+                  mountPath: /etc/home-gateway/config/lua/models/tuya
+                  readOnly: true
+              replicas: 1
+              strategy:
+                type: RollingUpdate
+                rollingUpdate:
+                  maxUnavailable: 0
+                  maxSurge: 1
+              minReadySeconds: 15
+              progressDeadlineSeconds: 300
+              hostAliases:
+                - ip: 10.0.2.15
+                  hostnames:
+                    - home-assistant.internal
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: inf-k8s.net/location
+                            operator: In
+                            values:
+                              - perth
+              volumes:
+                - name: config
+                  configMap:
+                    name: home-gateway-config
+                - name: config-sections
+                  configMap:
+                    name: home-gateway-config-sections
+                - name: config-devices
+                  configMap:
+                    name: home-gateway-config-devices
+                - name: config-workflows
+                  configMap:
+                    name: home-gateway-config-workflows
+                - name: config-lua-lib
+                  configMap:
+                    name: home-gateway-config-lua-lib
+                - name: config-lua-model-lib
+                  configMap:
+                    name: home-gateway-config-lua-model-lib
+                - name: config-lua-workflows
+                  configMap:
+                    name: home-gateway-config-lua-workflows
+                - name: config-lua-integrations
+                  configMap:
+                    name: home-gateway-config-lua-integrations
+                - name: config-lua-mqtt
+                  configMap:
+                    name: home-gateway-config-lua-mqtt
+                - name: config-lua-home-assistant
+                  configMap:
+                    name: home-gateway-config-lua-home-assistant
+                - name: config-lua-esphome-native-api
+                  configMap:
+                    name: home-gateway-config-lua-esphome-native-api
+                - name: config-lua-tuya
+                  configMap:
+                    name: home-gateway-config-lua-tuya
+              runAsNonRoot: false
+              service:
+                name: home-gateway
+                ports:
+                  - name: api
+                    protocol: TCP
+                    port: 80
+                    targetPort: 8000
+              envFrom:
+                - secretRef:
+                    name: home-gateway-managed-secrets
+                - secretRef:
+                    name: home-gateway-terraform-secrets
+                - secretRef:
+                    name: home-gateway-db-credentials
+            - name: home-web
+              image: ghcr.io/accurate0/home-gateway-web
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+              ports:
+                - containerPort: 8080
+              readinessProbe:
+                httpGet:
+                  path: /
+                  port: 8080
+                  scheme: HTTP
+                initialDelaySeconds: 3
+                periodSeconds: 30
+              replicas: 1
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: inf-k8s.net/location
+                            operator: In
+                            values:
+                              - perth
+              runAsNonRoot: false
+              service:
+                name: home-web
+                ports:
+                  - name: http
+                    protocol: TCP
+                    port: 80
+                    targetPort: 8080
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0
@@ -126,6 +327,16 @@ spec:
             - name: terraform
               managedSecrets:
                 - secretName: home-gateway-terraform-secrets
+    - chart: k8s-observability
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
+      targetRevision: 0.1.0
+      helm:
+        valuesObject:
+          name: home-gateway
+          namespace: home-gateway
+          path: /metrics
+          port: api
+          interval: 30s
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: projects/home-gateway/manifests
