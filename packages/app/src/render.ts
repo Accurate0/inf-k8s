@@ -47,7 +47,14 @@ export interface Workload {
 export type Resource =
   | { name: string; type: 'tracing' }
   | { name: string; type: 'app'; app: string; export: string; path?: string }
-  | Bucket;
+  | Bucket
+  | ({ name: string; type: 'database' } & DatabaseSpec);
+
+export interface DatabaseSpec {
+  databaseName?: string;
+  secretName?: string;
+  enableConnectionPooling?: boolean;
+}
 
 export interface Bucket {
   name: string;
@@ -106,7 +113,7 @@ export interface App {
   workloads?: Record<string, Workload>;
   routes?: Record<string, Route>;
   oidc?: Record<string, OidcClient>;
-  databases?: Record<string, { databaseName?: string; secretName?: string; enableConnectionPooling?: boolean }>;
+  databases?: Record<string, DatabaseSpec>;
   secrets?: Secret[];
   resources?: Resource[];
   exports?: Export[];
@@ -164,6 +171,9 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   const resource = app.resources?.find((r) => r.name === name) as Resource;
   if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
   if (resource.type === 'bucket') return { name: env, value: bucketName(app, resource) };
+  if (resource.type === 'database') {
+    throw new Error(`${app.name}: resources.${name}: list a database's secret in envFrom, not env`);
+  }
   const provided = platform.filter((e) => e.type === resource.type);
   if (provided.length !== 1) {
     throw new Error(`${app.name}: resources.${name}: expected one platform export of type ${resource.type}, found ${provided.length}`);
@@ -369,7 +379,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
   };
   const databaseSecret = (database: string) =>
-    app.databases?.[database].secretName ?? `${database}-database-secret`;
+    appDatabases(app)[database].secretName ?? `${database}-database-secret`;
   const dir = `${target.location}/${name}`;
   const routes = Object.entries(app.routes ?? {});
   const sources: Record<string, unknown>[] = [];
@@ -486,11 +496,11 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
-  if (app.databases && Object.keys(app.databases).length) {
+  if (Object.keys(appDatabases(app)).length) {
     sources.push(
       chart(app, versions, 'k8s-postgres', {
         valuesObject: {
-          databases: Object.entries(app.databases).map(([database, spec]) => ({
+          databases: Object.entries(appDatabases(app)).map(([database, spec]) => ({
             name: database,
             namespace: name,
             databaseName: databaseRole(database, spec),
@@ -562,6 +572,15 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
+export function appDatabases(app: App): Record<string, DatabaseSpec> {
+  const declared = (app.resources ?? []).flatMap((resource) => {
+    if (resource.type !== 'database') return [];
+    const { name, type: _type, ...spec } = resource;
+    return [[name, spec] as const];
+  });
+  return { ...app.databases, ...Object.fromEntries(declared) };
+}
+
 export const databaseRole = (database: string, spec: { databaseName?: string }) =>
   spec.databaseName ?? database.replaceAll('-', '_');
 
@@ -584,7 +603,7 @@ export function renderDatabase(database: string, spec: { databaseName?: string }
 }
 
 export const appRoles = (apps: App[]) =>
-  apps.flatMap((app) => Object.entries(app.databases ?? {}).map(([database, spec]) => databaseRole(database, spec)));
+  apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
 
 export function addRoles(cluster: string, roles: string[]): string {
   const doc = parseDocument(cluster);

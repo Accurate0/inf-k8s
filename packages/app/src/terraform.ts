@@ -1,5 +1,5 @@
 import type { App, Bucket } from './render.ts';
-import { databaseRole, HEADER_TEXT } from './render.ts';
+import { appDatabases, databaseRole, HEADER_TEXT } from './render.ts';
 
 type Block = Record<string, Record<string, unknown>>;
 
@@ -142,7 +142,7 @@ export const bucketSecretName = (resource: Bucket) => `${resource.name}-bucket-s
 
 export function renderAppTerraform(app: App): string | undefined {
   const blocks = [
-    ...Object.entries(app.databases ?? {}).map(([database, spec]) =>
+    ...Object.entries(appDatabases(app)).map(([database, spec]) =>
       databaseResources(app, database, databaseRole(database, spec)),
     ),
     ...(app.resources ?? []).flatMap((resource) => {
@@ -156,7 +156,7 @@ export function renderAppTerraform(app: App): string | undefined {
 }
 
 export function renderTerraformIndex(apps: App[]): string {
-  const names = apps.flatMap((app) => Object.keys(app.databases ?? {})).sort();
+  const names = apps.flatMap((app) => Object.keys(appDatabases(app))).sort();
   const s3 = apps
     .flatMap((app) =>
       (app.resources ?? []).flatMap((resource) =>

@@ -505,6 +505,34 @@
                 "description": "IAM user name, for s3. Defaults to the bucket name."
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "database"
+                ]
+              },
+              "databaseName": {
+                "type": "string"
+              },
+              "secretName": {
+                "type": "string"
+              },
+              "enableConnectionPooling": {
+                "type": "boolean",
+                "description": "Connect through the pooler. Defaults to true."
+              }
+            }
           }
         ]
       }

@@ -644,3 +644,29 @@ test('an s3 bucket can keep an existing iam user', () => {
 test('the terraform index has no key output without s3 buckets', () => {
   assert.equal(JSON.parse(renderTerraformIndex([base])).output.s3_access_keys, undefined);
 });
+
+test('a database resource renders like a databases entry', () => {
+  const declared = { name: 'foo-bar', type: 'database', secretName: 'creds', enableConnectionPooling: false };
+  const asResource = validate({ ...base, name: 'foo-bar', resources: [declared] }, 'test');
+  const asBlock = validate(
+    { ...base, name: 'foo-bar', databases: { 'foo-bar': { secretName: 'creds', enableConnectionPooling: false } } },
+    'test',
+  );
+  assert.deepEqual(source(render(asResource), 'k8s-postgres'), source(render(asBlock), 'k8s-postgres'));
+  assert.equal(renderAppTerraform(asResource), renderAppTerraform(asBlock));
+  assert.deepEqual(appRoles([asResource]), ['foo_bar']);
+  assert.deepEqual(JSON.parse(renderTerraformIndex([asResource])).output.database_names.value, ['foo-bar']);
+  assert.deepEqual(buildGraph([asResource]).edges, buildGraph([asBlock]).edges);
+});
+
+test('rejects a database resource used in env', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [{ name: 'db', type: 'database' }],
+      workloads: { foo: { image: 'i', env: { DB: { resource: 'db' } } } },
+    },
+    'test',
+  );
+  assert.throws(() => validateResources({ platform, apps: [app] }), /in envFrom, not env/);
+});

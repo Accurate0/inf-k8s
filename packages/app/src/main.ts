@@ -10,6 +10,7 @@ import { parse, stringify } from 'yaml';
 import {
   addRoles,
   type App,
+  appDatabases,
   appRoles,
   databasePath,
   imageValuesPath,
@@ -154,7 +155,7 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
   }
   for (const { app } of apps) {
     if (only && app.name !== only) continue;
-    for (const [database, spec] of Object.entries(app.databases ?? {})) {
+    for (const [database, spec] of Object.entries(appDatabases(app))) {
       const path = databasePath(database);
       const wanted = renderDatabase(database, spec);
       if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
@@ -257,7 +258,7 @@ export const run = cli({
         count(app.workloads),
         count(app.routes),
         count(app.oidc),
-        count(app.databases),
+        count(appDatabases(app)),
         count(app.secrets),
         app.metrics ? 'yes' : '-',
         app.network.ingress.join(',') || '-',
