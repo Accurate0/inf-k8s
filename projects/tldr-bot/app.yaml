@@ -1,0 +1,17 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: tldr-bot
+repository: https://github.com/Accurate0/tldr-bot
+workloads:
+  tldr-bot:
+    image: ghcr.io/accurate0/tldr-bot
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+    env:
+      - name: OPENAI_API_BASE
+        value: http://api.ai-gateway.svc.cluster.local/v1
+secrets:
+  - tldr-bot
+network:
+  ingress: []
