@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-10-31T11:17:27.433Z
+# generated at 2026-10-31T11:32:10.318Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -39,6 +39,21 @@ spec:
               env:
                 - name: BUCKET_NAME
                   value: bom-images
+                - name: BUCKET_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_ENDPOINT
+                - name: BUCKET_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_ACCESS_KEY_ID
+                - name: BUCKET_ACCESS_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_SECRET_ACCESS_KEY
               envFrom:
                 - secretRef:
                     name: bom-managed-secrets
@@ -86,6 +101,9 @@ spec:
             - name: bom
               managedSecrets:
                 - secretName: bom-managed-secrets
+            - name: resource-images
+              managedSecrets:
+                - secretName: images-bucket-secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: bom

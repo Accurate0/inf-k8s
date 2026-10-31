@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: bom
 repository: https://github.com/Accurate0/bom
+resources:
+  - {name: images, type: bucket, provider: r2, bucket: bom-images}
 workloads:
   bom:
     image: ghcr.io/accurate0/bom
@@ -8,7 +10,10 @@ workloads:
     health: /health
     resources: {cpu: 30m, memory: 56Mi, memoryLimit: 512Mi}
     env:
-      BUCKET_NAME: bom-images
+      BUCKET_NAME: {resource: images}
+      BUCKET_ENDPOINT: {secret: images-bucket-secrets, key: S3_ENDPOINT}
+      BUCKET_ACCESS_KEY_ID: {secret: images-bucket-secrets, key: S3_ACCESS_KEY_ID}
+      BUCKET_ACCESS_SECRET_KEY: {secret: images-bucket-secrets, key: S3_SECRET_ACCESS_KEY}
     envFrom:
       - bom-managed-secrets
       - bom-database-secret
