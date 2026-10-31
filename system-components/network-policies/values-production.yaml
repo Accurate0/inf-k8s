@@ -6,7 +6,6 @@ namespaces:
       - home-gateway
       - maccas-api
       - janitor-bot
-  tldr-bot: {}
   ai-gateway:
     ingress:
       - envoy-gateway-system
@@ -20,21 +19,11 @@ namespaces:
       - argocd
       - forgejo
       - monitoring
-  maccas-api:
-    ingress:
-      - envoy-gateway-system
   registry:
     ingress:
       - envoy-gateway-system
       - forgejo
       - monitoring
-  home-gateway:
-    ingress:
-      - envoy-gateway-system
-      - monitoring
-  anurag-sh:
-    ingress:
-      - envoy-gateway-system
   dragonfly:
     ingress:
       - dragonfly-system
@@ -52,6 +41,5 @@ namespaces:
     ingress:
       - envoy-gateway-system
       - home-gateway
-  ozbargain: {}
   kanidm-sync: {}
   k8s-schemas: {}
