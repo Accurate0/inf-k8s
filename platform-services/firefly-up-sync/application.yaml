@@ -1,0 +1,99 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-10-31T07:04:19.918Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: firefly-up-sync
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: platform-services
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.3.0
+      helm:
+        valueFiles:
+          - $values/platform-services/firefly-up-sync/image.values.yaml
+        valuesObject:
+          namespace: firefly-up-sync
+          workloads:
+            - name: firefly-up-sync
+              image: ghcr.io/accurate0/firefly-up-sync
+              kind: CronJob
+              schedule: 15,45 * * * *
+              backoffLimit: 1
+              restartPolicy: Never
+              automountServiceAccountToken: false
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              env:
+                - name: FIREFLY_URL
+                  value: http://firefly.firefly.svc.cluster.local
+                - name: LOOKBACK_DAYS
+                  value: "14"
+                - name: PAYOFF_PIGGY_BANK
+                  value: Home loan payoff
+                - name: LINKED_ACCOUNTS
+                  value: |
+                    [
+                      {"name": "Amex", "matches": ["American Express"]},
+                      {"name": "ING", "matches": ["ING Savings", "ING Transactional"]},
+                      {"name": "Ubank", "matches": ["ubank Savings", "ubank Transactional"]},
+                      {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]},
+                      {"name": "Vanguard", "matches": ["Vanguard"]},
+                      {"name": "Rent", "matches": ["Forward to Rent", "Transfer from Rent"]},
+                      {"name": "Spendings", "matches": ["Spendings"]}
+                    ]
+              envFrom:
+                - secretRef:
+                    name: firefly-up-sync-managed-secrets
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: firefly-up-sync
+          ingress: []
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: firefly-up-sync
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: firefly-up-sync
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          secrets:
+            - name: firefly-up-sync
+              managedSecrets:
+                - secretName: firefly-up-sync-managed-secrets
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      name: application
+      path: platform-services/firefly-up-sync/manifests
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: firefly-up-sync
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    prune: true
+    syncStrategy:
+      hook: {}
