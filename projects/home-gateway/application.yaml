@@ -1,3 +1,4 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,6 +15,15 @@ spec:
       selfHeal: true
   project: projects
   sources:
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: home-gateway
+          ingress:
+            - envoy-gateway-system
+            - monitoring
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.3.1
@@ -60,12 +70,12 @@ spec:
               namespace: home-gateway
               displayName: Home Gateway
               host: home.ortzi.cloud
+              public: true
+              preferShortUsername: true
               callbackPath: /callback
               extraRedirectUrls:
                 - net.infk8s.homegateway:/oauth2redirect
                 - https://home.internal/callback
-              public: true
-              preferShortUsername: true
               allowLocalhostRedirect: true
               groups:
                 home_gateway_admins:
