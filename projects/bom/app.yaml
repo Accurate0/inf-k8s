@@ -2,6 +2,7 @@
 name: bom
 repository: https://github.com/Accurate0/bom
 resources:
+  - {name: bom, type: secret}
   - {name: bom, type: database}
   - {name: images, type: bucket, provider: r2, bucket: bom-images}
 workloads:
@@ -21,8 +22,6 @@ workloads:
     service:
       name: bom-api
       portName: api
-secrets:
-  - bom
 network:
   ingress:
     - home-gateway

@@ -21,8 +21,6 @@ oidc:
     displayName: Feature Flags
     public: true
     allowLocalhostRedirect: true
-secrets:
-  - feature-flags
 network:
   ingress: []
 exports:
@@ -30,6 +28,8 @@ exports:
     workload: feature-flags
     port: grpc
 resources:
+  - {name: feature-flags, type: secret}
+  - {name: cache, type: cache, instance: replicated}
   - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
   - name: traces
     type: tracing
@@ -46,7 +46,7 @@ workloads:
       readiness: {delay: 5, every: 15}
       liveness: {delay: 5, every: 60}
     env:
-      REDIS_URL: redis://replicated.dragonfly.svc.cluster.local
+      REDIS_URL: {resource: cache}
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/feature-flags
       OIDC_AUDIENCE: feature-flags
       OTEL_TRACING_URL: {resource: traces}

@@ -2,6 +2,7 @@
 name: tldr-bot
 repository: https://github.com/Accurate0/tldr-bot
 resources:
+  - {name: tldr-bot, type: secret}
   - name: llm
     type: app
     app: ai-gateway
@@ -15,7 +16,5 @@ workloads:
       OPENAI_API_BASE: {resource: llm}
     envFrom:
       - tldr-bot-managed-secrets
-secrets:
-  - tldr-bot
 network:
   ingress: []

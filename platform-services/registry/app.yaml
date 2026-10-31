@@ -27,15 +27,13 @@ oidc:
         - email
         - profile
         - groups
-secrets:
-  - registry
-  - name: signing
-    secretName: registry-signing-secrets
 network:
   ingress:
     - forgejo
     - monitoring
 resources:
+  - {name: registry, type: secret}
+  - {name: signing, type: secret, secretName: registry-signing-secrets}
   - {name: registry, type: database}
   - {name: storage, type: bucket, provider: r2, bucket: registry}
   - name: traces

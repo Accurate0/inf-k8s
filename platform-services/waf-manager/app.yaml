@@ -58,12 +58,11 @@ oidc:
     secretKeys:
       clientId: client-id
       clientSecret: client-secret
-secrets:
-  - waf-manager
 network:
   ingress:
     - monitoring
 resources:
+  - {name: waf-manager, type: secret}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
 workloads:
   waf-manager:

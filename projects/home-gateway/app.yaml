@@ -26,10 +26,6 @@ routes:
           limit:
             requests: 5
             unit: Second
-secrets:
-  - home-gateway
-  - name: terraform
-    secretName: home-gateway-terraform-secrets
 sources:
   - repoURL: https://github.com/Accurate0/home-gateway.git
     name: config
@@ -69,6 +65,8 @@ oidc:
         - profile
         - groups
 resources:
+  - {name: home-gateway, type: secret}
+  - {name: terraform, type: secret, secretName: home-gateway-terraform-secrets}
   - {name: home-gateway, type: database, secretName: home-gateway-db-credentials}
   - {name: storage, type: bucket, provider: s3, bucket: home-gateway-bucket, user: home-gateway}
   - name: flags

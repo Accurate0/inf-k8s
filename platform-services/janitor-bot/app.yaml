@@ -47,14 +47,13 @@ oidc:
       - email
       - profile
       - groups
-secrets:
-  - janitor-bot
 network:
   ingress:
     - argocd
     - forgejo
     - monitoring
 resources:
+  - {name: janitor-bot, type: secret}
   - name: flags
     type: app
     app: feature-flags

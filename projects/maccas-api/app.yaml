@@ -24,18 +24,14 @@ routes:
           limit:
             requests: 5
             unit: Second
-secrets:
-  - name: api
-    secretName: maccas-api-managed-secrets
-  - name: common
-    secretName: maccas-common-managed-secrets
-  - name: web
-    secretName: maccas-web-managed-secrets
-  - name: migration
-    secretName: maccas-migration-managed-secrets
 network:
   ingress: []
 resources:
+  - {name: api, type: secret, secretName: maccas-api-managed-secrets}
+  - {name: common, type: secret, secretName: maccas-common-managed-secrets}
+  - {name: web, type: secret, secretName: maccas-web-managed-secrets}
+  - {name: migration, type: secret, secretName: maccas-migration-managed-secrets}
+  - {name: cache, type: cache, instance: replicated}
   - {name: images, type: bucket, provider: r2, bucket: maccas-images}
   - name: llm
     type: app
@@ -63,7 +59,7 @@ workloads:
       IMAGES_BUCKET__ACCESS_SECRET_KEY: {secret: images-bucket-secrets, key: S3_SECRET_ACCESS_KEY}
       RECOMMENDATIONS_API_BASE: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
       SENSORDATA_API_BASE: http://maccas-sensordata.maccas-api.svc.cluster.local
-      REDIS_CONNECTION_STRING: redis://replicated.dragonfly.svc.cluster.local
+      REDIS_CONNECTION_STRING: {resource: cache}
       OTEL_TRACING_URL: {resource: traces}
       OPENAI_BASE_URL: {resource: llm}
       FEATURE_FLAGS_URL: {resource: flags}

@@ -1,9 +1,9 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: firefly-up-sync
-secrets:
-  - firefly-up-sync
 network:
   ingress: []
+resources:
+  - {name: firefly-up-sync, type: secret}
 workloads:
   firefly-up-sync:
     image: ghcr.io/accurate0/firefly-up-sync
