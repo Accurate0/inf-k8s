@@ -6,7 +6,7 @@ network:
     - forgejo
 resources:
   - {name: argocd, type: platform, export: argocd}
-  - {name: forgejo, type: platform, export: forgejo}
+  - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
   - name: flags
     type: app

@@ -1,4 +1,7 @@
 exports:
-  - name: forgejo
+  - name: forgejo-internal
     type: platform
     url: http://forgejo-http.forgejo.svc.cluster.local:3000
+  - name: forgejo-external
+    type: platform
+    url: https://git.anurag.sh
