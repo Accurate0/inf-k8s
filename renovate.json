@@ -9,7 +9,10 @@
       "/platform-services/.*/application\\.yaml$/"
     ]
   },
-  "ignorePaths": ["system-components/redis.application.yaml"],
+  "ignorePaths": [
+    "system-components/redis.application.yaml",
+    "projects/bom/application.yaml"
+  ],
   "customManagers": [
     {
       "customType": "regex",
