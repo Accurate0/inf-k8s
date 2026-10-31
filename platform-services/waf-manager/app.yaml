@@ -1,0 +1,60 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: waf-manager
+routes:
+  waf-manager-route:
+    gateway: internal-gateway
+    hosts:
+      - waf-manager.ortzi.cloud
+    backend:
+      name: api
+      port: 80
+  waf-manager-api:
+    gateway: internal-gateway
+    hosts:
+      - waf-manager.ortzi.cloud
+    backend:
+      name: api
+      port: 80
+    paths:
+      - /api/
+oidc:
+  waf-manager:
+    displayName: WAF Manager
+    allowInsecureClientDisablePkce: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+    securityPolicy:
+      httpRoute: waf-manager-route
+      scopes:
+        - openid
+        - email
+        - profile
+      forwardAccessToken: true
+      jwt:
+        cacheDuration: 3600s
+        claimToHeaders:
+          - claim: preferred_username
+            header: x-waf-user
+          - claim: name
+            header: x-waf-user-name
+          - claim: email
+            header: x-waf-user-email
+          - claim: sub
+            header: x-waf-user-sub
+  waf-manager-cli:
+    displayName: WAF Manager CLI
+    host: waf-manager.ortzi.cloud
+    public: true
+    allowLocalhostRedirect: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+databases:
+  waf-manager:
+    secretName: waf-manager-db-credentials
+secrets:
+  - waf-manager
+network:
+  ingress:
+    - monitoring
