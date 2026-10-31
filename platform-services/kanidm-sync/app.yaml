@@ -2,3 +2,22 @@
 name: kanidm-sync
 network:
   ingress: []
+workloads:
+  kanidm-sync:
+    image: ghcr.io/accurate0/kanidm-sync
+    resources:
+      requests:
+        cpu: 10m
+        memory: 16Mi
+    env:
+      - name: KANIDM_URL
+        value: https://idm.anurag.sh
+    envFrom:
+      - secretRef:
+          name: kanidm-sync-managed-secrets
+    secrets: []
+    databases: []
+    replicas: 1
+    serviceAccountName: kanidm-sync
+serviceAccounts:
+  - kanidm-sync
