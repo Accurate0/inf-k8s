@@ -38,7 +38,6 @@ resources:
         - clientSelectors:
             - headers:
                 - name: x-real-ip
-                  invert: false
                   type: Distinct
           limit:
             requests: 5
@@ -139,7 +138,6 @@ workloads:
       http: {path: /health, port: 8003}
       liveness: {delay: 3, every: 30, timeout: 5}
     env:
-      FLIPT_URL: http://flipt.flipt.svc.cluster.local:8080
       CLUSTERING_API_BASE: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
       OTEL_TRACING_URL: {resource: traces}
       OPENAI_BASE_URL: {resource: llm}
