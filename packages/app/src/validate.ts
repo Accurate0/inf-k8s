@@ -29,12 +29,16 @@ function walk(dir: string, visit: (dir: string, file: string) => void) {
   }
 }
 
-export function validateManifests(generated: Map<string, string>): string[] {
+export function validateManifests(
+  generated: Map<string, string>,
+  selected: (path: string) => boolean = () => true,
+): string[] {
   const failures: string[] = [];
   const report = (where: string, before: number) =>
     console.error(`  ${failures.length > before ? '✗' : '✓'} ${where}`);
-  const cache = schemaCache();
+  let cache: string | undefined;
   const kubeconform = (where: string, paths: string[], stdin?: string, flags: string[] = []) => {
+    cache ??= schemaCache();
     const output = run(
       'kubeconform',
       [
@@ -54,8 +58,9 @@ export function validateManifests(generated: Map<string, string>): string[] {
     if (!output.ok) failures.push(`${where}\n${output.stdout}${output.stderr}`);
   };
 
-  console.error(`validating ${generated.size} apps`);
-  for (const [path, rendered] of generated) {
+  const apps = [...generated].filter(([path]) => selected(path));
+  console.error(`validating ${apps.length} apps`);
+  for (const [path, rendered] of apps) {
     const before = failures.length;
     const documents = [rendered];
     for (const { args, values } of helmTemplates(rendered)) {
@@ -71,6 +76,7 @@ export function validateManifests(generated: Map<string, string>): string[] {
   const applications: string[] = [];
   for (const root of MANIFEST_ROOTS) {
     walk(root, (dir, file) => {
+      if (!selected(dir)) return;
       if (file === 'kustomization.yaml' || file === 'kustomization.yml') kustomizations.push(dir);
       const path = `${dir}/${file}`;
       if (!generated.has(path) && (file === 'application.yaml' || file.endsWith('.application.yaml'))) {

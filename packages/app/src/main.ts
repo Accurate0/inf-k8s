@@ -1,6 +1,7 @@
 import { fs, run as exec } from '@ortzi/host';
 import { cli, columns, Kube, parseMinutes, UsageError } from '@ortzi/kit';
 import { listApps } from './argo';
+import { changedScope, parseStatus } from './changed';
 import { planCommits } from './commits';
 import { buildGraph, toDot, toMermaid } from './graph';
 import { history } from './commands/history';
@@ -89,6 +90,7 @@ flags:
   --format FMT     graph: mermaid or dot (default mermaid)
   --check          render: write nothing, exit 1 if invalid or out of date
   --commit         render: commit what changed, one commit per app
+  --changed        render: only validate what the working tree touches
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
@@ -231,7 +233,15 @@ function commitAll(paths: string[], apps: App[]) {
   }
 }
 
-function render(check: boolean, commit: boolean): number {
+function changedPaths(generated: Map<string, string>): string[] {
+  const status = exec('git', ['status', '--porcelain', '-z', '--no-renames', '-uall'], { stdout: 'piped' });
+  const rerendered = [...generated]
+    .filter(([path, wanted]) => !fs.exists(path) || !isCurrent(fs.readText(path), wanted))
+    .map(([path]) => path);
+  return [...parseStatus(status.stdout), ...rerendered];
+}
+
+function render(check: boolean, commit: boolean, changed: boolean): number {
   if (check && commit) throw new UsageError('--check and --commit cannot be used together');
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
@@ -242,7 +252,7 @@ function render(check: boolean, commit: boolean): number {
       renderApplication(app, versions, target, world),
     ]),
   );
-  const failures = validateManifests(generated);
+  const failures = validateManifests(generated, changed ? changedScope(changedPaths(generated)) : undefined);
   if (failures.length) {
     for (const failure of failures) console.error(failure);
     console.error(`${failures.length} validation failure(s), nothing written`);
@@ -280,6 +290,7 @@ export const run = cli({
   flags: {
     check: { type: 'boolean' },
     commit: { type: 'boolean' },
+    changed: { type: 'boolean' },
     format: { type: 'string' },
     context: { type: 'string' },
     all: { type: 'boolean' },
@@ -294,7 +305,7 @@ export const run = cli({
     return { kube: () => (kube ??= Kube.connect(values.context)) };
   },
   commands: {
-    render: (_ctx, values) => render(values.check, values.commit),
+    render: (_ctx, values) => render(values.check, values.commit, values.changed),
     diff: (_ctx, _values, rest) => diff(rest[0]),
     list: () => {
       const count = (block?: object) => {
