@@ -15,3 +15,7 @@ mod nfs      'nfs-client/mod.just'
 # List available recipes
 default:
     @just --list --list-submodules
+
+# Remove the target dir of every cargo workspace
+clean-cargo:
+    git ls-files '*Cargo.lock' | xargs -n1 dirname | xargs -I{} cargo clean --manifest-path {}/Cargo.toml
