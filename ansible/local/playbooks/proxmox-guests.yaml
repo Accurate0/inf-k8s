@@ -140,7 +140,7 @@
         vmid: 210
         ip: 10.0.2.18/24
         cores: 4
-        memory: 8192
+        memory: 12288
         disk: 256
         swap: 0
         unprivileged: false
