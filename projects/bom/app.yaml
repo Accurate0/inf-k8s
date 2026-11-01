@@ -26,5 +26,4 @@ workloads:
     service:
       name: bom-api
 network:
-  ingress:
-    - home-gateway
+  ingress: []
