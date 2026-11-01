@@ -33,8 +33,10 @@ pre-commit:
 
     render-apps:
       glob: "{**/app.yaml,platform/versions.yaml,platform/exports/**,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml}}"
-      run: ortzi update app && ortzi app render --changed
-      stage_fixed: true
+      run: |
+        out=$(ortzi update app && ortzi app render --changed) || { echo "$out"; exit 1; }
+        echo "$out"
+        echo "$out" | sed -nE '/^(wrote|removed) terraform\//d; s/^(wrote|removed) //p' | xargs -r git add -A --
 
     check-merge-conflict:
       run: 'git diff --cached --check'
