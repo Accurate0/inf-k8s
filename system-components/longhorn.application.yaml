@@ -108,8 +108,11 @@ spec:
           defaultBackupStore:
             backupTarget: s3://longhorn-backup@us-east-1/
             backupTargetCredentialSecret: longhorn-backup-credentials
+          persistence:
+            defaultClassReplicaCount: 2
           defaultSettings:
             taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
+            defaultReplicaCount: '{"v1":"2","v2":"2"}'
           ingress:
             enabled: false
   destination:
