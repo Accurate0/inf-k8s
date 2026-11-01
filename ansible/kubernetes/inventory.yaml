@@ -33,8 +33,8 @@ agent:
       is_api_server: false
       proxy_enabled: true
       node_labels:
-        topology.kubernetes.io/zone: australind
-        inf-k8s.net/location: australind
+        topology.kubernetes.io/zone: perth
+        inf-k8s.net/location: perth
         inf-k8s.net/proxy: "true"
 
     k8s-optiplex-3:
@@ -44,8 +44,8 @@ agent:
       is_api_server: false
       proxy_enabled: true
       node_labels:
-        topology.kubernetes.io/zone: australind
-        inf-k8s.net/location: australind
+        topology.kubernetes.io/zone: perth
+        inf-k8s.net/location: perth
         inf-k8s.net/proxy: "true"
 
     k8s-optiplex-4:
