@@ -91,6 +91,7 @@ flags:
   --check          render: write nothing, exit 1 if invalid or out of date
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
+  --force          render: regenerate every file, even those already up to date
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
@@ -154,7 +155,7 @@ function discover(): { app: App; target: Target }[] {
   return found;
 }
 
-function staleFiles(only?: string): { path: string; wanted: string }[] {
+function staleFiles(only?: string, force = false): { path: string; wanted: string }[] {
   const versions = parse(fs.readText(VERSIONS)).charts;
   const stale = [];
   const apps = discover();
@@ -164,13 +165,13 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
     if (only && app.name !== only) continue;
     const path = `${target.location}/${app.name}/application.yaml`;
     const wanted = renderApplication(app, versions, target, world);
-    if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
+    if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
       stale.push({ path, wanted: stamped(wanted, new Date()) });
     }
     if (app.build) {
       const workflow = workflowPath(app);
       const rendered = renderWorkflow(app, target);
-      if (!fs.exists(workflow) || !isCurrent(fs.readText(workflow), rendered)) {
+      if (force || !fs.exists(workflow) || !isCurrent(fs.readText(workflow), rendered)) {
         stale.push({ path: workflow, wanted: stamped(rendered, new Date()) });
       }
     }
@@ -180,7 +181,7 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
       const images = { ...current?.images };
       for (const image of workloadImages(app)) images[image] ??= 'latest';
       const output = stringify({ images });
-      if (!fs.exists(values) || stringify({ images: current?.images ?? {} }) !== output) {
+      if (force || !fs.exists(values) || stringify({ images: current?.images ?? {} }) !== output) {
         stale.push({ path: values, wanted: output });
       }
     }
@@ -190,14 +191,14 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
     for (const database of Object.keys(appDatabases(app))) {
       const path = databasePath(database);
       const wanted = renderDatabase(database);
-      if (!fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
+      if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
         stale.push({ path, wanted: stamped(wanted, new Date()) });
       }
     }
   }
   const cluster = fs.readText(POSTGRES_CLUSTER);
   const withRoles = addRoles(cluster, appRoles(world.apps));
-  if (withRoles !== cluster) stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
+  if (force || withRoles !== cluster) stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
   const generated = new Map([[`${TERRAFORM_APPS}/_index.tf.json`, renderTerraformIndex(world.apps)]]);
   for (const app of world.apps) {
     const terraform = renderAppTerraform(app);
@@ -211,7 +212,7 @@ function staleFiles(only?: string): { path: string; wanted: string }[] {
     if (rbac) generated.set(rbacPath(app, target), rbac);
   }
   for (const [path, wanted] of generated) {
-    if (!fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
+    if (force || !fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
   }
   return stale;
 }
@@ -241,8 +242,10 @@ function changedPaths(generated: Map<string, string>): string[] {
   return [...parseStatus(status.stdout), ...rerendered];
 }
 
-function render(check: boolean, commit: boolean, changed: boolean): number {
+function render(check: boolean, commit: boolean, changed: boolean, force: boolean): number {
   if (check && commit) throw new UsageError('--check and --commit cannot be used together');
+  if (force && check) throw new UsageError('--force and --check cannot be used together');
+  if (force && changed) throw new UsageError('--force and --changed cannot be used together');
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
   const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
@@ -258,7 +261,7 @@ function render(check: boolean, commit: boolean, changed: boolean): number {
     console.error(`${failures.length} validation failure(s), nothing written`);
     return 1;
   }
-  const stale = staleFiles();
+  const stale = staleFiles(undefined, force);
   for (const { path, wanted } of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
     if (!check) fs.write(path, wanted);
@@ -291,6 +294,7 @@ export const run = cli({
     check: { type: 'boolean' },
     commit: { type: 'boolean' },
     changed: { type: 'boolean' },
+    force: { type: 'boolean' },
     format: { type: 'string' },
     context: { type: 'string' },
     all: { type: 'boolean' },
@@ -305,7 +309,7 @@ export const run = cli({
     return { kube: () => (kube ??= Kube.connect(values.context)) };
   },
   commands: {
-    render: (_ctx, values) => render(values.check, values.commit, values.changed),
+    render: (_ctx, values) => render(values.check, values.commit, values.changed, values.force),
     diff: (_ctx, _values, rest) => diff(rest[0]),
     list: () => {
       const count = (block?: object) => {
