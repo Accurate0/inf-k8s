@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: kanidm
 spec:
-  replicas: 3
+  replicas: 2
   serviceName: kanidm-headless
   podManagementPolicy: Parallel
   persistentVolumeClaimRetentionPolicy:
@@ -28,6 +28,13 @@ spec:
         runAsGroup: 1000
         runAsNonRoot: true
         runAsUser: 1000
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - topologyKey: kubernetes.io/hostname
+              labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: kanidm
       topologySpreadConstraints:
         - topologyKey: inf-k8s.net/location
           maxSkew: 1
@@ -51,7 +58,7 @@ spec:
             - name: HEADLESS_SVC
               value: kanidm-headless
             - name: KANIDM_REPLICAS
-              value: "3"
+              value: "2"
             - name: KANIDM_DOMAIN
               value: idm.anurag.sh
             - name: KANIDM_ORIGIN

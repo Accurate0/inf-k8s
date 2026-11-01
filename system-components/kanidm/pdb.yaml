@@ -6,7 +6,7 @@ metadata:
   labels:
     app.kubernetes.io/name: kanidm
 spec:
-  minAvailable: 2
+  minAvailable: 1
   selector:
     matchLabels:
       app.kubernetes.io/name: kanidm
