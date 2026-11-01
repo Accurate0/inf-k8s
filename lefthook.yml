@@ -33,7 +33,7 @@ pre-commit:
 
     render-apps:
       glob: "{**/app.yaml,platform/versions.yaml,platform/exports/**,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml}}"
-      run: ortzi update app && ortzi app render
+      run: ortzi update app && ortzi app render --changed
       stage_fixed: true
 
     check-merge-conflict:
