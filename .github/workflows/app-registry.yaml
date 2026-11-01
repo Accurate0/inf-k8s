@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-01T06:11:19.056Z
+# generated at 2026-11-01T10:01:47.136Z
 name: app registry
 on:
   push:
@@ -25,7 +25,7 @@ jobs:
       dockerfile: platform-services/registry/Dockerfile
       build-args: BINARY_NAME=registry
       test-run: cargo test --workspace
-      test-db-image: postgres:17@sha256:31ba9c94a03ada9988f2bb493a22a75eef3a185884533e5cdbcd498ea835b08f
+      test-db-image: postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
       test-db-name: registry
       deploy: ${{ github.ref == 'refs/heads/main' }}
     secrets: inherit
