@@ -1,10 +1,4 @@
 {
-  "autoApprovers": {
-    "routes": {
-      "10.42.0.0/24": ["Accurate0@github"],
-    },
-  },
-
   "hosts": {
     "rpi": "100.80.105.120",
   },
@@ -24,21 +18,16 @@
     {
       "action": "accept",
       "src":    ["tag:k8s"],
-      "dst":    ["tag:k8s:*", "10.42.0.0/16:*"],
+      "dst":    ["tag:k8s:*"],
     },
     {
       "action": "accept",
-      "src":    ["10.42.0.0/16"],
-      "dst":    ["tag:k8s:*", "10.42.0.0/16:*"],
-    },
-    {
-      "action": "accept",
-      "src":    ["tag:k8s", "10.42.0.0/16"],
+      "src":    ["tag:k8s"],
       "dst":    ["tag:k8s-proxy:443,8405"],
     },
     {
       "action": "accept",
-      "src":    ["tag:k8s", "10.42.0.0/16"],
+      "src":    ["tag:k8s"],
       "dst":    ["rpi:1883"],
     },
     {
@@ -73,7 +62,7 @@
     {
       "src":    "tag:k8s-proxy",
       "accept": ["tag:k8s:8443", "tag:k8s:2223", "tag:k8s:6443"],
-      "deny":   ["tag:k8s:22", "tag:k8s:10250", "tag:k8s:2379", "10.42.5.1:443", "100.116.36.106:22"],
+      "deny":   ["tag:k8s:22", "tag:k8s:10250", "tag:k8s:2379", "100.116.36.106:22"],
     },
     {
       "src":    "tag:ci",
@@ -82,17 +71,12 @@
     },
     {
       "src":    "tag:k8s",
-      "accept": ["tag:k8s:10250", "tag:k8s:2379", "10.42.5.1:443", "tag:k8s-proxy:443", "tag:k8s-proxy:8405", "rpi:1883"],
+      "accept": ["tag:k8s:10250", "tag:k8s:2379", "tag:k8s-proxy:443", "tag:k8s-proxy:8405", "rpi:1883"],
       "deny":   ["tag:k8s-proxy:22", "tag:k8s-proxy:6443", "100.116.36.106:22", "rpi:22"],
     },
     {
-      "src":    "10.42.7.10",
-      "accept": ["10.42.0.83:8080", "tag:k8s:8443", "tag:k8s-proxy:443", "tag:k8s-proxy:8405", "rpi:1883"],
-      "deny":   ["tag:k8s-proxy:22", "100.116.36.106:22", "rpi:22"],
-    },
-    {
       "src":    "Accurate0@github",
-      "accept": ["tag:k8s:22", "tag:k8s-proxy:443", "tag:k8s-proxy:6443", "10.42.5.1:443"],
+      "accept": ["tag:k8s:22", "tag:k8s-proxy:443", "tag:k8s-proxy:6443"],
     },
   ],
 }

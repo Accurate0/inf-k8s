@@ -37,10 +37,6 @@ resource "cloudflare_dns_record" "external_ipv6_ortzi" {
 # gateway entrypoint (k8s-proxy-1's Tailscale IP) for the apex and wildcard.
 locals {
   ortzi_tailscale_records = {
-    "k8s-control-1.host"  = "100.100.125.120"
-    "k8s-optiplex-1.host" = "100.70.180.117"
-    "k8s-optiplex-2.host" = "100.89.112.112"
-    "k8s-optiplex-3.host" = "100.115.217.79"
     "k8s-optiplex-4.host" = "100.122.213.30"
     "k8s-optiplex-5.host" = "100.72.50.9"
     "k8s-pve-1.host"      = "100.125.61.29"
