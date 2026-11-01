@@ -1,12 +1,15 @@
-vpn-auth: "name=tailscale,joinKey={{ k3s_tailscale_auth_key }}"
 disable:
   - traefik
   - gateway-api-crd
+flannel-backend: wireguard-native
 node-external-ip: "{{ tailscale_ip_result.stdout }}"
-node-ip: "{{ tailscale_ip_result.stdout }}"
+node-ip: "{{ lan_ip }}"
+advertise-address: "{{ lan_ip }}"
 cluster-init: true
 tls-san:
   - "{{ hostvars['k8s-optiplex-5'].tailscale_ip }}"
+  - "{{ hostvars['k8s-optiplex-5'].lan_ip }}"
+  - "{{ hostvars['k8s-optiplex-5'].public_ipv6 }}"
   - "ortzi.cloud"
 etcd-expose-metrics: true
 etcd-arg:

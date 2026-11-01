@@ -30,7 +30,7 @@ Playbooks read these via `lookup('env', ...)`. Export them before running (e.g. 
 
 | Variable                  | Used in                          | Purpose                                              |
 | ------------------------- | -------------------------------- | ---------------------------------------------------- |
-| `TAILSCALE_K8S_AUTH_KEY`  | `cluster.yaml`, `k3s-upgrade.yaml` | Tailscale auth key for the k8s tailnet (reusable, tagged) |
+| `TAILSCALE_K8S_AUTH_KEY`  | `cluster.yaml`                     | Tailscale auth key for the k8s tailnet (reusable, tagged) |
 | `K3S_CLUSTER_TOKEN`       | `cluster.yaml`, `k3s-upgrade.yaml` | Shared k3s cluster token for server/agent join     |
 | `EDGE_PROXY_TRUSTED_IP`   | `cluster.yaml`, `edge-proxy.yaml`  | Comma-separated source IPs exempt from the HAProxy connection limits |
 
