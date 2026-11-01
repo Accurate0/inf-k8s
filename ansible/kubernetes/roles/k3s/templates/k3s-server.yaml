@@ -4,7 +4,7 @@ disable:
   - gateway-api-crd
 node-external-ip: "{{ tailscale_ip_result.stdout }}"
 node-ip: "{{ tailscale_ip_result.stdout }}"
-server: "{{ k3s_control_ip }}"
+cluster-init: true
 tls-san:
   - "{{ hostvars['k8s-optiplex-5'].tailscale_ip }}"
   - "ortzi.cloud"
