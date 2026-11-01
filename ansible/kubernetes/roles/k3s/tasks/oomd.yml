@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Configure systemd-oomd
+  become: true
+  become_method: sudo
+  become_user: root
+  block:
+    - name: Install systemd-oomd
+      ansible.builtin.apt:
+        package: systemd-oomd
+      register: oomd_package
+
+    - name: Load the systemd-oomd D-Bus policy
+      ansible.builtin.systemd_service:
+        name: dbus
+        state: reloaded
+      when: oomd_package is changed
+
+    - name: Ensure kubepods.slice drop-in dir exists
+      ansible.builtin.file:
+        path: /etc/systemd/system/kubepods.slice.d
+        mode: "0755"
+        state: directory
+
+    - name: Kill pods under sustained memory pressure, never k3s.service
+      ansible.builtin.copy:
+        content: |
+          [Slice]
+          ManagedOOMMemoryPressure=kill
+          ManagedOOMMemoryPressureLimit=80%
+        dest: /etc/systemd/system/kubepods.slice.d/50-oomd.conf
+        mode: "0644"
+
+    - name: Enable systemd-oomd
+      ansible.builtin.systemd_service:
+        name: systemd-oomd
+        daemon_reload: true
+        enabled: true
+        state: "{{ 'restarted' if oomd_package is changed else 'started' }}"

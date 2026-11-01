@@ -6,4 +6,6 @@
   when: k3s_lxc | default(false)
 - ansible.builtin.import_tasks: install.yml
 - ansible.builtin.import_tasks: config.yml
+- ansible.builtin.import_tasks: oomd.yml
+  tags: [oomd]
 - ansible.builtin.import_tasks: labels.yml
