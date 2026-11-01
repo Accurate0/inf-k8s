@@ -651,7 +651,7 @@ build:
 
     #[test]
     fn rejects_unknown_fields() {
-        assert!(serde_yaml::from_str::<Manifest>("package:\n  name: ff\n  bianry: x\n").is_err());
+        assert!(serde_yaml::from_str::<Manifest>("package:\n  name: ff\n  unknown: x\n").is_err());
     }
 
     #[test]
