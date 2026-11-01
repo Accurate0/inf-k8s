@@ -1,6 +1,7 @@
 import { fs, run as exec } from '@ortzi/host';
 import { cli, columns, Kube, parseMinutes, UsageError } from '@ortzi/kit';
 import { listApps } from './argo';
+import { planCommits } from './commits';
 import { buildGraph, toDot, toMermaid } from './graph';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
@@ -87,6 +88,7 @@ cluster:
 flags:
   --format FMT     graph: mermaid or dot (default mermaid)
   --check          render: write nothing, exit 1 if invalid or out of date
+  --commit         render: commit what changed, one commit per app
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
@@ -220,7 +222,17 @@ function staleTerraform(apps: App[]): string[] {
     .filter((path) => path.endsWith('.tf.json') && !path.endsWith('/_index.tf.json') && !wanted.has(path));
 }
 
-function render(check: boolean): number {
+function commitAll(paths: string[], apps: App[]) {
+  for (const { message, paths: group } of planCommits(paths, apps)) {
+    exec('git', ['add', '-A', '--', ...group]);
+    if (exec('git', ['diff', '--cached', '--quiet'], { check: false }).ok) continue;
+    exec('git', ['commit', '--quiet', '-m', message]);
+    console.log(`committed ${message}`);
+  }
+}
+
+function render(check: boolean, commit: boolean): number {
+  if (check && commit) throw new UsageError('--check and --commit cannot be used together');
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
   const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
@@ -247,6 +259,7 @@ function render(check: boolean): number {
     if (!check) fs.remove(path);
   }
   if (!stale.length && !removed.length) console.log('everything is up to date');
+  if (commit) commitAll([...stale.map(({ path }) => path), ...removed], world.apps);
   return check && stale.length + removed.length > 0 ? 1 : 0;
 }
 
@@ -266,6 +279,7 @@ export const run = cli({
   usage: USAGE,
   flags: {
     check: { type: 'boolean' },
+    commit: { type: 'boolean' },
     format: { type: 'string' },
     context: { type: 'string' },
     all: { type: 'boolean' },
@@ -280,7 +294,7 @@ export const run = cli({
     return { kube: () => (kube ??= Kube.connect(values.context)) };
   },
   commands: {
-    render: (_ctx, values) => render(values.check),
+    render: (_ctx, values) => render(values.check, values.commit),
     diff: (_ctx, _values, rest) => diff(rest[0]),
     list: () => {
       const count = (block?: object) => {

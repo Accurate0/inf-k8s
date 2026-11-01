@@ -69,18 +69,16 @@ jobs:
         with:
           persist-credentials: false
       - run: ortzi install app --force
-      - run: ortzi app render
-      - name: Commit changes
+      - name: Render and commit
+        run: |
+          git config user.name "reconciler[bot]"
+          git config user.email "reconciler@noreply.git.anurag.sh"
+          ortzi app render --commit
+      - name: Push changes
         env:
           RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
         run: |
-          git add -A projects platform-services .github/workflows system-components/postgres-cluster terraform
-          git diff --cached --quiet && exit 0
-          skip_ci=" [skip ci]"
-          git diff --cached --quiet -- .github/workflows terraform system-components/postgres-cluster || skip_ci=""
-          git config user.name "reconciler[bot]"
-          git config user.email "reconciler@noreply.git.anurag.sh"
-          git commit -m "chore(render): update generated applications${skip_ci}"
+          [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
           git pull --rebase origin main
           git push origin HEAD:main
