@@ -44,6 +44,7 @@ resources:
     secretName: immich-db-credentials
     enableConnectionPooling: false
     extensions: [vector, vchord, cube, earthdistance]
+  - {name: library, type: volume, claimName: immich-library, class: nfs-perth, size: 1Ti, access: ReadWriteMany}
 sources:
   - type: manifests
     path: .
