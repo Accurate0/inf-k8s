@@ -1,0 +1,53 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: immich
+network:
+  ingress:
+    - home-gateway
+resources:
+  - name: immich
+    type: route
+    auth:
+      mode: app
+      reason: immich requires a kanidm login or api key on every api route
+    hosts:
+      - photos.anurag.sh
+    backend:
+      name: immich-server
+      port: 80
+    paths:
+      - /
+    annotations:
+      external-dns.kubernetes.io/managed: "true"
+      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    timeouts:
+      request: 3600s
+      backendRequest: 3600s
+  - name: immich
+    type: oidc
+    secretName: kanidm-immich-oidc
+    host: photos.anurag.sh
+    displayName: Immich
+    callbackPath: /auth/login
+    extraRedirectUrls:
+      - https://photos.anurag.sh/user-settings
+      - https://photos.anurag.sh/api/oauth/mobile-redirect
+    preferShortUsername: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+    claimMaps:
+      immich_role:
+        join: ssv
+        valuesByGroup:
+          immich_admins:
+            - admin
+sources:
+  - chart: k8s-postgres
+    repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+    targetRevision: 1.0.1
+    helm:
+      valuesObject:
+        databases:
+          - name: immich
+            namespace: immich
+            secretName: immich-db-credentials
