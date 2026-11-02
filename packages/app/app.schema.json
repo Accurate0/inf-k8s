@@ -45,870 +45,866 @@
     },
     "workloads": {
       "description": "What the app runs. Keyed by workload name is deprecated.",
-      "oneOf": [
-        {
-          "type": "array",
-          "items": {
+      "type": [
+        "array",
+        "object"
+      ],
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "image"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "image": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "Deployment",
+              "DaemonSet",
+              "CronJob"
+            ]
+          },
+          "replicas": {
+            "type": "integer"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "service": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "name",
-              "image"
-            ],
             "properties": {
               "name": {
                 "type": "string"
               },
-              "image": {
+              "trafficDistribution": {
                 "type": "string"
-              },
-              "kind": {
-                "enum": [
-                  "Deployment",
-                  "DaemonSet",
-                  "CronJob"
-                ]
-              },
-              "replicas": {
-                "type": "integer"
-              },
-              "schedule": {
-                "type": "string"
-              },
-              "service": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "trafficDistribution": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name"
-                ]
-              },
-              "resources": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "cpu": {
-                    "type": "string"
-                  },
-                  "memory": {
-                    "type": "string"
-                  },
-                  "memoryLimit": {
-                    "type": "string"
-                  }
-                }
-              },
-              "env": {
-                "description": "Map of variable to a string, {resource}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "object"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": {
-                      "oneOf": [
-                        {
-                          "type": [
-                            "string",
-                            "number",
-                            "boolean"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "resource"
-                          ],
-                          "properties": {
-                            "resource": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "field"
-                          ],
-                          "properties": {
-                            "field": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "secret",
-                            "key"
-                          ],
-                          "properties": {
-                            "secret": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "database",
-                            "key"
-                          ],
-                          "properties": {
-                            "database": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "bucket",
-                            "key"
-                          ],
-                          "properties": {
-                            "bucket": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "oidc",
-                            "key"
-                          ],
-                          "properties": {
-                            "oidc": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              },
-              "envFrom": {
-                "type": "array",
-                "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "secret": {
-                      "type": "string"
-                    },
-                    "database": {
-                      "type": "string"
-                    },
-                    "bucket": {
-                      "type": "string"
-                    },
-                    "oidc": {
-                      "type": "string"
-                    },
-                    "optional": {
-                      "type": "boolean"
-                    },
-                    "prefix": {
-                      "type": "string"
-                    },
-                    "secretRef": {
-                      "type": "object"
-                    },
-                    "configMapRef": {
-                      "type": "object"
-                    }
-                  }
-                }
-              },
-              "readOnlyRootFilesystem": {
-                "type": "boolean"
-              },
-              "runAsNonRoot": {
-                "type": "boolean"
-              },
-              "probes": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "http": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "path",
-                      "port"
-                    ],
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      },
-                      "port": {
-                        "type": [
-                          "integer",
-                          "string"
-                        ]
-                      }
-                    }
-                  },
-                  "grpc": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "port"
-                    ],
-                    "properties": {
-                      "port": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "startup": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "delay": {
-                        "type": "integer"
-                      },
-                      "every": {
-                        "type": "integer"
-                      },
-                      "timeout": {
-                        "type": "integer"
-                      },
-                      "failures": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "readiness": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "delay": {
-                        "type": "integer"
-                      },
-                      "every": {
-                        "type": "integer"
-                      },
-                      "timeout": {
-                        "type": "integer"
-                      },
-                      "failures": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "liveness": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "delay": {
-                        "type": "integer"
-                      },
-                      "every": {
-                        "type": "integer"
-                      },
-                      "timeout": {
-                        "type": "integer"
-                      },
-                      "failures": {
-                        "type": "integer"
-                      }
-                    }
-                  }
-                }
-              },
-              "mounts": {
-                "type": "object",
-                "description": "Keyed by volume name. ConfigMaps mount read-only.",
-                "additionalProperties": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "path"
-                  ],
-                  "properties": {
-                    "path": {
-                      "type": "string"
-                    },
-                    "configMap": {
-                      "type": "string"
-                    },
-                    "emptyDir": {
-                      "type": "boolean"
-                    },
-                    "config": {
-                      "type": "string",
-                      "description": "A config resource."
-                    }
-                  }
-                }
-              },
-              "ports": {
-                "type": "array",
-                "description": "{name, container, service}. service adds the port to the workload's Service.",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "name",
-                    "container"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "container": {
-                      "type": "integer"
-                    },
-                    "service": {
-                      "type": "integer"
-                    },
-                    "appProtocol": {
-                      "type": "string"
-                    }
-                  }
-                }
-              },
-              "overrides": {
-                "type": "object",
-                "description": "Written directly to the k8s-workload values for this workload."
-              },
-              "command": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "args": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "backoffLimit": {
-                "type": "integer"
-              },
-              "initContainers": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              },
-              "sidecars": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "ports": {
-                      "type": "array",
-                      "description": "{name, container, service}. service adds the port to the workload's Service.",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                          "name",
-                          "container"
-                        ],
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "container": {
-                            "type": "integer"
-                          },
-                          "service": {
-                            "type": "integer"
-                          },
-                          "appProtocol": {
-                            "type": "string"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              },
-              "serviceAccount": {
-                "type": "string",
-                "description": "A serviceAccount resource."
               }
-            }
-          }
-        },
-        {
-          "type": "object",
-          "additionalProperties": {
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "resources": {
             "type": "object",
             "additionalProperties": false,
-            "required": [
-              "image"
-            ],
             "properties": {
-              "image": {
+              "cpu": {
                 "type": "string"
               },
-              "kind": {
-                "enum": [
-                  "Deployment",
-                  "DaemonSet",
-                  "CronJob"
-                ]
-              },
-              "replicas": {
-                "type": "integer"
-              },
-              "schedule": {
+              "memory": {
                 "type": "string"
               },
-              "service": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "name": {
-                    "type": "string"
-                  },
-                  "trafficDistribution": {
-                    "type": "string"
-                  }
-                },
-                "required": [
-                  "name"
-                ]
-              },
-              "resources": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "cpu": {
-                    "type": "string"
-                  },
-                  "memory": {
-                    "type": "string"
-                  },
-                  "memoryLimit": {
-                    "type": "string"
-                  }
-                }
-              },
-              "env": {
-                "description": "Map of variable to a string, {resource}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
-                "oneOf": [
-                  {
-                    "type": "array",
-                    "items": {
-                      "type": "object"
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": {
-                      "oneOf": [
-                        {
-                          "type": [
-                            "string",
-                            "number",
-                            "boolean"
-                          ]
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "resource"
-                          ],
-                          "properties": {
-                            "resource": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "field"
-                          ],
-                          "properties": {
-                            "field": {
-                              "type": "string"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "secret",
-                            "key"
-                          ],
-                          "properties": {
-                            "secret": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "database",
-                            "key"
-                          ],
-                          "properties": {
-                            "database": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "bucket",
-                            "key"
-                          ],
-                          "properties": {
-                            "bucket": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        },
-                        {
-                          "type": "object",
-                          "additionalProperties": false,
-                          "required": [
-                            "oidc",
-                            "key"
-                          ],
-                          "properties": {
-                            "oidc": {
-                              "type": "string"
-                            },
-                            "key": {
-                              "type": "string"
-                            },
-                            "optional": {
-                              "type": "boolean"
-                            }
-                          }
-                        }
-                      ]
-                    }
-                  }
-                ]
-              },
-              "envFrom": {
-                "type": "array",
-                "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "properties": {
-                    "secret": {
-                      "type": "string"
-                    },
-                    "database": {
-                      "type": "string"
-                    },
-                    "bucket": {
-                      "type": "string"
-                    },
-                    "oidc": {
-                      "type": "string"
-                    },
-                    "optional": {
-                      "type": "boolean"
-                    },
-                    "prefix": {
-                      "type": "string"
-                    },
-                    "secretRef": {
-                      "type": "object"
-                    },
-                    "configMapRef": {
-                      "type": "object"
-                    }
-                  }
-                }
-              },
-              "readOnlyRootFilesystem": {
-                "type": "boolean"
-              },
-              "runAsNonRoot": {
-                "type": "boolean"
-              },
-              "probes": {
-                "type": "object",
-                "additionalProperties": false,
-                "properties": {
-                  "http": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "path",
-                      "port"
-                    ],
-                    "properties": {
-                      "path": {
-                        "type": "string"
-                      },
-                      "port": {
-                        "type": [
-                          "integer",
-                          "string"
-                        ]
-                      }
-                    }
-                  },
-                  "grpc": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "port"
-                    ],
-                    "properties": {
-                      "port": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "startup": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "delay": {
-                        "type": "integer"
-                      },
-                      "every": {
-                        "type": "integer"
-                      },
-                      "timeout": {
-                        "type": "integer"
-                      },
-                      "failures": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "readiness": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "delay": {
-                        "type": "integer"
-                      },
-                      "every": {
-                        "type": "integer"
-                      },
-                      "timeout": {
-                        "type": "integer"
-                      },
-                      "failures": {
-                        "type": "integer"
-                      }
-                    }
-                  },
-                  "liveness": {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "properties": {
-                      "delay": {
-                        "type": "integer"
-                      },
-                      "every": {
-                        "type": "integer"
-                      },
-                      "timeout": {
-                        "type": "integer"
-                      },
-                      "failures": {
-                        "type": "integer"
-                      }
-                    }
-                  }
-                }
-              },
-              "mounts": {
-                "type": "object",
-                "description": "Keyed by volume name. ConfigMaps mount read-only.",
-                "additionalProperties": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "path"
-                  ],
-                  "properties": {
-                    "path": {
-                      "type": "string"
-                    },
-                    "configMap": {
-                      "type": "string"
-                    },
-                    "emptyDir": {
-                      "type": "boolean"
-                    },
-                    "config": {
-                      "type": "string",
-                      "description": "A config resource."
-                    }
-                  }
-                }
-              },
-              "ports": {
-                "type": "array",
-                "description": "{name, container, service}. service adds the port to the workload's Service.",
-                "items": {
-                  "type": "object",
-                  "additionalProperties": false,
-                  "required": [
-                    "name",
-                    "container"
-                  ],
-                  "properties": {
-                    "name": {
-                      "type": "string"
-                    },
-                    "container": {
-                      "type": "integer"
-                    },
-                    "service": {
-                      "type": "integer"
-                    },
-                    "appProtocol": {
-                      "type": "string"
-                    }
-                  }
-                }
-              },
-              "overrides": {
-                "type": "object",
-                "description": "Written directly to the k8s-workload values for this workload."
-              },
-              "command": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "args": {
-                "type": "array",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "backoffLimit": {
-                "type": "integer"
-              },
-              "initContainers": {
+              "memoryLimit": {
+                "type": "string"
+              }
+            }
+          },
+          "env": {
+            "description": "Map of variable to a string, {resource}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
+            "oneOf": [
+              {
                 "type": "array",
                 "items": {
                   "type": "object"
                 }
               },
-              "sidecars": {
-                "type": "array",
-                "items": {
-                  "type": "object",
-                  "properties": {
-                    "ports": {
-                      "type": "array",
-                      "description": "{name, container, service}. service adds the port to the workload's Service.",
-                      "items": {
-                        "type": "object",
-                        "additionalProperties": false,
-                        "required": [
-                          "name",
-                          "container"
-                        ],
-                        "properties": {
-                          "name": {
-                            "type": "string"
-                          },
-                          "container": {
-                            "type": "integer"
-                          },
-                          "service": {
-                            "type": "integer"
-                          },
-                          "appProtocol": {
-                            "type": "string"
-                          }
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "resource"
+                      ],
+                      "properties": {
+                        "resource": {
+                          "type": "string"
                         }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "field"
+                      ],
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "secret",
+                        "key"
+                      ],
+                      "properties": {
+                        "secret": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "database",
+                        "key"
+                      ],
+                      "properties": {
+                        "database": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "bucket",
+                        "key"
+                      ],
+                      "properties": {
+                        "bucket": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "oidc",
+                        "key"
+                      ],
+                      "properties": {
+                        "oidc": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "envFrom": {
+            "type": "array",
+            "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "secret": {
+                  "type": "string"
+                },
+                "database": {
+                  "type": "string"
+                },
+                "bucket": {
+                  "type": "string"
+                },
+                "oidc": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "boolean"
+                },
+                "prefix": {
+                  "type": "string"
+                },
+                "secretRef": {
+                  "type": "object"
+                },
+                "configMapRef": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "readOnlyRootFilesystem": {
+            "type": "boolean"
+          },
+          "runAsNonRoot": {
+            "type": "boolean"
+          },
+          "probes": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "http": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "port"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                }
+              },
+              "grpc": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "port"
+                ],
+                "properties": {
+                  "port": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "startup": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "readiness": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "liveness": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "mounts": {
+            "type": "object",
+            "description": "Keyed by volume name. ConfigMaps mount read-only.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "configMap": {
+                  "type": "string"
+                },
+                "emptyDir": {
+                  "type": "boolean"
+                },
+                "config": {
+                  "type": "string",
+                  "description": "A config resource."
+                }
+              }
+            }
+          },
+          "ports": {
+            "type": "array",
+            "description": "{name, container, service}. service adds the port to the workload's Service.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "container"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "container": {
+                  "type": "integer"
+                },
+                "service": {
+                  "type": "integer"
+                },
+                "appProtocol": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Written directly to the k8s-workload values for this workload."
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "backoffLimit": {
+            "type": "integer"
+          },
+          "initContainers": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sidecars": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ports": {
+                  "type": "array",
+                  "description": "{name, container, service}. service adds the port to the workload's Service.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "container"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "container": {
+                        "type": "integer"
+                      },
+                      "service": {
+                        "type": "integer"
+                      },
+                      "appProtocol": {
+                        "type": "string"
                       }
                     }
                   }
                 }
-              },
-              "serviceAccount": {
-                "type": "string",
-                "description": "A serviceAccount resource."
               }
             }
+          },
+          "serviceAccount": {
+            "type": "string",
+            "description": "A serviceAccount resource."
           }
         }
-      ]
+      },
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "image"
+        ],
+        "properties": {
+          "image": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "Deployment",
+              "DaemonSet",
+              "CronJob"
+            ]
+          },
+          "replicas": {
+            "type": "integer"
+          },
+          "schedule": {
+            "type": "string"
+          },
+          "service": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "trafficDistribution": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name"
+            ]
+          },
+          "resources": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "cpu": {
+                "type": "string"
+              },
+              "memory": {
+                "type": "string"
+              },
+              "memoryLimit": {
+                "type": "string"
+              }
+            }
+          },
+          "env": {
+            "description": "Map of variable to a string, {resource}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
+            "oneOf": [
+              {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              },
+              {
+                "type": "object",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": [
+                        "string",
+                        "number",
+                        "boolean"
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "resource"
+                      ],
+                      "properties": {
+                        "resource": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "field"
+                      ],
+                      "properties": {
+                        "field": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "secret",
+                        "key"
+                      ],
+                      "properties": {
+                        "secret": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "database",
+                        "key"
+                      ],
+                      "properties": {
+                        "database": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "bucket",
+                        "key"
+                      ],
+                      "properties": {
+                        "bucket": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "oidc",
+                        "key"
+                      ],
+                      "properties": {
+                        "oidc": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "optional": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          "envFrom": {
+            "type": "array",
+            "description": "{secret|database|bucket|oidc: resource name}, or a raw secretRef object.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "secret": {
+                  "type": "string"
+                },
+                "database": {
+                  "type": "string"
+                },
+                "bucket": {
+                  "type": "string"
+                },
+                "oidc": {
+                  "type": "string"
+                },
+                "optional": {
+                  "type": "boolean"
+                },
+                "prefix": {
+                  "type": "string"
+                },
+                "secretRef": {
+                  "type": "object"
+                },
+                "configMapRef": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          "readOnlyRootFilesystem": {
+            "type": "boolean"
+          },
+          "runAsNonRoot": {
+            "type": "boolean"
+          },
+          "probes": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "http": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "path",
+                  "port"
+                ],
+                "properties": {
+                  "path": {
+                    "type": "string"
+                  },
+                  "port": {
+                    "type": [
+                      "integer",
+                      "string"
+                    ]
+                  }
+                }
+              },
+              "grpc": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "port"
+                ],
+                "properties": {
+                  "port": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "startup": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "readiness": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              },
+              "liveness": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "delay": {
+                    "type": "integer"
+                  },
+                  "every": {
+                    "type": "integer"
+                  },
+                  "timeout": {
+                    "type": "integer"
+                  },
+                  "failures": {
+                    "type": "integer"
+                  }
+                }
+              }
+            }
+          },
+          "mounts": {
+            "type": "object",
+            "description": "Keyed by volume name. ConfigMaps mount read-only.",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "path"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string"
+                },
+                "configMap": {
+                  "type": "string"
+                },
+                "emptyDir": {
+                  "type": "boolean"
+                },
+                "config": {
+                  "type": "string",
+                  "description": "A config resource."
+                }
+              }
+            }
+          },
+          "ports": {
+            "type": "array",
+            "description": "{name, container, service}. service adds the port to the workload's Service.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "container"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "container": {
+                  "type": "integer"
+                },
+                "service": {
+                  "type": "integer"
+                },
+                "appProtocol": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "overrides": {
+            "type": "object",
+            "description": "Written directly to the k8s-workload values for this workload."
+          },
+          "command": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "backoffLimit": {
+            "type": "integer"
+          },
+          "initContainers": {
+            "type": "array",
+            "items": {
+              "type": "object"
+            }
+          },
+          "sidecars": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "ports": {
+                  "type": "array",
+                  "description": "{name, container, service}. service adds the port to the workload's Service.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "name",
+                      "container"
+                    ],
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "container": {
+                        "type": "integer"
+                      },
+                      "service": {
+                        "type": "integer"
+                      },
+                      "appProtocol": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "serviceAccount": {
+            "type": "string",
+            "description": "A serviceAccount resource."
+          }
+        }
+      }
     },
     "resources": {
       "type": "array",
