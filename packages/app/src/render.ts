@@ -166,7 +166,7 @@ export interface App {
   workloads?: Record<string, Workload>;
   resources?: Resource[];
   exports?: Export[];
-  sources?: (Source | Record<string, unknown>)[];
+  sources?: Source[];
   sync?: Sync;
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
@@ -180,7 +180,6 @@ export type Versions = Record<string, string>;
 export interface Target {
   location: string;
   hasManifests: boolean;
-  rootKustomization?: boolean;
 }
 
 export interface PlatformExport {
@@ -526,6 +525,16 @@ export function renderKustomization(app: App, target: Target): string | undefine
 export const sourcesOf = <T extends Source['type']>(app: App, type: T) =>
   (app.sources ?? []).filter((source): source is Extract<Source, { type: T }> => source.type === type);
 
+export function validateManifestSources(app: App, found: { hasManifests: boolean; hasRootKustomization: boolean }) {
+  const declared = sourcesOf(app, 'manifests')[0];
+  if (!declared && (found.hasManifests || found.hasRootKustomization || needsKustomization(app))) {
+    throw new Error(`${app.name}: sources: add a manifests source, this app has a kustomization that would not deploy`);
+  }
+  if (declared && found.hasRootKustomization && declared.path !== '.') {
+    throw new Error(`${app.name}: sources: manifests path must be . to deploy the app directory's kustomization`);
+  }
+}
+
 export const appFiles = (app: App, target: Target) =>
   [
     ...declared(app, 'config').flatMap((config) => config.files),
@@ -752,12 +761,9 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
-  if (!sourcesOf(app, 'manifests').length && (target.hasManifests || target.rootKustomization)) {
-    sources.push({ repoURL: CONFIG_REPO, name: 'application', path: target.rootKustomization ? dir : `${dir}/manifests` });
-  }
   for (const source of app.sources ?? []) {
     if (source.type === 'helm') {
-      const { chart: helmChart, repo, version, values, releaseName } = source as HelmSource;
+      const { chart: helmChart, repo, version, values, releaseName } = source;
       sources.push({
         chart: helmChart,
         repoURL: repo,
@@ -765,13 +771,10 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
         helm: { ...(releaseName ? { releaseName } : {}), valueFiles: [`$values/${dir}/${values}`] },
       });
     } else if (source.type === 'git') {
-      const { repo, path, name: sourceName, revision } = source as GitSource;
+      const { repo, path, name: sourceName, revision } = source;
       sources.push({ repoURL: repo, ...(sourceName ? { name: sourceName } : {}), path, ...(revision ? { targetRevision: revision } : {}) });
-    } else if (source.type === 'manifests') {
-      const { path } = source as ManifestsSource;
-      sources.push({ repoURL: CONFIG_REPO, name: 'application', path: path === '.' ? dir : `${dir}/${path}` });
     } else {
-      sources.push(source as Record<string, unknown>);
+      sources.push({ repoURL: CONFIG_REPO, name: 'application', path: source.path === '.' ? dir : `${dir}/${source.path}` });
     }
   }
 

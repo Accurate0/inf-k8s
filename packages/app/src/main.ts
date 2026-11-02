@@ -31,6 +31,7 @@ import {
   renderApplication,
   renderDatabase,
   sourcesOf,
+  validateManifestSources,
   renderKustomization,
   renderRbac,
   renderWorkflow,
@@ -143,8 +144,9 @@ function discover(): { app: App; target: Target }[] {
       const target = {
         location,
         hasManifests: fs.exists(`${location}/${entry.name}/manifests/kustomization.yaml`),
-        rootKustomization: needsKustomization(app) || fs.exists(`${location}/${entry.name}/kustomization.yaml`),
       };
+      const hasRootKustomization = fs.exists(`${location}/${entry.name}/kustomization.yaml`);
+      validateManifestSources(app, { hasManifests: target.hasManifests, hasRootKustomization });
       for (const file of appFiles(app, target)) {
         if (!fs.exists(file)) throw new Error(`${path}: no file named ${file}`);
       }
@@ -152,7 +154,7 @@ function discover(): { app: App; target: Target }[] {
     }
   }
   validateIngress(found.map(({ app }) => app));
-  const external = found.filter(({ app, target }) => sourcesOf(app, 'helm').length || target.hasManifests || (target.rootKustomization && !needsKustomization(app)));
+  const external = found.filter(({ app, target }) => sourcesOf(app, 'helm').length || target.hasManifests || (sourcesOf(app, 'manifests').length && !needsKustomization(app)));
   validateResources({ platform: platformExports(), apps: found.map(({ app }) => app), external: new Set(external.map(({ app }) => app.name)) });
   validateGatewayAccess(found.map(({ app }) => app), gatewayListeners());
   return found;

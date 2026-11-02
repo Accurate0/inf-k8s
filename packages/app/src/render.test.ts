@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { parse } from 'yaml';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
 import { renderAppTerraform, renderTerraformIndex } from './terraform.ts';
-import { addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderKustomization, renderRbac, renderWorkflow, stamped, validate, validateGatewayAccess, validateIngress, validateResources } from './render.ts';
+import { validateManifestSources, addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderKustomization, renderRbac, renderWorkflow, stamped, validate, validateGatewayAccess, validateIngress, validateResources } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -98,7 +98,7 @@ test('routes to an explicit backend without a workload', () => {
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
         auth: { mode: 'none', reason: 'public' }, }, { name: 'foo-api', type: 'route', hosts: ['c.sh'], gateway: 'internal-gateway', backend: { name: 'svc', port: 80 } }, { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } }, { name: 'foo-cli', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-cli-oidc', public: true }],
-    sources: [{ repoURL: 'r', name: 'config', path: 'config' }],
+    sources: [{ type: 'git', repo: 'r', name: 'config', path: 'config' }],
     network: { ingress: [] },
   });
   const route = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0];
@@ -173,7 +173,7 @@ test('an app can pin a chart version', () => {
 
 test('keeps manifests as an optional source', () => {
   const rendered = render(
-    { name: 'foo', network: { ingress: [] } },
+    { name: 'foo', network: { ingress: [] }, sources: [{ type: 'manifests', path: 'manifests' }] },
     { location: 'platform-services', hasManifests: true },
   );
   assert.equal(rendered.spec.sources.at(-1).path, 'platform-services/foo/manifests');
@@ -200,8 +200,8 @@ test('the generated time only matters when content changes', () => {
 
 test('uses the app directory when it has its own kustomization', () => {
   const rendered = render(
-    { name: 'foo', network: { ingress: [] } },
-    { location: 'platform-services', hasManifests: true, rootKustomization: true },
+    { name: 'foo', network: { ingress: [] }, sources: [{ type: 'manifests', path: '.' }] },
+    { location: 'platform-services', hasManifests: true },
   );
   assert.equal(rendered.spec.sources.at(-1).path, 'platform-services/foo');
 });
@@ -1219,4 +1219,19 @@ test('external databases only render credentials', () => {
   assert.equal(renderAppTerraform(app), undefined);
   assert.deepEqual(JSON.parse(renderTerraformIndex([app])).output.database_names.value, []);
   assert.equal(source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].secretName, 'foo-db');
+});
+
+test('kustomizations on disk must be declared as a source', () => {
+  const app = (sources: App['sources'], resources?: App['resources']): App => ({ name: 'foo', network: { ingress: [] }, sources, resources });
+  const none = { hasManifests: false, hasRootKustomization: false };
+  validateManifestSources(app(undefined), none);
+  assert.throws(() => validateManifestSources(app(undefined), { ...none, hasManifests: true }), /add a manifests source/);
+  assert.throws(() => validateManifestSources(app(undefined), { ...none, hasRootKustomization: true }), /add a manifests source/);
+  assert.throws(() => validateManifestSources(app(undefined, [{ name: 'c', type: 'config', configMap: 'c', files: ['a'] }]), none), /add a manifests source/);
+  assert.throws(() => validateManifestSources(app([{ type: 'manifests', path: 'manifests' }]), { hasManifests: true, hasRootKustomization: true }), /must be \./);
+  validateManifestSources(app([{ type: 'manifests', path: '.' }]), { hasManifests: true, hasRootKustomization: true });
+});
+
+test('raw argo sources are rejected', () => {
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, sources: [{ repoURL: 'r', path: 'p' }] }, 'x'));
 });
