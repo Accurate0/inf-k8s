@@ -17,6 +17,7 @@ spec:
     - oci://ghcr.io/accurate0/charts/k8s-workload
     - oci://ghcr.io/accurate0/charts/k8s-network
     - oci://ghcr.io/accurate0/charts/k8s-observability
+    - oci://ghcr.io/accurate0/charts/k8s-storage
   destinations:
     - namespace: "*"
       server: "*"
