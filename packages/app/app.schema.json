@@ -1224,6 +1224,36 @@
         }
       }
     },
+    "argocd": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "overrides": {
+          "description": "Change the rendered Argo Application.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "options": {
+              "type": "array",
+              "description": "Replaces the default syncOptions.",
+              "items": {
+                "type": "string"
+              }
+            },
+            "automated": {
+              "type": "boolean",
+              "description": "Sync automatically with prune and self-heal. Defaults to true."
+            },
+            "ignoreDifferences": {
+              "type": "array",
+              "items": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
     "build": {
       "type": "object",
       "additionalProperties": false,

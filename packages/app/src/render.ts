@@ -153,7 +153,7 @@ export interface ManifestsSource {
 
 export type Source = HelmSource | GitSource | ManifestsSource;
 
-export interface Sync {
+export interface ArgocdOverrides {
   options?: string[];
   automated?: boolean;
   ignoreDifferences?: Record<string, unknown>[];
@@ -167,7 +167,8 @@ export interface App {
   resources?: Resource[];
   exports?: Export[];
   sources?: Source[];
-  sync?: Sync;
+  sync?: ArgocdOverrides;
+  argocd?: { overrides?: ArgocdOverrides };
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
   namespace?: { name?: string; labels?: Record<string, string> };
@@ -329,7 +330,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'sync']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'sync', 'argocd']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -778,20 +779,21 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     }
   }
 
+  const overrides = app.argocd?.overrides ?? app.sync;
   const application = {
     apiVersion: 'argoproj.io/v1alpha1',
     kind: 'Application',
     metadata: { name, namespace: 'argocd' },
     spec: {
       syncPolicy: {
-        syncOptions: app.sync?.options ?? ['CreateNamespace=true', 'ServerSideApply=true'],
-        ...(app.sync?.automated === false ? {} : { automated: { prune: true, selfHeal: true } }),
+        syncOptions: overrides?.options ?? ['CreateNamespace=true', 'ServerSideApply=true'],
+        ...(overrides?.automated === false ? {} : { automated: { prune: true, selfHeal: true } }),
         ...(app.namespace?.labels && !hasWorkloads ? { managedNamespaceMetadata: { labels: app.namespace.labels } } : {}),
       },
       project: target.location,
       sources,
       destination: { server: 'https://kubernetes.default.svc', namespace },
-      ...(app.sync?.ignoreDifferences ? { ignoreDifferences: app.sync.ignoreDifferences } : {}),
+      ...(overrides?.ignoreDifferences ? { ignoreDifferences: overrides.ignoreDifferences } : {}),
     },
     operation: {
       initiatedBy: { username: 'github-actions' },

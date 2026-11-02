@@ -1114,12 +1114,12 @@ test('helm templates pull upstream charts', () => {
   assert.ok(oci.includes('projects/foo/forgejo.values.yaml'));
 });
 
-test('sync replaces the default policy', () => {
+test('argocd overrides replace the default policy', () => {
   const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
-  const rendered = render({ name: 'foo', network: { ingress: [] }, sync: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences } });
+  const rendered = render({ name: 'foo', network: { ingress: [] }, argocd: { overrides: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences } } });
   assert.deepEqual(rendered.spec.syncPolicy, { syncOptions: ['ServerSideApply=true'] });
   assert.deepEqual(rendered.spec.ignoreDifferences, ignoreDifferences);
-  validate({ name: 'foo', network: { ingress: [] }, sync: { automated: false } }, 'x');
+  validate({ name: 'foo', network: { ingress: [] }, argocd: { overrides: { automated: false } } }, 'x');
 });
 
 test('namespace labels use managed metadata without workloads', () => {
