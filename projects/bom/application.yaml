@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-02T16:50:15.073Z
+# generated at 2026-11-02T16:54:25.407Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -99,6 +99,7 @@ spec:
               namespace: bom
               databaseName: bom
               secretName: bom-database-secret
+              host: cloudnative-pg-cluster-pooler-rw.cnpg-system
               annotations:
                 inf-k8s.net/app: bom
                 inf-k8s.net/repository: https://github.com/Accurate0/bom
