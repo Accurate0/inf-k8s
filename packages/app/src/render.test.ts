@@ -1235,3 +1235,7 @@ test('kustomizations on disk must be declared as a source', () => {
 test('raw argo sources are rejected', () => {
   assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, sources: [{ repoURL: 'r', path: 'p' }] }, 'x'));
 });
+
+test('the old sync block is rejected', () => {
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, sync: { automated: false } }, 'x'), /unknown block "sync"/);
+});

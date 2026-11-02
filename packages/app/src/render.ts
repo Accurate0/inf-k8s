@@ -167,7 +167,6 @@ export interface App {
   resources?: Resource[];
   exports?: Export[];
   sources?: Source[];
-  sync?: ArgocdOverrides;
   argocd?: { overrides?: ArgocdOverrides };
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
@@ -330,7 +329,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'sync', 'argocd']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'argocd']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -779,7 +778,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     }
   }
 
-  const overrides = app.argocd?.overrides ?? app.sync;
+  const overrides = app.argocd?.overrides;
   const application = {
     apiVersion: 'argoproj.io/v1alpha1',
     kind: 'Application',
