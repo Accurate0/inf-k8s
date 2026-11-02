@@ -9,6 +9,8 @@ on:
       - "**/*.application.yaml"
       - "**/manifests/**"
       - "**/kustomization.yaml"
+      - selfhosted/*/*.values.yaml
+      - system-components/*/*.values.yaml
       - charts/**
       - platform/versions.yaml
       - platform/exports/**

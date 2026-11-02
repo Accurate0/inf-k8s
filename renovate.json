@@ -10,7 +10,6 @@
     ]
   },
   "ignorePaths": [
-    "system-components/redis.application.yaml",
     "projects/anurag-sh/application.yaml",
     "projects/bom/application.yaml",
     "projects/home-gateway/application.yaml",
@@ -18,7 +17,9 @@
     "projects/ozbargain/application.yaml",
     "projects/tldr-bot/application.yaml",
     "platform-services/ai-gateway/application.yaml",
+    "platform-services/etcd-backup/application.yaml",
     "platform-services/feature-flags/application.yaml",
+    "platform-services/firefly-up-sync/application.yaml",
     "platform-services/janitor-bot/application.yaml",
     "platform-services/k8s-schemas/application.yaml",
     "platform-services/kanidm-sync/application.yaml",
@@ -26,6 +27,23 @@
     "platform-services/waf-manager/application.yaml"
   ],
   "customManagers": [
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^(selfhosted|system-components)/[^/]+/app\\.yaml$/"],
+      "matchStrings": [
+        "chart:\\s*(?<depName>\\S+)\\s*\\n\\s*repo:\\s*(?<registryUrl>https://\\S+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^(selfhosted|system-components)/[^/]+/app\\.yaml$/"],
+      "matchStrings": [
+        "repo:\\s*oci://(?<depName>\\S+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
+      ],
+      "datasourceTemplate": "docker",
+      "versioningTemplate": "semver"
+    },
     {
       "customType": "regex",
       "managerFilePatterns": ["/^(projects|platform-services)/[^/]+/app\\.yaml$/"],

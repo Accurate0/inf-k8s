@@ -31,6 +31,9 @@ spec:
     - oci://ghcr.io/accurate0/charts/k8s-secrets
     - oci://ghcr.io/accurate0/charts/k8s-oidc
     - oci://ghcr.io/accurate0/charts/k8s-postgres
+    - oci://ghcr.io/accurate0/charts/k8s-workload
+    - oci://ghcr.io/accurate0/charts/k8s-network
+    - oci://ghcr.io/accurate0/charts/k8s-observability
     - oci://ghcr.io/external-secrets/charts/external-secrets
     - oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
   destinations:
