@@ -13,7 +13,7 @@ edition = "2024"
 janitor-webhook = { path = "webhook" }
 axum = "0.8"
 askama = "0.16"
-forgejo-api = "0.11"
+forgejo-api = "0.12"
 serde = { version = "1", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
