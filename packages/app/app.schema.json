@@ -598,6 +598,10 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "external": {
+                "type": "boolean",
+                "description": "Deprecated, temporary during database adoption. Render credentials only; the database, role and terraform are owned elsewhere."
               }
             }
           },
@@ -1109,42 +1113,101 @@
     },
     "sources": {
       "type": "array",
-      "description": "Extra Argo sources.",
+      "description": "What the app deploys beyond its workloads and resources.",
       "items": {
-        "type": "object"
-      }
-    },
-    "helm": {
-      "type": "array",
-      "description": "Upstream Helm charts. Values live in a file beside app.yaml.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "chart",
-          "repo",
-          "version",
-          "values"
-        ],
-        "properties": {
-          "chart": {
-            "type": "string"
+        "oneOf": [
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "chart",
+              "repo",
+              "version",
+              "values"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "helm"
+                ]
+              },
+              "chart": {
+                "type": "string"
+              },
+              "repo": {
+                "type": "string"
+              },
+              "version": {
+                "type": "string"
+              },
+              "values": {
+                "type": "string",
+                "description": "Values file, relative to the app directory."
+              },
+              "releaseName": {
+                "type": "string",
+                "description": "Defaults to the app name. Required when a chart is listed twice."
+              }
+            }
           },
-          "repo": {
-            "type": "string"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "repo",
+              "path"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "git"
+                ]
+              },
+              "repo": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "revision": {
+                "type": "string"
+              }
+            }
           },
-          "version": {
-            "type": "string"
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "type",
+              "path"
+            ],
+            "properties": {
+              "type": {
+                "enum": [
+                  "manifests"
+                ]
+              },
+              "path": {
+                "type": "string",
+                "description": "Kustomization directory, relative to the app directory. Use . for the app directory."
+              }
+            }
           },
-          "values": {
-            "type": "string",
-            "description": "Values file, relative to the app directory."
-          },
-          "releaseName": {
-            "type": "string",
-            "description": "Defaults to the app name. Required when a chart is listed twice."
+          {
+            "type": "object",
+            "description": "Deprecated raw Argo source.",
+            "not": {
+              "required": [
+                "type"
+              ]
+            }
           }
-        }
+        ]
       }
     },
     "sync": {

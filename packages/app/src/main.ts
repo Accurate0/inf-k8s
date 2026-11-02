@@ -23,12 +23,14 @@ import {
   imageValuesPath,
   isCurrent,
   kustomizationPath,
+  managedDatabases,
   needsKustomization,
   rbacPath,
   type Listener,
   type PlatformExport,
   renderApplication,
   renderDatabase,
+  sourcesOf,
   renderKustomization,
   renderRbac,
   renderWorkflow,
@@ -150,7 +152,7 @@ function discover(): { app: App; target: Target }[] {
     }
   }
   validateIngress(found.map(({ app }) => app));
-  const external = found.filter(({ app, target }) => app.helm?.length || target.hasManifests || (target.rootKustomization && !needsKustomization(app)));
+  const external = found.filter(({ app, target }) => sourcesOf(app, 'helm').length || target.hasManifests || (target.rootKustomization && !needsKustomization(app)));
   validateResources({ platform: platformExports(), apps: found.map(({ app }) => app), external: new Set(external.map(({ app }) => app.name)) });
   validateGatewayAccess(found.map(({ app }) => app), gatewayListeners());
   return found;
@@ -189,7 +191,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   }
   for (const { app } of apps) {
     if (only && app.name !== only) continue;
-    for (const [database, spec] of Object.entries(appDatabases(app))) {
+    for (const [database, spec] of Object.entries(managedDatabases(app))) {
       const path = databasePath(database);
       const wanted = renderDatabase(database, spec);
       if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {

@@ -70,6 +70,7 @@ export interface DatabaseSpec {
   enableConnectionPooling?: boolean;
   role?: string;
   extensions?: string[];
+  external?: boolean;
 }
 
 export interface SecretTemplate {
@@ -128,13 +129,29 @@ export interface Build {
   };
 }
 
-export interface HelmRelease {
+export interface HelmSource {
+  type: 'helm';
   chart: string;
   repo: string;
   version: string;
   values: string;
   releaseName?: string;
 }
+
+export interface GitSource {
+  type: 'git';
+  repo: string;
+  path: string;
+  name?: string;
+  revision?: string;
+}
+
+export interface ManifestsSource {
+  type: 'manifests';
+  path: string;
+}
+
+export type Source = HelmSource | GitSource | ManifestsSource;
 
 export interface Sync {
   options?: string[];
@@ -149,8 +166,7 @@ export interface App {
   workloads?: Record<string, Workload>;
   resources?: Resource[];
   exports?: Export[];
-  helm?: HelmRelease[];
-  sources?: Record<string, unknown>[];
+  sources?: (Source | Record<string, unknown>)[];
   sync?: Sync;
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
@@ -314,7 +330,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'helm', 'sync']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'sync']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -382,10 +398,14 @@ export function validate(raw: unknown, where: string): App {
   for (const key of resourceKeys) {
     if (resourceKeys.indexOf(key) !== resourceKeys.lastIndexOf(key)) fail(`resources: duplicate name ${key.split('/')[1]}`);
   }
-  const releases = (app.helm ?? []).map((release) => release.releaseName ?? release.chart);
+  const releases = sourcesOf(app, 'helm').map((release) => release.releaseName ?? release.chart);
   for (const release of releases) {
-    if (releases.indexOf(release) !== releases.lastIndexOf(release)) fail(`helm: duplicate release ${release}, set releaseName`);
+    if (releases.indexOf(release) !== releases.lastIndexOf(release)) fail(`sources: duplicate helm release ${release}, set releaseName`);
   }
+  const manifests = sourcesOf(app, 'manifests');
+  if (manifests.length > 1) fail('sources: only one manifests source is allowed');
+  if (manifests[0]?.path.split('/').includes('..')) fail('sources: manifests path must stay inside the app directory');
+  if (manifests[0] && needsKustomization(app) && manifests[0].path !== '.') fail('sources: manifests path must be . with config, dashboard or clusterRules');
   const exportNames = (app.exports ?? []).map((e) => e.name);
   for (const exported of app.exports ?? []) {
     if (exportNames.indexOf(exported.name) !== exportNames.lastIndexOf(exported.name)) fail(`exports: duplicate name ${exported.name}`);
@@ -503,11 +523,15 @@ export function renderKustomization(app: App, target: Target): string | undefine
   return `${HEADER}\n${stringify(kustomization, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
+export const sourcesOf = <T extends Source['type']>(app: App, type: T) =>
+  (app.sources ?? []).filter((source): source is Extract<Source, { type: T }> => source.type === type);
+
 export const appFiles = (app: App, target: Target) =>
   [
     ...declared(app, 'config').flatMap((config) => config.files),
     ...declared(app, 'dashboard').map((dashboard) => dashboard.file),
-    ...(app.helm ?? []).map((release) => release.values),
+    ...sourcesOf(app, 'helm').map((release) => release.values),
+    ...sourcesOf(app, 'manifests').filter(() => !needsKustomization(app)).map(({ path }) => (path === '.' ? 'kustomization.yaml' : `${path}/kustomization.yaml`)),
   ].map(
     (file) => `${target.location}/${app.name}/${file}`,
   );
@@ -586,7 +610,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   };
 
   const hasWorkloads = Boolean(app.workloads && Object.keys(app.workloads).length);
-  if (hasWorkloads || app.helm?.length) sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
+  if (hasWorkloads || sourcesOf(app, 'helm').length) sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
   if (app.workloads && hasWorkloads) {
     sources.push(
       chart(app, versions, 'k8s-workload', {
@@ -728,19 +752,28 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
-  for (const { chart: helmChart, repo, version, values, releaseName } of app.helm ?? []) {
-    sources.push({
-      chart: helmChart,
-      repoURL: repo,
-      targetRevision: version,
-      helm: { ...(releaseName ? { releaseName } : {}), valueFiles: [`$values/${dir}/${values}`] },
-    });
-  }
-
-  if (target.hasManifests || target.rootKustomization) {
+  if (!sourcesOf(app, 'manifests').length && (target.hasManifests || target.rootKustomization)) {
     sources.push({ repoURL: CONFIG_REPO, name: 'application', path: target.rootKustomization ? dir : `${dir}/manifests` });
   }
-  sources.push(...(app.sources ?? []));
+  for (const source of app.sources ?? []) {
+    if (source.type === 'helm') {
+      const { chart: helmChart, repo, version, values, releaseName } = source as HelmSource;
+      sources.push({
+        chart: helmChart,
+        repoURL: repo,
+        targetRevision: version,
+        helm: { ...(releaseName ? { releaseName } : {}), valueFiles: [`$values/${dir}/${values}`] },
+      });
+    } else if (source.type === 'git') {
+      const { repo, path, name: sourceName, revision } = source as GitSource;
+      sources.push({ repoURL: repo, ...(sourceName ? { name: sourceName } : {}), path, ...(revision ? { targetRevision: revision } : {}) });
+    } else if (source.type === 'manifests') {
+      const { path } = source as ManifestsSource;
+      sources.push({ repoURL: CONFIG_REPO, name: 'application', path: path === '.' ? dir : `${dir}/${path}` });
+    } else {
+      sources.push(source as Record<string, unknown>);
+    }
+  }
 
   const application = {
     apiVersion: 'argoproj.io/v1alpha1',
@@ -801,6 +834,9 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
   return Object.fromEntries(declared);
 }
 
+export const managedDatabases = (app: App) =>
+  Object.fromEntries(Object.entries(appDatabases(app)).filter(([, spec]) => !spec.external));
+
 export const databaseRole = (database: string, spec?: Pick<DatabaseSpec, 'role'>) => spec?.role ?? database.replaceAll('-', '_');
 
 export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;
@@ -823,7 +859,7 @@ export function renderDatabase(database: string, spec?: Pick<DatabaseSpec, 'role
 }
 
 export const appRoles = (apps: App[]) =>
-  apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
+  apps.flatMap((app) => Object.entries(managedDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
 
 export function addRoles(cluster: string, roles: string[]): string {
   const doc = parseDocument(cluster);

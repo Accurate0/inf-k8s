@@ -1081,10 +1081,10 @@ test('a bucket with a secret template needs no workload', () => {
   assert.doesNotThrow(() => validateResources({ platform, apps: [overridden] }));
 });
 
-const release = { chart: 'forgejo', repo: 'oci://code.forgejo.org/forgejo-helm/forgejo', version: '1.0.0', values: 'forgejo.values.yaml' };
+const release = { type: 'helm' as const, chart: 'forgejo', repo: 'oci://code.forgejo.org/forgejo-helm/forgejo', version: '1.0.0', values: 'forgejo.values.yaml' };
 
 test('helm releases read values from a file beside app.yaml', () => {
-  const rendered = render({ name: 'foo', network: { ingress: [] }, helm: [release] }, { location: 'selfhosted', hasManifests: false });
+  const rendered = render({ name: 'foo', network: { ingress: [] }, sources: [release] }, { location: 'selfhosted', hasManifests: false });
   assert.equal(rendered.spec.project, 'selfhosted');
   assert.equal(rendered.spec.sources[0].ref, 'values');
   assert.deepEqual(source(rendered, 'forgejo'), {
@@ -1096,14 +1096,14 @@ test('helm releases read values from a file beside app.yaml', () => {
 });
 
 test('a chart listed twice needs distinct release names', () => {
-  const app = (helm: App['helm']) => ({ name: 'foo', network: { ingress: [] }, helm });
-  assert.throws(() => validate(app([release, release]), 'x'), /duplicate release forgejo/);
+  const app = (sources: App['sources']) => ({ name: 'foo', network: { ingress: [] }, sources });
+  assert.throws(() => validate(app([release, release]), 'x'), /duplicate helm release forgejo/);
   validate(app([release, { ...release, releaseName: 'other' }]), 'x');
 });
 
 test('helm templates pull upstream charts', () => {
   const rendered = renderApplication(
-    { name: 'foo', network: { ingress: [] }, helm: [release, { chart: 'reloader', repo: 'https://example.com/charts', version: '2.0.0', values: 'r.yaml', releaseName: 'rel' }] },
+    { name: 'foo', network: { ingress: [] }, sources: [release, { type: 'helm', chart: 'reloader', repo: 'https://example.com/charts', version: '2.0.0', values: 'r.yaml', releaseName: 'rel' }] },
     versions,
     target,
     { platform, apps: [] },
@@ -1186,4 +1186,37 @@ test('secret templates can exclude other keys', () => {
     { secretName: 's', template: { includeAllSecrets: false, data: { a: 'b' } } },
   ]);
   validate({ name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'secret', secretName: 's', secretTemplate: { includeAllSecrets: false, data: { a: 'b' } } }] }, 'x');
+});
+
+test('typed sources render in the order listed', () => {
+  const rendered = render({
+    name: 'foo',
+    network: { ingress: [] },
+    sources: [
+      { type: 'manifests', path: '.' },
+      { type: 'git', repo: 'https://example.com/r.git', path: 'config', name: 'config', revision: 'main' },
+    ] as App['sources'],
+  });
+  assert.deepEqual(rendered.spec.sources.slice(1), [
+    { repoURL: 'https://github.com/Accurate0/inf-k8s.git', name: 'application', path: 'projects/foo' },
+    { repoURL: 'https://example.com/r.git', name: 'config', path: 'config', targetRevision: 'main' },
+  ]);
+});
+
+test('manifests sources are limited and stay in the app directory', () => {
+  const app = (sources: unknown[], extra = {}) => ({ name: 'foo', network: { ingress: [] }, sources, ...extra });
+  assert.throws(() => validate(app([{ type: 'manifests', path: '.' }, { type: 'manifests', path: 'x' }]), 'x'), /only one manifests/);
+  assert.throws(() => validate(app([{ type: 'manifests', path: '../other' }]), 'x'), /inside the app directory/);
+  const config = { resources: [{ name: 'c', type: 'config', configMap: 'c', files: ['a'] }] };
+  assert.throws(() => validate(app([{ type: 'manifests', path: 'manifests' }], config), 'x'), /path must be \./);
+  assert.throws(() => validate(app([{ type: 'bogus', path: 'x' }]), 'x'));
+  assert.throws(() => validate(app([{ type: 'helm', chart: 'a', repo: 'b', version: '1' }]), 'x'));
+});
+
+test('external databases only render credentials', () => {
+  const app: App = { name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'database', secretName: 'foo-db', external: true }] };
+  assert.deepEqual(appRoles([app]), []);
+  assert.equal(renderAppTerraform(app), undefined);
+  assert.deepEqual(JSON.parse(renderTerraformIndex([app])).output.database_names.value, []);
+  assert.equal(source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].secretName, 'foo-db');
 });

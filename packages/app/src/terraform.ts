@@ -1,5 +1,5 @@
 import type { App, Bucket } from './render.ts';
-import { appDatabases, appNamespace, databaseRole, HEADER_TEXT } from './render.ts';
+import { appNamespace, databaseRole, HEADER_TEXT, managedDatabases } from './render.ts';
 
 type Block = Record<string, Record<string, unknown>>;
 
@@ -138,7 +138,7 @@ export const appTerraformPath = (app: App) => `${TERRAFORM_APPS}/${app.name}.tf.
 
 export function renderAppTerraform(app: App): string | undefined {
   const blocks = [
-    ...Object.entries(appDatabases(app)).map(([database, spec]) => databaseResources(app, database, databaseRole(database, spec))),
+    ...Object.entries(managedDatabases(app)).map(([database, spec]) => databaseResources(app, database, databaseRole(database, spec))),
     ...(app.resources ?? []).flatMap((resource) => {
       if (resource.type !== 'bucket') return [];
       const id = `${app.name}-${resource.name}`;
@@ -150,7 +150,7 @@ export function renderAppTerraform(app: App): string | undefined {
 }
 
 export function renderTerraformIndex(apps: App[]): string {
-  const names = apps.flatMap((app) => Object.keys(appDatabases(app))).sort();
+  const names = apps.flatMap((app) => Object.keys(managedDatabases(app))).sort();
   const s3 = apps
     .flatMap((app) =>
       (app.resources ?? []).flatMap((resource) =>
