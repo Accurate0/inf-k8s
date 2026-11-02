@@ -1,5 +1,10 @@
 import { fs, run } from '@ortzi/host';
-import { helmTemplates } from './render';
+import { helmTemplates, type Plan } from './plan';
+
+export interface RenderedOutput {
+  content: string;
+  plan: Plan;
+}
 
 const SCHEMA_BASE = 'https://k8s-schemas.anurag.sh';
 const CACHE_ROOT = '.cache/kubeconform';
@@ -30,7 +35,7 @@ function walk(dir: string, visit: (dir: string, file: string) => void) {
 }
 
 export function validateManifests(
-  generated: Map<string, string>,
+  generated: Map<string, RenderedOutput>,
   selected: (path: string) => boolean = () => true,
 ): string[] {
   const failures: string[] = [];
@@ -60,10 +65,10 @@ export function validateManifests(
 
   const apps = [...generated].filter(([path]) => selected(path));
   console.error(`validating ${apps.length} apps`);
-  for (const [path, rendered] of apps) {
+  for (const [path, { content, plan }] of apps) {
     const before = failures.length;
-    const documents = [rendered];
-    for (const { args, values } of helmTemplates(rendered)) {
+    const documents = [content];
+    for (const { args, values } of helmTemplates(plan)) {
       const output = run('helm', args, { stdin: values, stdout: 'piped', stderr: 'piped', check: false });
       if (output.ok) documents.push(output.stdout);
       else failures.push(`${path}: helm ${args[2]}\n${output.stderr}`);

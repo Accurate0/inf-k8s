@@ -1,11 +1,7 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
-import { parse, parseDocument, stringify } from 'yaml';
+import { stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
 import { declaredPorts, expandWorkload, overrideConflicts, type Refs, type SecretKind } from './workload.ts';
-
-const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
-export const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
-const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
 
 export const HEADER_TEXT = 'generated from app.yaml by `ortzi app render`; edit app.yaml instead';
 export const HEADER = `# ${HEADER_TEXT}`;
@@ -443,7 +439,7 @@ function secretRef(app: App, kind: SecretKind, name: string): string {
   return found.secretName as string;
 }
 
-const refsFor = (app: App, world: World): Refs => ({
+export const refsFor = (app: App, world: World): Refs => ({
   resource: (resource, env) => resourceEnv(app, resource, env, world),
   secret: (kind, name) => secretRef(app, kind, name),
   config: (name) => {
@@ -463,12 +459,6 @@ export function validateResources(world: World) {
       expandWorkload(spec, refsFor(app, world));
     }
   }
-}
-
-function chart(app: App, versions: Versions, name: string, helm: Record<string, unknown>) {
-  const targetRevision = app.charts?.[name] ?? versions[name];
-  if (!targetRevision) throw new Error(`${app.name}: no version for chart ${name}`);
-  return { chart: name, repoURL: `${CHART_REGISTRY}/${name}`, targetRevision, helm };
 }
 
 export const workloadImages = (app: App) =>
@@ -608,212 +598,7 @@ export function renderWorkflow(app: App, target: Target): string {
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
-export function renderApplication(app: App, versions: Versions, target: Target, world: World): string {
-  const { name } = app;
-  const namespace = appNamespace(app);
-  const annotations = {
-    'inf-k8s.net/app': name,
-    'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
-  };
-  const databaseSecret = (database: string) =>
-    appDatabases(app)[database].secretName;
-  const dir = `${target.location}/${name}`;
-  const routes = Object.entries(appRoutes(app));
-  const sources: Record<string, unknown>[] = [];
-  const serviceAccounts = [...declared(app, 'serviceAccount').map((account) => account.name)];
-  const loginPolicy = (client: string) => {
-    const route = routes.find(([, r]) => r.auth?.mode === 'oidc' && r.auth.client === client);
-    if (!route) return {};
-    const { mode: _mode, client: _client, ...policy } = route[1].auth as Extract<RouteAuth, { mode: 'oidc' }>;
-    return { securityPolicy: { httpRoute: route[0], ...policy } };
-  };
-
-  const hasWorkloads = Object.keys(appWorkloads(app)).length > 0;
-  if (hasWorkloads || sourcesOf(app, 'helm').length) sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
-  if (hasWorkloads) {
-    sources.push(
-      chart(app, versions, 'k8s-workload', {
-        valueFiles: [`$values/${imageValuesPath(app, target)}`],
-        valuesObject: {
-          namespace,
-          ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
-          ...(serviceAccounts.length ? { serviceAccounts } : {}),
-          workloads: Object.entries(appWorkloads(app)).map(([workload, spec]) => {
-            return { name: workload, ...expandWorkload(spec, refsFor(app, world)) };
-          }),
-        },
-      }),
-    );
-  }
-
-  const ingress = [
-    ...(routes.length ? ['envoy-gateway-system'] : []),
-    ...(appMetrics(app).length ? ['monitoring'] : []),
-    ...app.network.ingress,
-    ...world.apps
-      .filter((other) => other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name))
-      .map(appNamespace)
-      .sort(),
-  ];
-  if (app.network.policy !== false) {
-    sources.push(
-      chart(app, versions, 'k8s-network', {
-        valuesObject: { namespace, ingress: [...new Set(ingress)] },
-      }),
-    );
-  }
-
-  if (routes.length) {
-    sources.push(
-      chart(app, versions, 'k8s-http-routes', {
-        valuesObject: {
-          routes: routes.map(([routeName, route]) => {
-            return {
-              name: routeName,
-              ...(route.auth?.mode === 'jwt' ? { jwtClients: route.auth.clients } : {}),
-              gateway: {
-                name: route.gateway ?? 'public-gateway',
-                namespace: 'envoy-gateway-system',
-              },
-              ...(route.annotations ? { annotations: route.annotations } : {}),
-              hostnames: route.hosts,
-              ...(route.ratelimit ? { ratelimit: route.ratelimit } : {}),
-              rules: (route.rules ?? [{ paths: route.paths ?? ['/'], backend: route.backend as { name: string; port: number } }]).map((rule) => ({
-                backendRefs: [{ group: '', kind: 'Service', ...rule.backend, weight: 1 }],
-                matches: rule.paths.map((match) => ({
-                  path: typeof match === 'string' ? { type: 'PathPrefix', value: match } : match,
-                })),
-                ...(route.timeouts ? { timeouts: route.timeouts } : {}),
-              })),
-            };
-          }),
-        },
-      }),
-    );
-  }
-
-  if (Object.keys(appOidc(app)).length) {
-    sources.push(
-      chart(app, versions, 'k8s-oidc', {
-        valuesObject: {
-          clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
-            name: client,
-            namespace,
-            displayName: client,
-            preferShortUsername: true,
-            ...spec,
-            ...loginPolicy(client),
-            secretName: spec.secretName,
-            secretNamespace: namespace,
-            annotations,
-          })),
-        },
-      }),
-    );
-  }
-
-  if (Object.keys(appDatabases(app)).length) {
-    sources.push(
-      chart(app, versions, 'k8s-postgres', {
-        valuesObject: {
-          databases: Object.entries(appDatabases(app)).map(([database, spec]) => ({
-            name: database,
-            namespace,
-            databaseName: databaseRole(database, spec),
-            secretName: databaseSecret(database),
-            ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
-            annotations,
-          })),
-        },
-      }),
-    );
-  }
-
-  const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
-    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: resource.secretName, secretTemplate: resource.secretTemplate }] : [],
-  );
-  const managedSecret = ({ secretName, secretTemplate }: { secretName: string; secretTemplate?: SecretTemplate }) => ({
-    secretName,
-    ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
-    ...(secretTemplate
-      ? {
-          template: {
-            ...(secretTemplate.includeAllSecrets === undefined ? {} : { includeAllSecrets: secretTemplate.includeAllSecrets }),
-            data: secretTemplate.data,
-          },
-        }
-      : {}),
-  });
-  if (appSecrets(app).length || bucketSecrets.length) {
-    sources.push(
-      chart(app, versions, 'k8s-secrets', {
-        valuesObject: {
-          defaults: { namespace, provider: 'openbao', resyncInterval: 900, annotations },
-          secrets: [...appSecrets(app), ...bucketSecrets].map((s) => ({
-            name: s.name,
-            managedSecrets: [managedSecret(s)],
-          })),
-        },
-      }),
-    );
-  }
-
-  for (const scrape of appMetrics(app)) {
-    const { workload, ...metrics } = scrape;
-    sources.push(
-      chart(app, versions, 'k8s-observability', {
-        valuesObject: {
-          name: workload,
-          namespace,
-          ...metrics,
-        },
-      }),
-    );
-  }
-
-  for (const source of app.sources ?? []) {
-    if (source.type === 'helm') {
-      const { chart: helmChart, repo, version, values, releaseName } = source;
-      sources.push({
-        chart: helmChart,
-        repoURL: repo,
-        targetRevision: version,
-        helm: { ...(releaseName ? { releaseName } : {}), valueFiles: [`$values/${dir}/${values}`] },
-      });
-    } else if (source.type === 'git') {
-      const { repo, path, name: sourceName, revision } = source;
-      sources.push({ repoURL: repo, ...(sourceName ? { name: sourceName } : {}), path, ...(revision ? { targetRevision: revision } : {}) });
-    } else {
-      sources.push({ repoURL: CONFIG_REPO, name: 'application', path: source.path === '.' ? dir : `${dir}/${source.path}` });
-    }
-  }
-
-  const overrides = app.argocd?.overrides;
-  const application = {
-    apiVersion: 'argoproj.io/v1alpha1',
-    kind: 'Application',
-    metadata: { name, namespace: 'argocd' },
-    spec: {
-      syncPolicy: {
-        syncOptions: overrides?.options ?? ['CreateNamespace=true', 'ServerSideApply=true'],
-        ...(overrides?.automated === false ? {} : { automated: { prune: true, selfHeal: true } }),
-        ...(app.namespace?.labels && !hasWorkloads ? { managedNamespaceMetadata: { labels: app.namespace.labels } } : {}),
-      },
-      project: target.location,
-      sources,
-      destination: { server: 'https://kubernetes.default.svc', namespace },
-      ...(overrides?.ignoreDifferences ? { ignoreDifferences: overrides.ignoreDifferences } : {}),
-    },
-    operation: {
-      initiatedBy: { username: 'github-actions' },
-      sync: { prune: true, syncStrategy: { hook: {} } },
-    },
-  };
-
-  return `${HEADER}\n# yaml-language-server: $schema=${SCHEMA}\n${stringify(application, { lineWidth: 0, aliasDuplicateObjects: false })}`;
-}
-
-const declared = <T extends Resource['type']>(app: App, type: T) =>
+export const declared = <T extends Resource['type']>(app: App, type: T) =>
   (app.resources ?? []).filter((resource): resource is Extract<Resource, { type: T }> => resource.type === type);
 
 const specs = <S extends { name: string; type: string }>(resources: S[]) =>
@@ -850,69 +635,5 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
 
 export const databaseRole = (database: string, spec?: Pick<DatabaseSpec, 'role'>) => spec?.role ?? database.replaceAll('-', '_');
 
-export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;
-
-export function renderDatabase(database: string, spec?: Pick<DatabaseSpec, 'role' | 'extensions'>): string {
-  const name = databaseRole(database, spec);
-  const manifest = {
-    apiVersion: 'postgresql.cnpg.io/v1',
-    kind: 'Database',
-    metadata: { name: database, namespace: 'cnpg-system' },
-    spec: {
-      name,
-      owner: name,
-      cluster: { name: 'cloudnative-pg-cluster' },
-      databaseReclaimPolicy: 'retain',
-      ...(spec?.extensions ? { extensions: spec.extensions.map((extension) => ({ name: extension, ensure: 'present' })) } : {}),
-    },
-  };
-  return `${HEADER}\n# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/database_v1.json\n${stringify(manifest)}`;
-}
-
 export const appRoles = (apps: App[]) =>
   apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
-
-export function addRoles(cluster: string, roles: string[]): string {
-  const doc = parseDocument(cluster);
-  const existing = (doc.toJS().spec.managed.roles as { name: string }[]).map((role) => role.name);
-  const missing = roles.filter((role) => !existing.includes(role));
-  if (!missing.length) return cluster;
-  for (const name of missing) {
-    doc.addIn(['spec', 'managed', 'roles'], { name, ensure: 'present', connectionLimit: -1, inherit: true, login: true });
-  }
-  return doc.toString({ lineWidth: 0 });
-}
-
-interface ChartSource {
-  chart: string;
-  repoURL: string;
-  targetRevision: string;
-  helm?: { releaseName?: string; valueFiles?: string[]; valuesObject?: unknown };
-}
-
-function chartLocation({ chart, repoURL, targetRevision }: ChartSource): string[] {
-  if (repoURL.startsWith(CHART_REGISTRY)) return [`charts/${chart}`];
-  if (!repoURL.startsWith('oci://')) return [chart, '--repo', repoURL, '--version', targetRevision];
-  return [repoURL.endsWith(`/${chart}`) ? repoURL : `${repoURL}/${chart}`, '--version', targetRevision];
-}
-
-export function helmTemplates(rendered: string): { args: string[]; values: string }[] {
-  const application = parse(rendered);
-  const name: string = application.metadata.name;
-  const sources: ChartSource[] = application.spec.sources;
-  return sources
-    .filter((source) => source.chart)
-    .map((source) => ({
-      args: [
-        'template',
-        source.helm?.releaseName ?? name,
-        ...chartLocation(source),
-        '--namespace',
-        application.spec.destination.namespace,
-        ...(source.helm?.valueFiles ?? []).flatMap((file) => ['-f', file.replace(/^\$values\//, '')]),
-        '-f',
-        '-',
-      ],
-      values: JSON.stringify(source.helm?.valuesObject ?? {}),
-    }));
-}

@@ -1,4 +1,5 @@
-import { type App, appDatabases, databasePath } from './render.ts';
+import { type App, appDatabases } from './render.ts';
+import { databasePath } from './providers/cnpg.ts';
 import { TERRAFORM_APPS } from './terraform.ts';
 
 const CI_PATHS = ['.github/workflows/', 'terraform/', 'system-components/postgres-cluster/'];

@@ -10,7 +10,6 @@ import { rollback } from './commands/rollback';
 import { status } from './commands/status';
 import { parse, stringify } from 'yaml';
 import {
-  addRoles,
   type App,
   appDatabases,
   appFiles,
@@ -19,7 +18,6 @@ import {
   appRoutes,
   appSecrets,
   appRoles,
-  databasePath,
   imageValuesPath,
   isCurrent,
   kustomizationPath,
@@ -28,8 +26,6 @@ import {
   rbacPath,
   type Listener,
   type PlatformExport,
-  renderApplication,
-  renderDatabase,
   sourcesOf,
   validateManifestSources,
   renderKustomization,
@@ -44,8 +40,11 @@ import {
   workflowPath,
   workloadImages,
 } from './render';
+import { renderOutputs } from './outputs';
+import { planApp } from './plan';
+import { addRoles, databasePath, renderDatabase } from './providers/cnpg';
 import { appTerraformPath, renderAppTerraform, renderTerraformIndex, TERRAFORM_APPS } from './terraform';
-import { validateManifests } from './validate';
+import { type RenderedOutput, validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services', 'selfhosted', 'system-components'];
 const VERSIONS = 'platform/versions.yaml';
@@ -168,10 +167,10 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
   for (const { app, target } of apps) {
     if (only && app.name !== only) continue;
-    const path = `${target.location}/${app.name}/application.yaml`;
-    const wanted = renderApplication(app, versions, target, world);
-    if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
-      stale.push({ path, wanted: stamped(wanted, new Date()) });
+    for (const [path, wanted] of renderOutputs(planApp(app, versions, target, world), app)) {
+      if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
+        stale.push({ path, wanted: stamped(wanted, new Date()) });
+      }
     }
     if (app.build) {
       const workflow = workflowPath(app);
@@ -239,10 +238,10 @@ function commitAll(paths: string[], apps: App[]) {
   }
 }
 
-function changedPaths(generated: Map<string, string>): string[] {
+function changedPaths(generated: Map<string, RenderedOutput>): string[] {
   const status = exec('git', ['status', '--porcelain', '-z', '--no-renames', '-uall'], { stdout: 'piped' });
   const rerendered = [...generated]
-    .filter(([path, wanted]) => !fs.exists(path) || !isCurrent(fs.readText(path), wanted))
+    .filter(([path, { content }]) => !fs.exists(path) || !isCurrent(fs.readText(path), content))
     .map(([path]) => path);
   return [...parseStatus(status.stdout), ...rerendered];
 }
@@ -255,10 +254,10 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   const apps = discover();
   const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
   const generated = new Map(
-    apps.map(({ app, target }) => [
-      `${target.location}/${app.name}/application.yaml`,
-      renderApplication(app, versions, target, world),
-    ]),
+    apps.flatMap(({ app, target }) => {
+      const plan = planApp(app, versions, target, world);
+      return renderOutputs(plan, app).map(([path, content]): [string, RenderedOutput] => [path, { content, plan }]);
+    }),
   );
   const failures = validateManifests(generated, changed ? changedScope(changedPaths(generated)) : undefined);
   if (failures.length) {

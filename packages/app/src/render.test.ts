@@ -3,7 +3,10 @@ import { test } from 'node:test';
 import { parse } from 'yaml';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
 import { renderAppTerraform, renderTerraformIndex } from './terraform.ts';
-import { validateManifestSources, addRoles, type App, appRoles, HEADER, renderDatabase, helmTemplates, isCurrent, renderApplication, renderKustomization, renderRbac, renderWorkflow, stamped, validate, validateGatewayAccess, validateIngress, validateResources } from './render.ts';
+import { renderApplication as renderArgo } from './outputs/argocd.ts';
+import { helmTemplates, planApp } from './plan.ts';
+import { addRoles, renderDatabase } from './providers/cnpg.ts';
+import { validateManifestSources, type App, appRoles, HEADER, isCurrent, renderKustomization, renderRbac, renderWorkflow, stamped, validate, validateGatewayAccess, validateIngress, validateResources } from './render.ts';
 
 const versions = {
   'k8s-workload': '0.1.0',
@@ -15,6 +18,9 @@ const versions = {
   'k8s-secrets': '0.6.0',
 };
 const target = { location: 'projects', hasManifests: false };
+
+const renderApplication = (app: App, chartVersions: typeof versions, on: typeof target, world: Parameters<typeof planApp>[3]) =>
+  renderArgo(planApp(app, chartVersions, on, world), app.argocd?.overrides);
 
 const platform = [
   { name: 'tracing', type: 'platform', url: 'http://tempo/traces' },
@@ -249,13 +255,13 @@ test('rejects invalid apps', () => {
 });
 
 test('templates generated charts from the local charts directory', () => {
-  const rendered = renderApplication(
+  const plan = planApp(
     { name: 'foo', workloads: [{ name: 'foo', image: 'i' }], network: { ingress: [] } },
     versions,
     { location: 'projects', hasManifests: false },
     { platform, apps: [] },
   );
-  const templates = helmTemplates(rendered);
+  const templates = helmTemplates(plan);
   assert.deepEqual(templates[0].args, [
     'template', 'foo', 'charts/k8s-workload', '--namespace', 'foo',
     '-f', 'projects/foo/image.values.yaml', '-f', '-',
@@ -1083,13 +1089,13 @@ test('a chart listed twice needs distinct release names', () => {
 });
 
 test('helm templates pull upstream charts', () => {
-  const rendered = renderApplication(
+  const plan = planApp(
     { name: 'foo', network: { ingress: [] }, sources: [release, { type: 'helm', chart: 'reloader', repo: 'https://example.com/charts', version: '2.0.0', values: 'r.yaml', releaseName: 'rel' }] },
     versions,
     target,
     { platform, apps: [] },
   );
-  const [, oci, https] = helmTemplates(rendered).map(({ args }) => args);
+  const [, oci, https] = helmTemplates(plan).map(({ args }) => args);
   assert.deepEqual(oci.slice(1, 5), ['foo', release.repo, '--version', '1.0.0']);
   assert.deepEqual(https.slice(1, 7), ['rel', 'reloader', '--repo', 'https://example.com/charts', '--version', '2.0.0']);
   assert.ok(oci.includes('projects/foo/forgejo.values.yaml'));
