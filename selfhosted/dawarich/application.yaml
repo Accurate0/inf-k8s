@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-02T06:46:44.141Z
+# generated at 2026-11-02T16:41:09.050Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -86,7 +86,6 @@ spec:
               namespace: dawarich
               databaseName: dawarich_2
               secretName: dawarich-db-credentials
-              enableConnectionPooling: false
               annotations:
                 inf-k8s.net/app: dawarich
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s

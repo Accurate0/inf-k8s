@@ -245,7 +245,10 @@ gitea:
           name: forgejo-db-credentials
           key: PGUSER
     - name: FORGEJO__DATABASE__HOST
-      value: cloudnative-pg-cluster-pooler-rw.cnpg-system
+      valueFrom:
+        secretKeyRef:
+          name: forgejo-db-credentials
+          key: PGHOST
     - name: FORGEJO__DATABASE__PASSWD
       valueFrom:
         secretKeyRef:

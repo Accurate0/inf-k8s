@@ -10,7 +10,6 @@ data:
   SELF_HOSTED: "true"
   STORE_GEODATA: "true"
   APPLICATION_HOSTS: timeline.anurag.sh
-  DATABASE_HOST: cloudnative-pg-cluster-pooler-rw.cnpg-system
   APPLICATION_PROTOCOL: http
   TIME_ZONE: Australia/Perth
   REDIS_URL: redis://replicated.dragonfly.svc.cluster.local:6379/0

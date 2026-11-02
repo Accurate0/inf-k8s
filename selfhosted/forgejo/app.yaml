@@ -69,7 +69,6 @@ resources:
   - name: forgejo
     type: database
     secretName: forgejo-db-credentials
-    enableConnectionPooling: false
   - name: ssh-signing
     type: secret
     secretName: forgejo-ssh-signing-managed-secrets

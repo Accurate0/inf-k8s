@@ -23,7 +23,6 @@ config:
   env:
     APP_URL: https://firefly.ortzi.cloud
     DB_CONNECTION: pgsql
-    DB_HOST: cloudnative-pg-cluster-rw.cnpg-system
     DB_PORT: "5432"
     DEFAULT_LANGUAGE: en_US
     DEFAULT_LOCALE: equal
@@ -34,6 +33,10 @@ config:
     ALLOW_WEBHOOKS: "true"
     SITE_OWNER: contact@anurag.sh
   envValueFrom:
+    DB_HOST:
+      secretKeyRef:
+        name: firefly-db-credentials
+        key: PGHOST
     DB_DATABASE:
       secretKeyRef:
         name: firefly-db-credentials

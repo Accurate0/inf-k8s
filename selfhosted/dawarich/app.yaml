@@ -39,7 +39,6 @@ resources:
     type: database
     secretName: dawarich-db-credentials
     role: dawarich_2
-    enableConnectionPooling: false
 sources:
   - type: manifests
     path: .

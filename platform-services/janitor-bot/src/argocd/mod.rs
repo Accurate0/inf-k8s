@@ -460,6 +460,7 @@ impl ArgocdClient {
             format!("system-components/{}.application.yaml", sync.app_name),
             format!("platform-services/{}/application.yaml", sync.app_name),
             format!("projects/{}/application.yaml", sync.app_name),
+            format!("selfhosted/{}/application.yaml", sync.app_name),
         ];
 
         // Short-circuit: app file itself was changed
