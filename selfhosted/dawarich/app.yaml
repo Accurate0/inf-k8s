@@ -37,6 +37,8 @@ resources:
     type: database
     secretName: dawarich-db-credentials
     role: dawarich_2
+  - {name: storage, type: volume, claimName: dawarich-storage, class: replicated, size: 20Gi, access: ReadWriteOnce, backup: daily}
+  - {name: photon, type: volume, claimName: dawarich-photon-data, class: local, size: 400Gi, access: ReadWriteOnce}
 sources:
   - type: manifests
     path: .
