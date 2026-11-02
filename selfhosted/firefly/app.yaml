@@ -1,0 +1,107 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: firefly
+network:
+  ingress:
+    - firefly-up-sync
+namespace:
+  labels:
+    internal-gateway-access: "true"
+sync:
+  options:
+    - ApplyOutOfSyncOnly=true
+    - CreateNamespace=true
+    - RespectIgnoreDifferences=true
+    - ServerSideApply=true
+  ignoreDifferences:
+    - group: ""
+      kind: Secret
+      name: firefly-app-key
+      jsonPointers:
+        - /data
+resources:
+  - name: firefly
+    type: route
+    gateway: internal-gateway
+    auth:
+      mode: oidc
+      client: firefly
+      scopes:
+        - openid
+        - email
+        - profile
+      jwt:
+        cacheDuration: 3600s
+        idToken: true
+        claimToHeaders:
+          - claim: email
+            header: x-firefly-user-email
+    hosts:
+      - firefly.ortzi.cloud
+    backend:
+      name: firefly
+      port: 80
+    paths:
+      - /
+  - name: firefly-importer
+    type: route
+    gateway: internal-gateway
+    auth:
+      mode: oidc
+      client: firefly-importer
+      scopes:
+        - openid
+        - email
+        - profile
+    hosts:
+      - firefly-importer.ortzi.cloud
+    backend:
+      name: firefly-importer
+      port: 80
+    paths:
+      - /
+  - name: firefly
+    type: oidc
+    secretName: kanidm-firefly-oidc
+    host: firefly.ortzi.cloud
+    displayName: Firefly III
+    preferShortUsername: true
+    allowInsecureClientDisablePkce: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+  - name: firefly-importer
+    type: oidc
+    secretName: kanidm-firefly-importer-oidc
+    host: firefly-importer.ortzi.cloud
+    displayName: Firefly III Importer
+    preferShortUsername: true
+    allowInsecureClientDisablePkce: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+  - name: firefly
+    type: database
+    secretName: firefly-db-credentials
+    enableConnectionPooling: false
+    external: true
+  - {name: firefly, type: secret, secretName: firefly-managed-secrets}
+  - name: integrations
+    type: secret
+    secretName: firefly-importer-managed-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"
+sources:
+  - type: helm
+    chart: firefly-iii
+    repo: https://firefly-iii.github.io/kubernetes/
+    version: 1.10.2
+    values: firefly-iii.values.yaml
+  - type: helm
+    chart: importer
+    repo: https://firefly-iii.github.io/kubernetes/
+    version: 1.6.1
+    values: importer.values.yaml
+  - type: manifests
+    path: .

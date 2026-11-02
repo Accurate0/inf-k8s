@@ -1,0 +1,61 @@
+fullnameOverride: firefly
+image:
+  tag: version-6.5.9
+replicaCount: 1
+deploymentStrategyType: Recreate
+podAnnotations:
+  reloader.stakater.com/auto: "true"
+affinity:
+  nodeAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        preference:
+          matchExpressions:
+            - key: inf-k8s.net/location
+              operator: In
+              values:
+                - perth
+persistence:
+  enabled: true
+  existingClaim: firefly-upload
+config:
+  existingSecret: firefly-managed-secrets
+  env:
+    APP_URL: https://firefly.ortzi.cloud
+    DB_CONNECTION: pgsql
+    DB_HOST: cloudnative-pg-cluster-rw.cnpg-system
+    DB_PORT: "5432"
+    DEFAULT_LANGUAGE: en_US
+    DEFAULT_LOCALE: equal
+    TZ: Australia/Perth
+    TRUSTED_PROXIES: "**"
+    AUTHENTICATION_GUARD: remote_user_guard
+    AUTHENTICATION_GUARD_HEADER: HTTP_X_FIREFLY_USER_EMAIL
+    ALLOW_WEBHOOKS: "true"
+    SITE_OWNER: contact@anurag.sh
+  envValueFrom:
+    DB_DATABASE:
+      secretKeyRef:
+        name: firefly-db-credentials
+        key: PGDATABASE
+    DB_USERNAME:
+      secretKeyRef:
+        name: firefly-db-credentials
+        key: PGUSER
+    DB_PASSWORD:
+      secretKeyRef:
+        name: firefly-db-credentials
+        key: PGPASSWORD
+cronjob:
+  enabled: true
+  auth:
+    existingSecret: firefly-managed-secrets
+    secretKey: STATIC_CRON_TOKEN
+httpRoute:
+  enabled: false
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    memory: 1Gi
