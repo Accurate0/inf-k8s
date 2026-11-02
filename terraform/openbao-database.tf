@@ -21,40 +21,8 @@ resource "vault_database_secrets_mount" "database" {
     username                = "openbao_db_admin"
     password                = random_password.openbao-db-admin.result
     password_authentication = "scram-sha-256"
-    allowed_roles           = sort(concat(keys(local.databases), module.apps.database_names))
+    allowed_roles           = module.apps.database_names
   }
-}
-
-resource "vault_database_secret_backend_static_role" "database" {
-  for_each = local.databases
-
-  backend         = vault_database_secrets_mount.database.path
-  name            = each.key
-  db_name         = vault_database_secrets_mount.database.postgresql[0].name
-  username        = each.value.role
-  rotation_period = 315360000
-}
-
-resource "vault_policy" "database" {
-  for_each = local.databases
-
-  name   = "db-${each.key}"
-  policy = <<-EOT
-    path "${vault_database_secrets_mount.database.path}/static-creds/${each.key}" {
-      capabilities = ["read"]
-    }
-  EOT
-}
-
-resource "vault_kubernetes_auth_backend_role" "database" {
-  for_each = local.databases
-
-  backend                          = vault_auth_backend.kubernetes.path
-  role_name                        = "db-${each.key}"
-  bound_service_account_names      = ["openbao-database"]
-  bound_service_account_namespaces = [each.value.namespace]
-  token_policies                   = [vault_policy.database[each.key].name]
-  token_ttl                        = 3600
 }
 
 resource "random_password" "openbao-database" {
@@ -71,11 +39,62 @@ resource "azurerm_key_vault_secret" "openbao-database" {
   key_vault_id = azurerm_key_vault.k8s-shared-vault.id
 }
 
-locals {
-  databases = {
-    dawarich = { namespace = "dawarich", role = "dawarich_2" }
-    forgejo  = { namespace = "forgejo", role = "forgejo" }
-    firefly  = { namespace = "firefly", role = "firefly" }
-    immich   = { namespace = "immich", role = "immich" }
-  }
+moved {
+  from = vault_database_secret_backend_static_role.database["dawarich"]
+  to   = module.apps.vault_database_secret_backend_static_role.dawarich
+}
+
+moved {
+  from = vault_policy.database["dawarich"]
+  to   = module.apps.vault_policy.dawarich
+}
+
+moved {
+  from = vault_kubernetes_auth_backend_role.database["dawarich"]
+  to   = module.apps.vault_kubernetes_auth_backend_role.dawarich
+}
+
+moved {
+  from = vault_database_secret_backend_static_role.database["forgejo"]
+  to   = module.apps.vault_database_secret_backend_static_role.forgejo
+}
+
+moved {
+  from = vault_policy.database["forgejo"]
+  to   = module.apps.vault_policy.forgejo
+}
+
+moved {
+  from = vault_kubernetes_auth_backend_role.database["forgejo"]
+  to   = module.apps.vault_kubernetes_auth_backend_role.forgejo
+}
+
+moved {
+  from = vault_database_secret_backend_static_role.database["firefly"]
+  to   = module.apps.vault_database_secret_backend_static_role.firefly
+}
+
+moved {
+  from = vault_policy.database["firefly"]
+  to   = module.apps.vault_policy.firefly
+}
+
+moved {
+  from = vault_kubernetes_auth_backend_role.database["firefly"]
+  to   = module.apps.vault_kubernetes_auth_backend_role.firefly
+}
+
+moved {
+  from = vault_database_secret_backend_static_role.database["immich"]
+  to   = module.apps.vault_database_secret_backend_static_role.immich
+}
+
+moved {
+  from = vault_policy.database["immich"]
+  to   = module.apps.vault_policy.immich
+}
+
+moved {
+  from = vault_kubernetes_auth_backend_role.database["immich"]
+  to   = module.apps.vault_kubernetes_auth_backend_role.immich
 }

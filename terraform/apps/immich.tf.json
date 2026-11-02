@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "immich": {
+        "backend": "${var.database_mount}",
+        "name": "immich",
+        "db_name": "${var.database_name}",
+        "username": "immich",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "immich": {
+        "name": "db-immich",
+        "policy": "path \"${var.database_mount}/static-creds/immich\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "immich": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-immich",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "immich"
+        ],
+        "token_policies": [
+          "${vault_policy.immich.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}

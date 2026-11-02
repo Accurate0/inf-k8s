@@ -45,7 +45,7 @@ resources:
     type: database
     secretName: immich-db-credentials
     enableConnectionPooling: false
-    external: true
+    extensions: [vector, vchord, cube, earthdistance]
 sources:
   - type: manifests
     path: .

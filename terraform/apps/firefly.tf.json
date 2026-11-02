@@ -1,0 +1,36 @@
+{
+  "//": "generated from app.yaml by `ortzi app render`; edit app.yaml instead",
+  "resource": {
+    "vault_database_secret_backend_static_role": {
+      "firefly": {
+        "backend": "${var.database_mount}",
+        "name": "firefly",
+        "db_name": "${var.database_name}",
+        "username": "firefly",
+        "rotation_period": 315360000
+      }
+    },
+    "vault_policy": {
+      "firefly": {
+        "name": "db-firefly",
+        "policy": "path \"${var.database_mount}/static-creds/firefly\" {\n  capabilities = [\"read\"]\n}\n"
+      }
+    },
+    "vault_kubernetes_auth_backend_role": {
+      "firefly": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-firefly",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "firefly"
+        ],
+        "token_policies": [
+          "${vault_policy.firefly.name}"
+        ],
+        "token_ttl": 3600
+      }
+    }
+  }
+}

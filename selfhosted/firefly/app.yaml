@@ -84,7 +84,6 @@ resources:
     type: database
     secretName: firefly-db-credentials
     enableConnectionPooling: false
-    external: true
   - {name: firefly, type: secret, secretName: firefly-managed-secrets}
   - name: integrations
     type: secret

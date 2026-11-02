@@ -5,8 +5,12 @@
       "value": [
         "ai-gateway",
         "bom",
+        "dawarich",
         "feature-flags",
+        "firefly",
+        "forgejo",
         "home-gateway",
+        "immich",
         "registry",
         "waf-manager"
       ]

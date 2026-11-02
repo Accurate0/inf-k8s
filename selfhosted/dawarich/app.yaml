@@ -40,7 +40,6 @@ resources:
     secretName: dawarich-db-credentials
     role: dawarich_2
     enableConnectionPooling: false
-    external: true
 sources:
   - type: manifests
     path: .

@@ -70,7 +70,6 @@ resources:
     type: database
     secretName: forgejo-db-credentials
     enableConnectionPooling: false
-    external: true
   - name: ssh-signing
     type: secret
     secretName: forgejo-ssh-signing-managed-secrets
