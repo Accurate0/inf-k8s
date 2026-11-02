@@ -4,6 +4,7 @@ import { parse } from 'yaml';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
 import { renderAppTerraform, renderTerraformIndex } from './terraform.ts';
 import { renderApplication as renderArgo } from './outputs/argocd.ts';
+import { renderOutputs } from './outputs/index.ts';
 import { helmTemplates, planApp } from './plan.ts';
 import { addRoles, renderDatabase } from './providers/cnpg.ts';
 import { validateManifestSources, type App, appRoles, HEADER, isCurrent, renderKustomization, renderRbac, renderWorkflow, stamped, validate, validateGatewayAccess, validateIngress, validateResources } from './render.ts';
@@ -1225,4 +1226,91 @@ test('workloads are a list with unique names', () => {
   assert.throws(() => validate(app({ foo: { image: 'i' } }), 'x'), /workloads must be a list/);
   assert.throws(() => validate(app([{ name: 'a', image: 'i' }, { name: 'a', image: 'i' }]), 'x'), /duplicate name a/);
   assert.throws(() => validate(app([{ image: 'i' }]), 'x'));
+});
+
+const volumes = (overrides: Partial<Extract<NonNullable<App['resources']>[number], { type: 'volume' }>> = {}) => ({
+  name: 'data',
+  type: 'volume' as const,
+  claimName: 'foo-data',
+  class: 'replicated',
+  size: '5Gi',
+  access: 'ReadWriteOnce',
+  ...overrides,
+});
+const storage = [{ name: 'replicated', type: 'storage', storageClass: 'longhorn-replicated', backupLabels: { daily: 'enabled' } }, { name: 'nfs', type: 'storage', storageClass: 'nfs' }];
+const withStorage = { ...versions, 'k8s-storage': '0.1.0' };
+const volumeWorkload = (mounts: Record<string, unknown>) => ({ name: 'api', image: 'ghcr.io/x/api', resources: { memory: '1Mi' }, mounts });
+
+test('overrides replace the default application policy', () => {
+  const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
+  const app = validate({ name: 'foo', network: { ingress: [] }, overrides: { argocd: { application: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences } } } }, 'x');
+  const [[, rendered]] = renderOutputs(planApp(app, versions, target, { platform, apps: [] }), app);
+  assert.deepEqual(parse(rendered).spec.syncPolicy, { syncOptions: ['ServerSideApply=true'] });
+  assert.deepEqual(parse(rendered).spec.ignoreDifferences, ignoreDifferences);
+});
+
+test('overrides reject unknown outputs and fields', () => {
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, overrides: { flux: {} } }, 'x'), /overrides/);
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, overrides: { argocd: { application: { nope: true } } } }, 'x'), /overrides/);
+});
+
+test('route dns becomes external-dns annotations', () => {
+  const route = (dns: unknown) => ({ name: 'foo', type: 'route', auth: { mode: 'none', reason: 'public' }, hosts: ['foo.example.com'], backend: { name: 'foo', port: 80 }, dns });
+  const annotations = (dns: unknown) => {
+    const app = validate({ name: 'foo', network: { ingress: [] }, resources: [route(dns)] }, 'x');
+    const source = planApp(app, versions, target, { platform, apps: [] }).sources.find((s) => s.type === 'chart' && s.chart === 'k8s-http-routes');
+    return ((source as { values: { routes: { annotations: unknown }[] } }).values.routes[0]).annotations;
+  };
+  assert.deepEqual(annotations({ provider: 'cloudflare', proxied: false }), {
+    'external-dns.kubernetes.io/managed': 'true',
+    'external-dns.kubernetes.io/cloudflare-proxied': 'false',
+  });
+  assert.deepEqual(annotations({ provider: 'unifi' }), { 'external-dns.kubernetes.io/managed-unifi': 'true' });
+  assert.throws(() => annotations({ provider: 'cloudflare' }), /dns|resources/);
+});
+
+test('ratelimit renders a distinct header rule', () => {
+  const app = validate({ name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'route', auth: { mode: 'none', reason: 'public' }, hosts: ['foo.example.com'], backend: { name: 'foo', port: 80 }, ratelimit: { requests: 5, per: 'Second', header: 'x-real-ip' } }] }, 'x');
+  const source = planApp(app, versions, target, { platform, apps: [] }).sources.find((s) => s.type === 'chart' && s.chart === 'k8s-http-routes');
+  assert.deepEqual((source as { values: { routes: { ratelimit: unknown }[] } }).values.routes[0].ratelimit, {
+    rules: [{ clientSelectors: [{ headers: [{ name: 'x-real-ip', invert: false, type: 'Distinct' }] }], limit: { requests: 5, unit: 'Second' } }],
+  });
+});
+
+test('service env resolves against the app\'s own services', () => {
+  const app = (env: Record<string, unknown>) => validate({
+    name: 'foo',
+    network: { ingress: [] },
+    workloads: [{ name: 'api', image: 'ghcr.io/x/api', resources: { memory: '1Mi' }, service: { name: 'api' }, ports: [{ name: 'http', container: 3000, service: 8000 }, { name: 'web', container: 3001, service: 80 }], env }],
+  }, 'x');
+  const value = (env: Record<string, unknown>) => {
+    const built = app({ URL: env });
+    const source = planApp(built, versions, target, { platform, apps: [built] }).sources[0] as { values: { workloads: { env: { value: string }[] }[] } };
+    return source.values.workloads[0].env[0].value;
+  };
+  assert.equal(value({ service: 'api', port: 'http', path: '/v1' }), 'http://api.foo.svc.cluster.local:8000/v1');
+  assert.equal(value({ service: 'api', port: 80 }), 'http://api.foo.svc.cluster.local');
+  assert.throws(() => value({ service: 'nope', port: 80 }), /no service named nope/);
+  assert.throws(() => value({ service: 'api', port: 'nope' }), /no port nope/);
+});
+
+test('volumes render a claim through the storage class export', () => {
+  const app = validate({ name: 'foo', network: { ingress: [] }, resources: [volumes({ backup: 'daily' })], workloads: [volumeWorkload({ data: { path: '/data', volume: 'data' } })] }, 'x');
+  const world = { platform: storage, apps: [app] };
+  validateResources(world);
+  const sources = planApp(app, withStorage, target, world).sources as { chart: string; values: { volumes: unknown[]; workloads: { volumes: unknown[] }[] } }[];
+  const { annotations: _annotations, ...claim } = sources.find((s) => s.chart === 'k8s-storage')?.values.volumes[0] as Record<string, unknown>;
+  assert.deepEqual(claim, { name: 'foo-data', namespace: 'foo', storageClass: 'longhorn-replicated', size: '5Gi', access: 'ReadWriteOnce', labels: { daily: 'enabled' } });
+  assert.deepEqual(sources.find((s) => s.chart === 'k8s-workload')?.values.workloads[0].volumes, [{ name: 'data', persistentVolumeClaim: { claimName: 'foo-data' } }]);
+});
+
+test('volumes are validated', () => {
+  const app = (volume: ReturnType<typeof volumes>, mounts: Record<string, unknown> = { data: { path: '/data', volume: 'data' } }) =>
+    validate({ name: 'foo', network: { ingress: [] }, resources: [volume], workloads: [volumeWorkload(mounts)] }, 'x');
+  const check = (built: App, external = false) => validateResources({ platform: storage, apps: [built], ...(external ? { external: new Set(['foo']) } : {}) });
+  assert.throws(() => check(app(volumes({ class: 'nope' }))), /no storage export named nope/);
+  assert.throws(() => check(app(volumes({ class: 'nfs', backup: 'daily' }))), /has no backups/);
+  assert.throws(() => check(app(volumes(), {})), /no workload mounts this volume/);
+  assert.throws(() => check(app(volumes(), { data: { path: '/data', volume: 'other' } }), true), /no volume resource named other/);
+  check(app(volumes(), {}), true);
 });

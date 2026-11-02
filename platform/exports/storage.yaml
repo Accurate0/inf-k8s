@@ -1,0 +1,13 @@
+exports:
+  - name: replicated
+    type: storage
+    storageClass: longhorn-replicated
+    backupLabels:
+      recurring-job.longhorn.io/source: enabled
+      recurring-job-group.longhorn.io/daily-backup: enabled
+  - name: local
+    type: storage
+    storageClass: longhorn-local
+  - name: nfs-perth
+    type: storage
+    storageClass: nfs-k8s-perth

@@ -104,7 +104,7 @@
             }
           },
           "env": {
-            "description": "Map of variable to a string, {resource}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
+            "description": "Map of variable to a string, {resource}, {service, port}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
             "oneOf": [
               {
                 "type": "array",
@@ -131,6 +131,29 @@
                       ],
                       "properties": {
                         "resource": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "service",
+                        "port"
+                      ],
+                      "properties": {
+                        "service": {
+                          "type": "string",
+                          "description": "A service of this app."
+                        },
+                        "port": {
+                          "type": [
+                            "string",
+                            "integer"
+                          ]
+                        },
+                        "path": {
                           "type": "string"
                         }
                       }
@@ -381,6 +404,10 @@
                 "config": {
                   "type": "string",
                   "description": "A config resource."
+                },
+                "volume": {
+                  "type": "string",
+                  "description": "A volume resource."
                 }
               }
             }
@@ -796,7 +823,41 @@
                 "type": "object"
               },
               "ratelimit": {
-                "type": "object"
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "requests",
+                      "per",
+                      "header"
+                    ],
+                    "properties": {
+                      "requests": {
+                        "type": "integer",
+                        "minimum": 1
+                      },
+                      "per": {
+                        "enum": [
+                          "Second",
+                          "Minute",
+                          "Hour",
+                          "Day"
+                        ]
+                      },
+                      "header": {
+                        "type": "string",
+                        "description": "Limit each distinct value of this request header."
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "required": [
+                      "rules"
+                    ]
+                  }
+                ]
               },
               "timeouts": {
                 "type": "object"
@@ -855,6 +916,43 @@
                     }
                   }
                 }
+              },
+              "dns": {
+                "description": "Publish the route's hosts in DNS.",
+                "oneOf": [
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "provider",
+                      "proxied"
+                    ],
+                    "properties": {
+                      "provider": {
+                        "enum": [
+                          "cloudflare"
+                        ]
+                      },
+                      "proxied": {
+                        "type": "boolean"
+                      }
+                    }
+                  },
+                  {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "provider"
+                    ],
+                    "properties": {
+                      "provider": {
+                        "enum": [
+                          "unifi"
+                        ]
+                      }
+                    }
+                  }
+                ]
               }
             }
           },
@@ -1079,6 +1177,52 @@
                 }
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "claimName",
+              "class",
+              "size",
+              "access"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "volume"
+                ]
+              },
+              "claimName": {
+                "type": "string",
+                "description": "Name of the persistent volume claim."
+              },
+              "class": {
+                "type": "string",
+                "description": "A storage export from platform/exports."
+              },
+              "size": {
+                "type": "string"
+              },
+              "access": {
+                "enum": [
+                  "ReadWriteOnce",
+                  "ReadWriteMany",
+                  "ReadOnlyMany",
+                  "ReadWriteOncePod"
+                ]
+              },
+              "backup": {
+                "enum": [
+                  "daily"
+                ]
+              }
+            }
           }
         ]
       }
@@ -1225,6 +1369,43 @@
               "type": "array",
               "items": {
                 "type": "object"
+              }
+            }
+          }
+        }
+      }
+    },
+    "overrides": {
+      "description": "Change what one output generates. Keyed by output, then generated object. Every block is validated, even for outputs that are not active.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "argocd": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "application": {
+              "description": "Change the rendered Argo Application.",
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "options": {
+                  "type": "array",
+                  "description": "Replaces the default syncOptions.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "automated": {
+                  "type": "boolean",
+                  "description": "Sync automatically with prune and self-heal. Defaults to true."
+                },
+                "ignoreDifferences": {
+                  "type": "array",
+                  "items": {
+                    "type": "object"
+                  }
+                }
               }
             }
           }

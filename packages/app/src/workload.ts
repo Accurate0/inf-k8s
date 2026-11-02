@@ -6,6 +6,8 @@ export interface Refs {
   resource: (resource: string, env: string) => { name: string; value: string };
   secret: (kind: SecretKind, name: string) => string;
   config: (name: string) => { configMap: string; files: string[] };
+  volume: (name: string) => string;
+  service: (service: string, port: string | number, path?: string) => string;
 }
 
 const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket', 'oidc'];
@@ -19,6 +21,7 @@ function expandEnv(env: Values, refs: Refs) {
   return Object.entries(env).map(([name, value]) => {
     if (typeof value !== 'object' || value === null) return { name, value: String(value) };
     if (value.resource) return refs.resource(value.resource, name);
+    if (value.service) return { name, value: refs.service(value.service, value.port, value.path) };
     const kind = secretKind(value);
     if (kind) {
       const optional = value.optional === undefined ? {} : { optional: value.optional };
@@ -46,13 +49,15 @@ function expandProbes({ http, grpc, ...probes }: Values) {
 
 function expandMounts(mounts: Values, refs: Refs) {
   const entries = Object.entries<Values>(mounts).map(([name, mount]): [string, Values] => {
+    if (mount.volume) return [name, { ...mount, claimName: refs.volume(mount.volume) }];
     if (!mount.config) return [name, mount];
     const { configMap, files } = refs.config(mount.config);
     return [name, { ...mount, configMap, items: files.map((path) => ({ key: path.split('/').pop(), path })) }];
   });
   return {
-    volumes: entries.map(([name, { configMap, items }]) =>
-      configMap
+    volumes: entries.map(([name, { claimName, configMap, items }]) => {
+      if (claimName) return { name, persistentVolumeClaim: { claimName } };
+      return configMap
         ? {
             name,
             configMap: {
@@ -60,8 +65,8 @@ function expandMounts(mounts: Values, refs: Refs) {
               ...(items ? { items } : {}),
             },
           }
-        : { name, emptyDir: {} },
-    ),
+        : { name, emptyDir: {} };
+    }),
     volumeMounts: entries.map(([name, { path, configMap }]) => ({
       name,
       mountPath: path,

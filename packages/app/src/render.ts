@@ -45,7 +45,18 @@ export type Resource =
   | ({ name: string; type: 'metrics' } & Metrics)
   | { name: string; type: 'config'; configMap: string; files: string[] }
   | { name: string; type: 'dashboard'; configMap: string; file: string }
+  | Volume
   | ServiceAccount;
+
+export interface Volume {
+  name: string;
+  type: 'volume';
+  claimName: string;
+  class: string;
+  size: string;
+  access: string;
+  backup?: 'daily';
+}
 
 export interface ServiceAccount {
   name: string;
@@ -95,6 +106,14 @@ export type RouteAuth =
   | { mode: 'oidc'; client: string; scopes?: string[]; forwardAccessToken?: boolean; logoutPath?: string; jwt?: Record<string, unknown> }
   | { mode: 'app' | 'none'; reason: string };
 
+export type RouteDns = { provider: 'cloudflare'; proxied: boolean } | { provider: 'unifi' };
+
+export interface RouteRatelimit {
+  requests: number;
+  per: string;
+  header: string;
+}
+
 export interface Route {
   hosts: string[];
   gateway?: string;
@@ -102,8 +121,9 @@ export interface Route {
   backend?: { name: string; port: number };
   paths?: (string | { type: string; value: string })[];
   rules?: { paths: (string | { type: string; value: string })[]; backend: { name: string; port: number } }[];
+  dns?: RouteDns;
   annotations?: Record<string, string>;
-  ratelimit?: Record<string, unknown>;
+  ratelimit?: RouteRatelimit | Record<string, unknown>;
   timeouts?: Record<string, unknown>;
 }
 
@@ -163,6 +183,7 @@ export interface App {
   exports?: Export[];
   sources?: Source[];
   argocd?: { overrides?: ArgocdOverrides };
+  overrides?: { argocd?: { application?: ArgocdOverrides } };
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
   namespace?: { name?: string; labels?: Record<string, string> };
@@ -186,7 +207,10 @@ export interface Target {
 export interface PlatformExport {
   name: string;
   type: string;
-  url: string;
+  url?: string;
+  host?: string;
+  storageClass?: string;
+  backupLabels?: Record<string, string>;
 }
 
 export interface World {
@@ -208,7 +232,7 @@ function exportPort(provider: App, exported: Export): number {
   return found;
 }
 
-const OWN_NAMES = new Set(['secret', 'route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount']);
+const OWN_NAMES = new Set(['secret', 'route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount', 'volume']);
 
 function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, apps: App[]): string {
   const provider = apps.find((a) => a.name === resource.app);
@@ -216,8 +240,18 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
   const exported = provider.exports?.find((e) => e.name === resource.export);
   if (!exported) throw new Error(`${app.name}: resources.${resource.name}: ${resource.app} has no export named ${resource.export}`);
   const service = appWorkloads(provider)[exported.workload]?.service?.name ?? exported.workload;
-  const port = exportPort(provider, exported);
-  return `http://${service}.${provider.name}.svc.cluster.local${port === 80 ? '' : `:${port}`}${resource.path ?? ''}`;
+  return serviceUrl(service, provider.name, exportPort(provider, exported), resource.path);
+}
+
+const serviceUrl = (service: string, namespace: string, port: number, path = '') =>
+  `http://${service}.${namespace}.svc.cluster.local${port === 80 ? '' : `:${port}`}${path}`;
+
+function ownServiceUrl(app: App, service: string, port: string | number, path?: string): string {
+  const found = appServices(app).find((s) => s.service === service);
+  if (!found) throw new Error(`${app.name}: env: no service named ${service}`);
+  const exposed = found.ports.find((p) => p.name === port || p.port === port);
+  if (!exposed) throw new Error(`${app.name}: env: service ${service} has no port ${port}`);
+  return serviceUrl(service, appNamespace(app), exposed.port, path);
 }
 
 function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
@@ -237,7 +271,7 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
   if (provided.length !== 1) {
     throw new Error(`${app.name}: resources.${name}: expected one platform ${wanted.type} export named ${wanted.name}, found ${provided.length}`);
   }
-  return { name: env, value: provided[0].url };
+  return { name: env, value: provided[0].url as string };
 }
 
 const appServices = (app: App) =>
@@ -253,6 +287,13 @@ function containerRefs(spec: Workload): Record<string, unknown>[] {
   ]).filter((ref): ref is Record<string, unknown> => typeof ref === 'object' && ref !== null);
 }
 
+const mountedVolumes = (app: App) =>
+  Object.values(appWorkloads(app)).flatMap((spec) =>
+    [spec, ...((spec.initContainers ?? []) as Workload[]), ...((spec.sidecars ?? []) as Workload[])].flatMap((container) =>
+      Object.values((container.mounts ?? {}) as Record<string, { volume?: string }>).flatMap((mount) => mount.volume ?? []),
+    ),
+  );
+
 function validateRefs(app: App, external: boolean) {
   const fail = (message: string): never => {
     throw new Error(`${app.name}: ${message}`);
@@ -260,6 +301,10 @@ function validateRefs(app: App, external: boolean) {
   const refs = Object.values(appWorkloads(app)).flatMap(containerRefs);
   for (const resource of app.resources ?? []) {
     if (['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)) continue;
+    if (resource.type === 'volume') {
+      if (!external && !mountedVolumes(app).includes(resource.name)) fail(`resources.${resource.name}: no workload mounts this volume`);
+      continue;
+    }
     if (resource.type === 'bucket' && resource.secretTemplate) continue;
     if (external) continue;
     const kinds = ['secret', 'database', 'bucket'].includes(resource.type) ? ['resource', resource.type] : ['resource'];
@@ -330,7 +375,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'argocd']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'argocd', 'overrides']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -439,6 +484,13 @@ function secretRef(app: App, kind: SecretKind, name: string): string {
   return found.secretName as string;
 }
 
+export function storageClass(app: App, volume: Volume, platform: PlatformExport[]) {
+  const found = platform.find((e) => e.type === 'storage' && e.name === volume.class);
+  if (!found?.storageClass) throw new Error(`${app.name}: resources.${volume.name}: no storage export named ${volume.class}`);
+  if (volume.backup && !found.backupLabels) throw new Error(`${app.name}: resources.${volume.name}: storage ${volume.class} has no backups`);
+  return { storageClass: found.storageClass, labels: volume.backup ? found.backupLabels : undefined };
+}
+
 export const refsFor = (app: App, world: World): Refs => ({
   resource: (resource, env) => resourceEnv(app, resource, env, world),
   secret: (kind, name) => secretRef(app, kind, name),
@@ -447,6 +499,12 @@ export const refsFor = (app: App, world: World): Refs => ({
     if (!found) throw new Error(`${app.name}: no config resource named ${name}`);
     return found;
   },
+  volume: (name) => {
+    const found = declared(app, 'volume').find((volume) => volume.name === name);
+    if (!found) throw new Error(`${app.name}: no volume resource named ${name}`);
+    return found.claimName;
+  },
+  service: (service, port, path) => ownServiceUrl(app, service, port, path),
 });
 
 export function validateResources(world: World) {
@@ -458,6 +516,7 @@ export function validateResources(world: World) {
     for (const spec of Object.values(appWorkloads(app))) {
       expandWorkload(spec, refsFor(app, world));
     }
+    for (const volume of declared(app, 'volume')) storageClass(app, volume, world.platform);
   }
 }
 

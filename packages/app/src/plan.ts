@@ -11,6 +11,9 @@ import {
   declared,
   imageValuesPath,
   refsFor,
+  type RouteDns,
+  type RouteRatelimit,
+  storageClass,
   type RouteAuth,
   type SecretTemplate,
   type Target,
@@ -59,6 +62,20 @@ export interface Plan {
   namespaceLabels?: Record<string, string>;
   ownsNamespace: boolean;
   sources: PlanSource[];
+}
+
+function dnsAnnotations(dns?: RouteDns): Record<string, string> {
+  if (!dns) return {};
+  if (dns.provider === 'unifi') return { 'external-dns.kubernetes.io/managed-unifi': 'true' };
+  return { 'external-dns.kubernetes.io/managed': 'true', 'external-dns.kubernetes.io/cloudflare-proxied': String(dns.proxied) };
+}
+
+function ratelimitRules(ratelimit: RouteRatelimit | Record<string, unknown>) {
+  if (!('requests' in ratelimit)) return ratelimit;
+  const { requests, per, header } = ratelimit as RouteRatelimit;
+  return {
+    rules: [{ clientSelectors: [{ headers: [{ name: header, invert: false, type: 'Distinct' }] }], limit: { requests, unit: per } }],
+  };
 }
 
 export function planApp(app: App, versions: Versions, target: Target, world: World): Plan {
@@ -128,9 +145,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
               name: route.gateway ?? 'public-gateway',
               namespace: 'envoy-gateway-system',
             },
-            ...(route.annotations ? { annotations: route.annotations } : {}),
+            ...(route.dns || route.annotations ? { annotations: { ...route.annotations, ...dnsAnnotations(route.dns) } } : {}),
             hostnames: route.hosts,
-            ...(route.ratelimit ? { ratelimit: route.ratelimit } : {}),
+            ...(route.ratelimit ? { ratelimit: ratelimitRules(route.ratelimit) } : {}),
             rules: (route.rules ?? [{ paths: route.paths ?? ['/'], backend: route.backend as { name: string; port: number } }]).map((rule) => ({
               backendRefs: [{ group: '', kind: 'Service', ...rule.backend, weight: 1 }],
               matches: rule.paths.map((match) => ({
@@ -200,6 +217,26 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
           name: s.name,
           managedSecrets: [managedSecret(s)],
         })),
+      }),
+    );
+  }
+
+  const volumes = declared(app, 'volume');
+  if (volumes.length) {
+    sources.push(
+      chart('k8s-storage', {
+        volumes: volumes.map((volume) => {
+          const { storageClass: className, labels } = storageClass(app, volume, world.platform);
+          return {
+            name: volume.claimName,
+            namespace,
+            storageClass: className,
+            size: volume.size,
+            access: volume.access,
+            ...(labels ? { labels } : {}),
+            annotations,
+          };
+        }),
       }),
     );
   }
