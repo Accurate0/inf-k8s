@@ -30,19 +30,8 @@ resources:
     backend:
       name: maccas-web
       port: 3000
-    annotations:
-      external-dns.kubernetes.io/managed: "true"
-      external-dns.kubernetes.io/cloudflare-proxied: "true"
-    ratelimit:
-      rules:
-        - clientSelectors:
-            - headers:
-                - name: x-real-ip
-                  invert: false
-                  type: Distinct
-          limit:
-            requests: 5
-            unit: Second
+    dns: {provider: cloudflare, proxied: true}
+    ratelimit: {requests: 5, per: Second, header: x-real-ip}
 workloads:
   - name: maccas-api
     image: ghcr.io/accurate0/maccas-api
@@ -57,7 +46,7 @@ workloads:
       IMAGES_BUCKET__ENDPOINT: {bucket: images, key: S3_ENDPOINT}
       IMAGES_BUCKET__ACCESS_KEY_ID: {bucket: images, key: S3_ACCESS_KEY_ID}
       IMAGES_BUCKET__ACCESS_SECRET_KEY: {bucket: images, key: S3_SECRET_ACCESS_KEY}
-      RECOMMENDATIONS_API_BASE: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
+      RECOMMENDATIONS_API_BASE: {service: maccas-recommendations, port: api}
       SENSORDATA_API_BASE: http://maccas-sensordata.maccas-api.svc.cluster.local
       REDIS_CONNECTION_STRING: {resource: cache}
       OTEL_TRACING_URL: {resource: traces}
@@ -95,8 +84,8 @@ workloads:
     env:
       ADDRESS_HEADER: x-real-ip
       OLD_API_BASE_URL: https://api.maccas.one/v1
-      API_BASE_URL: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
-      EVENT_BASE_URL: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      API_BASE_URL: {service: maccas-api, port: api, path: /v1}
+      EVENT_BASE_URL: {service: maccas-api, port: api, path: /v1}
       FEATURE_FLAGS_URL: api.feature-flags.svc.cluster.local:50051
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
@@ -116,7 +105,7 @@ workloads:
     image: ghcr.io/accurate0/maccas-scheduler
     resources: {memory: 32Mi}
     env:
-      EVENT_API_BASE: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
+      EVENT_API_BASE: {service: maccas-api, port: api, path: /v1}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - secret: common
@@ -138,7 +127,7 @@ workloads:
       http: {path: /health, port: 8003}
       liveness: {delay: 3, every: 30, timeout: 5}
     env:
-      CLUSTERING_API_BASE: http://maccas-recommendations.maccas-api.svc.cluster.local:8004
+      CLUSTERING_API_BASE: {service: maccas-recommendations, port: clustering}
       OTEL_TRACING_URL: {resource: traces}
       OPENAI_BASE_URL: {resource: llm}
     envFrom:

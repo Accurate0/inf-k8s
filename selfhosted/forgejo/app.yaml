@@ -7,22 +7,23 @@ network:
 namespace:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
-argocd:
-  overrides:
-    options:
-      - ApplyOutOfSyncOnly=true
-      - RespectIgnoreDifferences=true
-      - CreateNamespace=true
-      - ServerSideApply=true
-    ignoreDifferences:
-      - group: gateway.networking.k8s.io
-        kind: TCPRoute
-        name: forgejo-ssh
-        jqPathExpressions:
-          - ".status"
-          - ".spec.parentRefs"
-          - ".spec.rules[].backendRefs[].group"
-          - ".spec.rules[].backendRefs[].weight"
+overrides:
+  argocd:
+    application:
+      options:
+        - ApplyOutOfSyncOnly=true
+        - RespectIgnoreDifferences=true
+        - CreateNamespace=true
+        - ServerSideApply=true
+      ignoreDifferences:
+        - group: gateway.networking.k8s.io
+          kind: TCPRoute
+          name: forgejo-ssh
+          jqPathExpressions:
+            - ".status"
+            - ".spec.parentRefs"
+            - ".spec.rules[].backendRefs[].group"
+            - ".spec.rules[].backendRefs[].weight"
 resources:
   - name: forgejo
     type: route
@@ -36,9 +37,7 @@ resources:
       port: 8923
     paths:
       - /
-    annotations:
-      external-dns.kubernetes.io/managed: "true"
-      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    dns: {provider: cloudflare, proxied: false}
     timeouts:
       request: 90s
       backendRequest: 90s

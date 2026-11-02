@@ -16,9 +16,7 @@ resources:
       port: 80
     paths:
       - /
-    annotations:
-      external-dns.kubernetes.io/managed: "true"
-      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    dns: {provider: cloudflare, proxied: false}
     timeouts:
       request: 3600s
       backendRequest: 3600s

@@ -6,19 +6,20 @@ network:
 namespace:
   labels:
     internal-gateway-access: "true"
-argocd:
-  overrides:
-    options:
-      - ApplyOutOfSyncOnly=true
-      - CreateNamespace=true
-      - RespectIgnoreDifferences=true
-      - ServerSideApply=true
-    ignoreDifferences:
-      - group: ""
-        kind: Secret
-        name: firefly-app-key
-        jsonPointers:
-          - /data
+overrides:
+  argocd:
+    application:
+      options:
+        - ApplyOutOfSyncOnly=true
+        - CreateNamespace=true
+        - RespectIgnoreDifferences=true
+        - ServerSideApply=true
+      ignoreDifferences:
+        - group: ""
+          kind: Secret
+          name: firefly-app-key
+          jsonPointers:
+            - /data
 resources:
   - name: firefly
     type: route

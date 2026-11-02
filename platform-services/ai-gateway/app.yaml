@@ -101,7 +101,7 @@ workloads:
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
       AIG_ADMIN_TOKEN: {secret: ai-gateway, key: ADMIN_TOKEN}
-      AIG_URL: http://api.ai-gateway.svc.cluster.local
+      AIG_URL: {service: api, port: http}
 namespace:
   labels:
     internal-gateway-access: "true"

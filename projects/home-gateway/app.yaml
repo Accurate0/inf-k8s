@@ -22,9 +22,7 @@ resources:
     gateway: internal-gateway
     hosts:
       - home.ortzi.cloud
-    annotations:
-      external-dns.kubernetes.io/managed: "true"
-      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    dns: {provider: cloudflare, proxied: false}
     rules:
       - paths: [/v1]
         backend: {name: home-gateway, port: 80}
@@ -38,8 +36,7 @@ resources:
     gateway: lan-gateway
     hosts:
       - home.internal
-    annotations:
-      external-dns.kubernetes.io/managed-unifi: "true"
+    dns: {provider: unifi}
     rules:
       - paths: [/v1]
         backend: {name: home-gateway, port: 80}
@@ -66,19 +63,8 @@ resources:
       port: 80
     paths:
       - /v1
-    annotations:
-      external-dns.kubernetes.io/managed: "true"
-      external-dns.kubernetes.io/cloudflare-proxied: "false"
-    ratelimit:
-      rules:
-        - clientSelectors:
-            - headers:
-                - name: x-real-ip
-                  invert: false
-                  type: Distinct
-          limit:
-            requests: 5
-            unit: Second
+    dns: {provider: cloudflare, proxied: false}
+    ratelimit: {requests: 5, per: Second, header: x-real-ip}
   - name: home-gateway
     type: oidc
     secretName: kanidm-home-gateway-oidc
