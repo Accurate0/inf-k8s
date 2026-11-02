@@ -162,7 +162,7 @@ export interface App {
   name: string;
   repository?: string;
   charts?: Record<string, string>;
-  workloads?: NamedWorkload[] | Record<string, Workload>;
+  workloads?: NamedWorkload[];
   resources?: Resource[];
   exports?: Export[];
   sources?: Source[];
@@ -175,8 +175,7 @@ export interface App {
 export type NamedWorkload = Workload & { name: string };
 
 export function appWorkloads(app: App): Record<string, Workload> {
-  if (!Array.isArray(app.workloads)) return app.workloads ?? {};
-  return Object.fromEntries(app.workloads.map(({ name, ...spec }) => [name, spec]));
+  return Object.fromEntries((app.workloads ?? []).map(({ name, ...spec }) => [name, spec]));
 }
 
 export const appNamespace = (app: App) => app.namespace?.name ?? app.name;
@@ -355,11 +354,10 @@ export function validate(raw: unknown, where: string): App {
     if (app.network.policy === false && app.network.ingress.length) fail('network.ingress needs network.policy: true');
     if (app.namespace.labels) fail('namespace.labels cannot be set with namespace.name');
   }
-  if (Array.isArray(app.workloads)) {
-    const names = app.workloads.map((workload) => workload.name);
-    for (const name of names) {
-      if (names.indexOf(name) !== names.lastIndexOf(name)) fail(`workloads: duplicate name ${name}`);
-    }
+  if (app.workloads && !Array.isArray(app.workloads)) fail('workloads must be a list');
+  const workloadNames = (app.workloads ?? []).map((workload) => workload.name);
+  for (const name of workloadNames) {
+    if (workloadNames.indexOf(name) !== workloadNames.lastIndexOf(name)) fail(`workloads: duplicate name ${name}`);
   }
   for (const [name, workload] of Object.entries(appWorkloads(app))) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
