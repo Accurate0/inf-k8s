@@ -41,6 +41,7 @@ jobs:
           helm package charts/k8s-workload
           helm package charts/k8s-network
           helm package charts/k8s-observability
+          helm package charts/k8s-storage
 
       - name: Push charts to GHCR
         run: |

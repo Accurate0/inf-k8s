@@ -4,6 +4,11 @@
   "type": "object",
   "additionalProperties": false,
   "properties": {
+    "retainAnnotations": {
+      "type": "object",
+      "description": "Annotations that keep these resources when they are removed from the app.",
+      "additionalProperties": { "type": "string" }
+    },
     "defaults": {
       "type": "object",
       "additionalProperties": false,

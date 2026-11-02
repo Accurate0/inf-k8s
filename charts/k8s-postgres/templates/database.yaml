@@ -10,7 +10,7 @@
 {{- $annotations := merge (dict) ($db.annotations | default dict) ($defaults.annotations | default dict) }}
 {{- $databaseName := $db.databaseName | default ($db.name | replace "-" "_") }}
 {{- $generatorName := printf "%s-database" $db.name }}
-{{- $host := $defaults.host | default (ternary "cloudnative-pg-cluster-pooler-rw.cnpg-system" "cloudnative-pg-cluster-rw.cnpg-system" (ne $db.enableConnectionPooling false)) }}
+{{- $host := $db.host | default $defaults.host | default (ternary "cloudnative-pg-cluster-pooler-rw.cnpg-system" "cloudnative-pg-cluster-rw.cnpg-system" (ne $db.enableConnectionPooling false)) }}
 apiVersion: generators.external-secrets.io/v1alpha1
 kind: VaultDynamicSecret
 metadata:
