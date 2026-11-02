@@ -138,7 +138,7 @@ export const appTerraformPath = (app: App) => `${TERRAFORM_APPS}/${app.name}.tf.
 
 export function renderAppTerraform(app: App): string | undefined {
   const blocks = [
-    ...Object.keys(appDatabases(app)).map((database) => databaseResources(app, database, databaseRole(database))),
+    ...Object.entries(appDatabases(app)).map(([database, spec]) => databaseResources(app, database, databaseRole(database, spec))),
     ...(app.resources ?? []).flatMap((resource) => {
       if (resource.type !== 'bucket') return [];
       const id = `${app.name}-${resource.name}`;

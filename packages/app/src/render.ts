@@ -42,7 +42,7 @@ export type Resource =
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
-  | { name: string; type: 'secret'; secretName: string }
+  | { name: string; type: 'secret'; secretName: string; secretTemplate?: SecretTemplate }
   | { name: string; type: 'cache'; instance: string }
   | ({ name: string; type: 'route' } & Route)
   | ({ name: string; type: 'oidc' } & OidcClient)
@@ -68,6 +68,14 @@ export interface Metrics {
 export interface DatabaseSpec {
   secretName: string;
   enableConnectionPooling?: boolean;
+  role?: string;
+  extensions?: string[];
+}
+
+export interface SecretTemplate {
+  type?: string;
+  includeAllSecrets?: boolean;
+  data: Record<string, string>;
 }
 
 export interface Bucket {
@@ -77,7 +85,7 @@ export interface Bucket {
   bucket: string;
   user?: string;
   secretName: string;
-  secretTemplate?: { type?: string; data: Record<string, string> };
+  secretTemplate?: SecretTemplate;
 }
 
 export interface Export {
@@ -120,6 +128,20 @@ export interface Build {
   };
 }
 
+export interface HelmRelease {
+  chart: string;
+  repo: string;
+  version: string;
+  values: string;
+  releaseName?: string;
+}
+
+export interface Sync {
+  options?: string[];
+  automated?: boolean;
+  ignoreDifferences?: Record<string, unknown>[];
+}
+
 export interface App {
   name: string;
   repository?: string;
@@ -127,7 +149,9 @@ export interface App {
   workloads?: Record<string, Workload>;
   resources?: Resource[];
   exports?: Export[];
+  helm?: HelmRelease[];
   sources?: Record<string, unknown>[];
+  sync?: Sync;
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
   namespace?: { name?: string; labels?: Record<string, string> };
@@ -152,6 +176,7 @@ export interface PlatformExport {
 export interface World {
   platform: PlatformExport[];
   apps: App[];
+  external?: Set<string>;
 }
 
 function servicePorts(workload: string, spec: Workload) {
@@ -212,7 +237,7 @@ function containerRefs(spec: Workload): Record<string, unknown>[] {
   ]).filter((ref): ref is Record<string, unknown> => typeof ref === 'object' && ref !== null);
 }
 
-function validateRefs(app: App) {
+function validateRefs(app: App, external: boolean) {
   const fail = (message: string): never => {
     throw new Error(`${app.name}: ${message}`);
   };
@@ -220,6 +245,7 @@ function validateRefs(app: App) {
   for (const resource of app.resources ?? []) {
     if (['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)) continue;
     if (resource.type === 'bucket' && resource.secretTemplate) continue;
+    if (external) continue;
     const kinds = ['secret', 'database', 'bucket'].includes(resource.type) ? ['resource', resource.type] : ['resource'];
     if (!refs.some((ref) => kinds.some((kind) => ref[kind] === resource.name))) {
       fail(`resources.${resource.name}: no workload uses this ${resource.type}`);
@@ -234,6 +260,7 @@ function validateRefs(app: App) {
   for (const [name, route] of Object.entries(appRoutes(app))) {
     for (const backend of [...(route.backend ? [route.backend] : []), ...(route.rules ?? []).map((rule) => rule.backend)]) {
       const service = services.find((s) => s.service === backend.name);
+      if (!service && external) continue;
       if (!service) fail(`routes.${name}.backend: no service named ${backend.name}`);
       if (!service?.ports.some((p) => p.port === backend.port)) {
         fail(`routes.${name}.backend: service ${backend.name} has no port ${backend.port}`);
@@ -287,7 +314,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'helm', 'sync']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -303,7 +330,8 @@ export function validate(raw: unknown, where: string): App {
     fail('network.ingress is required (use [] for none)');
   }
   if (app.namespace?.name) {
-    if (app.network.policy !== false || app.network.ingress.length) fail('namespace.name needs network.policy: false and no network.ingress');
+    if (app.network.policy === undefined) fail('namespace.name needs an explicit network.policy');
+    if (app.network.policy === false && app.network.ingress.length) fail('network.ingress needs network.policy: true');
     if (app.namespace.labels) fail('namespace.labels cannot be set with namespace.name');
   }
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
@@ -354,6 +382,10 @@ export function validate(raw: unknown, where: string): App {
   for (const key of resourceKeys) {
     if (resourceKeys.indexOf(key) !== resourceKeys.lastIndexOf(key)) fail(`resources: duplicate name ${key.split('/')[1]}`);
   }
+  const releases = (app.helm ?? []).map((release) => release.releaseName ?? release.chart);
+  for (const release of releases) {
+    if (releases.indexOf(release) !== releases.lastIndexOf(release)) fail(`helm: duplicate release ${release}, set releaseName`);
+  }
   const exportNames = (app.exports ?? []).map((e) => e.name);
   for (const exported of app.exports ?? []) {
     if (exportNames.indexOf(exported.name) !== exportNames.lastIndexOf(exported.name)) fail(`exports: duplicate name ${exported.name}`);
@@ -394,7 +426,7 @@ const refsFor = (app: App, world: World): Refs => ({
 
 export function validateResources(world: World) {
   for (const app of world.apps) {
-    validateRefs(app);
+    validateRefs(app, world.external?.has(app.name) ?? false);
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') appExportUrl(app, resource, world.apps);
     }
@@ -472,7 +504,11 @@ export function renderKustomization(app: App, target: Target): string | undefine
 }
 
 export const appFiles = (app: App, target: Target) =>
-  [...declared(app, 'config').flatMap((config) => config.files), ...declared(app, 'dashboard').map((dashboard) => dashboard.file)].map(
+  [
+    ...declared(app, 'config').flatMap((config) => config.files),
+    ...declared(app, 'dashboard').map((dashboard) => dashboard.file),
+    ...(app.helm ?? []).map((release) => release.values),
+  ].map(
     (file) => `${target.location}/${app.name}/${file}`,
   );
 
@@ -549,8 +585,9 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     return { securityPolicy: { httpRoute: route[0], ...policy } };
   };
 
-  if (app.workloads && Object.keys(app.workloads).length) {
-    sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
+  const hasWorkloads = Boolean(app.workloads && Object.keys(app.workloads).length);
+  if (hasWorkloads || app.helm?.length) sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
+  if (app.workloads && hasWorkloads) {
     sources.push(
       chart(app, versions, 'k8s-workload', {
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
@@ -559,12 +596,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
           ...(serviceAccounts.length ? { serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
-            const { health, ...rest } = expandWorkload(spec, refsFor(app, world));
-            return {
-              name: workload,
-              ...rest,
-              ...(health ? { probes: { path: health } } : {}),
-            };
+            return { name: workload, ...expandWorkload(spec, refsFor(app, world)) };
           }),
         },
       }),
@@ -644,7 +676,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           databases: Object.entries(appDatabases(app)).map(([database, spec]) => ({
             name: database,
             namespace,
-            databaseName: databaseRole(database),
+            databaseName: databaseRole(database, spec),
             secretName: databaseSecret(database),
             ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
             annotations,
@@ -657,10 +689,17 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
     resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: resource.secretName, secretTemplate: resource.secretTemplate }] : [],
   );
-  const managedSecret = ({ secretName, secretTemplate }: { secretName: string; secretTemplate?: Bucket['secretTemplate'] }) => ({
+  const managedSecret = ({ secretName, secretTemplate }: { secretName: string; secretTemplate?: SecretTemplate }) => ({
     secretName,
     ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
-    ...(secretTemplate ? { template: { data: secretTemplate.data } } : {}),
+    ...(secretTemplate
+      ? {
+          template: {
+            ...(secretTemplate.includeAllSecrets === undefined ? {} : { includeAllSecrets: secretTemplate.includeAllSecrets }),
+            data: secretTemplate.data,
+          },
+        }
+      : {}),
   });
   if (appSecrets(app).length || bucketSecrets.length) {
     sources.push(
@@ -689,6 +728,15 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     );
   }
 
+  for (const { chart: helmChart, repo, version, values, releaseName } of app.helm ?? []) {
+    sources.push({
+      chart: helmChart,
+      repoURL: repo,
+      targetRevision: version,
+      helm: { ...(releaseName ? { releaseName } : {}), valueFiles: [`$values/${dir}/${values}`] },
+    });
+  }
+
   if (target.hasManifests || target.rootKustomization) {
     sources.push({ repoURL: CONFIG_REPO, name: 'application', path: target.rootKustomization ? dir : `${dir}/manifests` });
   }
@@ -700,12 +748,14 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     metadata: { name, namespace: 'argocd' },
     spec: {
       syncPolicy: {
-        syncOptions: ['CreateNamespace=true', 'ServerSideApply=true'],
-        automated: { prune: true, selfHeal: true },
+        syncOptions: app.sync?.options ?? ['CreateNamespace=true', 'ServerSideApply=true'],
+        ...(app.sync?.automated === false ? {} : { automated: { prune: true, selfHeal: true } }),
+        ...(app.namespace?.labels && !hasWorkloads ? { managedNamespaceMetadata: { labels: app.namespace.labels } } : {}),
       },
       project: target.location,
       sources,
       destination: { server: 'https://kubernetes.default.svc', namespace },
+      ...(app.sync?.ignoreDifferences ? { ignoreDifferences: app.sync.ignoreDifferences } : {}),
     },
     operation: {
       initiatedBy: { username: 'github-actions' },
@@ -734,10 +784,10 @@ export function appMetrics(app: App): Metrics[] {
   return specs(declared(app, 'metrics')).map(([, spec]) => spec as Metrics);
 }
 
-export function appSecrets(app: App): { name: string; secretName: string }[] {
+export function appSecrets(app: App): { name: string; secretName: string; secretTemplate?: SecretTemplate }[] {
   return (app.resources ?? []).flatMap((resource) =>
     resource.type === 'secret'
-      ? [{ name: resource.name, secretName: resource.secretName }]
+      ? [{ name: resource.name, secretName: resource.secretName, secretTemplate: resource.secretTemplate }]
       : [],
   );
 }
@@ -751,12 +801,12 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
   return Object.fromEntries(declared);
 }
 
-export const databaseRole = (database: string) => database.replaceAll('-', '_');
+export const databaseRole = (database: string, spec?: Pick<DatabaseSpec, 'role'>) => spec?.role ?? database.replaceAll('-', '_');
 
 export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;
 
-export function renderDatabase(database: string): string {
-  const name = databaseRole(database);
+export function renderDatabase(database: string, spec?: Pick<DatabaseSpec, 'role' | 'extensions'>): string {
+  const name = databaseRole(database, spec);
   const manifest = {
     apiVersion: 'postgresql.cnpg.io/v1',
     kind: 'Database',
@@ -766,13 +816,14 @@ export function renderDatabase(database: string): string {
       owner: name,
       cluster: { name: 'cloudnative-pg-cluster' },
       databaseReclaimPolicy: 'retain',
+      ...(spec?.extensions ? { extensions: spec.extensions.map((extension) => ({ name: extension, ensure: 'present' })) } : {}),
     },
   };
   return `${HEADER}\n# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/database_v1.json\n${stringify(manifest)}`;
 }
 
 export const appRoles = (apps: App[]) =>
-  apps.flatMap((app) => Object.keys(appDatabases(app)).map(databaseRole));
+  apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
 
 export function addRoles(cluster: string, roles: string[]): string {
   const doc = parseDocument(cluster);
@@ -788,7 +839,14 @@ export function addRoles(cluster: string, roles: string[]): string {
 interface ChartSource {
   chart: string;
   repoURL: string;
-  helm?: { valueFiles?: string[]; valuesObject?: unknown };
+  targetRevision: string;
+  helm?: { releaseName?: string; valueFiles?: string[]; valuesObject?: unknown };
+}
+
+function chartLocation({ chart, repoURL, targetRevision }: ChartSource): string[] {
+  if (repoURL.startsWith(CHART_REGISTRY)) return [`charts/${chart}`];
+  if (!repoURL.startsWith('oci://')) return [chart, '--repo', repoURL, '--version', targetRevision];
+  return [repoURL.endsWith(`/${chart}`) ? repoURL : `${repoURL}/${chart}`, '--version', targetRevision];
 }
 
 export function helmTemplates(rendered: string): { args: string[]; values: string }[] {
@@ -796,12 +854,12 @@ export function helmTemplates(rendered: string): { args: string[]; values: strin
   const name: string = application.metadata.name;
   const sources: ChartSource[] = application.spec.sources;
   return sources
-    .filter((source) => source.chart && source.repoURL?.startsWith(CHART_REGISTRY))
+    .filter((source) => source.chart)
     .map((source) => ({
       args: [
         'template',
-        name,
-        `charts/${source.chart}`,
+        source.helm?.releaseName ?? name,
+        ...chartLocation(source),
         '--namespace',
         application.spec.destination.namespace,
         ...(source.helm?.valueFiles ?? []).flatMap((file) => ['-f', file.replace(/^\$values\//, '')]),

@@ -38,8 +38,8 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
         edges.push({ from: app.name, to: node(`bucket/${name}`, `${name} (${resource.provider})`, 'database') });
       }
     }
-    for (const database of Object.keys(appDatabases(app))) {
-      const name = databaseRole(database);
+    for (const [database, spec] of Object.entries(appDatabases(app))) {
+      const name = databaseRole(database, spec);
       edges.push({ from: app.name, to: node(`database/${name}`, name, 'database') });
     }
   }

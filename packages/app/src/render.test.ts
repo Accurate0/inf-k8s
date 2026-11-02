@@ -1058,10 +1058,10 @@ test('network.policy false skips the network chart', () => {
   assert.equal(source(render(overridden), 'k8s-network'), undefined);
 });
 
-test('a namespace override must opt out of the network policy', () => {
+test('a namespace override must state its network policy', () => {
   const namespace = { name: 'kube-system' };
-  assert.throws(() => validate({ name: 'foo', namespace, network: { ingress: [] } }, 'foo'), /network\.policy: false/);
-  assert.throws(() => validate({ name: 'foo', namespace, network: { ingress: ['bar'], policy: false } }, 'foo'), /network\.policy: false/);
+  assert.throws(() => validate({ name: 'foo', namespace, network: { ingress: [] } }, 'foo'), /explicit network\.policy/);
+  assert.throws(() => validate({ name: 'foo', namespace, network: { ingress: ['bar'], policy: false } }, 'foo'), /network\.policy: true/);
   assert.throws(
     () => validate({ name: 'foo', namespace: { ...namespace, labels: { a: 'b' } }, network: { ingress: [], policy: false } }, 'foo'),
     /namespace\.labels/,
@@ -1079,4 +1079,111 @@ test('a bucket secret template sets the secret type and data', () => {
 
 test('a bucket with a secret template needs no workload', () => {
   assert.doesNotThrow(() => validateResources({ platform, apps: [overridden] }));
+});
+
+const release = { chart: 'forgejo', repo: 'oci://code.forgejo.org/forgejo-helm/forgejo', version: '1.0.0', values: 'forgejo.values.yaml' };
+
+test('helm releases read values from a file beside app.yaml', () => {
+  const rendered = render({ name: 'foo', network: { ingress: [] }, helm: [release] }, { location: 'selfhosted', hasManifests: false });
+  assert.equal(rendered.spec.project, 'selfhosted');
+  assert.equal(rendered.spec.sources[0].ref, 'values');
+  assert.deepEqual(source(rendered, 'forgejo'), {
+    chart: 'forgejo',
+    repoURL: release.repo,
+    targetRevision: '1.0.0',
+    helm: { valueFiles: ['$values/selfhosted/foo/forgejo.values.yaml'] },
+  });
+});
+
+test('a chart listed twice needs distinct release names', () => {
+  const app = (helm: App['helm']) => ({ name: 'foo', network: { ingress: [] }, helm });
+  assert.throws(() => validate(app([release, release]), 'x'), /duplicate release forgejo/);
+  validate(app([release, { ...release, releaseName: 'other' }]), 'x');
+});
+
+test('helm templates pull upstream charts', () => {
+  const rendered = renderApplication(
+    { name: 'foo', network: { ingress: [] }, helm: [release, { chart: 'reloader', repo: 'https://example.com/charts', version: '2.0.0', values: 'r.yaml', releaseName: 'rel' }] },
+    versions,
+    target,
+    { platform, apps: [] },
+  );
+  const [, oci, https] = helmTemplates(rendered).map(({ args }) => args);
+  assert.deepEqual(oci.slice(1, 5), ['foo', release.repo, '--version', '1.0.0']);
+  assert.deepEqual(https.slice(1, 7), ['rel', 'reloader', '--repo', 'https://example.com/charts', '--version', '2.0.0']);
+  assert.ok(oci.includes('projects/foo/forgejo.values.yaml'));
+});
+
+test('sync replaces the default policy', () => {
+  const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
+  const rendered = render({ name: 'foo', network: { ingress: [] }, sync: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences } });
+  assert.deepEqual(rendered.spec.syncPolicy, { syncOptions: ['ServerSideApply=true'] });
+  assert.deepEqual(rendered.spec.ignoreDifferences, ignoreDifferences);
+  validate({ name: 'foo', network: { ingress: [] }, sync: { automated: false } }, 'x');
+});
+
+test('namespace labels use managed metadata without workloads', () => {
+  const labels = { 'internal-gateway-access': 'true' };
+  const bare = render({ name: 'foo', network: { ingress: [] }, namespace: { labels } });
+  assert.deepEqual(bare.spec.syncPolicy.managedNamespaceMetadata, { labels });
+  const workload = render({ name: 'foo', network: { ingress: [] }, namespace: { labels }, workloads: { foo: { image: 'a' } } });
+  assert.equal(workload.spec.syncPolicy.managedNamespaceMetadata, undefined);
+  assert.deepEqual(source(workload, 'k8s-workload')?.helm.valuesObject.namespaceLabels, labels);
+});
+
+test('namespace.name needs an explicit network policy', () => {
+  const app = (network: App['network']) => ({ name: 'foo', network, namespace: { name: 'bar' } });
+  assert.throws(() => validate(app({ ingress: [] }), 'x'), /explicit network.policy/);
+  assert.throws(() => validate(app({ ingress: ['a'], policy: false }), 'x'), /needs network.policy: true/);
+  validate(app({ ingress: [], policy: false }), 'x');
+  const rendered = render(app({ ingress: ['a'], policy: true }));
+  assert.equal(source(rendered, 'k8s-network')?.helm.valuesObject.namespace, 'bar');
+});
+
+test('consumers outside workloads relax only the checks they can satisfy', () => {
+  const app: App = {
+    name: 'foo',
+    network: { ingress: [] },
+    resources: [
+      { name: 'foo', type: 'secret', secretName: 'foo-secrets' },
+      { name: 'foo', type: 'database', secretName: 'foo-db' },
+      { name: 'web', type: 'route', hosts: ['foo.example.com'], auth: { mode: 'app', reason: 'r' }, backend: { name: 'chart-service', port: 80 } },
+    ],
+  };
+  assert.throws(() => validateResources({ platform, apps: [app] }), /no workload uses/);
+  validateResources({ platform, apps: [app], external: new Set(['foo']) });
+  const wrongPort: App = {
+    ...app,
+    workloads: { foo: { image: 'a', service: { name: 'chart-service' }, ports: [{ name: 'http', container: 8080, service: 8080 }] } },
+  };
+  assert.throws(() => validateResources({ platform, apps: [wrongPort], external: new Set(['foo']) }), /has no port 80/);
+});
+
+test('database role and extensions flow through every output', () => {
+  const app: App = {
+    name: 'foo',
+    network: { ingress: [] },
+    resources: [{ name: 'foo', type: 'database', secretName: 'foo-db', role: 'foo_2', extensions: ['vector'] }],
+  };
+  assert.deepEqual(appRoles([app]), ['foo_2']);
+  assert.equal(source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].databaseName, 'foo_2');
+  const database = parse(renderDatabase('foo', { role: 'foo_2', extensions: ['vector'] }));
+  assert.equal(database.metadata.name, 'foo');
+  assert.equal(database.spec.name, 'foo_2');
+  assert.equal(database.spec.owner, 'foo_2');
+  assert.deepEqual(database.spec.extensions, [{ name: 'vector', ensure: 'present' }]);
+  const terraform = JSON.parse(renderAppTerraform(app) as string);
+  assert.equal(terraform.resource.vault_database_secret_backend_static_role.foo.username, 'foo_2');
+});
+
+test('secret templates can exclude other keys', () => {
+  const rendered = render({
+    name: 'foo',
+    network: { ingress: [] },
+    resources: [{ name: 'foo', type: 'secret', secretName: 's', secretTemplate: { includeAllSecrets: false, data: { a: 'b' } } }],
+  });
+  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets[0].managedSecrets, [
+    { secretName: 's', template: { includeAllSecrets: false, data: { a: 'b' } } },
+  ]);
+  validate({ name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'secret', secretName: 's', secretTemplate: { includeAllSecrets: false, data: { a: 'b' } } }] }, 'x');
 });

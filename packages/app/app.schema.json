@@ -39,7 +39,7 @@
         },
         "policy": {
           "type": "boolean",
-          "description": "Render the namespace's default-deny network policies. Defaults to true; must be false with namespace.name."
+          "description": "Render the namespace's default-deny network policies. Defaults to true; must be set explicitly with namespace.name."
         }
       }
     },
@@ -587,6 +587,17 @@
               "enableConnectionPooling": {
                 "type": "boolean",
                 "description": "Connect through the pooler. Defaults to true."
+              },
+              "role": {
+                "type": "string",
+                "description": "Postgres role and database name. Defaults to the name with hyphens as underscores."
+              },
+              "extensions": {
+                "type": "array",
+                "description": "Postgres extensions to ensure are present.",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           },
@@ -609,6 +620,28 @@
               },
               "secretName": {
                 "type": "string"
+              },
+              "secretTemplate": {
+                "type": "object",
+                "description": "Reshape the synced secret, for consumers that expect other keys.",
+                "additionalProperties": false,
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "includeAllSecrets": {
+                    "type": "boolean"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
               }
             }
           },
@@ -1081,6 +1114,62 @@
         "type": "object"
       }
     },
+    "helm": {
+      "type": "array",
+      "description": "Upstream Helm charts. Values live in a file beside app.yaml.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "chart",
+          "repo",
+          "version",
+          "values"
+        ],
+        "properties": {
+          "chart": {
+            "type": "string"
+          },
+          "repo": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          },
+          "values": {
+            "type": "string",
+            "description": "Values file, relative to the app directory."
+          },
+          "releaseName": {
+            "type": "string",
+            "description": "Defaults to the app name. Required when a chart is listed twice."
+          }
+        }
+      }
+    },
+    "sync": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "options": {
+          "type": "array",
+          "description": "Replaces the default syncOptions.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "automated": {
+          "type": "boolean",
+          "description": "Sync automatically with prune and self-heal. Defaults to true."
+        },
+        "ignoreDifferences": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
     "build": {
       "type": "object",
       "additionalProperties": false,
@@ -1155,7 +1244,8 @@
           "type": "object",
           "additionalProperties": {
             "type": "string"
-          }
+          },
+          "description": "Applied through k8s-workload, or managedNamespaceMetadata for an app with no workloads."
         }
       }
     }
