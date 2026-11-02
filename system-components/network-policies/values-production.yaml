@@ -9,7 +9,3 @@ namespaces:
       - feature-flags
       - ai-gateway
       - immich
-  firefly:
-    ingress:
-      - envoy-gateway-system
-      - firefly-up-sync
