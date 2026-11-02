@@ -23,7 +23,7 @@ import {
   imageValuesPath,
   isCurrent,
   kustomizationPath,
-  managedDatabases,
+  appWorkloads,
   needsKustomization,
   rbacPath,
   type Listener,
@@ -193,7 +193,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   }
   for (const { app } of apps) {
     if (only && app.name !== only) continue;
-    for (const [database, spec] of Object.entries(managedDatabases(app))) {
+    for (const [database, spec] of Object.entries(appDatabases(app))) {
       const path = databasePath(database);
       const wanted = renderDatabase(database, spec);
       if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
@@ -324,7 +324,7 @@ export const run = cli({
       const rows = discover().map(({ app, target }) => [
         app.name,
         target.location,
-        count(app.workloads),
+        count(appWorkloads(app)),
         count(appRoutes(app)),
         count(appOidc(app)),
         count(appDatabases(app)),

@@ -1213,14 +1213,6 @@ test('manifests sources are limited and stay in the app directory', () => {
   assert.throws(() => validate(app([{ type: 'helm', chart: 'a', repo: 'b', version: '1' }]), 'x'));
 });
 
-test('external databases only render credentials', () => {
-  const app: App = { name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'database', secretName: 'foo-db', external: true }] };
-  assert.deepEqual(appRoles([app]), []);
-  assert.equal(renderAppTerraform(app), undefined);
-  assert.deepEqual(JSON.parse(renderTerraformIndex([app])).output.database_names.value, []);
-  assert.equal(source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].secretName, 'foo-db');
-});
-
 test('kustomizations on disk must be declared as a source', () => {
   const app = (sources: App['sources'], resources?: App['resources']): App => ({ name: 'foo', network: { ingress: [] }, sources, resources });
   const none = { hasManifests: false, hasRootKustomization: false };
@@ -1238,4 +1230,13 @@ test('raw argo sources are rejected', () => {
 
 test('the old sync block is rejected', () => {
   assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, sync: { automated: false } }, 'x'), /unknown block "sync"/);
+});
+
+test('workloads can be a list', () => {
+  const spec = { image: 'i', service: { name: 'web' }, ports: [{ name: 'http', container: 80, service: 80 }] };
+  const list = validate({ name: 'foo', network: { ingress: [] }, workloads: [{ name: 'foo', ...spec }] }, 'x');
+  const map = validate({ name: 'foo', network: { ingress: [] }, workloads: { foo: spec } }, 'x');
+  assert.deepEqual(render(list), render(map));
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, workloads: [{ name: 'a', image: 'i' }, { name: 'a', image: 'i' }] }, 'x'), /duplicate name a/);
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, workloads: [{ image: 'i' }] }, 'x'));
 });

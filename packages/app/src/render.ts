@@ -70,7 +70,6 @@ export interface DatabaseSpec {
   enableConnectionPooling?: boolean;
   role?: string;
   extensions?: string[];
-  external?: boolean;
 }
 
 export interface SecretTemplate {
@@ -163,7 +162,7 @@ export interface App {
   name: string;
   repository?: string;
   charts?: Record<string, string>;
-  workloads?: Record<string, Workload>;
+  workloads?: NamedWorkload[] | Record<string, Workload>;
   resources?: Resource[];
   exports?: Export[];
   sources?: Source[];
@@ -171,6 +170,13 @@ export interface App {
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
   namespace?: { name?: string; labels?: Record<string, string> };
+}
+
+export type NamedWorkload = Workload & { name: string };
+
+export function appWorkloads(app: App): Record<string, Workload> {
+  if (!Array.isArray(app.workloads)) return app.workloads ?? {};
+  return Object.fromEntries(app.workloads.map(({ name, ...spec }) => [name, spec]));
 }
 
 export const appNamespace = (app: App) => app.namespace?.name ?? app.name;
@@ -200,7 +206,7 @@ function servicePorts(workload: string, spec: Workload) {
 }
 
 function exportPort(provider: App, exported: Export): number {
-  const spec = provider.workloads?.[exported.workload];
+  const spec = appWorkloads(provider)[exported.workload];
   const ports = spec ? servicePorts(exported.workload, spec).ports : [];
   const found = ports.find((p) => p.name === exported.port || p.port === exported.port)?.port;
   if (!found) throw new Error(`${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`);
@@ -214,7 +220,7 @@ function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, ap
   if (!provider) throw new Error(`${app.name}: resources.${resource.name}: no app named ${resource.app}`);
   const exported = provider.exports?.find((e) => e.name === resource.export);
   if (!exported) throw new Error(`${app.name}: resources.${resource.name}: ${resource.app} has no export named ${resource.export}`);
-  const service = provider.workloads?.[exported.workload]?.service?.name ?? exported.workload;
+  const service = appWorkloads(provider)[exported.workload]?.service?.name ?? exported.workload;
   const port = exportPort(provider, exported);
   return `http://${service}.${provider.name}.svc.cluster.local${port === 80 ? '' : `:${port}`}${resource.path ?? ''}`;
 }
@@ -240,7 +246,7 @@ function resourceEnv(app: App, name: string, env: string, { platform, apps }: Wo
 }
 
 const appServices = (app: App) =>
-  Object.entries(app.workloads ?? {}).map(([workload, spec]) => servicePorts(workload, spec));
+  Object.entries(appWorkloads(app)).map(([workload, spec]) => servicePorts(workload, spec));
 
 const BUCKET_KEYS = ['S3_BUCKET', 'S3_ENDPOINT', 'S3_REGION', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
 
@@ -256,7 +262,7 @@ function validateRefs(app: App, external: boolean) {
   const fail = (message: string): never => {
     throw new Error(`${app.name}: ${message}`);
   };
-  const refs = Object.values(app.workloads ?? {}).flatMap(containerRefs);
+  const refs = Object.values(appWorkloads(app)).flatMap(containerRefs);
   for (const resource of app.resources ?? []) {
     if (['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)) continue;
     if (resource.type === 'bucket' && resource.secretTemplate) continue;
@@ -282,7 +288,7 @@ function validateRefs(app: App, external: boolean) {
       }
     }
   }
-  for (const [name, spec] of Object.entries(app.workloads ?? {})) {
+  for (const [name, spec] of Object.entries(appWorkloads(app))) {
     if (spec.serviceAccount && !app.resources?.some((r) => r.type === 'serviceAccount' && r.name === spec.serviceAccount)) {
       fail(`workloads.${name}: no serviceAccount resource named ${spec.serviceAccount}`);
     }
@@ -349,7 +355,13 @@ export function validate(raw: unknown, where: string): App {
     if (app.network.policy === false && app.network.ingress.length) fail('network.ingress needs network.policy: true');
     if (app.namespace.labels) fail('namespace.labels cannot be set with namespace.name');
   }
-  for (const [name, workload] of Object.entries(app.workloads ?? {})) {
+  if (Array.isArray(app.workloads)) {
+    const names = app.workloads.map((workload) => workload.name);
+    for (const name of names) {
+      if (names.indexOf(name) !== names.lastIndexOf(name)) fail(`workloads: duplicate name ${name}`);
+    }
+  }
+  for (const [name, workload] of Object.entries(appWorkloads(app))) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
     if (declaredPorts(workload).length && !workload.service?.name) fail(`workloads.${name}.service.name is required with ports`);
     for (const key of overrideConflicts(workload)) fail(`workloads.${name}.overrides.${key} is already set on the workload`);
@@ -408,7 +420,7 @@ export function validate(raw: unknown, where: string): App {
   const exportNames = (app.exports ?? []).map((e) => e.name);
   for (const exported of app.exports ?? []) {
     if (exportNames.indexOf(exported.name) !== exportNames.lastIndexOf(exported.name)) fail(`exports: duplicate name ${exported.name}`);
-    if (!app.workloads?.[exported.workload]) fail(`exports.${exported.name}: no workload named ${exported.workload}`);
+    if (!appWorkloads(app)[exported.workload]) fail(`exports.${exported.name}: no workload named ${exported.workload}`);
     exportPort(app, exported);
   }
   return app;
@@ -449,7 +461,7 @@ export function validateResources(world: World) {
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') appExportUrl(app, resource, world.apps);
     }
-    for (const spec of Object.values(app.workloads ?? {})) {
+    for (const spec of Object.values(appWorkloads(app))) {
       expandWorkload(spec, refsFor(app, world));
     }
   }
@@ -462,7 +474,7 @@ function chart(app: App, versions: Versions, name: string, helm: Record<string, 
 }
 
 export const workloadImages = (app: App) =>
-  Object.values(app.workloads ?? {}).flatMap((w) => [
+  Object.values(appWorkloads(app)).flatMap((w) => [
     w.image,
     ...(w.initContainers ?? []).map((c) => c.image),
     ...(w.sidecars ?? []).map((c) => c.image),
@@ -618,9 +630,9 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     return { securityPolicy: { httpRoute: route[0], ...policy } };
   };
 
-  const hasWorkloads = Boolean(app.workloads && Object.keys(app.workloads).length);
+  const hasWorkloads = Object.keys(appWorkloads(app)).length > 0;
   if (hasWorkloads || sourcesOf(app, 'helm').length) sources.push({ repoURL: CONFIG_REPO, ref: 'values' });
-  if (app.workloads && hasWorkloads) {
+  if (hasWorkloads) {
     sources.push(
       chart(app, versions, 'k8s-workload', {
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
@@ -628,7 +640,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
           namespace,
           ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
           ...(serviceAccounts.length ? { serviceAccounts } : {}),
-          workloads: Object.entries(app.workloads).map(([workload, spec]) => {
+          workloads: Object.entries(appWorkloads(app)).map(([workload, spec]) => {
             return { name: workload, ...expandWorkload(spec, refsFor(app, world)) };
           }),
         },
@@ -838,9 +850,6 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
   return Object.fromEntries(declared);
 }
 
-export const managedDatabases = (app: App) =>
-  Object.fromEntries(Object.entries(appDatabases(app)).filter(([, spec]) => !spec.external));
-
 export const databaseRole = (database: string, spec?: Pick<DatabaseSpec, 'role'>) => spec?.role ?? database.replaceAll('-', '_');
 
 export const databasePath = (database: string) => `system-components/postgres-cluster/databases/${database}.yaml`;
@@ -863,7 +872,7 @@ export function renderDatabase(database: string, spec?: Pick<DatabaseSpec, 'role
 }
 
 export const appRoles = (apps: App[]) =>
-  apps.flatMap((app) => Object.entries(managedDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
+  apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
 
 export function addRoles(cluster: string, roles: string[]): string {
   const doc = parseDocument(cluster);
