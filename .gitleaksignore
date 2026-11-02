@@ -1,2 +1,2 @@
-system-components/forgejo.application.yaml:generic-api-key:146
+selfhosted/forgejo/forgejo.values.yaml:generic-api-key:46
 terraform/openbao-database.tf:hashicorp-tf-password:23

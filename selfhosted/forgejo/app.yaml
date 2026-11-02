@@ -1,0 +1,125 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: forgejo
+network:
+  ingress:
+    - janitor-bot
+    - monitoring
+namespace:
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"
+argocd:
+  overrides:
+    options:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    ignoreDifferences:
+      - group: gateway.networking.k8s.io
+        kind: TCPRoute
+        name: forgejo-ssh
+        jqPathExpressions:
+          - ".status"
+          - ".spec.parentRefs"
+          - ".spec.rules[].backendRefs[].group"
+          - ".spec.rules[].backendRefs[].weight"
+resources:
+  - name: forgejo
+    type: route
+    auth:
+      mode: app
+      reason: forgejo requires a kanidm login or token, with anubis in front of the web ui
+    hosts:
+      - git.anurag.sh
+    backend:
+      name: forgejo-anubis
+      port: 8923
+    paths:
+      - /
+    annotations:
+      external-dns.kubernetes.io/managed: "true"
+      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    timeouts:
+      request: 90s
+      backendRequest: 90s
+  - name: forgejo
+    type: oidc
+    secretName: kanidm-forgejo-oidc
+    host: git.anurag.sh
+    displayName: Forgejo
+    callbackPath: /user/oauth2/kanidm/callback
+    preferShortUsername: true
+    secretKeys:
+      clientId: key
+      clientSecret: secret
+    scopes:
+      - openid
+      - email
+      - profile
+      - groups
+    claimMaps:
+      forgejo:
+        join: ssv
+        valuesByGroup:
+          forgejo_admins:
+            - admin
+    icon:
+      configMap: forgejo-kanidm-icon
+      key: Forgejo.svg
+  - name: forgejo
+    type: database
+    secretName: forgejo-db-credentials
+    enableConnectionPooling: false
+    external: true
+  - name: ssh-signing
+    type: secret
+    secretName: forgejo-ssh-signing-managed-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        ed25519: "{{ .SSH_SIGNING_KEY }}"
+        ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC }}"
+  - name: ssh-host
+    type: secret
+    secretName: forgejo-ssh-host-managed-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        ssh_host_ed25519_key: "{{ .SSH_HOST_KEY }}"
+  - name: gpg
+    type: secret
+    secretName: forgejo-gpg-managed-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        privateKey: "{{ .GPG_PRIVATE_KEY }}"
+  - {name: forgejo, type: secret, secretName: forgejo-managed-secrets}
+  - name: runner
+    type: secret
+    secretName: forgejo-runner-secret
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        uuid: "{{ .UUID }}"
+        token: "{{ .TOKEN }}"
+  - name: anubis
+    type: secret
+    secretName: forgejo-anubis-managed-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"
+sources:
+  - type: helm
+    chart: forgejo
+    repo: oci://code.forgejo.org/forgejo-helm/forgejo
+    version: 17.3.1
+    values: forgejo.values.yaml
+  - type: helm
+    chart: forgejo-runner
+    repo: oci://git.erwanleboucher.dev/eleboucher/charts/forgejo-runner
+    version: 13.2.1
+    values: forgejo-runner.values.yaml
+    releaseName: forgejo-runner
+  - type: manifests
+    path: .

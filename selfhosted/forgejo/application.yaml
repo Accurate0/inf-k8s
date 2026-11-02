@@ -1,0 +1,200 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-02T07:14:07.253Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: forgejo
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - ApplyOutOfSyncOnly=true
+      - RespectIgnoreDifferences=true
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+    managedNamespaceMetadata:
+      labels:
+        gateway.inf-k8s.net/anurag-sh: "true"
+  project: selfhosted
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: forgejo
+          ingress:
+            - envoy-gateway-system
+            - janitor-bot
+            - monitoring
+    - chart: k8s-http-routes
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      targetRevision: 2.4.0
+      helm:
+        valuesObject:
+          routes:
+            - name: forgejo
+              gateway:
+                name: public-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "false"
+              hostnames:
+                - git.anurag.sh
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: forgejo-anubis
+                      port: 8923
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+                  timeouts:
+                    request: 90s
+                    backendRequest: 90s
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.4.0
+      helm:
+        valuesObject:
+          clients:
+            - name: forgejo
+              namespace: forgejo
+              displayName: Forgejo
+              preferShortUsername: true
+              secretName: kanidm-forgejo-oidc
+              host: git.anurag.sh
+              callbackPath: /user/oauth2/kanidm/callback
+              secretKeys:
+                clientId: key
+                clientSecret: secret
+              scopes:
+                - openid
+                - email
+                - profile
+                - groups
+              claimMaps:
+                forgejo:
+                  join: ssv
+                  valuesByGroup:
+                    forgejo_admins:
+                      - admin
+              icon:
+                configMap: forgejo-kanidm-icon
+                key: Forgejo.svg
+              secretNamespace: forgejo
+              annotations:
+                inf-k8s.net/app: forgejo
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    - chart: k8s-postgres
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+      targetRevision: 1.1.0
+      helm:
+        valuesObject:
+          databases:
+            - name: forgejo
+              namespace: forgejo
+              databaseName: forgejo
+              secretName: forgejo-db-credentials
+              enableConnectionPooling: false
+              annotations:
+                inf-k8s.net/app: forgejo
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: forgejo
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: forgejo
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          secrets:
+            - name: ssh-signing
+              managedSecrets:
+                - secretName: forgejo-ssh-signing-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ed25519: "{{ .SSH_SIGNING_KEY }}"
+                      ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC }}"
+            - name: ssh-host
+              managedSecrets:
+                - secretName: forgejo-ssh-host-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ssh_host_ed25519_key: "{{ .SSH_HOST_KEY }}"
+            - name: gpg
+              managedSecrets:
+                - secretName: forgejo-gpg-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      privateKey: "{{ .GPG_PRIVATE_KEY }}"
+            - name: forgejo
+              managedSecrets:
+                - secretName: forgejo-managed-secrets
+            - name: runner
+              managedSecrets:
+                - secretName: forgejo-runner-secret
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      uuid: "{{ .UUID }}"
+                      token: "{{ .TOKEN }}"
+            - name: anubis
+              managedSecrets:
+                - secretName: forgejo-anubis-managed-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"
+    - chart: forgejo
+      repoURL: oci://code.forgejo.org/forgejo-helm/forgejo
+      targetRevision: 17.3.1
+      helm:
+        valueFiles:
+          - $values/selfhosted/forgejo/forgejo.values.yaml
+    - chart: forgejo-runner
+      repoURL: oci://git.erwanleboucher.dev/eleboucher/charts/forgejo-runner
+      targetRevision: 13.2.1
+      helm:
+        releaseName: forgejo-runner
+        valueFiles:
+          - $values/selfhosted/forgejo/forgejo-runner.values.yaml
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      name: application
+      path: selfhosted/forgejo
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: forgejo
+  ignoreDifferences:
+    - group: gateway.networking.k8s.io
+      kind: TCPRoute
+      name: forgejo-ssh
+      jqPathExpressions:
+        - .status
+        - .spec.parentRefs
+        - .spec.rules[].backendRefs[].group
+        - .spec.rules[].backendRefs[].weight
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    prune: true
+    syncStrategy:
+      hook: {}
