@@ -9,7 +9,7 @@ resources:
     export: api
     path: /v1
 workloads:
-  tldr-bot:
+  - name: tldr-bot
     image: ghcr.io/accurate0/tldr-bot
     resources: {memory: 32Mi}
     env:

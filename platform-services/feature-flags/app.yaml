@@ -35,7 +35,7 @@ resources:
     public: true
     allowLocalhostRedirect: true
 workloads:
-  feature-flags:
+  - name: feature-flags
     image: ghcr.io/accurate0/feature-flags
     kind: DaemonSet
     resources: {memory: 32Mi}

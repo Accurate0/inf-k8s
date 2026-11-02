@@ -11,7 +11,7 @@ resources:
   - {name: k8s-schemas, type: secret, secretName: k8s-schemas-managed-secrets}
   - {name: schemas, type: bucket, provider: r2, bucket: k8s-schemas, secretName: schemas-bucket-secrets}
 workloads:
-  k8s-schemas:
+  - name: k8s-schemas
     image: ghcr.io/accurate0/k8s-schemas
     kind: CronJob
     schedule: 0 0 * * 0

@@ -6,7 +6,7 @@ resources:
   - {name: bom, type: database, secretName: bom-database-secret}
   - {name: images, type: bucket, provider: r2, bucket: bom-images, secretName: images-bucket-secrets}
 workloads:
-  bom:
+  - name: bom
     image: ghcr.io/accurate0/bom
     ports:
       - {name: api, container: 8000, service: 8000}

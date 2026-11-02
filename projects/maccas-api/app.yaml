@@ -44,7 +44,7 @@ resources:
             requests: 5
             unit: Second
 workloads:
-  maccas-api:
+  - name: maccas-api
     image: ghcr.io/accurate0/maccas-api
     replicas: 3
     resources: {memory: 144Mi}
@@ -83,7 +83,7 @@ workloads:
             matchLabels:
               app: maccas-api
           whenUnsatisfiable: ScheduleAnyway
-  maccas-web:
+  - name: maccas-web
     image: ghcr.io/accurate0/maccas-web
     replicas: 3
     resources: {memory: 312Mi}
@@ -112,7 +112,7 @@ workloads:
             matchLabels:
               app: maccas-web
           whenUnsatisfiable: ScheduleAnyway
-  maccas-scheduler:
+  - name: maccas-scheduler
     image: ghcr.io/accurate0/maccas-scheduler
     resources: {memory: 32Mi}
     env:
@@ -129,7 +129,7 @@ workloads:
                 matchLabels:
                   app: maccas-scheduler
               topologyKey: kubernetes.io/hostname
-  maccas-recommendations:
+  - name: maccas-recommendations
     image: ghcr.io/accurate0/maccas-recommendations
     resources: {memory: 48Mi, memoryLimit: 1000Mi}
     ports:

@@ -108,7 +108,7 @@ resources:
     port: api
     interval: 30s
 workloads:
-  home-gateway:
+  - name: home-gateway
     image: ghcr.io/accurate0/home-gateway
     resources: {cpu: 30m, memory: 336Mi}
     ports:
@@ -165,7 +165,7 @@ workloads:
         - ip: 10.0.2.15
           hostnames:
             - home-assistant.internal
-  home-web:
+  - name: home-web
     image: ghcr.io/accurate0/home-gateway-web
     resources: {memory: 32Mi}
     ports:

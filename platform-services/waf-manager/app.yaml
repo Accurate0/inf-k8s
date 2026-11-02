@@ -105,7 +105,7 @@ resources:
     port: http
     interval: 30s
 workloads:
-  waf-manager:
+  - name: waf-manager
     image: ghcr.io/accurate0/waf-manager
     replicas: 2
     resources: {memory: 32Mi}

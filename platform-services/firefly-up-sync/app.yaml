@@ -6,7 +6,7 @@ resources:
   - {name: firefly, type: platform, export: firefly}
   - {name: firefly-up-sync, type: secret, secretName: firefly-up-sync-managed-secrets}
 workloads:
-  firefly-up-sync:
+  - name: firefly-up-sync
     image: ghcr.io/accurate0/firefly-up-sync
     kind: CronJob
     schedule: 15,45 * * * *

@@ -47,7 +47,7 @@ resources:
     port: http
     interval: 30s
 workloads:
-  ai-gateway:
+  - name: ai-gateway
     image: ghcr.io/accurate0/ai-gateway
     replicas: 2
     resources: {memory: 32Mi}
@@ -89,7 +89,7 @@ workloads:
           labelSelector:
             matchLabels:
               app: ai-gateway
-  ai-gateway-pricing-sync:
+  - name: ai-gateway-pricing-sync
     image: ghcr.io/accurate0/ai-gateway
     kind: CronJob
     schedule: 17 4 * * *

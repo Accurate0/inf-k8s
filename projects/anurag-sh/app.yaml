@@ -2,7 +2,7 @@
 name: anurag-sh
 repository: https://github.com/Accurate0/anurag.sh
 workloads:
-  anurag-sh:
+  - name: anurag-sh
     image: ghcr.io/accurate0/anurag-sh
     ports:
       - {name: http, container: 3000, service: 80}

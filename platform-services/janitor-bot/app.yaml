@@ -88,7 +88,7 @@ resources:
     port: http
     interval: 30s
 workloads:
-  janitor-bot:
+  - name: janitor-bot
     image: ghcr.io/accurate0/janitor-bot
     resources: {memory: 32Mi}
     ports:

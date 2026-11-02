@@ -13,7 +13,7 @@ resources:
       - {apiGroups: [""], resources: [secrets], verbs: [get, list, create, update, patch]}
       - {apiGroups: [""], resources: [configmaps], verbs: [get, list, watch]}
 workloads:
-  kanidm-sync:
+  - name: kanidm-sync
     image: ghcr.io/accurate0/kanidm-sync
     resources: {memory: 16Mi}
     env:

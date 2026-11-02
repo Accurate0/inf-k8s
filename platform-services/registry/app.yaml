@@ -46,7 +46,7 @@ resources:
     port: http
     interval: 30s
 workloads:
-  registry:
+  - name: registry
     image: ghcr.io/accurate0/registry
     replicas: 2
     resources: {memory: 64Mi}
