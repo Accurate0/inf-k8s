@@ -41,13 +41,11 @@ resources:
         valuesByGroup:
           immich_admins:
             - admin
+  - name: immich
+    type: database
+    secretName: immich-db-credentials
+    enableConnectionPooling: false
+    external: true
 sources:
-  - chart: k8s-postgres
-    repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-    targetRevision: 1.0.1
-    helm:
-      valuesObject:
-        databases:
-          - name: immich
-            namespace: immich
-            secretName: immich-db-credentials
+  - type: manifests
+    path: .

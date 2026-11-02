@@ -2,7 +2,8 @@
 name: home-gateway
 repository: https://github.com/Accurate0/home-gateway
 sources:
-  - repoURL: https://github.com/Accurate0/home-gateway.git
+  - type: git
+    repo: https://github.com/Accurate0/home-gateway.git
     name: config
     path: config
 network:

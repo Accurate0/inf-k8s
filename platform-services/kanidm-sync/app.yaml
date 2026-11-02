@@ -26,3 +26,6 @@ build:
   image: ghcr.io/accurate0/kanidm-sync
   args:
     BINARY_NAME: kanidm-sync
+sources:
+  - type: manifests
+    path: .

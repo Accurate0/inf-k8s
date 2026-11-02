@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-02T06:34:02.465Z
+# generated at 2026-11-02T06:46:44.141Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -76,6 +76,20 @@ spec:
               annotations:
                 inf-k8s.net/app: dawarich
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    - chart: k8s-postgres
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+      targetRevision: 1.1.0
+      helm:
+        valuesObject:
+          databases:
+            - name: dawarich
+              namespace: dawarich
+              databaseName: dawarich_2
+              secretName: dawarich-db-credentials
+              enableConnectionPooling: false
+              annotations:
+                inf-k8s.net/app: dawarich
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
       targetRevision: 0.6.0
@@ -95,16 +109,6 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: selfhosted/dawarich
-    - chart: k8s-postgres
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
-      targetRevision: 1.0.1
-      helm:
-        valuesObject:
-          databases:
-            - name: dawarich
-              namespace: dawarich
-              databaseName: dawarich_2
-              secretName: dawarich-db-credentials
   destination:
     server: https://kubernetes.default.svc
     namespace: dawarich

@@ -157,3 +157,6 @@ build:
   image: ghcr.io/accurate0/waf-manager
   args:
     BINARY_NAME: waf-manager
+sources:
+  - type: manifests
+    path: .

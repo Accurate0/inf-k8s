@@ -30,3 +30,6 @@ workloads:
     serviceAccount: k8s-schemas
 build:
   image: ghcr.io/accurate0/k8s-schemas
+sources:
+  - type: manifests
+    path: .

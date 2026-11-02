@@ -119,3 +119,6 @@ build:
     packages:
       - protobuf-compiler
       - libprotobuf-dev
+sources:
+  - type: manifests
+    path: .
