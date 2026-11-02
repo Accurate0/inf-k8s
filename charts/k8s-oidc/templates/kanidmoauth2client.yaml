@@ -5,7 +5,7 @@
 {{- if and (not $secretKeys) (hasKey $client "securityPolicy") }}
 {{- $secretKeys = dict "clientId" "client-id" "clientSecret" "client-secret" }}
 {{- end }}
-{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) ($.Values.retainAnnotations | default (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false")) }}
+{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) ($.Values.retainAnnotations | default dict) }}
 {{- $scopeGroup := $client.scopeMapGroup | default $defaults.scopeMapGroup | default (printf "%s_admins" ($client.name | replace "-" "_")) }}
 {{- $scopes := $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
 {{- $scopeMaps := $client.scopeMaps | default (dict $scopeGroup $scopes) }}

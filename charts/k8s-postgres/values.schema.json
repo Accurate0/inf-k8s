@@ -9,11 +9,15 @@
       "additionalProperties": false,
       "description": "Applied to every database that does not override the field.",
       "properties": {
-        "namespace": { "$ref": "#/definitions/namespace" },
-        "annotations": { "$ref": "#/definitions/annotations" },
+        "namespace": {
+          "$ref": "#/definitions/namespace"
+        },
+        "annotations": {
+          "$ref": "#/definitions/annotations"
+        },
         "host": {
           "type": "string",
-          "description": "Postgres host written to the secret. Overrides enableConnectionPooling."
+          "description": "Postgres host written to the secret for databases that do not set one."
         },
         "port": {
           "type": "integer",
@@ -33,7 +37,9 @@
     "databases": {
       "type": "array",
       "description": "One OpenBao-backed credentials secret per entry. The database and role themselves are defined in system-components/postgres-cluster.",
-      "items": { "$ref": "#/definitions/database" }
+      "items": {
+        "$ref": "#/definitions/database"
+      }
     }
   },
   "definitions": {
@@ -44,20 +50,28 @@
     "annotations": {
       "type": "object",
       "description": "Annotations set on the generator, ExternalSecret and secret.",
-      "additionalProperties": { "type": "string" }
+      "additionalProperties": {
+        "type": "string"
+      }
     },
     "database": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name"],
+      "required": [
+        "name"
+      ],
       "properties": {
         "name": {
           "type": "string",
           "pattern": "^[a-z0-9]([a-z0-9-]*[a-z0-9])?$",
           "description": "OpenBao static role name; credentials are read from database/static-creds/<name> using kubernetes auth role db-<name>."
         },
-        "namespace": { "$ref": "#/definitions/namespace" },
-        "annotations": { "$ref": "#/definitions/annotations" },
+        "namespace": {
+          "$ref": "#/definitions/namespace"
+        },
+        "annotations": {
+          "$ref": "#/definitions/annotations"
+        },
         "databaseName": {
           "type": "string",
           "pattern": "^[A-Za-z_][A-Za-z0-9_]*$",
@@ -70,10 +84,6 @@
         "host": {
           "type": "string",
           "description": "Postgres host written to the secret."
-        },
-        "enableConnectionPooling": {
-          "type": "boolean",
-          "description": "Connect through the CNPG pooler instead of directly to the cluster. Defaults to true."
         }
       }
     }

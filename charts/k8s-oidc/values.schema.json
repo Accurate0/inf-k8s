@@ -63,7 +63,7 @@
     },
     "annotations": {
       "type": "object",
-      "description": "Annotations set on the KanidmOAuth2Client and its KanidmGroups. argocd.argoproj.io/sync-options defaults to Prune=false,Delete=false.",
+      "description": "Annotations set on the KanidmOAuth2Client and its KanidmGroups.",
       "additionalProperties": { "type": "string" }
     },
     "client": {

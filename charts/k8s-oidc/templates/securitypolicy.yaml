@@ -4,7 +4,7 @@
 {{- range $client := .Values.clients }}
 {{- if hasKey $client "securityPolicy" }}
 {{- $sp := $client.securityPolicy | default dict }}
-{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) ($.Values.retainAnnotations | default (dict "argocd.argoproj.io/sync-options" "Prune=false,Delete=false")) }}
+{{- $annotations := merge (dict) ($client.annotations | default dict) ($defaults.annotations | default dict) ($.Values.retainAnnotations | default dict) }}
 {{- $scopes := $sp.scopes | default $client.scopes | default $defaults.scopes | default (list "openid" "email" "profile") }}
 {{- $secretName := $client.secretName | default (printf "kanidm-%s-oidc" $client.name) }}
 {{- $callbackPath := $client.callbackPath | default "/oauth2/callback" }}
