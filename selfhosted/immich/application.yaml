@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-02T16:50:15.190Z
+# generated at 2026-11-02T16:54:25.879Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -83,6 +83,8 @@ spec:
               annotations:
                 inf-k8s.net/app: immich
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          retainAnnotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
       targetRevision: 1.2.0
@@ -93,7 +95,7 @@ spec:
               namespace: immich
               databaseName: immich
               secretName: immich-db-credentials
-              enableConnectionPooling: false
+              host: cloudnative-pg-cluster-rw.cnpg-system
               annotations:
                 inf-k8s.net/app: immich
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
