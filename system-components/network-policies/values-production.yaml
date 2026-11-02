@@ -13,7 +13,3 @@ namespaces:
     ingress:
       - envoy-gateway-system
       - firefly-up-sync
-  immich:
-    ingress:
-      - envoy-gateway-system
-      - home-gateway
