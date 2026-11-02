@@ -6,6 +6,8 @@ const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
 const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
 const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
 
+const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
+
 const valueFiles = (files: string[]) => files.map((file) => `$values/${file}`);
 
 function applicationSource(source: PlanSource): Record<string, unknown> {
@@ -15,7 +17,7 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         chart: source.chart,
         repoURL: `${CHART_REGISTRY}/${source.chart}`,
         targetRevision: source.version,
-        helm: { ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}), valuesObject: source.values },
+        helm: { ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}), valuesObject: { ...source.values, ...(source.retain ? { retainAnnotations: RETAIN } : {}) } },
       };
     case 'helm':
       return {

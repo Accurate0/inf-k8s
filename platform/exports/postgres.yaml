@@ -1,0 +1,7 @@
+exports:
+  - name: pooled
+    type: database
+    host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+  - name: direct
+    type: database
+    host: cloudnative-pg-cluster-rw.cnpg-system

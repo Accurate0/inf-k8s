@@ -21,9 +21,11 @@ const versions = {
 const target = { location: 'projects', hasManifests: false };
 
 const renderApplication = (app: App, chartVersions: typeof versions, on: typeof target, world: Parameters<typeof planApp>[3]) =>
-  renderArgo(planApp(app, chartVersions, on, world), app.argocd?.overrides);
+  renderArgo(planApp(app, chartVersions, on, world), app.overrides?.argocd?.application);
 
 const platform = [
+  { name: 'pooled', type: 'database', host: 'pooler.db' },
+  { name: 'direct', type: 'database', host: 'direct.db' },
   { name: 'tracing', type: 'platform', url: 'http://tempo/traces' },
   { name: 'argocd', type: 'platform', url: 'http://argocd' },
   { name: 'replicated', type: 'cache', url: 'redis://replicated' },
@@ -115,15 +117,15 @@ test('routes to an explicit backend without a workload', () => {
   assert.equal(rendered.spec.sources.at(-1).name, 'config');
 });
 
-test('connection pooling is left to the chart unless set', () => {
+test('database hosts come from platform exports', () => {
   const rendered = render({
     name: 'foo',
     resources: [{ name: 'foo', type: 'database', secretName: 'foo-database-secret' }, { name: 'direct', type: 'database', secretName: 'direct-database-secret', enableConnectionPooling: false }],
     network: { ingress: [] },
   });
   const [pooled, direct] = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
-  assert.equal('enableConnectionPooling' in pooled, false);
-  assert.equal(direct.enableConnectionPooling, false);
+  assert.equal(pooled.host, 'pooler.db');
+  assert.equal(direct.host, 'direct.db');
 });
 
 test('jwt routes pass their clients to the chart', () => {
@@ -1104,10 +1106,10 @@ test('helm templates pull upstream charts', () => {
 
 test('argocd overrides replace the default policy', () => {
   const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
-  const rendered = render({ name: 'foo', network: { ingress: [] }, argocd: { overrides: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences } } });
+  const rendered = render({ name: 'foo', network: { ingress: [] }, overrides: { argocd: { application: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences } } } });
   assert.deepEqual(rendered.spec.syncPolicy, { syncOptions: ['ServerSideApply=true'] });
   assert.deepEqual(rendered.spec.ignoreDifferences, ignoreDifferences);
-  validate({ name: 'foo', network: { ingress: [] }, argocd: { overrides: { automated: false } } }, 'x');
+  validate({ name: 'foo', network: { ingress: [] }, overrides: { argocd: { application: { automated: false } } } }, 'x');
 });
 
 test('namespace labels use managed metadata without workloads', () => {
@@ -1313,4 +1315,26 @@ test('volumes are validated', () => {
   assert.throws(() => check(app(volumes(), {})), /no workload mounts this volume/);
   assert.throws(() => check(app(volumes(), { data: { path: '/data', volume: 'other' } }), true), /no volume resource named other/);
   check(app(volumes(), {}), true);
+});
+
+test('a missing database export is an error', () => {
+  const app = validate({ name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'database', secretName: 'foo-secret' }], workloads: [{ name: 'api', image: 'ghcr.io/x/api', resources: { memory: '1Mi' }, envFrom: [{ database: 'foo' }] }] }, 'x');
+  assert.throws(() => validateResources({ platform: [], apps: [app] }), /no database export named pooled/);
+});
+
+test('only the argocd output adds retention annotations', () => {
+  const app = validate({ name: 'foo', network: { ingress: [] }, resources: [{ name: 'foo', type: 'oidc', secretName: 'foo-oidc', host: 'foo.example.com' }] }, 'x');
+  const plan = planApp(app, versions, target, { platform, apps: [] });
+  const oidc = plan.sources.find((s) => s.type === 'chart' && s.chart === 'k8s-oidc') as { values: Record<string, unknown>; retain?: boolean };
+  assert.equal(oidc.retain, true);
+  assert.equal('retainAnnotations' in oidc.values, false);
+  const source = parse(renderArgo(plan)).spec.sources.find((s: { chart?: string }) => s.chart === 'k8s-oidc');
+  assert.deepEqual(source.helm.valuesObject.retainAnnotations, { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' });
+});
+
+test('legacy route and argocd fields are rejected', () => {
+  const route = { name: 'foo', type: 'route', auth: { mode: 'none', reason: 'public' }, hosts: ['foo.example.com'], backend: { name: 'foo', port: 80 } };
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, argocd: {} }, 'x'), /unknown block "argocd"/);
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, resources: [{ ...route, annotations: {} }] }, 'x'), /resources/);
+  assert.throws(() => validate({ name: 'foo', network: { ingress: [] }, resources: [{ ...route, ratelimit: { rules: [] } }] }, 'x'), /resources/);
 });

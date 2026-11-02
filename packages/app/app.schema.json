@@ -819,45 +819,32 @@
                   ]
                 }
               },
-              "annotations": {
-                "type": "object"
-              },
               "ratelimit": {
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "requests",
-                      "per",
-                      "header"
-                    ],
-                    "properties": {
-                      "requests": {
-                        "type": "integer",
-                        "minimum": 1
-                      },
-                      "per": {
-                        "enum": [
-                          "Second",
-                          "Minute",
-                          "Hour",
-                          "Day"
-                        ]
-                      },
-                      "header": {
-                        "type": "string",
-                        "description": "Limit each distinct value of this request header."
-                      }
-                    }
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "requests",
+                  "per",
+                  "header"
+                ],
+                "properties": {
+                  "requests": {
+                    "type": "integer",
+                    "minimum": 1
                   },
-                  {
-                    "type": "object",
-                    "required": [
-                      "rules"
+                  "per": {
+                    "enum": [
+                      "Second",
+                      "Minute",
+                      "Hour",
+                      "Day"
                     ]
+                  },
+                  "header": {
+                    "type": "string",
+                    "description": "Limit each distinct value of this request header."
                   }
-                ]
+                }
               },
               "timeouts": {
                 "type": "object"
@@ -1343,36 +1330,6 @@
             }
           }
         ]
-      }
-    },
-    "argocd": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "overrides": {
-          "description": "Change the rendered Argo Application.",
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "options": {
-              "type": "array",
-              "description": "Replaces the default syncOptions.",
-              "items": {
-                "type": "string"
-              }
-            },
-            "automated": {
-              "type": "boolean",
-              "description": "Sync automatically with prune and self-heal. Defaults to true."
-            },
-            "ignoreDifferences": {
-              "type": "array",
-              "items": {
-                "type": "object"
-              }
-            }
-          }
-        }
       }
     },
     "overrides": {

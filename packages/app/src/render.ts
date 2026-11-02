@@ -122,8 +122,7 @@ export interface Route {
   paths?: (string | { type: string; value: string })[];
   rules?: { paths: (string | { type: string; value: string })[]; backend: { name: string; port: number } }[];
   dns?: RouteDns;
-  annotations?: Record<string, string>;
-  ratelimit?: RouteRatelimit | Record<string, unknown>;
+  ratelimit?: RouteRatelimit;
   timeouts?: Record<string, unknown>;
 }
 
@@ -182,7 +181,6 @@ export interface App {
   resources?: Resource[];
   exports?: Export[];
   sources?: Source[];
-  argocd?: { overrides?: ArgocdOverrides };
   overrides?: { argocd?: { application?: ArgocdOverrides } };
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
@@ -375,7 +373,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'argocd', 'overrides']);
+const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'overrides']);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
@@ -491,6 +489,13 @@ export function storageClass(app: App, volume: Volume, platform: PlatformExport[
   return { storageClass: found.storageClass, labels: volume.backup ? found.backupLabels : undefined };
 }
 
+export function databaseHost(app: App, spec: DatabaseSpec, platform: PlatformExport[]) {
+  const name = spec.enableConnectionPooling === false ? 'direct' : 'pooled';
+  const found = platform.find((e) => e.type === 'database' && e.name === name);
+  if (!found?.host) throw new Error(`${app.name}: no database export named ${name}`);
+  return found.host;
+}
+
 export const refsFor = (app: App, world: World): Refs => ({
   resource: (resource, env) => resourceEnv(app, resource, env, world),
   secret: (kind, name) => secretRef(app, kind, name),
@@ -517,6 +522,7 @@ export function validateResources(world: World) {
       expandWorkload(spec, refsFor(app, world));
     }
     for (const volume of declared(app, 'volume')) storageClass(app, volume, world.platform);
+    for (const spec of Object.values(appDatabases(app))) databaseHost(app, spec, world.platform);
   }
 }
 

@@ -7,6 +7,7 @@ import {
   appRoutes,
   appSecrets,
   appWorkloads,
+  databaseHost,
   databaseRole,
   declared,
   imageValuesPath,
@@ -28,6 +29,7 @@ export interface PlatformChart {
   version: string;
   valueFiles?: string[];
   values: Record<string, unknown>;
+  retain?: boolean;
 }
 
 export interface ExternalChart {
@@ -64,15 +66,12 @@ export interface Plan {
   sources: PlanSource[];
 }
 
-function dnsAnnotations(dns?: RouteDns): Record<string, string> {
-  if (!dns) return {};
+function dnsAnnotations(dns: RouteDns): Record<string, string> {
   if (dns.provider === 'unifi') return { 'external-dns.kubernetes.io/managed-unifi': 'true' };
   return { 'external-dns.kubernetes.io/managed': 'true', 'external-dns.kubernetes.io/cloudflare-proxied': String(dns.proxied) };
 }
 
-function ratelimitRules(ratelimit: RouteRatelimit | Record<string, unknown>) {
-  if (!('requests' in ratelimit)) return ratelimit;
-  const { requests, per, header } = ratelimit as RouteRatelimit;
+function ratelimitRules({ requests, per, header }: RouteRatelimit) {
   return {
     rules: [{ clientSelectors: [{ headers: [{ name: header, invert: false, type: 'Distinct' }] }], limit: { requests, unit: per } }],
   };
@@ -97,10 +96,10 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     const { mode: _mode, client: _client, ...policy } = route[1].auth as Extract<RouteAuth, { mode: 'oidc' }>;
     return { securityPolicy: { httpRoute: route[0], ...policy } };
   };
-  const chart = (chartName: string, values: Record<string, unknown>, valueFiles?: string[]): PlatformChart => {
+  const chart = (chartName: string, values: Record<string, unknown>, { valueFiles, retain }: { valueFiles?: string[]; retain?: boolean } = {}): PlatformChart => {
     const version = app.charts?.[chartName] ?? versions[chartName];
     if (!version) throw new Error(`${app.name}: no version for chart ${chartName}`);
-    return { type: 'chart', chart: chartName, version, ...(valueFiles ? { valueFiles } : {}), values };
+    return { type: 'chart', chart: chartName, version, ...(valueFiles ? { valueFiles } : {}), values, ...(retain ? { retain } : {}) };
   };
 
   const hasWorkloads = Object.keys(appWorkloads(app)).length > 0;
@@ -116,7 +115,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
             return { name: workload, ...expandWorkload(spec, refsFor(app, world)) };
           }),
         },
-        [imageValuesPath(app, target)],
+        { valueFiles: [imageValuesPath(app, target)] },
       ),
     );
   }
@@ -145,7 +144,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
               name: route.gateway ?? 'public-gateway',
               namespace: 'envoy-gateway-system',
             },
-            ...(route.dns || route.annotations ? { annotations: { ...route.annotations, ...dnsAnnotations(route.dns) } } : {}),
+            ...(route.dns ? { annotations: dnsAnnotations(route.dns) } : {}),
             hostnames: route.hosts,
             ...(route.ratelimit ? { ratelimit: ratelimitRules(route.ratelimit) } : {}),
             rules: (route.rules ?? [{ paths: route.paths ?? ['/'], backend: route.backend as { name: string; port: number } }]).map((rule) => ({
@@ -175,7 +174,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
           secretNamespace: namespace,
           annotations,
         })),
-      }),
+      }, { retain: true }),
     );
   }
 
@@ -187,7 +186,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
           namespace,
           databaseName: databaseRole(database, spec),
           secretName: databaseSecret(database),
-          ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
+          host: databaseHost(app, spec, world.platform),
           annotations,
         })),
       }),
@@ -237,7 +236,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
             annotations,
           };
         }),
-      }),
+      }, { retain: true }),
     );
   }
 
