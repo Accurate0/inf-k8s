@@ -13,6 +13,11 @@ import {
   id = "${local.cloudflare_account_id}/maccas-images/default"
 }
 
+import {
+  to = module.apps.cloudflare_r2_bucket.forgejo-storage
+  id = "${local.cloudflare_account_id}/forgejo-storage/default"
+}
+
 moved {
   from = aws_s3_bucket.home-gateway-bucket
   to   = module.apps.aws_s3_bucket.home-gateway-storage
