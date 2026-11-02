@@ -1,0 +1,21 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: etcd-backup
+namespace:
+  name: kube-system
+network:
+  ingress: []
+  policy: false
+resources:
+  - name: snapshots
+    type: bucket
+    provider: r2
+    bucket: k3s-etcd-backup
+    secretName: k3s-etcd-snapshot-s3-config
+    secretTemplate:
+      type: etcd.k3s.cattle.io/s3-config-secret
+      data:
+        etcd-s3-endpoint: '{{ .S3_ENDPOINT | trimPrefix "https://" }}'
+        etcd-s3-bucket: '{{ .S3_BUCKET }}'
+        etcd-s3-region: '{{ .S3_REGION }}'
+        etcd-s3-access-key: '{{ .S3_ACCESS_KEY_ID }}'
+        etcd-s3-secret-key: '{{ .S3_SECRET_ACCESS_KEY }}'

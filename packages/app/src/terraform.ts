@@ -1,5 +1,5 @@
 import type { App, Bucket } from './render.ts';
-import { appDatabases, databaseRole, HEADER_TEXT } from './render.ts';
+import { appDatabases, appNamespace, databaseRole, HEADER_TEXT } from './render.ts';
 
 type Block = Record<string, Record<string, unknown>>;
 
@@ -29,7 +29,7 @@ function databaseResources(app: App, database: string, role: string): Block {
         backend: ref('var.kubernetes_auth_path'),
         role_name: `db-${database}`,
         bound_service_account_names: ['openbao-database'],
-        bound_service_account_namespaces: [app.name],
+        bound_service_account_namespaces: [appNamespace(app)],
         token_policies: [ref(`vault_policy.${database}.name`)],
         token_ttl: 3600,
       },
@@ -41,7 +41,7 @@ const bucketSecret = (app: App, id: string, name: string, data: Record<string, s
   vault_kv_secret_v2: {
     [id]: {
       mount: ref('var.kv_mount'),
-      name: `${app.name}/resource-${name}`,
+      name: `${appNamespace(app)}/resource-${name}`,
       data_json: JSON.stringify(data),
     },
   },

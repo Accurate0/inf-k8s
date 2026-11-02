@@ -36,6 +36,10 @@
           "items": {
             "type": "string"
           }
+        },
+        "policy": {
+          "type": "boolean",
+          "description": "Render the namespace's default-deny network policies. Defaults to true; must be false with namespace.name."
         }
       }
     },
@@ -538,6 +542,25 @@
               },
               "secretName": {
                 "type": "string"
+              },
+              "secretTemplate": {
+                "type": "object",
+                "description": "Reshape the synced secret, for consumers that expect other keys.",
+                "additionalProperties": false,
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
               }
             }
           },
@@ -1124,6 +1147,10 @@
       "type": "object",
       "additionalProperties": false,
       "properties": {
+        "name": {
+          "type": "string",
+          "description": "Deploy into this existing namespace instead of one named after the app."
+        },
         "labels": {
           "type": "object",
           "additionalProperties": {

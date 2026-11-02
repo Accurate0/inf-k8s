@@ -77,6 +77,7 @@ export interface Bucket {
   bucket: string;
   user?: string;
   secretName: string;
+  secretTemplate?: { type?: string; data: Record<string, string> };
 }
 
 export interface Export {
@@ -128,9 +129,11 @@ export interface App {
   exports?: Export[];
   sources?: Record<string, unknown>[];
   build?: Build;
-  network: { ingress: string[] };
-  namespace?: { labels?: Record<string, string> };
+  network: { ingress: string[]; policy?: boolean };
+  namespace?: { name?: string; labels?: Record<string, string> };
 }
+
+export const appNamespace = (app: App) => app.namespace?.name ?? app.name;
 
 export type Versions = Record<string, string>;
 
@@ -216,6 +219,7 @@ function validateRefs(app: App) {
   const refs = Object.values(app.workloads ?? {}).flatMap(containerRefs);
   for (const resource of app.resources ?? []) {
     if (['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)) continue;
+    if (resource.type === 'bucket' && resource.secretTemplate) continue;
     const kinds = ['secret', 'database', 'bucket'].includes(resource.type) ? ['resource', resource.type] : ['resource'];
     if (!refs.some((ref) => kinds.some((kind) => ref[kind] === resource.name))) {
       fail(`resources.${resource.name}: no workload uses this ${resource.type}`);
@@ -264,7 +268,7 @@ const listenerMatches = (hostname: string | undefined, host: string) =>
 
 export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
   for (const app of apps) {
-    const labels: Record<string, string> = { ...app.namespace?.labels, 'kubernetes.io/metadata.name': app.name };
+    const labels: Record<string, string> = { ...app.namespace?.labels, 'kubernetes.io/metadata.name': appNamespace(app) };
     for (const [name, route] of Object.entries(appRoutes(app))) {
       const gateway = route.gateway ?? 'public-gateway';
       for (const host of route.hosts) {
@@ -297,6 +301,10 @@ export function validate(raw: unknown, where: string): App {
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(app.name ?? '')) fail('name must be kebab-case');
   if (!Array.isArray(app.network?.ingress)) {
     fail('network.ingress is required (use [] for none)');
+  }
+  if (app.namespace?.name) {
+    if (app.network.policy !== false || app.network.ingress.length) fail('namespace.name needs network.policy: false and no network.ingress');
+    if (app.namespace.labels) fail('namespace.labels cannot be set with namespace.name');
   }
   for (const [name, workload] of Object.entries(app.workloads ?? {})) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
@@ -358,7 +366,7 @@ export function validate(raw: unknown, where: string): App {
 const SYSTEM_NAMESPACES = new Set(['argocd', 'dragonfly', 'envoy-gateway-system', 'forgejo', 'immich', 'monitoring']);
 
 export function validateIngress(apps: App[]) {
-  const known = new Set(apps.map((app) => app.name));
+  const known = new Set(apps.map(appNamespace));
   for (const app of apps) {
     for (const from of app.network.ingress) {
       if (!known.has(from) && !SYSTEM_NAMESPACES.has(from)) {
@@ -425,7 +433,7 @@ export function renderRbac(app: App): string | undefined {
         apiVersion: 'rbac.authorization.k8s.io/v1',
         kind: 'ClusterRoleBinding',
         metadata: { name: account.name },
-        subjects: [{ kind: 'ServiceAccount', name: account.name, namespace: app.name }],
+        subjects: [{ kind: 'ServiceAccount', name: account.name, namespace: appNamespace(app) }],
         roleRef: { apiGroup: 'rbac.authorization.k8s.io', kind: 'ClusterRole', name: role },
       },
     ];
@@ -442,10 +450,10 @@ export const kustomizationPath = (app: App, target: Target) => `${target.locatio
 export function renderKustomization(app: App, target: Target): string | undefined {
   if (!needsKustomization(app)) return undefined;
   const generators = [
-    ...declared(app, 'config').map(({ configMap, files }) => ({ name: configMap, namespace: app.name, files })),
+    ...declared(app, 'config').map(({ configMap, files }) => ({ name: configMap, namespace: appNamespace(app), files })),
     ...declared(app, 'dashboard').map(({ configMap, file }) => ({
       name: configMap,
-      namespace: app.name,
+      namespace: appNamespace(app),
       files: [file],
       options: { disableNameSuffixHash: true, labels: { 'inf-k8s.net/grafana-dashboard': 'true' } },
     })),
@@ -523,6 +531,7 @@ export function renderWorkflow(app: App, target: Target): string {
 
 export function renderApplication(app: App, versions: Versions, target: Target, world: World): string {
   const { name } = app;
+  const namespace = appNamespace(app);
   const annotations = {
     'inf-k8s.net/app': name,
     'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
@@ -546,7 +555,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
       chart(app, versions, 'k8s-workload', {
         valueFiles: [`$values/${imageValuesPath(app, target)}`],
         valuesObject: {
-          namespace: name,
+          namespace,
           ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
           ...(serviceAccounts.length ? { serviceAccounts } : {}),
           workloads: Object.entries(app.workloads).map(([workload, spec]) => {
@@ -568,14 +577,16 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
     ...app.network.ingress,
     ...world.apps
       .filter((other) => other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name))
-      .map((other) => other.name)
+      .map(appNamespace)
       .sort(),
   ];
-  sources.push(
-    chart(app, versions, 'k8s-network', {
-      valuesObject: { namespace: name, ingress: [...new Set(ingress)] },
-    }),
-  );
+  if (app.network.policy !== false) {
+    sources.push(
+      chart(app, versions, 'k8s-network', {
+        valuesObject: { namespace, ingress: [...new Set(ingress)] },
+      }),
+    );
+  }
 
   if (routes.length) {
     sources.push(
@@ -612,13 +623,13 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
         valuesObject: {
           clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
             name: client,
-            namespace: name,
+            namespace,
             displayName: client,
             preferShortUsername: true,
             ...spec,
             ...loginPolicy(client),
             secretName: spec.secretName,
-            secretNamespace: name,
+            secretNamespace: namespace,
             annotations,
           })),
         },
@@ -632,7 +643,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
         valuesObject: {
           databases: Object.entries(appDatabases(app)).map(([database, spec]) => ({
             name: database,
-            namespace: name,
+            namespace,
             databaseName: databaseRole(database),
             secretName: databaseSecret(database),
             ...(spec.enableConnectionPooling === undefined ? {} : { enableConnectionPooling: spec.enableConnectionPooling }),
@@ -644,16 +655,21 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
   }
 
   const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
-    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: resource.secretName }] : [],
+    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: resource.secretName, secretTemplate: resource.secretTemplate }] : [],
   );
+  const managedSecret = ({ secretName, secretTemplate }: { secretName: string; secretTemplate?: Bucket['secretTemplate'] }) => ({
+    secretName,
+    ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
+    ...(secretTemplate ? { template: { data: secretTemplate.data } } : {}),
+  });
   if (appSecrets(app).length || bucketSecrets.length) {
     sources.push(
       chart(app, versions, 'k8s-secrets', {
         valuesObject: {
-          defaults: { namespace: name, provider: 'openbao', resyncInterval: 900, annotations },
+          defaults: { namespace, provider: 'openbao', resyncInterval: 900, annotations },
           secrets: [...appSecrets(app), ...bucketSecrets].map((s) => ({
             name: s.name,
-            managedSecrets: [{ secretName: s.secretName }],
+            managedSecrets: [managedSecret(s)],
           })),
         },
       }),
@@ -666,7 +682,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
       chart(app, versions, 'k8s-observability', {
         valuesObject: {
           name: workload,
-          namespace: name,
+          namespace,
           ...metrics,
         },
       }),
@@ -689,7 +705,7 @@ export function renderApplication(app: App, versions: Versions, target: Target, 
       },
       project: target.location,
       sources,
-      destination: { server: 'https://kubernetes.default.svc', namespace: name },
+      destination: { server: 'https://kubernetes.default.svc', namespace },
     },
     operation: {
       initiatedBy: { username: 'github-actions' },
@@ -787,7 +803,7 @@ export function helmTemplates(rendered: string): { args: string[]; values: strin
         name,
         `charts/${source.chart}`,
         '--namespace',
-        name,
+        application.spec.destination.namespace,
         ...(source.helm?.valueFiles ?? []).flatMap((file) => ['-f', file.replace(/^\$values\//, '')]),
         '-f',
         '-',

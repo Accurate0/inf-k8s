@@ -1028,3 +1028,55 @@ test('rejects the removed shorthands', () => {
   }, 'test');
   assert.throws(() => validateResources({ platform, apps: [reads] }), /read a bucket with \{bucket, key\}/);
 });
+
+const overridden: App = {
+  name: 'foo',
+  namespace: { name: 'kube-system' },
+  network: { ingress: [], policy: false },
+  resources: [
+    {
+      name: 'images',
+      type: 'bucket',
+      provider: 'r2',
+      bucket: 'foo-images',
+      secretName: 'images-bucket-secrets',
+      secretTemplate: { type: 'example.io/config', data: { bucket: '{{ .S3_BUCKET }}' } },
+    },
+  ],
+};
+
+test('a namespace override reaches the destination, charts and terraform path', () => {
+  const rendered = render(overridden);
+  assert.equal(rendered.metadata.name, 'foo');
+  assert.equal(rendered.spec.destination.namespace, 'kube-system');
+  assert.equal(source(rendered, 'k8s-secrets')?.helm.valuesObject.defaults.namespace, 'kube-system');
+  const { resource } = JSON.parse(renderAppTerraform(overridden) as string);
+  assert.equal(resource.vault_kv_secret_v2['foo-images'].name, 'kube-system/resource-images');
+});
+
+test('network.policy false skips the network chart', () => {
+  assert.equal(source(render(overridden), 'k8s-network'), undefined);
+});
+
+test('a namespace override must opt out of the network policy', () => {
+  const namespace = { name: 'kube-system' };
+  assert.throws(() => validate({ name: 'foo', namespace, network: { ingress: [] } }, 'foo'), /network\.policy: false/);
+  assert.throws(() => validate({ name: 'foo', namespace, network: { ingress: ['bar'], policy: false } }, 'foo'), /network\.policy: false/);
+  assert.throws(
+    () => validate({ name: 'foo', namespace: { ...namespace, labels: { a: 'b' } }, network: { ingress: [], policy: false } }, 'foo'),
+    /namespace\.labels/,
+  );
+});
+
+test('a bucket secret template sets the secret type and data', () => {
+  assert.deepEqual(source(render(overridden), 'k8s-secrets')?.helm.valuesObject.secrets, [
+    {
+      name: 'resource-images',
+      managedSecrets: [{ secretName: 'images-bucket-secrets', type: 'example.io/config', template: { data: { bucket: '{{ .S3_BUCKET }}' } } }],
+    },
+  ]);
+});
+
+test('a bucket with a secret template needs no workload', () => {
+  assert.doesNotThrow(() => validateResources({ platform, apps: [overridden] }));
+});

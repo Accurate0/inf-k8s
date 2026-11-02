@@ -15,6 +15,11 @@ etcd-expose-metrics: true
 etcd-arg:
   - "heartbeat-interval=1000"
   - "election-timeout=10000"
+etcd-snapshot-schedule-cron: "0 */6 * * *"
+etcd-snapshot-retention: 28
+etcd-snapshot-compress: true
+etcd-s3: true
+etcd-s3-config-secret: k3s-etcd-snapshot-s3-config
 token: "{{ k3s_cluster_token }}"
 kubelet-arg:
   - "image-gc-high-threshold=50"

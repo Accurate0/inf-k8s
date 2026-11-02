@@ -49,3 +49,25 @@ just ansible ping all               # connectivity check
 ```
 
 Direct invocation works too: `ansible-playbook playbooks/cluster.yaml -l <group>`.
+
+## Restoring etcd
+
+k3s uploads etcd snapshots to the `k3s-etcd-backup` R2 bucket every 6 hours and keeps 28 (`platform-services/etcd-backup`). The server token is in the `k3s-server-token` secret in the `k8s-shared-vault` Key Vault.
+
+The S3 config secret can't be used during a restore, and OpenBao may be gone, so mint a temporary R2 token for the bucket in the Cloudflare dashboard. Then on the server:
+
+```sh
+systemctl stop k3s
+k3s server --cluster-reset \
+  --cluster-reset-restore-path=<snapshot-file-name> \
+  --token=<server-token> \
+  --etcd-s3 \
+  --etcd-s3-endpoint=<account-id>.r2.cloudflarestorage.com \
+  --etcd-s3-region=auto \
+  --etcd-s3-bucket=k3s-etcd-backup \
+  --etcd-s3-access-key=<access-key> \
+  --etcd-s3-secret-key=<secret-key>
+systemctl start k3s
+```
+
+Afterwards, delete any nodes in the snapshot that no longer exist.
