@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-02T17:00:49.648Z
+# generated at 2026-11-02T17:01:19.710Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -163,6 +163,25 @@ spec:
                     includeAllSecrets: false
                     data:
                       accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"
+    - chart: k8s-storage
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-storage
+      targetRevision: 0.1.0
+      helm:
+        valuesObject:
+          volumes:
+            - name: firefly-upload
+              namespace: firefly
+              storageClass: longhorn-replicated
+              size: 5Gi
+              access: ReadWriteOnce
+              labels:
+                recurring-job.longhorn.io/source: enabled
+                recurring-job-group.longhorn.io/daily-backup: enabled
+              annotations:
+                inf-k8s.net/app: firefly
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          retainAnnotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
     - chart: firefly-iii
       repoURL: https://firefly-iii.github.io/kubernetes/
       targetRevision: 1.10.2

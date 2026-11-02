@@ -85,6 +85,7 @@ resources:
     type: database
     secretName: firefly-db-credentials
     enableConnectionPooling: false
+  - {name: upload, type: volume, claimName: firefly-upload, class: replicated, size: 5Gi, access: ReadWriteOnce, backup: daily}
   - {name: firefly, type: secret, secretName: firefly-managed-secrets}
   - name: integrations
     type: secret
