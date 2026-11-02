@@ -221,17 +221,17 @@ gitea:
     - name: FORGEJO__STORAGE__MINIO_ENDPOINT
       valueFrom:
         secretKeyRef:
-          name: forgejo-managed-secrets
+          name: forgejo-storage-bucket-secrets
           key: MINIO_ENDPOINT
     - name: FORGEJO__STORAGE__MINIO_ACCESS_KEY_ID
       valueFrom:
         secretKeyRef:
-          name: forgejo-managed-secrets
+          name: forgejo-storage-bucket-secrets
           key: MINIO_ACCESS_KEY_ID
     - name: FORGEJO__STORAGE__MINIO_SECRET_ACCESS_KEY
       valueFrom:
         secretKeyRef:
-          name: forgejo-managed-secrets
+          name: forgejo-storage-bucket-secrets
           key: MINIO_SECRET_ACCESS_KEY
 
     - name: FORGEJO__DATABASE__NAME
