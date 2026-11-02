@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-02T17:12:57.827Z
+# generated at 2026-11-02T17:24:21.383Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -147,9 +147,6 @@ spec:
                     includeAllSecrets: false
                     data:
                       privateKey: "{{ .GPG_PRIVATE_KEY }}"
-            - name: forgejo
-              managedSecrets:
-                - secretName: forgejo-managed-secrets
             - name: runner
               managedSecrets:
                 - secretName: forgejo-runner-secret

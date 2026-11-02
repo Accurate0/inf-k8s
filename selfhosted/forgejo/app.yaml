@@ -100,7 +100,6 @@ resources:
       includeAllSecrets: false
       data:
         privateKey: "{{ .GPG_PRIVATE_KEY }}"
-  - {name: forgejo, type: secret, secretName: forgejo-managed-secrets}
   - name: runner
     type: secret
     secretName: forgejo-runner-secret
