@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: dawarich
+network:
+  ingress: []
+namespace:
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"
+resources:
+  - name: dawarich
+    type: route
+    auth:
+      mode: app
+      reason: dawarich requires a kanidm login or api key, password login is disabled
+    hosts:
+      - timeline.anurag.sh
+    backend:
+      name: dawarich
+      port: 80
+    paths:
+      - /
+    annotations:
+      external-dns.kubernetes.io/managed: "true"
+      external-dns.kubernetes.io/cloudflare-proxied: "false"
+    timeouts:
+      request: 90s
+      backendRequest: 90s
+  - name: dawarich
+    type: oidc
+    secretName: kanidm-dawarich-oidc
+    host: timeline.anurag.sh
+    displayName: Dawarich
+    callbackPath: /users/auth/openid_connect/callback
+    preferShortUsername: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+  - {name: dawarich, type: secret, secretName: dawarich-managed-secrets}
+sources:
+  - chart: k8s-postgres
+    repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+    targetRevision: 1.0.1
+    helm:
+      valuesObject:
+        databases:
+          - name: dawarich
+            namespace: dawarich
+            databaseName: dawarich_2
+            secretName: dawarich-db-credentials
