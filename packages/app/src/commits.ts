@@ -21,8 +21,11 @@ function owner(path: string, databases: Map<string, string>): string | undefined
 
 export function planCommits(paths: string[], apps: App[]): PlannedCommit[] {
   const databases = new Map(
-    apps.flatMap((app) => Object.keys(appDatabases(app)).map((database) => [databasePath(database), app.name] as const)),
+    apps.flatMap((app) =>
+      Object.keys(appDatabases(app)).map((database) => [databasePath(database), app.name] as const),
+    ),
   );
+
   const owned = new Map<string, string[]>();
   const shared: string[] = [];
   for (const path of paths) {
@@ -30,11 +33,19 @@ export function planCommits(paths: string[], apps: App[]): PlannedCommit[] {
     if (name) owned.set(name, [...(owned.get(name) ?? []), path]);
     else shared.push(path);
   }
-  const suffix = paths.some((path) => CI_PATHS.some((prefix) => path.startsWith(prefix))) ? '' : ' [skip ci]';
+
+  const suffix = paths.some((path) => CI_PATHS.some((prefix) => path.startsWith(prefix)))
+    ? ''
+    : ' [skip ci]';
   const commits = [...owned.keys()].sort().map((name) => ({
     message: `chore(render): update ${name}${suffix}`,
     paths: owned.get(name) as string[],
   }));
-  if (shared.length) commits.push({ message: `chore(render): update shared generated files${suffix}`, paths: shared });
+
+  if (shared.length)
+    commits.push({
+      message: `chore(render): update shared generated files${suffix}`,
+      paths: shared,
+    });
   return commits;
 }

@@ -16,6 +16,7 @@ export function history(kube: Kube, name: string): number {
     console.log(`${name} has no sync history`);
     return 0;
   }
+
   const rows = entries.map((entry) => {
     return [
       minuteTimestamp(entry.deployedAt ?? '-'),
@@ -23,6 +24,7 @@ export function history(kube: Kube, name: string): number {
       describeTags(tagsAt(app, entry)),
     ];
   });
+
   console.log(columns(['DEPLOYED (UTC)', 'REVISION', 'IMAGES'], rows));
   return 0;
 }

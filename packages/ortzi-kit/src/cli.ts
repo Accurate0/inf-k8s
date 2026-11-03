@@ -28,21 +28,25 @@ export function cli<C, F extends Flags>(spec: CliSpec<C, F>): { run(): void } {
       console.log(formatCompletions(candidates));
       return 0;
     }
+
     if (argv.includes('--help') || argv.includes('-h')) {
       console.log(spec.usage);
       return 0;
     }
+
     const { values, positionals } = parseArgs(argv, spec.flags);
     const [name, ...rest] = positionals;
     if (!name) {
       console.log(spec.usage);
       return 2;
     }
+
     const command = Object.hasOwn(spec.commands, name) ? spec.commands[name] : undefined;
     if (!command) {
       console.error(`unknown command ${name}\n\n${spec.usage}`);
       return 2;
     }
+
     try {
       return command(spec.setup(values), values, rest);
     } catch (e) {

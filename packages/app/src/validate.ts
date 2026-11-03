@@ -17,12 +17,17 @@ function schemaCache(): string {
     stderr: 'piped',
     check: false,
   }).stdout.match(/[0-9a-f]{64}/)?.[0];
+
   fs.mkdir(CACHE_ROOT);
-  const cached = fs.readDir(CACHE_ROOT).filter((entry) => entry.dir).map((entry) => entry.name);
+  const cached = fs
+    .readDir(CACHE_ROOT)
+    .filter((entry) => entry.dir)
+    .map((entry) => entry.name);
   const current = version ?? cached[0] ?? 'unversioned';
   for (const old of cached) {
     if (old !== current) fs.remove(`${CACHE_ROOT}/${old}`);
   }
+
   fs.mkdir(`${CACHE_ROOT}/${current}`);
   return `${CACHE_ROOT}/${current}`;
 }
@@ -41,6 +46,7 @@ export function validateManifests(
   const failures: string[] = [];
   const report = (where: string, before: number) =>
     console.error(`  ${failures.length > before ? '✗' : '✓'} ${where}`);
+
   let cache: string | undefined;
   const kubeconform = (where: string, paths: string[], stdin?: string, flags: string[] = []) => {
     cache ??= schemaCache();
@@ -69,10 +75,16 @@ export function validateManifests(
     const before = failures.length;
     const documents = [content];
     for (const { args, values } of helmTemplates(plan)) {
-      const output = run('helm', args, { stdin: values, stdout: 'piped', stderr: 'piped', check: false });
+      const output = run('helm', args, {
+        stdin: values,
+        stdout: 'piped',
+        stderr: 'piped',
+        check: false,
+      });
       if (output.ok) documents.push(output.stdout);
       else failures.push(`${path}: helm ${args[2]}\n${output.stderr}`);
     }
+
     kubeconform(path, [], documents.join('\n---\n'));
     report(path, before);
   }
@@ -84,7 +96,10 @@ export function validateManifests(
       if (!selected(dir)) return;
       if (file === 'kustomization.yaml' || file === 'kustomization.yml') kustomizations.push(dir);
       const path = `${dir}/${file}`;
-      if (!generated.has(path) && (file === 'application.yaml' || file.endsWith('.application.yaml'))) {
+      if (
+        !generated.has(path) &&
+        (file === 'application.yaml' || file.endsWith('.application.yaml'))
+      ) {
         applications.push(path);
       }
     });
@@ -96,15 +111,21 @@ export function validateManifests(
     kubeconform('applications', applications);
     report('applications', before);
   }
+
   console.error(`validating ${kustomizations.length} kustomizations`);
   for (const dir of kustomizations) {
     const before = failures.length;
-    const output = run('kustomize', ['build', dir], { stdout: 'piped', stderr: 'piped', check: false });
+    const output = run('kustomize', ['build', dir], {
+      stdout: 'piped',
+      stderr: 'piped',
+      check: false,
+    });
     if (!output.ok) {
       failures.push(`${dir}: kustomize\n${output.stderr}`);
       report(dir, before);
       continue;
     }
+
     const flagsPath = `${dir}/.kubeconform-flags`;
     const flags = fs.exists(flagsPath) ? fs.readText(flagsPath).split(/\s+/).filter(Boolean) : [];
     kubeconform(dir, [], output.stdout, flags);

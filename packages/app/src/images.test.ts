@@ -16,6 +16,7 @@ patches:
   - name: ignored
     newTag: nope
 `;
+
   assert.deepEqual(
     [...parseKustomizationImages(text)],
     [
@@ -29,12 +30,15 @@ patches:
 test('finds the most recent different tags', () => {
   const running = new Map([['api', 'c']]);
   const history = [new Map([['api', 'c']]), new Map([['api', 'b']]), new Map([['api', 'a']])];
+
   assert.equal(previousTags(running, history)?.get('api'), 'b');
   assert.equal(previousTags(running, [new Map([['api', 'c']])]), undefined);
 });
 
 test('reads images from an image values file', () => {
-  const text = 'other: 1\nimages:\n  ghcr.io/accurate0/api: abc\n  ghcr.io/accurate0/web: "def"\nlater:\n  nope: x\n';
+  const text =
+    'other: 1\nimages:\n  ghcr.io/accurate0/api: abc\n  ghcr.io/accurate0/web: "def"\nlater:\n  nope: x\n';
+
   assert.deepEqual(
     [...parseValuesImages(text)],
     [

@@ -3,7 +3,12 @@ export function columns(header: string[], rows: string[][]): string {
     Math.max(title.length, ...rows.map((row) => row[column].length)),
   );
   return [header, ...rows]
-    .map((row) => row.map((cell, column) => cell.padEnd(widths[column])).join('  ').trimEnd())
+    .map((row) =>
+      row
+        .map((cell, column) => cell.padEnd(widths[column]))
+        .join('  ')
+        .trimEnd(),
+    )
     .join('\n');
 }
 

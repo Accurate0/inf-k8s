@@ -14,19 +14,36 @@ const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket', 'oidc'];
 
 const secretKind = (value: Values) => SECRET_KINDS.find((kind) => value[kind]);
 
-const PROBES = { startup: 'startupProbe', readiness: 'readinessProbe', liveness: 'livenessProbe' } as const;
-const TIMINGS = { delay: 'initialDelaySeconds', every: 'periodSeconds', timeout: 'timeoutSeconds', failures: 'failureThreshold' } as const;
+const PROBES = {
+  startup: 'startupProbe',
+  readiness: 'readinessProbe',
+  liveness: 'livenessProbe',
+} as const;
+
+const TIMINGS = {
+  delay: 'initialDelaySeconds',
+  every: 'periodSeconds',
+  timeout: 'timeoutSeconds',
+  failures: 'failureThreshold',
+} as const;
 
 function expandEnv(env: Values, refs: Refs) {
   return Object.entries(env).map(([name, value]) => {
     if (typeof value !== 'object' || value === null) return { name, value: String(value) };
     if (value.resource) return refs.resource(value.resource, name);
     if (value.service) return { name, value: refs.service(value.service, value.port, value.path) };
+
     const kind = secretKind(value);
     if (kind) {
       const optional = value.optional === undefined ? {} : { optional: value.optional };
-      return { name, valueFrom: { secretKeyRef: { name: refs.secret(kind, value[kind]), key: value.key, ...optional } } };
+      return {
+        name,
+        valueFrom: {
+          secretKeyRef: { name: refs.secret(kind, value[kind]), key: value.key, ...optional },
+        },
+      };
     }
+
     if (value.field) return { name, valueFrom: { fieldRef: { fieldPath: value.field } } };
     return { name, ...value };
   });
@@ -40,7 +57,10 @@ function expandProbes({ http, grpc, ...probes }: Values) {
       {
         ...target,
         ...Object.fromEntries(
-          Object.entries(timings as Values).map(([key, value]) => [TIMINGS[key as keyof typeof TIMINGS], value]),
+          Object.entries(timings as Values).map(([key, value]) => [
+            TIMINGS[key as keyof typeof TIMINGS],
+            value,
+          ]),
         ),
       },
     ]),
@@ -52,8 +72,12 @@ function expandMounts(mounts: Values, refs: Refs) {
     if (mount.volume) return [name, { ...mount, claimName: refs.volume(mount.volume) }];
     if (!mount.config) return [name, mount];
     const { configMap, files } = refs.config(mount.config);
-    return [name, { ...mount, configMap, items: files.map((path) => ({ key: path.split('/').pop(), path })) }];
+    return [
+      name,
+      { ...mount, configMap, items: files.map((path) => ({ key: path.split('/').pop(), path })) },
+    ];
   });
+
   return {
     volumes: entries.map(([name, { claimName, configMap, items }]) => {
       if (claimName) return { name, persistentVolumeClaim: { claimName } };
@@ -91,6 +115,7 @@ function expandEnvFrom(from: unknown, refs: Refs) {
   const value = from as Values;
   const kind = secretKind(value);
   if (!kind) return value;
+
   const { [kind]: name, optional, prefix } = value;
   return {
     ...(prefix ? { prefix } : {}),
@@ -100,21 +125,31 @@ function expandEnvFrom(from: unknown, refs: Refs) {
 
 export function expandContainer(spec: Values, refs: Refs): Values {
   const { probes, mounts, ...out } = spec;
+
   if (out.env && !Array.isArray(out.env)) out.env = expandEnv(out.env, refs);
   if (out.envFrom) {
     out.envFrom = out.envFrom.map((from: unknown) => expandEnvFrom(from, refs));
   }
   if (out.resources) out.resources = expandResources(out.resources);
   if (out.ports) {
-    out.ports = out.ports.map((port: Values) => ({ name: port.name, containerPort: port.container }));
+    out.ports = out.ports.map((port: Values) => ({
+      name: port.name,
+      containerPort: port.container,
+    }));
   }
-  return { ...out, ...(probes ? expandProbes(probes) : {}), ...(mounts ? expandMounts(mounts, refs) : {}) };
+
+  return {
+    ...out,
+    ...(probes ? expandProbes(probes) : {}),
+    ...(mounts ? expandMounts(mounts, refs) : {}),
+  };
 }
 
 export function expandWorkload(spec: Values, refs: Refs): Values {
   const { overrides, serviceAccount, ...rest } = spec;
   const out = expandContainer(rest, refs);
   if (serviceAccount) out.serviceAccountName = serviceAccount;
+
   const exposed = declaredPorts(spec).filter((port) => port.service);
   if (exposed.length) {
     out.service = {
@@ -128,9 +163,11 @@ export function expandWorkload(spec: Values, refs: Refs): Values {
       })),
     };
   }
+
   for (const key of ['initContainers', 'sidecars']) {
     if (out[key]) out[key] = out[key].map((container: Values) => expandContainer(container, refs));
   }
+
   return { ...out, ...overrides };
 }
 

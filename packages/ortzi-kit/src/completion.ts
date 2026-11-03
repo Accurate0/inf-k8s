@@ -6,7 +6,10 @@ export interface CompletionSpec<C> {
   completers?: Record<string, (ctx: C, position: number) => string[]>;
 }
 
-export function positionalWords(words: string[], flags: CompletionSpec<unknown>['flags']): string[] {
+export function positionalWords(
+  words: string[],
+  flags: CompletionSpec<unknown>['flags'],
+): string[] {
   const positionals: string[] = [];
   for (let i = 0; i < words.length; i++) {
     const word = words[i];

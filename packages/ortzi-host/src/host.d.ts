@@ -13,34 +13,34 @@ declare module 'ortzi:host/fs@0.1.0' {
   export function createDirAll(path: string): void;
   export function remove(path: string): void;
   export interface Entry {
-    name: string,
-    dir: boolean,
+    name: string;
+    dir: boolean;
   }
 }
 declare module 'ortzi:host/process@0.1.0' {
   export function run(command: Command): Output;
   /**
    * # Variants
-   * 
+   *
    * ## `"inherit"`
-   * 
+   *
    * ## `"piped"`
-   * 
+   *
    * ## `"null"`
    */
-  export type Stdio = "inherit" | "piped" | "null";
+  export type Stdio = 'inherit' | 'piped' | 'null';
   export interface Command {
-    program: string,
-    args: Array<string>,
-    env: Array<[string, string]>,
-    cwd?: string,
-    stdin?: Uint8Array,
-    stdout: Stdio,
-    stderr: Stdio,
+    program: string;
+    args: Array<string>;
+    env: Array<[string, string]>;
+    cwd?: string;
+    stdin?: Uint8Array;
+    stdout: Stdio;
+    stderr: Stdio;
   }
   export interface Output {
-    code?: number,
-    stdout: Uint8Array,
-    stderr: Uint8Array,
+    code?: number;
+    stdout: Uint8Array;
+    stderr: Uint8Array;
   }
 }

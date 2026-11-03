@@ -62,7 +62,8 @@ function r2Resources(app: App, id: string, resource: Bucket, bucket: string): Bl
             effect: 'allow',
             permission_groups: [{ id: ref('var.r2_write_permission_group') }],
             resources: JSON.stringify({
-              [`com.cloudflare.edge.r2.bucket.${account}_default_${ref(`cloudflare_r2_bucket.${id}.name`)}`]: '*',
+              [`com.cloudflare.edge.r2.bucket.${account}_default_${ref(`cloudflare_r2_bucket.${id}.name`)}`]:
+                '*',
             }),
           },
         ],
@@ -127,18 +128,22 @@ function s3Resources(app: App, id: string, resource: Bucket, bucket: string): Bl
 const merge = (blocks: Block[]): Block => {
   const out: Block = {};
   for (const block of blocks) {
-    for (const [type, resources] of Object.entries(block)) out[type] = { ...out[type], ...resources };
+    for (const [type, resources] of Object.entries(block))
+      out[type] = { ...out[type], ...resources };
   }
   return out;
 };
 
-const json = (value: Record<string, unknown>) => `${JSON.stringify({ '//': HEADER_TEXT, ...value }, null, 2)}\n`;
+const json = (value: Record<string, unknown>) =>
+  `${JSON.stringify({ '//': HEADER_TEXT, ...value }, null, 2)}\n`;
 
 export const appTerraformPath = (app: App) => `${TERRAFORM_APPS}/${app.name}.tf.json`;
 
 export function renderAppTerraform(app: App): string | undefined {
   const blocks = [
-    ...Object.entries(appDatabases(app)).map(([database, spec]) => databaseResources(app, database, databaseRole(database, spec))),
+    ...Object.entries(appDatabases(app)).map(([database, spec]) =>
+      databaseResources(app, database, databaseRole(database, spec)),
+    ),
     ...(app.resources ?? []).flatMap((resource) => {
       if (resource.type !== 'bucket') return [];
       const id = `${app.name}-${resource.name}`;
@@ -146,6 +151,7 @@ export function renderAppTerraform(app: App): string | undefined {
       return [render(app, id, resource, resource.bucket)];
     }),
   ];
+
   return blocks.length ? json({ resource: merge(blocks) }) : undefined;
 }
 
@@ -154,10 +160,13 @@ export function renderTerraformIndex(apps: App[]): string {
   const s3 = apps
     .flatMap((app) =>
       (app.resources ?? []).flatMap((resource) =>
-        resource.type === 'bucket' && resource.provider === 's3' ? [`${app.name}-${resource.name}`] : [],
+        resource.type === 'bucket' && resource.provider === 's3'
+          ? [`${app.name}-${resource.name}`]
+          : [],
       ),
     )
     .sort();
+
   return json({
     output: {
       database_names: { value: names },
@@ -168,7 +177,10 @@ export function renderTerraformIndex(apps: App[]): string {
               value: Object.fromEntries(
                 s3.map((id) => [
                   id,
-                  { id: ref(`aws_iam_access_key.${id}.id`), secret: ref(`aws_iam_access_key.${id}.secret`) },
+                  {
+                    id: ref(`aws_iam_access_key.${id}.id`),
+                    secret: ref(`aws_iam_access_key.${id}.secret`),
+                  },
                 ]),
               ),
             },

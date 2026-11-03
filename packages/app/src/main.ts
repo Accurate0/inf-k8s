@@ -43,7 +43,12 @@ import {
 import { renderOutputs } from './outputs';
 import { planApp } from './plan';
 import { addRoles, databasePath, renderDatabase } from './providers/cnpg';
-import { appTerraformPath, renderAppTerraform, renderTerraformIndex, TERRAFORM_APPS } from './terraform';
+import {
+  appTerraformPath,
+  renderAppTerraform,
+  renderTerraformIndex,
+  TERRAFORM_APPS,
+} from './terraform';
 import { type RenderedOutput, validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services', 'selfhosted', 'system-components'];
@@ -130,7 +135,6 @@ function requireOnOff(
   return { name, state };
 }
 
-
 function discover(): { app: App; target: Target }[] {
   const found = [];
   for (const location of LOCATIONS) {
@@ -140,22 +144,41 @@ function discover(): { app: App; target: Target }[] {
       if (!fs.exists(path)) continue;
       const app = validate(parse(fs.readText(path)), path);
       if (app.name !== entry.name) throw new Error(`${path}: name must match its directory`);
+
       const target = {
         location,
         hasManifests: fs.exists(`${location}/${entry.name}/manifests/kustomization.yaml`),
       };
       const hasRootKustomization = fs.exists(`${location}/${entry.name}/kustomization.yaml`);
       validateManifestSources(app, { hasManifests: target.hasManifests, hasRootKustomization });
+
       for (const file of appFiles(app, target)) {
         if (!fs.exists(file)) throw new Error(`${path}: no file named ${file}`);
       }
+
       found.push({ app, target });
     }
   }
+
   validateIngress(found.map(({ app }) => app));
-  const external = found.filter(({ app, target }) => sourcesOf(app, 'helm').length || target.hasManifests || (sourcesOf(app, 'manifests').length && !needsKustomization(app)));
-  validateResources({ platform: platformExports(), apps: found.map(({ app }) => app), external: new Set(external.map(({ app }) => app.name)) });
-  validateGatewayAccess(found.map(({ app }) => app), gatewayListeners());
+
+  const external = found.filter(
+    ({ app, target }) =>
+      sourcesOf(app, 'helm').length ||
+      target.hasManifests ||
+      (sourcesOf(app, 'manifests').length && !needsKustomization(app)),
+  );
+  validateResources({
+    platform: platformExports(),
+    apps: found.map(({ app }) => app),
+    external: new Set(external.map(({ app }) => app.name)),
+  });
+
+  validateGatewayAccess(
+    found.map(({ app }) => app),
+    gatewayListeners(),
+  );
+
   return found;
 }
 
@@ -164,7 +187,9 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   const stale = [];
   const apps = discover();
   const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
+
   if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
+
   for (const { app, target } of apps) {
     if (only && app.name !== only) continue;
     for (const [path, wanted] of renderOutputs(planApp(app, versions, target, world), app)) {
@@ -172,6 +197,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
         stale.push({ path, wanted: stamped(wanted, new Date()) });
       }
     }
+
     if (app.build) {
       const workflow = workflowPath(app);
       const rendered = renderWorkflow(app, target);
@@ -179,6 +205,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
         stale.push({ path: workflow, wanted: stamped(rendered, new Date()) });
       }
     }
+
     if (app.workloads) {
       const values = imageValuesPath(app, target);
       const current = fs.exists(values) ? parse(fs.readText(values)) : {};
@@ -190,6 +217,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
       }
     }
   }
+
   for (const { app } of apps) {
     if (only && app.name !== only) continue;
     for (const [database, spec] of Object.entries(appDatabases(app))) {
@@ -200,14 +228,19 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
       }
     }
   }
+
   const cluster = fs.readText(POSTGRES_CLUSTER);
   const withRoles = addRoles(cluster, appRoles(world.apps));
   if (force || withRoles !== cluster) stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
-  const generated = new Map([[`${TERRAFORM_APPS}/_index.tf.json`, renderTerraformIndex(world.apps)]]);
+
+  const generated = new Map([
+    [`${TERRAFORM_APPS}/_index.tf.json`, renderTerraformIndex(world.apps)],
+  ]);
   for (const app of world.apps) {
     const terraform = renderAppTerraform(app);
     if (terraform) generated.set(appTerraformPath(app), terraform);
   }
+
   for (const { app, target } of apps) {
     if (only && app.name !== only) continue;
     const kustomization = renderKustomization(app, target);
@@ -215,9 +248,11 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
     const rbac = renderRbac(app);
     if (rbac) generated.set(rbacPath(app, target), rbac);
   }
+
   for (const [path, wanted] of generated) {
     if (force || !fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
   }
+
   return stale;
 }
 
@@ -226,7 +261,9 @@ function staleTerraform(apps: App[]): string[] {
   return fs
     .readDir(TERRAFORM_APPS)
     .map((entry) => `${TERRAFORM_APPS}/${entry.name}`)
-    .filter((path) => path.endsWith('.tf.json') && !path.endsWith('/_index.tf.json') && !wanted.has(path));
+    .filter(
+      (path) => path.endsWith('.tf.json') && !path.endsWith('/_index.tf.json') && !wanted.has(path),
+    );
 }
 
 function commitAll(paths: string[], apps: App[]) {
@@ -239,7 +276,10 @@ function commitAll(paths: string[], apps: App[]) {
 }
 
 function changedPaths(generated: Map<string, RenderedOutput>): string[] {
-  const status = exec('git', ['status', '--porcelain', '-z', '--no-renames', '-uall'], { stdout: 'piped' });
+  const status = exec('git', ['status', '--porcelain', '-z', '--no-renames', '-uall'], {
+    stdout: 'piped',
+  });
+
   const rerendered = [...generated]
     .filter(([path, { content }]) => !fs.exists(path) || !isCurrent(fs.readText(path), content))
     .map(([path]) => path);
@@ -250,33 +290,45 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   if (check && commit) throw new UsageError('--check and --commit cannot be used together');
   if (force && check) throw new UsageError('--force and --check cannot be used together');
   if (force && changed) throw new UsageError('--force and --changed cannot be used together');
+
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
   const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
   const generated = new Map(
     apps.flatMap(({ app, target }) => {
       const plan = planApp(app, versions, target, world);
-      return renderOutputs(plan, app).map(([path, content]): [string, RenderedOutput] => [path, { content, plan }]);
+      return renderOutputs(plan, app).map(([path, content]): [string, RenderedOutput] => [
+        path,
+        { content, plan },
+      ]);
     }),
   );
-  const failures = validateManifests(generated, changed ? changedScope(changedPaths(generated)) : undefined);
+
+  const failures = validateManifests(
+    generated,
+    changed ? changedScope(changedPaths(generated)) : undefined,
+  );
   if (failures.length) {
     for (const failure of failures) console.error(failure);
     console.error(`${failures.length} validation failure(s), nothing written`);
     return 1;
   }
+
   const stale = staleFiles(undefined, force);
   for (const { path, wanted } of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
     if (!check) fs.write(path, wanted);
   }
+
   const removed = staleTerraform(world.apps);
   for (const path of removed) {
     console.log(`${check ? 'stale' : 'removed'} ${path}`);
     if (!check) fs.remove(path);
   }
+
   if (!stale.length && !removed.length) console.log('everything is up to date');
   if (commit) commitAll([...stale.map(({ path }) => path), ...removed], world.apps);
+
   return check && stale.length + removed.length > 0 ? 1 : 0;
 }
 
@@ -289,6 +341,7 @@ function diff(only?: string): number {
       check: false,
     });
   }
+
   return stale.length > 0 ? 1 : 0;
 }
 
@@ -320,6 +373,7 @@ export const run = cli({
         const size = block ? Object.keys(block).length : 0;
         return size ? String(size) : '-';
       };
+
       const rows = discover().map(({ app, target }) => [
         app.name,
         target.location,
@@ -331,22 +385,37 @@ export const run = cli({
         String(appMetrics(app).length || '-'),
         app.network.ingress.join(',') || '-',
       ]);
+
       console.log(
         columns(
-          ['APP', 'LOCATION', 'WORKLOADS', 'ROUTES', 'OIDC', 'DATABASES', 'SECRETS', 'METRICS', 'INGRESS'],
+          [
+            'APP',
+            'LOCATION',
+            'WORKLOADS',
+            'ROUTES',
+            'OIDC',
+            'DATABASES',
+            'SECRETS',
+            'METRICS',
+            'INGRESS',
+          ],
           rows,
         ),
       );
+
       return 0;
     },
     graph: (_ctx, values, [name]) => {
       if (values.format && values.format !== 'mermaid' && values.format !== 'dot') {
         throw new UsageError('--format must be mermaid or dot');
       }
+
       const apps = discover().map(({ app }) => app);
       if (name && !apps.some((app) => app.name === name)) throw new Error(`no app named ${name}`);
+
       const graph = buildGraph(apps, name);
       console.log(values.format === 'dot' ? toDot(graph) : toMermaid(graph));
+
       return 0;
     },
     status: (ctx, values, [name]) => status(ctx.kube(), name, values.all, values.latest),

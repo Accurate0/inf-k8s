@@ -4,13 +4,20 @@ import { age, columns, minuteTimestamp, parseMinutes, short } from './format.ts'
 
 test('aligns columns', () => {
   assert.equal(
-    columns(['NAME', 'AGE'], [['api', '5h'], ['home-gateway', '3d']]),
+    columns(
+      ['NAME', 'AGE'],
+      [
+        ['api', '5h'],
+        ['home-gateway', '3d'],
+      ],
+    ),
     'NAME          AGE\napi           5h\nhome-gateway  3d',
   );
 });
 
 test('formats ages', () => {
   const start = Date.parse('2026-01-01T00:00:00Z');
+
   assert.equal(age('2026-01-01T00:00:00Z', start + 5 * 60_000), '5m');
   assert.equal(age('2026-01-01T00:00:00Z', start + 5 * 3_600_000), '5h');
   assert.equal(age('2026-01-01T00:00:00Z', start + 48 * 3_600_000), '2d');

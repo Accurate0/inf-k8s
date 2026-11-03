@@ -41,12 +41,21 @@ export interface Application {
 
 const argocd = (kube: Kube) => kube.namespace(ARGOCD);
 
-export const getApp = (kube: Kube, name: string) => argocd(kube).get<Application>('application', name);
+export const getApp = (kube: Kube, name: string) =>
+  argocd(kube).get<Application>('application', name);
 
 export const listApps = (kube: Kube) => argocd(kube).list<Application>('applications');
 
 function patchApp(kube: Kube, name: string, patch: unknown): void {
-  argocd(kube).capture(['patch', 'application', name, '--type', 'merge', '-p', JSON.stringify(patch)]);
+  argocd(kube).capture([
+    'patch',
+    'application',
+    name,
+    '--type',
+    'merge',
+    '-p',
+    JSON.stringify(patch),
+  ]);
 }
 
 export function waitForSync(kube: Kube, name: string, minutes: number): boolean {

@@ -17,6 +17,7 @@ const { values } = parseArgs({
     out: { type: 'string' },
   },
 });
+
 if (!values.out) {
   console.error('usage: ortzi-wasm-build --entry src/main.ts --out dist/name.wasm');
   process.exit(2);

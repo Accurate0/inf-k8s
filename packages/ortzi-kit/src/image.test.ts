@@ -4,8 +4,14 @@ import { parseDigest, parseImage } from './image.ts';
 
 test('splits image references', () => {
   assert.deepEqual(parseImage('ghcr.io/a/b:v1'), { repository: 'ghcr.io/a/b', tag: 'v1' });
-  assert.deepEqual(parseImage('localhost:5000/a'), { repository: 'localhost:5000/a', tag: 'latest' });
-  assert.deepEqual(parseImage('ghcr.io/a/b:v1@sha256:abc'), { repository: 'ghcr.io/a/b', tag: 'v1' });
+  assert.deepEqual(parseImage('localhost:5000/a'), {
+    repository: 'localhost:5000/a',
+    tag: 'latest',
+  });
+  assert.deepEqual(parseImage('ghcr.io/a/b:v1@sha256:abc'), {
+    repository: 'ghcr.io/a/b',
+    tag: 'v1',
+  });
 });
 
 test('reads the digest header case-insensitively', () => {

@@ -9,9 +9,16 @@ export interface Output {
 
 const argocd: Output = {
   name: 'argocd',
-  render: (plan, app) => new Map([[`${plan.directory}/application.yaml`, renderApplication(plan, app.overrides?.argocd?.application)]]),
+  render: (plan, app) =>
+    new Map([
+      [
+        `${plan.directory}/application.yaml`,
+        renderApplication(plan, app.overrides?.argocd?.application),
+      ],
+    ]),
 };
 
 export const OUTPUTS: Output[] = [argocd];
 
-export const renderOutputs = (plan: Plan, app: App) => OUTPUTS.flatMap((output) => [...output.render(plan, app)]);
+export const renderOutputs = (plan: Plan, app: App) =>
+  OUTPUTS.flatMap((output) => [...output.render(plan, app)]);

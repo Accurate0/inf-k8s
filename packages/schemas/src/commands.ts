@@ -1,12 +1,5 @@
 import type { Kube } from '@ortzi/kit';
-import {
-  createJob,
-  followJob,
-  getCronJob,
-  jobResult,
-  listJobs,
-  publishedVersion,
-} from './jobs';
+import { createJob, followJob, getCronJob, jobResult, listJobs, publishedVersion } from './jobs';
 
 export interface SyncOptions {
   detach: boolean;
@@ -42,7 +35,11 @@ export function sync(kube: Kube, namespace: string, options: SyncOptions): numbe
   }
 
   const after = publishedVersion();
-  console.log(after === before ? `published version unchanged (${after})` : `published version ${before} -> ${after}`);
+  console.log(
+    after === before
+      ? `published version unchanged (${after})`
+      : `published version ${before} -> ${after}`,
+  );
   return 0;
 }
 

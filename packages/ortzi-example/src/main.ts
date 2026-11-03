@@ -7,6 +7,7 @@ export const run = main(() => {
     run: { type: 'string' },
     exit: { type: 'string' },
   });
+
   if (values.help) {
     console.log('usage: ortzi example [--write FILE] [words...]');
     return;
@@ -16,11 +17,14 @@ export const run = main(() => {
     exec(values.run);
     return;
   }
+
   if (values.exit) return Number(values.exit);
 
   console.log(`hello ${positionals.join(' ') || 'world'} from wasm`);
   const vars = env();
-  console.log(`HOME is ${vars.HOME ?? 'hidden'}, ORTZI_EXAMPLE is ${vars.ORTZI_EXAMPLE ?? 'unset'}`);
+  console.log(
+    `HOME is ${vars.HOME ?? 'hidden'}, ORTZI_EXAMPLE is ${vars.ORTZI_EXAMPLE ?? 'unset'}`,
+  );
   console.log(`git says: ${capture('git', ['--version']).trim()}`);
   exec('echo', ['inherited stdout from echo']);
 

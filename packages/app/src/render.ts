@@ -1,7 +1,13 @@
 import { type Schema, Validator } from 'jsonschema/lib/index.js';
 import { stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
-import { declaredPorts, expandWorkload, overrideConflicts, type Refs, type SecretKind } from './workload.ts';
+import {
+  declaredPorts,
+  expandWorkload,
+  overrideConflicts,
+  type Refs,
+  type SecretKind,
+} from './workload.ts';
 
 export const HEADER_TEXT = 'generated from app.yaml by `ortzi app render`; edit app.yaml instead';
 export const HEADER = `# ${HEADER_TEXT}`;
@@ -103,7 +109,14 @@ export interface Export {
 
 export type RouteAuth =
   | { mode: 'jwt'; clients: string[] }
-  | { mode: 'oidc'; client: string; scopes?: string[]; forwardAccessToken?: boolean; logoutPath?: string; jwt?: Record<string, unknown> }
+  | {
+      mode: 'oidc';
+      client: string;
+      scopes?: string[];
+      forwardAccessToken?: boolean;
+      logoutPath?: string;
+      jwt?: Record<string, unknown>;
+    }
   | { mode: 'app' | 'none'; reason: string };
 
 export type RouteDns = { provider: 'cloudflare'; proxied: boolean } | { provider: 'unifi' };
@@ -120,13 +133,19 @@ export interface Route {
   auth: RouteAuth;
   backend?: { name: string; port: number };
   paths?: (string | { type: string; value: string })[];
-  rules?: { paths: (string | { type: string; value: string })[]; backend: { name: string; port: number } }[];
+  rules?: {
+    paths: (string | { type: string; value: string })[];
+    backend: { name: string; port: number };
+  }[];
   dns?: RouteDns;
   ratelimit?: RouteRatelimit;
   timeouts?: Record<string, unknown>;
 }
 
-export type OidcClient = { host: string; displayName?: string; secretName: string } & Record<string, unknown>;
+export type OidcClient = { host: string; displayName?: string; secretName: string } & Record<
+  string,
+  unknown
+>;
 
 export interface Build {
   image: string;
@@ -218,7 +237,9 @@ export interface World {
 }
 
 function servicePorts(workload: string, spec: Workload) {
-  const ports = declaredPorts(spec).filter((p) => p.service).map((p) => ({ name: p.name as string, port: p.service as number }));
+  const ports = declaredPorts(spec)
+    .filter((p) => p.service)
+    .map((p) => ({ name: p.name as string, port: p.service as number }));
   return { workload, service: spec.service?.name ?? workload, ports };
 }
 
@@ -226,17 +247,36 @@ function exportPort(provider: App, exported: Export): number {
   const spec = appWorkloads(provider)[exported.workload];
   const ports = spec ? servicePorts(exported.workload, spec).ports : [];
   const found = ports.find((p) => p.name === exported.port || p.port === exported.port)?.port;
-  if (!found) throw new Error(`${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`);
+  if (!found)
+    throw new Error(
+      `${provider.name}: exports.${exported.name}: no matching port on workload ${exported.workload}`,
+    );
+
   return found;
 }
 
-const OWN_NAMES = new Set(['secret', 'route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount', 'volume']);
+const OWN_NAMES = new Set([
+  'secret',
+  'route',
+  'oidc',
+  'metrics',
+  'config',
+  'dashboard',
+  'serviceAccount',
+  'volume',
+]);
 
 function appExportUrl(app: App, resource: Extract<Resource, { type: 'app' }>, apps: App[]): string {
   const provider = apps.find((a) => a.name === resource.app);
-  if (!provider) throw new Error(`${app.name}: resources.${resource.name}: no app named ${resource.app}`);
+  if (!provider)
+    throw new Error(`${app.name}: resources.${resource.name}: no app named ${resource.app}`);
+
   const exported = provider.exports?.find((e) => e.name === resource.export);
-  if (!exported) throw new Error(`${app.name}: resources.${resource.name}: ${resource.app} has no export named ${resource.export}`);
+  if (!exported)
+    throw new Error(
+      `${app.name}: resources.${resource.name}: ${resource.app} has no export named ${resource.export}`,
+    );
+
   const service = appWorkloads(provider)[exported.workload]?.service?.name ?? exported.workload;
   return serviceUrl(service, provider.name, exportPort(provider, exported), resource.path);
 }
@@ -247,48 +287,82 @@ const serviceUrl = (service: string, namespace: string, port: number, path = '')
 function ownServiceUrl(app: App, service: string, port: string | number, path?: string): string {
   const found = appServices(app).find((s) => s.service === service);
   if (!found) throw new Error(`${app.name}: env: no service named ${service}`);
+
   const exposed = found.ports.find((p) => p.name === port || p.port === port);
   if (!exposed) throw new Error(`${app.name}: env: service ${service} has no port ${port}`);
+
   return serviceUrl(service, appNamespace(app), exposed.port, path);
 }
 
-function resourceEnv(app: App, name: string, env: string, { platform, apps }: World): { name: string; value: string } {
-  const resource = app.resources?.find((r) => r.name === name && !OWN_NAMES.has(r.type)) as Resource;
+function resourceEnv(
+  app: App,
+  name: string,
+  env: string,
+  { platform, apps }: World,
+): { name: string; value: string } {
+  const resource = app.resources?.find(
+    (r) => r.name === name && !OWN_NAMES.has(r.type),
+  ) as Resource;
   if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
   if (resource.type === 'bucket') {
-    throw new Error(`${app.name}: resources.${name}: read a bucket with {bucket, key}, not {resource}`);
+    throw new Error(
+      `${app.name}: resources.${name}: read a bucket with {bucket, key}, not {resource}`,
+    );
   }
   if (resource.type === 'database') {
     throw new Error(`${app.name}: resources.${name}: list a database's secret in envFrom, not env`);
   }
+
   const wanted =
     resource.type === 'cache'
       ? { type: 'cache', name: resource.instance }
       : { type: 'platform', name: (resource as { export: string }).export };
   const provided = platform.filter((e) => e.type === wanted.type && e.name === wanted.name);
   if (provided.length !== 1) {
-    throw new Error(`${app.name}: resources.${name}: expected one platform ${wanted.type} export named ${wanted.name}, found ${provided.length}`);
+    throw new Error(
+      `${app.name}: resources.${name}: expected one platform ${wanted.type} export named ${wanted.name}, found ${provided.length}`,
+    );
   }
+
   return { name: env, value: provided[0].url as string };
 }
 
 const appServices = (app: App) =>
   Object.entries(appWorkloads(app)).map(([workload, spec]) => servicePorts(workload, spec));
 
-const BUCKET_KEYS = ['S3_BUCKET', 'S3_ENDPOINT', 'S3_REGION', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY'];
+const BUCKET_KEYS = [
+  'S3_BUCKET',
+  'S3_ENDPOINT',
+  'S3_REGION',
+  'S3_ACCESS_KEY_ID',
+  'S3_SECRET_ACCESS_KEY',
+];
 
 function containerRefs(spec: Workload): Record<string, unknown>[] {
-  const containers = [spec, ...((spec.initContainers ?? []) as Workload[]), ...((spec.sidecars ?? []) as Workload[])];
-  return containers.flatMap((c) => [
-    ...(c.env && !Array.isArray(c.env) ? Object.values(c.env) : []),
-    ...(c.envFrom ?? []),
-  ]).filter((ref): ref is Record<string, unknown> => typeof ref === 'object' && ref !== null);
+  const containers = [
+    spec,
+    ...((spec.initContainers ?? []) as Workload[]),
+    ...((spec.sidecars ?? []) as Workload[]),
+  ];
+
+  return containers
+    .flatMap((c) => [
+      ...(c.env && !Array.isArray(c.env) ? Object.values(c.env) : []),
+      ...(c.envFrom ?? []),
+    ])
+    .filter((ref): ref is Record<string, unknown> => typeof ref === 'object' && ref !== null);
 }
 
 const mountedVolumes = (app: App) =>
   Object.values(appWorkloads(app)).flatMap((spec) =>
-    [spec, ...((spec.initContainers ?? []) as Workload[]), ...((spec.sidecars ?? []) as Workload[])].flatMap((container) =>
-      Object.values((container.mounts ?? {}) as Record<string, { volume?: string }>).flatMap((mount) => mount.volume ?? []),
+    [
+      spec,
+      ...((spec.initContainers ?? []) as Workload[]),
+      ...((spec.sidecars ?? []) as Workload[]),
+    ].flatMap((container) =>
+      Object.values((container.mounts ?? {}) as Record<string, { volume?: string }>).flatMap(
+        (mount) => mount.volume ?? [],
+      ),
     ),
   );
 
@@ -296,28 +370,42 @@ function validateRefs(app: App, external: boolean) {
   const fail = (message: string): never => {
     throw new Error(`${app.name}: ${message}`);
   };
+
   const refs = Object.values(appWorkloads(app)).flatMap(containerRefs);
   for (const resource of app.resources ?? []) {
-    if (['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)) continue;
+    if (
+      ['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)
+    )
+      continue;
     if (resource.type === 'volume') {
-      if (!external && !mountedVolumes(app).includes(resource.name)) fail(`resources.${resource.name}: no workload mounts this volume`);
+      if (!external && !mountedVolumes(app).includes(resource.name))
+        fail(`resources.${resource.name}: no workload mounts this volume`);
       continue;
     }
     if (resource.type === 'bucket' && resource.secretTemplate) continue;
     if (external) continue;
-    const kinds = ['secret', 'database', 'bucket'].includes(resource.type) ? ['resource', resource.type] : ['resource'];
+    const kinds = ['secret', 'database', 'bucket'].includes(resource.type)
+      ? ['resource', resource.type]
+      : ['resource'];
     if (!refs.some((ref) => kinds.some((kind) => ref[kind] === resource.name))) {
       fail(`resources.${resource.name}: no workload uses this ${resource.type}`);
     }
   }
+
   for (const ref of refs) {
     if (ref.bucket && ref.key && !BUCKET_KEYS.includes(ref.key as string)) {
-      fail(`bucket ${ref.bucket}: no key named ${ref.key}, expected one of ${BUCKET_KEYS.join(', ')}`);
+      fail(
+        `bucket ${ref.bucket}: no key named ${ref.key}, expected one of ${BUCKET_KEYS.join(', ')}`,
+      );
     }
   }
+
   const services = appServices(app);
   for (const [name, route] of Object.entries(appRoutes(app))) {
-    for (const backend of [...(route.backend ? [route.backend] : []), ...(route.rules ?? []).map((rule) => rule.backend)]) {
+    for (const backend of [
+      ...(route.backend ? [route.backend] : []),
+      ...(route.rules ?? []).map((rule) => rule.backend),
+    ]) {
       const service = services.find((s) => s.service === backend.name);
       if (!service && external) continue;
       if (!service) fail(`routes.${name}.backend: no service named ${backend.name}`);
@@ -326,11 +414,16 @@ function validateRefs(app: App, external: boolean) {
       }
     }
   }
+
   for (const [name, spec] of Object.entries(appWorkloads(app))) {
-    if (spec.serviceAccount && !app.resources?.some((r) => r.type === 'serviceAccount' && r.name === spec.serviceAccount)) {
+    if (
+      spec.serviceAccount &&
+      !app.resources?.some((r) => r.type === 'serviceAccount' && r.name === spec.serviceAccount)
+    ) {
       fail(`workloads.${name}: no serviceAccount resource named ${spec.serviceAccount}`);
     }
   }
+
   for (const { workload, port } of appMetrics(app)) {
     const service = services.find((s) => s.workload === workload);
     if (!service?.ports.length) fail(`metrics: workload ${workload} has no service ports`);
@@ -338,6 +431,7 @@ function validateRefs(app: App, external: boolean) {
       fail(`metrics: workload ${workload} has no service port named ${port}`);
     }
   }
+
   if (app.build && !workloadImages(app).includes(app.build.image)) {
     fail(`build.image ${app.build.image} is not used by any workload`);
   }
@@ -354,16 +448,25 @@ const listenerMatches = (hostname: string | undefined, host: string) =>
 
 export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
   for (const app of apps) {
-    const labels: Record<string, string> = { ...app.namespace?.labels, 'kubernetes.io/metadata.name': appNamespace(app) };
+    const labels: Record<string, string> = {
+      ...app.namespace?.labels,
+      'kubernetes.io/metadata.name': appNamespace(app),
+    };
+
     for (const [name, route] of Object.entries(appRoutes(app))) {
       const gateway = route.gateway ?? 'public-gateway';
       for (const host of route.hosts) {
-        const matching = listeners.filter((l) => l.gateway === gateway && l.labels && listenerMatches(l.hostname, host));
-        if (!matching.length) throw new Error(`${app.name}: routes.${name}: no ${gateway} listener accepts ${host}`);
+        const matching = listeners.filter(
+          (l) => l.gateway === gateway && l.labels && listenerMatches(l.hostname, host),
+        );
+        if (!matching.length)
+          throw new Error(`${app.name}: routes.${name}: no ${gateway} listener accepts ${host}`);
         const listener = matching.find((l) => l.hostname === host) ?? matching[0];
         for (const [key, value] of Object.entries(listener.labels ?? {})) {
           if (labels[key] !== value) {
-            throw new Error(`${app.name}: routes.${name}: ${host} needs namespace.labels ${key}: "${value}"`);
+            throw new Error(
+              `${app.name}: routes.${name}: ${host} needs namespace.labels ${key}: "${value}"`,
+            );
           }
         }
       }
@@ -373,42 +476,65 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
 
 const appSchema = new Validator();
 
-const ALLOWED = new Set(['name', 'repository', 'charts', 'workloads', 'resources', 'exports', 'sources', 'network', 'namespace', 'build', 'overrides']);
+const ALLOWED = new Set([
+  'name',
+  'repository',
+  'charts',
+  'workloads',
+  'resources',
+  'exports',
+  'sources',
+  'network',
+  'namespace',
+  'build',
+  'overrides',
+]);
 
 export function validate(raw: unknown, where: string): App {
   const app = raw as App;
   const fail = (message: string): never => {
     throw new Error(`${where}: ${message}`);
   };
+
   if (typeof app !== 'object' || app === null) fail('expected a mapping');
   for (const key of Object.keys(app)) {
     if (!ALLOWED.has(key)) fail(`unknown block "${key}"`);
   }
+
   if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?$/.test(app.name ?? '')) fail('name must be kebab-case');
   if (!Array.isArray(app.network?.ingress)) {
     fail('network.ingress is required (use [] for none)');
   }
   if (app.namespace?.name) {
     if (app.network.policy === undefined) fail('namespace.name needs an explicit network.policy');
-    if (app.network.policy === false && app.network.ingress.length) fail('network.ingress needs network.policy: true');
+    if (app.network.policy === false && app.network.ingress.length)
+      fail('network.ingress needs network.policy: true');
     if (app.namespace.labels) fail('namespace.labels cannot be set with namespace.name');
   }
+
   if (app.workloads && !Array.isArray(app.workloads)) fail('workloads must be a list');
   const workloadNames = (app.workloads ?? []).map((workload) => workload.name);
   for (const name of workloadNames) {
-    if (workloadNames.indexOf(name) !== workloadNames.lastIndexOf(name)) fail(`workloads: duplicate name ${name}`);
+    if (workloadNames.indexOf(name) !== workloadNames.lastIndexOf(name))
+      fail(`workloads: duplicate name ${name}`);
   }
+
   for (const [name, workload] of Object.entries(appWorkloads(app))) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
-    if (declaredPorts(workload).length && !workload.service?.name) fail(`workloads.${name}.service.name is required with ports`);
-    for (const key of overrideConflicts(workload)) fail(`workloads.${name}.overrides.${key} is already set on the workload`);
-    for (const value of Object.values(!workload.env || Array.isArray(workload.env) ? {} : workload.env)) {
+    if (declaredPorts(workload).length && !workload.service?.name)
+      fail(`workloads.${name}.service.name is required with ports`);
+    for (const key of overrideConflicts(workload))
+      fail(`workloads.${name}.overrides.${key} is already set on the workload`);
+    for (const value of Object.values(
+      !workload.env || Array.isArray(workload.env) ? {} : workload.env,
+    )) {
       const used = (value as { resource?: string } | null)?.resource;
       if (used && !app.resources?.some((r) => r.name === used && !OWN_NAMES.has(r.type))) {
         fail(`workloads.${name}.env: no resource named ${used}; list a secret in envFrom`);
       }
     }
   }
+
   const validResources = Array.isArray(app.resources);
   const routes = Object.entries(validResources || !app.resources ? appRoutes(app) : {});
   const oidc = validResources || !app.resources ? appOidc(app) : {};
@@ -425,7 +551,12 @@ export function validate(raw: unknown, where: string): App {
       }
     } else if (auth.mode === 'oidc') {
       if (!oidc[auth.client]) fail(`routes.${name}.auth: no oidc client named ${auth.client}`);
-      if (routes.some(([other, r]) => other !== name && r.auth?.mode === 'oidc' && r.auth.client === auth.client)) {
+      if (
+        routes.some(
+          ([other, r]) =>
+            other !== name && r.auth?.mode === 'oidc' && r.auth.client === auth.client,
+        )
+      ) {
         fail(`routes.${name}.auth: oidc client ${auth.client} is used by another oidc route`);
       }
     } else if (auth.mode === 'app' || auth.mode === 'none') {
@@ -434,32 +565,48 @@ export function validate(raw: unknown, where: string): App {
       fail(`routes.${name}.auth.mode must be jwt, oidc, app or none`);
     }
   }
+
   if (validResources || !app.resources) {
     const scraped = appMetrics(app).map((metrics) => metrics.workload);
     for (const workload of scraped) {
-      if (scraped.indexOf(workload) !== scraped.lastIndexOf(workload)) fail(`metrics: ${workload} is listed twice`);
+      if (scraped.indexOf(workload) !== scraped.lastIndexOf(workload))
+        fail(`metrics: ${workload} is listed twice`);
     }
   }
+
   const [invalid] = appSchema.validate(app, schema as unknown as Schema).errors;
   if (invalid) fail(invalid.stack.replace(/^instance\.?/, ''));
-  const resourceKeys = (app.resources ?? []).map((r) => `${OWN_NAMES.has(r.type) ? r.type : 'value'}/${r.name}`);
+
+  const resourceKeys = (app.resources ?? []).map(
+    (r) => `${OWN_NAMES.has(r.type) ? r.type : 'value'}/${r.name}`,
+  );
   for (const key of resourceKeys) {
-    if (resourceKeys.indexOf(key) !== resourceKeys.lastIndexOf(key)) fail(`resources: duplicate name ${key.split('/')[1]}`);
+    if (resourceKeys.indexOf(key) !== resourceKeys.lastIndexOf(key))
+      fail(`resources: duplicate name ${key.split('/')[1]}`);
   }
+
   const releases = sourcesOf(app, 'helm').map((release) => release.releaseName ?? release.chart);
   for (const release of releases) {
-    if (releases.indexOf(release) !== releases.lastIndexOf(release)) fail(`sources: duplicate helm release ${release}, set releaseName`);
+    if (releases.indexOf(release) !== releases.lastIndexOf(release))
+      fail(`sources: duplicate helm release ${release}, set releaseName`);
   }
+
   const manifests = sourcesOf(app, 'manifests');
   if (manifests.length > 1) fail('sources: only one manifests source is allowed');
-  if (manifests[0]?.path.split('/').includes('..')) fail('sources: manifests path must stay inside the app directory');
-  if (manifests[0] && needsKustomization(app) && manifests[0].path !== '.') fail('sources: manifests path must be . with config, dashboard or clusterRules');
+  if (manifests[0]?.path.split('/').includes('..'))
+    fail('sources: manifests path must stay inside the app directory');
+  if (manifests[0] && needsKustomization(app) && manifests[0].path !== '.')
+    fail('sources: manifests path must be . with config, dashboard or clusterRules');
+
   const exportNames = (app.exports ?? []).map((e) => e.name);
   for (const exported of app.exports ?? []) {
-    if (exportNames.indexOf(exported.name) !== exportNames.lastIndexOf(exported.name)) fail(`exports: duplicate name ${exported.name}`);
-    if (!appWorkloads(app)[exported.workload]) fail(`exports.${exported.name}: no workload named ${exported.workload}`);
+    if (exportNames.indexOf(exported.name) !== exportNames.lastIndexOf(exported.name))
+      fail(`exports: duplicate name ${exported.name}`);
+    if (!appWorkloads(app)[exported.workload])
+      fail(`exports.${exported.name}: no workload named ${exported.workload}`);
     exportPort(app, exported);
   }
+
   return app;
 }
 
@@ -477,16 +624,28 @@ export function validateIngress(apps: App[]) {
 }
 
 function secretRef(app: App, kind: SecretKind, name: string): string {
-  const found = (app.resources ?? []).find((r) => r.type === kind && r.name === name) as { secretName?: string } | undefined;
+  const found = (app.resources ?? []).find((r) => r.type === kind && r.name === name) as
+    { secretName?: string } | undefined;
   if (!found) throw new Error(`${app.name}: no ${kind} resource named ${name}`);
   return found.secretName as string;
 }
 
 export function storageClass(app: App, volume: Volume, platform: PlatformExport[]) {
   const found = platform.find((e) => e.type === 'storage' && e.name === volume.class);
-  if (!found?.storageClass) throw new Error(`${app.name}: resources.${volume.name}: no storage export named ${volume.class}`);
-  if (volume.backup && !found.backupLabels) throw new Error(`${app.name}: resources.${volume.name}: storage ${volume.class} has no backups`);
-  return { storageClass: found.storageClass, labels: volume.backup ? found.backupLabels : undefined };
+  if (!found?.storageClass)
+    throw new Error(
+      `${app.name}: resources.${volume.name}: no storage export named ${volume.class}`,
+    );
+
+  if (volume.backup && !found.backupLabels)
+    throw new Error(
+      `${app.name}: resources.${volume.name}: storage ${volume.class} has no backups`,
+    );
+
+  return {
+    storageClass: found.storageClass,
+    labels: volume.backup ? found.backupLabels : undefined,
+  };
 }
 
 export function databaseHost(app: App, spec: DatabaseSpec, platform: PlatformExport[]) {
@@ -500,7 +659,8 @@ export const refsFor = (app: App, world: World): Refs => ({
   resource: (resource, env) => resourceEnv(app, resource, env, world),
   secret: (kind, name) => secretRef(app, kind, name),
   config: (name) => {
-    const found = app.resources?.find((r) => r.type === 'config' && r.name === name) as Extract<Resource, { type: 'config' }> | undefined;
+    const found = app.resources?.find((r) => r.type === 'config' && r.name === name) as
+      Extract<Resource, { type: 'config' }> | undefined;
     if (!found) throw new Error(`${app.name}: no config resource named ${name}`);
     return found;
   },
@@ -515,12 +675,15 @@ export const refsFor = (app: App, world: World): Refs => ({
 export function validateResources(world: World) {
   for (const app of world.apps) {
     validateRefs(app, world.external?.has(app.name) ?? false);
+
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') appExportUrl(app, resource, world.apps);
     }
+
     for (const spec of Object.values(appWorkloads(app))) {
       expandWorkload(spec, refsFor(app, world));
     }
+
     for (const volume of declared(app, 'volume')) storageClass(app, volume, world.platform);
     for (const spec of Object.values(appDatabases(app))) databaseHost(app, spec, world.platform);
   }
@@ -536,15 +699,22 @@ export const workloadImages = (app: App) =>
 export const imageValuesPath = (app: App, target: Target) =>
   `${target.location}/${app.name}/image.values.yaml`;
 
-export const rbacPath = (app: App, target: Target) => `${target.location}/${app.name}/manifests/rbac.generated.yaml`;
+export const rbacPath = (app: App, target: Target) =>
+  `${target.location}/${app.name}/manifests/rbac.generated.yaml`;
 
-const clusterRoles = (app: App) => declared(app, 'serviceAccount').filter((account) => account.clusterRules);
+const clusterRoles = (app: App) =>
+  declared(app, 'serviceAccount').filter((account) => account.clusterRules);
 
 export function renderRbac(app: App): string | undefined {
   const documents = clusterRoles(app).flatMap((account) => {
     const role = account.clusterRole ?? account.name;
     return [
-      { apiVersion: 'rbac.authorization.k8s.io/v1', kind: 'ClusterRole', metadata: { name: role }, rules: account.clusterRules },
+      {
+        apiVersion: 'rbac.authorization.k8s.io/v1',
+        kind: 'ClusterRole',
+        metadata: { name: role },
+        rules: account.clusterRules,
+      },
       {
         apiVersion: 'rbac.authorization.k8s.io/v1',
         kind: 'ClusterRoleBinding',
@@ -554,19 +724,31 @@ export function renderRbac(app: App): string | undefined {
       },
     ];
   });
+
   if (!documents.length) return undefined;
   return `${HEADER}\n${documents.map((doc) => stringify(doc, { lineWidth: 0, aliasDuplicateObjects: false })).join('---\n')}`;
 }
 
 export const needsKustomization = (app: App) =>
-  (app.resources ?? []).some((r) => r.type === 'config' || r.type === 'dashboard' || (r.type === 'serviceAccount' && r.clusterRules));
+  (app.resources ?? []).some(
+    (r) =>
+      r.type === 'config' ||
+      r.type === 'dashboard' ||
+      (r.type === 'serviceAccount' && r.clusterRules),
+  );
 
-export const kustomizationPath = (app: App, target: Target) => `${target.location}/${app.name}/kustomization.yaml`;
+export const kustomizationPath = (app: App, target: Target) =>
+  `${target.location}/${app.name}/kustomization.yaml`;
 
 export function renderKustomization(app: App, target: Target): string | undefined {
   if (!needsKustomization(app)) return undefined;
+
   const generators = [
-    ...declared(app, 'config').map(({ configMap, files }) => ({ name: configMap, namespace: appNamespace(app), files })),
+    ...declared(app, 'config').map(({ configMap, files }) => ({
+      name: configMap,
+      namespace: appNamespace(app),
+      files,
+    })),
     ...declared(app, 'dashboard').map(({ configMap, file }) => ({
       name: configMap,
       namespace: appNamespace(app),
@@ -574,29 +756,44 @@ export function renderKustomization(app: App, target: Target): string | undefine
       options: { disableNameSuffixHash: true, labels: { 'inf-k8s.net/grafana-dashboard': 'true' } },
     })),
   ];
+
   const resources = [
     ...(target.hasManifests ? ['manifests'] : []),
     ...(clusterRoles(app).length ? ['manifests/rbac.generated.yaml'] : []),
   ];
+
   const kustomization = {
     apiVersion: 'kustomize.config.k8s.io/v1beta1',
     kind: 'Kustomization',
     ...(resources.length ? { resources } : {}),
-    ...(generators.length ? { configMapGenerator: generators, generatorOptions: { disableNameSuffixHash: true } } : {}),
+    ...(generators.length
+      ? { configMapGenerator: generators, generatorOptions: { disableNameSuffixHash: true } }
+      : {}),
   };
+
   return `${HEADER}\n${stringify(kustomization, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
 export const sourcesOf = <T extends Source['type']>(app: App, type: T) =>
-  (app.sources ?? []).filter((source): source is Extract<Source, { type: T }> => source.type === type);
+  (app.sources ?? []).filter(
+    (source): source is Extract<Source, { type: T }> => source.type === type,
+  );
 
-export function validateManifestSources(app: App, found: { hasManifests: boolean; hasRootKustomization: boolean }) {
+export function validateManifestSources(
+  app: App,
+  found: { hasManifests: boolean; hasRootKustomization: boolean },
+) {
   const declared = sourcesOf(app, 'manifests')[0];
   if (!declared && (found.hasManifests || found.hasRootKustomization || needsKustomization(app))) {
-    throw new Error(`${app.name}: sources: add a manifests source, this app has a kustomization that would not deploy`);
+    throw new Error(
+      `${app.name}: sources: add a manifests source, this app has a kustomization that would not deploy`,
+    );
   }
+
   if (declared && found.hasRootKustomization && declared.path !== '.') {
-    throw new Error(`${app.name}: sources: manifests path must be . to deploy the app directory's kustomization`);
+    throw new Error(
+      `${app.name}: sources: manifests path must be . to deploy the app directory's kustomization`,
+    );
   }
 }
 
@@ -605,10 +802,10 @@ export const appFiles = (app: App, target: Target) =>
     ...declared(app, 'config').flatMap((config) => config.files),
     ...declared(app, 'dashboard').map((dashboard) => dashboard.file),
     ...sourcesOf(app, 'helm').map((release) => release.values),
-    ...sourcesOf(app, 'manifests').filter(() => !needsKustomization(app)).map(({ path }) => (path === '.' ? 'kustomization.yaml' : `${path}/kustomization.yaml`)),
-  ].map(
-    (file) => `${target.location}/${app.name}/${file}`,
-  );
+    ...sourcesOf(app, 'manifests')
+      .filter(() => !needsKustomization(app))
+      .map(({ path }) => (path === '.' ? 'kustomization.yaml' : `${path}/kustomization.yaml`)),
+  ].map((file) => `${target.location}/${app.name}/${file}`);
 
 export const workflowPath = (app: App) => `.github/workflows/app-${app.name}.yaml`;
 
@@ -618,6 +815,7 @@ export function renderWorkflow(app: App, target: Target): string {
   const context = build.context ?? dir;
   const args = Object.entries(build.args ?? {}).map(([k, v]) => `${k}=${v}`);
   const test = build.test;
+
   const workflow = {
     name: `app ${app.name}`,
     on: {
@@ -660,11 +858,14 @@ export function renderWorkflow(app: App, target: Target): string {
       },
     },
   };
+
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
 export const declared = <T extends Resource['type']>(app: App, type: T) =>
-  (app.resources ?? []).filter((resource): resource is Extract<Resource, { type: T }> => resource.type === type);
+  (app.resources ?? []).filter(
+    (resource): resource is Extract<Resource, { type: T }> => resource.type === type,
+  );
 
 const specs = <S extends { name: string; type: string }>(resources: S[]) =>
   resources.map(({ name, type: _type, ...spec }) => [name, spec] as const);
@@ -681,10 +882,18 @@ export function appMetrics(app: App): Metrics[] {
   return specs(declared(app, 'metrics')).map(([, spec]) => spec as Metrics);
 }
 
-export function appSecrets(app: App): { name: string; secretName: string; secretTemplate?: SecretTemplate }[] {
+export function appSecrets(
+  app: App,
+): { name: string; secretName: string; secretTemplate?: SecretTemplate }[] {
   return (app.resources ?? []).flatMap((resource) =>
     resource.type === 'secret'
-      ? [{ name: resource.name, secretName: resource.secretName, secretTemplate: resource.secretTemplate }]
+      ? [
+          {
+            name: resource.name,
+            secretName: resource.secretName,
+            secretTemplate: resource.secretTemplate,
+          },
+        ]
       : [],
   );
 }
@@ -698,7 +907,10 @@ export function appDatabases(app: App): Record<string, DatabaseSpec> {
   return Object.fromEntries(declared);
 }
 
-export const databaseRole = (database: string, spec?: Pick<DatabaseSpec, 'role'>) => spec?.role ?? database.replaceAll('-', '_');
+export const databaseRole = (database: string, spec?: Pick<DatabaseSpec, 'role'>) =>
+  spec?.role ?? database.replaceAll('-', '_');
 
 export const appRoles = (apps: App[]) =>
-  apps.flatMap((app) => Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)));
+  apps.flatMap((app) =>
+    Object.entries(appDatabases(app)).map(([database, spec]) => databaseRole(database, spec)),
+  );

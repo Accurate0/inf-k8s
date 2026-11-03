@@ -39,7 +39,9 @@ export const getCronJob = (kube: Kube) => kube.get<CronJob>('cronjob', CRONJOB);
 export function listJobs(kube: Kube): Job[] {
   return kube
     .list<Job>('jobs')
-    .filter((j) => j.metadata.ownerReferences?.some((o) => o.kind === 'CronJob' && o.name === CRONJOB))
+    .filter((j) =>
+      j.metadata.ownerReferences?.some((o) => o.kind === 'CronJob' && o.name === CRONJOB),
+    )
     .sort((a, b) =>
       (b.metadata.creationTimestamp ?? '').localeCompare(a.metadata.creationTimestamp ?? ''),
     );
@@ -55,6 +57,7 @@ export function jobResult(job: Job): JobResult {
 export function publishedVersion(): string {
   const text = fetchText(VERSION_URL, { timeoutSeconds: 10 });
   if (text === undefined) return 'unknown';
+
   try {
     const parsed = JSON.parse(text);
     return String(parsed.version ?? parsed.sha256 ?? text.trim());
@@ -72,6 +75,7 @@ function jobWithVersion(cron: CronJob, name: string, namespace: string, k8sVersi
     else env.push({ name: 'K8S_VERSION', value: k8sVersion });
     container.env = env;
   }
+
   return {
     apiVersion: 'batch/v1',
     kind: 'Job',

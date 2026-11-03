@@ -62,7 +62,9 @@ function planEdits(workloads: Workload[], targets: Map<string, string>): Edit[] 
     containersOf(workload).flatMap((container) => {
       const { repository, tag: from } = parseImage(container.image);
       const to = targets.get(repository);
-      return to && to !== from ? [{ workload, container: container.name, repository, from, to }] : [];
+      return to && to !== from
+        ? [{ workload, container: container.name, repository, from, to }]
+        : [];
     }),
   );
 }
@@ -118,6 +120,7 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
     console.error(undo);
     return 1;
   }
+
   console.log(`rolled back ${name}`);
   console.log(undo);
   return 0;

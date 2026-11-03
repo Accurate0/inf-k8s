@@ -68,12 +68,20 @@ export interface Plan {
 
 function dnsAnnotations(dns: RouteDns): Record<string, string> {
   if (dns.provider === 'unifi') return { 'external-dns.kubernetes.io/managed-unifi': 'true' };
-  return { 'external-dns.kubernetes.io/managed': 'true', 'external-dns.kubernetes.io/cloudflare-proxied': String(dns.proxied) };
+  return {
+    'external-dns.kubernetes.io/managed': 'true',
+    'external-dns.kubernetes.io/cloudflare-proxied': String(dns.proxied),
+  };
 }
 
 function ratelimitRules({ requests, per, header }: RouteRatelimit) {
   return {
-    rules: [{ clientSelectors: [{ headers: [{ name: header, invert: false, type: 'Distinct' }] }], limit: { requests, unit: per } }],
+    rules: [
+      {
+        clientSelectors: [{ headers: [{ name: header, invert: false, type: 'Distinct' }] }],
+        limit: { requests, unit: per },
+      },
+    ],
   };
 }
 
@@ -84,22 +92,39 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     'inf-k8s.net/app': name,
     'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
   };
-  const databaseSecret = (database: string) =>
-    appDatabases(app)[database].secretName;
+
+  const databaseSecret = (database: string) => appDatabases(app)[database].secretName;
   const directory = `${target.location}/${name}`;
   const routes = Object.entries(appRoutes(app));
   const sources: PlanSource[] = [];
   const serviceAccounts = [...declared(app, 'serviceAccount').map((account) => account.name)];
+
   const loginPolicy = (client: string) => {
     const route = routes.find(([, r]) => r.auth?.mode === 'oidc' && r.auth.client === client);
     if (!route) return {};
-    const { mode: _mode, client: _client, ...policy } = route[1].auth as Extract<RouteAuth, { mode: 'oidc' }>;
+    const {
+      mode: _mode,
+      client: _client,
+      ...policy
+    } = route[1].auth as Extract<RouteAuth, { mode: 'oidc' }>;
     return { securityPolicy: { httpRoute: route[0], ...policy } };
   };
-  const chart = (chartName: string, values: Record<string, unknown>, { valueFiles, retain }: { valueFiles?: string[]; retain?: boolean } = {}): PlatformChart => {
+
+  const chart = (
+    chartName: string,
+    values: Record<string, unknown>,
+    { valueFiles, retain }: { valueFiles?: string[]; retain?: boolean } = {},
+  ): PlatformChart => {
     const version = app.charts?.[chartName] ?? versions[chartName];
     if (!version) throw new Error(`${app.name}: no version for chart ${chartName}`);
-    return { type: 'chart', chart: chartName, version, ...(valueFiles ? { valueFiles } : {}), values, ...(retain ? { retain } : {}) };
+    return {
+      type: 'chart',
+      chart: chartName,
+      version,
+      ...(valueFiles ? { valueFiles } : {}),
+      values,
+      ...(retain ? { retain } : {}),
+    };
   };
 
   const hasWorkloads = Object.keys(appWorkloads(app)).length > 0;
@@ -125,7 +150,10 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     ...(appMetrics(app).length ? ['monitoring'] : []),
     ...app.network.ingress,
     ...world.apps
-      .filter((other) => other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name))
+      .filter(
+        (other) =>
+          other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name),
+      )
       .map(appNamespace)
       .sort(),
   ];
@@ -147,7 +175,14 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
             ...(route.dns ? { annotations: dnsAnnotations(route.dns) } : {}),
             hostnames: route.hosts,
             ...(route.ratelimit ? { ratelimit: ratelimitRules(route.ratelimit) } : {}),
-            rules: (route.rules ?? [{ paths: route.paths ?? ['/'], backend: route.backend as { name: string; port: number } }]).map((rule) => ({
+            rules: (
+              route.rules ?? [
+                {
+                  paths: route.paths ?? ['/'],
+                  backend: route.backend as { name: string; port: number },
+                },
+              ]
+            ).map((rule) => ({
               backendRefs: [{ group: '', kind: 'Service', ...rule.backend, weight: 1 }],
               matches: rule.paths.map((match) => ({
                 path: typeof match === 'string' ? { type: 'PathPrefix', value: match } : match,
@@ -162,19 +197,23 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
 
   if (Object.keys(appOidc(app)).length) {
     sources.push(
-      chart('k8s-oidc', {
-        clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
-          name: client,
-          namespace,
-          displayName: client,
-          preferShortUsername: true,
-          ...spec,
-          ...loginPolicy(client),
-          secretName: spec.secretName,
-          secretNamespace: namespace,
-          annotations,
-        })),
-      }, { retain: true }),
+      chart(
+        'k8s-oidc',
+        {
+          clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
+            name: client,
+            namespace,
+            displayName: client,
+            preferShortUsername: true,
+            ...spec,
+            ...loginPolicy(client),
+            secretName: spec.secretName,
+            secretNamespace: namespace,
+            annotations,
+          })),
+        },
+        { retain: true },
+      ),
     );
   }
 
@@ -194,20 +233,38 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   }
 
   const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
-    resource.type === 'bucket' ? [{ name: `resource-${resource.name}`, secretName: resource.secretName, secretTemplate: resource.secretTemplate }] : [],
+    resource.type === 'bucket'
+      ? [
+          {
+            name: `resource-${resource.name}`,
+            secretName: resource.secretName,
+            secretTemplate: resource.secretTemplate,
+          },
+        ]
+      : [],
   );
-  const managedSecret = ({ secretName, secretTemplate }: { secretName: string; secretTemplate?: SecretTemplate }) => ({
+
+  const managedSecret = ({
+    secretName,
+    secretTemplate,
+  }: {
+    secretName: string;
+    secretTemplate?: SecretTemplate;
+  }) => ({
     secretName,
     ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
     ...(secretTemplate
       ? {
           template: {
-            ...(secretTemplate.includeAllSecrets === undefined ? {} : { includeAllSecrets: secretTemplate.includeAllSecrets }),
+            ...(secretTemplate.includeAllSecrets === undefined
+              ? {}
+              : { includeAllSecrets: secretTemplate.includeAllSecrets }),
             data: secretTemplate.data,
           },
         }
       : {}),
   });
+
   if (appSecrets(app).length || bucketSecrets.length) {
     sources.push(
       chart('k8s-secrets', {
@@ -223,20 +280,24 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   const volumes = declared(app, 'volume');
   if (volumes.length) {
     sources.push(
-      chart('k8s-storage', {
-        volumes: volumes.map((volume) => {
-          const { storageClass: className, labels } = storageClass(app, volume, world.platform);
-          return {
-            name: volume.claimName,
-            namespace,
-            storageClass: className,
-            size: volume.size,
-            access: volume.access,
-            ...(labels ? { labels } : {}),
-            annotations,
-          };
-        }),
-      }, { retain: true }),
+      chart(
+        'k8s-storage',
+        {
+          volumes: volumes.map((volume) => {
+            const { storageClass: className, labels } = storageClass(app, volume, world.platform);
+            return {
+              name: volume.claimName,
+              namespace,
+              storageClass: className,
+              size: volume.size,
+              access: volume.access,
+              ...(labels ? { labels } : {}),
+              annotations,
+            };
+          }),
+        },
+        { retain: true },
+      ),
     );
   }
 
@@ -248,11 +309,21 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   for (const source of app.sources ?? []) {
     if (source.type === 'helm') {
       const { chart: helmChart, repo, version, values, releaseName } = source;
-      sources.push({ type: 'helm', chart: helmChart, repo, version, ...(releaseName ? { releaseName } : {}), valueFiles: [`${directory}/${values}`] });
+      sources.push({
+        type: 'helm',
+        chart: helmChart,
+        repo,
+        version,
+        ...(releaseName ? { releaseName } : {}),
+        valueFiles: [`${directory}/${values}`],
+      });
     } else if (source.type === 'git') {
       sources.push(source);
     } else {
-      sources.push({ type: 'manifests', path: source.path === '.' ? directory : `${directory}/${source.path}` });
+      sources.push({
+        type: 'manifests',
+        path: source.path === '.' ? directory : `${directory}/${source.path}`,
+      });
     }
   }
 
@@ -275,20 +346,23 @@ function externalChartLocation({ chart, repo, version }: ExternalChart): string[
 export function helmTemplates(plan: Plan): { args: string[]; values: string }[] {
   return plan.sources.flatMap((source) => {
     if (source.type !== 'chart' && source.type !== 'helm') return [];
-    const release = source.type === 'helm' ? source.releaseName ?? plan.name : plan.name;
-    const location = source.type === 'chart' ? [`charts/${source.chart}`] : externalChartLocation(source);
-    return [{
-      args: [
-        'template',
-        release,
-        ...location,
-        '--namespace',
-        plan.namespace,
-        ...(source.valueFiles ?? []).flatMap((file) => ['-f', file]),
-        '-f',
-        '-',
-      ],
-      values: JSON.stringify(source.type === 'chart' ? source.values : {}),
-    }];
+    const release = source.type === 'helm' ? (source.releaseName ?? plan.name) : plan.name;
+    const location =
+      source.type === 'chart' ? [`charts/${source.chart}`] : externalChartLocation(source);
+    return [
+      {
+        args: [
+          'template',
+          release,
+          ...location,
+          '--namespace',
+          plan.namespace,
+          ...(source.valueFiles ?? []).flatMap((file) => ['-f', file]),
+          '-f',
+          '-',
+        ],
+        values: JSON.stringify(source.type === 'chart' ? source.values : {}),
+      },
+    ];
   });
 }

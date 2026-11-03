@@ -14,6 +14,7 @@ test('groups each path under its app', () => {
     'terraform/apps/registry.tf.json',
     'system-components/postgres-cluster/databases/registry-db.yaml',
   ];
+
   assert.deepEqual(planCommits(paths, [app('bom'), app('registry', 'registry-db')]), [
     {
       message: 'chore(render): update bom',
@@ -32,6 +33,7 @@ test('groups each path under its app', () => {
 
 test('attributes removed terraform to the app named by the file', () => {
   const [commit] = planCommits(['terraform/apps/gone.tf.json'], []);
+
   assert.equal(commit.message, 'chore(render): update gone');
 });
 
@@ -45,24 +47,38 @@ test('sorts apps and puts shared files last', () => {
     ],
     [],
   );
+
   assert.deepEqual(
     commits.map((commit) => commit.message),
-    ['chore(render): update alpha', 'chore(render): update zeta', 'chore(render): update shared generated files'],
+    [
+      'chore(render): update alpha',
+      'chore(render): update zeta',
+      'chore(render): update shared generated files',
+    ],
   );
-  assert.deepEqual(commits[2].paths, ['system-components/postgres-cluster/postgres.yaml', 'terraform/apps/_index.tf.json']);
+  assert.deepEqual(commits[2].paths, [
+    'system-components/postgres-cluster/postgres.yaml',
+    'terraform/apps/_index.tf.json',
+  ]);
 });
 
 test('skips ci on every commit when only app directories changed', () => {
   const commits = planCommits(['projects/a/application.yaml', 'projects/b/application.yaml'], []);
+
   assert.deepEqual(
     commits.map((commit) => commit.message),
     ['chore(render): update a [skip ci]', 'chore(render): update b [skip ci]'],
   );
 });
 
-for (const path of ['.github/workflows/app-b.yaml', 'terraform/apps/b.tf.json', 'system-components/postgres-cluster/postgres.yaml']) {
+for (const path of [
+  '.github/workflows/app-b.yaml',
+  'terraform/apps/b.tf.json',
+  'system-components/postgres-cluster/postgres.yaml',
+]) {
   test(`keeps ci on every commit when ${path} changed`, () => {
     const commits = planCommits(['projects/a/application.yaml', path], []);
+
     assert.ok(commits.every((commit) => !commit.message.includes('[skip ci]')));
   });
 }

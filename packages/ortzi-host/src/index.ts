@@ -26,9 +26,7 @@ export class CommandError extends Error {
     readonly output: Output,
   ) {
     const detail = output.stderr.trim() || output.stdout.trim();
-    super(
-      `${program} exited with ${output.code ?? 'a signal'}${detail ? `: ${detail}` : ''}`,
-    );
+    super(`${program} exited with ${output.code ?? 'a signal'}${detail ? `: ${detail}` : ''}`);
   }
 }
 
@@ -45,8 +43,7 @@ function unwrap<T>(call: () => T): T {
 }
 
 export function run(program: string, args: string[] = [], options: RunOptions = {}): Output {
-  const stdin =
-    typeof options.stdin === 'string' ? encoder.encode(options.stdin) : options.stdin;
+  const stdin = typeof options.stdin === 'string' ? encoder.encode(options.stdin) : options.stdin;
   const raw = unwrap(() =>
     process.run({
       program,
@@ -58,12 +55,14 @@ export function run(program: string, args: string[] = [], options: RunOptions = 
       stderr: options.stderr ?? 'inherit',
     }),
   );
+
   const output = {
     code: raw.code,
     stdout: decoder.decode(raw.stdout),
     stderr: decoder.decode(raw.stderr),
     ok: raw.code === 0,
   };
+
   if ((options.check ?? true) && !output.ok) {
     throw new CommandError(program, output);
   }
@@ -74,7 +73,11 @@ export function capture(program: string, args: string[] = [], options: RunOption
   return run(program, args, { stderr: 'piped', ...options, stdout: 'piped' }).stdout;
 }
 
-export function json<T = unknown>(program: string, args: string[] = [], options: RunOptions = {}): T {
+export function json<T = unknown>(
+  program: string,
+  args: string[] = [],
+  options: RunOptions = {},
+): T {
   return JSON.parse(capture(program, args, options)) as T;
 }
 
@@ -115,6 +118,7 @@ export function parseArgs<F extends Flags>(
   for (const [name, flag] of Object.entries(flags)) {
     values[name] = flag.default ?? (flag.type === 'boolean' ? false : undefined);
   }
+
   const positionals: string[] = [];
   const byShort = new Map(
     Object.entries(flags)
@@ -128,6 +132,7 @@ export function parseArgs<F extends Flags>(
       positionals.push(...argv.slice(i + 1));
       break;
     }
+
     let name: string | undefined;
     let inline: string | undefined;
     if (arg.startsWith('--')) {
@@ -139,8 +144,10 @@ export function parseArgs<F extends Flags>(
       positionals.push(arg);
       continue;
     }
+
     const flag = flags[name];
     if (!flag) throw new Error(`unknown flag --${name}`);
+
     if (flag.type === 'boolean') {
       values[name] = true;
     } else {

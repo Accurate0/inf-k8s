@@ -17,17 +17,31 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         chart: source.chart,
         repoURL: `${CHART_REGISTRY}/${source.chart}`,
         targetRevision: source.version,
-        helm: { ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}), valuesObject: { ...source.values, ...(source.retain ? { retainAnnotations: RETAIN } : {}) } },
+        helm: {
+          ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}),
+          valuesObject: {
+            ...source.values,
+            ...(source.retain ? { retainAnnotations: RETAIN } : {}),
+          },
+        },
       };
     case 'helm':
       return {
         chart: source.chart,
         repoURL: source.repo,
         targetRevision: source.version,
-        helm: { ...(source.releaseName ? { releaseName: source.releaseName } : {}), valueFiles: valueFiles(source.valueFiles) },
+        helm: {
+          ...(source.releaseName ? { releaseName: source.releaseName } : {}),
+          valueFiles: valueFiles(source.valueFiles),
+        },
       };
     case 'git':
-      return { repoURL: source.repo, ...(source.name ? { name: source.name } : {}), path: source.path, ...(source.revision ? { targetRevision: source.revision } : {}) };
+      return {
+        repoURL: source.repo,
+        ...(source.name ? { name: source.name } : {}),
+        path: source.path,
+        ...(source.revision ? { targetRevision: source.revision } : {}),
+      };
     case 'manifests':
       return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
   }
@@ -43,10 +57,15 @@ export function renderApplication(plan: Plan, overrides?: ArgocdOverrides): stri
       syncPolicy: {
         syncOptions: overrides?.options ?? ['CreateNamespace=true', 'ServerSideApply=true'],
         ...(overrides?.automated === false ? {} : { automated: { prune: true, selfHeal: true } }),
-        ...(plan.namespaceLabels && !plan.ownsNamespace ? { managedNamespaceMetadata: { labels: plan.namespaceLabels } } : {}),
+        ...(plan.namespaceLabels && !plan.ownsNamespace
+          ? { managedNamespaceMetadata: { labels: plan.namespaceLabels } }
+          : {}),
       },
       project: plan.location,
-      sources: [...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []), ...plan.sources.map(applicationSource)],
+      sources: [
+        ...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []),
+        ...plan.sources.map(applicationSource),
+      ],
       destination: { server: 'https://kubernetes.default.svc', namespace: plan.namespace },
       ...(overrides?.ignoreDifferences ? { ignoreDifferences: overrides.ignoreDifferences } : {}),
     },

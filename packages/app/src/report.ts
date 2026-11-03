@@ -33,12 +33,17 @@ function latestState(image: string, running: string | undefined): ImageState['la
 function imageProblems({ image, running, git, latest }: ImageState, emergency: boolean): Problem[] {
   const name = displayImage(image);
   const problems: Problem[] = [];
+
   if (!running) {
     problems.push({ severe: false, text: `${name} is not running` });
   } else if (running !== git) {
     const how = emergency ? 'rolled back by hand: ' : '';
-    problems.push({ severe: true, text: `${name} ${how}running ${short(running)}, git says ${short(git)}` });
+    problems.push({
+      severe: true,
+      text: `${name} ${how}running ${short(running)}, git says ${short(git)}`,
+    });
   }
+
   if (latest === 'behind') problems.push({ severe: false, text: `${name} is behind latest` });
   return problems;
 }
@@ -59,10 +64,12 @@ function appProblems(app: Application): Problem[] {
 
   const sync = app.status?.sync?.status ?? 'Unknown';
   if (sync !== 'Synced') problems.push({ severe: false, text: `sync is ${sync}` });
+
   const health = app.status?.health?.status ?? 'Unknown';
   if (health !== 'Healthy') {
     problems.push({ severe: health !== 'Progressing', text: `health is ${health}` });
   }
+
   return problems;
 }
 
@@ -72,6 +79,7 @@ export function buildReport(app: Application, workloads: Workload[], latest: boo
     const now = running.get(image);
     return { image, running: now, git, latest: latest ? latestState(image, now) : undefined };
   });
+
   const emergency = isEmergency(app);
   return {
     app,

@@ -56,6 +56,7 @@ export function waitForRollout(kube: Kube, workload: Workload, minutes: number):
     console.log(`${ref} has no rollout; the new image applies on its next run`);
     return true;
   }
+
   const output = kube
     .namespace(workload.metadata.namespace)
     .run(['rollout', 'status', ref, `--timeout=${minutes * 60}s`], { check: false });
