@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-03T08:05:49.637Z
+# generated at 2026-11-03T08:06:26.743Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -29,6 +29,17 @@ spec:
           namespaceLabels:
             gateway.inf-k8s.net/maccas-one: "true"
           workloads:
+            - name: maccas-migration
+              image: ghcr.io/accurate0/maccas-migration
+              kind: Job
+              phase: preSync
+              resources:
+                requests:
+                  cpu: 50m
+                  memory: 64Mi
+              envFrom:
+                - secretRef:
+                    name: maccas-migration-managed-secrets
             - name: maccas-api
               image: ghcr.io/accurate0/maccas-api
               replicas: 3
@@ -71,16 +82,6 @@ spec:
                     name: maccas-common-managed-secrets
                 - secretRef:
                     name: maccas-api-managed-secrets
-              initContainers:
-                - image: ghcr.io/accurate0/maccas-migration
-                  name: maccas-migration
-                  resources:
-                    requests:
-                      cpu: 50m
-                      memory: 64Mi
-                  envFrom:
-                    - secretRef:
-                        name: maccas-migration-managed-secrets
               service:
                 name: maccas-api
                 trafficDistribution: PreferSameNode
@@ -121,7 +122,7 @@ spec:
                 - name: EVENT_BASE_URL
                   value: http://maccas-api.maccas-api.svc.cluster.local:8000/v1
                 - name: FEATURE_FLAGS_URL
-                  value: api.feature-flags.svc.cluster.local:50051
+                  value: http://api.feature-flags.svc.cluster.local:50051
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
               envFrom:
@@ -192,16 +193,6 @@ spec:
                     name: maccas-common-managed-secrets
                 - secretRef:
                     name: maccas-api-managed-secrets
-              initContainers:
-                - image: ghcr.io/accurate0/maccas-migration
-                  name: maccas-migration
-                  resources:
-                    requests:
-                      cpu: 50m
-                      memory: 64Mi
-                  envFrom:
-                    - secretRef:
-                        name: maccas-migration-managed-secrets
               sidecars:
                 - image: ghcr.io/accurate0/maccas-clustering
                   name: maccas-clustering

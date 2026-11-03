@@ -33,6 +33,13 @@ resources:
     dns: {provider: cloudflare, proxied: true}
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
 workloads:
+  - name: maccas-migration
+    image: ghcr.io/accurate0/maccas-migration
+    kind: Job
+    phase: preSync
+    resources: {cpu: 50m, memory: 64Mi}
+    envFrom:
+      - secret: migration
   - name: maccas-api
     image: ghcr.io/accurate0/maccas-api
     replicas: 3
@@ -55,12 +62,6 @@ workloads:
     envFrom:
       - secret: common
       - secret: api
-    initContainers:
-      - image: ghcr.io/accurate0/maccas-migration
-        name: maccas-migration
-        resources: {cpu: 50m, memory: 64Mi}
-        envFrom:
-          - secret: migration
     service:
       name: maccas-api
       trafficDistribution: PreferSameNode
@@ -86,7 +87,7 @@ workloads:
       OLD_API_BASE_URL: https://api.maccas.one/v1
       API_BASE_URL: {service: maccas-api, port: api, path: /v1}
       EVENT_BASE_URL: {service: maccas-api, port: api, path: /v1}
-      FEATURE_FLAGS_URL: api.feature-flags.svc.cluster.local:50051
+      FEATURE_FLAGS_URL: {resource: flags}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - secret: web
@@ -133,12 +134,6 @@ workloads:
     envFrom:
       - secret: common
       - secret: api
-    initContainers:
-      - image: ghcr.io/accurate0/maccas-migration
-        name: maccas-migration
-        resources: {cpu: 50m, memory: 64Mi}
-        envFrom:
-          - secret: migration
     sidecars:
       - image: ghcr.io/accurate0/maccas-clustering
         name: maccas-clustering
