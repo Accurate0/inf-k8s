@@ -4,8 +4,10 @@ on:
     branches:
       - main
     paths:
-      - crates/obs/**
-      - crates/cli-auth/**
+      - packages/ortzi-obs/**
+      - packages/ortzi-host/**
+      - packages/ortzi-kit/**
+      - packages/pnpm-lock.yaml
       - .forgejo/workflows/publish-cli-obs.yaml
   workflow_dispatch:
 
@@ -16,4 +18,4 @@ jobs:
     runs-on: ortzi
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-      - run: ortzi publish crates/obs
+      - run: ortzi publish packages/ortzi-obs

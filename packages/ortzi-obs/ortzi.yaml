@@ -1,11 +1,18 @@
 package:
   name: obs
-  version: 0.1.1
-  completions: clap
   description: query logs and metrics through Grafana
-  binary: obs
+  version: 0.2.0
+  completions: cobra
   aliases: [logs, metrics]
 auth:
   client_id: grafana-cli
   token_env: OBS_TOKEN
   scopes: openid email profile
+permissions:
+  exec: [sleep]
+  http: [grafana.ortzi.cloud]
+  env: [OBS_GRAFANA_URL]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

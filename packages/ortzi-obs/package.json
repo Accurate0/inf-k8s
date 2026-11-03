@@ -1,0 +1,17 @@
+{
+  "name": "@ortzi/obs",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test src/duration.test.ts src/loki.test.ts src/prometheus.test.ts"
+  },
+  "dependencies": {
+    "@ortzi/host": "workspace:*",
+    "@ortzi/kit": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  }
+}
