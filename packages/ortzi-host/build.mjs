@@ -40,7 +40,7 @@ try {
   const { component } = await componentize({
     sourcePath: bundle,
     witPath: fileURLToPath(new URL('./wit', import.meta.url)),
-    worldName: 'cli',
+    worldName: 'guest',
     disableFeatures: ['http', 'fetch-event'],
   });
 

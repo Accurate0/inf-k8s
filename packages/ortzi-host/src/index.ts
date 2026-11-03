@@ -1,6 +1,9 @@
 import * as hostEnv from 'ortzi:host/env@0.1.0';
 import * as hostFs from 'ortzi:host/fs@0.1.0';
 import * as process from 'ortzi:host/process@0.1.0';
+import { getStderr } from 'wasi:cli/stderr@0.2.12';
+import { getStdin } from 'wasi:cli/stdin@0.2.12';
+import { getTerminalStdin } from 'wasi:cli/terminal-stdin@0.2.12';
 
 export type Stdio = process.Stdio;
 
@@ -98,25 +101,69 @@ export const args = (): string[] => hostEnv.args().slice(1);
 export const env = (): Record<string, string> => Object.fromEntries(hostEnv.vars());
 export const cwd = (): string => hostEnv.cwd();
 
+export const stdinIsTerminal = (): boolean => getTerminalStdin() !== undefined;
+
+let stdin: ReturnType<typeof getStdin> | undefined;
+
+export function readLine(): string | undefined {
+  stdin ??= getStdin();
+  const bytes: number[] = [];
+  for (;;) {
+    let chunk: Uint8Array;
+    try {
+      chunk = stdin.blockingRead(1n);
+    } catch {
+      chunk = new Uint8Array();
+    }
+
+    if (chunk.length === 0) {
+      if (!bytes.length) return undefined;
+      break;
+    }
+    if (chunk[0] === 0x0a) break;
+    bytes.push(chunk[0]);
+  }
+
+  return decoder.decode(new Uint8Array(bytes)).replace(/\r$/, '');
+}
+
+export function prompt(text: string): string | undefined {
+  getStderr().blockingWriteAndFlush(encoder.encode(text));
+  return readLine();
+}
+
 export function exit(code = 0): never {
   hostEnv.exit(code);
   throw new Error('unreachable');
 }
 
 export interface Flags {
-  [name: string]: { type: 'boolean' | 'string'; short?: string; default?: string | boolean };
+  [name: string]: {
+    type: 'boolean' | 'string';
+    short?: string;
+    default?: string | boolean;
+    multiple?: boolean;
+  };
 }
+
+type FlagValue<F extends Flags[string]> = F['type'] extends 'boolean'
+  ? boolean
+  : F['multiple'] extends true
+    ? string[]
+    : string | undefined;
 
 export function parseArgs<F extends Flags>(
   argv: string[],
   flags: F,
 ): {
-  values: { [K in keyof F]: F[K]['type'] extends 'boolean' ? boolean : string | undefined };
+  values: { [K in keyof F]: FlagValue<F[K]> };
   positionals: string[];
 } {
-  const values: Record<string, string | boolean | undefined> = {};
+  const values: Record<string, string | string[] | boolean | undefined> = {};
   for (const [name, flag] of Object.entries(flags)) {
-    values[name] = flag.default ?? (flag.type === 'boolean' ? false : undefined);
+    values[name] = flag.multiple
+      ? []
+      : (flag.default ?? (flag.type === 'boolean' ? false : undefined));
   }
 
   const positionals: string[] = [];
@@ -153,7 +200,7 @@ export function parseArgs<F extends Flags>(
     } else {
       const value = inline ?? argv[++i];
       if (value === undefined) throw new Error(`--${name} needs a value`);
-      values[name] = value;
+      values[name] = flag.multiple ? [...(values[name] as string[]), value] : value;
     }
   }
   return { values: values as never, positionals };

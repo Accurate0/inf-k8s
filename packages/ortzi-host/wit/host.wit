@@ -53,3 +53,10 @@ world cli {
   import env;
   export wasi:cli/run@0.2.12;
 }
+
+world guest {
+  include cli;
+  import wasi:cli/stdin@0.2.12;
+  import wasi:cli/stderr@0.2.12;
+  import wasi:cli/terminal-stdin@0.2.12;
+}

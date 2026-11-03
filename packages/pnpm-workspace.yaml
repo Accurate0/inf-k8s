@@ -4,6 +4,7 @@ packages:
   - ortzi-kit
   - ortzi-schemas
   - ortzi-app
+  - ortzi-secrets
 
 allowBuilds:
   grpc-tools: true

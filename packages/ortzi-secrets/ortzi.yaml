@@ -1,0 +1,18 @@
+package:
+  name: secrets
+  description: OpenBao secrets CLI
+  version: 0.2.0
+  completions: cobra
+  aliases: [secretsctl]
+auth:
+  client_id: openbao-cli
+  token_env: SECRETSCTL_TOKEN
+  scopes: openid email profile
+permissions:
+  exec: [curl, kubectl, stty, sleep]
+  env: [BAO_ADDR, BAO_TOKEN]
+  fs: [.]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts
