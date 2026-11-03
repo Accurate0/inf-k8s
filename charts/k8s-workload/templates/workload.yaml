@@ -39,6 +39,22 @@ spec:
       {{- end }}
       template:
         {{- include "k8s-workload.pod" $ctx | nindent 8 }}
+{{- else if eq $w.kind "Job" }}
+{{- $phases := dict "preSync" "PreSync" }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ $w.name }}
+  namespace: {{ $namespace }}
+  annotations:
+    argocd.argoproj.io/hook: {{ get $phases (required "phase is required for a Job" $w.phase) }}
+    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+spec:
+  {{- with $w.backoffLimit }}
+  backoffLimit: {{ . }}
+  {{- end }}
+  template:
+    {{- include "k8s-workload.pod" $ctx | nindent 4 }}
 {{- else }}
 apiVersion: apps/v1
 kind: {{ $w.kind }}
@@ -71,7 +87,7 @@ spec:
   template:
     {{- include "k8s-workload.pod" $ctx | nindent 4 }}
 {{- end }}
-{{- if and (or $w.port $service.ports) (ne $w.kind "CronJob") }}
+{{- if and (or $w.port $service.ports) (not (has $w.kind (list "CronJob" "Job"))) }}
 ---
 apiVersion: v1
 kind: Service

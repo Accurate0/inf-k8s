@@ -58,8 +58,9 @@ export class FeatureFlagClient {
     clientId: string,
     credentials: ChannelCredentials = ChannelCredentials.createInsecure(),
   ) {
-    this.admin = new AdminClient(address, credentials);
-    this.evaluation = new EvaluationClient(address, credentials);
+    const target = address.replace(/^[a-z]+:\/\//i, "");
+    this.admin = new AdminClient(target, credentials);
+    this.evaluation = new EvaluationClient(target, credentials);
     this.clientId = clientId;
   }
 

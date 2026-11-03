@@ -1,6 +1,6 @@
 {
   "name": "@accurate0/feature-flag-client",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Node gRPC client for the feature-flags service Admin and Evaluation APIs.",
   "type": "module",
   "repository": {

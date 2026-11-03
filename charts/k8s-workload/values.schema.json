@@ -27,7 +27,8 @@
           "enum": [
             "Deployment",
             "DaemonSet",
-            "CronJob"
+            "CronJob",
+            "Job"
           ]
         },
         "replicas": {
@@ -37,6 +38,12 @@
         "schedule": {
           "type": "string",
           "description": "Required when kind is CronJob."
+        },
+        "phase": {
+          "enum": [
+            "preSync"
+          ],
+          "description": "Argo sync phase the Job runs in as a hook. Required when kind is Job."
         },
         "port": {
           "type": "integer",

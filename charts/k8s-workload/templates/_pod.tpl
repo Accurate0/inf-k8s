@@ -76,7 +76,7 @@ metadata:
     {{- toYaml . | nindent 4 }}
     {{- end }}
 spec:
-  {{- if eq $w.kind "CronJob" }}
+  {{- if has $w.kind (list "CronJob" "Job") }}
   restartPolicy: {{ $w.restartPolicy | default "OnFailure" }}
   {{- end }}
   {{- with $w.serviceAccountName }}
