@@ -1,7 +1,7 @@
 import { type Kube, parseImage } from '@ortzi/kit';
 import type { Application } from './argo';
 
-const KINDS = 'deployments,statefulsets,daemonsets,cronjobs';
+const KINDS = 'deployments,statefulsets,daemonsets,cronjobs,jobs';
 
 export interface Container {
   name: string;

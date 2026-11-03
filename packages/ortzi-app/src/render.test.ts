@@ -170,6 +170,44 @@ test('renders several workloads and routes to the named one', () => {
   );
 });
 
+test('a Job runs as a hook in its phase', () => {
+  const rendered = render({
+    name: 'foo',
+    workloads: [{ name: 'migrate', image: 'm', kind: 'Job', phase: 'preSync' }],
+    network: { ingress: [] },
+  });
+
+  const [job] = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads;
+  assert.equal(job.kind, 'Job');
+  assert.equal(job.phase, 'preSync');
+});
+
+test('rejects a Job without a phase, or a phase without a Job', () => {
+  const app = (workload: Record<string, unknown>) => ({
+    name: 'foo',
+    workloads: [{ name: 'migrate', image: 'm', ...workload }],
+    network: { ingress: [] },
+  });
+
+  assert.throws(() => validate(app({ kind: 'Job' }), 'x'), /phase is required for a Job/);
+  assert.throws(() => validate(app({ phase: 'preSync' }), 'x'), /phase is only for a Job/);
+  assert.throws(
+    () =>
+      validate(
+        app({
+          kind: 'Job',
+          phase: 'preSync',
+          ports: [{ name: 'http', container: 80, service: 80 }],
+          service: { name: 'migrate' },
+        }),
+        'x',
+      ),
+    /a Job cannot expose ports/,
+  );
+  assert.throws(() => validate(app({ kind: 'Job', phase: 'postSync' }), 'x'), /phase/);
+  validate(app({ kind: 'Job', phase: 'preSync' }), 'x');
+});
+
 test('routes to an explicit backend without a workload', () => {
   const rendered = render({
     name: 'foo',

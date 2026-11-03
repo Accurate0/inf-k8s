@@ -58,15 +58,17 @@ function assertTagsExist(targets: Map<string, string>): void {
 }
 
 function planEdits(workloads: Workload[], targets: Map<string, string>): Edit[] {
-  return workloads.flatMap((workload) =>
-    containersOf(workload).flatMap((container) => {
-      const { repository, tag: from } = parseImage(container.image);
-      const to = targets.get(repository);
-      return to && to !== from
-        ? [{ workload, container: container.name, repository, from, to }]
-        : [];
-    }),
-  );
+  return workloads
+    .filter((workload) => workload.kind !== 'Job')
+    .flatMap((workload) =>
+      containersOf(workload).flatMap((container) => {
+        const { repository, tag: from } = parseImage(container.image);
+        const to = targets.get(repository);
+        return to && to !== from
+          ? [{ workload, container: container.name, repository, from, to }]
+          : [];
+      }),
+    );
 }
 
 function applyEdit(kube: Kube, { workload, container, repository, to }: Edit): void {

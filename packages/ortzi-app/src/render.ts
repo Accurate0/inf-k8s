@@ -22,9 +22,10 @@ export const isCurrent = (existing: string, rendered: string) =>
 
 export interface Workload {
   image: string;
-  kind?: 'Deployment' | 'DaemonSet' | 'CronJob';
+  kind?: 'Deployment' | 'DaemonSet' | 'CronJob' | 'Job';
   replicas?: number;
   schedule?: string;
+  phase?: 'preSync';
   service?: { name: string; trafficDistribution?: string };
   initContainers?: { image: string }[];
   sidecars?: { image: string }[];
@@ -521,6 +522,12 @@ export function validate(raw: unknown, where: string): App {
 
   for (const [name, workload] of Object.entries(appWorkloads(app))) {
     if (!workload.image) fail(`workloads.${name}.image is required`);
+    if (workload.kind === 'Job' && !workload.phase)
+      fail(`workloads.${name}.phase is required for a Job`);
+    if (workload.phase && workload.kind !== 'Job')
+      fail(`workloads.${name}.phase is only for a Job`);
+    if (workload.kind === 'Job' && declaredPorts(workload).length)
+      fail(`workloads.${name}: a Job cannot expose ports`);
     if (declaredPorts(workload).length && !workload.service?.name)
       fail(`workloads.${name}.service.name is required with ports`);
     for (const key of overrideConflicts(workload))
