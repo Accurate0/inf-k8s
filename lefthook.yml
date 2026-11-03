@@ -23,6 +23,11 @@ pre-commit:
       glob: "**/Chart.yaml"
       run: 'printf "%s\n" {staged_files} | xargs -n1 dirname | sort -u | xargs -r -n1 helm lint'
 
+    prettier:
+      glob: "packages/**/*.{ts,mts,mjs}"
+      exclude: "packages/feature-flag-client/**"
+      run: packages/node_modules/.bin/prettier --check {staged_files}
+
     tofu-fmt:
       glob: "*.tf"
       run: tofu fmt -check -diff {staged_files}
