@@ -208,6 +208,30 @@ test('rejects a Job without a phase, or a phase without a Job', () => {
   validate(app({ kind: 'Job', phase: 'preSync' }), 'x');
 });
 
+test('rejects cluster addresses written into env', () => {
+  const app = (env: Record<string, unknown>, sidecar = false) => ({
+    name: 'foo',
+    workloads: [
+      {
+        name: 'api',
+        image: 'i',
+        ...(sidecar ? { sidecars: [{ name: 's', image: 's', env }] } : { env }),
+      },
+    ],
+    network: { ingress: [] },
+  });
+
+  assert.throws(
+    () => validate(app({ URL: 'http://api.bar.svc.cluster.local:80' }), 'x'),
+    /env.URL: use \{service\} or \{resource\}/,
+  );
+  assert.throws(
+    () => validate(app({ URL: 'api.bar.svc.cluster.local:50051' }, true), 'x'),
+    /env.URL/,
+  );
+  validate(app({ URL: 'https://foo.anurag.sh' }), 'x');
+});
+
 test('routes to an explicit backend without a workload', () => {
   const rendered = render({
     name: 'foo',

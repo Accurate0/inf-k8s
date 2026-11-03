@@ -532,6 +532,20 @@ export function validate(raw: unknown, where: string): App {
       fail(`workloads.${name}.service.name is required with ports`);
     for (const key of overrideConflicts(workload))
       fail(`workloads.${name}.overrides.${key} is already set on the workload`);
+    for (const container of [
+      workload,
+      ...((workload.initContainers ?? []) as Workload[]),
+      ...((workload.sidecars ?? []) as Workload[]),
+    ]) {
+      for (const [env, value] of Object.entries(
+        !container.env || Array.isArray(container.env) ? {} : container.env,
+      )) {
+        if (typeof value === 'string' && value.includes('.svc.cluster.local'))
+          fail(
+            `workloads.${name}.env.${env}: use {service} or {resource} instead of a cluster address`,
+          );
+      }
+    }
     for (const value of Object.values(
       !workload.env || Array.isArray(workload.env) ? {} : workload.env,
     )) {
