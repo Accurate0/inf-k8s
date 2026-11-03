@@ -1,10 +1,11 @@
-name: Publish schemas
+name: Publish ortzi packages
 on:
   push:
     branches:
       - main
     paths:
       - packages/ortzi-schemas/**
+      - packages/ortzi-secrets/**
       - packages/ortzi-host/**
       - packages/ortzi-kit/**
       - packages/pnpm-lock.yaml
@@ -19,7 +20,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [ortzi-schemas]
+        package: [ortzi-schemas, ortzi-secrets]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: ortzi publish packages/${{ matrix.package }}

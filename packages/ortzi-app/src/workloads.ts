@@ -22,7 +22,7 @@ export interface Workload {
   };
 }
 
-export const listWorkloads = (kube: Kube) => kube.list<Workload>(KINDS, '-A');
+export const listWorkloads = (kube: Kube) => kube.list<Workload>(KINDS);
 
 export function workloadsFor(app: Application, workloads: Workload[]): Workload[] {
   const owned = new Set(

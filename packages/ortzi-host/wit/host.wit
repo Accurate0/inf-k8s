@@ -40,6 +40,23 @@ interface fs {
   remove: func(path: string) -> result<_, string>;
 }
 
+interface kube {
+  record request {
+    context: option<string>,
+    method: string,
+    path: string,
+    headers: list<tuple<string, string>>,
+    body: option<list<u8>>,
+  }
+
+  record response {
+    status: u16,
+    body: list<u8>,
+  }
+
+  send: func(request: request) -> result<response, string>;
+}
+
 interface env {
   args: func() -> list<string>;
   vars: func() -> list<tuple<string, string>>;
@@ -51,6 +68,7 @@ world cli {
   import process;
   import fs;
   import env;
+  import kube;
   export wasi:cli/run@0.2.12;
 }
 

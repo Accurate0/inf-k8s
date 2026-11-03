@@ -28,7 +28,13 @@ export interface Job {
 
 export interface CronJob {
   metadata: { name: string; uid: string };
-  spec: { schedule: string; jobTemplate: { spec: any } };
+  spec: {
+    schedule: string;
+    jobTemplate: {
+      metadata?: { labels?: Record<string, string>; annotations?: Record<string, string> };
+      spec: any;
+    };
+  };
   status?: { lastScheduleTime?: string; lastSuccessfulTime?: string };
 }
 
@@ -66,9 +72,14 @@ export function publishedVersion(): string {
   }
 }
 
-function jobWithVersion(cron: CronJob, name: string, namespace: string, k8sVersion: string) {
-  const spec = cron.spec.jobTemplate.spec;
-  for (const container of spec.template.spec.containers) {
+function jobFromCronJob(
+  cron: CronJob,
+  name: string,
+  namespace: string,
+  k8sVersion: string | undefined,
+) {
+  const { metadata: template, spec } = cron.spec.jobTemplate;
+  for (const container of k8sVersion ? spec.template.spec.containers : []) {
     const env: { name: string; value?: string }[] = container.env ?? [];
     const existing = env.find((e) => e.name === 'K8S_VERSION');
     if (existing) existing.value = k8sVersion;
@@ -82,7 +93,8 @@ function jobWithVersion(cron: CronJob, name: string, namespace: string, k8sVersi
     metadata: {
       name,
       namespace,
-      annotations: { 'cronjob.kubernetes.io/instantiate': 'manual' },
+      labels: template?.labels,
+      annotations: { ...template?.annotations, 'cronjob.kubernetes.io/instantiate': 'manual' },
       ownerReferences: [
         {
           apiVersion: 'batch/v1',
@@ -99,12 +111,8 @@ function jobWithVersion(cron: CronJob, name: string, namespace: string, k8sVersi
 
 export function createJob(kube: Kube, namespace: string, k8sVersion: string | undefined): string {
   const name = `${CRONJOB}-manual-${Math.floor(Date.now() / 1000)}`;
-  const created = k8sVersion
-    ? kube.capture(['create', '-f', '-', '-o', 'name'], {
-        stdin: JSON.stringify(jobWithVersion(getCronJob(kube), name, namespace, k8sVersion)),
-      })
-    : kube.capture(['create', 'job', `--from=cronjob/${CRONJOB}`, name, '-o', 'name']);
-  return created.trim().replace(/^job\.batch\//, '');
+  const job = jobFromCronJob(getCronJob(kube), name, namespace, k8sVersion);
+  return kube.create<Job>('jobs', job).metadata.name;
 }
 
 export function followJob(kube: Kube, name: string, deadline: number): JobResult {

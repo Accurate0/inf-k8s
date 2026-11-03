@@ -219,6 +219,8 @@ fn print_permissions(permissions: &Permissions) {
     println!("  runs: {}", list(&permissions.exec));
     println!("  env:  {}", list(&permissions.env));
     println!("  fs:   {}", list(&permissions.fs));
+    let kube: Vec<String> = permissions.kube.iter().map(|v| v.as_str().to_owned()).collect();
+    println!("  kube: {}", list(&kube));
 }
 
 fn check_conflicts(installed: &Installed, name: &str, version: &Version) -> anyhow::Result<()> {

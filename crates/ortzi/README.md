@@ -76,6 +76,7 @@ permissions:
   exec: [git, kubectl]         # programs it may run (bare names, resolved on PATH)
   env: [HOME, KUBECONFIG]      # variables it can read
   fs: [., ~/.kube]             # roots it may read and write; `.` is the working directory
+  kube: [get, patch]           # Kubernetes API verbs, sent with your kubeconfig by ortzi
 build:
   kind: wasm
   wasm:
@@ -94,4 +95,9 @@ export const run = main(() => {
 ```
 
 `ortzi dev path/to/pkg -- args` builds and runs it locally with the declared permissions.
+
+`kube` verbs map to HTTP methods (`get` GET, `create` POST, `update` PUT, `patch` PATCH,
+`delete` DELETE). ortzi reads the kubeconfig and holds the credentials; the package only sends
+paths and bodies. `Kube` in `@ortzi/kit` resolves resource names through API discovery, so
+`kube.namespace('argocd').get('application', name)` works as with kubectl.
 Programs it runs are ordinary host processes; the sandbox decides which ones it may start.

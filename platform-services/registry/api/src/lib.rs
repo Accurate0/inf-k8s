@@ -115,6 +115,41 @@ pub struct Permissions {
     pub env: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub fs: Vec<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub kube: Vec<KubeVerb>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum KubeVerb {
+    Get,
+    Create,
+    Update,
+    Patch,
+    Delete,
+}
+
+impl KubeVerb {
+    pub fn for_method(method: &str) -> Option<Self> {
+        match method {
+            "GET" => Some(Self::Get),
+            "POST" => Some(Self::Create),
+            "PUT" => Some(Self::Update),
+            "PATCH" => Some(Self::Patch),
+            "DELETE" => Some(Self::Delete),
+            _ => None,
+        }
+    }
+
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Get => "get",
+            Self::Create => "create",
+            Self::Update => "update",
+            Self::Patch => "patch",
+            Self::Delete => "delete",
+        }
+    }
 }
 
 impl Permissions {
@@ -549,6 +584,7 @@ mod tests {
             exec: vec!["kubectl".to_owned(), "ssh".to_owned()],
             env: vec!["KUBECONFIG".to_owned()],
             fs: vec![".".to_owned(), "~/.kube".to_owned(), "/tmp".to_owned()],
+            kube: vec![KubeVerb::Get, KubeVerb::Patch],
         };
         assert!(ok.validate().is_ok());
         for bad in [

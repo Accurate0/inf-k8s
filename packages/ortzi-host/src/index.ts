@@ -1,5 +1,6 @@
 import * as hostEnv from 'ortzi:host/env@0.1.0';
 import * as hostFs from 'ortzi:host/fs@0.1.0';
+import * as hostKube from 'ortzi:host/kube@0.1.0';
 import * as process from 'ortzi:host/process@0.1.0';
 import { getStderr } from 'wasi:cli/stderr@0.2.12';
 import { getStdin } from 'wasi:cli/stdin@0.2.12';
@@ -96,6 +97,32 @@ export const fs = {
   mkdir: (path: string) => unwrap(() => hostFs.createDirAll(path)),
   remove: (path: string) => unwrap(() => hostFs.remove(path)),
 };
+
+export interface KubeRequest {
+  context?: string;
+  method: string;
+  path: string;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+export interface KubeResponse {
+  status: number;
+  body: string;
+}
+
+export function kubeSend(request: KubeRequest): KubeResponse {
+  const raw = unwrap(() =>
+    hostKube.send({
+      context: request.context,
+      method: request.method,
+      path: request.path,
+      headers: Object.entries(request.headers ?? {}),
+      body: request.body === undefined ? undefined : encoder.encode(request.body),
+    }),
+  );
+  return { status: raw.status, body: decoder.decode(raw.body) };
+}
 
 export const args = (): string[] => hostEnv.args().slice(1);
 export const env = (): Record<string, string> => Object.fromEntries(hostEnv.vars());

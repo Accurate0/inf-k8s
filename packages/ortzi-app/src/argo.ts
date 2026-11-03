@@ -47,15 +47,7 @@ export const getApp = (kube: Kube, name: string) =>
 export const listApps = (kube: Kube) => argocd(kube).list<Application>('applications');
 
 function patchApp(kube: Kube, name: string, patch: unknown): void {
-  argocd(kube).capture([
-    'patch',
-    'application',
-    name,
-    '--type',
-    'merge',
-    '-p',
-    JSON.stringify(patch),
-  ]);
+  argocd(kube).patch('application', name, patch);
 }
 
 export function waitForSync(kube: Kube, name: string, minutes: number): boolean {

@@ -9,7 +9,7 @@ const TIMEOUT_MS = 60_000;
 export function listExternalSecrets(kube: Kube, namespace?: string): ExternalSecret[] {
   return namespace
     ? kube.namespace(namespace).list<ExternalSecret>(RESOURCE)
-    : kube.list<ExternalSecret>(RESOURCE, '-A');
+    : kube.list<ExternalSecret>(RESOURCE);
 }
 
 export function sync(kube: Kube, target: string): boolean {
@@ -21,9 +21,9 @@ export function sync(kube: Kube, target: string): boolean {
 
   const started = Math.floor(Date.now() / 1000);
   for (const es of found) {
-    kube
-      .namespace(es.metadata.namespace)
-      .capture(['annotate', RESOURCE, es.metadata.name, `force-sync=${started}`, '--overwrite']);
+    kube.namespace(es.metadata.namespace).patch(RESOURCE, es.metadata.name, {
+      metadata: { annotations: { 'force-sync': String(started) } },
+    });
   }
 
   const deadline = Date.now() + TIMEOUT_MS;

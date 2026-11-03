@@ -17,6 +17,20 @@ declare module 'ortzi:host/fs@0.1.0' {
     dir: boolean;
   }
 }
+declare module 'ortzi:host/kube@0.1.0' {
+  export function send(request: Request): Response;
+  export interface Request {
+    context?: string;
+    method: string;
+    path: string;
+    headers: Array<[string, string]>;
+    body?: Uint8Array;
+  }
+  export interface Response {
+    status: number;
+    body: Uint8Array;
+  }
+}
 declare module 'ortzi:host/process@0.1.0' {
   export function run(command: Command): Output;
   /**

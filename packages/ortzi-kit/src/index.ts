@@ -1,5 +1,6 @@
 export * from './cli';
 export * from './completion';
+export * from './discovery';
 export * from './format';
 export * from './http';
 export * from './image';

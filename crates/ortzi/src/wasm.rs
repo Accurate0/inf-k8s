@@ -1,11 +1,12 @@
 use std::{
+    collections::HashMap,
     io::Write,
     path::{Component as PathPart, Path, PathBuf},
     process::Stdio as ProcessStdio,
 };
 
 use anyhow::{Context, bail};
-use registry_api::Permissions;
+use registry_api::{KubeVerb, Permissions};
 use wasmtime::{
     Engine, Store,
     component::{Component, HasSelf, Linker, ResourceTable},
@@ -21,7 +22,7 @@ wasmtime::component::bindgen!({
     anyhow: true,
 });
 
-use ortzi::host::{env, fs, process};
+use ortzi::host::{env, fs, kube, process};
 
 pub struct Sandbox {
     pub args: Vec<String>,
@@ -29,6 +30,7 @@ pub struct Sandbox {
     pub cwd: PathBuf,
     pub exec: Vec<String>,
     pub roots: Vec<PathBuf>,
+    pub kube: Vec<KubeVerb>,
 }
 
 impl Sandbox {
@@ -73,6 +75,7 @@ impl Sandbox {
             cwd,
             exec: permissions.exec.clone(),
             roots,
+            kube: permissions.kube.clone(),
         })
     }
 
@@ -132,6 +135,76 @@ struct State {
     wasi: WasiCtx,
     table: ResourceTable,
     sandbox: Sandbox,
+    kube: Option<Kube>,
+}
+
+struct Kube {
+    runtime: tokio::runtime::Runtime,
+    clients: HashMap<Option<String>, ::kube::Client>,
+}
+
+impl Kube {
+    fn new() -> Result<Self, String> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self {
+            runtime,
+            clients: HashMap::new(),
+        })
+    }
+
+    fn client(&mut self, context: Option<String>) -> Result<::kube::Client, String> {
+        if let Some(client) = self.clients.get(&context) {
+            return Ok(client.clone());
+        }
+
+        let options = ::kube::config::KubeConfigOptions {
+            context: context.clone(),
+            ..Default::default()
+        };
+        let client = self.runtime.block_on(async {
+            let config = match &context {
+                Some(_) => ::kube::Config::from_kubeconfig(&options)
+                    .await
+                    .map_err(|e| e.to_string())?,
+                None => ::kube::Config::infer().await.map_err(|e| e.to_string())?,
+            };
+            ::kube::Client::try_from(config).map_err(|e| e.to_string())
+        })?;
+        self.clients.insert(context, client.clone());
+        Ok(client)
+    }
+
+    fn send(&mut self, request: kube::Request) -> Result<kube::Response, String> {
+        let client = self.client(request.context)?;
+        let mut builder = http::Request::builder()
+            .method(request.method.as_str())
+            .uri(&request.path);
+        for (name, value) in &request.headers {
+            builder = builder.header(name, value);
+        }
+        let body = ::kube::client::Body::from(request.body.unwrap_or_default());
+        let http_request = builder.body(body).map_err(|e| e.to_string())?;
+
+        self.runtime.block_on(async {
+            let response = client
+                .send(http_request)
+                .await
+                .map_err(|e| format!("{} {}: {e}", request.method, request.path))?;
+            let status = response.status().as_u16();
+            let body = response
+                .into_body()
+                .collect_bytes()
+                .await
+                .map_err(|e| e.to_string())?;
+            Ok(kube::Response {
+                status,
+                body: body.to_vec(),
+            })
+        })
+    }
 }
 
 impl WasiView for State {
@@ -190,6 +263,28 @@ impl process::Host for State {
             stdout: output.stdout,
             stderr: output.stderr,
         })
+    }
+}
+
+impl kube::Host for State {
+    fn send(&mut self, request: kube::Request) -> Result<kube::Response, String> {
+        let verb = KubeVerb::for_method(&request.method)
+            .ok_or_else(|| format!("kube: unsupported method {}", request.method))?;
+        if !self.sandbox.kube.contains(&verb) {
+            return Err(format!(
+                "kube: {} is not in the package's permissions.kube",
+                verb.as_str()
+            ));
+        }
+        if !request.path.starts_with('/') {
+            return Err(format!("kube: {}: path must start with /", request.path));
+        }
+
+        let kube = match &mut self.kube {
+            Some(kube) => kube,
+            None => self.kube.insert(Kube::new()?),
+        };
+        kube.send(request)
     }
 }
 
@@ -322,6 +417,7 @@ pub fn run(wasm: &Path, sandbox: Sandbox) -> anyhow::Result<i32> {
             wasi,
             table: ResourceTable::new(),
             sandbox,
+            kube: None,
         },
     );
 
@@ -347,6 +443,7 @@ mod tests {
             cwd: root.to_owned(),
             exec: vec!["echo".to_owned()],
             roots: vec![root.canonicalize().unwrap()],
+            kube: vec![],
         }
     }
 
