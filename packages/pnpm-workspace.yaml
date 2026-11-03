@@ -2,9 +2,8 @@ packages:
   - feature-flag-client
   - ortzi-host
   - ortzi-kit
-  - ortzi-example
-  - schemas
-  - app
+  - ortzi-schemas
+  - ortzi-app
 
 allowBuilds:
   grpc-tools: true

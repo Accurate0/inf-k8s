@@ -14,7 +14,7 @@ on:
       - charts/**
       - platform/versions.yaml
       - platform/exports/**
-      - packages/app/**
+      - packages/ortzi-app/**
       - packages/ortzi-host/**
       - packages/ortzi-kit/**
       - packages/pnpm-lock.yaml
@@ -39,7 +39,7 @@ jobs:
         run: |
           changed=true
           if [ "${{ github.event_name }}" = push ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null \
-            && git diff --quiet "$BEFORE" HEAD -- packages/app packages/ortzi-host packages/ortzi-kit packages/pnpm-lock.yaml; then
+            && git diff --quiet "$BEFORE" HEAD -- packages/ortzi-app packages/ortzi-host packages/ortzi-kit packages/pnpm-lock.yaml; then
             changed=false
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
@@ -52,7 +52,7 @@ jobs:
         if: needs.changes.outputs.package == 'true'
       - run: pnpm --dir packages install --frozen-lockfile
         if: needs.changes.outputs.package == 'true'
-      - run: pnpm --dir packages/app test && pnpm --dir packages/app check
+      - run: pnpm --dir packages/ortzi-app test && pnpm --dir packages/ortzi-app check
         if: needs.changes.outputs.package == 'true'
 
   publish:
@@ -61,7 +61,7 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: needs.changes.outputs.package == 'true'
-      - run: .forgejo/scripts/retry.sh 3 30 ortzi publish packages/app
+      - run: .forgejo/scripts/retry.sh 3 30 ortzi publish packages/ortzi-app
         if: needs.changes.outputs.package == 'true'
 
   render:

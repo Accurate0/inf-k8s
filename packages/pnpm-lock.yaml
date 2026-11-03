@@ -174,25 +174,6 @@ importers:
         specifier: 3.9.10
         version: 3.9.10
 
-  app:
-    dependencies:
-      '@ortzi/host':
-        specifier: workspace:*
-        version: link:../ortzi-host
-      '@ortzi/kit':
-        specifier: workspace:*
-        version: link:../ortzi-kit
-      jsonschema:
-        specifier: ^1.5.0
-        version: 1.5.0
-      yaml:
-        specifier: ^2.8.0
-        version: 2.9.1
-    devDependencies:
-      typescript:
-        specifier: ^7.0.0
-        version: 7.0.2
-
   feature-flag-client:
     dependencies:
       '@bufbuild/protobuf':
@@ -215,11 +196,20 @@ importers:
         specifier: ^7.0.0
         version: 7.0.2
 
-  ortzi-example:
+  ortzi-app:
     dependencies:
       '@ortzi/host':
         specifier: workspace:*
         version: link:../ortzi-host
+      '@ortzi/kit':
+        specifier: workspace:*
+        version: link:../ortzi-kit
+      jsonschema:
+        specifier: ^1.5.0
+        version: 1.5.0
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.1
     devDependencies:
       typescript:
         specifier: ^7.0.0
@@ -251,7 +241,7 @@ importers:
         specifier: ^7.0.0
         version: 7.0.2
 
-  schemas:
+  ortzi-schemas:
     dependencies:
       '@ortzi/host':
         specifier: workspace:*

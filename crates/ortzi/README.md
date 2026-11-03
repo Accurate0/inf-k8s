@@ -83,7 +83,7 @@ build:
 ```
 
 Add the package to the `packages/` pnpm workspace with `@ortzi/host` as a dependency and export
-`run` from the entry point (see `packages/ortzi-example`):
+`run` from the entry point (see `packages/ortzi-schemas`):
 
 ```ts
 import { args, capture, main } from '@ortzi/host';
