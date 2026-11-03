@@ -126,11 +126,11 @@ fn command() -> clap::Command {
             .disable_help_flag(true)
             .disable_help_subcommand(true);
         if package.completions == Some(Completions::Cobra) {
-            let (program, prefix) = if package.is_wasm() {
-                let exe = std::env::current_exe().unwrap_or_else(|_| "ortzi".into());
-                (exe, vec![name.clone()])
+            let wasm = package.is_wasm();
+            let program = if wasm {
+                std::env::current_exe().unwrap_or_else(|_| "ortzi".into())
             } else {
-                (store.current_binary(name, package), Vec::new())
+                store.current_binary(name, package)
             };
             subcommand = subcommand.arg(
                 Arg::new("args")
@@ -138,7 +138,7 @@ fn command() -> clap::Command {
                     .trailing_var_arg(true)
                     .allow_hyphen_values(true)
                     .add(ArgValueCompleter::new(move |current: &OsStr| {
-                        cobra_candidates(&program, &prefix, current)
+                        cobra_candidates(&program, wasm, current)
                     })),
             );
         }
@@ -149,7 +149,7 @@ fn command() -> clap::Command {
 
 fn cobra_candidates(
     program: &std::path::Path,
-    prefix: &[String],
+    wasm: bool,
     current: &OsStr,
 ) -> Vec<CompletionCandidate> {
     let Some(words) = shell_words() else {
@@ -171,7 +171,7 @@ fn cobra_candidates(
 
     let Ok(output) = Command::new(program)
         .env_remove(VAR)
-        .args(prefix)
+        .args(wasm.then(|| &words[position]))
         .arg("__complete")
         .args(&words[position + 1..end])
         .arg(current)

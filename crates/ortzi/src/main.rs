@@ -109,6 +109,8 @@ enum Command {
     Dev {
         #[arg(default_value = ".")]
         path: PathBuf,
+        #[arg(long = "as", help = "Run as this alias")]
+        invoked: Option<String>,
         #[arg(last = true)]
         args: Vec<String>,
     },
@@ -202,7 +204,11 @@ async fn main() -> anyhow::Result<()> {
             force,
             no_workflow,
         }),
-        Command::Dev { path, args } => dev(&path, args).await,
+        Command::Dev {
+            path,
+            invoked,
+            args,
+        } => dev(&path, invoked, args).await,
         Command::Registry { command } => commands::registry::run(&settings, command).await,
         Command::Doctor => doctor::run(&settings).await,
         Command::Completions { shell } => completions::print_script(&shell),
@@ -214,7 +220,11 @@ async fn main() -> anyhow::Result<()> {
     }
 }
 
-async fn dev(path: &std::path::Path, args: Vec<String>) -> anyhow::Result<()> {
+async fn dev(
+    path: &std::path::Path,
+    invoked: Option<String>,
+    args: Vec<String>,
+) -> anyhow::Result<()> {
     let loaded = manifest::Loaded::load(path)?;
     if loaded.manifest.build.kind != manifest::Kind::Wasm {
         anyhow::bail!("`ortzi dev` runs wasm packages; build native ones with cargo");
@@ -222,6 +232,7 @@ async fn dev(path: &std::path::Path, args: Vec<String>) -> anyhow::Result<()> {
     let wasm = loaded.build(Target::Wasm, &loaded.version()?).await?;
     let sandbox = wasm::Sandbox::new(
         loaded.name(),
+        invoked.as_deref().unwrap_or(loaded.name()),
         &loaded.manifest.permissions.clone().unwrap_or_default(),
         args,
         Vec::new(),

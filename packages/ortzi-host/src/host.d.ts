@@ -31,6 +31,21 @@ declare module 'ortzi:host/kube@0.1.0' {
     body: Uint8Array;
   }
 }
+declare module 'ortzi:host/http@0.1.0' {
+  export function send(request: Request): Response;
+  export interface Request {
+    method: string;
+    url: string;
+    headers: Array<[string, string]>;
+    body?: Uint8Array;
+    timeoutMs?: number;
+  }
+  export interface Response {
+    status: number;
+    headers: Array<[string, string]>;
+    body: Uint8Array;
+  }
+}
 declare module 'ortzi:host/process@0.1.0' {
   export function run(command: Command): Output;
   /**

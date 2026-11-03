@@ -117,6 +117,8 @@ pub struct Permissions {
     pub fs: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub kube: Vec<KubeVerb>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub http: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -173,8 +175,27 @@ impl Permissions {
                 ));
             }
         }
+        for host in &self.http {
+            if !is_hostname(host) {
+                return Err(format!(
+                    "permissions.http: {host:?} must be a bare hostname"
+                ));
+            }
+        }
         Ok(())
     }
+}
+
+fn is_hostname(host: &str) -> bool {
+    !host.is_empty()
+        && host.split('.').all(|label| {
+            !label.is_empty()
+                && !label.starts_with('-')
+                && !label.ends_with('-')
+                && label
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+        })
 }
 
 fn is_env_name(name: &str) -> bool {
@@ -585,6 +606,7 @@ mod tests {
             env: vec!["KUBECONFIG".to_owned()],
             fs: vec![".".to_owned(), "~/.kube".to_owned(), "/tmp".to_owned()],
             kube: vec![KubeVerb::Get, KubeVerb::Patch],
+            http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
         };
         assert!(ok.validate().is_ok());
         for bad in [
@@ -602,6 +624,14 @@ mod tests {
             },
             Permissions {
                 fs: vec!["~/../etc".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                http: vec!["https://grafana.ortzi.cloud".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                http: vec!["grafana.ortzi.cloud:443".to_owned()],
                 ..Default::default()
             },
         ] {

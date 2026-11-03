@@ -53,6 +53,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                 vars.extend(unset_env(&package.env).map(|(k, v)| (k.clone(), v.clone())));
                 let sandbox = wasm::Sandbox::new(
                     name,
+                    &command,
                     &package.permissions.clone().unwrap_or_default(),
                     args,
                     vars,

@@ -1,4 +1,4 @@
-import { type Flags, args, main, parseArgs } from '@ortzi/host';
+import { type Flags, args, invokedAs, main, parseArgs } from '@ortzi/host';
 import { completionCandidates, formatCompletions } from './completion';
 
 export class UsageError extends Error {}
@@ -13,11 +13,20 @@ export interface CliSpec<C, F extends Flags> {
   setup: (values: Values<F>) => C;
   commands: Record<string, Command<C, F>>;
   completers?: Record<string, (ctx: C, position: number) => string[]>;
+  aliases?: Record<string, string>;
+}
+
+function aliased(argv: string[], aliases: Record<string, string> = {}): string[] {
+  const invoked = invokedAs();
+  if (!Object.hasOwn(aliases, invoked)) return argv;
+
+  const command = aliases[invoked];
+  return argv[0] === '__complete' ? ['__complete', command, ...argv.slice(1)] : [command, ...argv];
 }
 
 export function cli<C, F extends Flags>(spec: CliSpec<C, F>): { run(): void } {
   return main(() => {
-    const argv = args();
+    const argv = aliased(args(), spec.aliases);
     if (argv[0] === '__complete') {
       const { values } = parseArgs([], spec.flags);
       const candidates = completionCandidates(

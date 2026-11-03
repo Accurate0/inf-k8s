@@ -22,7 +22,7 @@ wasmtime::component::bindgen!({
     anyhow: true,
 });
 
-use ortzi::host::{env, fs, kube, process};
+use ortzi::host::{env, fs, http as host_http, kube, process};
 
 pub struct Sandbox {
     pub args: Vec<String>,
@@ -31,11 +31,13 @@ pub struct Sandbox {
     pub exec: Vec<String>,
     pub roots: Vec<PathBuf>,
     pub kube: Vec<KubeVerb>,
+    pub http: Vec<String>,
 }
 
 impl Sandbox {
     pub fn new(
         package: &str,
+        invoked: &str,
         permissions: &Permissions,
         args: Vec<String>,
         extra_vars: Vec<(String, String)>,
@@ -67,7 +69,7 @@ impl Sandbox {
         vars.push(("ORTZI".to_owned(), "1".to_owned()));
         vars.push(("ORTZI_PACKAGE".to_owned(), package.to_owned()));
 
-        let mut argv = vec![package.to_owned()];
+        let mut argv = vec![invoked.to_owned()];
         argv.extend(args);
         Ok(Self {
             args: argv,
@@ -76,6 +78,7 @@ impl Sandbox {
             exec: permissions.exec.clone(),
             roots,
             kube: permissions.kube.clone(),
+            http: permissions.http.clone(),
         })
     }
 
@@ -129,6 +132,21 @@ impl Sandbox {
         }
         crate::dispatch::which(program).ok_or_else(|| format!("{program}: command not found"))
     }
+
+    fn url(&self, raw: &str) -> Result<reqwest::Url, String> {
+        let url = reqwest::Url::parse(raw).map_err(|e| format!("http: {raw}: {e}"))?;
+        let host = url.host_str().unwrap_or_default();
+        let local = matches!(host, "localhost" | "127.0.0.1" | "[::1]");
+        if url.scheme() != "https" && !(url.scheme() == "http" && local) {
+            return Err(format!("http: {raw}: only https is allowed"));
+        }
+        if !self.http.iter().any(|allowed| allowed == host) {
+            return Err(format!(
+                "http: {host} is not in the package's permissions.http"
+            ));
+        }
+        Ok(url)
+    }
 }
 
 struct State {
@@ -136,6 +154,66 @@ struct State {
     table: ResourceTable,
     sandbox: Sandbox,
     kube: Option<Kube>,
+    http: Option<Http>,
+}
+
+struct Http {
+    runtime: tokio::runtime::Runtime,
+    client: reqwest::Client,
+}
+
+impl Http {
+    fn new() -> Result<Self, String> {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| e.to_string())?;
+        let client = reqwest::Client::builder()
+            .user_agent(concat!("ortzi/", env!("CARGO_PKG_VERSION")))
+            .connect_timeout(std::time::Duration::from_secs(10))
+            .build()
+            .map_err(|e| e.to_string())?;
+        Ok(Self { runtime, client })
+    }
+
+    fn send(
+        &self,
+        url: reqwest::Url,
+        request: host_http::Request,
+    ) -> Result<host_http::Response, String> {
+        let method = reqwest::Method::from_bytes(request.method.as_bytes())
+            .map_err(|_| format!("http: invalid method {}", request.method))?;
+        let timeout = std::time::Duration::from_millis(request.timeout_ms.unwrap_or(30_000).into());
+        let mut builder = self.client.request(method, url).timeout(timeout);
+        for (name, value) in &request.headers {
+            builder = builder.header(name, value);
+        }
+        if let Some(body) = request.body {
+            builder = builder.body(body);
+        }
+
+        self.runtime.block_on(async {
+            let context = |e: reqwest::Error| format!("{} {}: {e}", request.method, request.url);
+            let response = builder.send().await.map_err(context)?;
+            let status = response.status().as_u16();
+            let headers = response
+                .headers()
+                .iter()
+                .map(|(k, v)| {
+                    (
+                        k.to_string(),
+                        String::from_utf8_lossy(v.as_bytes()).into_owned(),
+                    )
+                })
+                .collect();
+            let body = response.bytes().await.map_err(context)?;
+            Ok(host_http::Response {
+                status,
+                headers,
+                body: body.to_vec(),
+            })
+        })
+    }
 }
 
 struct Kube {
@@ -288,6 +366,17 @@ impl kube::Host for State {
     }
 }
 
+impl host_http::Host for State {
+    fn send(&mut self, request: host_http::Request) -> Result<host_http::Response, String> {
+        let url = self.sandbox.url(&request.url)?;
+        let http = match &mut self.http {
+            Some(http) => http,
+            None => self.http.insert(Http::new()?),
+        };
+        http.send(url, request)
+    }
+}
+
 impl fs::Host for State {
     fn read_file(&mut self, path: String) -> Result<Vec<u8>, String> {
         let resolved = self.sandbox.resolve(&path)?;
@@ -418,6 +507,7 @@ pub fn run(wasm: &Path, sandbox: Sandbox) -> anyhow::Result<i32> {
             table: ResourceTable::new(),
             sandbox,
             kube: None,
+            http: None,
         },
     );
 
@@ -444,6 +534,7 @@ mod tests {
             exec: vec!["echo".to_owned()],
             roots: vec![root.canonicalize().unwrap()],
             kube: vec![],
+            http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
         }
     }
 
@@ -469,5 +560,20 @@ mod tests {
         let sandbox = sandbox(&std::env::temp_dir());
         assert!(sandbox.program("echo").is_ok());
         assert!(sandbox.program("sh").is_err());
+    }
+
+    #[test]
+    fn http_is_allowlisted() {
+        let sandbox = sandbox(&std::env::temp_dir());
+        assert!(sandbox.url("https://grafana.ortzi.cloud/api/user").is_ok());
+        assert!(sandbox.url("http://localhost:3000/x").is_ok());
+        assert!(sandbox.url("http://grafana.ortzi.cloud/api/user").is_err());
+        assert!(sandbox.url("https://evil.example/api").is_err());
+        assert!(
+            sandbox
+                .url("https://grafana.ortzi.cloud.evil.example/")
+                .is_err()
+        );
+        assert!(sandbox.url("file:///etc/passwd").is_err());
     }
 }

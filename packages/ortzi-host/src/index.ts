@@ -1,5 +1,6 @@
 import * as hostEnv from 'ortzi:host/env@0.1.0';
 import * as hostFs from 'ortzi:host/fs@0.1.0';
+import * as hostHttp from 'ortzi:host/http@0.1.0';
 import * as hostKube from 'ortzi:host/kube@0.1.0';
 import * as process from 'ortzi:host/process@0.1.0';
 import { getStderr } from 'wasi:cli/stderr@0.2.12';
@@ -124,7 +125,39 @@ export function kubeSend(request: KubeRequest): KubeResponse {
   return { status: raw.status, body: decoder.decode(raw.body) };
 }
 
+export interface HttpRequest {
+  method?: string;
+  url: string;
+  headers?: Record<string, string>;
+  body?: string;
+  timeoutMs?: number;
+}
+
+export interface HttpResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export function httpSend(request: HttpRequest): HttpResponse {
+  const raw = unwrap(() =>
+    hostHttp.send({
+      method: request.method ?? 'GET',
+      url: request.url,
+      headers: Object.entries(request.headers ?? {}),
+      body: request.body === undefined ? undefined : encoder.encode(request.body),
+      timeoutMs: request.timeoutMs,
+    }),
+  );
+  return {
+    status: raw.status,
+    headers: Object.fromEntries(raw.headers),
+    body: decoder.decode(raw.body),
+  };
+}
+
 export const args = (): string[] => hostEnv.args().slice(1);
+export const invokedAs = (): string => hostEnv.args()[0] ?? '';
 export const env = (): Record<string, string> => Object.fromEntries(hostEnv.vars());
 export const cwd = (): string => hostEnv.cwd();
 

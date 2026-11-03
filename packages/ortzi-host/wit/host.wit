@@ -57,6 +57,24 @@ interface kube {
   send: func(request: request) -> result<response, string>;
 }
 
+interface http {
+  record request {
+    method: string,
+    url: string,
+    headers: list<tuple<string, string>>,
+    body: option<list<u8>>,
+    timeout-ms: option<u32>,
+  }
+
+  record response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  send: func(request: request) -> result<response, string>;
+}
+
 interface env {
   args: func() -> list<string>;
   vars: func() -> list<tuple<string, string>>;
@@ -69,6 +87,7 @@ world cli {
   import fs;
   import env;
   import kube;
+  import http;
   export wasi:cli/run@0.2.12;
 }
 
