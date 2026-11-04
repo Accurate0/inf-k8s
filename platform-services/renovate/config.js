@@ -11,6 +11,7 @@ module.exports = {
   allowedUnsafeExecutions: ["gradleWrapper"],
   allowedCommands: [
     "^sh -c 'cd eink-display-web && pnpm .*",
+    "^sh -c 'cd web && pnpm .*",
     "^sh scripts/upstream-digests\\.sh packages/upstream/[a-z0-9-]+$",
   ],
   lockFileMaintenance: {
