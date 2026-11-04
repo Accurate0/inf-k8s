@@ -976,6 +976,35 @@ test('terraform covers an s3 bucket with its own user', () => {
   assert.equal(resource.cloudflare_r2_bucket, undefined);
 });
 
+test('terraform covers a garage bucket with a key bound to it', () => {
+  const { resource } = JSON.parse(
+    renderAppTerraform({
+      ...base,
+      resources: [
+        {
+          name: 'images',
+          type: 'bucket',
+          secretName: 'images-bucket-secrets',
+          provider: 'garage',
+          bucket: 'foo-images',
+        },
+      ],
+    }) as string,
+  );
+  const id = 'foo-images';
+
+  assert.equal(resource.garage_bucket[id].global_alias, 'foo-images');
+  assert.equal(resource.garage_bucket[id].lifecycle.prevent_destroy, true);
+  assert.equal(resource.garage_bucket_key[id].bucket_id, '${garage_bucket.foo-images.id}');
+  assert.equal(resource.garage_bucket_key[id].write, true);
+  assert.equal(resource.vault_kv_secret_v2[id].name, 'foo/resource-images');
+
+  const data = JSON.parse(resource.vault_kv_secret_v2[id].data_json);
+  assert.equal(data.S3_ENDPOINT, '${var.garage_s3_endpoint}');
+  assert.equal(data.S3_SECRET_ACCESS_KEY, '${garage_key.foo-images.secret_access_key}');
+  assert.equal(resource.aws_s3_bucket, undefined);
+});
+
 test('an app with nothing for terraform gets no file', () => {
   assert.equal(
     renderAppTerraform({

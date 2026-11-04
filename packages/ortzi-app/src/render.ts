@@ -95,7 +95,7 @@ export interface SecretTemplate {
 export interface Bucket {
   name: string;
   type: 'bucket';
-  provider: 'r2' | 's3';
+  provider: 'r2' | 's3' | 'garage';
   bucket: string;
   user?: string;
   secretName: string;

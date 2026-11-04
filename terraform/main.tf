@@ -54,6 +54,11 @@ terraform {
       source  = "tailscale/tailscale"
       version = "0.29.3"
     }
+
+    garage = {
+      source  = "schwitzd/garage"
+      version = "1.2.2"
+    }
   }
 
   backend "s3" {
@@ -136,4 +141,16 @@ provider "vault" {
       secret_id = var.OPENBAO_SECRET_ID
     }
   }
+}
+
+ephemeral "vault_kv_secret_v2" "garage" {
+  mount    = vault_mount.kv.path
+  mount_id = vault_mount.kv.id
+  name     = "garage"
+}
+
+provider "garage" {
+  host   = "garage-admin.ortzi.cloud"
+  scheme = "https"
+  token  = ephemeral.vault_kv_secret_v2.garage.data["GARAGE_ADMIN_TOKEN"]
 }

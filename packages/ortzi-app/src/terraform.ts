@@ -125,6 +125,30 @@ function s3Resources(app: App, id: string, resource: Bucket, bucket: string): Bl
   };
 }
 
+function garageResources(app: App, id: string, resource: Bucket, bucket: string): Block {
+  return {
+    garage_bucket: { [id]: { global_alias: bucket, lifecycle: { prevent_destroy: true } } },
+    garage_key: { [id]: { name: id } },
+    garage_bucket_key: {
+      [id]: {
+        bucket_id: ref(`garage_bucket.${id}.id`),
+        access_key_id: ref(`garage_key.${id}.access_key_id`),
+        read: true,
+        write: true,
+      },
+    },
+    ...bucketSecret(app, id, resource.name, {
+      S3_BUCKET: bucket,
+      S3_ENDPOINT: ref('var.garage_s3_endpoint'),
+      S3_REGION: 'garage',
+      S3_ACCESS_KEY_ID: ref(`garage_key.${id}.access_key_id`),
+      S3_SECRET_ACCESS_KEY: ref(`garage_key.${id}.secret_access_key`),
+    }),
+  };
+}
+
+const BUCKET_PROVIDERS = { r2: r2Resources, s3: s3Resources, garage: garageResources };
+
 const merge = (blocks: Block[]): Block => {
   const out: Block = {};
   for (const block of blocks) {
@@ -147,8 +171,7 @@ export function renderAppTerraform(app: App): string | undefined {
     ...(app.resources ?? []).flatMap((resource) => {
       if (resource.type !== 'bucket') return [];
       const id = `${app.name}-${resource.name}`;
-      const render = resource.provider === 'r2' ? r2Resources : s3Resources;
-      return [render(app, id, resource, resource.bucket)];
+      return [BUCKET_PROVIDERS[resource.provider](app, id, resource, resource.bucket)];
     }),
   ];
 

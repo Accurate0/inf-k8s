@@ -1,0 +1,20 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/monitoring.coreos.com/servicemonitor_v1.json
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: garage
+  labels:
+    release: monitoring
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage
+  endpoints:
+    - port: admin
+      path: /metrics
+      interval: 30s
+      authorization:
+        type: Bearer
+        credentials:
+          name: garage-secrets
+          key: GARAGE_METRICS_TOKEN

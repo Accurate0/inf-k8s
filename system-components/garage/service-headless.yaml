@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/service_v1.json
+apiVersion: v1
+kind: Service
+metadata:
+  name: garage-headless
+  labels:
+    app.kubernetes.io/name: garage
+spec:
+  clusterIP: None
+  publishNotReadyAddresses: true
+  selector:
+    app.kubernetes.io/name: garage
+  ports:
+    - name: rpc
+      port: 3901
+      targetPort: rpc

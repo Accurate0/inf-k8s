@@ -11,6 +11,10 @@ terraform {
     vault = {
       source = "hashicorp/vault"
     }
+
+    garage = {
+      source = "schwitzd/garage"
+    }
   }
 }
 
@@ -35,5 +39,9 @@ variable "cloudflare_account_id" {
 }
 
 variable "r2_write_permission_group" {
+  type = string
+}
+
+variable "garage_s3_endpoint" {
   type = string
 }
