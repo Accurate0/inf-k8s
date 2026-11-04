@@ -20,6 +20,11 @@
         name: root
         password_lock: true
 
+    - name: Remove root authorized_keys
+      ansible.builtin.file:
+        path: /root/.ssh/authorized_keys
+        state: absent
+
     - name: Add janitor user
       ansible.builtin.user:
         name: janitor

@@ -25,3 +25,16 @@
       become: true
       become_user: root
       become_method: sudo
+
+- name: Setup redirect params
+  block:
+    - name: Copy sysctl file for redirects
+      ansible.builtin.copy:
+        src: redirects.conf
+        dest: /etc/sysctl.d/99-redirects.conf
+        owner: root
+        mode: "0644"
+      notify: Restart systemd-sysctl
+      become: true
+      become_user: root
+      become_method: sudo

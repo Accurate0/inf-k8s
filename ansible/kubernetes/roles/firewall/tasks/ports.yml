@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Allow extra TCP ports
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop: "{{ firewall_allow_tcp_ports }}"

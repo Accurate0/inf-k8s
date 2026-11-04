@@ -10,8 +10,7 @@
         path: /usr/bin/tailscale
       register: tailscale_bin
 
-    - name: Install Tailscale
-      when: not tailscale_bin.stat.exists
+    - name: Tailscale apt repo
       block:
         - name: Ensure directory exists for /etc/apt/keyrings
           ansible.builtin.file:
@@ -25,6 +24,7 @@
             executable: "/bin/bash"
           register: release_name
           changed_when: false
+          check_mode: false
 
         - name: Add Tailscale apt key
           ansible.builtin.get_url:
@@ -38,8 +38,19 @@
             url: "https://pkgs.tailscale.com/stable/ubuntu/{{ release_name.stdout }}.tailscale-keyring.list"
             dest: /etc/apt/sources.list.d/tailscale.list
             mode: "0644"
-            force: false
+            force: true
 
+        - name: Remove release-upgrade leftovers of the Tailscale sources
+          ansible.builtin.file:
+            path: "/etc/apt/sources.list.d/{{ item }}"
+            state: absent
+          loop:
+            - tailscale.list.disabled
+            - tailscale.list.migrate
+
+    - name: Install Tailscale
+      when: not tailscale_bin.stat.exists
+      block:
         - name: Install tailscale package
           ansible.builtin.package:
             update_cache: true
@@ -52,6 +63,7 @@
     - name: Fetch Tailscale status
       ansible.builtin.command: tailscale status --json
       changed_when: false
+      check_mode: false
       register: tailscale_status
 
     - name: Parse tailscale status JSON

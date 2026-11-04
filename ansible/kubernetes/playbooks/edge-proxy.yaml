@@ -6,6 +6,9 @@
   roles:
     - role: base
     - role: firewall
+    - role: tailscale
+      vars:
+        tailscale_join_network: false
     - role: edge-proxy
       vars:
         edge_proxy_trusted_ips: "{{ lookup('ansible.builtin.env', 'EDGE_PROXY_TRUSTED_IP') }}"

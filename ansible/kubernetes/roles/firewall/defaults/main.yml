@@ -16,3 +16,5 @@ firewall_allow_local_lan: false
 # the thing you want to actively close on non-edge hosts.
 firewall_allow_http: true
 firewall_allow_https: true
+
+firewall_allow_tcp_ports: []

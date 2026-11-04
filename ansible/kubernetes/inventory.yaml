@@ -27,6 +27,8 @@ proxy:
       ansible_port: 2222
       # haproxy owns :22 here and rate-limits it per ip with a trusted-source exemption
       firewall_ratelimit_ssh: false
+      firewall_default_incoming: deny
+      firewall_allow_tcp_ports: [22, 2222]
 
 agent:
   hosts:
