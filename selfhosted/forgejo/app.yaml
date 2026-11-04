@@ -41,6 +41,7 @@ resources:
     timeouts:
       request: 90s
       backendRequest: 90s
+    loadBalancer: {type: consistentHash, headers: [Cookie, User-Agent]}
   - name: forgejo
     type: oidc
     secretName: kanidm-forgejo-oidc

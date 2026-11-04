@@ -44,6 +44,8 @@ resources:
       port: 80
     paths:
       - /
+    timeouts:
+      request: 0s
   - name: firefly-importer
     type: route
     gateway: internal-gateway
@@ -61,6 +63,8 @@ resources:
       port: 80
     paths:
       - /
+    timeouts:
+      request: 0s
   - name: firefly
     type: oidc
     secretName: kanidm-firefly-oidc
@@ -105,5 +109,3 @@ sources:
     repo: https://firefly-iii.github.io/kubernetes/
     version: 1.6.1
     values: importer.values.yaml
-  - type: manifests
-    path: .
