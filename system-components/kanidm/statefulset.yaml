@@ -98,6 +98,9 @@ spec:
         - name: kanidm
           image: docker.io/kanidm/server:1.11.1
           command: ["/sbin/kanidmd", "server", "-c", "/shared/server.toml"]
+          env:
+            - name: KANIDM_OTEL_GRPC_ENDPOINT
+              value: http://monitoring-tempo.monitoring.svc.cluster.local:4317
           ports:
             - name: https
               containerPort: 8443
