@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-03T08:05:22.324Z
+# generated at 2026-11-04T06:32:54.537Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -40,7 +40,7 @@ spec:
                   containerPort: 50051
               env:
                 - name: REDIS_URL
-                  value: redis://replicated.dragonfly.svc.cluster.local
+                  value: redis://cache.dragonfly.svc.cluster.local
                 - name: OIDC_ISSUER
                   value: https://idm.anurag.sh/oauth2/openid/feature-flags
                 - name: OIDC_AUDIENCE

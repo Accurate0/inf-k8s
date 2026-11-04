@@ -165,7 +165,7 @@ gitea:
       DB_TYPE: postgres
     queue:
       TYPE: redis
-      CONN_STR: redis://replicated.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
+      CONN_STR: redis://cache.dragonfly.svc.cluster.local:6379?pool_size=100&idle_timeout=180s
     session:
       COOKIE_NAME: "git_session"
       PROVIDER: memory

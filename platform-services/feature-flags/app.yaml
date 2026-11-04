@@ -8,7 +8,7 @@ exports:
     port: grpc
 resources:
   - {name: feature-flags, type: secret, secretName: feature-flags-managed-secrets}
-  - {name: cache, type: cache, instance: replicated}
+  - {name: cache, type: cache, instance: cache}
   - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
   - {name: traces, type: platform, export: tracing}
   - name: feature-flags-api

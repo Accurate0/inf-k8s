@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-03T08:06:26.743Z
+# generated at 2026-11-04T06:32:54.511Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -68,9 +68,9 @@ spec:
                 - name: RECOMMENDATIONS_API_BASE
                   value: http://maccas-recommendations.maccas-api.svc.cluster.local:8003
                 - name: SENSORDATA_API_BASE
-                  value: http://maccas-sensordata.maccas-api.svc.cluster.local
+                  value: ""
                 - name: REDIS_CONNECTION_STRING
-                  value: redis://replicated.dragonfly.svc.cluster.local
+                  value: redis://cache.dragonfly.svc.cluster.local
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
                 - name: OPENAI_BASE_URL

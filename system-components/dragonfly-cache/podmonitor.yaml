@@ -12,6 +12,5 @@ spec:
   podTargetLabels:
     - app
     - role
-    - inf-k8s.net/dragonfly-cache-tier
   podMetricsEndpoints:
     - port: admin
