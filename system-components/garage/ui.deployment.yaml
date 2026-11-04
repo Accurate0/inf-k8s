@@ -25,7 +25,7 @@ spec:
       containers:
         - name: garage-ui
           image: docker.io/noooste/garage-ui:v0.14.0
-          args: ["--config", "/config/garage-ui.yaml"]
+          command: ["/app/garage-ui", "--config", "/config/garage-ui.yaml"]
           env:
             - name: GARAGE_UI_GARAGE_ADMIN_TOKEN
               valueFrom:
