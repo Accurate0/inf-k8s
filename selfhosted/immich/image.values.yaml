@@ -1,3 +1,2 @@
 images:
   ghcr.io/immich-app/immich-server: v3.3.5@sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6
-  busybox: 1.37.0@sha256:bdf57e528e45e4433820e045b29b4597825a1c9e38353532d90a01445013f82e

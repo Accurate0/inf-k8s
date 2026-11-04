@@ -102,11 +102,7 @@ topologySpreadConstraints:
 httpRoute:
   enabled: false
 tcpRoute:
-  enabled: true
-  parentRefs:
-    - name: public-gateway
-      namespace: envoy-gateway-system
-      sectionName: git-ssh
+  enabled: false
 persistence:
   enabled: true
   size: 100Gi

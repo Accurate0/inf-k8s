@@ -45,7 +45,15 @@ resources:
     enableConnectionPooling: false
     extensions: [vector, vchord, cube, earthdistance]
   - {name: library, type: volume, claimName: immich-library, class: nfs-perth, size: 1Ti, access: ReadWriteMany}
-  - {name: template, type: config, configMap: immich-config, files: [immich.json.tmpl]}
+  - {name: cache, type: cache}
+  - name: config
+    type: config
+    configMap: immich-config
+    files: [immich.json]
+    secretName: immich-config-rendered
+    values:
+      OIDC_CLIENT_ID: {oidc: immich, key: client-id}
+      OIDC_CLIENT_SECRET: {oidc: immich, key: client-secret}
 workloads:
   - name: immich-server
     image: ghcr.io/immich-app/immich-server
@@ -65,7 +73,7 @@ workloads:
       IMMICH_TRUSTED_PROXIES: 10.42.0.0/16
       IMMICH_ALLOW_SETUP: "false"
       DB_VECTOR_EXTENSION: vectorchord
-      REDIS_HOSTNAME: cache.dragonfly
+      REDIS_HOSTNAME: {resource: cache, part: host}
       DB_HOSTNAME: {database: immich, key: PGHOST}
       DB_PORT: {database: immich, key: PGPORT}
       DB_USERNAME: {database: immich, key: PGUSER}
@@ -73,24 +81,7 @@ workloads:
       DB_DATABASE_NAME: {database: immich, key: PGDATABASE}
     mounts:
       library: {path: /data, volume: library}
-      config: {path: /config, emptyDir: true}
-    initContainers:
-      - name: render-config
-        image: busybox
-        resources: {cpu: 10m, memory: 16Mi}
-        command:
-          - sh
-          - -euc
-          - |
-            sed -e "s|__OIDC_CLIENT_ID__|$OIDC_CLIENT_ID|" \
-                -e "s|__OIDC_CLIENT_SECRET__|$OIDC_CLIENT_SECRET|" \
-                /template/immich.json.tmpl > /config/immich.json
-        env:
-          OIDC_CLIENT_ID: {oidc: immich, key: client-id}
-          OIDC_CLIENT_SECRET: {oidc: immich, key: client-secret}
-        mounts:
-          config-template: {path: /template, config: template}
-          config: {path: /config, emptyDir: true}
+      config: {path: /config, config: config}
     service:
       name: immich-server
     overrides:

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-04T11:59:28.942Z
+# generated at 2026-11-04T12:02:27.472Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -52,7 +52,7 @@ spec:
                 - name: DB_VECTOR_EXTENSION
                   value: vectorchord
                 - name: REDIS_HOSTNAME
-                  value: cache.dragonfly
+                  value: cache.dragonfly.svc.cluster.local
                 - name: DB_HOSTNAME
                   valueFrom:
                     secretKeyRef:
@@ -78,37 +78,6 @@ spec:
                     secretKeyRef:
                       name: immich-db-credentials
                       key: PGDATABASE
-              initContainers:
-                - name: render-config
-                  image: busybox
-                  resources:
-                    requests:
-                      cpu: 10m
-                      memory: 16Mi
-                  command:
-                    - sh
-                    - -euc
-                    - |
-                      sed -e "s|__OIDC_CLIENT_ID__|$OIDC_CLIENT_ID|" \
-                          -e "s|__OIDC_CLIENT_SECRET__|$OIDC_CLIENT_SECRET|" \
-                          /template/immich.json.tmpl > /config/immich.json
-                  env:
-                    - name: OIDC_CLIENT_ID
-                      valueFrom:
-                        secretKeyRef:
-                          name: kanidm-immich-oidc
-                          key: client-id
-                    - name: OIDC_CLIENT_SECRET
-                      valueFrom:
-                        secretKeyRef:
-                          name: kanidm-immich-oidc
-                          key: client-secret
-                  volumeMounts:
-                    - name: config-template
-                      mountPath: /template
-                      readOnly: true
-                    - name: config
-                      mountPath: /config
               service:
                 name: immich-server
                 ports:
@@ -139,18 +108,17 @@ spec:
                   persistentVolumeClaim:
                     claimName: immich-library
                 - name: config
-                  emptyDir: {}
-                - name: config-template
-                  configMap:
-                    name: immich-config
+                  secret:
+                    secretName: immich-config-rendered
                     items:
-                      - key: immich.json.tmpl
-                        path: immich.json.tmpl
+                      - key: immich.json
+                        path: immich.json
               volumeMounts:
                 - name: library
                   mountPath: /data
                 - name: config
                   mountPath: /config
+                  readOnly: true
               strategy:
                 type: Recreate
               affinity:
@@ -253,6 +221,30 @@ spec:
               annotations:
                 inf-k8s.net/app: immich
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.7.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: immich
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: immich
+              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          templates:
+            - secretName: immich-config-rendered
+              configMap: immich-config
+              files:
+                - immich.json
+              values:
+                - name: OIDC_CLIENT_ID
+                  secret: kanidm-immich-oidc
+                  key: client-id
+                - name: OIDC_CLIENT_SECRET
+                  secret: kanidm-immich-oidc
+                  key: client-secret
     - chart: k8s-storage
       repoURL: oci://ghcr.io/accurate0/charts/k8s-storage
       targetRevision: 0.1.0

@@ -5,6 +5,6 @@ configMapGenerator:
   - name: immich-config
     namespace: immich
     files:
-      - immich.json.tmpl
+      - immich.json
 generatorOptions:
   disableNameSuffixHash: true

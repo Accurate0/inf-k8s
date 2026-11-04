@@ -12,18 +12,8 @@ overrides:
     application:
       options:
         - ApplyOutOfSyncOnly=true
-        - RespectIgnoreDifferences=true
         - CreateNamespace=true
         - ServerSideApply=true
-      ignoreDifferences:
-        - group: gateway.networking.k8s.io
-          kind: TCPRoute
-          name: forgejo-ssh
-          jqPathExpressions:
-            - ".status"
-            - ".spec.parentRefs"
-            - ".spec.rules[].backendRefs[].group"
-            - ".spec.rules[].backendRefs[].weight"
 resources:
   - name: forgejo
     type: route
@@ -42,6 +32,16 @@ resources:
       request: 90s
       backendRequest: 90s
     loadBalancer: {type: consistentHash, headers: [Cookie, User-Agent]}
+  - name: forgejo-ssh
+    type: route
+    protocol: tcp
+    listener: git-ssh
+    auth:
+      mode: app
+      reason: forgejo checks the ssh key of every git connection
+    backend:
+      name: forgejo-ssh
+      port: 22
   - name: forgejo
     type: oidc
     secretName: kanidm-forgejo-oidc

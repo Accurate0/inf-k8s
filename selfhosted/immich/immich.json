@@ -15,8 +15,8 @@
     "autoLaunch": true,
     "autoRegister": true,
     "buttonText": "Login with Kanidm",
-    "clientId": "__OIDC_CLIENT_ID__",
-    "clientSecret": "__OIDC_CLIENT_SECRET__",
+    "clientId": "{{ .OIDC_CLIENT_ID }}",
+    "clientSecret": "{{ .OIDC_CLIENT_SECRET }}",
     "issuerUrl": "https://idm.anurag.sh/oauth2/openid/immich",
     "scope": "openid email profile",
     "signingAlgorithm": "ES256",
@@ -33,6 +33,6 @@
   },
   "storageTemplate": {
     "enabled": true,
-    "template": "{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}"
+    "template": "{{`{{y}}/{{y}}-{{MM}}-{{dd}}/{{filename}}`}}"
   }
 }
