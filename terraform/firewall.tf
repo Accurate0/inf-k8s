@@ -69,6 +69,14 @@ resource "binarylane_server_firewall_rules" "proxy_firewall" {
       action                = "accept"
     },
     {
+      description           = "tailscale direct"
+      protocol              = "udp"
+      source_addresses      = ["0.0.0.0/0"]
+      destination_addresses = binarylane_server.proxy[count.index].public_ipv4_addresses
+      destination_ports     = ["41641"]
+      action                = "accept"
+    },
+    {
       description           = "block remaining"
       protocol              = "all"
       source_addresses      = ["0.0.0.0/0"]
