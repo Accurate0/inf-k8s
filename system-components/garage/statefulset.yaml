@@ -43,11 +43,10 @@ spec:
             - name: admin
               containerPort: 3903
           readinessProbe:
-            httpGet:
-              path: /health
-              port: admin
+            tcpSocket:
+              port: s3
             periodSeconds: 10
-            timeoutSeconds: 2
+            timeoutSeconds: 5
             failureThreshold: 3
           livenessProbe:
             tcpSocket:
