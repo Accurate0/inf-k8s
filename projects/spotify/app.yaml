@@ -70,5 +70,8 @@ workloads:
     probes:
       http: {path: /, port: 8080}
       readiness: {delay: 3, every: 30}
+    # nginx writes its temp dirs and pid under /tmp; the root filesystem is read-only.
+    mounts:
+      tmp: {path: /tmp, emptyDir: true}
     service:
       name: spotify-web
