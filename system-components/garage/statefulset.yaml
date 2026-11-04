@@ -24,10 +24,44 @@ spec:
       automountServiceAccountToken: false
       nodeSelector:
         inf-k8s.net/location: perth
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: NotIn
+                    values:
+                      - k8s-pve-1
       securityContext:
+        fsGroup: 1000
+        fsGroupChangePolicy: OnRootMismatch
         runAsGroup: 1000
         runAsNonRoot: true
         runAsUser: 1000
+      initContainers:
+        - name: migrate-metadata
+          image: docker.io/library/busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              set -eu
+              if [ -f /meta/node_key ]; then exit 0; fi
+              cp -r /old-meta/. /meta/
+              chmod 600 /meta/node_key
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: meta
+              mountPath: /old-meta
+              readOnly: true
+            - name: metadata
+              mountPath: /meta
       containers:
         - name: garage
           image: docker.io/dxflrs/garage:v2.5.0
@@ -70,7 +104,7 @@ spec:
               mountPath: /etc/garage.toml
               subPath: garage.toml
               readOnly: true
-            - name: meta
+            - name: metadata
               mountPath: /meta
             - name: data
               mountPath: /data
@@ -90,6 +124,20 @@ spec:
         resources:
           requests:
             storage: 1Gi
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: metadata
+        labels:
+          recurring-job.longhorn.io/source: enabled
+          recurring-job-group.longhorn.io/daily-backup: enabled
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        storageClassName: longhorn-replicated
+        resources:
+          requests:
+            storage: 2Gi
     - apiVersion: v1
       kind: PersistentVolumeClaim
       metadata:
