@@ -16,8 +16,6 @@ spec:
       selfHeal: true
   project: system-components
   sources:
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
-      path: system-components/dragonfly
     - chart: dragonfly-operator
       repoURL: oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
       targetRevision: v1.7.1
