@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/apps/deployment_v1.json
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: garage-ui
+  labels:
+    app.kubernetes.io/name: garage-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: garage-ui
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: garage-ui
+      annotations:
+        reloader.stakater.com/auto: "true"
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsGroup: 1000
+        runAsNonRoot: true
+        runAsUser: 1000
+      containers:
+        - name: garage-ui
+          image: docker.io/noooste/garage-ui:v0.14.0
+          args: ["--config", "/config/garage-ui.yaml"]
+          env:
+            - name: GARAGE_UI_GARAGE_ADMIN_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: garage-secrets
+                  key: GARAGE_ADMIN_TOKEN
+            - name: GARAGE_UI_AUTH_OIDC_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: kanidm-garage-ui-oidc
+                  key: client-id
+            - name: GARAGE_UI_AUTH_OIDC_CLIENT_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: kanidm-garage-ui-oidc
+                  key: client-secret
+          ports:
+            - name: http
+              containerPort: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 2
+            failureThreshold: 3
+          livenessProbe:
+            tcpSocket:
+              port: http
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 10m
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: config
+              mountPath: /config
+              readOnly: true
+            - name: data
+              mountPath: /app/data
+      volumes:
+        - name: config
+          configMap:
+            name: garage-ui-config
+        - name: data
+          emptyDir: {}

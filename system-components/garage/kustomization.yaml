@@ -5,10 +5,17 @@ resources:
   - service.yaml
   - service-headless.yaml
   - servicemonitor.yaml
+  - ui.deployment.yaml
+  - ui.service.yaml
 
 configMapGenerator:
   - name: garage-config
     files:
       - garage.toml
+    options:
+      disableNameSuffixHash: true
+  - name: garage-ui-config
+    files:
+      - garage-ui.yaml
     options:
       disableNameSuffixHash: true

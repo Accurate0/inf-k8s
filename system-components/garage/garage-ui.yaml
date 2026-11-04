@@ -1,0 +1,28 @@
+server:
+  host: "::"
+  port: 8080
+  environment: production
+  root_url: https://garage.ortzi.cloud
+
+garage:
+  endpoint: http://garage.garage.svc.cluster.local:3900
+  admin_endpoint: http://garage.garage.svc.cluster.local:3903
+  region: garage
+
+auth:
+  oidc:
+    enabled: true
+    provider_name: Kanidm
+    issuer_url: https://idm.anurag.sh/oauth2/openid/garage-ui
+    scopes:
+      - openid
+      - email
+      - profile
+    username_attribute: preferred_username
+    role_attribute_path: garage_ui_role
+    admin_role: admin
+    cookie_secure: true
+
+logging:
+  level: info
+  format: json
