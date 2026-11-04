@@ -56,8 +56,8 @@ terraform {
     }
 
     garage = {
-      source  = "schwitzd/garage"
-      version = "1.2.2"
+      source  = "jkossis/garage"
+      version = "1.0.5"
     }
   }
 
@@ -150,7 +150,6 @@ ephemeral "vault_kv_secret_v2" "garage" {
 }
 
 provider "garage" {
-  host   = "garage-admin.ortzi.cloud"
-  scheme = "https"
-  token  = ephemeral.vault_kv_secret_v2.garage.data["GARAGE_ADMIN_TOKEN"]
+  endpoint = "https://garage-admin.ortzi.cloud"
+  token    = ephemeral.vault_kv_secret_v2.garage.data["GARAGE_ADMIN_TOKEN"]
 }

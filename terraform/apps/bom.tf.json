@@ -45,10 +45,10 @@
         "name": "bom-images"
       }
     },
-    "garage_bucket_key": {
+    "garage_bucket_permission": {
       "bom-images": {
         "bucket_id": "${garage_bucket.bom-images.id}",
-        "access_key_id": "${garage_key.bom-images.access_key_id}",
+        "access_key_id": "${garage_key.bom-images.id}",
         "read": true,
         "write": true
       }
@@ -57,7 +57,7 @@
       "bom-images": {
         "mount": "${var.kv_mount}",
         "name": "bom/resource-images",
-        "data_json": "{\"S3_BUCKET\":\"bom-images\",\"S3_ENDPOINT\":\"${var.garage_s3_endpoint}\",\"S3_REGION\":\"garage\",\"S3_ACCESS_KEY_ID\":\"${garage_key.bom-images.access_key_id}\",\"S3_SECRET_ACCESS_KEY\":\"${garage_key.bom-images.secret_access_key}\"}"
+        "data_json": "{\"S3_BUCKET\":\"bom-images\",\"S3_ENDPOINT\":\"${var.garage_s3_endpoint}\",\"S3_REGION\":\"garage\",\"S3_ACCESS_KEY_ID\":\"${garage_key.bom-images.id}\",\"S3_SECRET_ACCESS_KEY\":\"${garage_key.bom-images.secret_access_key}\"}"
       }
     }
   }

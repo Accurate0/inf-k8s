@@ -996,8 +996,9 @@ test('terraform covers a garage bucket with a key bound to it', () => {
 
   assert.equal(resource.garage_bucket[id].global_alias, 'foo-images');
   assert.equal(resource.garage_bucket[id].lifecycle.prevent_destroy, true);
-  assert.equal(resource.garage_bucket_key[id].bucket_id, '${garage_bucket.foo-images.id}');
-  assert.equal(resource.garage_bucket_key[id].write, true);
+  assert.equal(resource.garage_bucket_permission[id].bucket_id, '${garage_bucket.foo-images.id}');
+  assert.equal(resource.garage_bucket_permission[id].access_key_id, '${garage_key.foo-images.id}');
+  assert.equal(resource.garage_bucket_permission[id].write, true);
   assert.equal(resource.vault_kv_secret_v2[id].name, 'foo/resource-images');
 
   const data = JSON.parse(resource.vault_kv_secret_v2[id].data_json);

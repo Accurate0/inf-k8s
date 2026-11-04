@@ -13,7 +13,7 @@ terraform {
     }
 
     garage = {
-      source = "schwitzd/garage"
+      source = "jkossis/garage"
     }
   }
 }

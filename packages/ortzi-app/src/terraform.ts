@@ -129,10 +129,10 @@ function garageResources(app: App, id: string, resource: Bucket, bucket: string)
   return {
     garage_bucket: { [id]: { global_alias: bucket, lifecycle: { prevent_destroy: true } } },
     garage_key: { [id]: { name: id } },
-    garage_bucket_key: {
+    garage_bucket_permission: {
       [id]: {
         bucket_id: ref(`garage_bucket.${id}.id`),
-        access_key_id: ref(`garage_key.${id}.access_key_id`),
+        access_key_id: ref(`garage_key.${id}.id`),
         read: true,
         write: true,
       },
@@ -141,7 +141,7 @@ function garageResources(app: App, id: string, resource: Bucket, bucket: string)
       S3_BUCKET: bucket,
       S3_ENDPOINT: ref('var.garage_s3_endpoint'),
       S3_REGION: 'garage',
-      S3_ACCESS_KEY_ID: ref(`garage_key.${id}.access_key_id`),
+      S3_ACCESS_KEY_ID: ref(`garage_key.${id}.id`),
       S3_SECRET_ACCESS_KEY: ref(`garage_key.${id}.secret_access_key`),
     }),
   };
