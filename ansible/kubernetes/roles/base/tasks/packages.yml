@@ -41,4 +41,5 @@
           - zfsutils-linux
         state: absent
         purge: true
+        autoremove: true
       when: "'proxy' in group_names"
