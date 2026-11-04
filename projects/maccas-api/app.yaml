@@ -43,7 +43,7 @@ workloads:
   - name: maccas-api
     image: ghcr.io/accurate0/maccas-api
     replicas: 3
-    resources: {memory: 144Mi}
+    resources: {memory: 144Mi, memoryLimit: 1Gi}
     ports:
       - {name: api, container: 8000, service: 8000}
     probes:
