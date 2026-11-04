@@ -24,7 +24,7 @@ resource "binarylane_server_firewall_rules" "control_firewall" {
       protocol              = "all"
       source_addresses      = ["0.0.0.0/0"]
       destination_addresses = binarylane_server.control[count.index].public_ipv4_addresses
-      destination_ports     = ["49152:65535", "1024:49151"]
+      destination_ports     = ["1:65535"]
       action                = "drop"
     },
   ]
@@ -73,7 +73,7 @@ resource "binarylane_server_firewall_rules" "proxy_firewall" {
       protocol              = "all"
       source_addresses      = ["0.0.0.0/0"]
       destination_addresses = binarylane_server.proxy[count.index].public_ipv4_addresses
-      destination_ports     = ["49152:65535", "1024:49151"]
+      destination_ports     = ["1:65535"]
       action                = "drop"
     },
   ]
