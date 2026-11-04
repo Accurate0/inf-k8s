@@ -3,6 +3,7 @@ namespaces:
     ingress:
       - envoy-gateway-system
       - monitoring
+      - bom
   dragonfly:
     ingress:
       - dragonfly-system
