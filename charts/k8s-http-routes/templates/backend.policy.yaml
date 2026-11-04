@@ -1,20 +1,26 @@
 {{- range .Values.routes }}
-{{- if .ratelimit }}
+{{- if or .ratelimit .loadBalancer }}
 apiVersion: gateway.envoyproxy.io/v1alpha1
 kind: BackendTrafficPolicy
 metadata:
-  name: {{ .name }}-ratelimit-policy
+  name: {{ .name }}-backend-policy
 spec:
   mergeType: "StrategicMerge"
   targetRefs:
     - group: gateway.networking.k8s.io
       kind: HTTPRoute
       name: {{ .name }}
+  {{- with .ratelimit }}
   rateLimit:
     type: Local
     local:
       rules:
-      {{ toYaml .ratelimit.rules | nindent 6 }}
+      {{ toYaml .rules | nindent 6 }}
+  {{- end }}
+  {{- with .loadBalancer }}
+  loadBalancer:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
 ---
 {{- end }}
 {{- end }}

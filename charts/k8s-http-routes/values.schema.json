@@ -36,7 +36,7 @@
         },
         "name": {
           "type": "string",
-          "description": "Name of the generated HTTPRoute. The rate limit policy is named <name>-ratelimit-policy."
+          "description": "Name of the generated HTTPRoute. The BackendTrafficPolicy is named <name>-backend-policy."
         },
         "annotations": {
           "type": "object",
@@ -78,7 +78,7 @@
           "required": [
             "rules"
           ],
-          "description": "Creates a local BackendTrafficPolicy targeting this route.",
+          "description": "Local rate limit, set on the route's BackendTrafficPolicy.",
           "properties": {
             "rules": {
               "type": "array",
@@ -86,6 +86,26 @@
               "items": {
                 "$ref": "#/definitions/ratelimitRule"
               }
+            }
+          }
+        },
+        "loadBalancer": {
+          "type": "object",
+          "description": "Envoy loadBalancer for this route, merged into its BackendTrafficPolicy.",
+          "required": [
+            "type"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "RoundRobin",
+                "LeastRequest",
+                "Random",
+                "ConsistentHash"
+              ]
+            },
+            "consistentHash": {
+              "type": "object"
             }
           }
         },
