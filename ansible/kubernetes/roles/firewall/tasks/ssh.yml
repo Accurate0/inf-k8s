@@ -5,3 +5,4 @@
     rule: limit
     port: ssh
     proto: tcp
+    delete: "{{ not firewall_ratelimit_ssh }}"
