@@ -56,7 +56,7 @@ impl Sandbox {
                         None => PathBuf::from(other),
                     },
                 };
-                path.canonicalize().ok()
+                canonical(&path).ok()
             })
             .collect();
 
@@ -88,32 +88,7 @@ impl Sandbox {
             None => self.cwd.join(path),
         };
 
-        let mut existing = raw.as_path();
-        let mut missing = Vec::new();
-        let base = loop {
-            match existing.canonicalize() {
-                Ok(base) => break base,
-                Err(_) => {
-                    let name = existing
-                        .file_name()
-                        .ok_or_else(|| format!("{path}: no such directory"))?;
-                    missing.push(name.to_owned());
-                    existing = existing
-                        .parent()
-                        .ok_or_else(|| format!("{path}: no such directory"))?;
-                }
-            }
-        };
-        let mut resolved = base;
-        for part in missing.iter().rev() {
-            if Path::new(part)
-                .components()
-                .any(|c| !matches!(c, PathPart::Normal(_)))
-            {
-                return Err(format!("{path}: invalid path"));
-            }
-            resolved.push(part);
-        }
+        let resolved = canonical(&raw).map_err(|e| format!("{path}: {e}"))?;
 
         if self.roots.iter().any(|root| resolved.starts_with(root)) {
             Ok(resolved)
@@ -147,6 +122,32 @@ impl Sandbox {
         }
         Ok(url)
     }
+}
+
+fn canonical(raw: &Path) -> Result<PathBuf, &'static str> {
+    let mut existing = raw;
+    let mut missing = Vec::new();
+    let base = loop {
+        match existing.canonicalize() {
+            Ok(base) => break base,
+            Err(_) => {
+                missing.push(existing.file_name().ok_or("no such directory")?.to_owned());
+                existing = existing.parent().ok_or("no such directory")?;
+            }
+        }
+    };
+
+    let mut resolved = base;
+    for part in missing.iter().rev() {
+        if Path::new(part)
+            .components()
+            .any(|c| !matches!(c, PathPart::Normal(_)))
+        {
+            return Err("invalid path");
+        }
+        resolved.push(part);
+    }
+    Ok(resolved)
 }
 
 struct State {
@@ -552,6 +553,18 @@ mod tests {
 
         std::os::unix::fs::symlink("/etc", dir.join("link")).unwrap();
         assert!(sandbox.resolve("link/passwd").is_err());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn roots_that_do_not_exist_yet_still_allow_writes() {
+        let dir = std::env::temp_dir().join(format!("ortzi-wasm-root-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let mut sandbox = sandbox(&dir);
+        sandbox.roots = vec![canonical(&dir.join("cache/pkg")).unwrap()];
+
+        assert!(sandbox.resolve("cache/pkg/key.json").is_ok());
+        assert!(sandbox.resolve("cache/other").is_err());
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
