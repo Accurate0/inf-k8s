@@ -9,28 +9,36 @@
         update_cache: true
         package:
           - curl
-          - cryptsetup
-          - dmsetup
-          - open-iscsi
           - htop
-          - zfsutils-linux
 
-    - name: Install nfs-common
-      ansible.builtin.apt:
-        package: nfs-common
-      when: "'proxy' not in group_names"
-
-    - name: Remove rpcbind from the edge
+    - name: Install storage packages
       ansible.builtin.apt:
         package:
+          - cryptsetup
+          - dmsetup
           - nfs-common
-          - rpcbind
-        state: absent
-        purge: true
-      when: "'proxy' in group_names"
+          - open-iscsi
+          - zfsutils-linux
+      when: "'proxy' not in group_names"
 
     - name: Enable iscsid
       ansible.builtin.systemd_service:
         name: iscsid
         enabled: true
         state: started
+      when: "'proxy' not in group_names"
+
+    - name: Remove unneeded services from the edge
+      ansible.builtin.apt:
+        package:
+          - modemmanager
+          - multipath-tools
+          - nfs-common
+          - open-iscsi
+          - rpcbind
+          - udisks2
+          - zfs-zed
+          - zfsutils-linux
+        state: absent
+        purge: true
+      when: "'proxy' in group_names"
