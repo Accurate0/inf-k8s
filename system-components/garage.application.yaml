@@ -40,6 +40,26 @@ spec:
       helm:
         valuesObject:
           routes:
+            - name: garage-s3
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              hostnames:
+                - s3.ortzi.cloud
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: garage
+                      port: 3900
+                      weight: 1
+                  timeouts:
+                    request: 3600s
+                    backendRequest: 3600s
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
             - name: garage-admin
               gateway:
                 name: internal-gateway

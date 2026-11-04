@@ -31,7 +31,7 @@ spec:
       containers:
         - name: garage
           image: docker.io/dxflrs/garage:v2.5.0
-          command: ["/garage", "-c", "/etc/garage/garage.toml", "server"]
+          command: ["/garage", "server"]
           envFrom:
             - secretRef:
                 name: garage-secrets
@@ -68,7 +68,8 @@ spec:
                 - ALL
           volumeMounts:
             - name: config
-              mountPath: /etc/garage
+              mountPath: /etc/garage.toml
+              subPath: garage.toml
               readOnly: true
             - name: meta
               mountPath: /meta
