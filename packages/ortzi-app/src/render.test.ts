@@ -2985,6 +2985,7 @@ test('a config with values renders through a secret template', () => {
   validateResources({ platform, apps: [app] });
   const rendered = render(app);
 
+  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets, []);
   assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.templates, [
     {
       secretName: 'foo-settings-rendered',

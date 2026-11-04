@@ -334,14 +334,10 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     sources.push(
       chart('k8s-secrets', {
         defaults: { namespace, provider: 'openbao', resyncInterval: 900, annotations },
-        ...(synced.length
-          ? {
-              secrets: synced.map((s) => ({
-                name: s.name,
-                managedSecrets: [managedSecret(s)],
-              })),
-            }
-          : {}),
+        secrets: synced.map((s) => ({
+          name: s.name,
+          managedSecrets: [managedSecret(s)],
+        })),
         ...(generated.length ? { generated } : {}),
         ...(templates.length ? { templates } : {}),
       }),
