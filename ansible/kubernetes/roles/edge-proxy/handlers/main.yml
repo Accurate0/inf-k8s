@@ -32,3 +32,12 @@
   service:
     name: ssh
     state: restarted
+
+- name: Restart drop-ip-options
+  become: true
+  become_method: sudo
+  become_user: root
+  ansible.builtin.systemd_service:
+    name: drop-ip-options.service
+    state: restarted
+    daemon_reload: true

@@ -1,0 +1,14 @@
+[Unit]
+Description=Drop inbound IPv4 packets carrying IP options
+DefaultDependencies=no
+Before=network-pre.target
+Wants=network-pre.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/usr/sbin/nft -f /etc/nftables.d/drop-ip-options.nft
+ExecStop=/usr/sbin/nft delete table ip drop-ip-options
+
+[Install]
+WantedBy=multi-user.target

@@ -39,6 +39,39 @@
       notify:
         - Reload Haproxy
 
+    - name: Create nftables.d directory
+      ansible.builtin.file:
+        path: /etc/nftables.d
+        state: directory
+        owner: root
+        mode: "0755"
+
+    - name: Copy drop-ip-options ruleset
+      ansible.builtin.copy:
+        src: drop-ip-options.nft
+        dest: /etc/nftables.d/drop-ip-options.nft
+        owner: root
+        mode: "0644"
+        validate: "nft -c -f %s"
+      notify:
+        - Restart drop-ip-options
+
+    - name: Copy drop-ip-options systemd unit
+      ansible.builtin.copy:
+        src: drop-ip-options.service
+        dest: /etc/systemd/system/drop-ip-options.service
+        owner: root
+        mode: "0644"
+      notify:
+        - Restart drop-ip-options
+
+    - name: Enable drop-ip-options
+      ansible.builtin.systemd_service:
+        name: drop-ip-options.service
+        state: started
+        enabled: true
+        daemon_reload: true
+
     - name: Copy cloudflare-ips-sync script
       ansible.builtin.copy:
         src: cloudflare-ips-sync.sh

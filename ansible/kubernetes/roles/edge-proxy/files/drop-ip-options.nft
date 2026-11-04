@@ -1,0 +1,11 @@
+#!/usr/sbin/nft -f
+
+table ip drop-ip-options
+flush table ip drop-ip-options
+
+table ip drop-ip-options {
+	chain prerouting {
+		type filter hook prerouting priority raw - 100; policy accept;
+		ip hdrlength != 5 counter drop
+	}
+}
