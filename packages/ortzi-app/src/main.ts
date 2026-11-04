@@ -4,6 +4,8 @@ import { listApps } from './argo';
 import { changedScope, parseStatus } from './changed';
 import { planCommits } from './commits';
 import { buildGraph, toDot, toMermaid } from './graph';
+import { doctor } from './commands/doctor';
+import { env } from './commands/env';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { rollback } from './commands/rollback';
@@ -87,6 +89,8 @@ definition (run from the root of the k8s repo):
 cluster:
   status                   what needs attention (--all lists every app)
   status <app>             one app's state and images
+  env <app> [workload]     each env var, where it comes from, and whether its secret key exists
+  doctor <app>             check workloads, secrets, volumes, routes, oidc and databases on the cluster
   history <app>            previous argo syncs and their image tags
   rollback <app> [tag]     edit images on the cluster, turning auto-sync off first
                            (default tag: the most recent different one in history)
@@ -180,6 +184,14 @@ function discover(): { app: App; target: Target }[] {
   );
 
   return found;
+}
+
+function loadApp(name: string | undefined, command: string) {
+  const app = requireApp(name, command);
+  const apps = discover().map(({ app }) => app);
+  const found = apps.find((candidate) => candidate.name === app);
+  if (!found) throw new Error(`no app named ${app}`);
+  return { app: found, world: { platform: platformExports(), apps } };
 }
 
 function staleFiles(only?: string, force = false): { path: string; wanted: string }[] {
@@ -419,6 +431,14 @@ export const run = cli({
       return 0;
     },
     status: (ctx, values, [name]) => status(ctx.kube(), name, values.all, values.latest),
+    env: (ctx, _, [name, workload]) => {
+      const { app, world } = loadApp(name, 'env');
+      return env(ctx.kube(), app, world, workload);
+    },
+    doctor: (ctx, _, [name]) => {
+      const { app, world } = loadApp(name, 'doctor');
+      return doctor(ctx.kube(), app, world);
+    },
     history: (ctx, _, [name]) => history(ctx.kube(), requireApp(name, 'history')),
     rollback: (ctx, values, [name, tag]) =>
       rollback(ctx.kube(), requireApp(name, 'rollback'), {
@@ -443,6 +463,8 @@ export const run = cli({
   completers: {
     graph: appNames,
     status: appNames,
+    env: appNames,
+    doctor: appNames,
     history: appNames,
     rollback: appNames,
     heal: appThenOnOff,

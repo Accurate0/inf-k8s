@@ -49,8 +49,70 @@ function expandEnv(env: Values, refs: Refs) {
   });
 }
 
-function expandProbes({ http, grpc, ...probes }: Values) {
-  const target = http ? { httpGet: http } : { grpc };
+export type EnvSource =
+  | { name: string; from: string; value: string }
+  | { name: string; from: string; value?: string; secret: SecretKey };
+
+export interface SecretKey {
+  name: string;
+  key?: string;
+  optional: boolean;
+}
+
+export function describeEnv(env: Values, refs: Refs): EnvSource[] {
+  return Object.entries(env).map(([name, value]): EnvSource => {
+    if (typeof value !== 'object' || value === null) {
+      return { name, from: 'literal', value: String(value) };
+    }
+
+    if (value.resource) {
+      return {
+        name,
+        from: `resource ${value.resource}`,
+        value: refs.resource(value.resource, name).value,
+      };
+    }
+
+    if (value.service) {
+      return {
+        name,
+        from: `service ${value.service}:${value.port}${value.path ?? ''}`,
+        value: refs.service(value.service, value.port, value.path),
+      };
+    }
+
+    const kind = secretKind(value);
+    if (kind) {
+      return {
+        name,
+        from: `${kind} ${value[kind]}`,
+        secret: {
+          name: refs.secret(kind, value[kind]),
+          key: value.key,
+          optional: !!value.optional,
+        },
+      };
+    }
+
+    if (value.field) return { name, from: 'field', value: value.field };
+    return { name, from: 'raw', value: JSON.stringify(value) };
+  });
+}
+
+export function describeEnvFrom(from: unknown, refs: Refs): EnvSource {
+  const value = from as Values;
+  const kind = secretKind(value);
+  if (!kind) return { name: 'envFrom', from: 'raw', value: JSON.stringify(value) };
+
+  return {
+    name: value.prefix ? `envFrom ${value.prefix}*` : 'envFrom',
+    from: `${kind} ${value[kind]}`,
+    secret: { name: refs.secret(kind, value[kind]), optional: !!value.optional },
+  };
+}
+
+function expandProbes({ http, grpc, exec, ...probes }: Values) {
+  const target = http ? { httpGet: http } : grpc ? { grpc } : { exec };
   return Object.fromEntries(
     Object.entries(probes).map(([probe, timings]) => [
       PROBES[probe as keyof typeof PROBES],

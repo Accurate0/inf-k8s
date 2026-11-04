@@ -71,6 +71,31 @@
           "replicas": {
             "type": "integer"
           },
+          "autoscale": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "min",
+              "max",
+              "cpu"
+            ],
+            "description": "Run a HorizontalPodAutoscaler instead of fixed replicas. cpu is the target average utilisation, as a percent of requests. Deployments only.",
+            "properties": {
+              "min": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "max": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "cpu": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 100
+              }
+            }
+          },
           "schedule": {
             "type": "string"
           },
@@ -330,6 +355,22 @@
                 "properties": {
                   "port": {
                     "type": "integer"
+                  }
+                }
+              },
+              "exec": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "command"
+                ],
+                "properties": {
+                  "command": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 }
               },
@@ -850,6 +891,31 @@
                   "header": {
                     "type": "string",
                     "description": "Limit each distinct value of this request header."
+                  }
+                }
+              },
+              "loadBalancer": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "type"
+                ],
+                "description": "How the gateway spreads requests across the backend. headers picks the hash inputs for consistentHash.",
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "roundRobin",
+                      "leastRequest",
+                      "random",
+                      "consistentHash"
+                    ]
+                  },
+                  "headers": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string"
+                    }
                   }
                 }
               },

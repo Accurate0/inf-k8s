@@ -13,6 +13,7 @@ import {
   imageValuesPath,
   refsFor,
   type RouteDns,
+  type RouteLoadBalancer,
   type RouteRatelimit,
   storageClass,
   type RouteAuth,
@@ -82,6 +83,22 @@ function ratelimitRules({ requests, per, header }: RouteRatelimit) {
         limit: { requests, unit: per },
       },
     ],
+  };
+}
+
+const LOAD_BALANCERS = {
+  roundRobin: 'RoundRobin',
+  leastRequest: 'LeastRequest',
+  random: 'Random',
+  consistentHash: 'ConsistentHash',
+} as const;
+
+function loadBalancer({ type, headers }: RouteLoadBalancer) {
+  return {
+    type: LOAD_BALANCERS[type],
+    ...(headers
+      ? { consistentHash: { type: 'Headers', headers: headers.map((name) => ({ name })) } }
+      : {}),
   };
 }
 
@@ -175,6 +192,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
             ...(route.dns ? { annotations: dnsAnnotations(route.dns) } : {}),
             hostnames: route.hosts,
             ...(route.ratelimit ? { ratelimit: ratelimitRules(route.ratelimit) } : {}),
+            ...(route.loadBalancer ? { loadBalancer: loadBalancer(route.loadBalancer) } : {}),
             rules: (
               route.rules ?? [
                 {

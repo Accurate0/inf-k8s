@@ -3,6 +3,9 @@ import { stringify } from 'yaml';
 import schema from '../app.schema.json' with { type: 'json' };
 import {
   declaredPorts,
+  describeEnv,
+  describeEnvFrom,
+  type EnvSource,
   expandWorkload,
   overrideConflicts,
   type Refs,
@@ -24,6 +27,7 @@ export interface Workload {
   image: string;
   kind?: 'Deployment' | 'DaemonSet' | 'CronJob' | 'Job';
   replicas?: number;
+  autoscale?: { min: number; max: number; cpu: number };
   schedule?: string;
   phase?: 'preSync';
   service?: { name: string; trafficDistribution?: string };
@@ -141,6 +145,12 @@ export interface Route {
   dns?: RouteDns;
   ratelimit?: RouteRatelimit;
   timeouts?: Record<string, unknown>;
+  loadBalancer?: RouteLoadBalancer;
+}
+
+export interface RouteLoadBalancer {
+  type: 'roundRobin' | 'leastRequest' | 'random' | 'consistentHash';
+  headers?: string[];
 }
 
 export type OidcClient = { host: string; displayName?: string; secretName: string } & Record<
@@ -532,11 +542,26 @@ export function validate(raw: unknown, where: string): App {
       fail(`workloads.${name}.service.name is required with ports`);
     for (const key of overrideConflicts(workload))
       fail(`workloads.${name}.overrides.${key} is already set on the workload`);
+    if (workload.autoscale) {
+      const { min, max } = workload.autoscale;
+      if ((workload.kind ?? 'Deployment') !== 'Deployment')
+        fail(`workloads.${name}.autoscale is only for a Deployment`);
+      if (workload.replicas !== undefined)
+        fail(`workloads.${name}: set either replicas or autoscale, not both`);
+      if (min > max) fail(`workloads.${name}.autoscale.min is more than max`);
+      for (const container of [workload, ...((workload.sidecars ?? []) as Workload[])]) {
+        if (!container.resources?.cpu)
+          fail(`workloads.${name}.autoscale needs resources.cpu on every container`);
+      }
+    }
     for (const container of [
       workload,
       ...((workload.initContainers ?? []) as Workload[]),
       ...((workload.sidecars ?? []) as Workload[]),
     ]) {
+      const targets = ['http', 'grpc', 'exec'].filter((target) => container.probes?.[target]);
+      if (targets.length > 1)
+        fail(`workloads.${name}.probes: use one of ${targets.join(', ')}, not several`);
       for (const [env, value] of Object.entries(
         !container.env || Array.isArray(container.env) ? {} : container.env,
       )) {
@@ -562,6 +587,13 @@ export function validate(raw: unknown, where: string): App {
   for (const [name, route] of routes) {
     if (!route.hosts?.length) fail(`routes.${name}.hosts is required`);
     if (!route.backend === !route.rules) fail(`routes.${name} needs either backend or rules`);
+    if (route.loadBalancer) {
+      const { type, headers } = route.loadBalancer;
+      if (type === 'consistentHash' && !headers?.length)
+        fail(`routes.${name}.loadBalancer.headers is required for consistentHash`);
+      if (type !== 'consistentHash' && headers)
+        fail(`routes.${name}.loadBalancer.headers is only for consistentHash`);
+    }
     const auth = route.auth;
     if (!auth) {
       fail(`routes.${name}.auth is required`);
@@ -692,6 +724,27 @@ export const refsFor = (app: App, world: World): Refs => ({
   },
   service: (service, port, path) => ownServiceUrl(app, service, port, path),
 });
+
+export function containerEnv(app: App, world: World): { container: string; rows: EnvSource[] }[] {
+  const refs = refsFor(app, world);
+  return Object.entries(appWorkloads(app)).flatMap(([workload, spec]) =>
+    [
+      [workload, spec] as const,
+      ...((spec.initContainers ?? []) as (Workload & { name: string })[]).map(
+        (c) => [`${workload}/${c.name}`, c] as const,
+      ),
+      ...((spec.sidecars ?? []) as (Workload & { name: string })[]).map(
+        (c) => [`${workload}/${c.name}`, c] as const,
+      ),
+    ].map(([container, c]) => ({
+      container,
+      rows: [
+        ...(c.env && !Array.isArray(c.env) ? describeEnv(c.env, refs) : []),
+        ...(c.envFrom ?? []).map((from) => describeEnvFrom(from, refs)),
+      ],
+    })),
+  );
+}
 
 export function validateResources(world: World) {
   for (const app of world.apps) {

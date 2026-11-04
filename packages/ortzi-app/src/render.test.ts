@@ -11,6 +11,7 @@ import {
   validateManifestSources,
   type App,
   appRoles,
+  containerEnv,
   HEADER,
   isCurrent,
   renderKustomization,
@@ -2678,4 +2679,113 @@ test('legacy route and argocd fields are rejected', () => {
       ),
     /resources/,
   );
+});
+
+test('autoscale passes through and rejects what an hpa cannot use', () => {
+  const workload = { resources: { cpu: '50m', memory: '64Mi' } };
+  const autoscale = { min: 2, max: 5, cpu: 70 };
+
+  assert.deepEqual(short({ ...workload, autoscale }).autoscale, autoscale);
+  assert.throws(() => short({ ...workload, autoscale, replicas: 3 }), /replicas or autoscale/);
+  assert.throws(
+    () => short({ ...workload, autoscale, kind: 'CronJob', schedule: '* * * * *' }),
+    /only for a Deployment/,
+  );
+  assert.throws(() => short({ ...workload, autoscale: { ...autoscale, min: 6 } }), /more than max/);
+  assert.throws(() => short({ autoscale }), /resources.cpu on every container/);
+  assert.throws(
+    () => short({ ...workload, autoscale, sidecars: [{ name: 's', image: 's' }] }),
+    /resources.cpu on every container/,
+  );
+  assert.throws(() => short({ ...workload, autoscale: { min: 1, max: 2 } }), /cpu/);
+});
+
+test('expands exec probes and rejects more than one target', () => {
+  const command = ['sh', '-c', 'pgrep -f sidekiq'];
+  const out = short({ probes: { exec: { command }, liveness: { every: 30 } } });
+
+  assert.deepEqual(out.livenessProbe, { exec: { command }, periodSeconds: 30 });
+  assert.throws(
+    () => short({ probes: { exec: { command }, http: { path: '/', port: 80 }, liveness: {} } }),
+    /use one of http, exec/,
+  );
+});
+
+test('route loadBalancer renders to envoy and checks headers', () => {
+  const app = (loadBalancer: Record<string, unknown>) => ({
+    name: 'foo',
+    resources: [
+      {
+        name: 'web',
+        type: 'route',
+        hosts: ['a.sh'],
+        backend: { name: 'svc', port: 80 },
+        auth: { mode: 'app', reason: 'sessions' },
+        loadBalancer,
+      },
+    ],
+    network: { ingress: [] },
+  });
+
+  const [route] = source(
+    render(validate(app({ type: 'consistentHash', headers: ['Cookie', 'User-Agent'] }), 'x')),
+    'k8s-http-routes',
+  )?.helm.valuesObject.routes;
+  assert.deepEqual(route.loadBalancer, {
+    type: 'ConsistentHash',
+    consistentHash: { type: 'Headers', headers: [{ name: 'Cookie' }, { name: 'User-Agent' }] },
+  });
+
+  const [plain] = source(render(validate(app({ type: 'leastRequest' }), 'x')), 'k8s-http-routes')
+    ?.helm.valuesObject.routes;
+  assert.deepEqual(plain.loadBalancer, { type: 'LeastRequest' });
+
+  assert.throws(() => validate(app({ type: 'consistentHash' }), 'x'), /headers is required/);
+  assert.throws(
+    () => validate(app({ type: 'random', headers: ['Cookie'] }), 'x'),
+    /only for consistentHash/,
+  );
+});
+
+test('describes where each env var comes from', () => {
+  const app = validate(
+    {
+      name: 'foo',
+      network: { ingress: [] },
+      resources: [
+        { name: 'traces', type: 'platform', export: 'tracing' },
+        { name: 'foo', type: 'secret', secretName: 'foo-secret' },
+      ],
+      workloads: [
+        {
+          name: 'api',
+          image: 'i',
+          ports: [{ name: 'http', container: 3000, service: 80 }],
+          service: { name: 'api' },
+          env: {
+            A: 'b',
+            T: { resource: 'traces' },
+            S: { secret: 'foo', key: 'K', optional: true },
+            U: { service: 'api', port: 'http', path: '/v1' },
+          },
+          envFrom: [{ secret: 'foo' }],
+        },
+      ],
+    },
+    'x',
+  );
+
+  const [{ container, rows }] = containerEnv(app, { platform, apps: [app] });
+  assert.equal(container, 'api');
+  assert.deepEqual(rows.slice(0, 3), [
+    { name: 'A', from: 'literal', value: 'b' },
+    { name: 'T', from: 'resource traces', value: 'http://tempo/traces' },
+    { name: 'S', from: 'secret foo', secret: { name: 'foo-secret', key: 'K', optional: true } },
+  ]);
+  assert.equal(rows[3].from, 'service api:http/v1');
+  assert.deepEqual(rows[4], {
+    name: 'envFrom',
+    from: 'secret foo',
+    secret: { name: 'foo-secret', optional: false },
+  });
 });
