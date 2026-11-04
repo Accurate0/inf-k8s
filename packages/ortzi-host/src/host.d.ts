@@ -86,6 +86,9 @@ declare module 'wasi:io/streams@0.2.12' {
 declare module 'wasi:cli/stdin@0.2.12' {
   export function getStdin(): import('wasi:io/streams@0.2.12').InputStream;
 }
+declare module 'wasi:cli/stdout@0.2.12' {
+  export function getStdout(): import('wasi:io/streams@0.2.12').OutputStream;
+}
 declare module 'wasi:cli/stderr@0.2.12' {
   export function getStderr(): import('wasi:io/streams@0.2.12').OutputStream;
 }

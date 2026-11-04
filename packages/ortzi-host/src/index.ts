@@ -5,6 +5,7 @@ import * as hostKube from 'ortzi:host/kube@0.1.0';
 import * as process from 'ortzi:host/process@0.1.0';
 import { getStderr } from 'wasi:cli/stderr@0.2.12';
 import { getStdin } from 'wasi:cli/stdin@0.2.12';
+import { getStdout } from 'wasi:cli/stdout@0.2.12';
 import { getTerminalStdin } from 'wasi:cli/terminal-stdin@0.2.12';
 
 export type Stdio = process.Stdio;
@@ -129,7 +130,7 @@ export interface HttpRequest {
   method?: string;
   url: string;
   headers?: Record<string, string>;
-  body?: string;
+  body?: string | Uint8Array;
   timeoutMs?: number;
 }
 
@@ -139,21 +140,28 @@ export interface HttpResponse {
   body: string;
 }
 
-export function httpSend(request: HttpRequest): HttpResponse {
+export interface HttpBytesResponse {
+  status: number;
+  headers: Record<string, string>;
+  body: Uint8Array;
+}
+
+export function httpSendBytes(request: HttpRequest): HttpBytesResponse {
   const raw = unwrap(() =>
     hostHttp.send({
       method: request.method ?? 'GET',
       url: request.url,
       headers: Object.entries(request.headers ?? {}),
-      body: request.body === undefined ? undefined : encoder.encode(request.body),
+      body: typeof request.body === 'string' ? encoder.encode(request.body) : request.body,
       timeoutMs: request.timeoutMs,
     }),
   );
-  return {
-    status: raw.status,
-    headers: Object.fromEntries(raw.headers),
-    body: decoder.decode(raw.body),
-  };
+  return { status: raw.status, headers: Object.fromEntries(raw.headers), body: raw.body };
+}
+
+export function httpSend(request: HttpRequest): HttpResponse {
+  const response = httpSendBytes(request);
+  return { ...response, body: decoder.decode(response.body) };
 }
 
 export const args = (): string[] => hostEnv.args().slice(1);
@@ -185,6 +193,40 @@ export function readLine(): string | undefined {
   }
 
   return decoder.decode(new Uint8Array(bytes)).replace(/\r$/, '');
+}
+
+export function readStdin(): Uint8Array {
+  stdin ??= getStdin();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    let chunk: Uint8Array;
+    try {
+      chunk = stdin.blockingRead(65536n);
+    } catch {
+      break;
+    }
+
+    if (chunk.length === 0) break;
+    chunks.push(chunk);
+    size += chunk.length;
+  }
+
+  const out = new Uint8Array(size);
+  let offset = 0;
+  for (const chunk of chunks) {
+    out.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return out;
+}
+
+export function writeStdout(contents: string | Uint8Array): void {
+  const bytes = typeof contents === 'string' ? encoder.encode(contents) : contents;
+  const stdout = getStdout();
+  for (let offset = 0; offset < bytes.length; offset += 4096) {
+    stdout.blockingWriteAndFlush(bytes.subarray(offset, offset + 4096));
+  }
 }
 
 export function prompt(text: string): string | undefined {

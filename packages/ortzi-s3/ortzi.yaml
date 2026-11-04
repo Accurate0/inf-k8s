@@ -1,0 +1,17 @@
+package:
+  name: s3
+  description: read and write Garage buckets with a short-lived key minted from your login
+  version: 0.1.0
+  completions: cobra
+auth:
+  client_id: openbao-cli
+  token_env: S3_TOKEN
+  scopes: openid email profile
+permissions:
+  http: [vault.ortzi.cloud, garage-admin.ortzi.cloud, s3.ortzi.cloud]
+  env: [S3_ENDPOINT]
+  fs: [., ~/.config/ortzi/s3]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

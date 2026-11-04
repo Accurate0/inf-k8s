@@ -1,0 +1,18 @@
+{
+  "name": "@ortzi/s3",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test src/sigv4.test.ts src/xml.test.ts src/path.test.ts"
+  },
+  "dependencies": {
+    "@noble/hashes": "2.4.0",
+    "@ortzi/host": "workspace:*",
+    "@ortzi/kit": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  }
+}
