@@ -46,7 +46,7 @@ export type Resource =
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
   | { name: string; type: 'secret'; secretName: string; secretTemplate?: SecretTemplate }
-  | { name: string; type: 'cache'; instance: string }
+  | { name: string; type: 'cache'; instance?: string }
   | ({ name: string; type: 'route' } & Route)
   | ({ name: string; type: 'oidc' } & OidcClient)
   | ({ name: string; type: 'metrics' } & Metrics)
@@ -316,7 +316,7 @@ function resourceEnv(
 
   const wanted =
     resource.type === 'cache'
-      ? { type: 'cache', name: resource.instance }
+      ? { type: 'cache', name: resource.instance ?? 'cache' }
       : { type: 'platform', name: (resource as { export: string }).export };
   const provided = platform.filter((e) => e.type === wanted.type && e.name === wanted.name);
   if (provided.length !== 1) {

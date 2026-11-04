@@ -47,9 +47,10 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
           to: node(`platform/${resource.export}`, resource.export, 'platform'),
         });
       } else if (resource.type === 'cache') {
+        const instance = resource.instance ?? 'cache';
         edges.push({
           from: app.name,
-          to: node(`cache/${resource.instance}`, `cache ${resource.instance}`, 'platform'),
+          to: node(`cache/${instance}`, `cache ${instance}`, 'platform'),
         });
       } else if (resource.type === 'bucket') {
         const name = resource.bucket;

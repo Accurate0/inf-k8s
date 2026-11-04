@@ -689,8 +689,7 @@
             "additionalProperties": false,
             "required": [
               "name",
-              "type",
-              "instance"
+              "type"
             ],
             "properties": {
               "name": {
@@ -703,7 +702,7 @@
               },
               "instance": {
                 "type": "string",
-                "description": "A cache export in platform/exports."
+                "description": "A cache export in platform/exports. Defaults to cache."
               }
             }
           },

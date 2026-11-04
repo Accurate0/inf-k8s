@@ -48,6 +48,7 @@ const platform = [
   { name: 'argocd', type: 'platform', url: 'http://argocd' },
   { name: 'replicated', type: 'cache', url: 'redis://replicated' },
   { name: 'perth', type: 'cache', url: 'redis://perth' },
+  { name: 'cache', type: 'cache', url: 'redis://cache' },
 ];
 
 const render = (app: App, t = target, apps: App[] = []) =>
@@ -1181,11 +1182,20 @@ test('a cache resource picks its instance', () => {
   assert.deepEqual(buildGraph([cached('perth')]).edges, [{ from: 'foo', to: 'cache/perth' }]);
 });
 
-test('rejects a cache resource without an instance', () => {
-  assert.throws(
-    () => validate({ ...base, resources: [{ name: 'c', type: 'cache' }] }, 'test'),
-    /resources/,
+test('a cache resource defaults to the cache instance', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [{ name: 'sessions', type: 'cache' }],
+      workloads: [{ name: 'foo', image: 'i', env: { REDIS_URL: { resource: 'sessions' } } }],
+    },
+    'test',
   );
+
+  assert.deepEqual(source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+    { name: 'REDIS_URL', value: 'redis://cache' },
+  ]);
+  assert.deepEqual(buildGraph([app]).edges, [{ from: 'foo', to: 'cache/cache' }]);
 });
 
 test('secret resources default their kubernetes secret name', () => {
