@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-04T09:12:47.745Z
+# generated at 2026-11-04T09:27:32.026Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,6 +16,160 @@ spec:
       selfHeal: true
   project: selfhosted
   sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.5.0
+      helm:
+        valueFiles:
+          - $values/selfhosted/immich/image.values.yaml
+        valuesObject:
+          namespace: immich
+          workloads:
+            - name: immich-server
+              image: ghcr.io/immich-app/immich-server
+              replicas: 1
+              runAsNonRoot: false
+              resources:
+                requests:
+                  cpu: 500m
+                  memory: 1Gi
+                limits:
+                  memory: 4Gi
+              ports:
+                - name: http
+                  containerPort: 2283
+              env:
+                - name: TZ
+                  value: Australia/Perth
+                - name: IMMICH_CONFIG_FILE
+                  value: /config/immich.json
+                - name: IMMICH_TRUSTED_PROXIES
+                  value: 10.42.0.0/16
+                - name: IMMICH_ALLOW_SETUP
+                  value: "false"
+                - name: DB_VECTOR_EXTENSION
+                  value: vectorchord
+                - name: REDIS_HOSTNAME
+                  value: cache.dragonfly
+                - name: DB_HOSTNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db-credentials
+                      key: PGHOST
+                - name: DB_PORT
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db-credentials
+                      key: PGPORT
+                - name: DB_USERNAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db-credentials
+                      key: PGUSER
+                - name: DB_PASSWORD
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db-credentials
+                      key: PGPASSWORD
+                - name: DB_DATABASE_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: immich-db-credentials
+                      key: PGDATABASE
+              initContainers:
+                - name: render-config
+                  image: busybox
+                  resources:
+                    requests:
+                      cpu: 10m
+                      memory: 16Mi
+                  command:
+                    - sh
+                    - -euc
+                    - |
+                      sed -e "s|__OIDC_CLIENT_ID__|$OIDC_CLIENT_ID|" \
+                          -e "s|__OIDC_CLIENT_SECRET__|$OIDC_CLIENT_SECRET|" \
+                          /template/immich.json.tmpl > /config/immich.json
+                  env:
+                    - name: OIDC_CLIENT_ID
+                      valueFrom:
+                        secretKeyRef:
+                          name: kanidm-immich-oidc
+                          key: client-id
+                    - name: OIDC_CLIENT_SECRET
+                      valueFrom:
+                        secretKeyRef:
+                          name: kanidm-immich-oidc
+                          key: client-secret
+                  volumeMounts:
+                    - name: config-template
+                      mountPath: /template
+                      readOnly: true
+                    - name: config
+                      mountPath: /config
+              service:
+                name: immich-server
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 2283
+                    protocol: TCP
+              startupProbe:
+                httpGet:
+                  path: /api/server/ping
+                  port: http
+                periodSeconds: 10
+                failureThreshold: 60
+              readinessProbe:
+                httpGet:
+                  path: /api/server/ping
+                  port: http
+                periodSeconds: 30
+                timeoutSeconds: 5
+              livenessProbe:
+                httpGet:
+                  path: /api/server/ping
+                  port: http
+                periodSeconds: 60
+                timeoutSeconds: 5
+              volumes:
+                - name: library
+                  persistentVolumeClaim:
+                    claimName: immich-library
+                - name: config
+                  emptyDir: {}
+                - name: config-template
+                  configMap:
+                    name: immich-config
+                    items:
+                      - key: immich.json.tmpl
+                        path: immich.json.tmpl
+              volumeMounts:
+                - name: library
+                  mountPath: /data
+                - name: config
+                  mountPath: /config
+              strategy:
+                type: Recreate
+              affinity:
+                nodeAffinity:
+                  requiredDuringSchedulingIgnoredDuringExecution:
+                    nodeSelectorTerms:
+                      - matchExpressions:
+                          - key: inf-k8s.net/location
+                            operator: In
+                            values:
+                              - perth
+                podAntiAffinity:
+                  preferredDuringSchedulingIgnoredDuringExecution:
+                    - weight: 100
+                      podAffinityTerm:
+                        topologyKey: kubernetes.io/hostname
+                        labelSelector:
+                          matchLabels:
+                            app: immich-server
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0

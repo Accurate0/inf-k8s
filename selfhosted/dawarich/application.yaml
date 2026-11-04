@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-04T09:19:18.982Z
+# generated at 2026-11-04T09:27:32.002Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -220,14 +220,6 @@ spec:
                         - pgrep -f sidekiq
                     initialDelaySeconds: 60
                     periodSeconds: 60
-                  volumes:
-                    - name: storage
-                      persistentVolumeClaim:
-                        claimName: dawarich-storage
-                    - name: public
-                      emptyDir: {}
-                    - name: watched
-                      emptyDir: {}
                   volumeMounts:
                     - name: storage
                       mountPath: /var/app/storage

@@ -1,7 +1,10 @@
-# yaml-language-server: $schema=https://json.schemastore.org/kustomization
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
-resources:
-  - ./configmap.yaml
-  - ./server.deployment.yaml
-  - ./server.service.yaml
+configMapGenerator:
+  - name: immich-config
+    namespace: immich
+    files:
+      - immich.json.tmpl
+generatorOptions:
+  disableNameSuffixHash: true
