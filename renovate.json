@@ -15,6 +15,7 @@
     "projects/home-gateway/application.yaml",
     "projects/maccas-api/application.yaml",
     "projects/ozbargain/application.yaml",
+    "projects/spotify/application.yaml",
     "projects/tldr-bot/application.yaml",
     "platform-services/ai-gateway/application.yaml",
     "platform-services/etcd-backup/application.yaml",

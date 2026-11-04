@@ -12,6 +12,7 @@
         "home-gateway",
         "immich",
         "registry",
+        "spotify",
         "waf-manager"
       ]
     },

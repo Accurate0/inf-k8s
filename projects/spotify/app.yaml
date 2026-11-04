@@ -1,0 +1,74 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: spotify
+repository: https://github.com/Accurate0/spotify
+network:
+  ingress: []
+namespace:
+  labels:
+    internal-gateway-access: "true"
+resources:
+  - name: spotify
+    type: database
+    secretName: spotify-database-secret
+    extensions:
+      - pg_trgm
+  - name: spotify
+    type: route
+    auth:
+      mode: app
+      reason: spotify-api verifies Kanidm JWTs on /graphql, the rest is a static spa
+    gateway: internal-gateway
+    hosts:
+      - spotify.ortzi.cloud
+    dns: {provider: cloudflare, proxied: false}
+    rules:
+      - paths: [/graphql, /health]
+        backend: {name: spotify-api, port: 80}
+      - paths: [/]
+        backend: {name: spotify-web, port: 80}
+  # Public client shared by the SPA and the CLI (ortzi.yaml auth.client_id).
+  - name: spotify
+    type: oidc
+    secretName: kanidm-spotify-oidc
+    host: spotify.ortzi.cloud
+    displayName: Spotify
+    callbackPath: /callback
+    public: true
+    allowLocalhostRedirect: true
+    groups:
+      spotify_users:
+        - platform_admins
+    scopeMaps:
+      spotify_users:
+        - openid
+        - email
+        - profile
+        - groups
+workloads:
+  - name: spotify-api
+    image: ghcr.io/accurate0/spotify
+    resources: {cpu: 30m, memory: 64Mi, memoryLimit: 512Mi}
+    ports:
+      - {name: http, container: 8000, service: 80}
+    probes:
+      http: {path: /health, port: 8000}
+      readiness: {every: 10}
+      liveness: {delay: 3, every: 30}
+    env:
+      OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/spotify
+      OIDC_AUDIENCE: spotify
+      OIDC_GROUPS: spotify_users
+    envFrom:
+      - database: spotify
+    service:
+      name: spotify-api
+  - name: spotify-web
+    image: ghcr.io/accurate0/spotify-web
+    resources: {memory: 32Mi}
+    ports:
+      - {name: http, container: 8080, service: 80}
+    probes:
+      http: {path: /, port: 8080}
+      readiness: {delay: 3, every: 30}
+    service:
+      name: spotify-web
