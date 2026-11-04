@@ -12,6 +12,8 @@ when:
           value: anurag/k8s
         - type: repository
           value: anurag/solar-panels
+        - type: repository
+          value: anurag/spotify
     - type: feature_flag
       name: janitor-bot-allow-automerging-rules
       default: true

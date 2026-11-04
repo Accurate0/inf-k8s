@@ -9,6 +9,7 @@ locals {
     "inf-k8s",
     "solar-panels",
     "home-gateway",
+    "spotify",
   ])
 
   janitor_bot_webhook_repos = toset([
@@ -20,6 +21,7 @@ locals {
     "inf-k8s",
     "solar-panels",
     "home-gateway",
+    "spotify",
   ])
 }
 

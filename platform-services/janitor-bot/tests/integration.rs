@@ -338,6 +338,13 @@ async fn renovate_dashboard_snapshot() {
         .mount(&forgejo_server)
         .await;
 
+    // anurag/spotify: no open PRs.
+    Mock::given(method("GET"))
+        .and(path("/api/v1/repos/anurag/spotify/pulls"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(json!([])))
+        .mount(&forgejo_server)
+        .await;
+
     let clients = Clients::new(
         ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
         GitHubClient::new(unused_server.uri(), "test-token".into()),

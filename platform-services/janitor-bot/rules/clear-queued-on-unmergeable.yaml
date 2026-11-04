@@ -12,6 +12,8 @@ when:
           value: anurag/k8s
         - type: repository
           value: anurag/solar-panels
+        - type: repository
+          value: anurag/spotify
     - type: has_label
       value: janitor/queued
     - type: is_open

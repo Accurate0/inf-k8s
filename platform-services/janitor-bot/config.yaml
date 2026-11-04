@@ -10,6 +10,9 @@ repos:
   - repo: anurag/solar-panels
     watched: true
     github_repo: Accurate0/solar-panels
+  - repo: anurag/spotify
+    watched: true
+    github_repo: Accurate0/spotify
 checks:
   perth_day:
     type: time_of_day
