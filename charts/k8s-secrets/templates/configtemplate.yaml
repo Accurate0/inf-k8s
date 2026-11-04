@@ -1,0 +1,110 @@
+{{- $defaults := .Values.defaults }}
+{{- $readable := dict }}
+{{- range $config := .Values.templates }}
+{{- $namespace := default $defaults.namespace $config.namespace }}
+{{- range $value := $config.values }}
+{{- $_ := set $readable $namespace (append (get $readable $namespace | default list) $value.secret) }}
+{{- end }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $config.secretName }}
+  namespace: {{ $namespace }}
+  {{- if $defaults.annotations }}
+  annotations:
+    {{ $defaults.annotations | toYaml | nindent 4 | trim }}
+  {{- end }}
+spec:
+  refreshInterval: {{ $defaults.resyncInterval }}s
+  secretStoreRef:
+    name: kubernetes-secrets
+    kind: SecretStore
+  target:
+    name: {{ $config.secretName }}
+    creationPolicy: Owner
+    template:
+      type: Opaque
+      {{- if $defaults.annotations }}
+      metadata:
+        annotations:
+          {{ $defaults.annotations | toYaml | nindent 10 | trim }}
+      {{- end }}
+      engineVersion: v2
+      mergePolicy: Replace
+      templateFrom:
+        - target: Data
+          configMap:
+            name: {{ $config.configMap }}
+            items:
+              {{- range $file := $config.files }}
+              - key: {{ base $file }}
+                templateAs: Values
+              {{- end }}
+  data:
+    {{- range $value := $config.values }}
+    - secretKey: {{ $value.name }}
+      remoteRef:
+        key: {{ $value.secret }}
+        property: {{ $value.key }}
+        conversionStrategy: Default
+        decodingStrategy: None
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+    {{- end }}
+---
+{{- end }}
+{{- range $namespace, $secrets := $readable }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-templates
+  namespace: {{ $namespace }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-templates
+  namespace: {{ $namespace }}
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    resourceNames:
+      {{- range $secret := $secrets | uniq | sortAlpha }}
+      - {{ $secret }}
+      {{- end }}
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secret-templates
+  namespace: {{ $namespace }}
+subjects:
+  - kind: ServiceAccount
+    name: secret-templates
+    namespace: {{ $namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secret-templates
+---
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: kubernetes-secrets
+  namespace: {{ $namespace }}
+spec:
+  provider:
+    kubernetes:
+      remoteNamespace: {{ $namespace }}
+      server:
+        url: https://kubernetes.default.svc
+        caProvider:
+          type: ConfigMap
+          name: kube-root-ca.crt
+          key: ca.crt
+      auth:
+        serviceAccount:
+          name: secret-templates
+---
+{{- end }}

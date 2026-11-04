@@ -8,6 +8,64 @@
       "type": "string",
       "description": "Name of the envoy proxy bouncer service."
     },
+    "tcpRoutes": {
+      "type": "array",
+      "description": "TCPRoutes to create, one per entry.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "gateway",
+          "listener",
+          "backend"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Name of the generated TCPRoute."
+          },
+          "gateway": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "namespace"
+            ],
+            "description": "Gateway this route attaches to.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "namespace": {
+                "type": "string"
+              }
+            }
+          },
+          "listener": {
+            "type": "string",
+            "description": "TCP listener on the gateway, rendered as the parentRef sectionName."
+          },
+          "backend": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "port"
+            ],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Service name."
+              },
+              "port": {
+                "type": "integer"
+              }
+            }
+          }
+        }
+      }
+    },
     "routes": {
       "type": "array",
       "description": "HTTPRoutes to create, one per entry.",

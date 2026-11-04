@@ -1,0 +1,127 @@
+{{- $defaults := .Values.defaults }}
+{{- $openbaoServer := default "http://openbao-active.openbao.svc.cluster.local:8200" $defaults.openbaoServer }}
+{{- $namespaces := dict }}
+{{- range $generated := .Values.generated }}
+{{- $namespace := default $defaults.namespace $generated.namespace }}
+{{- $_ := set $namespaces $namespace true }}
+{{- $remoteKey := printf "%s/generated/%s" $namespace $generated.name }}
+{{- range $key := $generated.keys }}
+{{- $resource := printf "%s-%s" $generated.secretName ($key.name | lower | replace "_" "-") }}
+apiVersion: generators.external-secrets.io/v1alpha1
+kind: Password
+metadata:
+  name: {{ $resource }}
+  namespace: {{ $namespace }}
+spec:
+  length: {{ $key.length }}
+  {{- if hasKey $key "digits" }}
+  digits: {{ $key.digits }}
+  {{- end }}
+  symbols: {{ $key.symbols }}
+  noUpper: false
+  allowRepeat: true
+  encoding: {{ default "raw" $key.encoding }}
+---
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: {{ $resource }}
+  namespace: {{ $namespace }}
+  {{- if $defaults.annotations }}
+  annotations:
+    {{ $defaults.annotations | toYaml | nindent 4 | trim }}
+  {{- end }}
+spec:
+  refreshInterval: 1h0m0s
+  updatePolicy: IfNotExists
+  deletionPolicy: None
+  secretStoreRefs:
+    - name: openbao-push
+      kind: SecretStore
+  selector:
+    generatorRef:
+      apiVersion: generators.external-secrets.io/v1alpha1
+      kind: Password
+      name: {{ $resource }}
+  data:
+    - conversionStrategy: None
+      match:
+        secretKey: password
+        remoteRef:
+          remoteKey: {{ $remoteKey }}
+          property: {{ $key.name }}
+---
+{{- end }}
+apiVersion: external-secrets.io/v1
+kind: ExternalSecret
+metadata:
+  name: {{ $generated.secretName }}
+  namespace: {{ $namespace }}
+  {{- if $defaults.annotations }}
+  annotations:
+    {{ $defaults.annotations | toYaml | nindent 4 | trim }}
+  {{- end }}
+spec:
+  refreshInterval: {{ $defaults.resyncInterval }}s
+  secretStoreRef:
+    name: openbao-generated
+    kind: SecretStore
+  target:
+    name: {{ $generated.secretName }}
+    creationPolicy: Owner
+    template:
+      type: {{ default "Opaque" $generated.type }}
+      {{- if $defaults.annotations }}
+      metadata:
+        annotations:
+          {{ $defaults.annotations | toYaml | nindent 10 | trim }}
+      {{- end }}
+      {{- if $generated.template }}
+      engineVersion: v2
+      mergePolicy: Replace
+      data:
+        {{- range $k, $v := $generated.template.data }}
+        {{ $k }}: {{ $v | quote }}
+        {{- end }}
+      {{- end }}
+  data:
+    {{- range $key := $generated.keys }}
+    - secretKey: {{ $key.name }}
+      remoteRef:
+        key: {{ $remoteKey }}
+        property: {{ $key.name }}
+        conversionStrategy: Default
+        decodingStrategy: None
+        metadataPolicy: None
+        nullBytePolicy: Ignore
+    {{- end }}
+---
+{{- end }}
+{{- range $namespace, $_ := $namespaces }}
+{{- range $store := list (dict "name" "openbao-generated" "role" "eso" "account" "openbao-secrets") (dict "name" "openbao-push" "role" "eso-push" "account" "openbao-push") }}
+apiVersion: external-secrets.io/v1
+kind: SecretStore
+metadata:
+  name: {{ $store.name }}
+  namespace: {{ $namespace }}
+spec:
+  provider:
+    vault:
+      server: {{ $openbaoServer }}
+      path: kv
+      version: v2
+      auth:
+        kubernetes:
+          mountPath: kubernetes
+          role: {{ $store.role }}
+          serviceAccountRef:
+            name: {{ $store.account }}
+---
+{{- end }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: openbao-push
+  namespace: {{ $namespace }}
+---
+{{- end }}

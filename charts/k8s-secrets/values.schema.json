@@ -24,6 +24,154 @@
         "annotations": { "$ref": "#/definitions/annotations" }
       }
     },
+    "generated": {
+      "type": "array",
+      "description": "Secrets whose values are generated once, pushed to OpenBao at kv/<namespace>/generated/<name> and synced back.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "name",
+          "secretName",
+          "keys"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Names the OpenBao path kv/<namespace>/generated/<name>."
+          },
+          "namespace": {
+            "$ref": "#/definitions/namespace"
+          },
+          "secretName": {
+            "type": "string",
+            "description": "Name of the ExternalSecret and of the secret it creates."
+          },
+          "type": {
+            "type": "string",
+            "description": "Type of the created secret. Defaults to Opaque."
+          },
+          "template": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "data"
+            ],
+            "properties": {
+              "data": {
+                "type": "object",
+                "description": "Keys of the created secret, mapped to go templates over the generated keys.",
+                "additionalProperties": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "keys": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "length",
+                "symbols"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Key in the created secret and property in OpenBao."
+                },
+                "length": {
+                  "type": "integer",
+                  "minimum": 1
+                },
+                "digits": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Defaults to a quarter of the length."
+                },
+                "symbols": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "encoding": {
+                  "enum": [
+                    "raw",
+                    "base64",
+                    "base64url",
+                    "base32",
+                    "hex"
+                  ],
+                  "description": "Defaults to raw."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "templates": {
+      "type": "array",
+      "description": "Secrets rendered from configmap templates, filled with keys of other secrets in the namespace.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "secretName",
+          "configMap",
+          "files",
+          "values"
+        ],
+        "properties": {
+          "secretName": {
+            "type": "string",
+            "description": "Name of the ExternalSecret and of the secret it creates."
+          },
+          "namespace": {
+            "$ref": "#/definitions/namespace"
+          },
+          "configMap": {
+            "type": "string",
+            "description": "ConfigMap holding the templates."
+          },
+          "files": {
+            "type": "array",
+            "minItems": 1,
+            "description": "Template files; each becomes a key named after its basename.",
+            "items": {
+              "type": "string"
+            }
+          },
+          "values": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "name",
+                "secret",
+                "key"
+              ],
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "description": "Template variable, read as {{ .NAME }}."
+                },
+                "secret": {
+                  "type": "string",
+                  "description": "Secret in the namespace to read."
+                },
+                "key": {
+                  "type": "string"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "secrets": {
       "type": "array",
       "description": "One SecretStore per entry, plus one ExternalSecret per managed secret.",
