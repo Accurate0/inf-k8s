@@ -37,6 +37,28 @@ resource "vault_kubernetes_auth_backend_role" "eso" {
   token_ttl                        = 3600
 }
 
+resource "vault_policy" "eso-push" {
+  name   = "eso-push"
+  policy = <<-EOT
+    path "kv/data/{{identity.entity.aliases.${vault_auth_backend.kubernetes.accessor}.metadata.service_account_namespace}}/generated/*" {
+      capabilities = ["create", "read", "update"]
+    }
+
+    path "kv/metadata/{{identity.entity.aliases.${vault_auth_backend.kubernetes.accessor}.metadata.service_account_namespace}}/generated/*" {
+      capabilities = ["create", "read", "update"]
+    }
+  EOT
+}
+
+resource "vault_kubernetes_auth_backend_role" "eso-push" {
+  backend                          = vault_auth_backend.kubernetes.path
+  role_name                        = "eso-push"
+  bound_service_account_names      = ["openbao-push"]
+  bound_service_account_namespaces = ["*"]
+  token_policies                   = [vault_policy.eso-push.name]
+  token_ttl                        = 3600
+}
+
 resource "vault_policy" "admin" {
   name   = "admin"
   policy = <<-EOT
