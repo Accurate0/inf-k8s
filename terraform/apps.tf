@@ -17,5 +17,5 @@ module "apps" {
   kv_mount                  = vault_mount.kv.path
   cloudflare_account_id     = local.cloudflare_account_id
   r2_write_permission_group = data.cloudflare_account_api_token_permission_groups_list.r2_write.result[0].id
-  garage_s3_endpoint        = "https://s3.ortzi.cloud"
+  garage_s3_endpoint        = "http://garage.garage.svc.cluster.local:3900"
 }
