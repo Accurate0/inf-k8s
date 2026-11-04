@@ -42,8 +42,8 @@ workloads:
       - secret: migration
   - name: maccas-api
     image: ghcr.io/accurate0/maccas-api
-    replicas: 3
-    resources: {memory: 144Mi, memoryLimit: 1Gi}
+    autoscale: {min: 1, max: 3, cpu: 70}
+    resources: {cpu: 50m, memory: 144Mi, memoryLimit: 1Gi}
     ports:
       - {name: api, container: 8000, service: 8000}
     probes:
@@ -75,8 +75,8 @@ workloads:
           whenUnsatisfiable: ScheduleAnyway
   - name: maccas-web
     image: ghcr.io/accurate0/maccas-web
-    replicas: 3
-    resources: {memory: 312Mi}
+    autoscale: {min: 1, max: 3, cpu: 70}
+    resources: {cpu: 50m, memory: 312Mi}
     ports:
       - {name: web, container: 3000, service: 3000}
     probes:
