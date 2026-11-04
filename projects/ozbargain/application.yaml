@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-04T09:12:47.656Z
+# generated at 2026-11-04T11:59:28.836Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -60,7 +60,7 @@ spec:
           ingress: []
     - chart: k8s-secrets
       repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
-      targetRevision: 0.6.0
+      targetRevision: 0.7.0
       helm:
         valuesObject:
           defaults:

@@ -9,6 +9,7 @@ import {
   expandWorkload,
   overrideConflicts,
   type Refs,
+  SECRET_KINDS,
   type SecretKind,
 } from './workload.ts';
 
@@ -49,15 +50,37 @@ export type Resource =
   | { name: string; type: 'app'; app: string; export: string; path?: string }
   | Bucket
   | ({ name: string; type: 'database' } & DatabaseSpec)
-  | { name: string; type: 'secret'; secretName: string; secretTemplate?: SecretTemplate }
+  | {
+      name: string;
+      type: 'secret';
+      secretName: string;
+      secretTemplate?: SecretTemplate;
+      generate?: Record<string, GeneratedKey>;
+    }
   | { name: string; type: 'cache'; instance?: string }
   | ({ name: string; type: 'route' } & Route)
   | ({ name: string; type: 'oidc' } & OidcClient)
   | ({ name: string; type: 'metrics' } & Metrics)
-  | { name: string; type: 'config'; configMap: string; files: string[] }
+  | Config
   | { name: string; type: 'dashboard'; configMap: string; file: string }
   | Volume
   | ServiceAccount;
+
+export interface Config {
+  name: string;
+  type: 'config';
+  configMap: string;
+  files: string[];
+  secretName?: string;
+  values?: Record<string, Record<string, string>>;
+}
+
+export interface GeneratedKey {
+  length: number;
+  digits?: number;
+  symbols: number;
+  encoding?: 'raw' | 'base64' | 'base64url' | 'base32' | 'hex';
+}
 
 export interface Volume {
   name: string;
@@ -133,6 +156,8 @@ export interface RouteRatelimit {
 }
 
 export interface Route {
+  protocol?: 'http' | 'tcp';
+  listener?: string;
   hosts: string[];
   gateway?: string;
   auth: RouteAuth;
@@ -305,16 +330,42 @@ function ownServiceUrl(app: App, service: string, port: string | number, path?: 
   return serviceUrl(service, appNamespace(app), exposed.port, path);
 }
 
+export type UrlPart = 'url' | 'host' | 'port';
+
+const DEFAULT_PORTS: Record<string, string> = {
+  'http:': '80',
+  'https:': '443',
+  'redis:': '6379',
+  'rediss:': '6379',
+};
+
+function urlPart(url: string, part: UrlPart, where: string): string {
+  if (part === 'url') return url;
+  const parsed = new URL(url);
+  if (part === 'host') return parsed.hostname;
+  const port = parsed.port || DEFAULT_PORTS[parsed.protocol];
+  if (!port) throw new Error(`${where}: ${url} has no port`);
+  return port;
+}
+
 function resourceEnv(
   app: App,
   name: string,
   env: string,
-  { platform, apps }: World,
+  world: World,
+  part: UrlPart = 'url',
 ): { name: string; value: string } {
+  return {
+    name: env,
+    value: urlPart(resourceUrl(app, name, world), part, `${app.name}: env.${env}`),
+  };
+}
+
+function resourceUrl(app: App, name: string, { platform, apps }: World): string {
   const resource = app.resources?.find(
     (r) => r.name === name && !OWN_NAMES.has(r.type),
   ) as Resource;
-  if (resource.type === 'app') return { name: env, value: appExportUrl(app, resource, apps) };
+  if (resource.type === 'app') return appExportUrl(app, resource, apps);
   if (resource.type === 'bucket') {
     throw new Error(
       `${app.name}: resources.${name}: read a bucket with {bucket, key}, not {resource}`,
@@ -335,7 +386,7 @@ function resourceEnv(
     );
   }
 
-  return { name: env, value: provided[0].url as string };
+  return provided[0].url as string;
 }
 
 const appServices = (app: App) =>
@@ -382,7 +433,10 @@ function validateRefs(app: App, external: boolean) {
     throw new Error(`${app.name}: ${message}`);
   };
 
-  const refs = Object.values(appWorkloads(app)).flatMap(containerRefs);
+  const refs = [
+    ...Object.values(appWorkloads(app)).flatMap(containerRefs),
+    ...declared(app, 'config').flatMap((config) => Object.values(config.values ?? {})),
+  ];
   for (const resource of app.resources ?? []) {
     if (
       ['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)
@@ -412,7 +466,10 @@ function validateRefs(app: App, external: boolean) {
   }
 
   const services = appServices(app);
-  for (const [name, route] of Object.entries(appRoutes(app))) {
+  for (const [name, route] of [
+    ...Object.entries(appRoutes(app)),
+    ...Object.entries(appTcpRoutes(app)),
+  ]) {
     for (const backend of [
       ...(route.backend ? [route.backend] : []),
       ...(route.rules ?? []).map((rule) => rule.backend),
@@ -450,6 +507,8 @@ function validateRefs(app: App, external: boolean) {
 
 export interface Listener {
   gateway: string;
+  name?: string;
+  protocol?: string;
   hostname?: string;
   labels?: Record<string, string>;
 }
@@ -463,6 +522,21 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
       ...app.namespace?.labels,
       'kubernetes.io/metadata.name': appNamespace(app),
     };
+    for (const [name, route] of Object.entries(appTcpRoutes(app))) {
+      const gateway = route.gateway ?? 'public-gateway';
+      const listener = listeners.find((l) => l.gateway === gateway && l.name === route.listener);
+      if (!listener?.labels || listener.protocol !== 'TCP')
+        throw new Error(
+          `${app.name}: routes.${name}: no TCP listener ${route.listener} on ${gateway}`,
+        );
+      for (const [key, value] of Object.entries(listener.labels)) {
+        if (labels[key] !== value) {
+          throw new Error(
+            `${app.name}: routes.${name}: ${route.listener} needs namespace.labels ${key}: "${value}"`,
+          );
+        }
+      }
+    }
 
     for (const [name, route] of Object.entries(appRoutes(app))) {
       const gateway = route.gateway ?? 'public-gateway';
@@ -585,6 +659,7 @@ export function validate(raw: unknown, where: string): App {
   const routes = Object.entries(validResources || !app.resources ? appRoutes(app) : {});
   const oidc = validResources || !app.resources ? appOidc(app) : {};
   for (const [name, route] of routes) {
+    if (route.listener) fail(`routes.${name}.listener is only for protocol tcp`);
     if (!route.hosts?.length) fail(`routes.${name}.hosts is required`);
     if (!route.backend === !route.rules) fail(`routes.${name} needs either backend or rules`);
     if (route.loadBalancer) {
@@ -617,6 +692,37 @@ export function validate(raw: unknown, where: string): App {
     } else {
       fail(`routes.${name}.auth.mode must be jwt, oidc, app or none`);
     }
+  }
+
+  const tcpRoutes = Object.entries(validResources || !app.resources ? appTcpRoutes(app) : {});
+  for (const [name, route] of tcpRoutes) {
+    if (!route.listener) fail(`routes.${name}.listener is required for protocol tcp`);
+    if (!route.backend) fail(`routes.${name}.backend is required for protocol tcp`);
+    for (const field of HTTP_ONLY) {
+      if (route[field] !== undefined) fail(`routes.${name}.${field} is only for protocol http`);
+    }
+    const auth = route.auth;
+    if (auth?.mode !== 'app' && auth?.mode !== 'none')
+      fail(`routes.${name}.auth.mode must be app or none for protocol tcp`);
+    else if (!auth.reason?.trim()) fail(`routes.${name}.auth.reason is required for ${auth.mode}`);
+  }
+
+  for (const resource of validResources ? (app.resources ?? []) : []) {
+    if (resource.type === 'secret' && resource.generate) {
+      const keys = Object.keys(resource.generate);
+      if (!keys.length) fail(`resources.${resource.name}.generate needs at least one key`);
+      const objects = keys.map((key) => key.toLowerCase().replaceAll('_', '-'));
+      for (const [i, key] of keys.entries()) {
+        if (!/^[A-Za-z0-9]([A-Za-z0-9_]*[A-Za-z0-9])?$/.test(key))
+          fail(`resources.${resource.name}.generate.${key}: use letters, digits and underscores`);
+        if (objects.indexOf(objects[i]) !== i)
+          fail(
+            `resources.${resource.name}.generate.${key} clashes with ${keys[objects.indexOf(objects[i])]}`,
+          );
+      }
+    }
+    if (resource.type === 'config' && !resource.values !== !resource.secretName)
+      fail(`resources.${resource.name}: set secretName and values together`);
   }
 
   if (validResources || !app.resources) {
@@ -709,7 +815,7 @@ export function databaseHost(app: App, spec: DatabaseSpec, platform: PlatformExp
 }
 
 export const refsFor = (app: App, world: World): Refs => ({
-  resource: (resource, env) => resourceEnv(app, resource, env, world),
+  resource: (resource, env, part) => resourceEnv(app, resource, env, world, part),
   secret: (kind, name) => secretRef(app, kind, name),
   config: (name) => {
     const found = app.resources?.find((r) => r.type === 'config' && r.name === name) as
@@ -756,6 +862,13 @@ export function validateResources(world: World) {
 
     for (const spec of Object.values(appWorkloads(app))) {
       expandWorkload(spec, refsFor(app, world));
+    }
+
+    for (const config of declared(app, 'config')) {
+      for (const ref of Object.values(config.values ?? {})) {
+        const kind = SECRET_KINDS.find((k) => ref[k]) as SecretKind;
+        secretRef(app, kind, ref[kind]);
+      }
     }
 
     for (const volume of declared(app, 'volume')) storageClass(app, volume, world.platform);
@@ -944,8 +1057,26 @@ export const declared = <T extends Resource['type']>(app: App, type: T) =>
 const specs = <S extends { name: string; type: string }>(resources: S[]) =>
   resources.map(({ name, type: _type, ...spec }) => [name, spec] as const);
 
+const HTTP_ONLY = [
+  'hosts',
+  'paths',
+  'rules',
+  'dns',
+  'ratelimit',
+  'timeouts',
+  'loadBalancer',
+] as const;
+
 export function appRoutes(app: App): Record<string, Route> {
-  return Object.fromEntries(specs(declared(app, 'route'))) as Record<string, Route>;
+  return Object.fromEntries(
+    specs(declared(app, 'route').filter((route) => route.protocol !== 'tcp')),
+  ) as Record<string, Route>;
+}
+
+export function appTcpRoutes(app: App): Record<string, Route> {
+  return Object.fromEntries(
+    specs(declared(app, 'route').filter((route) => route.protocol === 'tcp')),
+  ) as Record<string, Route>;
 }
 
 export function appOidc(app: App): Record<string, OidcClient> {
@@ -956,9 +1087,12 @@ export function appMetrics(app: App): Metrics[] {
   return specs(declared(app, 'metrics')).map(([, spec]) => spec as Metrics);
 }
 
-export function appSecrets(
-  app: App,
-): { name: string; secretName: string; secretTemplate?: SecretTemplate }[] {
+export function appSecrets(app: App): {
+  name: string;
+  secretName: string;
+  secretTemplate?: SecretTemplate;
+  generate?: Record<string, GeneratedKey>;
+}[] {
   return (app.resources ?? []).flatMap((resource) =>
     resource.type === 'secret'
       ? [
@@ -966,6 +1100,7 @@ export function appSecrets(
             name: resource.name,
             secretName: resource.secretName,
             secretTemplate: resource.secretTemplate,
+            generate: resource.generate,
           },
         ]
       : [],

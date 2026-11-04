@@ -2828,3 +2828,337 @@ test('init container and sidecar volumes join the pod', () => {
     /mounted from different sources/,
   );
 });
+
+test('a resource env can take the host or port of its url', () => {
+  const provider: App = {
+    name: 'gw',
+    network: { ingress: [] },
+    workloads: [
+      {
+        name: 'gw',
+        image: 'i',
+        ports: [{ name: 'api', container: 8080, service: 8080 }],
+        service: { name: 'gw' },
+      },
+    ],
+    exports: [{ name: 'api', workload: 'gw', port: 'api' }],
+  };
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'cache', type: 'cache' },
+        { name: 'gw', type: 'app', app: 'gw', export: 'api', path: '/v1' },
+        { name: 'traces', type: 'platform', export: 'tracing' },
+      ],
+      workloads: [
+        {
+          name: 'foo',
+          image: 'i',
+          env: {
+            REDIS_HOST: { resource: 'cache', part: 'host' },
+            REDIS_PORT: { resource: 'cache', part: 'port' },
+            REDIS_URL: { resource: 'cache', part: 'url' },
+            GW_HOST: { resource: 'gw', part: 'host' },
+            GW_PORT: { resource: 'gw', part: 'port' },
+            TRACES_PORT: { resource: 'traces', part: 'port' },
+          },
+        },
+      ],
+    },
+    'test',
+  );
+
+  assert.deepEqual(
+    source(render(app, target, [app, provider]), 'k8s-workload')?.helm.valuesObject.workloads[0]
+      .env,
+    [
+      { name: 'REDIS_HOST', value: 'cache' },
+      { name: 'REDIS_PORT', value: '6379' },
+      { name: 'REDIS_URL', value: 'redis://cache' },
+      { name: 'GW_HOST', value: 'gw.gw.svc.cluster.local' },
+      { name: 'GW_PORT', value: '8080' },
+      { name: 'TRACES_PORT', value: '80' },
+    ],
+  );
+  assert.equal(
+    containerEnv(app, { platform, apps: [app, provider] })[0].rows[0].from,
+    'resource cache host',
+  );
+  assert.throws(
+    () =>
+      validate(
+        {
+          ...base,
+          resources: [{ name: 'cache', type: 'cache' }],
+          workloads: [{ name: 'foo', image: 'i', env: { X: { resource: 'cache', part: 'path' } } }],
+        },
+        'test',
+      ),
+    /workloads\[0\].env is not exactly one/,
+  );
+});
+
+test('a generated secret pushes each key to openbao and syncs it back', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        {
+          name: 'app-key',
+          type: 'secret',
+          secretName: 'foo-app-key',
+          generate: {
+            APP_KEY: { length: 32, symbols: 0 },
+            SESSION_SECRET: { length: 64, digits: 10, symbols: 4, encoding: 'hex' },
+          },
+        },
+        { name: 'foo', type: 'secret', secretName: 'foo-secrets' },
+      ],
+      workloads: [{ name: 'foo', image: 'i', envFrom: [{ secret: 'app-key' }, { secret: 'foo' }] }],
+    },
+    'test',
+  );
+  const values = source(render(app), 'k8s-secrets')?.helm.valuesObject;
+
+  assert.deepEqual(values.secrets, [
+    { name: 'foo', managedSecrets: [{ secretName: 'foo-secrets' }] },
+  ]);
+  assert.deepEqual(values.generated, [
+    {
+      name: 'app-key',
+      secretName: 'foo-app-key',
+      keys: [
+        { name: 'APP_KEY', length: 32, symbols: 0 },
+        { name: 'SESSION_SECRET', length: 64, digits: 10, symbols: 4, encoding: 'hex' },
+      ],
+    },
+  ]);
+
+  const generated = (generate: unknown) =>
+    validate(
+      {
+        ...base,
+        resources: [{ name: 'k', type: 'secret', secretName: 'k', generate }],
+        workloads: [{ name: 'foo', image: 'i', envFrom: [{ secret: 'k' }] }],
+      },
+      'test',
+    );
+  assert.throws(() => generated({}), /generate/);
+  assert.throws(() => generated({ KEY: { length: 32 } }), /resources\[0\] is not exactly one/);
+  assert.throws(() => generated({ 'a-b': { length: 8, symbols: 0 } }), /letters, digits/);
+  assert.throws(
+    () => generated({ A_B: { length: 8, symbols: 0 }, a_b: { length: 8, symbols: 0 } }),
+    /a_b clashes with A_B/,
+  );
+});
+
+test('a config with values renders through a secret template', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'login', type: 'oidc', host: 'foo.anurag.sh', secretName: 'foo-oidc' },
+        { name: 'foo', type: 'database', secretName: 'foo-db' },
+        {
+          name: 'settings',
+          type: 'config',
+          configMap: 'foo-settings',
+          files: ['config/app.json'],
+          secretName: 'foo-settings-rendered',
+          values: {
+            CLIENT_ID: { oidc: 'login', key: 'client-id' },
+            DB_PASSWORD: { database: 'foo', key: 'PGPASSWORD' },
+          },
+        },
+      ],
+      workloads: [
+        {
+          name: 'foo',
+          image: 'i',
+          mounts: { settings: { path: '/config', config: 'settings' } },
+        },
+      ],
+    },
+    'test',
+  );
+  validateResources({ platform, apps: [app] });
+  const rendered = render(app);
+
+  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.templates, [
+    {
+      secretName: 'foo-settings-rendered',
+      configMap: 'foo-settings',
+      files: ['config/app.json'],
+      values: [
+        { name: 'CLIENT_ID', secret: 'foo-oidc', key: 'client-id' },
+        { name: 'DB_PASSWORD', secret: 'foo-db', key: 'PGPASSWORD' },
+      ],
+    },
+  ]);
+  const workload = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0];
+  assert.deepEqual(workload.volumes, [
+    {
+      name: 'settings',
+      secret: {
+        secretName: 'foo-settings-rendered',
+        items: [{ key: 'app.json', path: 'config/app.json' }],
+      },
+    },
+  ]);
+  assert.deepEqual(workload.volumeMounts, [
+    { name: 'settings', mountPath: '/config', readOnly: true },
+  ]);
+  assert.deepEqual(parse(renderKustomization(app, target) as string).configMapGenerator, [
+    { name: 'foo-settings', namespace: 'foo', files: ['config/app.json'] },
+  ]);
+
+  const config = (extra: Record<string, unknown>) =>
+    validate(
+      {
+        ...base,
+        resources: [{ name: 'c', type: 'config', configMap: 'c', files: ['a'], ...extra }],
+      },
+      'test',
+    );
+  assert.throws(() => config({ secretName: 's' }), /set secretName and values together/);
+  assert.throws(
+    () => config({ values: { A: { secret: 'x', key: 'k' } } }),
+    /set secretName and values together/,
+  );
+  assert.throws(
+    () => config({ secretName: 's', values: { A: { secret: 'x' } } }),
+    /resources\[0\] is not exactly one/,
+  );
+  assert.throws(
+    () =>
+      validateResources({
+        platform,
+        apps: [config({ secretName: 's', values: { A: { secret: 'missing', key: 'k' } } })],
+      }),
+    /no secret resource named missing/,
+  );
+});
+
+test('a secret used only by a config template counts as used', () => {
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        { name: 'creds', type: 'secret', secretName: 'foo-creds' },
+        {
+          name: 'settings',
+          type: 'config',
+          configMap: 'foo-settings',
+          files: ['app.json'],
+          secretName: 'foo-settings-rendered',
+          values: { TOKEN: { secret: 'creds', key: 'TOKEN' } },
+        },
+      ],
+      workloads: [{ name: 'foo', image: 'i', mounts: { s: { path: '/s', config: 'settings' } } }],
+    },
+    'test',
+  );
+
+  validateResources({ platform, apps: [app] });
+});
+
+test('a tcp route attaches to a gateway listener', () => {
+  const tcp = (extra: Record<string, unknown> = {}) =>
+    validate(
+      {
+        ...base,
+        resources: [
+          {
+            name: 'ssh',
+            type: 'route',
+            protocol: 'tcp',
+            listener: 'git-ssh',
+            auth: { mode: 'app', reason: 'ssh keys' },
+            backend: { name: 'foo', port: 22 },
+            ...extra,
+          },
+        ],
+        workloads: [
+          {
+            name: 'foo',
+            image: 'i',
+            ports: [{ name: 'ssh', container: 2222, service: 22 }],
+            service: { name: 'foo' },
+          },
+        ],
+      },
+      'test',
+    );
+  const app = tcp();
+  validateResources({ platform, apps: [app] });
+  const rendered = render(app);
+
+  assert.deepEqual(source(rendered, 'k8s-http-routes')?.helm.valuesObject, {
+    tcpRoutes: [
+      {
+        name: 'ssh',
+        gateway: { name: 'public-gateway', namespace: 'envoy-gateway-system' },
+        listener: 'git-ssh',
+        backend: { name: 'foo', port: 22 },
+      },
+    ],
+    routes: [],
+  });
+  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
+    'envoy-gateway-system',
+  ]);
+
+  assert.throws(() => tcp({ listener: undefined }), /listener is required for protocol tcp/);
+  assert.throws(() => tcp({ hosts: ['a.sh'] }), /hosts is only for protocol http/);
+  assert.throws(() => tcp({ dns: { provider: 'unifi' } }), /dns is only for protocol http/);
+  assert.throws(
+    () => tcp({ auth: { mode: 'jwt', clients: ['x'] } }),
+    /auth.mode must be app or none for protocol tcp/,
+  );
+  assert.throws(() => tcp({ auth: { mode: 'none', reason: ' ' } }), /auth.reason is required/);
+  assert.throws(
+    () =>
+      validate(
+        {
+          ...base,
+          resources: [
+            {
+              name: 'web',
+              type: 'route',
+              listener: 'git-ssh',
+              hosts: ['a.sh'],
+              auth: { mode: 'none', reason: 'public' },
+              backend: { name: 'foo', port: 80 },
+            },
+          ],
+        },
+        'test',
+      ),
+    /listener is only for protocol tcp/,
+  );
+  assert.throws(
+    () => validateResources({ platform, apps: [tcp({ backend: { name: 'foo', port: 23 } })] }),
+    /service foo has no port 23/,
+  );
+
+  const listeners = [
+    {
+      gateway: 'public-gateway',
+      name: 'git-ssh',
+      protocol: 'TCP',
+      labels: { 'kubernetes.io/metadata.name': 'foo' },
+    },
+    { gateway: 'public-gateway', name: 'web', protocol: 'HTTPS', hostname: 'a.sh', labels: {} },
+  ];
+  validateGatewayAccess([app], listeners);
+  assert.throws(
+    () => validateGatewayAccess([tcp({ listener: 'web' })], listeners),
+    /no TCP listener web on public-gateway/,
+  );
+  assert.throws(
+    () =>
+      validateGatewayAccess([{ ...app, name: 'bar' }], [{ ...listeners[0], labels: { x: 'y' } }]),
+    /git-ssh needs namespace.labels x/,
+  );
+});

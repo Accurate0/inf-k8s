@@ -73,6 +73,8 @@ const gatewayListeners = (): Listener[] =>
       const gateway = parse(fs.readText(`${GATEWAYS}/${entry.name}/gateway.yaml`));
       return gateway.spec.listeners.map((listener: Record<string, any>) => ({
         gateway: gateway.metadata.name,
+        name: listener.name,
+        protocol: listener.protocol,
         hostname: listener.hostname,
         labels: listener.allowedRoutes?.namespaces?.selector?.matchLabels,
       }));

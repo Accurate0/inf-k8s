@@ -6,6 +6,7 @@ import {
   appOidc,
   appRoutes,
   appSecrets,
+  appTcpRoutes,
   appWorkloads,
   databaseHost,
   databaseRole,
@@ -22,7 +23,7 @@ import {
   type Versions,
   type World,
 } from './render.ts';
-import { expandWorkload } from './workload.ts';
+import { expandWorkload, SECRET_KINDS, type SecretKind } from './workload.ts';
 
 export interface PlatformChart {
   type: 'chart';
@@ -113,6 +114,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   const databaseSecret = (database: string) => appDatabases(app)[database].secretName;
   const directory = `${target.location}/${name}`;
   const routes = Object.entries(appRoutes(app));
+  const tcpRoutes = Object.entries(appTcpRoutes(app));
   const sources: PlanSource[] = [];
   const serviceAccounts = [...declared(app, 'serviceAccount').map((account) => account.name)];
 
@@ -163,7 +165,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   }
 
   const ingress = [
-    ...(routes.length ? ['envoy-gateway-system'] : []),
+    ...(routes.length || tcpRoutes.length ? ['envoy-gateway-system'] : []),
     ...(appMetrics(app).length ? ['monitoring'] : []),
     ...app.network.ingress,
     ...world.apps
@@ -178,9 +180,22 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     sources.push(chart('k8s-network', { namespace, ingress: [...new Set(ingress)] }));
   }
 
-  if (routes.length) {
+  if (routes.length || tcpRoutes.length) {
     sources.push(
       chart('k8s-http-routes', {
+        ...(tcpRoutes.length
+          ? {
+              tcpRoutes: tcpRoutes.map(([routeName, route]) => ({
+                name: routeName,
+                gateway: {
+                  name: route.gateway ?? 'public-gateway',
+                  namespace: 'envoy-gateway-system',
+                },
+                listener: route.listener,
+                backend: route.backend,
+              })),
+            }
+          : {}),
         routes: routes.map(([routeName, route]) => {
           return {
             name: routeName,
@@ -283,14 +298,52 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
       : {}),
   });
 
-  if (appSecrets(app).length || bucketSecrets.length) {
+  const synced = [...appSecrets(app).filter((s) => !s.generate), ...bucketSecrets];
+  const generated = appSecrets(app).flatMap(
+    ({ name: secret, secretName, secretTemplate, generate }) =>
+      generate
+        ? [
+            {
+              name: secret,
+              secretName,
+              ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
+              ...(secretTemplate ? { template: { data: secretTemplate.data } } : {}),
+              keys: Object.entries(generate).map(([key, spec]) => ({ name: key, ...spec })),
+            },
+          ]
+        : [],
+  );
+  const refs = refsFor(app, world);
+  const templates = declared(app, 'config').flatMap(({ configMap, files, secretName, values }) =>
+    values
+      ? [
+          {
+            secretName,
+            configMap,
+            files,
+            values: Object.entries(values).map(([variable, ref]) => {
+              const kind = SECRET_KINDS.find((k) => ref[k]) as SecretKind;
+              return { name: variable, secret: refs.secret(kind, ref[kind]), key: ref.key };
+            }),
+          },
+        ]
+      : [],
+  );
+
+  if (synced.length || generated.length || templates.length) {
     sources.push(
       chart('k8s-secrets', {
         defaults: { namespace, provider: 'openbao', resyncInterval: 900, annotations },
-        secrets: [...appSecrets(app), ...bucketSecrets].map((s) => ({
-          name: s.name,
-          managedSecrets: [managedSecret(s)],
-        })),
+        ...(synced.length
+          ? {
+              secrets: synced.map((s) => ({
+                name: s.name,
+                managedSecrets: [managedSecret(s)],
+              })),
+            }
+          : {}),
+        ...(generated.length ? { generated } : {}),
+        ...(templates.length ? { templates } : {}),
       }),
     );
   }

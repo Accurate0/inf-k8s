@@ -3,14 +3,21 @@ type Values = Record<string, any>;
 export type SecretKind = 'secret' | 'database' | 'bucket' | 'oidc';
 
 export interface Refs {
-  resource: (resource: string, env: string) => { name: string; value: string };
+  resource: (
+    resource: string,
+    env: string,
+    part?: 'url' | 'host' | 'port',
+  ) => {
+    name: string;
+    value: string;
+  };
   secret: (kind: SecretKind, name: string) => string;
-  config: (name: string) => { configMap: string; files: string[] };
+  config: (name: string) => { configMap: string; files: string[]; secretName?: string };
   volume: (name: string) => string;
   service: (service: string, port: string | number, path?: string) => string;
 }
 
-const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket', 'oidc'];
+export const SECRET_KINDS: SecretKind[] = ['secret', 'database', 'bucket', 'oidc'];
 
 const secretKind = (value: Values) => SECRET_KINDS.find((kind) => value[kind]);
 
@@ -30,7 +37,7 @@ const TIMINGS = {
 function expandEnv(env: Values, refs: Refs) {
   return Object.entries(env).map(([name, value]) => {
     if (typeof value !== 'object' || value === null) return { name, value: String(value) };
-    if (value.resource) return refs.resource(value.resource, name);
+    if (value.resource) return refs.resource(value.resource, name, value.part);
     if (value.service) return { name, value: refs.service(value.service, value.port, value.path) };
 
     const kind = secretKind(value);
@@ -68,8 +75,8 @@ export function describeEnv(env: Values, refs: Refs): EnvSource[] {
     if (value.resource) {
       return {
         name,
-        from: `resource ${value.resource}`,
-        value: refs.resource(value.resource, name).value,
+        from: `resource ${value.resource}${value.part ? ` ${value.part}` : ''}`,
+        value: refs.resource(value.resource, name, value.part).value,
       };
     }
 
@@ -133,16 +140,15 @@ function expandMounts(mounts: Values, refs: Refs) {
   const entries = Object.entries<Values>(mounts).map(([name, mount]): [string, Values] => {
     if (mount.volume) return [name, { ...mount, claimName: refs.volume(mount.volume) }];
     if (!mount.config) return [name, mount];
-    const { configMap, files } = refs.config(mount.config);
-    return [
-      name,
-      { ...mount, configMap, items: files.map((path) => ({ key: path.split('/').pop(), path })) },
-    ];
+    const { configMap, files, secretName } = refs.config(mount.config);
+    const items = files.map((path) => ({ key: path.split('/').pop(), path }));
+    return [name, { ...mount, ...(secretName ? { secretName } : { configMap }), items }];
   });
 
   return {
-    volumes: entries.map(([name, { claimName, configMap, items }]) => {
+    volumes: entries.map(([name, { claimName, configMap, secretName, items }]) => {
       if (claimName) return { name, persistentVolumeClaim: { claimName } };
+      if (secretName) return { name, secret: { secretName, items } };
       return configMap
         ? {
             name,
@@ -153,10 +159,10 @@ function expandMounts(mounts: Values, refs: Refs) {
           }
         : { name, emptyDir: {} };
     }),
-    volumeMounts: entries.map(([name, { path, configMap }]) => ({
+    volumeMounts: entries.map(([name, { path, configMap, secretName }]) => ({
       name,
       mountPath: path,
-      ...(configMap ? { readOnly: true } : {}),
+      ...(configMap || secretName ? { readOnly: true } : {}),
     })),
   };
 }

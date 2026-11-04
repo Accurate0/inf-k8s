@@ -136,7 +136,7 @@
             }
           },
           "env": {
-            "description": "Map of variable to a string, {resource}, {service, port}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
+            "description": "Map of variable to a string, {resource, part}, {service, port}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
             "oneOf": [
               {
                 "type": "array",
@@ -164,6 +164,14 @@
                       "properties": {
                         "resource": {
                           "type": "string"
+                        },
+                        "part": {
+                          "enum": [
+                            "url",
+                            "host",
+                            "port"
+                          ],
+                          "description": "Part of the resource URL. Defaults to url."
                         }
                       }
                     },
@@ -722,6 +730,44 @@
                     }
                   }
                 }
+              },
+              "generate": {
+                "type": "object",
+                "description": "Generate these keys once and keep them in OpenBao at kv/<namespace>/generated/<name>, instead of reading values someone stored.",
+                "minProperties": 1,
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "length",
+                    "symbols"
+                  ],
+                  "properties": {
+                    "length": {
+                      "type": "integer",
+                      "minimum": 1
+                    },
+                    "digits": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Defaults to a quarter of the length."
+                    },
+                    "symbols": {
+                      "type": "integer",
+                      "minimum": 0
+                    },
+                    "encoding": {
+                      "enum": [
+                        "raw",
+                        "base64",
+                        "base64url",
+                        "base32",
+                        "hex"
+                      ],
+                      "description": "Defaults to raw."
+                    }
+                  }
+                }
               }
             }
           },
@@ -753,7 +799,6 @@
             "required": [
               "name",
               "type",
-              "hosts",
               "auth"
             ],
             "properties": {
@@ -764,6 +809,17 @@
                 "enum": [
                   "route"
                 ]
+              },
+              "protocol": {
+                "enum": [
+                  "http",
+                  "tcp"
+                ],
+                "description": "Defaults to http. tcp attaches a TCPRoute to a gateway listener and takes only gateway, listener, backend and auth."
+              },
+              "listener": {
+                "type": "string",
+                "description": "TCP listener on the gateway, for tcp."
               },
               "gateway": {
                 "type": "string"
@@ -1180,6 +1236,82 @@
                 "description": "Relative to the app directory. Mounted at the same relative path; the key is the basename.",
                 "items": {
                   "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string",
+                "description": "Render the files as go templates into this secret, which is mounted instead of the configmap. Needs values."
+              },
+              "values": {
+                "type": "object",
+                "description": "Template variables, read as {{ .NAME }}, taken from a key of a secret, database, bucket or oidc resource.",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "secret",
+                        "key"
+                      ],
+                      "properties": {
+                        "secret": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "database",
+                        "key"
+                      ],
+                      "properties": {
+                        "database": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "bucket",
+                        "key"
+                      ],
+                      "properties": {
+                        "bucket": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "oidc",
+                        "key"
+                      ],
+                      "properties": {
+                        "oidc": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
