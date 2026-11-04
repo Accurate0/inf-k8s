@@ -30,7 +30,12 @@ interface Condition {
 
 interface ParentRef {
   name: string;
+  namespace?: string;
+  sectionName?: string;
 }
+
+const sameParent = (a: ParentRef, b: ParentRef) =>
+  a.name === b.name && a.namespace === b.namespace && a.sectionName === b.sectionName;
 
 interface KubeObject {
   metadata: { name: string; labels?: Record<string, string> };
@@ -144,9 +149,9 @@ function volumes(app: App, ns: Kube): Check[] {
 function routes(app: App, ns: Kube): Check[] {
   const checks = Object.keys(appRoutes(app)).map((name) => {
     const route = ns.get<KubeObject>('httproutes', name);
-    const gateways = (route.spec?.parentRefs ?? []).map((ref: ParentRef) => ref.name);
+    const refs: ParentRef[] = route.spec?.parentRefs ?? [];
     const parents = (route.status?.parents ?? []).filter((parent: { parentRef: ParentRef }) =>
-      gateways.includes(parent.parentRef.name),
+      refs.some((ref) => sameParent(ref, parent.parentRef)),
     );
     const problems = parents.length
       ? parents.flatMap((parent: { conditions?: Condition[] }) =>
