@@ -15,6 +15,11 @@
         line: "%ansible-automation ALL=(ALL) NOPASSWD: ALL"
         validate: "visudo -cf %s"
 
+    - name: Lock root password
+      ansible.builtin.user:
+        name: root
+        password_lock: true
+
     - name: Add janitor user
       ansible.builtin.user:
         name: janitor

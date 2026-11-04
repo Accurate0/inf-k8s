@@ -11,10 +11,23 @@
           - curl
           - cryptsetup
           - dmsetup
-          - nfs-common
           - open-iscsi
           - htop
           - zfsutils-linux
+
+    - name: Install nfs-common
+      ansible.builtin.apt:
+        package: nfs-common
+      when: "'proxy' not in group_names"
+
+    - name: Remove rpcbind from the edge
+      ansible.builtin.apt:
+        package:
+          - nfs-common
+          - rpcbind
+        state: absent
+        purge: true
+      when: "'proxy' in group_names"
 
     - name: Enable iscsid
       ansible.builtin.systemd_service:
