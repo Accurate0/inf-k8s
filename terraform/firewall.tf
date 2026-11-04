@@ -61,14 +61,6 @@ resource "binarylane_server_firewall_rules" "proxy_firewall" {
       action                = "accept"
     },
     {
-      description           = "allow kubectl"
-      protocol              = "all"
-      source_addresses      = ["0.0.0.0/0"]
-      destination_addresses = binarylane_server.proxy[count.index].public_ipv4_addresses
-      destination_ports     = ["6443"]
-      action                = "accept"
-    },
-    {
       description           = "ping"
       protocol              = "icmp"
       source_addresses      = ["0.0.0.0/0"]
