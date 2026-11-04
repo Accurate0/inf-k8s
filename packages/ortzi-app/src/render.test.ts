@@ -2789,3 +2789,42 @@ test('describes where each env var comes from', () => {
     secret: { name: 'foo-secret', optional: false },
   });
 });
+
+test('init container and sidecar volumes join the pod', () => {
+  const out = short(
+    {
+      mounts: { data: { path: '/data', emptyDir: true } },
+      initContainers: [
+        {
+          name: 'init',
+          image: 'i',
+          mounts: {
+            template: { path: '/template', config: 'template' },
+            data: { path: '/data', emptyDir: true },
+          },
+        },
+      ],
+    },
+    {
+      resources: [{ name: 'template', type: 'config', configMap: 'foo-config', files: ['a.json'] }],
+    },
+  );
+
+  assert.deepEqual(
+    out.volumes.map((v: { name: string }) => v.name),
+    ['data', 'template'],
+  );
+  assert.equal(out.initContainers[0].volumes, undefined);
+  assert.deepEqual(out.initContainers[0].volumeMounts, [
+    { name: 'template', mountPath: '/template', readOnly: true },
+    { name: 'data', mountPath: '/data' },
+  ]);
+  assert.throws(
+    () =>
+      short({
+        mounts: { data: { path: '/data', emptyDir: true } },
+        sidecars: [{ name: 's', image: 's', mounts: { data: { path: '/d', configMap: 'x' } } }],
+      }),
+    /mounted from different sources/,
+  );
+});

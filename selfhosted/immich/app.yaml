@@ -45,6 +45,73 @@ resources:
     enableConnectionPooling: false
     extensions: [vector, vchord, cube, earthdistance]
   - {name: library, type: volume, claimName: immich-library, class: nfs-perth, size: 1Ti, access: ReadWriteMany}
+  - {name: template, type: config, configMap: immich-config, files: [immich.json.tmpl]}
+workloads:
+  - name: immich-server
+    image: ghcr.io/immich-app/immich-server
+    replicas: 1
+    runAsNonRoot: false
+    resources: {cpu: 500m, memory: 1Gi, memoryLimit: 4Gi}
+    ports:
+      - {name: http, container: 2283, service: 80}
+    probes:
+      http: {path: /api/server/ping, port: http}
+      startup: {every: 10, failures: 60}
+      readiness: {every: 30, timeout: 5}
+      liveness: {every: 60, timeout: 5}
+    env:
+      TZ: Australia/Perth
+      IMMICH_CONFIG_FILE: /config/immich.json
+      IMMICH_TRUSTED_PROXIES: 10.42.0.0/16
+      IMMICH_ALLOW_SETUP: "false"
+      DB_VECTOR_EXTENSION: vectorchord
+      REDIS_HOSTNAME: cache.dragonfly
+      DB_HOSTNAME: {database: immich, key: PGHOST}
+      DB_PORT: {database: immich, key: PGPORT}
+      DB_USERNAME: {database: immich, key: PGUSER}
+      DB_PASSWORD: {database: immich, key: PGPASSWORD}
+      DB_DATABASE_NAME: {database: immich, key: PGDATABASE}
+    mounts:
+      library: {path: /data, volume: library}
+      config: {path: /config, emptyDir: true}
+    initContainers:
+      - name: render-config
+        image: busybox
+        command:
+          - sh
+          - -euc
+          - |
+            sed -e "s|__OIDC_CLIENT_ID__|$OIDC_CLIENT_ID|" \
+                -e "s|__OIDC_CLIENT_SECRET__|$OIDC_CLIENT_SECRET|" \
+                /template/immich.json.tmpl > /config/immich.json
+        env:
+          OIDC_CLIENT_ID: {oidc: immich, key: client-id}
+          OIDC_CLIENT_SECRET: {oidc: immich, key: client-secret}
+        mounts:
+          config-template: {path: /template, config: template}
+          config: {path: /config, emptyDir: true}
+    service:
+      name: immich-server
+    overrides:
+      strategy:
+        type: Recreate
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: inf-k8s.net/location
+                    operator: In
+                    values:
+                      - perth
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+            - weight: 100
+              podAffinityTerm:
+                topologyKey: kubernetes.io/hostname
+                labelSelector:
+                  matchLabels:
+                    app: immich-server
 sources:
   - type: manifests
     path: .

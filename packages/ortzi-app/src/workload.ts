@@ -226,9 +226,21 @@ export function expandWorkload(spec: Values, refs: Refs): Values {
     };
   }
 
+  const volumes: Values[] = out.volumes ?? [];
   for (const key of ['initContainers', 'sidecars']) {
-    if (out[key]) out[key] = out[key].map((container: Values) => expandContainer(container, refs));
+    if (!out[key]) continue;
+    out[key] = out[key].map((container: Values) => {
+      const { volumes: own = [], ...expanded } = expandContainer(container, refs);
+      for (const volume of own) {
+        const existing = volumes.find((v) => v.name === volume.name);
+        if (!existing) volumes.push(volume);
+        else if (JSON.stringify(existing) !== JSON.stringify(volume))
+          throw new Error(`volume ${volume.name} is mounted from different sources`);
+      }
+      return expanded;
+    });
   }
+  if (volumes.length) out.volumes = volumes;
 
   return { ...out, ...overrides };
 }
