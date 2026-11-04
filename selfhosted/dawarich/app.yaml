@@ -39,6 +39,124 @@ resources:
     role: dawarich_2
   - {name: storage, type: volume, claimName: dawarich-storage, class: replicated, size: 20Gi, access: ReadWriteOnce, backup: daily}
   - {name: photon, type: volume, claimName: dawarich-photon-data, class: local, size: 400Gi, access: ReadWriteOnce}
-sources:
-  - type: manifests
-    path: .
+  - {name: cache, type: cache}
+workloads:
+  - name: dawarich
+    image: freikin/dawarich
+    replicas: 1
+    command: [web-entrypoint.sh]
+    args: [bin/rails, server, -p, "3000", -b, "::"]
+    runAsNonRoot: false
+    resources: {cpu: 100m, memory: 512Mi, memoryLimit: 2Gi}
+    ports:
+      - {name: http, container: 3000, service: 80}
+    probes:
+      http: {path: /api/v1/health, port: http}
+      readiness: {delay: 20, every: 30, timeout: 5}
+      liveness: {delay: 60, every: 60, timeout: 5}
+    env:
+      RAILS_ENV: production
+      RAILS_LOG_TO_STDOUT: "true"
+      SELF_HOSTED: "true"
+      STORE_GEODATA: "true"
+      APPLICATION_HOSTS: timeline.anurag.sh
+      APPLICATION_PROTOCOL: http
+      TIME_ZONE: Australia/Perth
+      REDIS_URL: {resource: cache}
+      RAILS_JOB_QUEUE_DB: "1"
+      OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/dawarich
+      OIDC_REDIRECT_URI: https://timeline.anurag.sh/users/auth/openid_connect/callback
+      OIDC_PROVIDER_NAME: Kanidm
+      OIDC_AUTO_REGISTER: "true"
+      OIDC_PKCE_ENABLED: "true"
+      PHOTON_API_USE_HTTPS: "false"
+      PHOTON_API_HOST: photon:2322
+      ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
+      ALLOW_EMAIL_PASSWORD_LOGIN: "false"
+      BACKGROUND_PROCESSING_CONCURRENCY: "5"
+      DATABASE_HOST: {database: dawarich, key: PGHOST}
+      DATABASE_PORT: {database: dawarich, key: PGPORT}
+      DATABASE_USERNAME: {database: dawarich, key: PGUSER}
+      DATABASE_PASSWORD: {database: dawarich, key: PGPASSWORD}
+      DATABASE_NAME: {database: dawarich, key: PGDATABASE}
+      SECRET_KEY_BASE: {secret: dawarich, key: SECRET_KEY_BASE}
+      OIDC_CLIENT_ID: {oidc: dawarich, key: client-id}
+      OIDC_CLIENT_SECRET: {oidc: dawarich, key: client-secret}
+    mounts:
+      storage: {path: /var/app/storage, volume: storage}
+      public: {path: /var/app/public, emptyDir: true}
+      watched: {path: /var/app/tmp/imports/watched, emptyDir: true}
+    sidecars:
+      - name: sidekiq
+        image: freikin/dawarich
+        command: [sidekiq-entrypoint.sh]
+        args: [sidekiq]
+        resources: {cpu: 100m, memory: 512Mi, memoryLimit: 2Gi}
+        probes:
+          exec: {command: [sh, -c, pgrep -f sidekiq]}
+          liveness: {delay: 60, every: 60}
+        env:
+          RAILS_ENV: production
+          RAILS_LOG_TO_STDOUT: "true"
+          SELF_HOSTED: "true"
+          STORE_GEODATA: "true"
+          APPLICATION_HOSTS: timeline.anurag.sh
+          APPLICATION_PROTOCOL: http
+          TIME_ZONE: Australia/Perth
+          REDIS_URL: {resource: cache}
+          RAILS_JOB_QUEUE_DB: "1"
+          OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/dawarich
+          OIDC_REDIRECT_URI: https://timeline.anurag.sh/users/auth/openid_connect/callback
+          OIDC_PROVIDER_NAME: Kanidm
+          OIDC_AUTO_REGISTER: "true"
+          OIDC_PKCE_ENABLED: "true"
+          PHOTON_API_USE_HTTPS: "false"
+          PHOTON_API_HOST: photon:2322
+          ALLOW_EMAIL_PASSWORD_REGISTRATION: "false"
+          ALLOW_EMAIL_PASSWORD_LOGIN: "false"
+          BACKGROUND_PROCESSING_CONCURRENCY: "5"
+          DATABASE_HOST: {database: dawarich, key: PGHOST}
+          DATABASE_PORT: {database: dawarich, key: PGPORT}
+          DATABASE_USERNAME: {database: dawarich, key: PGUSER}
+          DATABASE_PASSWORD: {database: dawarich, key: PGPASSWORD}
+          DATABASE_NAME: {database: dawarich, key: PGDATABASE}
+          SECRET_KEY_BASE: {secret: dawarich, key: SECRET_KEY_BASE}
+        mounts:
+          storage: {path: /var/app/storage, volume: storage}
+          public: {path: /var/app/public, emptyDir: true}
+          watched: {path: /var/app/tmp/imports/watched, emptyDir: true}
+    service:
+      name: dawarich
+    overrides:
+      strategy:
+        type: Recreate
+  - name: photon
+    image: rtuszik/photon-docker
+    replicas: 1
+    runAsNonRoot: false
+    resources: {cpu: 250m, memory: 1Gi, memoryLimit: 4Gi}
+    ports:
+      - {name: http, container: 2322, service: 2322}
+    probes:
+      http: {path: /status, port: http}
+      startup: {every: 60, timeout: 5, failures: 1440}
+      readiness: {every: 30, timeout: 5}
+      liveness: {every: 60, timeout: 5}
+    env:
+      UPDATE_STRATEGY: DISABLED
+    mounts:
+      photon-data: {path: /photon/data, volume: photon}
+    service:
+      name: photon
+    overrides:
+      strategy:
+        type: Recreate
+      affinity:
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+              - matchExpressions:
+                  - key: kubernetes.io/hostname
+                    operator: In
+                    values:
+                      - k8s-optiplex-4

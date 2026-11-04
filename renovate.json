@@ -68,6 +68,14 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^selfhosted/[^/]+/image\\.values\\.yaml$/"],
+      "matchStrings": [
+        "\\n\\s+(?<depName>[^:\\s]+):\\s*(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]+)"
+      ],
+      "datasourceTemplate": "docker"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": ["/^platform/versions\\.yaml$/"],
       "matchStrings": ["(?<depName>k8s-[a-z-]+):\\s*(?<currentValue>\\S+)"],
       "packageNameTemplate": "ghcr.io/accurate0/charts/{{{depName}}}",
