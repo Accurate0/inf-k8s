@@ -7,8 +7,6 @@ namespace:
   labels:
     internal-gateway-access: "true"
 resources:
-  # Spotify Web API app credentials, from OpenBao kv/spotify (SPOTIFY_CLIENT_ID,
-  # SPOTIFY_CLIENT_SECRET).
   - {name: spotify, type: secret, secretName: spotify-managed-secrets}
   - name: spotify
     type: database
@@ -29,7 +27,6 @@ resources:
         backend: {name: spotify-api, port: 80}
       - paths: [/]
         backend: {name: spotify-web, port: 80}
-  # Public client shared by the SPA and the CLI (ortzi.yaml auth.client_id).
   - name: spotify
     type: oidc
     secretName: kanidm-spotify-oidc
@@ -61,12 +58,10 @@ workloads:
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/spotify
       OIDC_AUDIENCE: spotify
       OIDC_GROUPS: spotify_users
-      # Optional so the API still starts before kv/spotify has been filled in.
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID, optional: true}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET, optional: true}
     envFrom:
       - database: spotify
-    # GraphQL multipart uploads (export files) are spooled to /tmp; the root fs is read-only.
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     service:
@@ -79,7 +74,6 @@ workloads:
     probes:
       http: {path: /, port: 8080}
       readiness: {delay: 3, every: 30}
-    # nginx writes its temp dirs and pid under /tmp; the root filesystem is read-only.
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     service:
