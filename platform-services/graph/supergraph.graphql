@@ -2,6 +2,7 @@
 schema @link(url: "https://specs.apollo.dev/link/v1.0") @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION) @link(url: "https://specs.apollo.dev/inaccessible/v0.2", for: SECURITY) {
   query: Query
   mutation: Mutation
+  subscription: Subscription
 }
 
 directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
@@ -862,22 +863,26 @@ type ModeUpdate @join__type(graph: HOME_GATEWAY) {
   previous: Mode!
 }
 
-type MutationRoot @join__type(graph: HOME_GATEWAY) {
-  light(id: IdOrAlias!): LightMutation!
-  robotVacuum(id: IdOrAlias!): RobotVacuumMutation!
-  garageDoor(id: IdOrAlias!): GarageDoorMutation!
-  airPurifier(id: IdOrAlias!): AirPurifierMutation!
-  deviceLock(id: IdOrAlias!): DeviceLockMutation!
-  mediaPlayer(id: IdOrAlias!): MediaPlayerMutation!
-  einkDisplay(id: IdOrAlias!): EinkDisplayMutation!
-  setWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean!
-  setMode(mode: Mode!): Mode!
-  runWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID!
-  runPendingAdhocTasks: Boolean!
-  runAdhocCronTask(name: String!): Boolean!
-  sendPushNotification(input: SendPushNotificationInput!): Boolean!
-  recordNotificationInteraction(id: UUID!, kind: NotificationInteractionKind!): Boolean!
-  executeLua(script: String!, vars: JSON, dryRun: Boolean): JSON!
+type Mutation @join__type(graph: HOME_GATEWAY) @join__type(graph: SPOTIFY) {
+  light(id: IdOrAlias!): LightMutation! @join__field(graph: HOME_GATEWAY)
+  robotVacuum(id: IdOrAlias!): RobotVacuumMutation! @join__field(graph: HOME_GATEWAY)
+  garageDoor(id: IdOrAlias!): GarageDoorMutation! @join__field(graph: HOME_GATEWAY)
+  airPurifier(id: IdOrAlias!): AirPurifierMutation! @join__field(graph: HOME_GATEWAY)
+  deviceLock(id: IdOrAlias!): DeviceLockMutation! @join__field(graph: HOME_GATEWAY)
+  mediaPlayer(id: IdOrAlias!): MediaPlayerMutation! @join__field(graph: HOME_GATEWAY)
+  einkDisplay(id: IdOrAlias!): EinkDisplayMutation! @join__field(graph: HOME_GATEWAY)
+  setWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean! @join__field(graph: HOME_GATEWAY)
+  setMode(mode: Mode!): Mode! @join__field(graph: HOME_GATEWAY)
+  runWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID! @join__field(graph: HOME_GATEWAY)
+  runPendingAdhocTasks: Boolean! @join__field(graph: HOME_GATEWAY)
+  runAdhocCronTask(name: String!): Boolean! @join__field(graph: HOME_GATEWAY)
+  sendPushNotification(input: SendPushNotificationInput!): Boolean! @join__field(graph: HOME_GATEWAY)
+  recordNotificationInteraction(id: UUID!, kind: NotificationInteractionKind!): Boolean! @join__field(graph: HOME_GATEWAY)
+  executeLua(script: String!, vars: JSON, dryRun: Boolean): JSON! @join__field(graph: HOME_GATEWAY)
+  createAccount(input: CreateAccountInput!): CreateAccountPayload! @join__field(graph: SPOTIFY)
+  createExport(input: CreateExportInput!): CreateExportPayload! @join__field(graph: SPOTIFY) @inaccessible
+  uploadExportFile(input: UploadExportFileInput!, file: Upload!): UploadExportFilePayload! @join__field(graph: SPOTIFY) @inaccessible
+  finalizeExport(input: FinalizeExportInput!): FinalizeExportPayload! @join__field(graph: SPOTIFY) @inaccessible
 }
 
 type PartialWindow @join__type(graph: HOME_GATEWAY) {
@@ -986,9 +991,9 @@ type PushNotificationInteraction @join__type(graph: HOME_GATEWAY) {
   at: DateTime!
 }
 
-type QueryRoot @join__type(graph: HOME_GATEWAY) {
-  auth: AuthObject!
-  homeAssistant: HomeAssistantObject!
+type Query @join__type(graph: HOME_GATEWAY) @join__type(graph: SPOTIFY) {
+  auth: AuthObject! @join__field(graph: HOME_GATEWAY)
+  homeAssistant: HomeAssistantObject! @join__field(graph: HOME_GATEWAY)
   """
   Every configured entity and its current state. Entity types the caller
   lacks a `graphql:<type>:read` scope for are silently omitted — this query
@@ -997,34 +1002,59 @@ type QueryRoot @join__type(graph: HOME_GATEWAY) {
   a device kind is a backend concern — the frontend renders whatever order
   and titles this returns.
   """
-  entitySections: [EntitySection!]!
-  deviceConnections: [DeviceConnection!]!
-  entities: [Entity!]!
-  mediaPlayer(id: IdOrAlias!): MediaPlayerEntity!
-  light(id: IdOrAlias!): LightEntity!
-  door(id: IdOrAlias!): DoorEntity!
-  presence(id: IdOrAlias!): PresenceEntity!
-  environment(id: IdOrAlias!): EnvironmentEntity!
-  plant(id: IdOrAlias!): PlantEntity!
-  einkDisplay(id: IdOrAlias!): EinkDisplayEntity!
-  robotVacuum(id: IdOrAlias!): RobotVacuumEntity!
-  garageDoor(id: IdOrAlias!): GarageDoorEntity!
-  airPurifier(id: IdOrAlias!): AirPurifierEntity!
-  solar: SolarObject!
-  energy: EnergyObject!
-  weather(input: WeatherInput!): WeatherObject!
-  woolworths: WoolworthsObject!
-  transperth: TransperthObject!
-  fuelwatch(postcode: Int): FuelWatchObject!
-  unraid: Unraid
-  workflows: [WorkflowStatus!]!
-  mode: ModeStatus!
-  workflowRuns(slug: String, eventId: UUID, limit: Int): [WorkflowRun!]!
-  jellyfin: JellyfinObject!
-  adhocCronTasks: [AdhocCronTaskStatus!]!
-  adhocTasks: [AdhocTaskStatus!]!
-  pushNotifications(limit: Int): [PushNotification!]!
-  luaApi: LuaApiObject!
+  entitySections: [EntitySection!]! @join__field(graph: HOME_GATEWAY)
+  deviceConnections: [DeviceConnection!]! @join__field(graph: HOME_GATEWAY)
+  entities: [Entity!]! @join__field(graph: HOME_GATEWAY)
+  mediaPlayer(id: IdOrAlias!): MediaPlayerEntity! @join__field(graph: HOME_GATEWAY)
+  light(id: IdOrAlias!): LightEntity! @join__field(graph: HOME_GATEWAY)
+  door(id: IdOrAlias!): DoorEntity! @join__field(graph: HOME_GATEWAY)
+  presence(id: IdOrAlias!): PresenceEntity! @join__field(graph: HOME_GATEWAY)
+  environment(id: IdOrAlias!): EnvironmentEntity! @join__field(graph: HOME_GATEWAY)
+  plant(id: IdOrAlias!): PlantEntity! @join__field(graph: HOME_GATEWAY)
+  einkDisplay(id: IdOrAlias!): EinkDisplayEntity! @join__field(graph: HOME_GATEWAY)
+  robotVacuum(id: IdOrAlias!): RobotVacuumEntity! @join__field(graph: HOME_GATEWAY)
+  garageDoor(id: IdOrAlias!): GarageDoorEntity! @join__field(graph: HOME_GATEWAY)
+  airPurifier(id: IdOrAlias!): AirPurifierEntity! @join__field(graph: HOME_GATEWAY)
+  solar: SolarObject! @join__field(graph: HOME_GATEWAY)
+  energy: EnergyObject! @join__field(graph: HOME_GATEWAY)
+  weather(input: WeatherInput!): WeatherObject! @join__field(graph: HOME_GATEWAY)
+  woolworths: WoolworthsObject! @join__field(graph: HOME_GATEWAY)
+  transperth: TransperthObject! @join__field(graph: HOME_GATEWAY)
+  fuelwatch(postcode: Int): FuelWatchObject! @join__field(graph: HOME_GATEWAY)
+  unraid: Unraid @join__field(graph: HOME_GATEWAY)
+  workflows: [WorkflowStatus!]! @join__field(graph: HOME_GATEWAY)
+  mode: ModeStatus! @join__field(graph: HOME_GATEWAY)
+  workflowRuns(slug: String, eventId: UUID, limit: Int): [WorkflowRun!]! @join__field(graph: HOME_GATEWAY)
+  jellyfin: JellyfinObject! @join__field(graph: HOME_GATEWAY)
+  adhocCronTasks: [AdhocCronTaskStatus!]! @join__field(graph: HOME_GATEWAY)
+  adhocTasks: [AdhocTaskStatus!]! @join__field(graph: HOME_GATEWAY)
+  pushNotifications(limit: Int): [PushNotification!]! @join__field(graph: HOME_GATEWAY)
+  luaApi: LuaApiObject! @join__field(graph: HOME_GATEWAY)
+  node(id: ID!): Node @join__field(graph: SPOTIFY)
+  nodes(ids: [ID!]!): [Node]! @join__field(graph: SPOTIFY)
+  accounts: [Account!]! @join__field(graph: SPOTIFY)
+  account(slug: String!): Account @join__field(graph: SPOTIFY)
+  """
+  Listening stats across the filtered plays.
+  """
+  stats(
+    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): Stats! @join__field(graph: SPOTIFY)
+  """
+  Search tracks, episodes and artists by name.
+  """
+  search(query: String!): Search! @join__field(graph: SPOTIFY)
+  item(uri: String!): Item @join__field(graph: SPOTIFY)
+  artist(name: String!): Artist @join__field(graph: SPOTIFY)
+  """
+  Progress of Spotify Web API enrichment (metadata, genres, artwork).
+  """
+  enrichment: Enrichment! @join__field(graph: SPOTIFY)
+  """
+  Whether a file with this sha256 has already been imported for the account, so clients
+  can skip uploading it.
+  """
+  fileExists(account: String!, sha256: String!): Boolean! @join__field(graph: SPOTIFY) @inaccessible
 }
 
 type RobotVacuumEntity @join__type(graph: HOME_GATEWAY) {
@@ -1089,6 +1119,10 @@ type SolarObject @join__type(graph: HOME_GATEWAY) {
 type SolarUpdate @join__type(graph: HOME_GATEWAY) {
   eventId: UUID!
   currentWh: Float!
+}
+
+type Subscription @join__type(graph: HOME_GATEWAY) {
+  events(filter: String! = "*"): EventUpdate!
 }
 
 type SunUpdate @join__type(graph: HOME_GATEWAY) {
@@ -1639,13 +1673,6 @@ type MusicAge @join__type(graph: SPOTIFY) {
   oldestYear: Int
 }
 
-type Mutation @join__type(graph: SPOTIFY) {
-  createAccount(input: CreateAccountInput!): CreateAccountPayload!
-  createExport(input: CreateExportInput!): CreateExportPayload! @inaccessible
-  uploadExportFile(input: UploadExportFileInput!, file: Upload!): UploadExportFilePayload! @inaccessible
-  finalizeExport(input: FinalizeExportInput!): FinalizeExportPayload! @inaccessible
-}
-
 """
 Information about pagination in a connection
 """
@@ -1712,34 +1739,6 @@ type PlayEdge @join__type(graph: SPOTIFY) {
   A cursor for use in pagination
   """
   cursor: String!
-}
-
-type Query @join__type(graph: HOME_GATEWAY) @join__type(graph: SPOTIFY) {
-  node(id: ID!): Node @join__field(graph: SPOTIFY)
-  nodes(ids: [ID!]!): [Node]! @join__field(graph: SPOTIFY)
-  accounts: [Account!]! @join__field(graph: SPOTIFY)
-  account(slug: String!): Account @join__field(graph: SPOTIFY)
-  """
-  Listening stats across the filtered plays.
-  """
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats! @join__field(graph: SPOTIFY)
-  """
-  Search tracks, episodes and artists by name.
-  """
-  search(query: String!): Search! @join__field(graph: SPOTIFY)
-  item(uri: String!): Item @join__field(graph: SPOTIFY)
-  artist(name: String!): Artist @join__field(graph: SPOTIFY)
-  """
-  Progress of Spotify Web API enrichment (metadata, genres, artwork).
-  """
-  enrichment: Enrichment! @join__field(graph: SPOTIFY)
-  """
-  Whether a file with this sha256 has already been imported for the account, so clients
-  can skip uploading it.
-  """
-  fileExists(account: String!, sha256: String!): Boolean! @join__field(graph: SPOTIFY) @inaccessible
 }
 
 type RankedAlbumConnection @join__type(graph: SPOTIFY) {

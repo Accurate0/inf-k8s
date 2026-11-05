@@ -800,7 +800,7 @@ type ModeUpdate {
   previous: Mode!
 }
 
-type MutationRoot {
+type Mutation {
   light(id: IdOrAlias!): LightMutation!
   robotVacuum(id: IdOrAlias!): RobotVacuumMutation!
   garageDoor(id: IdOrAlias!): GarageDoorMutation!
@@ -816,6 +816,7 @@ type MutationRoot {
   sendPushNotification(input: SendPushNotificationInput!): Boolean!
   recordNotificationInteraction(id: UUID!, kind: NotificationInteractionKind!): Boolean!
   executeLua(script: String!, vars: JSON, dryRun: Boolean): JSON!
+  createAccount(input: CreateAccountInput!): CreateAccountPayload!
 }
 
 type PartialWindow {
@@ -924,7 +925,7 @@ type PushNotificationInteraction {
   at: DateTime!
 }
 
-type QueryRoot {
+type Query {
   auth: AuthObject!
   homeAssistant: HomeAssistantObject!
   """
@@ -963,6 +964,26 @@ type QueryRoot {
   adhocTasks: [AdhocTaskStatus!]!
   pushNotifications(limit: Int): [PushNotification!]!
   luaApi: LuaApiObject!
+  node(id: ID!): Node
+  nodes(ids: [ID!]!): [Node]!
+  accounts: [Account!]!
+  account(slug: String!): Account
+  """
+  Listening stats across the filtered plays.
+  """
+  stats(
+    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): Stats!
+  """
+  Search tracks, episodes and artists by name.
+  """
+  search(query: String!): Search!
+  item(uri: String!): Item
+  artist(name: String!): Artist
+  """
+  Progress of Spotify Web API enrichment (metadata, genres, artwork).
+  """
+  enrichment: Enrichment!
 }
 
 type RobotVacuumEntity {
@@ -1027,6 +1048,10 @@ type SolarObject {
 type SolarUpdate {
   eventId: UUID!
   currentWh: Float!
+}
+
+type Subscription {
+  events(filter: String! = "*"): EventUpdate!
 }
 
 type SunUpdate {
@@ -1577,10 +1602,6 @@ type MusicAge {
   oldestYear: Int
 }
 
-type Mutation {
-  createAccount(input: CreateAccountInput!): CreateAccountPayload!
-}
-
 """
 Information about pagination in a connection
 """
@@ -1647,29 +1668,6 @@ type PlayEdge {
   A cursor for use in pagination
   """
   cursor: String!
-}
-
-type Query {
-  node(id: ID!): Node
-  nodes(ids: [ID!]!): [Node]!
-  accounts: [Account!]!
-  account(slug: String!): Account
-  """
-  Listening stats across the filtered plays.
-  """
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats!
-  """
-  Search tracks, episodes and artists by name.
-  """
-  search(query: String!): Search!
-  item(uri: String!): Item
-  artist(name: String!): Artist
-  """
-  Progress of Spotify Web API enrichment (metadata, genres, artwork).
-  """
-  enrichment: Enrichment!
 }
 
 type RankedAlbumConnection {

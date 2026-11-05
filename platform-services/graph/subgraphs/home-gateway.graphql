@@ -853,7 +853,7 @@ type ModeUpdate {
 	previous: Mode!
 }
 
-type MutationRoot {
+type Mutation {
 	light(id: IdOrAlias!): LightMutation!
 	robotVacuum(id: IdOrAlias!): RobotVacuumMutation!
 	garageDoor(id: IdOrAlias!): GarageDoorMutation!
@@ -1025,7 +1025,7 @@ type PushNotificationInteraction {
 	at: DateTime!
 }
 
-type QueryRoot {
+type Query {
 	auth: AuthObject!
 	homeAssistant: HomeAssistantObject!
 	"""
@@ -1170,6 +1170,10 @@ type SolarObject {
 type SolarUpdate {
 	eventId: UUID!
 	currentWh: Float!
+}
+
+type Subscription {
+	events(filter: String! = "*"): EventUpdate!
 }
 
 type SunUpdate {
