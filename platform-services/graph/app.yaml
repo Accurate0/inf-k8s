@@ -56,6 +56,8 @@ workloads:
     env:
       ROUTER_CONFIG_FILE_PATH: /etc/graph/router.yaml
       OTEL_TRACING_URL: {resource: traces}
+    envFrom:
+      - bucket: supergraph
     mounts:
       config: {path: /etc/graph, config: config}
     service:
@@ -68,7 +70,8 @@ workloads:
     command: [sh, -c]
     args:
       - >-
-        curl -fsS --aws-sigv4 "aws:amz:$S3_REGION:s3"
+        curl -fsS --retry 5 --retry-connrefused --retry-delay 2
+        --aws-sigv4 "aws:amz:$S3_REGION:s3"
         --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY"
         -H "x-amz-content-sha256: UNSIGNED-PAYLOAD"
         -T /etc/graph/supergraph.graphql

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T16:12:34.183Z
+# generated at 2026-11-05T16:17:19.551Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -45,6 +45,9 @@ spec:
                   value: /etc/graph/router.yaml
                 - name: OTEL_TRACING_URL
                   value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              envFrom:
+                - secretRef:
+                    name: supergraph-bucket-secrets
               service:
                 name: router
                 ports:
@@ -89,7 +92,7 @@ spec:
                 - sh
                 - -c
               args:
-                - 'curl -fsS --aws-sigv4 "aws:amz:$S3_REGION:s3" --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY" -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" -T /etc/graph/supergraph.graphql "$S3_ENDPOINT/$S3_BUCKET/supergraph.graphql"'
+                - 'curl -fsS --retry 5 --retry-connrefused --retry-delay 2 --aws-sigv4 "aws:amz:$S3_REGION:s3" --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY" -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" -T /etc/graph/supergraph.graphql "$S3_ENDPOINT/$S3_BUCKET/supergraph.graphql"'
               envFrom:
                 - secretRef:
                     name: supergraph-bucket-secrets
