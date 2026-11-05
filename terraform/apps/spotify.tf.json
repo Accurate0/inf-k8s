@@ -31,6 +31,34 @@
         ],
         "token_ttl": 3600
       }
+    },
+    "garage_bucket": {
+      "spotify-artwork": {
+        "global_alias": "spotify-artwork",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "garage_key": {
+      "spotify-artwork": {
+        "name": "spotify-artwork"
+      }
+    },
+    "garage_bucket_permission": {
+      "spotify-artwork": {
+        "bucket_id": "${garage_bucket.spotify-artwork.id}",
+        "access_key_id": "${garage_key.spotify-artwork.id}",
+        "read": true,
+        "write": true
+      }
+    },
+    "vault_kv_secret_v2": {
+      "spotify-artwork": {
+        "mount": "${var.kv_mount}",
+        "name": "spotify/resource-artwork",
+        "data_json": "{\"S3_BUCKET\":\"spotify-artwork\",\"S3_ENDPOINT\":\"${var.garage_s3_endpoint}\",\"S3_REGION\":\"garage\",\"S3_ACCESS_KEY_ID\":\"${garage_key.spotify-artwork.id}\",\"S3_SECRET_ACCESS_KEY\":\"${garage_key.spotify-artwork.secret_access_key}\"}"
+      }
     }
   }
 }

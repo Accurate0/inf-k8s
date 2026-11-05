@@ -8,6 +8,7 @@ namespace:
     internal-gateway-access: "true"
 resources:
   - {name: spotify, type: secret, secretName: spotify-managed-secrets}
+  - {name: artwork, type: bucket, provider: garage, bucket: spotify-artwork, secretName: artwork-bucket-secrets}
   - name: spotify
     type: database
     secretName: spotify-database-secret
@@ -23,7 +24,7 @@ resources:
       - spotify.ortzi.cloud
     dns: {provider: cloudflare, proxied: false}
     rules:
-      - paths: [/graphql, /health]
+      - paths: [/graphql, /health, /art]
         backend: {name: api, port: 80}
       - paths: [/]
         backend: {name: spotify-web, port: 80}
@@ -62,6 +63,7 @@ workloads:
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET, optional: true}
     envFrom:
       - database: spotify
+      - bucket: artwork
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     service:
@@ -78,3 +80,18 @@ workloads:
       tmp: {path: /tmp, emptyDir: true}
     service:
       name: spotify-web
+  - name: spotify-enrich
+    image: ghcr.io/accurate0/spotify
+    kind: CronJob
+    schedule: "*/15 * * * *"
+    backoffLimit: 0
+    command:
+      - spotify-server
+      - enrich
+    resources: {memory: 32Mi, memoryLimit: 128Mi}
+    env:
+      SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET}
+    envFrom:
+      - database: spotify
+      - bucket: artwork
