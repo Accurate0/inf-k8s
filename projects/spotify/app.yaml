@@ -20,13 +20,13 @@ resources:
     type: route
     auth:
       mode: app
-      reason: spotify-api verifies Kanidm JWTs on /graphql, the rest is a static spa
+      reason: spotify-api verifies Kanidm JWTs on /v1/graphql, the rest is a static spa
     gateway: internal-gateway
     hosts:
       - spotify.ortzi.cloud
     dns: {provider: cloudflare, proxied: false}
     rules:
-      - paths: [/graphql, /health, /art]
+      - paths: [/graphql, /v1/graphql, /health, /art]
         backend: {name: api, port: 80}
       - paths: [/]
         backend: {name: spotify-web, port: 80}
