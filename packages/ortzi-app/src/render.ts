@@ -965,6 +965,11 @@ export function validateSubgraphs(apps: App[]) {
       `${subgraphs.map((s) => s.app).join(', ')}: subgraphs need an app declaring a supergraph`,
     );
   }
+  const reserved = subgraphs.find((subgraph) => subgraph.name === 'node');
+  if (reserved) {
+    throw new Error(`${reserved.app}: subgraph name node is reserved for the router's node plugin`);
+  }
+
   for (const key of ['name', 'prefix'] as const) {
     const seen = new Map<string, string>();
     for (const subgraph of subgraphs) {

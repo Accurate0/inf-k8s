@@ -1,6 +1,6 @@
 import { fs, httpSend } from '@ortzi/host';
 import { type App, declared, resolveSubgraphs, supergraphApp, type Target } from '../render.ts';
-import { compose } from '../supergraph.ts';
+import { compose, NODE_SUBGRAPH } from '../supergraph.ts';
 
 function fetchSchema(url: string): string {
   const response = httpSend({ url, timeoutMs: 30_000 });
@@ -31,6 +31,7 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
       `${dir}/subgraphs/${subgraph.name}.graphql`,
       sdls[subgraph.name],
     ]),
+    ...(composed.node ? [[`${dir}/subgraphs/${NODE_SUBGRAPH}.graphql`, composed.node]] : []),
     [`${dir}/supergraph.graphql`, composed.supergraph],
     [`${dir}/schema.graphql`, composed.schema],
     [`${dir}/router.yaml`, composed.router],

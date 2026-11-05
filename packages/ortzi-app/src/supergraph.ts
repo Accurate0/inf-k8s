@@ -10,7 +10,12 @@ export interface Composed {
   supergraph: string;
   schema: string;
   router: string;
+  node?: string;
 }
+
+export const NODE_SUBGRAPH = 'node';
+export const NODE_SUBGRAPH_URL = 'http://node-plugin.invalid/graphql';
+const RELAY_TYPES = ['Node', 'PageInfo'];
 
 export function compose(
   subgraphs: ResolvedSubgraph[],
@@ -24,16 +29,35 @@ export function compose(
   }));
 
   const unprefixed = subgraphs.flatMap((subgraph, i) => {
-    const fields = unprefixedRootFields(services[i].typeDefs, subgraph.prefix);
-    return fields.length
-      ? [`  ${subgraph.name}: root fields must start with ${subgraph.prefix}: ${fields.join(', ')}`]
-      : [];
+    const sdl = services[i].typeDefs;
+    const fields = unprefixedRootFields(sdl, subgraph.prefix);
+    const others = subgraphs.filter((other) => other !== subgraph).map((other) => other.prefix);
+    const types = unprefixedTypes(sdl, subgraph.prefix, others);
+    return [
+      ...(fields.length
+        ? [
+            `  ${subgraph.name}: root fields must start with ${subgraph.prefix}: ${fields.join(', ')}`,
+          ]
+        : []),
+      ...(types.length
+        ? [
+            `  ${subgraph.name}: types must start with ${pascal(subgraph.prefix)}, or another subgraph's prefix for an entity it references: ${types.join(', ')}`,
+          ]
+        : []),
+    ];
   });
   if (unprefixed.length) {
     throw new Error(`supergraph composition failed:\n${unprefixed.join('\n')}`);
   }
 
-  const result = composeServices(services);
+  const nodeTypes = nodeImplementers(subgraphs, services);
+  const nodeSdl = nodeTypes.length ? nodeSubgraph(nodeTypes) : undefined;
+  const result = composeServices([
+    ...services,
+    ...(nodeSdl
+      ? [{ name: NODE_SUBGRAPH, url: NODE_SUBGRAPH_URL, typeDefs: parseGraphql(nodeSdl) }]
+      : []),
+  ]);
 
   if (result.errors) {
     throw new Error(
@@ -44,11 +68,75 @@ export function compose(
   return {
     supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.supergraphSdl.trimEnd()}\n`,
     schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.publicSdl.trimEnd()}\n`,
-    router: routerConfig(subgraphs, base),
+    router: routerConfig(subgraphs, base, nodeTypes),
+    ...(nodeSdl ? { node: `# ${SUPERGRAPH_HEADER_TEXT}\n${nodeSdl}` } : {}),
   };
 }
 
-export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[] {
+function keyFields(
+  directives: readonly { name: { value: string }; arguments?: readonly any[] }[] = [],
+) {
+  return directives
+    .filter((directive) => directive.name.value === 'key')
+    .map(
+      (directive) => directive.arguments?.find((arg) => arg.name.value === 'fields')?.value.value,
+    );
+}
+
+export function nodeImplementers(
+  subgraphs: ResolvedSubgraph[],
+  services: { name: string; typeDefs: DocumentNode }[],
+): string[] {
+  const missing: string[] = [];
+  const types = services.flatMap((service, i) =>
+    service.typeDefs.definitions.flatMap((definition) => {
+      if (
+        (definition.kind !== Kind.OBJECT_TYPE_DEFINITION &&
+          definition.kind !== Kind.OBJECT_TYPE_EXTENSION) ||
+        !definition.interfaces?.some((iface) => iface.name.value === 'Node')
+      ) {
+        return [];
+      }
+      const name = definition.name.value;
+      if (!keyFields(definition.directives).includes('id')) {
+        missing.push(`${subgraphs[i].name}: ${name}`);
+      }
+      return [name];
+    }),
+  );
+
+  if (missing.length) {
+    throw new Error(
+      `supergraph composition failed:\n${missing.map((m) => `  ${m} implements Node without @key(fields: "id")`).join('\n')}`,
+    );
+  }
+  return [...new Set(types)].sort();
+}
+
+export function nodeSubgraph(types: string[]): string {
+  return [
+    'extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])',
+    '',
+    'type Query {',
+    '  node(id: ID!): Node',
+    '}',
+    '',
+    'interface Node {',
+    '  id: ID!',
+    '}',
+    ...types.flatMap((type) => [
+      '',
+      `type ${type} implements Node @key(fields: "id", resolvable: false) {`,
+      '  id: ID!',
+      '}',
+    ]),
+    '',
+  ].join('\n');
+}
+
+const pascal = (prefix: string) => prefix[0]!.toUpperCase() + prefix.slice(1);
+
+function rootTypes(sdl: DocumentNode): Set<string> {
   const roots = new Set<string>();
   for (const definition of sdl.definitions) {
     if (definition.kind === Kind.SCHEMA_DEFINITION || definition.kind === Kind.SCHEMA_EXTENSION) {
@@ -60,7 +148,11 @@ export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[
   if (!roots.size) {
     for (const name of ['Query', 'Mutation', 'Subscription']) roots.add(name);
   }
+  return roots;
+}
 
+export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[] {
+  const roots = rootTypes(sdl);
   const prefixed = new RegExp(`^${prefix}[A-Z0-9]`);
   return sdl.definitions.flatMap((definition) =>
     (definition.kind === Kind.OBJECT_TYPE_DEFINITION ||
@@ -74,8 +166,48 @@ export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[
   );
 }
 
-export function routerConfig(subgraphs: ResolvedSubgraph[], base: string): string {
+export function unprefixedTypes(sdl: DocumentNode, prefix: string, others: string[]): string[] {
+  const roots = rootTypes(sdl);
+  const starts = (name: string, prefix: string) =>
+    new RegExp(`^${pascal(prefix)}[A-Z0-9]`).test(name);
+  const named = new Set<Kind>([
+    Kind.OBJECT_TYPE_DEFINITION,
+    Kind.INTERFACE_TYPE_DEFINITION,
+    Kind.UNION_TYPE_DEFINITION,
+    Kind.ENUM_TYPE_DEFINITION,
+    Kind.INPUT_OBJECT_TYPE_DEFINITION,
+  ]);
+
+  const names = sdl.definitions.flatMap((definition) => {
+    if (!named.has(definition.kind) || !('name' in definition) || !definition.name) return [];
+    const name = definition.name.value;
+    const entity = (
+      definition as { directives?: readonly { name: { value: string } }[] }
+    ).directives?.some((directive) => directive.name.value === 'key');
+    const federation = name.startsWith('_') || /^(link|federation)__/.test(name);
+    const referenced = entity && others.some((other) => starts(name, other));
+    const relay = RELAY_TYPES.includes(name);
+    return roots.has(name) || federation || relay || referenced || starts(name, prefix)
+      ? []
+      : [name];
+  });
+
+  return [...new Set(names)].sort();
+}
+
+export function routerConfig(
+  subgraphs: ResolvedSubgraph[],
+  base: string,
+  nodeTypes: string[],
+): string {
   const config = (parse(base) ?? {}) as Record<string, any>;
+
+  if (nodeTypes.length) {
+    config.plugins = {
+      ...config.plugins,
+      node: { enabled: true, config: { subgraph: NODE_SUBGRAPH, types: nodeTypes } },
+    };
+  }
   const websockets = subgraphs.filter((subgraph) => subgraph.websocket);
 
   if (websockets.length) {
