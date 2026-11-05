@@ -64,7 +64,27 @@ export type Resource =
   | Config
   | { name: string; type: 'dashboard'; configMap: string; file: string }
   | Volume
-  | ServiceAccount;
+  | ServiceAccount
+  | Subgraph
+  | Supergraph;
+
+export interface Subgraph {
+  name: string;
+  type: 'subgraph';
+  workload: string;
+  port: string | number;
+  path: string;
+  websocket?: string;
+  repository?: string;
+  schema?: string;
+  ref?: string;
+}
+
+export interface Supergraph {
+  name: string;
+  type: 'supergraph';
+  base: string;
+}
 
 export interface Config {
   name: string;
@@ -292,6 +312,8 @@ function exportPort(provider: App, exported: Export): number {
 }
 
 const OWN_NAMES = new Set([
+  'subgraph',
+  'supergraph',
   'secret',
   'route',
   'oidc',
@@ -439,7 +461,16 @@ function validateRefs(app: App, external: boolean) {
   ];
   for (const resource of app.resources ?? []) {
     if (
-      ['route', 'oidc', 'metrics', 'config', 'dashboard', 'serviceAccount'].includes(resource.type)
+      [
+        'route',
+        'oidc',
+        'metrics',
+        'config',
+        'dashboard',
+        'serviceAccount',
+        'subgraph',
+        'supergraph',
+      ].includes(resource.type)
     )
       continue;
     if (resource.type === 'volume') {
@@ -852,7 +883,100 @@ export function containerEnv(app: App, world: World): { container: string; rows:
   );
 }
 
+export interface ResolvedSubgraph {
+  name: string;
+  app: string;
+  url: string;
+  websocket?: string;
+  schemaUrl: string;
+}
+
+export function rawFileUrl(repository: string, ref: string, path: string): string {
+  const parsed = new URL(repository);
+  const [owner, repo] = parsed.pathname
+    .replace(/\.git$/, '')
+    .split('/')
+    .filter(Boolean);
+  if (parsed.protocol !== 'https:' || !owner || !repo) {
+    throw new Error(`${repository} is not an https://<host>/<owner>/<repo> url`);
+  }
+  if (parsed.hostname === 'github.com') {
+    return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
+  }
+  return `${parsed.origin}/${owner}/${repo}/raw/branch/${ref}/${path}`;
+}
+
+export function supergraphApp(apps: App[]): App | undefined {
+  const found = apps.filter((app) => declared(app, 'supergraph').length);
+  if (found.length > 1) {
+    throw new Error(
+      `only one app may declare a supergraph, found ${found.map((app) => app.name).join(', ')}`,
+    );
+  }
+  return found[0];
+}
+
+export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
+  return apps.flatMap((app) =>
+    declared(app, 'subgraph').map((subgraph) => {
+      const where = `${app.name}: resources.${subgraph.name}`;
+      for (const path of [subgraph.path, subgraph.websocket]) {
+        if (path !== undefined && !path.startsWith('/')) {
+          throw new Error(`${where}: ${path} must start with /`);
+        }
+      }
+
+      const spec = appWorkloads(app)[subgraph.workload];
+      if (!spec) throw new Error(`${where}: no workload named ${subgraph.workload}`);
+      const port = exportPort(app, {
+        name: subgraph.name,
+        workload: subgraph.workload,
+        port: subgraph.port,
+      });
+
+      const repository = subgraph.repository ?? app.repository;
+      if (!repository) throw new Error(`${where}: subgraph needs repository`);
+
+      return {
+        name: app.name,
+        app: app.name,
+        url: serviceUrl(
+          spec.service?.name ?? subgraph.workload,
+          appNamespace(app),
+          port,
+          subgraph.path,
+        ),
+        ...(subgraph.websocket ? { websocket: subgraph.websocket } : {}),
+        schemaUrl: rawFileUrl(
+          repository,
+          subgraph.ref ?? 'main',
+          subgraph.schema ?? 'subgraph.graphql',
+        ),
+      };
+    }),
+  );
+}
+
+export function validateSubgraphs(apps: App[]) {
+  const supergraph = supergraphApp(apps);
+  const subgraphs = resolveSubgraphs(apps);
+  if (subgraphs.length && !supergraph) {
+    throw new Error(
+      `${subgraphs.map((s) => s.app).join(', ')}: subgraphs need an app declaring a supergraph`,
+    );
+  }
+  const seen = new Set<string>();
+  for (const subgraph of subgraphs) {
+    if (seen.has(subgraph.name)) {
+      throw new Error(`${subgraph.app}: declares more than one subgraph`);
+    }
+    seen.add(subgraph.name);
+  }
+}
+
 export function validateResources(world: World) {
+  validateSubgraphs(world.apps);
+
   for (const app of world.apps) {
     validateRefs(app, world.external?.has(app.name) ?? false);
 

@@ -1,12 +1,13 @@
 package:
   name: app
   description: define apps in app.yaml, render them to argo, and see or roll back what's deployed
-  version: 0.41.1
+  version: 0.42.0
   completions: cobra
 permissions:
   exec: [diff, git, kubectl, curl, helm, kustomize, kubeconform]
   fs: [.]
   kube: [get, patch]
+  http: [raw.githubusercontent.com, git.anurag.sh]
 build:
   kind: wasm
   wasm:

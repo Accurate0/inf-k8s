@@ -10,6 +10,7 @@ import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { rollback } from './commands/rollback';
 import { status } from './commands/status';
+import { supergraph } from './commands/supergraph';
 import { parse, stringify } from 'yaml';
 import {
   type App,
@@ -87,6 +88,8 @@ definition (run from the root of the k8s repo):
   diff [app]               show what render would change, exit 1 if anything would
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
+  supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
+                           public schema and router.yaml into the app declaring the supergraph
 
 cluster:
   status                   what needs attention (--all lists every app)
@@ -101,7 +104,7 @@ cluster:
 
 flags:
   --format FMT     graph: mermaid or dot (default mermaid)
-  --check          render: write nothing, exit 1 if invalid or out of date
+  --check          render, supergraph: write nothing, exit 1 if invalid or out of date
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
   --force          render: regenerate every file, even those already up to date
@@ -382,6 +385,7 @@ export const run = cli({
   commands: {
     render: (_ctx, values) => render(values.check, values.commit, values.changed, values.force),
     diff: (_ctx, _values, rest) => diff(rest[0]),
+    supergraph: (_ctx, values) => supergraph(discover(), values.check),
     list: () => {
       const count = (block?: object) => {
         const size = block ? Object.keys(block).length : 0;

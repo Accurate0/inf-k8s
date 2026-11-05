@@ -17,6 +17,7 @@ import {
   type RouteLoadBalancer,
   type RouteRatelimit,
   storageClass,
+  supergraphApp,
   type RouteAuth,
   type SecretTemplate,
   type Target,
@@ -175,6 +176,11 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
       )
       .map(appNamespace)
       .sort(),
+    ...(declared(app, 'subgraph').length
+      ? [supergraphApp(world.apps)]
+          .filter((other): other is App => !!other && other.name !== name)
+          .map(appNamespace)
+      : []),
   ];
   if (app.network.policy !== false) {
     sources.push(chart('k8s-network', { namespace, ingress: [...new Set(ingress)] }));

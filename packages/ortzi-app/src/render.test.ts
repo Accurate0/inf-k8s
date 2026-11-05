@@ -7,6 +7,7 @@ import { renderApplication as renderArgo } from './outputs/argocd.ts';
 import { renderOutputs } from './outputs/index.ts';
 import { helmTemplates, planApp } from './plan.ts';
 import { addRoles, renderDatabase } from './providers/cnpg.ts';
+import { compose, routerConfig } from './supergraph.ts';
 import {
   validateManifestSources,
   type App,
@@ -17,6 +18,8 @@ import {
   renderKustomization,
   renderRbac,
   renderWorkflow,
+  rawFileUrl,
+  resolveSubgraphs,
   stamped,
   validate,
   validateGatewayAccess,
@@ -3161,5 +3164,149 @@ test('a tcp route attaches to a gateway listener', () => {
     () =>
       validateGatewayAccess([{ ...app, name: 'bar' }], [{ ...listeners[0], labels: { x: 'y' } }]),
     /git-ssh needs namespace.labels x/,
+  );
+});
+
+const subgraphApp = (name: string, subgraph: Record<string, unknown> = {}): App => ({
+  name,
+  repository: `https://github.com/Accurate0/${name}`,
+  workloads: [
+    {
+      name: `${name}-api`,
+      image: 'i',
+      ports: [{ name: 'http', container: 8000, service: 80 }],
+      service: { name: 'api' },
+    },
+  ],
+  resources: [
+    {
+      name: 'graphql',
+      type: 'subgraph',
+      workload: `${name}-api`,
+      port: 'http',
+      path: '/graphql',
+      ...subgraph,
+    } as App['resources'] extends (infer R)[] | undefined ? R : never,
+  ],
+  network: { ingress: [] },
+});
+
+const routerApp: App = {
+  name: 'graph',
+  resources: [{ name: 'graph', type: 'supergraph', base: 'router.base.yaml' }],
+  network: { ingress: [] },
+};
+
+test('a subgraph lets the supergraph app in', () => {
+  const spotify = subgraphApp('spotify');
+  const rendered = render(spotify, target, [spotify, routerApp]);
+
+  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, ['graph']);
+});
+
+test('subgraphs resolve to their in-cluster url and raw schema', () => {
+  const [spotify, home] = resolveSubgraphs([
+    subgraphApp('spotify'),
+    subgraphApp('home-gateway', {
+      path: '/v1/graphql',
+      websocket: '/v1/graphql/ws',
+      repository: 'https://git.anurag.sh/anurag/home-gateway',
+    }),
+    routerApp,
+  ]);
+
+  assert.deepEqual(spotify, {
+    name: 'spotify',
+    app: 'spotify',
+    url: 'http://api.spotify.svc.cluster.local/graphql',
+    schemaUrl: 'https://raw.githubusercontent.com/Accurate0/spotify/main/subgraph.graphql',
+  });
+  assert.equal(home?.websocket, '/v1/graphql/ws');
+  assert.equal(
+    home?.schemaUrl,
+    'https://git.anurag.sh/anurag/home-gateway/raw/branch/main/subgraph.graphql',
+  );
+});
+
+test('raw file urls need an https owner/repo url', () => {
+  assert.throws(() => rawFileUrl('https://github.com/Accurate0', 'main', 'a'), /owner/);
+  assert.throws(() => rawFileUrl('ssh://git@git.anurag.sh/a/b.git', 'main', 'a'), /https/);
+});
+
+test('subgraph validation', () => {
+  const world = (apps: App[]) => ({ platform, apps });
+
+  assert.throws(
+    () => validateResources(world([subgraphApp('spotify')])),
+    /spotify: subgraphs need an app declaring a supergraph/,
+  );
+  assert.throws(
+    () => validateResources(world([routerApp, { ...routerApp, name: 'graph2' }])),
+    /only one app may declare a supergraph, found graph, graph2/,
+  );
+  assert.throws(
+    () => validateResources(world([routerApp, subgraphApp('spotify', { workload: 'nope' })])),
+    /spotify: resources.graphql: no workload named nope/,
+  );
+  assert.throws(
+    () => validateResources(world([routerApp, subgraphApp('spotify', { port: 'grpc' })])),
+    /no matching port/,
+  );
+  assert.throws(
+    () => validateResources(world([routerApp, subgraphApp('spotify', { path: 'graphql' })])),
+    /graphql must start with \//,
+  );
+  assert.throws(
+    () =>
+      validateResources(world([routerApp, { ...subgraphApp('spotify'), repository: undefined }])),
+    /subgraph needs repository/,
+  );
+  validateResources(world([routerApp, subgraphApp('spotify')]));
+});
+
+test('router config adds websocket paths for subgraphs with subscriptions', () => {
+  const config = parse(
+    routerConfig(
+      resolveSubgraphs([
+        subgraphApp('spotify'),
+        subgraphApp('home-gateway', { websocket: '/v1/graphql/ws' }),
+      ]),
+      'http:\n  port: 4000\nsubscriptions:\n  enabled: true\n',
+    ),
+  );
+
+  assert.deepEqual(config, {
+    http: { port: 4000 },
+    subscriptions: {
+      enabled: true,
+      websocket: { subgraphs: { 'home-gateway': { path: '/v1/graphql/ws' } } },
+    },
+  });
+});
+
+test('composes subgraphs into a supergraph routed in cluster', () => {
+  const link =
+    'extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@key"])';
+  const subgraphs = resolveSubgraphs([subgraphApp('spotify'), subgraphApp('home')]);
+  const composed = compose(
+    subgraphs,
+    {
+      spotify: `${link}\ntype Query { artist(name: String!): Artist }\ntype Artist @key(fields: "name") { name: String! plays: Int! }`,
+      home: `${link}\ntype Query { player: Player }\ntype Player { artist: Artist }\ntype Artist @key(fields: "name", resolvable: false) { name: String! }`,
+    },
+    '{}',
+  );
+
+  assert.match(composed.supergraph, /url: "http:\/\/api\.spotify\.svc\.cluster\.local\/graphql"/);
+  assert.match(composed.schema, /type Artist \{\s+name: String!\s+plays: Int!/);
+  assert.match(composed.schema, /player: Player/);
+  assert.throws(
+    () =>
+      compose(
+        subgraphs,
+        { spotify: `${link}\ntype Query { a: Int }`, home: `${link}\ntype Query { a: String }` },
+        '{}',
+      ),
+    /supergraph composition failed/,
   );
 });

@@ -1415,6 +1415,83 @@
                 ]
               }
             }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "workload",
+              "port",
+              "path"
+            ],
+            "description": "Registers this app's GraphQL API as a federation subgraph of the app declaring a supergraph.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "subgraph"
+                ]
+              },
+              "workload": {
+                "type": "string",
+                "description": "Workload serving the GraphQL API."
+              },
+              "port": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "description": "Port name or service port on that workload."
+              },
+              "path": {
+                "type": "string",
+                "description": "HTTP GraphQL endpoint, e.g. /graphql."
+              },
+              "websocket": {
+                "type": "string",
+                "description": "Subscriptions endpoint, when the subgraph has subscriptions."
+              },
+              "repository": {
+                "type": "string",
+                "description": "https://<host>/<owner>/<repo> holding the federation SDL. Defaults to the app's repository."
+              },
+              "schema": {
+                "type": "string",
+                "description": "Path to the federation SDL in the repository. Defaults to subgraph.graphql."
+              },
+              "ref": {
+                "type": "string",
+                "description": "Branch or tag to read the SDL from. Defaults to main."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "base"
+            ],
+            "description": "Marks this app as the federation router; `ortzi app supergraph` composes every subgraph into it.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "supergraph"
+                ]
+              },
+              "base": {
+                "type": "string",
+                "description": "Hand-written router config the generated router.yaml extends."
+              }
+            }
           }
         ]
       }

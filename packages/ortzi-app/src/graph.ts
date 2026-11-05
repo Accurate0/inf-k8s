@@ -1,5 +1,5 @@
 import type { App } from './render.ts';
-import { appDatabases, databaseRole } from './render.ts';
+import { appDatabases, databaseRole, supergraphApp } from './render.ts';
 
 interface Node {
   id: string;
@@ -28,6 +28,11 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
     for (const resource of app.resources ?? []) {
       if (resource.type === 'app') {
         edges.push({ from: app.name, to: resource.app, label: resource.export });
+      } else if (resource.type === 'subgraph') {
+        const supergraph = supergraphApp(apps);
+        if (supergraph) edges.push({ from: supergraph.name, to: app.name, label: 'subgraph' });
+      } else if (resource.type === 'supergraph') {
+        continue;
       } else if (
         [
           'database',

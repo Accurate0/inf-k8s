@@ -31,6 +31,8 @@ try {
     bundle: true,
     format: 'esm',
     platform: 'neutral',
+    mainFields: ['module', 'main'],
+    alias: { debug: fileURLToPath(new URL('./stubs/debug.js', import.meta.url)) },
     target: 'es2022',
     outfile: bundle,
     external: ['ortzi:*', 'wasi:*'],
