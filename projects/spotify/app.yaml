@@ -8,6 +8,7 @@ namespace:
     internal-gateway-access: "true"
 resources:
   - {name: spotify, type: secret, secretName: spotify-managed-secrets}
+  - {name: graphql, type: subgraph, workload: spotify-api, port: http, path: /graphql}
   - {name: artwork, type: bucket, provider: garage, bucket: spotify-artwork, secretName: artwork-bucket-secrets}
   - name: spotify
     type: database
@@ -56,8 +57,7 @@ workloads:
       readiness: {every: 10}
       liveness: {delay: 3, every: 30}
     env:
-      OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/spotify
-      OIDC_AUDIENCE: spotify
+      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/spotify=spotify,https://idm.anurag.sh/oauth2/openid/graph=graph
       OIDC_GROUPS: spotify_users
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID, optional: true}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET, optional: true}

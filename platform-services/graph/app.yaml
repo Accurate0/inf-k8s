@@ -1,0 +1,64 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
+name: graph
+network:
+  ingress: []
+namespace:
+  labels:
+    internal-gateway-access: "true"
+resources:
+  - {name: graph, type: supergraph, base: router.base.yaml}
+  - name: config
+    type: config
+    configMap: graph-router
+    files: [router.yaml, supergraph.graphql]
+  - {name: traces, type: platform, export: tracing}
+  - name: graph
+    type: route
+    auth:
+      mode: app
+      reason: the router forwards credentials, each subgraph verifies kanidm jwts or api keys
+    gateway: internal-gateway
+    hosts:
+      - graph.ortzi.cloud
+    dns: {provider: cloudflare, proxied: false}
+    backend: {name: router, port: 80}
+    paths: [/v1/graphql]
+    timeouts:
+      request: 0s
+  - name: graph
+    type: oidc
+    secretName: kanidm-graph-oidc
+    host: graph.ortzi.cloud
+    displayName: Graph
+    callbackPath: /callback
+    public: true
+    allowLocalhostRedirect: true
+    groups:
+      graph_users:
+        - platform_admins
+    scopeMaps:
+      graph_users:
+        - openid
+        - email
+        - profile
+        - groups
+workloads:
+  - name: router
+    image: ghcr.io/graphql-hive/router
+    resources: {cpu: 20m, memory: 64Mi, memoryLimit: 256Mi}
+    ports:
+      - {name: http, container: 4000, service: 80}
+    probes:
+      http: {path: /health, port: 4000}
+      readiness: {delay: 3, every: 10}
+      liveness: {delay: 3, every: 30}
+    env:
+      ROUTER_CONFIG_FILE_PATH: /etc/graph/router.yaml
+      OTEL_TRACING_URL: {resource: traces}
+    mounts:
+      config: {path: /etc/graph, config: config}
+    service:
+      name: router
+sources:
+  - type: manifests
+    path: .

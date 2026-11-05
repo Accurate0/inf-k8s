@@ -1,0 +1,1426 @@
+type AdhocCronTaskStatus {
+	id: String!
+	name: String!
+	schedule: String!
+	flag: String
+	nextRunAt: DateTime
+	lastRunAt: DateTime
+	durationMs: Int
+	rowsAffected: Int
+	outcome: String
+}
+
+type AdhocTaskStatus {
+	id: String!
+	ordinal: Int!
+	name: String!
+	flag: String
+	completedAt: DateTime
+	durationMs: Int
+	pending: Boolean!
+	checksumDrifted: Boolean!
+}
+
+type AirPurifierEntity implements LockableEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	room: String
+	on: Boolean
+	mode: AirPurifierMode
+	speed: Int
+	pm25: Float
+	filterLife: Float
+	aqi: Float
+	cadr: Float
+	display: Boolean
+	lock: DeviceLock
+	changedAt: DateTime
+	lastSeen: DateTime
+	history(since: DateTime!): [AirPurifierPoint!]!
+}
+
+enum AirPurifierMode {
+	MANUAL
+	SLEEP
+	AUTO
+}
+
+type AirPurifierMutation {
+	turnOn: CommandOutcome!
+	turnOff: CommandOutcome!
+	setMode(mode: AirPurifierMode!): CommandOutcome!
+	setSpeed(speed: Int!): CommandOutcome!
+	setDisplay(on: Boolean!): CommandOutcome!
+}
+
+type AirPurifierPoint {
+	on: Boolean!
+	mode: AirPurifierMode
+	pm25: Float
+	time: DateTime!
+}
+
+type AirPurifierUpdate {
+	eventId: UUID!
+	id: ID!
+	name: String!
+	on: Boolean!
+	mode: AirPurifierMode
+	speed: Int
+	display: Boolean
+	pm25: Float
+}
+
+type Artist @key(fields: "name", resolvable: false) {
+	name: String!
+}
+
+type AuthObject {
+	id: String
+	name: String
+	scopes: [String!]!
+}
+
+enum BatteryChemistry {
+	UNKNOWN
+	LIPO
+	LI_ION
+	ALKALINE
+	CR_2032
+}
+
+type BatteryPoint {
+	batteryVoltage: Float
+	batteryPercent: Float
+	time: DateTime!
+	batteryPercentage: Float
+}
+
+input BrightnessMoveInput {
+	value: Int!
+	onOff: Boolean!
+}
+
+enum Capability {
+	BRIGHTNESS
+	COLOUR_TEMP
+	RGB
+	TEMPERATURE
+	HUMIDITY
+	PRESSURE
+	LUX
+	UV_INDEX
+	PM_25
+	VOC_INDEX
+}
+
+input ColourTemperatureMoveInput {
+	value: Int!
+}
+
+type CommandFailedUpdate {
+	eventId: UUID!
+	id: ID!
+	address: String!
+	kind: String!
+	attempts: Int!
+	state: String
+	brightness: Int
+	colourTemp: Int
+	colour: String
+}
+
+enum CommandOutcome {
+	SENT
+	UNCHANGED
+	LOCKED
+}
+
+type CronUpdate {
+	eventId: UUID!
+	name: String!
+}
+
+type CustomUpdate {
+	eventId: UUID!
+	source: String!
+	name: String!
+	payload: JSON!
+}
+
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+type DepartureObject {
+	line: String!
+	headsign: String!
+	platform: String
+	scheduledDeparture: DateTime!
+	liveDeparture: DateTime
+	delayMinutes: Int
+	minutesAway: Int!
+	live: Boolean!
+}
+
+type DeviceBattery {
+	kind: String!
+	voltage: Float
+	chemistry: BatteryChemistry!
+	percentage: Float
+	updatedAt: DateTime!
+	history(since: DateTime!): [BatteryPoint!]!
+}
+
+type DeviceBatteryUpdate {
+	eventId: UUID!
+	"""
+	Config slug, matching the `id` from the `entities` query.
+	"""
+	id: ID!
+	name: String!
+	kind: String!
+	batteryVoltage: Float
+	batteryPercent: Float
+	batteryPercentage: Float
+}
+
+type DeviceConnection {
+	deviceId: String!
+	connected: Boolean!
+	changedAt: DateTime!
+}
+
+type DeviceConnectionUpdate {
+	eventId: UUID!
+	deviceId: String!
+	transport: String!
+	room: String
+	connected: Boolean!
+	id: ID!
+}
+
+type DeviceLock {
+	source: DeviceLockSource!
+	lockedAt: DateTime!
+	expiresAt: DateTime
+}
+
+type DeviceLockMutation {
+	lock(durationSeconds: Int): DeviceLock!
+	unlock: Boolean!
+}
+
+enum DeviceLockSource {
+	PHYSICAL
+	MANUAL
+}
+
+type DeviceLockUpdate {
+	eventId: UUID!
+	deviceId: String!
+	locked: Boolean!
+	source: DeviceLockSource
+	expiresAt: DateTime
+	id: ID!
+}
+
+type DoorEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	capabilities: [Capability!]!
+	room: String
+	battery: DeviceBattery
+	"""
+	Whether the door is open. Nullable so an unreachable door-events actor
+	reports the error against this field without nulling the whole entity.
+	"""
+	open: Boolean
+	lastSeen: DateTime
+}
+
+type DoorUpdate {
+	eventId: UUID!
+	"""
+	Config slug, matching the `id` from the `entities` query.
+	"""
+	id: ID!
+	"""
+	Human-friendly name, matching the `entities` query.
+	"""
+	name: String!
+	"""
+	Raw device address the event was emitted for.
+	"""
+	device: String!
+	open: Boolean!
+}
+
+type EinkDisplayConfig {
+	mode: EinkMode!
+	view: String
+	immichAlbum: String
+	subreddit: String
+	timespan: RedditTimespan
+	limit: Int
+	orientation: Orientation!
+	refresh: String!
+	grace: String!
+	settle: String
+	lead: String
+	sleepStart: String
+	sleepEnd: String
+}
+
+type EinkDisplayEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	kind: EinkDisplayKind!
+	capabilities: [Capability!]!
+	room: String
+	batteryVoltage: Float
+	batteryPercentage: Float
+	isCharging: Boolean
+	lastSeen: DateTime
+	nextWakeAt: DateTime
+	partialRefreshCount: Int
+	rtcSyncedAt: DateTime
+	rtcDriftSecs: Float
+	rtcReportedAt: DateTime
+	rtcReportedOffsetSecs: Float
+	rtcSyncDueAt: DateTime
+	lastWakeTraceUrl: String
+	targetFirmwareVersion: String
+	config: EinkDisplayConfig
+	deviceConfig: EpdConfig!
+	battery: DeviceBattery
+	batteryHistory(since: DateTime!): [BatteryPoint!]!
+}
+
+enum EinkDisplayKind {
+	TRMNL
+	EINK_DISPLAY_FIRMWARE
+}
+
+type EinkDisplayMutation {
+	takeScreenshot: Boolean!
+}
+
+enum EinkMode {
+	DASHBOARD
+	REDDIT
+	IMMICH
+}
+
+type EnergyConsumption {
+	id: UUID!
+	used: Float!
+	solarExported: Float!
+	time: DateTime!
+}
+
+type EnergyGap {
+	start: DateTime!
+	end: DateTime!
+	missingIntervals: Int!
+}
+
+input EnergyGapsInput {
+	since: DateTime!
+	intervalSeconds: Int!
+}
+
+input EnergyHistoryInput {
+	since: DateTime!
+}
+
+type EnergyObject {
+	history(input: EnergyHistoryInput!): [EnergyConsumption!]!
+	gaps(input: EnergyGapsInput!): [EnergyGap!]!
+}
+
+union Entity = LightEntity | EnvironmentEntity | PlantEntity | DoorEntity | GarageDoorEntity | AirPurifierEntity | PresenceEntity | EinkDisplayEntity | RobotVacuumEntity | MediaPlayerEntity
+
+"""
+The dashboard section a device kind is displayed under. Owned by the backend
+so categorising a kind never requires a frontend change. Variants are declared
+in display order — see [`EntityCategory::ORDERED`].
+"""
+enum EntityCategory {
+	LIGHTS
+	DOORS
+	PRESENCE
+	ENVIRONMENT
+	PLANTS
+	DISPLAYS
+	VACUUMS
+	MEDIA
+}
+
+type EntitySection {
+	category: EntityCategory!
+	title: String!
+}
+
+type EnvironmentEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	capabilities: [Capability!]!
+	room: String
+	battery: DeviceBattery
+	"""
+	Nullable so a missing reading reports the error against this field
+	without nulling the whole entity.
+	"""
+	temperature: Float
+	humidity: Float
+	pressure: Float
+	pm25: Int
+	vocIndex: Int
+	lux: Float
+	uvIndex: Float
+	"""
+	Nullable so a missing reading reports the error against this field
+	without nulling the whole entity.
+	"""
+	time: DateTime
+	lastSeen: DateTime
+}
+
+type EnvironmentUpdate {
+	eventId: UUID!
+	"""
+	Config slug, matching the `id` from the `entities` query.
+	"""
+	id: ID!
+	"""
+	Human-friendly name, matching the `entities` query.
+	"""
+	name: String!
+	"""
+	Raw device address the event was emitted for.
+	"""
+	sensor: String!
+	readings: [MetricReading!]!
+}
+
+type EpdConfig {
+	refreshIntervalMins: Int
+	refreshIntervalSecs: Int
+	imageUrl: String
+	imageHash: String
+	firmwareUrl: String
+	firmwareVersion: String
+	partial: PartialWindow
+}
+
+union EventUpdate = PresenceUpdate | DoorUpdate | GarageDoorUpdate | AirPurifierUpdate | SwitchUpdate | EnvironmentUpdate | PlantUpdate | CronUpdate | SunUpdate | LightUpdate | UnifiUpdate | ModeUpdate | HomeAssistantUpdate | WoolworthsUpdate | DeviceBatteryUpdate | DeviceConnectionUpdate | DeviceLockUpdate | JellyfinUpdate | MediaPlayerUpdate | SolarUpdate | WeatherUpdate | FuelWatchUpdate | UnraidUpdate | TransperthUpdate | CommandFailedUpdate | CustomUpdate
+
+type Forecast {
+	days: [ForecastDetails!]!
+	hours: [ForecastHour!]!
+}
+
+type ForecastDetails {
+	dateTime: String!
+	code: String!
+	description: String!
+	emoji: String!
+	min: Int!
+	max: Int!
+	uv: Float
+	rainProbability: Int
+	rainStartRange: Int
+	rainEndRange: Int
+	rainRangeCode: String
+	windMaxSpeed: Float
+	firstLight: String
+	sunrise: String
+	sunset: String
+	lastLight: String
+}
+
+type ForecastHour {
+	dateTime: String!
+	temperature: Float
+	windSpeed: Float
+	windDirection: Float
+	windDirectionText: String
+}
+
+type FuelSite {
+	siteId: Int!
+	name: String!
+	brand: String!
+	suburb: String!
+	postcode: Int!
+	address: String!
+	price: Float!
+	priceTomorrow: Float
+	latitude: Float!
+	longitude: Float!
+}
+
+type FuelWatchObject {
+	cheapest: FuelSite
+	sites(limit: Int): [FuelSite!]!
+}
+
+type FuelWatchUpdate {
+	eventId: UUID!
+	change: String!
+	siteId: Int!
+	name: String!
+	brand: String!
+	suburb: String!
+	address: String!
+	oldPrice: Float!
+	newPrice: Float!
+}
+
+type GarageDoorEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	room: String
+	battery: DeviceBattery
+	state: GarageDoorState
+	open: Boolean
+	contact: Boolean
+	changedAt: DateTime
+	lastSeen: DateTime
+}
+
+type GarageDoorMutation {
+	open: CommandOutcome!
+	close: CommandOutcome!
+}
+
+enum GarageDoorState {
+	OPEN
+	OPENING
+	CLOSED
+	CLOSING
+}
+
+type GarageDoorUpdate {
+	eventId: UUID!
+	id: ID!
+	name: String!
+	state: GarageDoorState!
+}
+
+type GenerationHistory {
+	wh: Float!
+	at: NaiveDateTime!
+	uvLevel: Float
+	temperature: Float
+	timestamp: Int!
+}
+
+type HomeAssistantEvent {
+	eventId: UUID!
+	entityId: String!
+	state: String!
+	time: DateTime!
+	id: ID!
+}
+
+type HomeAssistantObject {
+	entities: [HomeAssistantEvent!]!
+}
+
+type HomeAssistantUpdate {
+	eventId: UUID!
+	entityId: String!
+	state: String!
+	id: ID!
+}
+
+scalar IdOrAlias
+
+type Item @key(fields: "uri", resolvable: false) {
+	uri: String!
+}
+
+"""
+A scalar that can represent any JSON value.
+"""
+scalar JSON
+
+type JellyfinObject {
+	nowPlaying: [JellyfinSession!]!
+}
+
+type JellyfinSession {
+	eventId: UUID!
+	sessionId: String!
+	user: String!
+	device: String!
+	client: String!
+	itemId: String!
+	itemName: String!
+	itemType: String!
+	seriesName: String
+	season: Int
+	episode: Int
+	positionSeconds: Float
+	runtimeSeconds: Float
+	playMethod: String
+	paused: Boolean!
+	updatedAt: DateTime!
+	id: ID!
+	progress: Float
+}
+
+type JellyfinUpdate {
+	eventId: UUID!
+	state: String!
+	sessionId: String!
+	user: String!
+	device: String!
+	client: String!
+	itemId: String!
+	itemName: String!
+	itemType: String!
+	seriesName: String
+	season: Int
+	episode: Int
+	positionSeconds: Float
+	runtimeSeconds: Float
+	playMethod: String
+	id: ID!
+}
+
+type LightCommandResult {
+	status: LightCommandStatus!
+	state: LightState!
+}
+
+enum LightCommandStatus {
+	CONFIRMED
+	PENDING
+}
+
+type LightEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	capabilities: [Capability!]!
+	room: String
+	battery: DeviceBattery
+	"""
+	Current power state. Nullable so an unreachable light actor reports the
+	error against this field without nulling the whole entity.
+	"""
+	on: Boolean
+	"""
+	Current brightness on the light model's `ranges.brightness` scale. Null when the light has not reported one.
+	"""
+	brightness: Int
+	"""
+	Colour temperature in mireds (1000000/kelvin), within the light model's `ranges.colour_temp`.
+	"""
+	colourTemperature: Int
+	"""
+	Current colour as `#rrggbb`. Null when the light has not reported one.
+	"""
+	colour: String
+	lastSeen: DateTime
+	pendingCommands: [PendingCommand!]!
+}
+
+type LightMutation {
+	set(input: LightSetInput!): LightCommandResult!
+	on: Boolean!
+	off: Boolean!
+	toggle: Boolean!
+	setBrightness(input: SetBrightnessInput!): Boolean!
+	brightnessMove(input: BrightnessMoveInput!): Boolean!
+	setColour(input: SetColourInput!): Boolean!
+	setColourTemperature(input: SetColourTemperatureInput!): Boolean!
+	colourTemperatureMove(input: ColourTemperatureMoveInput!): Boolean!
+}
+
+input LightSetInput {
+	on: Boolean
+	brightness: Int
+	"""
+	Colour temperature in mireds (1000000/kelvin), clamped to the light model's `ranges.colour_temp`.
+	"""
+	colourTemperature: Int
+	colour: String
+}
+
+type LightState {
+	on: Boolean!
+	"""
+	Current brightness on the light model's `ranges.brightness` scale, when the light reports one.
+	"""
+	brightness: Int
+	"""
+	Colour temperature in mireds (1000000/kelvin), within the light model's `ranges.colour_temp`.
+	"""
+	colourTemperature: Int
+	"""
+	Current colour as `#rrggbb`, when the light reports one.
+	"""
+	colour: String
+}
+
+enum LightTarget {
+	ON
+	OFF
+	LEAVE_ALONE
+}
+
+type LightUpdate {
+	eventId: UUID!
+	"""
+	Config slug, matching the `id` from the `entities` query.
+	"""
+	id: ID!
+	"""
+	Human-friendly name, matching the `entities` query.
+	"""
+	name: String!
+	"""
+	Raw device address the event was emitted for.
+	"""
+	device: String!
+	on: Boolean!
+	brightness: Int
+	"""
+	Colour temperature in mireds (1000000/kelvin), within the light model's `ranges.colour_temp`.
+	"""
+	colourTemperature: Int
+	"""
+	Current colour as `#rrggbb`, when the light reports one.
+	"""
+	colour: String
+}
+
+interface LockableEntity {
+	id: String!
+	lock: DeviceLock
+}
+
+type LuaAliasObject {
+	name: String!
+	type: String!
+}
+
+type LuaApiObject {
+	namespaces: [LuaNamespaceObject!]!
+	globals: [LuaFieldObject!]!
+	classes: [LuaClassObject!]!
+	aliases: [LuaAliasObject!]!
+	definitions: String!
+}
+
+type LuaClassObject {
+	name: String!
+	fields: [LuaFieldObject!]!
+}
+
+type LuaFieldObject {
+	name: String!
+	type: String!
+	optional: Boolean!
+	declaration: String!
+}
+
+type LuaFunctionObject {
+	name: String!
+	params: [LuaFieldObject!]!
+	returns: String
+	scope: String
+	signature: String!
+}
+
+type LuaNamespaceObject {
+	name: String!
+	fields: [LuaFieldObject!]!
+	functions: [LuaFunctionObject!]!
+}
+
+type MediaPlayerEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	room: String
+	state: String
+	playing: Boolean!
+	appName: String
+	source: String
+	mediaContentType: String
+	mediaContentId: String
+	spotifyItem: Item
+	spotifyArtist: Artist
+	mediaTitle: String
+	mediaArtist: String
+	mediaAlbumName: String
+	mediaSeriesTitle: String
+	season: Int
+	episode: Int
+	durationSeconds: Float
+	"""
+	Where playback has reached now, extrapolated from the last reported
+	position: Home Assistant only republishes `media_position` on a seek, so a
+	stored value goes stale the moment it lands.
+	"""
+	positionSeconds: Float
+	progress: Float
+	volumeLevel: Float
+	muted: Boolean
+	artworkUrl: String
+	lastSeen: DateTime
+}
+
+type MediaPlayerMutation {
+	play: Boolean!
+	pause: Boolean!
+	playPause: Boolean!
+	stop: Boolean!
+	next: Boolean!
+	previous: Boolean!
+	playMedia(url: String!, announcement: Boolean! = false): Boolean!
+	volumeSet(level: Float!): Boolean!
+	mute(muted: Boolean!): Boolean!
+	turnOff: Boolean!
+}
+
+type MediaPlayerUpdate {
+	eventId: UUID!
+	deviceId: String!
+	name: String!
+	room: String
+	state: String!
+	entityState: String!
+	appName: String
+	source: String
+	mediaTitle: String
+	mediaSeriesTitle: String
+	mediaContentType: String
+	season: Int
+	episode: Int
+	positionSeconds: Float
+	durationSeconds: Float
+	volumeLevel: Float
+	muted: Boolean
+	artworkUrl: String
+	id: ID!
+}
+
+type MetricReading {
+	metric: String!
+	value: Float!
+}
+
+enum Mode {
+	HOME
+	AWAY
+	VACATION
+	GUEST
+}
+
+interface ModeState {
+	mode: Mode!
+}
+
+type ModeStatus {
+	active: Mode!
+	node(mode: Mode): ModeState!
+}
+
+type ModeUpdate {
+	eventId: UUID!
+	mode: Mode!
+	previous: Mode!
+}
+
+type MutationRoot {
+	light(id: IdOrAlias!): LightMutation!
+	robotVacuum(id: IdOrAlias!): RobotVacuumMutation!
+	garageDoor(id: IdOrAlias!): GarageDoorMutation!
+	airPurifier(id: IdOrAlias!): AirPurifierMutation!
+	deviceLock(id: IdOrAlias!): DeviceLockMutation!
+	mediaPlayer(id: IdOrAlias!): MediaPlayerMutation!
+	einkDisplay(id: IdOrAlias!): EinkDisplayMutation!
+	setWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean!
+	setMode(mode: Mode!): Mode!
+	runWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID!
+	runPendingAdhocTasks: Boolean!
+	runAdhocCronTask(name: String!): Boolean!
+	sendPushNotification(input: SendPushNotificationInput!): Boolean!
+	recordNotificationInteraction(id: UUID!, kind: NotificationInteractionKind!): Boolean!
+	executeLua(script: String!, vars: JSON, dryRun: Boolean): JSON!
+}
+
+"""
+ISO 8601 combined date and time without timezone.
+
+# Examples
+
+* `2015-07-01T08:59:60.123`,
+"""
+scalar NaiveDateTime
+
+enum NotificationInteractionKind {
+	ACKNOWLEDGED
+	OPENED
+	DISMISSED
+	SNOOZED
+	SWIPED
+}
+
+enum Orientation {
+	PORTRAIT
+	LANDSCAPE
+}
+
+type PartialWindow {
+	x: Int!
+	y: Int!
+	width: Int!
+	height: Int!
+}
+
+type PendingCommand {
+	requestedAt: DateTime!
+	attempts: Int!
+	relative: Boolean!
+	state: String
+	brightness: Int
+	colourTemperature: Int
+	colour: String
+}
+
+type PlainMode implements ModeState {
+	mode: Mode!
+}
+
+type PlantEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	room: String
+	battery: DeviceBattery
+	soilMoisture: Float
+	time: DateTime
+	history(since: DateTime!): [PlantPoint!]!
+	lastSeen: DateTime
+}
+
+type PlantPoint {
+	soilMoisture: Float!
+	time: DateTime!
+}
+
+type PlantUpdate {
+	eventId: UUID!
+	id: ID!
+	name: String!
+	sensor: String!
+	soilMoisture: Float!
+}
+
+type PresenceEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	capabilities: [Capability!]!
+	room: String
+	battery: DeviceBattery
+	"""
+	Whether presence is detected. Nullable so an unreachable presence actor
+	reports the error against this field without nulling the whole entity.
+	"""
+	present: Boolean
+	lastSeen: DateTime
+}
+
+type PresenceUpdate {
+	eventId: UUID!
+	"""
+	Config slug, matching the `id` from the `entities` query.
+	"""
+	id: ID!
+	"""
+	Human-friendly name, matching the `entities` query.
+	"""
+	name: String!
+	"""
+	Raw device address the event was emitted for.
+	"""
+	sensor: String!
+	present: Boolean!
+}
+
+type PushNotification {
+	id: UUID!
+	tag: String!
+	title: String!
+	body: String!
+	category: String!
+	actions: [PushNotificationAction!]!
+	sendCount: Int!
+	nextReminderAt: DateTime
+	acknowledgedAt: DateTime
+	createdAt: DateTime!
+	interactions: [PushNotificationInteraction!]!
+}
+
+input PushNotificationAcknowledgeInput {
+	remindAfterSeconds: Int!
+	reminders: Int!
+}
+
+type PushNotificationAction {
+	label: String!
+	kind: PushNotificationActionKind!
+	workflowSlug: String
+	snoozeSeconds: Int
+}
+
+input PushNotificationActionInput {
+	label: String!
+	kind: PushNotificationActionKind!
+	workflowSlug: String
+	snoozeSeconds: Int
+}
+
+enum PushNotificationActionKind {
+	RUN_WORKFLOW
+	SNOOZE
+	DISMISS
+	ACKNOWLEDGE
+}
+
+enum PushNotificationCategory {
+	ALARM
+	DOOR
+	WATCHDOG
+	GENERAL
+}
+
+type PushNotificationInteraction {
+	kind: NotificationInteractionKind!
+	at: DateTime!
+}
+
+type QueryRoot {
+	auth: AuthObject!
+	homeAssistant: HomeAssistantObject!
+	"""
+	Every configured entity and its current state. Entity types the caller
+	lacks a `graphql:<type>:read` scope for are silently omitted — this query
+	never errors on missing permissions.
+	The dashboard sections, in display order, with their titles. Categorising
+	a device kind is a backend concern — the frontend renders whatever order
+	and titles this returns.
+	"""
+	entitySections: [EntitySection!]!
+	deviceConnections: [DeviceConnection!]!
+	entities: [Entity!]!
+	mediaPlayer(id: IdOrAlias!): MediaPlayerEntity!
+	light(id: IdOrAlias!): LightEntity!
+	door(id: IdOrAlias!): DoorEntity!
+	presence(id: IdOrAlias!): PresenceEntity!
+	environment(id: IdOrAlias!): EnvironmentEntity!
+	plant(id: IdOrAlias!): PlantEntity!
+	einkDisplay(id: IdOrAlias!): EinkDisplayEntity!
+	robotVacuum(id: IdOrAlias!): RobotVacuumEntity!
+	garageDoor(id: IdOrAlias!): GarageDoorEntity!
+	airPurifier(id: IdOrAlias!): AirPurifierEntity!
+	solar: SolarObject!
+	energy: EnergyObject!
+	weather(input: WeatherInput!): WeatherObject!
+	woolworths: WoolworthsObject!
+	transperth: TransperthObject!
+	fuelwatch(postcode: Int): FuelWatchObject!
+	unraid: Unraid
+	workflows: [WorkflowStatus!]!
+	mode: ModeStatus!
+	workflowRuns(slug: String, eventId: UUID, limit: Int): [WorkflowRun!]!
+	jellyfin: JellyfinObject!
+	adhocCronTasks: [AdhocCronTaskStatus!]!
+	adhocTasks: [AdhocTaskStatus!]!
+	pushNotifications(limit: Int): [PushNotification!]!
+	luaApi: LuaApiObject!
+}
+
+enum RedditTimespan {
+	HOUR
+	DAY
+	WEEK
+	MONTH
+	YEAR
+	ALL
+}
+
+type RobotVacuumEntity {
+	category: EntityCategory!
+	id: String!
+	aliases: [String!]!
+	name: String!
+	room: String
+	battery: DeviceBattery
+	capabilities: [Capability!]!
+	kind: RobotVacuumKind!
+	status: String
+	batteryPercentage: Float
+	currentRoom: String
+	fanSpeed: String
+	currentCleanArea: Float
+	cleanCount: Int
+	lastSeen: DateTime
+}
+
+enum RobotVacuumKind {
+	ROBOROCK
+	VALETUDO
+}
+
+type RobotVacuumMutation {
+	start: Boolean!
+	stop: Boolean!
+	dock: Boolean!
+}
+
+type RouteDeparturesObject {
+	id: String!
+	origin: String!
+	destination: String!
+	updatedAt: DateTime!
+	stale: Boolean!
+	departures: [DepartureObject!]!
+}
+
+input SendPushNotificationInput {
+	title: String!
+	body: String!
+	category: PushNotificationCategory!
+	tag: String
+	actions: [PushNotificationActionInput!]! = []
+	acknowledge: PushNotificationAcknowledgeInput
+}
+
+input SetBrightnessInput {
+	value: Int!
+}
+
+input SetColourInput {
+	hex: String!
+}
+
+input SetColourTemperatureInput {
+	"""
+	Colour temperature in mireds (1000000/kelvin), clamped to the light model's `ranges.colour_temp`.
+	"""
+	value: Int!
+}
+
+type SolarCurrentResponse {
+	currentProductionWh: Float!
+	todayProductionKwh: Float!
+	yesterdayProductionKwh: Float!
+	monthProductionKwh: Float!
+	allTimeProductionKwh: Float!
+	statistics: SolarCurrentStatistics!
+	uvLevel: Float
+	temperature: Float
+}
+
+type SolarCurrentStatistics {
+	averages: SolarCurrentStatisticsAverages!
+}
+
+type SolarCurrentStatisticsAverages {
+	last15Mins: Float
+	last1Hour: Float
+	last3Hours: Float
+}
+
+input SolarHistoryInput {
+	since: DateTime!
+}
+
+type SolarObject {
+	current: SolarCurrentResponse!
+	history(input: SolarHistoryInput!): [GenerationHistory!]!
+}
+
+type SolarUpdate {
+	eventId: UUID!
+	currentWh: Float!
+}
+
+type SunUpdate {
+	eventId: UUID!
+	transition: String!
+}
+
+type SwitchUpdate {
+	eventId: UUID!
+	device: String!
+	action: String!
+}
+
+type TransperthObject {
+	routes: [RouteDeparturesObject!]!
+	route(id: String!): RouteDeparturesObject
+}
+
+type TransperthUpdate {
+	eventId: UUID!
+	routeId: String!
+	origin: String!
+	destination: String!
+	departures: Int!
+	nextLine: String
+	nextHeadsign: String
+	nextMinutesAway: Int
+	nextDelayMinutes: Int
+}
+
+"""
+A UUID is a unique 128-bit number, stored as 16 octets. UUIDs are parsed as
+Strings within GraphQL. UUIDs are used to assign unique identifiers to
+entities without requiring a central allocating authority.
+
+# References
+
+* [Wikipedia: Universally Unique Identifier](http://en.wikipedia.org/wiki/Universally_unique_identifier)
+* [RFC4122: A Universally Unique Identifier (UUID) URN Namespace](http://tools.ietf.org/html/rfc4122)
+"""
+scalar UUID
+
+type UnifiUpdate {
+	eventId: UUID!
+	macAddress: String!
+	client: String!
+	connected: Boolean!
+}
+
+type Unraid {
+	recordedAt: DateTime!
+	array: UnraidArray!
+	disks: [UnraidDisk!]!
+	disk(name: String!): UnraidDisk
+}
+
+type UnraidArray {
+	state: String!
+	usagePercent: Float
+	kilobytesFree: Int!
+	kilobytesUsed: Int!
+	kilobytesTotal: Int!
+	parityStatus: String!
+	parityProgress: Int
+	parityErrors: Int
+	parityRunning: Boolean!
+	history(since: DateTime!): [UnraidArrayPoint!]!
+}
+
+type UnraidArrayPoint {
+	time: DateTime!
+	kilobytesUsed: Int!
+	kilobytesTotal: Int!
+	usagePercent: Float
+	parityStatus: String!
+	parityProgress: Int
+}
+
+type UnraidDisk {
+	name: String!
+	kind: String!
+	status: String
+	temperature: Int
+	usagePercent: Float
+	sizeKb: Int
+	fsSizeKb: Int
+	fsFreeKb: Int
+	fsUsedKb: Int
+	errors: Int
+	spinning: Boolean
+	history(since: DateTime!): [UnraidDiskPoint!]!
+}
+
+type UnraidDiskPoint {
+	time: DateTime!
+	status: String
+	temperature: Int
+	fsUsedKb: Int
+	fsSizeKb: Int
+	usagePercent: Float
+	errors: Int
+	spinning: Boolean
+}
+
+type UnraidUpdate {
+	eventId: UUID!
+	subject: String!
+	kind: String
+	change: String
+	state: String
+	previous: String
+	metric: String
+	value: Float
+	importance: String
+	title: String
+	description: String
+	link: String
+}
+
+type VacationAction {
+	at: DateTime!
+	on: Boolean!
+	slot: Int!
+	onFraction: Float!
+}
+
+type VacationLight {
+	address: String!
+	deviceId: String
+	name: String!
+	coverage: Int!
+	currentTarget: LightTarget!
+	actions: [VacationAction!]!
+}
+
+type VacationMode implements ModeState {
+	mode: Mode!
+	enabled: Boolean!
+	window: String!
+	jitter: String!
+	minObservations: Int!
+	"""
+	The replay plan for every configured light: what it should be doing now,
+	and every switch still to come in the next 24 hours.
+	"""
+	lights: [VacationLight!]!
+}
+
+input WeatherInput {
+	location: String!
+}
+
+type WeatherObject {
+	forecast: Forecast!
+}
+
+type WeatherReadingUpdate {
+	metric: String!
+	day: String
+	value: Float!
+}
+
+type WeatherUpdate {
+	eventId: UUID!
+	source: String!
+	readings: [WeatherReadingUpdate!]!
+}
+
+type WoolworthsObject {
+	products: [WoolworthsProducts!]!
+	priceHistory(input: WoolworthsPriceHistoryInput!): [WoolworthsPricePoint!]!
+}
+
+input WoolworthsPriceHistoryInput {
+	productId: Int!
+	since: DateTime!
+}
+
+type WoolworthsPricePoint {
+	productId: Int!
+	name: String!
+	price: Float!
+	time: DateTime!
+}
+
+type WoolworthsProducts {
+	productId: Int!
+	name: String!
+	price: Float!
+}
+
+type WoolworthsUpdate {
+	eventId: UUID!
+	productId: Int!
+	name: String!
+	oldPrice: Float!
+	newPrice: Float!
+}
+
+type WorkflowRun {
+	id: ID!
+	slug: String!
+	name: String!
+	eventId: String!
+	outcome: String!
+	dryRun: Boolean!
+	durationMs: Int!
+	error: String
+	trigger: JSON
+	startedAt: DateTime!
+	steps: [WorkflowRunStep!]!
+}
+
+type WorkflowRunStep {
+	seq: Int!
+	depth: Int!
+	kind: String!
+	outcome: String!
+	guard: String
+	detail: String
+	error: String
+	durationUs: Int!
+	at: DateTime!
+}
+
+type WorkflowStatus {
+	id: String!
+	slug: String!
+	name: String!
+	group: String!
+	tags: [String!]!
+	enabled: Boolean!
+	configEnabled: Boolean!
+	dryRun: Boolean!
+	reusable: Boolean!
+	modes: [Mode!]!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)

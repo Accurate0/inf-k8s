@@ -1,0 +1,158 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-05T04:58:31.555Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: graph
+  namespace: argocd
+spec:
+  syncPolicy:
+    syncOptions:
+      - CreateNamespace=true
+      - ServerSideApply=true
+    automated:
+      prune: true
+      selfHeal: true
+  project: platform-services
+  sources:
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      ref: values
+    - chart: k8s-workload
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      targetRevision: 0.5.0
+      helm:
+        valueFiles:
+          - $values/platform-services/graph/image.values.yaml
+        valuesObject:
+          namespace: graph
+          namespaceLabels:
+            internal-gateway-access: "true"
+          workloads:
+            - name: router
+              image: ghcr.io/graphql-hive/router
+              resources:
+                requests:
+                  cpu: 20m
+                  memory: 64Mi
+                limits:
+                  memory: 256Mi
+              ports:
+                - name: http
+                  containerPort: 4000
+              env:
+                - name: ROUTER_CONFIG_FILE_PATH
+                  value: /etc/graph/router.yaml
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              service:
+                name: router
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 4000
+                    protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 4000
+                initialDelaySeconds: 3
+                periodSeconds: 10
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 4000
+                initialDelaySeconds: 3
+                periodSeconds: 30
+              volumes:
+                - name: config
+                  configMap:
+                    name: graph-router
+                    items:
+                      - key: router.yaml
+                        path: router.yaml
+                      - key: supergraph.graphql
+                        path: supergraph.graphql
+              volumeMounts:
+                - name: config
+                  mountPath: /etc/graph
+                  readOnly: true
+    - chart: k8s-network
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: graph
+          ingress:
+            - envoy-gateway-system
+    - chart: k8s-http-routes
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      targetRevision: 2.6.0
+      helm:
+        valuesObject:
+          routes:
+            - name: graph
+              gateway:
+                name: internal-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "false"
+              hostnames:
+                - graph.ortzi.cloud
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: router
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /v1/graphql
+                  timeouts:
+                    request: 0s
+    - chart: k8s-oidc
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          clients:
+            - name: graph
+              namespace: graph
+              displayName: Graph
+              preferShortUsername: true
+              secretName: kanidm-graph-oidc
+              host: graph.ortzi.cloud
+              callbackPath: /callback
+              public: true
+              allowLocalhostRedirect: true
+              groups:
+                graph_users:
+                  - platform_admins
+              scopeMaps:
+                graph_users:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              secretNamespace: graph
+              annotations:
+                inf-k8s.net/app: graph
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+          retainAnnotations:
+            argocd.argoproj.io/sync-options: Prune=false,Delete=false
+    - repoURL: https://github.com/Accurate0/inf-k8s.git
+      name: application
+      path: platform-services/graph
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: graph
+operation:
+  initiatedBy:
+    username: github-actions
+  sync:
+    prune: true
+    syncStrategy:
+      hook: {}

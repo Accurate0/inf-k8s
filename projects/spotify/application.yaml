@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T03:46:43.480Z
+# generated at 2026-11-05T04:58:31.523Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -41,10 +41,8 @@ spec:
                 - name: http
                   containerPort: 8000
               env:
-                - name: OIDC_ISSUER
-                  value: https://idm.anurag.sh/oauth2/openid/spotify
-                - name: OIDC_AUDIENCE
-                  value: spotify
+                - name: OIDC_PROVIDERS
+                  value: https://idm.anurag.sh/oauth2/openid/spotify=spotify,https://idm.anurag.sh/oauth2/openid/graph=graph
                 - name: OIDC_GROUPS
                   value: spotify_users
                 - name: SPOTIFY_CLIENT_ID
@@ -152,6 +150,7 @@ spec:
           namespace: spotify
           ingress:
             - envoy-gateway-system
+            - graph
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.6.0

@@ -1,0 +1,11 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+configMapGenerator:
+  - name: graph-router
+    namespace: graph
+    files:
+      - router.yaml
+      - supergraph.graphql
+generatorOptions:
+  disableNameSuffixHash: true
