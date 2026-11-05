@@ -9,6 +9,7 @@ namespace:
 resources:
   - {name: spotify, type: secret, secretName: spotify-managed-secrets}
   - {name: graphql, type: subgraph, workload: spotify-api, port: http, path: /graphql}
+  - {name: traces, type: platform, export: tracing}
   - {name: artwork, type: bucket, provider: garage, bucket: spotify-artwork, secretName: artwork-bucket-secrets}
   - name: spotify
     type: database
@@ -61,6 +62,7 @@ workloads:
       OIDC_GROUPS: spotify_users
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID, optional: true}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET, optional: true}
+      OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - database: spotify
       - bucket: artwork
@@ -92,6 +94,7 @@ workloads:
     env:
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET}
+      OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - database: spotify
       - bucket: artwork
