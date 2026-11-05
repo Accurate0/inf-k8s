@@ -55,7 +55,7 @@ enum join__Graph {
     name: "home-gateway"
     url: "http://home-gateway.home-gateway.svc.cluster.local/v1/graphql"
   )
-  SPOTIFY @join__graph(name: "spotify", url: "http://api.spotify.svc.cluster.local/graphql")
+  SPOTIFY @join__graph(name: "spotify", url: "http://api.spotify.svc.cluster.local/v1/graphql")
 }
 
 directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
