@@ -65,7 +65,8 @@
         },
         "phase": {
           "enum": [
-            "preSync"
+            "preSync",
+            "postSync"
           ],
           "description": "Argo sync phase the Job runs in as a hook. Required when kind is Job."
         },

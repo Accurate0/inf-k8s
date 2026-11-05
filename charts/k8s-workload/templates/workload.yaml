@@ -40,7 +40,7 @@ spec:
       template:
         {{- include "k8s-workload.pod" $ctx | nindent 8 }}
 {{- else if eq $w.kind "Job" }}
-{{- $phases := dict "preSync" "PreSync" }}
+{{- $phases := dict "preSync" "PreSync" "postSync" "PostSync" }}
 apiVersion: batch/v1
 kind: Job
 metadata:
