@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-04T18:17:06.496Z
+# generated at 2026-11-05T03:11:47.801Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -47,6 +47,18 @@ spec:
                   value: spotify
                 - name: OIDC_GROUPS
                   value: spotify_users
+                - name: SPOTIFY_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: spotify-managed-secrets
+                      key: SPOTIFY_CLIENT_ID
+                      optional: true
+                - name: SPOTIFY_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: spotify-managed-secrets
+                      key: SPOTIFY_CLIENT_SECRET
+                      optional: true
               envFrom:
                 - secretRef:
                     name: spotify-database-secret
@@ -192,6 +204,22 @@ spec:
               annotations:
                 inf-k8s.net/app: spotify
                 inf-k8s.net/repository: https://github.com/Accurate0/spotify
+    - chart: k8s-secrets
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      targetRevision: 0.7.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: spotify
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: spotify
+              inf-k8s.net/repository: https://github.com/Accurate0/spotify
+          secrets:
+            - name: spotify
+              managedSecrets:
+                - secretName: spotify-managed-secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: spotify
