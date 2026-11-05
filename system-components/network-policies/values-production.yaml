@@ -4,6 +4,7 @@ namespaces:
       - envoy-gateway-system
       - monitoring
       - bom
+      - spotify
   dragonfly:
     ingress:
       - dragonfly-system
