@@ -1,13 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
+import { parse as parseGraphql } from 'graphql';
 import { buildGraph, toDot, toMermaid } from './graph.ts';
 import { renderAppTerraform, renderTerraformIndex } from './terraform.ts';
 import { renderApplication as renderArgo } from './outputs/argocd.ts';
 import { renderOutputs } from './outputs/index.ts';
 import { helmTemplates, planApp } from './plan.ts';
 import { addRoles, renderDatabase } from './providers/cnpg.ts';
-import { compose, routerConfig } from './supergraph.ts';
+import { compose, routerConfig, unprefixedRootFields } from './supergraph.ts';
 import {
   validateManifestSources,
   type App,
@@ -3169,7 +3170,6 @@ test('a tcp route attaches to a gateway listener', () => {
 
 const subgraphApp = (name: string, subgraph: Record<string, unknown> = {}): App => ({
   name,
-  repository: `https://github.com/Accurate0/${name}`,
   workloads: [
     {
       name: `${name}-api`,
@@ -3180,11 +3180,15 @@ const subgraphApp = (name: string, subgraph: Record<string, unknown> = {}): App 
   ],
   resources: [
     {
-      name: 'graphql',
+      name,
       type: 'subgraph',
+      prefix: name.replace(/-./g, (c) => c[1]!.toUpperCase()),
       workload: `${name}-api`,
       port: 'http',
       path: '/graphql',
+      repository: `https://github.com/Accurate0/${name}`,
+      ref: 'main',
+      schema: 'subgraph.graphql',
       ...subgraph,
     } as App['resources'] extends (infer R)[] | undefined ? R : never,
   ],
@@ -3211,6 +3215,8 @@ test('subgraphs resolve to their in-cluster url and raw schema', () => {
       path: '/v1/graphql',
       websocket: '/v1/graphql/ws',
       repository: 'https://git.anurag.sh/anurag/home-gateway',
+      ref: 'v2',
+      schema: 'graphql/subgraph.graphql',
     }),
     routerApp,
   ]);
@@ -3218,13 +3224,14 @@ test('subgraphs resolve to their in-cluster url and raw schema', () => {
   assert.deepEqual(spotify, {
     name: 'spotify',
     app: 'spotify',
+    prefix: 'spotify',
     url: 'http://api.spotify.svc.cluster.local/graphql',
     schemaUrl: 'https://raw.githubusercontent.com/Accurate0/spotify/main/subgraph.graphql',
   });
   assert.equal(home?.websocket, '/v1/graphql/ws');
   assert.equal(
     home?.schemaUrl,
-    'https://git.anurag.sh/anurag/home-gateway/raw/branch/main/subgraph.graphql',
+    'https://git.anurag.sh/anurag/home-gateway/raw/branch/v2/graphql/subgraph.graphql',
   );
 });
 
@@ -3246,7 +3253,7 @@ test('subgraph validation', () => {
   );
   assert.throws(
     () => validateResources(world([routerApp, subgraphApp('spotify', { workload: 'nope' })])),
-    /spotify: resources.graphql: no workload named nope/,
+    /spotify: resources.spotify: no workload named nope/,
   );
   assert.throws(
     () => validateResources(world([routerApp, subgraphApp('spotify', { port: 'grpc' })])),
@@ -3257,9 +3264,22 @@ test('subgraph validation', () => {
     /graphql must start with \//,
   );
   assert.throws(
+    () => validateResources(world([routerApp, subgraphApp('spotify', { prefix: 'Spotify' })])),
+    /prefix Spotify must be lowerCamelCase/,
+  );
+  assert.throws(
     () =>
-      validateResources(world([routerApp, { ...subgraphApp('spotify'), repository: undefined }])),
-    /subgraph needs repository/,
+      validateResources(
+        world([routerApp, subgraphApp('spotify'), subgraphApp('music', { name: 'spotify' })]),
+      ),
+    /subgraph name spotify is declared by both spotify and music/,
+  );
+  assert.throws(
+    () =>
+      validateResources(
+        world([routerApp, subgraphApp('spotify'), subgraphApp('music', { prefix: 'spotify' })]),
+      ),
+    /subgraph prefix spotify is declared by both spotify and music/,
   );
   validateResources(world([routerApp, subgraphApp('spotify')]));
 });
@@ -3282,6 +3302,48 @@ test('router config adds websocket paths for subgraphs with subscriptions', () =
       websocket: { subgraphs: { 'home-gateway': { path: '/v1/graphql/ws' } } },
     },
   });
+
+  const renamed = parse(
+    routerConfig(
+      resolveSubgraphs([
+        subgraphApp('home-gateway', { name: 'home', websocket: '/v2/graphql/ws' }),
+      ]),
+      '{}',
+    ),
+  );
+  assert.deepEqual(renamed.subscriptions, {
+    enabled: true,
+    websocket: { subgraphs: { home: { path: '/v2/graphql/ws' } } },
+  });
+});
+
+test('every root field of a subgraph starts with its prefix', () => {
+  const sdl = (s: string) => parseGraphql(s);
+
+  assert.deepEqual(
+    unprefixedRootFields(
+      sdl(
+        'type Query { homeEntities: Int homeassistant: Int entities: Int _entities: Int _service: Int } type Mutation { homeLight: Int } type Subscription { events: Int } type Other { x: Int }',
+      ),
+      'home',
+    ),
+    ['Query.homeassistant', 'Query.entities', 'Subscription.events'],
+  );
+  assert.deepEqual(
+    unprefixedRootFields(
+      sdl('schema { query: Root } type Root { stats: Int } extend type Root { spotifyStats: Int }'),
+      'spotify',
+    ),
+    ['Root.stats'],
+  );
+});
+
+test('composition rejects unprefixed root fields', () => {
+  const subgraphs = resolveSubgraphs([subgraphApp('spotify')]);
+  assert.throws(
+    () => compose(subgraphs, { spotify: 'type Query { spotifyStats: Int accounts: Int }' }, '{}'),
+    /spotify: root fields must start with spotify: Query\.accounts/,
+  );
 });
 
 test('composes subgraphs into a supergraph routed in cluster', () => {
@@ -3291,20 +3353,23 @@ test('composes subgraphs into a supergraph routed in cluster', () => {
   const composed = compose(
     subgraphs,
     {
-      spotify: `${link}\ntype Query { artist(name: String!): Artist }\ntype Artist @key(fields: "name") { name: String! plays: Int! }`,
-      home: `${link}\ntype Query { player: Player }\ntype Player { artist: Artist }\ntype Artist @key(fields: "name", resolvable: false) { name: String! }`,
+      spotify: `${link}\ntype Query { spotifyArtist(name: String!): Artist }\ntype Artist @key(fields: "name") { name: String! plays: Int! }`,
+      home: `${link}\ntype Query { homePlayer: Player }\ntype Player { artist: Artist }\ntype Artist @key(fields: "name", resolvable: false) { name: String! }`,
     },
     '{}',
   );
 
   assert.match(composed.supergraph, /url: "http:\/\/api\.spotify\.svc\.cluster\.local\/graphql"/);
   assert.match(composed.schema, /type Artist \{\s+name: String!\s+plays: Int!/);
-  assert.match(composed.schema, /player: Player/);
+  assert.match(composed.schema, /homePlayer: Player/);
   assert.throws(
     () =>
       compose(
         subgraphs,
-        { spotify: `${link}\ntype Query { a: Int }`, home: `${link}\ntype Query { a: String }` },
+        {
+          spotify: `${link}\ntype Query { spotifyA: Int }\ntype Shared { a: Int }`,
+          home: `${link}\ntype Query { homeA: Shared }\ntype Shared { a: String }`,
+        },
         '{}',
       ),
     /supergraph composition failed/,

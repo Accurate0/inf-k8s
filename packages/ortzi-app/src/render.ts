@@ -75,9 +75,10 @@ export interface Subgraph {
   port: string | number;
   path: string;
   websocket?: string;
-  repository?: string;
-  schema?: string;
-  ref?: string;
+  prefix: string;
+  repository: string;
+  schema: string;
+  ref: string;
 }
 
 export interface Supergraph {
@@ -886,6 +887,7 @@ export function containerEnv(app: App, world: World): { container: string; rows:
 export interface ResolvedSubgraph {
   name: string;
   app: string;
+  prefix: string;
   url: string;
   websocket?: string;
   schemaUrl: string;
@@ -926,6 +928,10 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         }
       }
 
+      if (!/^[a-z][a-zA-Z0-9]*$/.test(subgraph.prefix)) {
+        throw new Error(`${where}: prefix ${subgraph.prefix} must be lowerCamelCase`);
+      }
+
       const spec = appWorkloads(app)[subgraph.workload];
       if (!spec) throw new Error(`${where}: no workload named ${subgraph.workload}`);
       const port = exportPort(app, {
@@ -934,12 +940,10 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         port: subgraph.port,
       });
 
-      const repository = subgraph.repository ?? app.repository;
-      if (!repository) throw new Error(`${where}: subgraph needs repository`);
-
       return {
-        name: app.name,
+        name: subgraph.name,
         app: app.name,
+        prefix: subgraph.prefix,
         url: serviceUrl(
           spec.service?.name ?? subgraph.workload,
           appNamespace(app),
@@ -947,11 +951,7 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
           subgraph.path,
         ),
         ...(subgraph.websocket ? { websocket: subgraph.websocket } : {}),
-        schemaUrl: rawFileUrl(
-          repository,
-          subgraph.ref ?? 'main',
-          subgraph.schema ?? 'subgraph.graphql',
-        ),
+        schemaUrl: rawFileUrl(subgraph.repository, subgraph.ref, subgraph.schema),
       };
     }),
   );
@@ -965,12 +965,17 @@ export function validateSubgraphs(apps: App[]) {
       `${subgraphs.map((s) => s.app).join(', ')}: subgraphs need an app declaring a supergraph`,
     );
   }
-  const seen = new Set<string>();
-  for (const subgraph of subgraphs) {
-    if (seen.has(subgraph.name)) {
-      throw new Error(`${subgraph.app}: declares more than one subgraph`);
+  for (const key of ['name', 'prefix'] as const) {
+    const seen = new Map<string, string>();
+    for (const subgraph of subgraphs) {
+      const other = seen.get(subgraph[key]);
+      if (other) {
+        throw new Error(
+          `subgraph ${key} ${subgraph[key]} is declared by both ${other} and ${subgraph.app}`,
+        );
+      }
+      seen.set(subgraph[key], subgraph.app);
     }
-    seen.add(subgraph.name);
   }
 }
 

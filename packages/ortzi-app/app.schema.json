@@ -1422,9 +1422,13 @@
             "required": [
               "name",
               "type",
+              "prefix",
               "workload",
               "port",
-              "path"
+              "path",
+              "repository",
+              "ref",
+              "schema"
             ],
             "description": "Registers this app's GraphQL API as a federation subgraph of the app declaring a supergraph.",
             "properties": {
@@ -1435,6 +1439,11 @@
                 "enum": [
                   "subgraph"
                 ]
+              },
+              "prefix": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]*$",
+                "description": "Prefix every root field of this subgraph must start with, e.g. home -> homeEntities."
               },
               "workload": {
                 "type": "string",
@@ -1457,15 +1466,15 @@
               },
               "repository": {
                 "type": "string",
-                "description": "https://<host>/<owner>/<repo> holding the federation SDL. Defaults to the app's repository."
+                "description": "https://<host>/<owner>/<repo> holding the federation SDL."
               },
               "schema": {
                 "type": "string",
-                "description": "Path to the federation SDL in the repository. Defaults to subgraph.graphql."
+                "description": "Path to the federation SDL in the repository."
               },
               "ref": {
                 "type": "string",
-                "description": "Branch or tag to read the SDL from. Defaults to main."
+                "description": "Branch or tag to read the SDL from."
               }
             }
           },

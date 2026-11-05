@@ -1,5 +1,5 @@
 import { composeServices } from '@theguild/federation-composition';
-import { parse as parseGraphql } from 'graphql';
+import { type DocumentNode, Kind, parse as parseGraphql } from 'graphql';
 import { parse, stringify } from 'yaml';
 import type { ResolvedSubgraph } from './render.ts';
 
@@ -17,13 +17,23 @@ export function compose(
   sdls: Record<string, string>,
   base: string,
 ): Composed {
-  const result = composeServices(
-    subgraphs.map((subgraph) => ({
-      name: subgraph.name,
-      url: subgraph.url,
-      typeDefs: parseGraphql(sdls[subgraph.name] as string),
-    })),
-  );
+  const services = subgraphs.map((subgraph) => ({
+    name: subgraph.name,
+    url: subgraph.url,
+    typeDefs: parseGraphql(sdls[subgraph.name] as string),
+  }));
+
+  const unprefixed = subgraphs.flatMap((subgraph, i) => {
+    const fields = unprefixedRootFields(services[i].typeDefs, subgraph.prefix);
+    return fields.length
+      ? [`  ${subgraph.name}: root fields must start with ${subgraph.prefix}: ${fields.join(', ')}`]
+      : [];
+  });
+  if (unprefixed.length) {
+    throw new Error(`supergraph composition failed:\n${unprefixed.join('\n')}`);
+  }
+
+  const result = composeServices(services);
 
   if (result.errors) {
     throw new Error(
@@ -36,6 +46,32 @@ export function compose(
     schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.publicSdl.trimEnd()}\n`,
     router: routerConfig(subgraphs, base),
   };
+}
+
+export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[] {
+  const roots = new Set<string>();
+  for (const definition of sdl.definitions) {
+    if (definition.kind === Kind.SCHEMA_DEFINITION || definition.kind === Kind.SCHEMA_EXTENSION) {
+      for (const operation of definition.operationTypes ?? []) {
+        roots.add(operation.type.name.value);
+      }
+    }
+  }
+  if (!roots.size) {
+    for (const name of ['Query', 'Mutation', 'Subscription']) roots.add(name);
+  }
+
+  const prefixed = new RegExp(`^${prefix}[A-Z0-9]`);
+  return sdl.definitions.flatMap((definition) =>
+    (definition.kind === Kind.OBJECT_TYPE_DEFINITION ||
+      definition.kind === Kind.OBJECT_TYPE_EXTENSION) &&
+    roots.has(definition.name.value)
+      ? (definition.fields ?? [])
+          .map((field) => field.name.value)
+          .filter((name) => !name.startsWith('_') && !prefixed.test(name))
+          .map((name) => `${definition.name.value}.${name}`)
+      : [],
+  );
 }
 
 export function routerConfig(subgraphs: ResolvedSubgraph[], base: string): string {
