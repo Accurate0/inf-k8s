@@ -6,7 +6,6 @@ import * as process from 'ortzi:host/process@0.1.0';
 import { getStderr } from 'wasi:cli/stderr@0.2.12';
 import { getStdin } from 'wasi:cli/stdin@0.2.12';
 import { getStdout } from 'wasi:cli/stdout@0.2.12';
-import { getTerminalStdin } from 'wasi:cli/terminal-stdin@0.2.12';
 
 export type Stdio = process.Stdio;
 
@@ -169,7 +168,7 @@ export const invokedAs = (): string => hostEnv.args()[0] ?? '';
 export const env = (): Record<string, string> => Object.fromEntries(hostEnv.vars());
 export const cwd = (): string => hostEnv.cwd();
 
-export const stdinIsTerminal = (): boolean => getTerminalStdin() !== undefined;
+export const stdinIsTerminal = (): boolean => hostEnv.stdinIsTerminal();
 
 let stdin: ReturnType<typeof getStdin> | undefined;
 

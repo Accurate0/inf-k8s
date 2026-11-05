@@ -3,6 +3,7 @@ declare module 'ortzi:host/env@0.1.0' {
   export function args(): Array<string>;
   export function vars(): Array<[string, string]>;
   export function cwd(): string;
+  export function stdinIsTerminal(): boolean;
   export function exit(code: number): void;
 }
 declare module 'ortzi:host/fs@0.1.0' {
@@ -91,10 +92,4 @@ declare module 'wasi:cli/stdout@0.2.12' {
 }
 declare module 'wasi:cli/stderr@0.2.12' {
   export function getStderr(): import('wasi:io/streams@0.2.12').OutputStream;
-}
-declare module 'wasi:cli/terminal-stdin@0.2.12' {
-  export class TerminalInput {
-    private constructor();
-  }
-  export function getTerminalStdin(): TerminalInput | undefined;
 }

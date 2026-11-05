@@ -1,6 +1,6 @@
 use std::{
     collections::HashMap,
-    io::Write,
+    io::{IsTerminal, Write},
     path::{Component as PathPart, Path, PathBuf},
     process::Stdio as ProcessStdio,
 };
@@ -441,6 +441,10 @@ impl env::Host for State {
 
     fn cwd(&mut self) -> String {
         self.sandbox.cwd.display().to_string()
+    }
+
+    fn stdin_is_terminal(&mut self) -> bool {
+        std::io::stdin().is_terminal()
     }
 
     fn exit(&mut self, code: u8) -> anyhow::Result<()> {

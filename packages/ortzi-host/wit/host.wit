@@ -79,6 +79,7 @@ interface env {
   args: func() -> list<string>;
   vars: func() -> list<tuple<string, string>>;
   cwd: func() -> string;
+  stdin-is-terminal: func() -> bool;
   exit: func(code: u8);
 }
 
@@ -96,5 +97,4 @@ world guest {
   import wasi:cli/stdin@0.2.12;
   import wasi:cli/stdout@0.2.12;
   import wasi:cli/stderr@0.2.12;
-  import wasi:cli/terminal-stdin@0.2.12;
 }
