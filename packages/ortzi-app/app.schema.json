@@ -101,9 +101,10 @@
           },
           "phase": {
             "enum": [
-              "preSync"
+              "preSync",
+              "postSync"
             ],
-            "description": "Run the Job as an Argo hook in this sync phase, before anything else applies. Required with kind Job."
+            "description": "Run the Job as an Argo hook in this sync phase: preSync before anything else applies, postSync once everything is applied and healthy. Required with kind Job."
           },
           "service": {
             "type": "object",

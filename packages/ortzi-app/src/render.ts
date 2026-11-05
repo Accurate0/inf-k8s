@@ -30,7 +30,7 @@ export interface Workload {
   replicas?: number;
   autoscale?: { min: number; max: number; cpu: number };
   schedule?: string;
-  phase?: 'preSync';
+  phase?: 'preSync' | 'postSync';
   service?: { name: string; trafficDistribution?: string };
   initContainers?: { image: string }[];
   sidecars?: { image: string }[];

@@ -210,8 +210,9 @@ test('rejects a Job without a phase, or a phase without a Job', () => {
       ),
     /a Job cannot expose ports/,
   );
-  assert.throws(() => validate(app({ kind: 'Job', phase: 'postSync' }), 'x'), /phase/);
+  assert.throws(() => validate(app({ kind: 'Job', phase: 'during' }), 'x'), /phase/);
   validate(app({ kind: 'Job', phase: 'preSync' }), 'x');
+  validate(app({ kind: 'Job', phase: 'postSync' }), 'x');
 });
 
 test('rejects cluster addresses written into env', () => {
