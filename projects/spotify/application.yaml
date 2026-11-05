@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T03:11:47.801Z
+# generated at 2026-11-05T03:41:47.481Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -63,7 +63,7 @@ spec:
                 - secretRef:
                     name: spotify-database-secret
               service:
-                name: spotify-api
+                name: api
                 ports:
                   - name: http
                     port: 80
@@ -140,7 +140,7 @@ spec:
                 - backendRefs:
                     - group: ""
                       kind: Service
-                      name: spotify-api
+                      name: api
                       port: 80
                       weight: 1
                   matches:
