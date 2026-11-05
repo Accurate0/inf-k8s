@@ -8,7 +8,7 @@ namespace:
     internal-gateway-access: "true"
 resources:
   - {name: spotify, type: secret, secretName: spotify-managed-secrets}
-  - {name: graphql, type: subgraph, workload: spotify-api, port: http, path: /graphql}
+  - {name: spotify, type: subgraph, prefix: spotify, workload: spotify-api, port: http, path: /v1/graphql, repository: https://github.com/Accurate0/spotify, ref: main, schema: subgraph.graphql}
   - {name: traces, type: platform, export: tracing}
   - {name: artwork, type: bucket, provider: garage, bucket: spotify-artwork, secretName: artwork-bucket-secrets}
   - name: spotify

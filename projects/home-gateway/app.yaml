@@ -51,7 +51,7 @@ resources:
     app: feature-flags
     export: api
   - {name: traces, type: platform, export: tracing}
-  - {name: graphql, type: subgraph, workload: home-gateway, port: api, path: /v1/graphql, websocket: /v1/graphql/ws}
+  - {name: home, type: subgraph, prefix: home, workload: home-gateway, port: api, path: /v1/graphql, websocket: /v1/graphql/ws, repository: https://github.com/Accurate0/home-gateway, ref: main, schema: subgraph.graphql}
   - name: api-route
     type: route
     auth:

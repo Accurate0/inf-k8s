@@ -44,7 +44,7 @@ resources:
         - groups
 workloads:
   - name: router
-    image: ghcr.io/graphql-hive/router
+    image: ghcr.io/accurate0/graph-router
     resources: {cpu: 20m, memory: 64Mi, memoryLimit: 256Mi}
     ports:
       - {name: http, container: 4000, service: 80}
@@ -59,6 +59,12 @@ workloads:
       config: {path: /etc/graph, config: config}
     service:
       name: router
+build:
+  image: ghcr.io/accurate0/graph-router
+  args:
+    BINARY_NAME: graph-router
+  test:
+    run: cargo test
 sources:
   - type: manifests
     path: .
