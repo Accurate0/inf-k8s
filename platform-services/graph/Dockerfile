@@ -3,7 +3,7 @@ ARG BINARY_NAME
 FROM rust:1.99.1-slim-trixie AS builder
 ARG BINARY_NAME
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config
+RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config nodejs npm
 
 WORKDIR /app/${BINARY_NAME}-build
 
