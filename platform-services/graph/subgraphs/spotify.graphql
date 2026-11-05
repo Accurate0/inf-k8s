@@ -1,166 +1,3 @@
-type AbandonedItem {
-	item: Item!
-	plays: Int!
-	"""
-	Average share of the track played.
-	"""
-	averageCompletion: Float!
-}
-
-type Account implements Node {
-	id: ID!
-	slug: String!
-	displayName: String!
-	spotifyUsername: String
-	playCount: Int!
-	exports: [Export!]!
-}
-
-type Album {
-	name: String!
-	artist: Artist
-	artworkUrl: String
-	releaseYear: Int
-}
-
-type Artist implements Node @key(fields: "name") {
-	id: ID!
-	name: String!
-	stats(filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): Stats!
-	"""
-	Spotify's genres for this artist; empty until enriched.
-	"""
-	genres: [String!]!
-	imageUrl: String
-}
-
-type ArtistConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [ArtistEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Artist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ArtistEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Artist!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type ArtistSkipRate {
-	artist: Artist!
-	"""
-	Plays where the export records whether it was skipped.
-	"""
-	plays: Int!
-	skips: Int!
-	skipRate: Float!
-	"""
-	1-based position in the leaderboard.
-	"""
-	rank: Int!
-}
-
-enum BreakdownDimension {
-	"""
-	Device family: Android, iOS, macOS, Windows, Linux, Web player, Other.
-	"""
-	DEVICE
-	"""
-	Country the stream was played from.
-	"""
-	COUNTRY
-	SHUFFLE
-	OFFLINE
-	"""
-	Why playback started (finished previous track, skipped forward, picked, ...).
-	"""
-	START_REASON
-	"""
-	Why playback ended.
-	"""
-	END_REASON
-	"""
-	Release decade of the track's album (needs enrichment).
-	"""
-	DECADE
-}
-
-type BreakdownRow {
-	"""
-	Raw value, e.g. `fwdbtn` or `AU`; null when the export doesn't record it.
-	"""
-	key: String
-	"""
-	Human-readable form of `key`.
-	"""
-	label: String!
-	plays: Int!
-	minutesPlayed: Int!
-}
-
-type Completion {
-	"""
-	Average share of each track played, capped at 100%.
-	"""
-	average: Float
-	"""
-	Share of plays that reached 90% of the track.
-	"""
-	finishedShare: Float
-	"""
-	Share of plays with a known duration (grows as enrichment runs).
-	"""
-	coverage: Float!
-}
-
-input CreateAccountInput {
-	"""
-	Lowercase identifier used by the CLI, e.g. `me`.
-	"""
-	slug: String!
-	displayName: String
-}
-
-type CreateAccountPayload {
-	account: Account!
-}
-
-input CreateExportInput {
-	"""
-	Account slug.
-	"""
-	account: String!
-	"""
-	Where the export came from, e.g. its directory name.
-	"""
-	label: String!
-	"""
-	Newest timestamp in the export's files. When exports overlap, the newer one's values win.
-	"""
-	asOf: DateTime!
-}
-
-type CreateExportPayload {
-	export: Export!
-}
-
 """
 Implement the DateTime<Utc> scalar
 
@@ -168,297 +5,11 @@ The input/output is a string in RFC3339 format.
 """
 scalar DateTime
 
-type DayStat {
-	date: NaiveDate!
-	plays: Int!
-	minutesPlayed: Int!
-	"""
-	The artist with the most listening that day.
-	"""
-	topArtist: Artist
-}
-
-type Discovery {
-	artist: Artist!
-	"""
-	First play ever (within the filter's accounts and kinds), which falls in the range.
-	"""
-	firstPlayed: DateTime!
-	"""
-	The first track heard by this artist.
-	"""
-	firstItem: Item
-	"""
-	Plays in the range.
-	"""
-	plays: Int!
-	minutesPlayed: Int!
-}
-
-type DiscoveryConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [DiscoveryEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Discovery!]!
-}
-
-"""
-An edge in a connection.
-"""
-type DiscoveryEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Discovery!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type Enrichment {
-	tracksEnriched: Int!
-	tracksPending: Int!
-	"""
-	Tracks Spotify no longer has.
-	"""
-	tracksMissing: Int!
-	artistsEnriched: Int!
-	artistsPending: Int!
-	artworkStored: Int!
-	"""
-	Share of all listening time on enriched items.
-	"""
-	listeningCoverage: Float!
-	requestsLast24h: Int!
-	lastRun: DateTime
-	rateLimitedUntil: DateTime
-}
-
-type Export implements Node {
-	id: ID!
-	label: String!
-	asOf: DateTime!
-	createdAt: DateTime!
-	finalizedAt: DateTime
-	account: Account!
-	files: [ExportFile!]!
-}
-
-type ExportFile implements Node {
-	id: ID!
-	name: String!
-	kind: FileKind!
-	sha256: String!
-	rowsTotal: Int!
-	rowsInserted: Int!
-	rowsMerged: Int!
-	importedAt: DateTime!
-	export: Export!
-}
-
-enum FileKind {
-	EXTENDED_AUDIO
-	EXTENDED_VIDEO
-	ACCOUNT_STREAMING_HISTORY
-	LIBRARY
-	PLAYLIST
-	SEARCH_QUERIES
-	FOLLOW
-	MARQUEE
-	INFERENCES
-	USERDATA
-	PRIVATE
-}
-
-input FinalizeExportInput {
-	exportId: ID!
-}
-
-type FinalizeExportPayload {
-	export: Export!
-}
-
-type ForgottenArtist {
-	artist: Artist!
-	plays: Int!
-	minutesPlayed: Int!
-	lastPlayed: DateTime!
-}
-
-type ForgottenArtistConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [ForgottenArtistEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [ForgottenArtist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ForgottenArtistEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: ForgottenArtist!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type Genre {
-	name: String!
-}
-
-type GenrePoint {
-	start: DateTime!
-	minutesPlayed: Int!
-}
-
-type GenreSeries {
-	genre: String!
-	points: [GenrePoint!]!
-}
-
-type HeatmapCell {
-	"""
-	ISO day of week: 1 is Monday, 7 is Sunday.
-	"""
-	dayOfWeek: Int!
-	hour: Int!
-	plays: Int!
-	minutesPlayed: Int!
-}
-
-type Item implements Node @key(fields: "uri") {
-	id: ID!
-	uri: String!
-	kind: ItemKind!
-	name: String
-	"""
-	The artist for tracks, the show for episodes, the book for audiobook chapters.
-	"""
-	artistName: String
-	artist: Artist
-	album: Album
-	"""
-	Album (or podcast show) artwork, once enrichment has stored it.
-	"""
-	artworkUrl: String
-	"""
-	Whether Spotify Web API metadata has been fetched for this item.
-	"""
-	enriched: Boolean!
-	durationMs: Int
-	explicit: Boolean
-	"""
-	`1999`, `1999-03` or `1999-03-14`, as precise as Spotify knows it.
-	"""
-	releaseDate: String
-	releaseYear: Int
-	"""
-	Every credited artist in credit order; empty until enriched.
-	"""
-	artists: [Artist!]!
-	stats(filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): Stats!
-}
-
-type ItemConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [ItemEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Item!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ItemEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Item!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-enum ItemKind {
-	TRACK
-	EPISODE
-	AUDIOBOOK
-}
-
-type ListeningDays {
-	"""
-	Days with at least one play.
-	"""
-	activeDays: Int!
-	"""
-	Days from the first to the last play, inclusive.
-	"""
-	spanDays: Int!
-	"""
-	Longest run of consecutive active days.
-	"""
-	longestStreak: Streak
-	"""
-	The run ending on the last active day.
-	"""
-	latestStreak: Streak
-}
-
-type MusicAge {
-	"""
-	Average years between a track's release and when you played it.
-	"""
-	averageYears: Float
-	"""
-	Share of plays of music released the same year it was played.
-	"""
-	newShare: Float
-	"""
-	Share of plays with a known release year (grows as enrichment runs).
-	"""
-	coverage: Float!
-	"""
-	The oldest track played in the range.
-	"""
-	oldest: Item
-	oldestYear: Int
-}
-
 type Mutation {
-	createAccount(input: CreateAccountInput!): CreateAccountPayload!
-	createExport(input: CreateExportInput!): CreateExportPayload! @inaccessible
-	uploadExportFile(input: UploadExportFileInput!, file: Upload!): UploadExportFilePayload! @inaccessible
-	finalizeExport(input: FinalizeExportInput!): FinalizeExportPayload! @inaccessible
+	spotifyCreateAccount(input: SpotifyCreateAccountInput!): SpotifyCreateAccountPayload!
+	spotifyCreateExport(input: SpotifyCreateExportInput!): SpotifyCreateExportPayload! @inaccessible
+	spotifyUploadExportFile(input: SpotifyUploadExportFileInput!, file: Upload!): SpotifyUploadExportFilePayload! @inaccessible
+	spotifyFinalizeExport(input: SpotifyFinalizeExportInput!): SpotifyFinalizeExportPayload! @inaccessible
 }
 
 """
@@ -498,7 +49,620 @@ type PageInfo @shareable {
 	endCursor: String
 }
 
-type Play {
+type Query {
+	spotifyAccounts: [SpotifyAccount!]!
+	spotifyAccount(slug: String!): SpotifyAccount
+	"""
+	Listening stats across the filtered plays.
+	"""
+	spotifyStats(filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): SpotifyStats!
+	"""
+	Search tracks, episodes and artists by name.
+	"""
+	spotifySearch(query: String!): SpotifySearch!
+	spotifyItem(uri: String!): SpotifyItem
+	spotifyArtist(name: String!): SpotifyArtist
+	"""
+	Progress of Spotify Web API enrichment (metadata, genres, artwork).
+	"""
+	spotifyEnrichment: SpotifyEnrichment!
+	"""
+	Whether a file with this sha256 has already been imported for the account, so clients
+	can skip uploading it.
+	"""
+	spotifyFileExists(account: String!, sha256: String!): Boolean! @inaccessible
+}
+
+type SpotifyAbandonedItem {
+	item: SpotifyItem!
+	plays: Int!
+	"""
+	Average share of the track played.
+	"""
+	averageCompletion: Float!
+}
+
+type SpotifyAccount implements Node @key(fields: "id") {
+	id: ID!
+	slug: String!
+	displayName: String!
+	spotifyUsername: String
+	playCount: Int!
+	exports: [SpotifyExport!]!
+}
+
+type SpotifyAlbum {
+	name: String!
+	artist: SpotifyArtist
+	artworkUrl: String
+	releaseYear: Int
+}
+
+type SpotifyAlbumRankedConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyAlbumRankedEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyAlbum!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyAlbumRankedEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyAlbum!
+	"""
+	1-based position in the ranking.
+	"""
+	rank: Int!
+	plays: Int!
+	minutesPlayed: Int!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyArtist implements Node @key(fields: "name") @key(fields: "id") {
+	id: ID!
+	name: String!
+	stats(filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): SpotifyStats!
+	"""
+	Spotify's genres for this artist; empty until enriched.
+	"""
+	genres: [String!]!
+	imageUrl: String
+}
+
+type SpotifyArtistConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyArtistEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyArtistEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyArtist!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyArtistRankedConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyArtistRankedEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyArtistRankedEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyArtist!
+	"""
+	1-based position in the ranking.
+	"""
+	rank: Int!
+	plays: Int!
+	minutesPlayed: Int!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyArtistSkipRate {
+	artist: SpotifyArtist!
+	"""
+	Plays where the export records whether it was skipped.
+	"""
+	plays: Int!
+	skips: Int!
+	skipRate: Float!
+	"""
+	1-based position in the leaderboard.
+	"""
+	rank: Int!
+}
+
+enum SpotifyBreakdownDimension {
+	"""
+	Device family: Android, iOS, macOS, Windows, Linux, Web player, Other.
+	"""
+	DEVICE
+	"""
+	Country the stream was played from.
+	"""
+	COUNTRY
+	SHUFFLE
+	OFFLINE
+	"""
+	Why playback started (finished previous track, skipped forward, picked, ...).
+	"""
+	START_REASON
+	"""
+	Why playback ended.
+	"""
+	END_REASON
+	"""
+	Release decade of the track's album (needs enrichment).
+	"""
+	DECADE
+}
+
+type SpotifyBreakdownRow {
+	"""
+	Raw value, e.g. `fwdbtn` or `AU`; null when the export doesn't record it.
+	"""
+	key: String
+	"""
+	Human-readable form of `key`.
+	"""
+	label: String!
+	plays: Int!
+	minutesPlayed: Int!
+}
+
+type SpotifyCompletion {
+	"""
+	Average share of each track played, capped at 100%.
+	"""
+	average: Float
+	"""
+	Share of plays that reached 90% of the track.
+	"""
+	finishedShare: Float
+	"""
+	Share of plays with a known duration (grows as enrichment runs).
+	"""
+	coverage: Float!
+}
+
+input SpotifyCreateAccountInput {
+	"""
+	Lowercase identifier used by the CLI, e.g. `me`.
+	"""
+	slug: String!
+	displayName: String
+}
+
+type SpotifyCreateAccountPayload {
+	account: SpotifyAccount!
+}
+
+input SpotifyCreateExportInput {
+	"""
+	Account slug.
+	"""
+	account: String!
+	"""
+	Where the export came from, e.g. its directory name.
+	"""
+	label: String!
+	"""
+	Newest timestamp in the export's files. When exports overlap, the newer one's values win.
+	"""
+	asOf: DateTime!
+}
+
+type SpotifyCreateExportPayload {
+	export: SpotifyExport!
+}
+
+type SpotifyDayStat {
+	date: NaiveDate!
+	plays: Int!
+	minutesPlayed: Int!
+	"""
+	The artist with the most listening that day.
+	"""
+	topArtist: SpotifyArtist
+}
+
+type SpotifyDiscovery {
+	artist: SpotifyArtist!
+	"""
+	First play ever (within the filter's accounts and kinds), which falls in the range.
+	"""
+	firstPlayed: DateTime!
+	"""
+	The first track heard by this artist.
+	"""
+	firstItem: SpotifyItem
+	"""
+	Plays in the range.
+	"""
+	plays: Int!
+	minutesPlayed: Int!
+}
+
+type SpotifyDiscoveryConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyDiscoveryEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyDiscovery!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyDiscoveryEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyDiscovery!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyEnrichment {
+	tracksEnriched: Int!
+	tracksPending: Int!
+	"""
+	Tracks Spotify no longer has.
+	"""
+	tracksMissing: Int!
+	artistsEnriched: Int!
+	artistsPending: Int!
+	artworkStored: Int!
+	"""
+	Share of all listening time on enriched items.
+	"""
+	listeningCoverage: Float!
+	requestsLast24h: Int!
+	lastRun: DateTime
+	rateLimitedUntil: DateTime
+}
+
+type SpotifyExport implements Node @key(fields: "id") {
+	id: ID!
+	label: String!
+	asOf: DateTime!
+	createdAt: DateTime!
+	finalizedAt: DateTime
+	account: SpotifyAccount!
+	files: [SpotifyExportFile!]!
+}
+
+type SpotifyExportFile implements Node @key(fields: "id") {
+	id: ID!
+	name: String!
+	kind: SpotifyFileKind!
+	sha256: String!
+	rowsTotal: Int!
+	rowsInserted: Int!
+	rowsMerged: Int!
+	importedAt: DateTime!
+	export: SpotifyExport!
+}
+
+enum SpotifyFileKind {
+	EXTENDED_AUDIO
+	EXTENDED_VIDEO
+	ACCOUNT_STREAMING_HISTORY
+	LIBRARY
+	PLAYLIST
+	SEARCH_QUERIES
+	FOLLOW
+	MARQUEE
+	INFERENCES
+	USERDATA
+	PRIVATE
+}
+
+input SpotifyFinalizeExportInput {
+	exportId: ID!
+}
+
+type SpotifyFinalizeExportPayload {
+	export: SpotifyExport!
+}
+
+type SpotifyForgottenArtist {
+	artist: SpotifyArtist!
+	plays: Int!
+	minutesPlayed: Int!
+	lastPlayed: DateTime!
+}
+
+type SpotifyForgottenArtistConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyForgottenArtistEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyForgottenArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyForgottenArtistEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyForgottenArtist!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyGenre {
+	name: String!
+}
+
+type SpotifyGenrePoint {
+	start: DateTime!
+	minutesPlayed: Int!
+}
+
+type SpotifyGenreRankedConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyGenreRankedEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyGenre!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyGenreRankedEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyGenre!
+	"""
+	1-based position in the ranking.
+	"""
+	rank: Int!
+	plays: Int!
+	minutesPlayed: Int!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyGenreSeries {
+	genre: String!
+	points: [SpotifyGenrePoint!]!
+}
+
+type SpotifyHeatmapCell {
+	"""
+	ISO day of week: 1 is Monday, 7 is Sunday.
+	"""
+	dayOfWeek: Int!
+	hour: Int!
+	plays: Int!
+	minutesPlayed: Int!
+}
+
+type SpotifyItem implements Node @key(fields: "uri") @key(fields: "id") {
+	id: ID!
+	uri: String!
+	kind: SpotifyItemKind!
+	name: String
+	"""
+	The artist for tracks, the show for episodes, the book for audiobook chapters.
+	"""
+	artistName: String
+	artist: SpotifyArtist
+	album: SpotifyAlbum
+	"""
+	Album (or podcast show) artwork, once enrichment has stored it.
+	"""
+	artworkUrl: String
+	"""
+	Whether Spotify Web API metadata has been fetched for this item.
+	"""
+	enriched: Boolean!
+	durationMs: Int
+	explicit: Boolean
+	"""
+	`1999`, `1999-03` or `1999-03-14`, as precise as Spotify knows it.
+	"""
+	releaseDate: String
+	releaseYear: Int
+	"""
+	Every credited artist in credit order; empty until enriched.
+	"""
+	artists: [SpotifyArtist!]!
+	stats(filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): SpotifyStats!
+}
+
+type SpotifyItemConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyItemEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyItem!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyItemEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyItem!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+enum SpotifyItemKind {
+	TRACK
+	EPISODE
+	AUDIOBOOK
+}
+
+type SpotifyItemRankedConnection @shareable {
+	"""
+	Information to aid in pagination.
+	"""
+	pageInfo: PageInfo!
+	"""
+	A list of edges.
+	"""
+	edges: [SpotifyItemRankedEdge!]!
+	"""
+	A list of nodes.
+	"""
+	nodes: [SpotifyItem!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyItemRankedEdge @shareable {
+	"""
+	The item at the end of the edge
+	"""
+	node: SpotifyItem!
+	"""
+	1-based position in the ranking.
+	"""
+	rank: Int!
+	plays: Int!
+	minutesPlayed: Int!
+	"""
+	A cursor for use in pagination
+	"""
+	cursor: String!
+}
+
+type SpotifyListeningDays {
+	"""
+	Days with at least one play.
+	"""
+	activeDays: Int!
+	"""
+	Days from the first to the last play, inclusive.
+	"""
+	spanDays: Int!
+	"""
+	Longest run of consecutive active days.
+	"""
+	longestStreak: SpotifyStreak
+	"""
+	The run ending on the last active day.
+	"""
+	latestStreak: SpotifyStreak
+}
+
+type SpotifyMusicAge {
+	"""
+	Average years between a track's release and when you played it.
+	"""
+	averageYears: Float
+	"""
+	Share of plays of music released the same year it was played.
+	"""
+	newShare: Float
+	"""
+	Share of plays with a known release year (grows as enrichment runs).
+	"""
+	coverage: Float!
+	"""
+	The oldest track played in the range.
+	"""
+	oldest: SpotifyItem
+	oldestYear: Int
+}
+
+type SpotifyPlay {
 	"""
 	When playback ended.
 	"""
@@ -511,11 +675,11 @@ type Play {
 	isExtended: Boolean!
 	name: String
 	artistName: String
-	item: Item
-	account: Account!
+	item: SpotifyItem
+	account: SpotifyAccount!
 }
 
-type PlayConnection @shareable {
+type SpotifyPlayConnection @shareable {
 	"""
 	Information to aid in pagination.
 	"""
@@ -523,200 +687,34 @@ type PlayConnection @shareable {
 	"""
 	A list of edges.
 	"""
-	edges: [PlayEdge!]!
+	edges: [SpotifyPlayEdge!]!
 	"""
 	A list of nodes.
 	"""
-	nodes: [Play!]!
+	nodes: [SpotifyPlay!]!
 }
 
 """
 An edge in a connection.
 """
-type PlayEdge @shareable {
+type SpotifyPlayEdge @shareable {
 	"""
 	The item at the end of the edge
 	"""
-	node: Play!
+	node: SpotifyPlay!
 	"""
 	A cursor for use in pagination
 	"""
 	cursor: String!
 }
 
-type Query {
-	node(id: ID!): Node
-	nodes(ids: [ID!]!): [Node]!
-	accounts: [Account!]!
-	account(slug: String!): Account
-	"""
-	Listening stats across the filtered plays.
-	"""
-	stats(filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): Stats!
-	"""
-	Search tracks, episodes and artists by name.
-	"""
-	search(query: String!): Search!
-	item(uri: String!): Item
-	artist(name: String!): Artist
-	"""
-	Progress of Spotify Web API enrichment (metadata, genres, artwork).
-	"""
-	enrichment: Enrichment!
-	"""
-	Whether a file with this sha256 has already been imported for the account, so clients
-	can skip uploading it.
-	"""
-	fileExists(account: String!, sha256: String!): Boolean! @inaccessible
-}
-
-enum RankBy {
+enum SpotifyRankBy {
 	MINUTES_PLAYED
 	PLAYS
 }
 
-type RankedAlbumConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [RankedAlbumEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Album!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedAlbumEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Album!
-	"""
-	1-based position in the ranking.
-	"""
-	rank: Int!
-	plays: Int!
-	minutesPlayed: Int!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type RankedArtistConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [RankedArtistEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Artist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedArtistEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Artist!
-	"""
-	1-based position in the ranking.
-	"""
-	rank: Int!
-	plays: Int!
-	minutesPlayed: Int!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type RankedGenreConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [RankedGenreEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Genre!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedGenreEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Genre!
-	"""
-	1-based position in the ranking.
-	"""
-	rank: Int!
-	plays: Int!
-	minutesPlayed: Int!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type RankedItemConnection @shareable {
-	"""
-	Information to aid in pagination.
-	"""
-	pageInfo: PageInfo!
-	"""
-	A list of edges.
-	"""
-	edges: [RankedItemEdge!]!
-	"""
-	A list of nodes.
-	"""
-	nodes: [Item!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedItemEdge @shareable {
-	"""
-	The item at the end of the edge
-	"""
-	node: Item!
-	"""
-	1-based position in the ranking.
-	"""
-	rank: Int!
-	plays: Int!
-	minutesPlayed: Int!
-	"""
-	A cursor for use in pagination
-	"""
-	cursor: String!
-}
-
-type RepeatDay {
-	item: Item!
+type SpotifyRepeatDay {
+	item: SpotifyItem!
 	"""
 	The day this item was played most.
 	"""
@@ -724,28 +722,28 @@ type RepeatDay {
 	plays: Int!
 }
 
-type Search {
-	items(first: Int, after: String): ItemConnection!
-	artists(first: Int, after: String): ArtistConnection!
+type SpotifySearch {
+	items(first: Int, after: String): SpotifyItemConnection!
+	artists(first: Int, after: String): SpotifyArtistConnection!
 }
 
-type Session {
+type SpotifySession {
 	start: DateTime!
 	end: DateTime!
 	plays: Int!
 	minutesPlayed: Int!
 }
 
-type Sessions {
+type SpotifySessions {
 	"""
 	Listening sessions: plays separated by less than 30 minutes of silence.
 	"""
 	count: Int!
 	averageMinutes: Float
-	longest: Session
+	longest: SpotifySession
 }
 
-enum SkipOrder {
+enum SpotifySkipOrder {
 	"""
 	Highest skip rate first.
 	"""
@@ -756,8 +754,8 @@ enum SkipOrder {
 	LEAST_SKIPPED
 }
 
-type SkippedItem {
-	item: Item!
+type SpotifySkippedItem {
+	item: SpotifyItem!
 	"""
 	Plays where the export records whether it was skipped.
 	"""
@@ -766,88 +764,88 @@ type SkippedItem {
 	skipRate: Float!
 }
 
-type Stats {
-	summary: Summary!
-	topArtists(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedArtistConnection!
+type SpotifyStats {
+	summary: SpotifySummary!
+	topArtists(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyArtistRankedConnection!
 	"""
 	Only plays with an item (extended history) are ranked; account-data plays have none.
 	"""
-	topItems(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedItemConnection!
-	topAlbums(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedAlbumConnection!
-	timeline(bucket: TimeBucket!): [TimelinePoint!]!
+	topItems(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyItemRankedConnection!
+	topAlbums(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyAlbumRankedConnection!
+	timeline(bucket: SpotifyTimeBucket!): [SpotifyTimelinePoint!]!
 	"""
 	Listening by day of week and hour, in the filter's time zone. Empty cells are omitted.
 	"""
-	heatmap: [HeatmapCell!]!
+	heatmap: [SpotifyHeatmapCell!]!
 	"""
 	Individual plays, most recent first.
 	"""
-	plays(first: Int, after: String): PlayConnection!
+	plays(first: Int, after: String): SpotifyPlayConnection!
 	"""
 	The earliest play: for an artist or track, when you first heard it.
 	"""
-	firstPlay: Play
+	firstPlay: SpotifyPlay
 	"""
 	Active days and streaks of consecutive days.
 	"""
-	listeningDays: ListeningDays!
+	listeningDays: SpotifyListeningDays!
 	"""
 	Days with the most listening, each with its top artist.
 	"""
-	topDays(first: Int! = 10): [DayStat!]!
+	topDays(first: Int! = 10): [SpotifyDayStat!]!
 	"""
 	Items played most within a single day, one entry per item.
 	"""
-	onRepeat(first: Int! = 10): [RepeatDay!]!
+	onRepeat(first: Int! = 10): [SpotifyRepeatDay!]!
 	"""
 	Highest skip rates among items with at least `minPlays` plays. Counts every play,
 	whatever the filter's minimum play length.
 	"""
-	mostSkipped(first: Int! = 10, minPlays: Int! = 10): [SkippedItem!]!
+	mostSkipped(first: Int! = 10, minPlays: Int! = 10): [SpotifySkippedItem!]!
 	"""
 	Artists ranked by skip rate, among those with at least `minPlays` plays. Counts every
 	play, whatever the filter's minimum play length.
 	"""
-	artistSkipRates(order: SkipOrder! = MOST_SKIPPED, first: Int! = 10, minPlays: Int! = 50): [ArtistSkipRate!]!
+	artistSkipRates(order: SpotifySkipOrder! = MOST_SKIPPED, first: Int! = 10, minPlays: Int! = 50): [SpotifyArtistSkipRate!]!
 	"""
 	Listening split by device, country, shuffle, offline or start/end reason.
 	"""
-	breakdown(by: BreakdownDimension!): [BreakdownRow!]!
-	sessions: Sessions!
+	breakdown(by: SpotifyBreakdownDimension!): [SpotifyBreakdownRow!]!
+	sessions: SpotifySessions!
 	"""
 	Artists first heard within the date range, by listening in the range.
 	"""
-	discoveries(first: Int, after: String): DiscoveryConnection!
+	discoveries(first: Int, after: String): SpotifyDiscoveryConnection!
 	"""
 	Artists with heavy listening but nothing in the last year of the range.
 	"""
-	forgottenArtists(first: Int, after: String): ForgottenArtistConnection!
+	forgottenArtists(first: Int, after: String): SpotifyForgottenArtistConnection!
 	"""
 	Genres by listening, from the Spotify genres of each track's primary artist. A play
 	counts toward every genre of that artist, so shares overlap. Needs enrichment.
 	"""
-	topGenres(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedGenreConnection!
+	topGenres(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyGenreRankedConnection!
 	"""
 	Listening over time for `genres`, or the top `first` genres when none are given,
 	chosen over all time by default so they stay stable as the date range changes.
 	"""
-	genreTimeline(bucket: TimeBucket!, genres: [String!]! = [], first: Int! = 5, topOverAllTime: Boolean! = true): [GenreSeries!]!
+	genreTimeline(bucket: SpotifyTimeBucket!, genres: [String!]! = [], first: Int! = 5, topOverAllTime: Boolean! = true): [SpotifyGenreSeries!]!
 	"""
 	How old the music is when you play it. Needs enrichment.
 	"""
-	musicAge: MusicAge!
+	musicAge: SpotifyMusicAge!
 	"""
 	How much of each track you play, from Spotify durations. Counts every play, whatever
 	the filter's minimum play length.
 	"""
-	completion: Completion!
+	completion: SpotifyCompletion!
 	"""
 	Tracks with the lowest average completion among those with at least `minPlays` plays.
 	"""
-	mostAbandoned(first: Int! = 10, minPlays: Int! = 10): [AbandonedItem!]!
+	mostAbandoned(first: Int! = 10, minPlays: Int! = 10): [SpotifyAbandonedItem!]!
 }
 
-input StatsFilter {
+input SpotifyStatsFilter {
 	"""
 	Accounts to include; empty means all.
 	"""
@@ -863,7 +861,7 @@ input StatsFilter {
 	"""
 	Item kinds to include. Account-data plays have no kind and count as tracks.
 	"""
-	kinds: [ItemKind!]! = [TRACK]
+	kinds: [SpotifyItemKind!]! = [TRACK]
 	"""
 	Ignore plays shorter than this. Defaults to Spotify's 30 second stream threshold; use
 	0 to include skips.
@@ -875,13 +873,13 @@ input StatsFilter {
 	timeZone: String! = "Australia/Perth"
 }
 
-type Streak {
+type SpotifyStreak {
 	start: NaiveDate!
 	end: NaiveDate!
 	days: Int!
 }
 
-type Summary {
+type SpotifySummary {
 	plays: Int!
 	minutesPlayed: Int!
 	distinctTracks: Int!
@@ -894,14 +892,14 @@ type Summary {
 	lastPlayed: DateTime
 }
 
-enum TimeBucket {
+enum SpotifyTimeBucket {
 	DAY
 	WEEK
 	MONTH
 	YEAR
 }
 
-type TimelinePoint {
+type SpotifyTimelinePoint {
 	"""
 	Start of the bucket in the filter's time zone.
 	"""
@@ -910,12 +908,7 @@ type TimelinePoint {
 	minutesPlayed: Int!
 }
 
-"""
-A multipart file upload
-"""
-scalar Upload
-
-input UploadExportFileInput {
+input SpotifyUploadExportFileInput {
 	exportId: ID!
 	"""
 	The file's name inside the export, used to detect its kind.
@@ -927,12 +920,12 @@ input UploadExportFileInput {
 	sha256: String!
 }
 
-type UploadExportFilePayload {
-	status: UploadStatus!
-	file: ExportFile
+type SpotifyUploadExportFilePayload {
+	status: SpotifyUploadStatus!
+	file: SpotifyExportFile
 }
 
-enum UploadStatus {
+enum SpotifyUploadStatus {
 	IMPORTED
 	"""
 	Already imported for this account; nothing was changed.
@@ -943,6 +936,11 @@ enum UploadStatus {
 	"""
 	UNSUPPORTED
 }
+
+"""
+A multipart file upload
+"""
+scalar Upload
 
 """
 Directs the executor to include this field or fragment only when the `if` argument is true.

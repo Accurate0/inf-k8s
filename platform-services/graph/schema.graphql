@@ -50,7 +50,7 @@ A multipart file upload
 """
 scalar Upload
 
-type AdhocCronTaskStatus {
+type HomeAdhocCronTaskStatus {
   id: String!
   name: String!
   schedule: String!
@@ -62,7 +62,7 @@ type AdhocCronTaskStatus {
   outcome: String
 }
 
-type AdhocTaskStatus {
+type HomeAdhocTaskStatus {
   id: String!
   ordinal: Int!
   name: String!
@@ -73,79 +73,66 @@ type AdhocTaskStatus {
   checksumDrifted: Boolean!
 }
 
-type AirPurifierEntity implements LockableEntity {
-  category: EntityCategory!
+type HomeAirPurifierEntity implements HomeLockableEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
   on: Boolean
-  mode: AirPurifierMode
+  mode: HomeAirPurifierMode
   speed: Int
   pm25: Float
   filterLife: Float
   aqi: Float
   cadr: Float
   display: Boolean
-  lock: DeviceLock
+  lock: HomeDeviceLock
   changedAt: DateTime
   lastSeen: DateTime
-  history(since: DateTime!): [AirPurifierPoint!]!
+  history(since: DateTime!): [HomeAirPurifierPoint!]!
 }
 
-type AirPurifierMutation {
-  turnOn: CommandOutcome!
-  turnOff: CommandOutcome!
-  setMode(mode: AirPurifierMode!): CommandOutcome!
-  setSpeed(speed: Int!): CommandOutcome!
-  setDisplay(on: Boolean!): CommandOutcome!
+type HomeAirPurifierMutation {
+  turnOn: HomeCommandOutcome!
+  turnOff: HomeCommandOutcome!
+  setMode(mode: HomeAirPurifierMode!): HomeCommandOutcome!
+  setSpeed(speed: Int!): HomeCommandOutcome!
+  setDisplay(on: Boolean!): HomeCommandOutcome!
 }
 
-type AirPurifierPoint {
+type HomeAirPurifierPoint {
   on: Boolean!
-  mode: AirPurifierMode
+  mode: HomeAirPurifierMode
   pm25: Float
   time: DateTime!
 }
 
-type AirPurifierUpdate {
+type HomeAirPurifierUpdate {
   eventId: UUID!
   id: ID!
   name: String!
   on: Boolean!
-  mode: AirPurifierMode
+  mode: HomeAirPurifierMode
   speed: Int
   display: Boolean
   pm25: Float
 }
 
-type Artist implements Node {
-  name: String!
-  id: ID!
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats!
-  """
-  Spotify's genres for this artist; empty until enriched.
-  """
-  genres: [String!]!
-  imageUrl: String
-}
-
-type AuthObject {
+type HomeAuthObject {
   id: String
   name: String
   scopes: [String!]!
 }
 
-type BatteryPoint {
+type HomeBatteryPoint {
   batteryVoltage: Float
   batteryPercent: Float
   time: DateTime!
   batteryPercentage: Float
 }
 
-type CommandFailedUpdate {
+type HomeCommandFailedUpdate {
   eventId: UUID!
   id: ID!
   address: String!
@@ -157,19 +144,19 @@ type CommandFailedUpdate {
   colour: String
 }
 
-type CronUpdate {
+type HomeCronUpdate {
   eventId: UUID!
   name: String!
 }
 
-type CustomUpdate {
+type HomeCustomUpdate {
   eventId: UUID!
   source: String!
   name: String!
   payload: JSON!
 }
 
-type DepartureObject {
+type HomeDepartureObject {
   line: String!
   headsign: String!
   platform: String
@@ -180,16 +167,16 @@ type DepartureObject {
   live: Boolean!
 }
 
-type DeviceBattery {
+type HomeDeviceBattery {
   kind: String!
   voltage: Float
-  chemistry: BatteryChemistry!
+  chemistry: HomeBatteryChemistry!
   percentage: Float
   updatedAt: DateTime!
-  history(since: DateTime!): [BatteryPoint!]!
+  history(since: DateTime!): [HomeBatteryPoint!]!
 }
 
-type DeviceBatteryUpdate {
+type HomeDeviceBatteryUpdate {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -202,13 +189,13 @@ type DeviceBatteryUpdate {
   batteryPercentage: Float
 }
 
-type DeviceConnection {
+type HomeDeviceConnection {
   deviceId: String!
   connected: Boolean!
   changedAt: DateTime!
 }
 
-type DeviceConnectionUpdate {
+type HomeDeviceConnectionUpdate {
   eventId: UUID!
   deviceId: String!
   transport: String!
@@ -217,34 +204,34 @@ type DeviceConnectionUpdate {
   id: ID!
 }
 
-type DeviceLock {
-  source: DeviceLockSource!
+type HomeDeviceLock {
+  source: HomeDeviceLockSource!
   lockedAt: DateTime!
   expiresAt: DateTime
 }
 
-type DeviceLockMutation {
-  lock(durationSeconds: Int): DeviceLock!
+type HomeDeviceLockMutation {
+  lock(durationSeconds: Int): HomeDeviceLock!
   unlock: Boolean!
 }
 
-type DeviceLockUpdate {
+type HomeDeviceLockUpdate {
   eventId: UUID!
   deviceId: String!
   locked: Boolean!
-  source: DeviceLockSource
+  source: HomeDeviceLockSource
   expiresAt: DateTime
   id: ID!
 }
 
-type DoorEntity {
-  category: EntityCategory!
+type HomeDoorEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Whether the door is open. Nullable so an unreachable door-events actor
   reports the error against this field without nulling the whole entity.
@@ -253,7 +240,7 @@ type DoorEntity {
   lastSeen: DateTime
 }
 
-type DoorUpdate {
+type HomeDoorUpdate {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -270,14 +257,14 @@ type DoorUpdate {
   open: Boolean!
 }
 
-type EinkDisplayConfig {
-  mode: EinkMode!
+type HomeEinkDisplayConfig {
+  mode: HomeEinkMode!
   view: String
   immichAlbum: String
   subreddit: String
-  timespan: RedditTimespan
+  timespan: HomeRedditTimespan
   limit: Int
-  orientation: Orientation!
+  orientation: HomeOrientation!
   refresh: String!
   grace: String!
   settle: String
@@ -286,13 +273,13 @@ type EinkDisplayConfig {
   sleepEnd: String
 }
 
-type EinkDisplayEntity {
-  category: EntityCategory!
+type HomeEinkDisplayEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  kind: EinkDisplayKind!
-  capabilities: [Capability!]!
+  kind: HomeEinkDisplayKind!
+  capabilities: [HomeCapability!]!
   room: String
   batteryVoltage: Float
   batteryPercentage: Float
@@ -307,47 +294,47 @@ type EinkDisplayEntity {
   rtcSyncDueAt: DateTime
   lastWakeTraceUrl: String
   targetFirmwareVersion: String
-  config: EinkDisplayConfig
-  deviceConfig: EpdConfig!
-  battery: DeviceBattery
-  batteryHistory(since: DateTime!): [BatteryPoint!]!
+  config: HomeEinkDisplayConfig
+  deviceConfig: HomeEpdConfig!
+  battery: HomeDeviceBattery
+  batteryHistory(since: DateTime!): [HomeBatteryPoint!]!
 }
 
-type EinkDisplayMutation {
+type HomeEinkDisplayMutation {
   takeScreenshot: Boolean!
 }
 
-type EnergyConsumption {
+type HomeEnergyConsumption {
   id: UUID!
   used: Float!
   solarExported: Float!
   time: DateTime!
 }
 
-type EnergyGap {
+type HomeEnergyGap {
   start: DateTime!
   end: DateTime!
   missingIntervals: Int!
 }
 
-type EnergyObject {
-  history(input: EnergyHistoryInput!): [EnergyConsumption!]!
-  gaps(input: EnergyGapsInput!): [EnergyGap!]!
+type HomeEnergyObject {
+  history(input: HomeEnergyHistoryInput!): [HomeEnergyConsumption!]!
+  gaps(input: HomeEnergyGapsInput!): [HomeEnergyGap!]!
 }
 
-type EntitySection {
-  category: EntityCategory!
+type HomeEntitySection {
+  category: HomeEntityCategory!
   title: String!
 }
 
-type EnvironmentEntity {
-  category: EntityCategory!
+type HomeEnvironmentEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Nullable so a missing reading reports the error against this field
   without nulling the whole entity.
@@ -367,7 +354,7 @@ type EnvironmentEntity {
   lastSeen: DateTime
 }
 
-type EnvironmentUpdate {
+type HomeEnvironmentUpdate {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -381,25 +368,25 @@ type EnvironmentUpdate {
   Raw device address the event was emitted for.
   """
   sensor: String!
-  readings: [MetricReading!]!
+  readings: [HomeMetricReading!]!
 }
 
-type EpdConfig {
+type HomeEpdConfig {
   refreshIntervalMins: Int
   refreshIntervalSecs: Int
   imageUrl: String
   imageHash: String
   firmwareUrl: String
   firmwareVersion: String
-  partial: PartialWindow
+  partial: HomePartialWindow
 }
 
-type Forecast {
-  days: [ForecastDetails!]!
-  hours: [ForecastHour!]!
+type HomeForecast {
+  days: [HomeForecastDetails!]!
+  hours: [HomeForecastHour!]!
 }
 
-type ForecastDetails {
+type HomeForecastDetails {
   dateTime: String!
   code: String!
   description: String!
@@ -418,7 +405,7 @@ type ForecastDetails {
   lastLight: String
 }
 
-type ForecastHour {
+type HomeForecastHour {
   dateTime: String!
   temperature: Float
   windSpeed: Float
@@ -426,7 +413,7 @@ type ForecastHour {
   windDirectionText: String
 }
 
-type FuelSite {
+type HomeFuelSite {
   siteId: Int!
   name: String!
   brand: String!
@@ -439,12 +426,12 @@ type FuelSite {
   longitude: Float!
 }
 
-type FuelWatchObject {
-  cheapest: FuelSite
-  sites(limit: Int): [FuelSite!]!
+type HomeFuelWatchObject {
+  cheapest: HomeFuelSite
+  sites(limit: Int): [HomeFuelSite!]!
 }
 
-type FuelWatchUpdate {
+type HomeFuelWatchUpdate {
   eventId: UUID!
   change: String!
   siteId: Int!
@@ -456,33 +443,33 @@ type FuelWatchUpdate {
   newPrice: Float!
 }
 
-type GarageDoorEntity {
-  category: EntityCategory!
+type HomeGarageDoorEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
-  battery: DeviceBattery
-  state: GarageDoorState
+  battery: HomeDeviceBattery
+  state: HomeGarageDoorState
   open: Boolean
   contact: Boolean
   changedAt: DateTime
   lastSeen: DateTime
 }
 
-type GarageDoorMutation {
-  open: CommandOutcome!
-  close: CommandOutcome!
+type HomeGarageDoorMutation {
+  open: HomeCommandOutcome!
+  close: HomeCommandOutcome!
 }
 
-type GarageDoorUpdate {
+type HomeGarageDoorUpdate {
   eventId: UUID!
   id: ID!
   name: String!
-  state: GarageDoorState!
+  state: HomeGarageDoorState!
 }
 
-type GenerationHistory {
+type HomeGenerationHistory {
   wh: Float!
   at: NaiveDateTime!
   uvLevel: Float
@@ -490,7 +477,7 @@ type GenerationHistory {
   timestamp: Int!
 }
 
-type HomeAssistantEvent {
+type HomeHomeAssistantEvent {
   eventId: UUID!
   entityId: String!
   state: String!
@@ -498,57 +485,22 @@ type HomeAssistantEvent {
   id: ID!
 }
 
-type HomeAssistantObject {
-  entities: [HomeAssistantEvent!]!
+type HomeHomeAssistantObject {
+  entities: [HomeHomeAssistantEvent!]!
 }
 
-type HomeAssistantUpdate {
+type HomeHomeAssistantUpdate {
   eventId: UUID!
   entityId: String!
   state: String!
   id: ID!
 }
 
-type Item implements Node {
-  uri: String!
-  id: ID!
-  kind: ItemKind!
-  name: String
-  """
-  The artist for tracks, the show for episodes, the book for audiobook chapters.
-  """
-  artistName: String
-  artist: Artist
-  album: Album
-  """
-  Album (or podcast show) artwork, once enrichment has stored it.
-  """
-  artworkUrl: String
-  """
-  Whether Spotify Web API metadata has been fetched for this item.
-  """
-  enriched: Boolean!
-  durationMs: Int
-  explicit: Boolean
-  """
-  `1999`, `1999-03` or `1999-03-14`, as precise as Spotify knows it.
-  """
-  releaseDate: String
-  releaseYear: Int
-  """
-  Every credited artist in credit order; empty until enriched.
-  """
-  artists: [Artist!]!
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats!
+type HomeJellyfinObject {
+  nowPlaying: [HomeJellyfinSession!]!
 }
 
-type JellyfinObject {
-  nowPlaying: [JellyfinSession!]!
-}
-
-type JellyfinSession {
+type HomeJellyfinSession {
   eventId: UUID!
   sessionId: String!
   user: String!
@@ -569,7 +521,7 @@ type JellyfinSession {
   progress: Float
 }
 
-type JellyfinUpdate {
+type HomeJellyfinUpdate {
   eventId: UUID!
   state: String!
   sessionId: String!
@@ -588,19 +540,19 @@ type JellyfinUpdate {
   id: ID!
 }
 
-type LightCommandResult {
-  status: LightCommandStatus!
-  state: LightState!
+type HomeLightCommandResult {
+  status: HomeLightCommandStatus!
+  state: HomeLightState!
 }
 
-type LightEntity {
-  category: EntityCategory!
+type HomeLightEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Current power state. Nullable so an unreachable light actor reports the
   error against this field without nulling the whole entity.
@@ -619,22 +571,22 @@ type LightEntity {
   """
   colour: String
   lastSeen: DateTime
-  pendingCommands: [PendingCommand!]!
+  pendingCommands: [HomePendingCommand!]!
 }
 
-type LightMutation {
-  set(input: LightSetInput!): LightCommandResult!
+type HomeLightMutation {
+  set(input: HomeLightSetInput!): HomeLightCommandResult!
   on: Boolean!
   off: Boolean!
   toggle: Boolean!
-  setBrightness(input: SetBrightnessInput!): Boolean!
-  brightnessMove(input: BrightnessMoveInput!): Boolean!
-  setColour(input: SetColourInput!): Boolean!
-  setColourTemperature(input: SetColourTemperatureInput!): Boolean!
-  colourTemperatureMove(input: ColourTemperatureMoveInput!): Boolean!
+  setBrightness(input: HomeSetBrightnessInput!): Boolean!
+  brightnessMove(input: HomeBrightnessMoveInput!): Boolean!
+  setColour(input: HomeSetColourInput!): Boolean!
+  setColourTemperature(input: HomeSetColourTemperatureInput!): Boolean!
+  colourTemperatureMove(input: HomeColourTemperatureMoveInput!): Boolean!
 }
 
-type LightState {
+type HomeLightState {
   on: Boolean!
   """
   Current brightness on the light model's `ranges.brightness` scale, when the light reports one.
@@ -650,7 +602,7 @@ type LightState {
   colour: String
 }
 
-type LightUpdate {
+type HomeLightUpdate {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -676,47 +628,47 @@ type LightUpdate {
   colour: String
 }
 
-type LuaAliasObject {
+type HomeLuaAliasObject {
   name: String!
   type: String!
 }
 
-type LuaApiObject {
-  namespaces: [LuaNamespaceObject!]!
-  globals: [LuaFieldObject!]!
-  classes: [LuaClassObject!]!
-  aliases: [LuaAliasObject!]!
+type HomeLuaApiObject {
+  namespaces: [HomeLuaNamespaceObject!]!
+  globals: [HomeLuaFieldObject!]!
+  classes: [HomeLuaClassObject!]!
+  aliases: [HomeLuaAliasObject!]!
   definitions: String!
 }
 
-type LuaClassObject {
+type HomeLuaClassObject {
   name: String!
-  fields: [LuaFieldObject!]!
+  fields: [HomeLuaFieldObject!]!
 }
 
-type LuaFieldObject {
+type HomeLuaFieldObject {
   name: String!
   type: String!
   optional: Boolean!
   declaration: String!
 }
 
-type LuaFunctionObject {
+type HomeLuaFunctionObject {
   name: String!
-  params: [LuaFieldObject!]!
+  params: [HomeLuaFieldObject!]!
   returns: String
   scope: String
   signature: String!
 }
 
-type LuaNamespaceObject {
+type HomeLuaNamespaceObject {
   name: String!
-  fields: [LuaFieldObject!]!
-  functions: [LuaFunctionObject!]!
+  fields: [HomeLuaFieldObject!]!
+  functions: [HomeLuaFunctionObject!]!
 }
 
-type MediaPlayerEntity {
-  category: EntityCategory!
+type HomeMediaPlayerEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
@@ -727,8 +679,8 @@ type MediaPlayerEntity {
   source: String
   mediaContentType: String
   mediaContentId: String
-  spotifyItem: Item
-  spotifyArtist: Artist
+  spotifyItem: SpotifyItem
+  spotifyArtist: SpotifyArtist
   mediaTitle: String
   mediaArtist: String
   mediaAlbumName: String
@@ -749,7 +701,7 @@ type MediaPlayerEntity {
   lastSeen: DateTime
 }
 
-type MediaPlayerMutation {
+type HomeMediaPlayerMutation {
   play: Boolean!
   pause: Boolean!
   playPause: Boolean!
@@ -762,7 +714,7 @@ type MediaPlayerMutation {
   turnOff: Boolean!
 }
 
-type MediaPlayerUpdate {
+type HomeMediaPlayerUpdate {
   eventId: UUID!
   deviceId: String!
   name: String!
@@ -784,49 +736,30 @@ type MediaPlayerUpdate {
   id: ID!
 }
 
-type MetricReading {
+type HomeMetricReading {
   metric: String!
   value: Float!
 }
 
-type ModeStatus {
-  active: Mode!
-  node(mode: Mode): ModeState!
+type HomeModeStatus {
+  active: HomeMode!
+  node(mode: HomeMode): HomeModeState!
 }
 
-type ModeUpdate {
+type HomeModeUpdate {
   eventId: UUID!
-  mode: Mode!
-  previous: Mode!
+  mode: HomeMode!
+  previous: HomeMode!
 }
 
-type Mutation {
-  light(id: IdOrAlias!): LightMutation!
-  robotVacuum(id: IdOrAlias!): RobotVacuumMutation!
-  garageDoor(id: IdOrAlias!): GarageDoorMutation!
-  airPurifier(id: IdOrAlias!): AirPurifierMutation!
-  deviceLock(id: IdOrAlias!): DeviceLockMutation!
-  mediaPlayer(id: IdOrAlias!): MediaPlayerMutation!
-  einkDisplay(id: IdOrAlias!): EinkDisplayMutation!
-  setWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean!
-  setMode(mode: Mode!): Mode!
-  runWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID!
-  runPendingAdhocTasks: Boolean!
-  runAdhocCronTask(name: String!): Boolean!
-  sendPushNotification(input: SendPushNotificationInput!): Boolean!
-  recordNotificationInteraction(id: UUID!, kind: NotificationInteractionKind!): Boolean!
-  executeLua(script: String!, vars: JSON, dryRun: Boolean): JSON!
-  createAccount(input: CreateAccountInput!): CreateAccountPayload!
-}
-
-type PartialWindow {
+type HomePartialWindow {
   x: Int!
   y: Int!
   width: Int!
   height: Int!
 }
 
-type PendingCommand {
+type HomePendingCommand {
   requestedAt: DateTime!
   attempts: Int!
   relative: Boolean!
@@ -836,29 +769,29 @@ type PendingCommand {
   colour: String
 }
 
-type PlainMode implements ModeState {
-  mode: Mode!
+type HomePlainMode implements HomeModeState {
+  mode: HomeMode!
 }
 
-type PlantEntity {
-  category: EntityCategory!
+type HomePlantEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   soilMoisture: Float
   time: DateTime
-  history(since: DateTime!): [PlantPoint!]!
+  history(since: DateTime!): [HomePlantPoint!]!
   lastSeen: DateTime
 }
 
-type PlantPoint {
+type HomePlantPoint {
   soilMoisture: Float!
   time: DateTime!
 }
 
-type PlantUpdate {
+type HomePlantUpdate {
   eventId: UUID!
   id: ID!
   name: String!
@@ -866,14 +799,14 @@ type PlantUpdate {
   soilMoisture: Float!
 }
 
-type PresenceEntity {
-  category: EntityCategory!
+type HomePresenceEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Whether presence is detected. Nullable so an unreachable presence actor
   reports the error against this field without nulling the whole entity.
@@ -882,7 +815,7 @@ type PresenceEntity {
   lastSeen: DateTime
 }
 
-type PresenceUpdate {
+type HomePresenceUpdate {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -899,102 +832,41 @@ type PresenceUpdate {
   present: Boolean!
 }
 
-type PushNotification {
+type HomePushNotification {
   id: UUID!
   tag: String!
   title: String!
   body: String!
   category: String!
-  actions: [PushNotificationAction!]!
+  actions: [HomePushNotificationAction!]!
   sendCount: Int!
   nextReminderAt: DateTime
   acknowledgedAt: DateTime
   createdAt: DateTime!
-  interactions: [PushNotificationInteraction!]!
+  interactions: [HomePushNotificationInteraction!]!
 }
 
-type PushNotificationAction {
+type HomePushNotificationAction {
   label: String!
-  kind: PushNotificationActionKind!
+  kind: HomePushNotificationActionKind!
   workflowSlug: String
   snoozeSeconds: Int
 }
 
-type PushNotificationInteraction {
-  kind: NotificationInteractionKind!
+type HomePushNotificationInteraction {
+  kind: HomeNotificationInteractionKind!
   at: DateTime!
 }
 
-type Query {
-  auth: AuthObject!
-  homeAssistant: HomeAssistantObject!
-  """
-  Every configured entity and its current state. Entity types the caller
-  lacks a `graphql:<type>:read` scope for are silently omitted — this query
-  never errors on missing permissions.
-  The dashboard sections, in display order, with their titles. Categorising
-  a device kind is a backend concern — the frontend renders whatever order
-  and titles this returns.
-  """
-  entitySections: [EntitySection!]!
-  deviceConnections: [DeviceConnection!]!
-  entities: [Entity!]!
-  mediaPlayer(id: IdOrAlias!): MediaPlayerEntity!
-  light(id: IdOrAlias!): LightEntity!
-  door(id: IdOrAlias!): DoorEntity!
-  presence(id: IdOrAlias!): PresenceEntity!
-  environment(id: IdOrAlias!): EnvironmentEntity!
-  plant(id: IdOrAlias!): PlantEntity!
-  einkDisplay(id: IdOrAlias!): EinkDisplayEntity!
-  robotVacuum(id: IdOrAlias!): RobotVacuumEntity!
-  garageDoor(id: IdOrAlias!): GarageDoorEntity!
-  airPurifier(id: IdOrAlias!): AirPurifierEntity!
-  solar: SolarObject!
-  energy: EnergyObject!
-  weather(input: WeatherInput!): WeatherObject!
-  woolworths: WoolworthsObject!
-  transperth: TransperthObject!
-  fuelwatch(postcode: Int): FuelWatchObject!
-  unraid: Unraid
-  workflows: [WorkflowStatus!]!
-  mode: ModeStatus!
-  workflowRuns(slug: String, eventId: UUID, limit: Int): [WorkflowRun!]!
-  jellyfin: JellyfinObject!
-  adhocCronTasks: [AdhocCronTaskStatus!]!
-  adhocTasks: [AdhocTaskStatus!]!
-  pushNotifications(limit: Int): [PushNotification!]!
-  luaApi: LuaApiObject!
-  node(id: ID!): Node
-  nodes(ids: [ID!]!): [Node]!
-  accounts: [Account!]!
-  account(slug: String!): Account
-  """
-  Listening stats across the filtered plays.
-  """
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats!
-  """
-  Search tracks, episodes and artists by name.
-  """
-  search(query: String!): Search!
-  item(uri: String!): Item
-  artist(name: String!): Artist
-  """
-  Progress of Spotify Web API enrichment (metadata, genres, artwork).
-  """
-  enrichment: Enrichment!
-}
-
-type RobotVacuumEntity {
-  category: EntityCategory!
+type HomeRobotVacuumEntity {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
-  battery: DeviceBattery
-  capabilities: [Capability!]!
-  kind: RobotVacuumKind!
+  battery: HomeDeviceBattery
+  capabilities: [HomeCapability!]!
+  kind: HomeRobotVacuumKind!
   status: String
   batteryPercentage: Float
   currentRoom: String
@@ -1004,73 +876,69 @@ type RobotVacuumEntity {
   lastSeen: DateTime
 }
 
-type RobotVacuumMutation {
+type HomeRobotVacuumMutation {
   start: Boolean!
   stop: Boolean!
   dock: Boolean!
 }
 
-type RouteDeparturesObject {
+type HomeRouteDeparturesObject {
   id: String!
   origin: String!
   destination: String!
   updatedAt: DateTime!
   stale: Boolean!
-  departures: [DepartureObject!]!
+  departures: [HomeDepartureObject!]!
 }
 
-type SolarCurrentResponse {
+type HomeSolarCurrentResponse {
   currentProductionWh: Float!
   todayProductionKwh: Float!
   yesterdayProductionKwh: Float!
   monthProductionKwh: Float!
   allTimeProductionKwh: Float!
-  statistics: SolarCurrentStatistics!
+  statistics: HomeSolarCurrentStatistics!
   uvLevel: Float
   temperature: Float
 }
 
-type SolarCurrentStatistics {
-  averages: SolarCurrentStatisticsAverages!
+type HomeSolarCurrentStatistics {
+  averages: HomeSolarCurrentStatisticsAverages!
 }
 
-type SolarCurrentStatisticsAverages {
+type HomeSolarCurrentStatisticsAverages {
   last15Mins: Float
   last1Hour: Float
   last3Hours: Float
 }
 
-type SolarObject {
-  current: SolarCurrentResponse!
-  history(input: SolarHistoryInput!): [GenerationHistory!]!
+type HomeSolarObject {
+  current: HomeSolarCurrentResponse!
+  history(input: HomeSolarHistoryInput!): [HomeGenerationHistory!]!
 }
 
-type SolarUpdate {
+type HomeSolarUpdate {
   eventId: UUID!
   currentWh: Float!
 }
 
-type Subscription {
-  events(filter: String! = "*"): EventUpdate!
-}
-
-type SunUpdate {
+type HomeSunUpdate {
   eventId: UUID!
   transition: String!
 }
 
-type SwitchUpdate {
+type HomeSwitchUpdate {
   eventId: UUID!
   device: String!
   action: String!
 }
 
-type TransperthObject {
-  routes: [RouteDeparturesObject!]!
-  route(id: String!): RouteDeparturesObject
+type HomeTransperthObject {
+  routes: [HomeRouteDeparturesObject!]!
+  route(id: String!): HomeRouteDeparturesObject
 }
 
-type TransperthUpdate {
+type HomeTransperthUpdate {
   eventId: UUID!
   routeId: String!
   origin: String!
@@ -1082,21 +950,21 @@ type TransperthUpdate {
   nextDelayMinutes: Int
 }
 
-type UnifiUpdate {
+type HomeUnifiUpdate {
   eventId: UUID!
   macAddress: String!
   client: String!
   connected: Boolean!
 }
 
-type Unraid {
+type HomeUnraid {
   recordedAt: DateTime!
-  array: UnraidArray!
-  disks: [UnraidDisk!]!
-  disk(name: String!): UnraidDisk
+  array: HomeUnraidArray!
+  disks: [HomeUnraidDisk!]!
+  disk(name: String!): HomeUnraidDisk
 }
 
-type UnraidArray {
+type HomeUnraidArray {
   state: String!
   usagePercent: Float
   kilobytesFree: Int!
@@ -1106,10 +974,10 @@ type UnraidArray {
   parityProgress: Int
   parityErrors: Int
   parityRunning: Boolean!
-  history(since: DateTime!): [UnraidArrayPoint!]!
+  history(since: DateTime!): [HomeUnraidArrayPoint!]!
 }
 
-type UnraidArrayPoint {
+type HomeUnraidArrayPoint {
   time: DateTime!
   kilobytesUsed: Int!
   kilobytesTotal: Int!
@@ -1118,7 +986,7 @@ type UnraidArrayPoint {
   parityProgress: Int
 }
 
-type UnraidDisk {
+type HomeUnraidDisk {
   name: String!
   kind: String!
   status: String
@@ -1130,10 +998,10 @@ type UnraidDisk {
   fsUsedKb: Int
   errors: Int
   spinning: Boolean
-  history(since: DateTime!): [UnraidDiskPoint!]!
+  history(since: DateTime!): [HomeUnraidDiskPoint!]!
 }
 
-type UnraidDiskPoint {
+type HomeUnraidDiskPoint {
   time: DateTime!
   status: String
   temperature: Int
@@ -1144,7 +1012,7 @@ type UnraidDiskPoint {
   spinning: Boolean
 }
 
-type UnraidUpdate {
+type HomeUnraidUpdate {
   eventId: UUID!
   subject: String!
   kind: String
@@ -1159,24 +1027,24 @@ type UnraidUpdate {
   link: String
 }
 
-type VacationAction {
+type HomeVacationAction {
   at: DateTime!
   on: Boolean!
   slot: Int!
   onFraction: Float!
 }
 
-type VacationLight {
+type HomeVacationLight {
   address: String!
   deviceId: String
   name: String!
   coverage: Int!
-  currentTarget: LightTarget!
-  actions: [VacationAction!]!
+  currentTarget: HomeLightTarget!
+  actions: [HomeVacationAction!]!
 }
 
-type VacationMode implements ModeState {
-  mode: Mode!
+type HomeVacationMode implements HomeModeState {
+  mode: HomeMode!
   enabled: Boolean!
   window: String!
   jitter: String!
@@ -1185,44 +1053,44 @@ type VacationMode implements ModeState {
   The replay plan for every configured light: what it should be doing now,
   and every switch still to come in the next 24 hours.
   """
-  lights: [VacationLight!]!
+  lights: [HomeVacationLight!]!
 }
 
-type WeatherObject {
-  forecast: Forecast!
+type HomeWeatherObject {
+  forecast: HomeForecast!
 }
 
-type WeatherReadingUpdate {
+type HomeWeatherReadingUpdate {
   metric: String!
   day: String
   value: Float!
 }
 
-type WeatherUpdate {
+type HomeWeatherUpdate {
   eventId: UUID!
   source: String!
-  readings: [WeatherReadingUpdate!]!
+  readings: [HomeWeatherReadingUpdate!]!
 }
 
-type WoolworthsObject {
-  products: [WoolworthsProducts!]!
-  priceHistory(input: WoolworthsPriceHistoryInput!): [WoolworthsPricePoint!]!
+type HomeWoolworthsObject {
+  products: [HomeWoolworthsProducts!]!
+  priceHistory(input: HomeWoolworthsPriceHistoryInput!): [HomeWoolworthsPricePoint!]!
 }
 
-type WoolworthsPricePoint {
+type HomeWoolworthsPricePoint {
   productId: Int!
   name: String!
   price: Float!
   time: DateTime!
 }
 
-type WoolworthsProducts {
+type HomeWoolworthsProducts {
   productId: Int!
   name: String!
   price: Float!
 }
 
-type WoolworthsUpdate {
+type HomeWoolworthsUpdate {
   eventId: UUID!
   productId: Int!
   name: String!
@@ -1230,7 +1098,7 @@ type WoolworthsUpdate {
   newPrice: Float!
 }
 
-type WorkflowRun {
+type HomeWorkflowRun {
   id: ID!
   slug: String!
   name: String!
@@ -1241,10 +1109,10 @@ type WorkflowRun {
   error: String
   trigger: JSON
   startedAt: DateTime!
-  steps: [WorkflowRunStep!]!
+  steps: [HomeWorkflowRunStep!]!
 }
 
-type WorkflowRunStep {
+type HomeWorkflowRunStep {
   seq: Int!
   depth: Int!
   kind: String!
@@ -1256,7 +1124,7 @@ type WorkflowRunStep {
   at: DateTime!
 }
 
-type WorkflowStatus {
+type HomeWorkflowStatus {
   id: String!
   slug: String!
   name: String!
@@ -1266,340 +1134,169 @@ type WorkflowStatus {
   configEnabled: Boolean!
   dryRun: Boolean!
   reusable: Boolean!
-  modes: [Mode!]!
+  modes: [HomeMode!]!
 }
 
-type AbandonedItem {
-  item: Item!
-  plays: Int!
-  """
-  Average share of the track played.
-  """
-  averageCompletion: Float!
+type Mutation {
+  homeLight(id: IdOrAlias!): HomeLightMutation!
+  homeRobotVacuum(id: IdOrAlias!): HomeRobotVacuumMutation!
+  homeGarageDoor(id: IdOrAlias!): HomeGarageDoorMutation!
+  homeAirPurifier(id: IdOrAlias!): HomeAirPurifierMutation!
+  homeDeviceLock(id: IdOrAlias!): HomeDeviceLockMutation!
+  homeMediaPlayer(id: IdOrAlias!): HomeMediaPlayerMutation!
+  homeEinkDisplay(id: IdOrAlias!): HomeEinkDisplayMutation!
+  homeSetWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean!
+  homeSetMode(mode: HomeMode!): HomeMode!
+  homeRunWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID!
+  homeRunPendingAdhocTasks: Boolean!
+  homeRunAdhocCronTask(name: String!): Boolean!
+  homeSendPushNotification(input: HomeSendPushNotificationInput!): Boolean!
+  homeRecordNotificationInteraction(id: UUID!, kind: HomeNotificationInteractionKind!): Boolean!
+  homeExecuteLua(script: String!, vars: JSON, dryRun: Boolean): JSON!
+  spotifyCreateAccount(input: SpotifyCreateAccountInput!): SpotifyCreateAccountPayload!
 }
 
-type Account implements Node {
+type Query {
+  homeAuth: HomeAuthObject!
+  homeHomeAssistant: HomeHomeAssistantObject!
+  """
+  Every configured entity and its current state. Entity types the caller
+  lacks a `graphql:<type>:read` scope for are silently omitted — this query
+  never errors on missing permissions.
+  The dashboard sections, in display order, with their titles. Categorising
+  a device kind is a backend concern — the frontend renders whatever order
+  and titles this returns.
+  """
+  homeEntitySections: [HomeEntitySection!]!
+  homeDeviceConnections: [HomeDeviceConnection!]!
+  homeEntities: [HomeEntity!]!
+  homeMediaPlayer(id: IdOrAlias!): HomeMediaPlayerEntity!
+  homeLight(id: IdOrAlias!): HomeLightEntity!
+  homeDoor(id: IdOrAlias!): HomeDoorEntity!
+  homePresence(id: IdOrAlias!): HomePresenceEntity!
+  homeEnvironment(id: IdOrAlias!): HomeEnvironmentEntity!
+  homePlant(id: IdOrAlias!): HomePlantEntity!
+  homeEinkDisplay(id: IdOrAlias!): HomeEinkDisplayEntity!
+  homeRobotVacuum(id: IdOrAlias!): HomeRobotVacuumEntity!
+  homeGarageDoor(id: IdOrAlias!): HomeGarageDoorEntity!
+  homeAirPurifier(id: IdOrAlias!): HomeAirPurifierEntity!
+  homeSolar: HomeSolarObject!
+  homeEnergy: HomeEnergyObject!
+  homeWeather(input: HomeWeatherInput!): HomeWeatherObject!
+  homeWoolworths: HomeWoolworthsObject!
+  homeTransperth: HomeTransperthObject!
+  homeFuelwatch(postcode: Int): HomeFuelWatchObject!
+  homeUnraid: HomeUnraid
+  homeWorkflows: [HomeWorkflowStatus!]!
+  homeMode: HomeModeStatus!
+  homeWorkflowRuns(slug: String, eventId: UUID, limit: Int): [HomeWorkflowRun!]!
+  homeJellyfin: HomeJellyfinObject!
+  homeAdhocCronTasks: [HomeAdhocCronTaskStatus!]!
+  homeAdhocTasks: [HomeAdhocTaskStatus!]!
+  homePushNotifications(limit: Int): [HomePushNotification!]!
+  homeLuaApi: HomeLuaApiObject!
+  node(id: ID!): Node
+  spotifyAccounts: [SpotifyAccount!]!
+  spotifyAccount(slug: String!): SpotifyAccount
+  """
+  Listening stats across the filtered plays.
+  """
+  spotifyStats(
+    filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): SpotifyStats!
+  """
+  Search tracks, episodes and artists by name.
+  """
+  spotifySearch(query: String!): SpotifySearch!
+  spotifyItem(uri: String!): SpotifyItem
+  spotifyArtist(name: String!): SpotifyArtist
+  """
+  Progress of Spotify Web API enrichment (metadata, genres, artwork).
+  """
+  spotifyEnrichment: SpotifyEnrichment!
+}
+
+type SpotifyArtist implements Node {
+  name: String!
+  id: ID!
+  stats(
+    filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): SpotifyStats!
+  """
+  Spotify's genres for this artist; empty until enriched.
+  """
+  genres: [String!]!
+  imageUrl: String
+}
+
+type SpotifyItem implements Node {
+  uri: String!
+  id: ID!
+  kind: SpotifyItemKind!
+  name: String
+  """
+  The artist for tracks, the show for episodes, the book for audiobook chapters.
+  """
+  artistName: String
+  artist: SpotifyArtist
+  album: SpotifyAlbum
+  """
+  Album (or podcast show) artwork, once enrichment has stored it.
+  """
+  artworkUrl: String
+  """
+  Whether Spotify Web API metadata has been fetched for this item.
+  """
+  enriched: Boolean!
+  durationMs: Int
+  explicit: Boolean
+  """
+  `1999`, `1999-03` or `1999-03-14`, as precise as Spotify knows it.
+  """
+  releaseDate: String
+  releaseYear: Int
+  """
+  Every credited artist in credit order; empty until enriched.
+  """
+  artists: [SpotifyArtist!]!
+  stats(
+    filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): SpotifyStats!
+}
+
+type Subscription {
+  homeEvents(filter: String! = "*"): HomeEventUpdate!
+}
+
+type SpotifyAccount implements Node {
   id: ID!
   slug: String!
   displayName: String!
   spotifyUsername: String
   playCount: Int!
-  exports: [Export!]!
+  exports: [SpotifyExport!]!
 }
 
-type Album {
-  name: String!
-  artist: Artist
-  artworkUrl: String
-  releaseYear: Int
-}
-
-type ArtistConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [ArtistEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Artist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ArtistEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Artist!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type ArtistSkipRate {
-  artist: Artist!
-  """
-  Plays where the export records whether it was skipped.
-  """
-  plays: Int!
-  skips: Int!
-  skipRate: Float!
-  """
-  1-based position in the leaderboard.
-  """
-  rank: Int!
-}
-
-type BreakdownRow {
-  """
-  Raw value, e.g. `fwdbtn` or `AU`; null when the export doesn't record it.
-  """
-  key: String
-  """
-  Human-readable form of `key`.
-  """
-  label: String!
-  plays: Int!
-  minutesPlayed: Int!
-}
-
-type Completion {
-  """
-  Average share of each track played, capped at 100%.
-  """
-  average: Float
-  """
-  Share of plays that reached 90% of the track.
-  """
-  finishedShare: Float
-  """
-  Share of plays with a known duration (grows as enrichment runs).
-  """
-  coverage: Float!
-}
-
-type CreateAccountPayload {
-  account: Account!
-}
-
-type CreateExportPayload {
-  export: Export!
-}
-
-type DayStat {
-  date: NaiveDate!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  The artist with the most listening that day.
-  """
-  topArtist: Artist
-}
-
-type Discovery {
-  artist: Artist!
-  """
-  First play ever (within the filter's accounts and kinds), which falls in the range.
-  """
-  firstPlayed: DateTime!
-  """
-  The first track heard by this artist.
-  """
-  firstItem: Item
-  """
-  Plays in the range.
-  """
-  plays: Int!
-  minutesPlayed: Int!
-}
-
-type DiscoveryConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [DiscoveryEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Discovery!]!
-}
-
-"""
-An edge in a connection.
-"""
-type DiscoveryEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Discovery!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type Enrichment {
-  tracksEnriched: Int!
-  tracksPending: Int!
-  """
-  Tracks Spotify no longer has.
-  """
-  tracksMissing: Int!
-  artistsEnriched: Int!
-  artistsPending: Int!
-  artworkStored: Int!
-  """
-  Share of all listening time on enriched items.
-  """
-  listeningCoverage: Float!
-  requestsLast24h: Int!
-  lastRun: DateTime
-  rateLimitedUntil: DateTime
-}
-
-type Export implements Node {
+type SpotifyExport implements Node {
   id: ID!
   label: String!
   asOf: DateTime!
   createdAt: DateTime!
   finalizedAt: DateTime
-  account: Account!
-  files: [ExportFile!]!
+  account: SpotifyAccount!
+  files: [SpotifyExportFile!]!
 }
 
-type ExportFile implements Node {
+type SpotifyExportFile implements Node {
   id: ID!
   name: String!
-  kind: FileKind!
+  kind: SpotifyFileKind!
   sha256: String!
   rowsTotal: Int!
   rowsInserted: Int!
   rowsMerged: Int!
   importedAt: DateTime!
-  export: Export!
-}
-
-type FinalizeExportPayload {
-  export: Export!
-}
-
-type ForgottenArtist {
-  artist: Artist!
-  plays: Int!
-  minutesPlayed: Int!
-  lastPlayed: DateTime!
-}
-
-type ForgottenArtistConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [ForgottenArtistEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [ForgottenArtist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ForgottenArtistEdge {
-  """
-  The item at the end of the edge
-  """
-  node: ForgottenArtist!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type Genre {
-  name: String!
-}
-
-type GenrePoint {
-  start: DateTime!
-  minutesPlayed: Int!
-}
-
-type GenreSeries {
-  genre: String!
-  points: [GenrePoint!]!
-}
-
-type HeatmapCell {
-  """
-  ISO day of week: 1 is Monday, 7 is Sunday.
-  """
-  dayOfWeek: Int!
-  hour: Int!
-  plays: Int!
-  minutesPlayed: Int!
-}
-
-type ItemConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [ItemEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Item!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ItemEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Item!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type ListeningDays {
-  """
-  Days with at least one play.
-  """
-  activeDays: Int!
-  """
-  Days from the first to the last play, inclusive.
-  """
-  spanDays: Int!
-  """
-  Longest run of consecutive active days.
-  """
-  longestStreak: Streak
-  """
-  The run ending on the last active day.
-  """
-  latestStreak: Streak
-}
-
-type MusicAge {
-  """
-  Average years between a track's release and when you played it.
-  """
-  averageYears: Float
-  """
-  Share of plays of music released the same year it was played.
-  """
-  newShare: Float
-  """
-  Share of plays with a known release year (grows as enrichment runs).
-  """
-  coverage: Float!
-  """
-  The oldest track played in the range.
-  """
-  oldest: Item
-  oldestYear: Int
+  export: SpotifyExport!
 }
 
 """
@@ -1624,7 +1321,449 @@ type PageInfo {
   endCursor: String
 }
 
-type Play {
+type SpotifyAbandonedItem {
+  item: SpotifyItem!
+  plays: Int!
+  """
+  Average share of the track played.
+  """
+  averageCompletion: Float!
+}
+
+type SpotifyAlbum {
+  name: String!
+  artist: SpotifyArtist
+  artworkUrl: String
+  releaseYear: Int
+}
+
+type SpotifyAlbumRankedConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyAlbumRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyAlbum!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyAlbumRankedEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyAlbum!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyArtistConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyArtistEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyArtistEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyArtist!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyArtistRankedConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyArtistRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyArtistRankedEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyArtist!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyArtistSkipRate {
+  artist: SpotifyArtist!
+  """
+  Plays where the export records whether it was skipped.
+  """
+  plays: Int!
+  skips: Int!
+  skipRate: Float!
+  """
+  1-based position in the leaderboard.
+  """
+  rank: Int!
+}
+
+type SpotifyBreakdownRow {
+  """
+  Raw value, e.g. `fwdbtn` or `AU`; null when the export doesn't record it.
+  """
+  key: String
+  """
+  Human-readable form of `key`.
+  """
+  label: String!
+  plays: Int!
+  minutesPlayed: Int!
+}
+
+type SpotifyCompletion {
+  """
+  Average share of each track played, capped at 100%.
+  """
+  average: Float
+  """
+  Share of plays that reached 90% of the track.
+  """
+  finishedShare: Float
+  """
+  Share of plays with a known duration (grows as enrichment runs).
+  """
+  coverage: Float!
+}
+
+type SpotifyCreateAccountPayload {
+  account: SpotifyAccount!
+}
+
+type SpotifyCreateExportPayload {
+  export: SpotifyExport!
+}
+
+type SpotifyDayStat {
+  date: NaiveDate!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  The artist with the most listening that day.
+  """
+  topArtist: SpotifyArtist
+}
+
+type SpotifyDiscovery {
+  artist: SpotifyArtist!
+  """
+  First play ever (within the filter's accounts and kinds), which falls in the range.
+  """
+  firstPlayed: DateTime!
+  """
+  The first track heard by this artist.
+  """
+  firstItem: SpotifyItem
+  """
+  Plays in the range.
+  """
+  plays: Int!
+  minutesPlayed: Int!
+}
+
+type SpotifyDiscoveryConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyDiscoveryEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyDiscovery!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyDiscoveryEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyDiscovery!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyEnrichment {
+  tracksEnriched: Int!
+  tracksPending: Int!
+  """
+  Tracks Spotify no longer has.
+  """
+  tracksMissing: Int!
+  artistsEnriched: Int!
+  artistsPending: Int!
+  artworkStored: Int!
+  """
+  Share of all listening time on enriched items.
+  """
+  listeningCoverage: Float!
+  requestsLast24h: Int!
+  lastRun: DateTime
+  rateLimitedUntil: DateTime
+}
+
+type SpotifyFinalizeExportPayload {
+  export: SpotifyExport!
+}
+
+type SpotifyForgottenArtist {
+  artist: SpotifyArtist!
+  plays: Int!
+  minutesPlayed: Int!
+  lastPlayed: DateTime!
+}
+
+type SpotifyForgottenArtistConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyForgottenArtistEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyForgottenArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyForgottenArtistEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyForgottenArtist!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyGenre {
+  name: String!
+}
+
+type SpotifyGenrePoint {
+  start: DateTime!
+  minutesPlayed: Int!
+}
+
+type SpotifyGenreRankedConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyGenreRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyGenre!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyGenreRankedEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyGenre!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyGenreSeries {
+  genre: String!
+  points: [SpotifyGenrePoint!]!
+}
+
+type SpotifyHeatmapCell {
+  """
+  ISO day of week: 1 is Monday, 7 is Sunday.
+  """
+  dayOfWeek: Int!
+  hour: Int!
+  plays: Int!
+  minutesPlayed: Int!
+}
+
+type SpotifyItemConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyItemEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyItem!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyItemEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyItem!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyItemRankedConnection {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyItemRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyItem!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyItemRankedEdge {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyItem!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyListeningDays {
+  """
+  Days with at least one play.
+  """
+  activeDays: Int!
+  """
+  Days from the first to the last play, inclusive.
+  """
+  spanDays: Int!
+  """
+  Longest run of consecutive active days.
+  """
+  longestStreak: SpotifyStreak
+  """
+  The run ending on the last active day.
+  """
+  latestStreak: SpotifyStreak
+}
+
+type SpotifyMusicAge {
+  """
+  Average years between a track's release and when you played it.
+  """
+  averageYears: Float
+  """
+  Share of plays of music released the same year it was played.
+  """
+  newShare: Float
+  """
+  Share of plays with a known release year (grows as enrichment runs).
+  """
+  coverage: Float!
+  """
+  The oldest track played in the range.
+  """
+  oldest: SpotifyItem
+  oldestYear: Int
+}
+
+type SpotifyPlay {
   """
   When playback ended.
   """
@@ -1637,11 +1776,11 @@ type Play {
   isExtended: Boolean!
   name: String
   artistName: String
-  item: Item
-  account: Account!
+  item: SpotifyItem
+  account: SpotifyAccount!
 }
 
-type PlayConnection {
+type SpotifyPlayConnection {
   """
   Information to aid in pagination.
   """
@@ -1649,169 +1788,29 @@ type PlayConnection {
   """
   A list of edges.
   """
-  edges: [PlayEdge!]!
+  edges: [SpotifyPlayEdge!]!
   """
   A list of nodes.
   """
-  nodes: [Play!]!
+  nodes: [SpotifyPlay!]!
 }
 
 """
 An edge in a connection.
 """
-type PlayEdge {
+type SpotifyPlayEdge {
   """
   The item at the end of the edge
   """
-  node: Play!
+  node: SpotifyPlay!
   """
   A cursor for use in pagination
   """
   cursor: String!
 }
 
-type RankedAlbumConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedAlbumEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Album!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedAlbumEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Album!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RankedArtistConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedArtistEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Artist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedArtistEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Artist!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RankedGenreConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedGenreEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Genre!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedGenreEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Genre!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RankedItemConnection {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedItemEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Item!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedItemEdge {
-  """
-  The item at the end of the edge
-  """
-  node: Item!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RepeatDay {
-  item: Item!
+type SpotifyRepeatDay {
+  item: SpotifyItem!
   """
   The day this item was played most.
   """
@@ -1819,29 +1818,29 @@ type RepeatDay {
   plays: Int!
 }
 
-type Search {
-  items(first: Int, after: String): ItemConnection!
-  artists(first: Int, after: String): ArtistConnection!
+type SpotifySearch {
+  items(first: Int, after: String): SpotifyItemConnection!
+  artists(first: Int, after: String): SpotifyArtistConnection!
 }
 
-type Session {
+type SpotifySession {
   start: DateTime!
   end: DateTime!
   plays: Int!
   minutesPlayed: Int!
 }
 
-type Sessions {
+type SpotifySessions {
   """
   Listening sessions: plays separated by less than 30 minutes of silence.
   """
   count: Int!
   averageMinutes: Float
-  longest: Session
+  longest: SpotifySession
 }
 
-type SkippedItem {
-  item: Item!
+type SpotifySkippedItem {
+  item: SpotifyItem!
   """
   Plays where the export records whether it was skipped.
   """
@@ -1850,99 +1849,99 @@ type SkippedItem {
   skipRate: Float!
 }
 
-type Stats {
-  summary: Summary!
-  topArtists(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedArtistConnection!
+type SpotifyStats {
+  summary: SpotifySummary!
+  topArtists(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyArtistRankedConnection!
   """
   Only plays with an item (extended history) are ranked; account-data plays have none.
   """
-  topItems(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedItemConnection!
-  topAlbums(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedAlbumConnection!
-  timeline(bucket: TimeBucket!): [TimelinePoint!]!
+  topItems(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyItemRankedConnection!
+  topAlbums(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyAlbumRankedConnection!
+  timeline(bucket: SpotifyTimeBucket!): [SpotifyTimelinePoint!]!
   """
   Listening by day of week and hour, in the filter's time zone. Empty cells are omitted.
   """
-  heatmap: [HeatmapCell!]!
+  heatmap: [SpotifyHeatmapCell!]!
   """
   Individual plays, most recent first.
   """
-  plays(first: Int, after: String): PlayConnection!
+  plays(first: Int, after: String): SpotifyPlayConnection!
   """
   The earliest play: for an artist or track, when you first heard it.
   """
-  firstPlay: Play
+  firstPlay: SpotifyPlay
   """
   Active days and streaks of consecutive days.
   """
-  listeningDays: ListeningDays!
+  listeningDays: SpotifyListeningDays!
   """
   Days with the most listening, each with its top artist.
   """
-  topDays(first: Int! = 10): [DayStat!]!
+  topDays(first: Int! = 10): [SpotifyDayStat!]!
   """
   Items played most within a single day, one entry per item.
   """
-  onRepeat(first: Int! = 10): [RepeatDay!]!
+  onRepeat(first: Int! = 10): [SpotifyRepeatDay!]!
   """
   Highest skip rates among items with at least `minPlays` plays. Counts every play,
   whatever the filter's minimum play length.
   """
-  mostSkipped(first: Int! = 10, minPlays: Int! = 10): [SkippedItem!]!
+  mostSkipped(first: Int! = 10, minPlays: Int! = 10): [SpotifySkippedItem!]!
   """
   Artists ranked by skip rate, among those with at least `minPlays` plays. Counts every
   play, whatever the filter's minimum play length.
   """
-  artistSkipRates(order: SkipOrder! = MOST_SKIPPED, first: Int! = 10, minPlays: Int! = 50): [ArtistSkipRate!]!
+  artistSkipRates(order: SpotifySkipOrder! = MOST_SKIPPED, first: Int! = 10, minPlays: Int! = 50): [SpotifyArtistSkipRate!]!
   """
   Listening split by device, country, shuffle, offline or start/end reason.
   """
-  breakdown(by: BreakdownDimension!): [BreakdownRow!]!
-  sessions: Sessions!
+  breakdown(by: SpotifyBreakdownDimension!): [SpotifyBreakdownRow!]!
+  sessions: SpotifySessions!
   """
   Artists first heard within the date range, by listening in the range.
   """
-  discoveries(first: Int, after: String): DiscoveryConnection!
+  discoveries(first: Int, after: String): SpotifyDiscoveryConnection!
   """
   Artists with heavy listening but nothing in the last year of the range.
   """
-  forgottenArtists(first: Int, after: String): ForgottenArtistConnection!
+  forgottenArtists(first: Int, after: String): SpotifyForgottenArtistConnection!
   """
   Genres by listening, from the Spotify genres of each track's primary artist. A play
   counts toward every genre of that artist, so shares overlap. Needs enrichment.
   """
-  topGenres(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedGenreConnection!
+  topGenres(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyGenreRankedConnection!
   """
   Listening over time for `genres`, or the top `first` genres when none are given,
   chosen over all time by default so they stay stable as the date range changes.
   """
   genreTimeline(
-    bucket: TimeBucket!
+    bucket: SpotifyTimeBucket!
     genres: [String!]! = []
     first: Int! = 5
     topOverAllTime: Boolean! = true
-  ): [GenreSeries!]!
+  ): [SpotifyGenreSeries!]!
   """
   How old the music is when you play it. Needs enrichment.
   """
-  musicAge: MusicAge!
+  musicAge: SpotifyMusicAge!
   """
   How much of each track you play, from Spotify durations. Counts every play, whatever
   the filter's minimum play length.
   """
-  completion: Completion!
+  completion: SpotifyCompletion!
   """
   Tracks with the lowest average completion among those with at least `minPlays` plays.
   """
-  mostAbandoned(first: Int! = 10, minPlays: Int! = 10): [AbandonedItem!]!
+  mostAbandoned(first: Int! = 10, minPlays: Int! = 10): [SpotifyAbandonedItem!]!
 }
 
-type Streak {
+type SpotifyStreak {
   start: NaiveDate!
   end: NaiveDate!
   days: Int!
 }
 
-type Summary {
+type SpotifySummary {
   plays: Int!
   minutesPlayed: Int!
   distinctTracks: Int!
@@ -1955,7 +1954,7 @@ type Summary {
   lastPlayed: DateTime
 }
 
-type TimelinePoint {
+type SpotifyTimelinePoint {
   """
   Start of the bucket in the filter's time zone.
   """
@@ -1964,34 +1963,34 @@ type TimelinePoint {
   minutesPlayed: Int!
 }
 
-type UploadExportFilePayload {
-  status: UploadStatus!
-  file: ExportFile
+type SpotifyUploadExportFilePayload {
+  status: SpotifyUploadStatus!
+  file: SpotifyExportFile
 }
 
-interface LockableEntity {
+interface HomeLockableEntity {
   id: String!
-  lock: DeviceLock
+  lock: HomeDeviceLock
 }
 
-interface ModeState {
-  mode: Mode!
+interface HomeModeState {
+  mode: HomeMode!
 }
 
 interface Node {
   id: ID!
 }
 
-union Entity = LightEntity | EnvironmentEntity | PlantEntity | DoorEntity | GarageDoorEntity | AirPurifierEntity | PresenceEntity | EinkDisplayEntity | RobotVacuumEntity | MediaPlayerEntity
+union HomeEntity = HomeLightEntity | HomeEnvironmentEntity | HomePlantEntity | HomeDoorEntity | HomeGarageDoorEntity | HomeAirPurifierEntity | HomePresenceEntity | HomeEinkDisplayEntity | HomeRobotVacuumEntity | HomeMediaPlayerEntity
 
-union EventUpdate = PresenceUpdate | DoorUpdate | GarageDoorUpdate | AirPurifierUpdate | SwitchUpdate | EnvironmentUpdate | PlantUpdate | CronUpdate | SunUpdate | LightUpdate | UnifiUpdate | ModeUpdate | HomeAssistantUpdate | WoolworthsUpdate | DeviceBatteryUpdate | DeviceConnectionUpdate | DeviceLockUpdate | JellyfinUpdate | MediaPlayerUpdate | SolarUpdate | WeatherUpdate | FuelWatchUpdate | UnraidUpdate | TransperthUpdate | CommandFailedUpdate | CustomUpdate
+union HomeEventUpdate = HomePresenceUpdate | HomeDoorUpdate | HomeGarageDoorUpdate | HomeAirPurifierUpdate | HomeSwitchUpdate | HomeEnvironmentUpdate | HomePlantUpdate | HomeCronUpdate | HomeSunUpdate | HomeLightUpdate | HomeUnifiUpdate | HomeModeUpdate | HomeHomeAssistantUpdate | HomeWoolworthsUpdate | HomeDeviceBatteryUpdate | HomeDeviceConnectionUpdate | HomeDeviceLockUpdate | HomeJellyfinUpdate | HomeMediaPlayerUpdate | HomeSolarUpdate | HomeWeatherUpdate | HomeFuelWatchUpdate | HomeUnraidUpdate | HomeTransperthUpdate | HomeCommandFailedUpdate | HomeCustomUpdate
 
 """
 The dashboard section a device kind is displayed under. Owned by the backend
 so categorising a kind never requires a frontend change. Variants are declared
 in display order — see [`EntityCategory::ORDERED`].
 """
-enum EntityCategory {
+enum HomeEntityCategory {
   LIGHTS
   DOORS
   PRESENCE
@@ -2002,19 +2001,19 @@ enum EntityCategory {
   MEDIA
 }
 
-enum AirPurifierMode {
+enum HomeAirPurifierMode {
   MANUAL
   SLEEP
   AUTO
 }
 
-enum CommandOutcome {
+enum HomeCommandOutcome {
   SENT
   UNCHANGED
   LOCKED
 }
 
-enum BatteryChemistry {
+enum HomeBatteryChemistry {
   UNKNOWN
   LIPO
   LI_ION
@@ -2022,7 +2021,7 @@ enum BatteryChemistry {
   CR_2032
 }
 
-enum Capability {
+enum HomeCapability {
   BRIGHTNESS
   COLOUR_TEMP
   RGB
@@ -2035,18 +2034,18 @@ enum Capability {
   VOC_INDEX
 }
 
-enum DeviceLockSource {
+enum HomeDeviceLockSource {
   PHYSICAL
   MANUAL
 }
 
-enum EinkMode {
+enum HomeEinkMode {
   DASHBOARD
   REDDIT
   IMMICH
 }
 
-enum RedditTimespan {
+enum HomeRedditTimespan {
   HOUR
   DAY
   WEEK
@@ -2055,42 +2054,42 @@ enum RedditTimespan {
   ALL
 }
 
-enum Orientation {
+enum HomeOrientation {
   PORTRAIT
   LANDSCAPE
 }
 
-enum EinkDisplayKind {
+enum HomeEinkDisplayKind {
   TRMNL
   EINK_DISPLAY_FIRMWARE
 }
 
-enum GarageDoorState {
+enum HomeGarageDoorState {
   OPEN
   OPENING
   CLOSED
   CLOSING
 }
 
-enum LightCommandStatus {
+enum HomeLightCommandStatus {
   CONFIRMED
   PENDING
 }
 
-enum LightTarget {
+enum HomeLightTarget {
   ON
   OFF
   LEAVE_ALONE
 }
 
-enum Mode {
+enum HomeMode {
   HOME
   AWAY
   VACATION
   GUEST
 }
 
-enum NotificationInteractionKind {
+enum HomeNotificationInteractionKind {
   ACKNOWLEDGED
   OPENED
   DISMISSED
@@ -2098,26 +2097,26 @@ enum NotificationInteractionKind {
   SWIPED
 }
 
-enum PushNotificationActionKind {
+enum HomePushNotificationActionKind {
   RUN_WORKFLOW
   SNOOZE
   DISMISS
   ACKNOWLEDGE
 }
 
-enum PushNotificationCategory {
+enum HomePushNotificationCategory {
   ALARM
   DOOR
   WATCHDOG
   GENERAL
 }
 
-enum RobotVacuumKind {
+enum HomeRobotVacuumKind {
   ROBOROCK
   VALETUDO
 }
 
-enum BreakdownDimension {
+enum SpotifyBreakdownDimension {
   """
   Device family: Android, iOS, macOS, Windows, Linux, Web player, Other.
   """
@@ -2142,7 +2141,7 @@ enum BreakdownDimension {
   DECADE
 }
 
-enum FileKind {
+enum SpotifyFileKind {
   EXTENDED_AUDIO
   EXTENDED_VIDEO
   ACCOUNT_STREAMING_HISTORY
@@ -2156,18 +2155,18 @@ enum FileKind {
   PRIVATE
 }
 
-enum ItemKind {
+enum SpotifyItemKind {
   TRACK
   EPISODE
   AUDIOBOOK
 }
 
-enum RankBy {
+enum SpotifyRankBy {
   MINUTES_PLAYED
   PLAYS
 }
 
-enum SkipOrder {
+enum SpotifySkipOrder {
   """
   Highest skip rate first.
   """
@@ -2178,14 +2177,14 @@ enum SkipOrder {
   LEAST_SKIPPED
 }
 
-enum TimeBucket {
+enum SpotifyTimeBucket {
   DAY
   WEEK
   MONTH
   YEAR
 }
 
-enum UploadStatus {
+enum SpotifyUploadStatus {
   IMPORTED
   """
   Already imported for this account; nothing was changed.
@@ -2197,25 +2196,25 @@ enum UploadStatus {
   UNSUPPORTED
 }
 
-input BrightnessMoveInput {
+input HomeBrightnessMoveInput {
   value: Int!
   onOff: Boolean!
 }
 
-input ColourTemperatureMoveInput {
+input HomeColourTemperatureMoveInput {
   value: Int!
 }
 
-input EnergyGapsInput {
+input HomeEnergyGapsInput {
   since: DateTime!
   intervalSeconds: Int!
 }
 
-input EnergyHistoryInput {
+input HomeEnergyHistoryInput {
   since: DateTime!
 }
 
-input LightSetInput {
+input HomeLightSetInput {
   on: Boolean
   brightness: Int
   """
@@ -2225,56 +2224,56 @@ input LightSetInput {
   colour: String
 }
 
-input PushNotificationAcknowledgeInput {
+input HomePushNotificationAcknowledgeInput {
   remindAfterSeconds: Int!
   reminders: Int!
 }
 
-input PushNotificationActionInput {
+input HomePushNotificationActionInput {
   label: String!
-  kind: PushNotificationActionKind!
+  kind: HomePushNotificationActionKind!
   workflowSlug: String
   snoozeSeconds: Int
 }
 
-input SendPushNotificationInput {
+input HomeSendPushNotificationInput {
   title: String!
   body: String!
-  category: PushNotificationCategory!
+  category: HomePushNotificationCategory!
   tag: String
-  actions: [PushNotificationActionInput!]! = []
-  acknowledge: PushNotificationAcknowledgeInput
+  actions: [HomePushNotificationActionInput!]! = []
+  acknowledge: HomePushNotificationAcknowledgeInput
 }
 
-input SetBrightnessInput {
+input HomeSetBrightnessInput {
   value: Int!
 }
 
-input SetColourInput {
+input HomeSetColourInput {
   hex: String!
 }
 
-input SetColourTemperatureInput {
+input HomeSetColourTemperatureInput {
   """
   Colour temperature in mireds (1000000/kelvin), clamped to the light model's `ranges.colour_temp`.
   """
   value: Int!
 }
 
-input SolarHistoryInput {
+input HomeSolarHistoryInput {
   since: DateTime!
 }
 
-input WeatherInput {
+input HomeWeatherInput {
   location: String!
 }
 
-input WoolworthsPriceHistoryInput {
+input HomeWoolworthsPriceHistoryInput {
   productId: Int!
   since: DateTime!
 }
 
-input CreateAccountInput {
+input SpotifyCreateAccountInput {
   """
   Lowercase identifier used by the CLI, e.g. `me`.
   """
@@ -2282,7 +2281,7 @@ input CreateAccountInput {
   displayName: String
 }
 
-input CreateExportInput {
+input SpotifyCreateExportInput {
   """
   Account slug.
   """
@@ -2297,11 +2296,11 @@ input CreateExportInput {
   asOf: DateTime!
 }
 
-input FinalizeExportInput {
+input SpotifyFinalizeExportInput {
   exportId: ID!
 }
 
-input StatsFilter {
+input SpotifyStatsFilter {
   """
   Accounts to include; empty means all.
   """
@@ -2317,7 +2316,7 @@ input StatsFilter {
   """
   Item kinds to include. Account-data plays have no kind and count as tracks.
   """
-  kinds: [ItemKind!]! = [TRACK]
+  kinds: [SpotifyItemKind!]! = [TRACK]
   """
   Ignore plays shorter than this. Defaults to Spotify's 30 second stream threshold; use
   0 to include skips.
@@ -2329,7 +2328,7 @@ input StatsFilter {
   timeZone: String! = "Australia/Perth"
 }
 
-input UploadExportFileInput {
+input SpotifyUploadExportFileInput {
   exportId: ID!
   """
   The file's name inside the export, used to detect its kind.

@@ -26,7 +26,7 @@ resources:
       - spotify.ortzi.cloud
     dns: {provider: cloudflare, proxied: false}
     rules:
-      - paths: [/graphql, /v1/graphql, /health, /art]
+      - paths: [/v1/graphql, /health, /art]
         backend: {name: api, port: 80}
       - paths: [/]
         backend: {name: spotify-web, port: 80}

@@ -51,30 +51,27 @@ enum link__Purpose {
 directive @inaccessible on FIELD_DEFINITION | OBJECT | INTERFACE | UNION | ENUM | ENUM_VALUE | SCALAR | INPUT_OBJECT | INPUT_FIELD_DEFINITION | ARGUMENT_DEFINITION
 
 enum join__Graph {
-  HOME_GATEWAY @join__graph(
-    name: "home-gateway"
+  HOME @join__graph(
+    name: "home"
     url: "http://home-gateway.home-gateway.svc.cluster.local/v1/graphql"
   )
+  NODE @join__graph(name: "node", url: "http://node-plugin.invalid/graphql")
   SPOTIFY @join__graph(name: "spotify", url: "http://api.spotify.svc.cluster.local/v1/graphql")
 }
-
-directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
-
-directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
 
 """
 Implement the DateTime<Utc> scalar
 
 The input/output is a string in RFC3339 format.
 """
-scalar DateTime @join__type(graph: HOME_GATEWAY) @join__type(graph: SPOTIFY)
+scalar DateTime @join__type(graph: HOME) @join__type(graph: SPOTIFY)
 
-scalar IdOrAlias @join__type(graph: HOME_GATEWAY)
+scalar IdOrAlias @join__type(graph: HOME)
 
 """
 A scalar that can represent any JSON value.
 """
-scalar JSON @join__type(graph: HOME_GATEWAY)
+scalar JSON @join__type(graph: HOME)
 
 """
 ISO 8601 combined date and time without timezone.
@@ -83,7 +80,7 @@ ISO 8601 combined date and time without timezone.
 
 * `2015-07-01T08:59:60.123`,
 """
-scalar NaiveDateTime @join__type(graph: HOME_GATEWAY)
+scalar NaiveDateTime @join__type(graph: HOME)
 
 """
 A UUID is a unique 128-bit number, stored as 16 octets. UUIDs are parsed as
@@ -95,7 +92,7 @@ entities without requiring a central allocating authority.
 * [Wikipedia: Universally Unique Identifier](http://en.wikipedia.org/wiki/Universally_unique_identifier)
 * [RFC4122: A Universally Unique Identifier (UUID) URN Namespace](http://tools.ietf.org/html/rfc4122)
 """
-scalar UUID @join__type(graph: HOME_GATEWAY)
+scalar UUID @join__type(graph: HOME)
 
 """
 ISO 8601 calendar date without timezone.
@@ -113,7 +110,7 @@ A multipart file upload
 """
 scalar Upload @join__type(graph: SPOTIFY)
 
-type AdhocCronTaskStatus @join__type(graph: HOME_GATEWAY) {
+type HomeAdhocCronTaskStatus @join__type(graph: HOME) {
   id: String!
   name: String!
   schedule: String!
@@ -125,7 +122,7 @@ type AdhocCronTaskStatus @join__type(graph: HOME_GATEWAY) {
   outcome: String
 }
 
-type AdhocTaskStatus @join__type(graph: HOME_GATEWAY) {
+type HomeAdhocTaskStatus @join__type(graph: HOME) {
   id: String!
   ordinal: Int!
   name: String!
@@ -136,79 +133,66 @@ type AdhocTaskStatus @join__type(graph: HOME_GATEWAY) {
   checksumDrifted: Boolean!
 }
 
-type AirPurifierEntity implements LockableEntity @join__type(graph: HOME_GATEWAY) @join__implements(graph: HOME_GATEWAY, interface: "LockableEntity") {
-  category: EntityCategory!
+type HomeAirPurifierEntity implements HomeLockableEntity @join__type(graph: HOME) @join__implements(graph: HOME, interface: "HomeLockableEntity") {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
   on: Boolean
-  mode: AirPurifierMode
+  mode: HomeAirPurifierMode
   speed: Int
   pm25: Float
   filterLife: Float
   aqi: Float
   cadr: Float
   display: Boolean
-  lock: DeviceLock
+  lock: HomeDeviceLock
   changedAt: DateTime
   lastSeen: DateTime
-  history(since: DateTime!): [AirPurifierPoint!]!
+  history(since: DateTime!): [HomeAirPurifierPoint!]!
 }
 
-type AirPurifierMutation @join__type(graph: HOME_GATEWAY) {
-  turnOn: CommandOutcome!
-  turnOff: CommandOutcome!
-  setMode(mode: AirPurifierMode!): CommandOutcome!
-  setSpeed(speed: Int!): CommandOutcome!
-  setDisplay(on: Boolean!): CommandOutcome!
+type HomeAirPurifierMutation @join__type(graph: HOME) {
+  turnOn: HomeCommandOutcome!
+  turnOff: HomeCommandOutcome!
+  setMode(mode: HomeAirPurifierMode!): HomeCommandOutcome!
+  setSpeed(speed: Int!): HomeCommandOutcome!
+  setDisplay(on: Boolean!): HomeCommandOutcome!
 }
 
-type AirPurifierPoint @join__type(graph: HOME_GATEWAY) {
+type HomeAirPurifierPoint @join__type(graph: HOME) {
   on: Boolean!
-  mode: AirPurifierMode
+  mode: HomeAirPurifierMode
   pm25: Float
   time: DateTime!
 }
 
-type AirPurifierUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeAirPurifierUpdate @join__type(graph: HOME) {
   eventId: UUID!
   id: ID!
   name: String!
   on: Boolean!
-  mode: AirPurifierMode
+  mode: HomeAirPurifierMode
   speed: Int
   display: Boolean
   pm25: Float
 }
 
-type Artist implements Node @join__type(graph: HOME_GATEWAY, key: "name", resolvable: false) @join__type(graph: SPOTIFY, key: "name") @join__implements(graph: SPOTIFY, interface: "Node") {
-  name: String!
-  id: ID! @join__field(graph: SPOTIFY)
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats! @join__field(graph: SPOTIFY)
-  """
-  Spotify's genres for this artist; empty until enriched.
-  """
-  genres: [String!]! @join__field(graph: SPOTIFY)
-  imageUrl: String @join__field(graph: SPOTIFY)
-}
-
-type AuthObject @join__type(graph: HOME_GATEWAY) {
+type HomeAuthObject @join__type(graph: HOME) {
   id: String
   name: String
   scopes: [String!]!
 }
 
-type BatteryPoint @join__type(graph: HOME_GATEWAY) {
+type HomeBatteryPoint @join__type(graph: HOME) {
   batteryVoltage: Float
   batteryPercent: Float
   time: DateTime!
   batteryPercentage: Float
 }
 
-type CommandFailedUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeCommandFailedUpdate @join__type(graph: HOME) {
   eventId: UUID!
   id: ID!
   address: String!
@@ -220,19 +204,19 @@ type CommandFailedUpdate @join__type(graph: HOME_GATEWAY) {
   colour: String
 }
 
-type CronUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeCronUpdate @join__type(graph: HOME) {
   eventId: UUID!
   name: String!
 }
 
-type CustomUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeCustomUpdate @join__type(graph: HOME) {
   eventId: UUID!
   source: String!
   name: String!
   payload: JSON!
 }
 
-type DepartureObject @join__type(graph: HOME_GATEWAY) {
+type HomeDepartureObject @join__type(graph: HOME) {
   line: String!
   headsign: String!
   platform: String
@@ -243,16 +227,16 @@ type DepartureObject @join__type(graph: HOME_GATEWAY) {
   live: Boolean!
 }
 
-type DeviceBattery @join__type(graph: HOME_GATEWAY) {
+type HomeDeviceBattery @join__type(graph: HOME) {
   kind: String!
   voltage: Float
-  chemistry: BatteryChemistry!
+  chemistry: HomeBatteryChemistry!
   percentage: Float
   updatedAt: DateTime!
-  history(since: DateTime!): [BatteryPoint!]!
+  history(since: DateTime!): [HomeBatteryPoint!]!
 }
 
-type DeviceBatteryUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeDeviceBatteryUpdate @join__type(graph: HOME) {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -265,13 +249,13 @@ type DeviceBatteryUpdate @join__type(graph: HOME_GATEWAY) {
   batteryPercentage: Float
 }
 
-type DeviceConnection @join__type(graph: HOME_GATEWAY) {
+type HomeDeviceConnection @join__type(graph: HOME) {
   deviceId: String!
   connected: Boolean!
   changedAt: DateTime!
 }
 
-type DeviceConnectionUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeDeviceConnectionUpdate @join__type(graph: HOME) {
   eventId: UUID!
   deviceId: String!
   transport: String!
@@ -280,34 +264,34 @@ type DeviceConnectionUpdate @join__type(graph: HOME_GATEWAY) {
   id: ID!
 }
 
-type DeviceLock @join__type(graph: HOME_GATEWAY) {
-  source: DeviceLockSource!
+type HomeDeviceLock @join__type(graph: HOME) {
+  source: HomeDeviceLockSource!
   lockedAt: DateTime!
   expiresAt: DateTime
 }
 
-type DeviceLockMutation @join__type(graph: HOME_GATEWAY) {
-  lock(durationSeconds: Int): DeviceLock!
+type HomeDeviceLockMutation @join__type(graph: HOME) {
+  lock(durationSeconds: Int): HomeDeviceLock!
   unlock: Boolean!
 }
 
-type DeviceLockUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeDeviceLockUpdate @join__type(graph: HOME) {
   eventId: UUID!
   deviceId: String!
   locked: Boolean!
-  source: DeviceLockSource
+  source: HomeDeviceLockSource
   expiresAt: DateTime
   id: ID!
 }
 
-type DoorEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeDoorEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Whether the door is open. Nullable so an unreachable door-events actor
   reports the error against this field without nulling the whole entity.
@@ -316,7 +300,7 @@ type DoorEntity @join__type(graph: HOME_GATEWAY) {
   lastSeen: DateTime
 }
 
-type DoorUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeDoorUpdate @join__type(graph: HOME) {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -333,14 +317,14 @@ type DoorUpdate @join__type(graph: HOME_GATEWAY) {
   open: Boolean!
 }
 
-type EinkDisplayConfig @join__type(graph: HOME_GATEWAY) {
-  mode: EinkMode!
+type HomeEinkDisplayConfig @join__type(graph: HOME) {
+  mode: HomeEinkMode!
   view: String
   immichAlbum: String
   subreddit: String
-  timespan: RedditTimespan
+  timespan: HomeRedditTimespan
   limit: Int
-  orientation: Orientation!
+  orientation: HomeOrientation!
   refresh: String!
   grace: String!
   settle: String
@@ -349,13 +333,13 @@ type EinkDisplayConfig @join__type(graph: HOME_GATEWAY) {
   sleepEnd: String
 }
 
-type EinkDisplayEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeEinkDisplayEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  kind: EinkDisplayKind!
-  capabilities: [Capability!]!
+  kind: HomeEinkDisplayKind!
+  capabilities: [HomeCapability!]!
   room: String
   batteryVoltage: Float
   batteryPercentage: Float
@@ -370,47 +354,47 @@ type EinkDisplayEntity @join__type(graph: HOME_GATEWAY) {
   rtcSyncDueAt: DateTime
   lastWakeTraceUrl: String
   targetFirmwareVersion: String
-  config: EinkDisplayConfig
-  deviceConfig: EpdConfig!
-  battery: DeviceBattery
-  batteryHistory(since: DateTime!): [BatteryPoint!]!
+  config: HomeEinkDisplayConfig
+  deviceConfig: HomeEpdConfig!
+  battery: HomeDeviceBattery
+  batteryHistory(since: DateTime!): [HomeBatteryPoint!]!
 }
 
-type EinkDisplayMutation @join__type(graph: HOME_GATEWAY) {
+type HomeEinkDisplayMutation @join__type(graph: HOME) {
   takeScreenshot: Boolean!
 }
 
-type EnergyConsumption @join__type(graph: HOME_GATEWAY) {
+type HomeEnergyConsumption @join__type(graph: HOME) {
   id: UUID!
   used: Float!
   solarExported: Float!
   time: DateTime!
 }
 
-type EnergyGap @join__type(graph: HOME_GATEWAY) {
+type HomeEnergyGap @join__type(graph: HOME) {
   start: DateTime!
   end: DateTime!
   missingIntervals: Int!
 }
 
-type EnergyObject @join__type(graph: HOME_GATEWAY) {
-  history(input: EnergyHistoryInput!): [EnergyConsumption!]!
-  gaps(input: EnergyGapsInput!): [EnergyGap!]!
+type HomeEnergyObject @join__type(graph: HOME) {
+  history(input: HomeEnergyHistoryInput!): [HomeEnergyConsumption!]!
+  gaps(input: HomeEnergyGapsInput!): [HomeEnergyGap!]!
 }
 
-type EntitySection @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeEntitySection @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   title: String!
 }
 
-type EnvironmentEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeEnvironmentEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Nullable so a missing reading reports the error against this field
   without nulling the whole entity.
@@ -430,7 +414,7 @@ type EnvironmentEntity @join__type(graph: HOME_GATEWAY) {
   lastSeen: DateTime
 }
 
-type EnvironmentUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeEnvironmentUpdate @join__type(graph: HOME) {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -444,25 +428,25 @@ type EnvironmentUpdate @join__type(graph: HOME_GATEWAY) {
   Raw device address the event was emitted for.
   """
   sensor: String!
-  readings: [MetricReading!]!
+  readings: [HomeMetricReading!]!
 }
 
-type EpdConfig @join__type(graph: HOME_GATEWAY) {
+type HomeEpdConfig @join__type(graph: HOME) {
   refreshIntervalMins: Int
   refreshIntervalSecs: Int
   imageUrl: String
   imageHash: String
   firmwareUrl: String
   firmwareVersion: String
-  partial: PartialWindow
+  partial: HomePartialWindow
 }
 
-type Forecast @join__type(graph: HOME_GATEWAY) {
-  days: [ForecastDetails!]!
-  hours: [ForecastHour!]!
+type HomeForecast @join__type(graph: HOME) {
+  days: [HomeForecastDetails!]!
+  hours: [HomeForecastHour!]!
 }
 
-type ForecastDetails @join__type(graph: HOME_GATEWAY) {
+type HomeForecastDetails @join__type(graph: HOME) {
   dateTime: String!
   code: String!
   description: String!
@@ -481,7 +465,7 @@ type ForecastDetails @join__type(graph: HOME_GATEWAY) {
   lastLight: String
 }
 
-type ForecastHour @join__type(graph: HOME_GATEWAY) {
+type HomeForecastHour @join__type(graph: HOME) {
   dateTime: String!
   temperature: Float
   windSpeed: Float
@@ -489,7 +473,7 @@ type ForecastHour @join__type(graph: HOME_GATEWAY) {
   windDirectionText: String
 }
 
-type FuelSite @join__type(graph: HOME_GATEWAY) {
+type HomeFuelSite @join__type(graph: HOME) {
   siteId: Int!
   name: String!
   brand: String!
@@ -502,12 +486,12 @@ type FuelSite @join__type(graph: HOME_GATEWAY) {
   longitude: Float!
 }
 
-type FuelWatchObject @join__type(graph: HOME_GATEWAY) {
-  cheapest: FuelSite
-  sites(limit: Int): [FuelSite!]!
+type HomeFuelWatchObject @join__type(graph: HOME) {
+  cheapest: HomeFuelSite
+  sites(limit: Int): [HomeFuelSite!]!
 }
 
-type FuelWatchUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeFuelWatchUpdate @join__type(graph: HOME) {
   eventId: UUID!
   change: String!
   siteId: Int!
@@ -519,33 +503,33 @@ type FuelWatchUpdate @join__type(graph: HOME_GATEWAY) {
   newPrice: Float!
 }
 
-type GarageDoorEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeGarageDoorEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
-  battery: DeviceBattery
-  state: GarageDoorState
+  battery: HomeDeviceBattery
+  state: HomeGarageDoorState
   open: Boolean
   contact: Boolean
   changedAt: DateTime
   lastSeen: DateTime
 }
 
-type GarageDoorMutation @join__type(graph: HOME_GATEWAY) {
-  open: CommandOutcome!
-  close: CommandOutcome!
+type HomeGarageDoorMutation @join__type(graph: HOME) {
+  open: HomeCommandOutcome!
+  close: HomeCommandOutcome!
 }
 
-type GarageDoorUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeGarageDoorUpdate @join__type(graph: HOME) {
   eventId: UUID!
   id: ID!
   name: String!
-  state: GarageDoorState!
+  state: HomeGarageDoorState!
 }
 
-type GenerationHistory @join__type(graph: HOME_GATEWAY) {
+type HomeGenerationHistory @join__type(graph: HOME) {
   wh: Float!
   at: NaiveDateTime!
   uvLevel: Float
@@ -553,7 +537,7 @@ type GenerationHistory @join__type(graph: HOME_GATEWAY) {
   timestamp: Int!
 }
 
-type HomeAssistantEvent @join__type(graph: HOME_GATEWAY) {
+type HomeHomeAssistantEvent @join__type(graph: HOME) {
   eventId: UUID!
   entityId: String!
   state: String!
@@ -561,57 +545,22 @@ type HomeAssistantEvent @join__type(graph: HOME_GATEWAY) {
   id: ID!
 }
 
-type HomeAssistantObject @join__type(graph: HOME_GATEWAY) {
-  entities: [HomeAssistantEvent!]!
+type HomeHomeAssistantObject @join__type(graph: HOME) {
+  entities: [HomeHomeAssistantEvent!]!
 }
 
-type HomeAssistantUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeHomeAssistantUpdate @join__type(graph: HOME) {
   eventId: UUID!
   entityId: String!
   state: String!
   id: ID!
 }
 
-type Item implements Node @join__type(graph: HOME_GATEWAY, key: "uri", resolvable: false) @join__type(graph: SPOTIFY, key: "uri") @join__implements(graph: SPOTIFY, interface: "Node") {
-  uri: String!
-  id: ID! @join__field(graph: SPOTIFY)
-  kind: ItemKind! @join__field(graph: SPOTIFY)
-  name: String @join__field(graph: SPOTIFY)
-  """
-  The artist for tracks, the show for episodes, the book for audiobook chapters.
-  """
-  artistName: String @join__field(graph: SPOTIFY)
-  artist: Artist @join__field(graph: SPOTIFY)
-  album: Album @join__field(graph: SPOTIFY)
-  """
-  Album (or podcast show) artwork, once enrichment has stored it.
-  """
-  artworkUrl: String @join__field(graph: SPOTIFY)
-  """
-  Whether Spotify Web API metadata has been fetched for this item.
-  """
-  enriched: Boolean! @join__field(graph: SPOTIFY)
-  durationMs: Int @join__field(graph: SPOTIFY)
-  explicit: Boolean @join__field(graph: SPOTIFY)
-  """
-  `1999`, `1999-03` or `1999-03-14`, as precise as Spotify knows it.
-  """
-  releaseDate: String @join__field(graph: SPOTIFY)
-  releaseYear: Int @join__field(graph: SPOTIFY)
-  """
-  Every credited artist in credit order; empty until enriched.
-  """
-  artists: [Artist!]! @join__field(graph: SPOTIFY)
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats! @join__field(graph: SPOTIFY)
+type HomeJellyfinObject @join__type(graph: HOME) {
+  nowPlaying: [HomeJellyfinSession!]!
 }
 
-type JellyfinObject @join__type(graph: HOME_GATEWAY) {
-  nowPlaying: [JellyfinSession!]!
-}
-
-type JellyfinSession @join__type(graph: HOME_GATEWAY) {
+type HomeJellyfinSession @join__type(graph: HOME) {
   eventId: UUID!
   sessionId: String!
   user: String!
@@ -632,7 +581,7 @@ type JellyfinSession @join__type(graph: HOME_GATEWAY) {
   progress: Float
 }
 
-type JellyfinUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeJellyfinUpdate @join__type(graph: HOME) {
   eventId: UUID!
   state: String!
   sessionId: String!
@@ -651,19 +600,19 @@ type JellyfinUpdate @join__type(graph: HOME_GATEWAY) {
   id: ID!
 }
 
-type LightCommandResult @join__type(graph: HOME_GATEWAY) {
-  status: LightCommandStatus!
-  state: LightState!
+type HomeLightCommandResult @join__type(graph: HOME) {
+  status: HomeLightCommandStatus!
+  state: HomeLightState!
 }
 
-type LightEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeLightEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Current power state. Nullable so an unreachable light actor reports the
   error against this field without nulling the whole entity.
@@ -682,22 +631,22 @@ type LightEntity @join__type(graph: HOME_GATEWAY) {
   """
   colour: String
   lastSeen: DateTime
-  pendingCommands: [PendingCommand!]!
+  pendingCommands: [HomePendingCommand!]!
 }
 
-type LightMutation @join__type(graph: HOME_GATEWAY) {
-  set(input: LightSetInput!): LightCommandResult!
+type HomeLightMutation @join__type(graph: HOME) {
+  set(input: HomeLightSetInput!): HomeLightCommandResult!
   on: Boolean!
   off: Boolean!
   toggle: Boolean!
-  setBrightness(input: SetBrightnessInput!): Boolean!
-  brightnessMove(input: BrightnessMoveInput!): Boolean!
-  setColour(input: SetColourInput!): Boolean!
-  setColourTemperature(input: SetColourTemperatureInput!): Boolean!
-  colourTemperatureMove(input: ColourTemperatureMoveInput!): Boolean!
+  setBrightness(input: HomeSetBrightnessInput!): Boolean!
+  brightnessMove(input: HomeBrightnessMoveInput!): Boolean!
+  setColour(input: HomeSetColourInput!): Boolean!
+  setColourTemperature(input: HomeSetColourTemperatureInput!): Boolean!
+  colourTemperatureMove(input: HomeColourTemperatureMoveInput!): Boolean!
 }
 
-type LightState @join__type(graph: HOME_GATEWAY) {
+type HomeLightState @join__type(graph: HOME) {
   on: Boolean!
   """
   Current brightness on the light model's `ranges.brightness` scale, when the light reports one.
@@ -713,7 +662,7 @@ type LightState @join__type(graph: HOME_GATEWAY) {
   colour: String
 }
 
-type LightUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeLightUpdate @join__type(graph: HOME) {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -739,47 +688,47 @@ type LightUpdate @join__type(graph: HOME_GATEWAY) {
   colour: String
 }
 
-type LuaAliasObject @join__type(graph: HOME_GATEWAY) {
+type HomeLuaAliasObject @join__type(graph: HOME) {
   name: String!
   type: String!
 }
 
-type LuaApiObject @join__type(graph: HOME_GATEWAY) {
-  namespaces: [LuaNamespaceObject!]!
-  globals: [LuaFieldObject!]!
-  classes: [LuaClassObject!]!
-  aliases: [LuaAliasObject!]!
+type HomeLuaApiObject @join__type(graph: HOME) {
+  namespaces: [HomeLuaNamespaceObject!]!
+  globals: [HomeLuaFieldObject!]!
+  classes: [HomeLuaClassObject!]!
+  aliases: [HomeLuaAliasObject!]!
   definitions: String!
 }
 
-type LuaClassObject @join__type(graph: HOME_GATEWAY) {
+type HomeLuaClassObject @join__type(graph: HOME) {
   name: String!
-  fields: [LuaFieldObject!]!
+  fields: [HomeLuaFieldObject!]!
 }
 
-type LuaFieldObject @join__type(graph: HOME_GATEWAY) {
+type HomeLuaFieldObject @join__type(graph: HOME) {
   name: String!
   type: String!
   optional: Boolean!
   declaration: String!
 }
 
-type LuaFunctionObject @join__type(graph: HOME_GATEWAY) {
+type HomeLuaFunctionObject @join__type(graph: HOME) {
   name: String!
-  params: [LuaFieldObject!]!
+  params: [HomeLuaFieldObject!]!
   returns: String
   scope: String
   signature: String!
 }
 
-type LuaNamespaceObject @join__type(graph: HOME_GATEWAY) {
+type HomeLuaNamespaceObject @join__type(graph: HOME) {
   name: String!
-  fields: [LuaFieldObject!]!
-  functions: [LuaFunctionObject!]!
+  fields: [HomeLuaFieldObject!]!
+  functions: [HomeLuaFunctionObject!]!
 }
 
-type MediaPlayerEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeMediaPlayerEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
@@ -790,8 +739,8 @@ type MediaPlayerEntity @join__type(graph: HOME_GATEWAY) {
   source: String
   mediaContentType: String
   mediaContentId: String
-  spotifyItem: Item
-  spotifyArtist: Artist
+  spotifyItem: SpotifyItem
+  spotifyArtist: SpotifyArtist
   mediaTitle: String
   mediaArtist: String
   mediaAlbumName: String
@@ -812,7 +761,7 @@ type MediaPlayerEntity @join__type(graph: HOME_GATEWAY) {
   lastSeen: DateTime
 }
 
-type MediaPlayerMutation @join__type(graph: HOME_GATEWAY) {
+type HomeMediaPlayerMutation @join__type(graph: HOME) {
   play: Boolean!
   pause: Boolean!
   playPause: Boolean!
@@ -825,7 +774,7 @@ type MediaPlayerMutation @join__type(graph: HOME_GATEWAY) {
   turnOff: Boolean!
 }
 
-type MediaPlayerUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeMediaPlayerUpdate @join__type(graph: HOME) {
   eventId: UUID!
   deviceId: String!
   name: String!
@@ -847,52 +796,30 @@ type MediaPlayerUpdate @join__type(graph: HOME_GATEWAY) {
   id: ID!
 }
 
-type MetricReading @join__type(graph: HOME_GATEWAY) {
+type HomeMetricReading @join__type(graph: HOME) {
   metric: String!
   value: Float!
 }
 
-type ModeStatus @join__type(graph: HOME_GATEWAY) {
-  active: Mode!
-  node(mode: Mode): ModeState!
+type HomeModeStatus @join__type(graph: HOME) {
+  active: HomeMode!
+  node(mode: HomeMode): HomeModeState!
 }
 
-type ModeUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeModeUpdate @join__type(graph: HOME) {
   eventId: UUID!
-  mode: Mode!
-  previous: Mode!
+  mode: HomeMode!
+  previous: HomeMode!
 }
 
-type Mutation @join__type(graph: HOME_GATEWAY) @join__type(graph: SPOTIFY) {
-  light(id: IdOrAlias!): LightMutation! @join__field(graph: HOME_GATEWAY)
-  robotVacuum(id: IdOrAlias!): RobotVacuumMutation! @join__field(graph: HOME_GATEWAY)
-  garageDoor(id: IdOrAlias!): GarageDoorMutation! @join__field(graph: HOME_GATEWAY)
-  airPurifier(id: IdOrAlias!): AirPurifierMutation! @join__field(graph: HOME_GATEWAY)
-  deviceLock(id: IdOrAlias!): DeviceLockMutation! @join__field(graph: HOME_GATEWAY)
-  mediaPlayer(id: IdOrAlias!): MediaPlayerMutation! @join__field(graph: HOME_GATEWAY)
-  einkDisplay(id: IdOrAlias!): EinkDisplayMutation! @join__field(graph: HOME_GATEWAY)
-  setWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean! @join__field(graph: HOME_GATEWAY)
-  setMode(mode: Mode!): Mode! @join__field(graph: HOME_GATEWAY)
-  runWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID! @join__field(graph: HOME_GATEWAY)
-  runPendingAdhocTasks: Boolean! @join__field(graph: HOME_GATEWAY)
-  runAdhocCronTask(name: String!): Boolean! @join__field(graph: HOME_GATEWAY)
-  sendPushNotification(input: SendPushNotificationInput!): Boolean! @join__field(graph: HOME_GATEWAY)
-  recordNotificationInteraction(id: UUID!, kind: NotificationInteractionKind!): Boolean! @join__field(graph: HOME_GATEWAY)
-  executeLua(script: String!, vars: JSON, dryRun: Boolean): JSON! @join__field(graph: HOME_GATEWAY)
-  createAccount(input: CreateAccountInput!): CreateAccountPayload! @join__field(graph: SPOTIFY)
-  createExport(input: CreateExportInput!): CreateExportPayload! @join__field(graph: SPOTIFY) @inaccessible
-  uploadExportFile(input: UploadExportFileInput!, file: Upload!): UploadExportFilePayload! @join__field(graph: SPOTIFY) @inaccessible
-  finalizeExport(input: FinalizeExportInput!): FinalizeExportPayload! @join__field(graph: SPOTIFY) @inaccessible
-}
-
-type PartialWindow @join__type(graph: HOME_GATEWAY) {
+type HomePartialWindow @join__type(graph: HOME) {
   x: Int!
   y: Int!
   width: Int!
   height: Int!
 }
 
-type PendingCommand @join__type(graph: HOME_GATEWAY) {
+type HomePendingCommand @join__type(graph: HOME) {
   requestedAt: DateTime!
   attempts: Int!
   relative: Boolean!
@@ -902,29 +829,29 @@ type PendingCommand @join__type(graph: HOME_GATEWAY) {
   colour: String
 }
 
-type PlainMode implements ModeState @join__type(graph: HOME_GATEWAY) @join__implements(graph: HOME_GATEWAY, interface: "ModeState") {
-  mode: Mode!
+type HomePlainMode implements HomeModeState @join__type(graph: HOME) @join__implements(graph: HOME, interface: "HomeModeState") {
+  mode: HomeMode!
 }
 
-type PlantEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomePlantEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   soilMoisture: Float
   time: DateTime
-  history(since: DateTime!): [PlantPoint!]!
+  history(since: DateTime!): [HomePlantPoint!]!
   lastSeen: DateTime
 }
 
-type PlantPoint @join__type(graph: HOME_GATEWAY) {
+type HomePlantPoint @join__type(graph: HOME) {
   soilMoisture: Float!
   time: DateTime!
 }
 
-type PlantUpdate @join__type(graph: HOME_GATEWAY) {
+type HomePlantUpdate @join__type(graph: HOME) {
   eventId: UUID!
   id: ID!
   name: String!
@@ -932,14 +859,14 @@ type PlantUpdate @join__type(graph: HOME_GATEWAY) {
   soilMoisture: Float!
 }
 
-type PresenceEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomePresenceEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
-  capabilities: [Capability!]!
+  capabilities: [HomeCapability!]!
   room: String
-  battery: DeviceBattery
+  battery: HomeDeviceBattery
   """
   Whether presence is detected. Nullable so an unreachable presence actor
   reports the error against this field without nulling the whole entity.
@@ -948,7 +875,7 @@ type PresenceEntity @join__type(graph: HOME_GATEWAY) {
   lastSeen: DateTime
 }
 
-type PresenceUpdate @join__type(graph: HOME_GATEWAY) {
+type HomePresenceUpdate @join__type(graph: HOME) {
   eventId: UUID!
   """
   Config slug, matching the `id` from the `entities` query.
@@ -965,107 +892,41 @@ type PresenceUpdate @join__type(graph: HOME_GATEWAY) {
   present: Boolean!
 }
 
-type PushNotification @join__type(graph: HOME_GATEWAY) {
+type HomePushNotification @join__type(graph: HOME) {
   id: UUID!
   tag: String!
   title: String!
   body: String!
   category: String!
-  actions: [PushNotificationAction!]!
+  actions: [HomePushNotificationAction!]!
   sendCount: Int!
   nextReminderAt: DateTime
   acknowledgedAt: DateTime
   createdAt: DateTime!
-  interactions: [PushNotificationInteraction!]!
+  interactions: [HomePushNotificationInteraction!]!
 }
 
-type PushNotificationAction @join__type(graph: HOME_GATEWAY) {
+type HomePushNotificationAction @join__type(graph: HOME) {
   label: String!
-  kind: PushNotificationActionKind!
+  kind: HomePushNotificationActionKind!
   workflowSlug: String
   snoozeSeconds: Int
 }
 
-type PushNotificationInteraction @join__type(graph: HOME_GATEWAY) {
-  kind: NotificationInteractionKind!
+type HomePushNotificationInteraction @join__type(graph: HOME) {
+  kind: HomeNotificationInteractionKind!
   at: DateTime!
 }
 
-type Query @join__type(graph: HOME_GATEWAY) @join__type(graph: SPOTIFY) {
-  auth: AuthObject! @join__field(graph: HOME_GATEWAY)
-  homeAssistant: HomeAssistantObject! @join__field(graph: HOME_GATEWAY)
-  """
-  Every configured entity and its current state. Entity types the caller
-  lacks a `graphql:<type>:read` scope for are silently omitted — this query
-  never errors on missing permissions.
-  The dashboard sections, in display order, with their titles. Categorising
-  a device kind is a backend concern — the frontend renders whatever order
-  and titles this returns.
-  """
-  entitySections: [EntitySection!]! @join__field(graph: HOME_GATEWAY)
-  deviceConnections: [DeviceConnection!]! @join__field(graph: HOME_GATEWAY)
-  entities: [Entity!]! @join__field(graph: HOME_GATEWAY)
-  mediaPlayer(id: IdOrAlias!): MediaPlayerEntity! @join__field(graph: HOME_GATEWAY)
-  light(id: IdOrAlias!): LightEntity! @join__field(graph: HOME_GATEWAY)
-  door(id: IdOrAlias!): DoorEntity! @join__field(graph: HOME_GATEWAY)
-  presence(id: IdOrAlias!): PresenceEntity! @join__field(graph: HOME_GATEWAY)
-  environment(id: IdOrAlias!): EnvironmentEntity! @join__field(graph: HOME_GATEWAY)
-  plant(id: IdOrAlias!): PlantEntity! @join__field(graph: HOME_GATEWAY)
-  einkDisplay(id: IdOrAlias!): EinkDisplayEntity! @join__field(graph: HOME_GATEWAY)
-  robotVacuum(id: IdOrAlias!): RobotVacuumEntity! @join__field(graph: HOME_GATEWAY)
-  garageDoor(id: IdOrAlias!): GarageDoorEntity! @join__field(graph: HOME_GATEWAY)
-  airPurifier(id: IdOrAlias!): AirPurifierEntity! @join__field(graph: HOME_GATEWAY)
-  solar: SolarObject! @join__field(graph: HOME_GATEWAY)
-  energy: EnergyObject! @join__field(graph: HOME_GATEWAY)
-  weather(input: WeatherInput!): WeatherObject! @join__field(graph: HOME_GATEWAY)
-  woolworths: WoolworthsObject! @join__field(graph: HOME_GATEWAY)
-  transperth: TransperthObject! @join__field(graph: HOME_GATEWAY)
-  fuelwatch(postcode: Int): FuelWatchObject! @join__field(graph: HOME_GATEWAY)
-  unraid: Unraid @join__field(graph: HOME_GATEWAY)
-  workflows: [WorkflowStatus!]! @join__field(graph: HOME_GATEWAY)
-  mode: ModeStatus! @join__field(graph: HOME_GATEWAY)
-  workflowRuns(slug: String, eventId: UUID, limit: Int): [WorkflowRun!]! @join__field(graph: HOME_GATEWAY)
-  jellyfin: JellyfinObject! @join__field(graph: HOME_GATEWAY)
-  adhocCronTasks: [AdhocCronTaskStatus!]! @join__field(graph: HOME_GATEWAY)
-  adhocTasks: [AdhocTaskStatus!]! @join__field(graph: HOME_GATEWAY)
-  pushNotifications(limit: Int): [PushNotification!]! @join__field(graph: HOME_GATEWAY)
-  luaApi: LuaApiObject! @join__field(graph: HOME_GATEWAY)
-  node(id: ID!): Node @join__field(graph: SPOTIFY)
-  nodes(ids: [ID!]!): [Node]! @join__field(graph: SPOTIFY)
-  accounts: [Account!]! @join__field(graph: SPOTIFY)
-  account(slug: String!): Account @join__field(graph: SPOTIFY)
-  """
-  Listening stats across the filtered plays.
-  """
-  stats(
-    filter: StatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
-  ): Stats! @join__field(graph: SPOTIFY)
-  """
-  Search tracks, episodes and artists by name.
-  """
-  search(query: String!): Search! @join__field(graph: SPOTIFY)
-  item(uri: String!): Item @join__field(graph: SPOTIFY)
-  artist(name: String!): Artist @join__field(graph: SPOTIFY)
-  """
-  Progress of Spotify Web API enrichment (metadata, genres, artwork).
-  """
-  enrichment: Enrichment! @join__field(graph: SPOTIFY)
-  """
-  Whether a file with this sha256 has already been imported for the account, so clients
-  can skip uploading it.
-  """
-  fileExists(account: String!, sha256: String!): Boolean! @join__field(graph: SPOTIFY) @inaccessible
-}
-
-type RobotVacuumEntity @join__type(graph: HOME_GATEWAY) {
-  category: EntityCategory!
+type HomeRobotVacuumEntity @join__type(graph: HOME) {
+  category: HomeEntityCategory!
   id: String!
   aliases: [String!]!
   name: String!
   room: String
-  battery: DeviceBattery
-  capabilities: [Capability!]!
-  kind: RobotVacuumKind!
+  battery: HomeDeviceBattery
+  capabilities: [HomeCapability!]!
+  kind: HomeRobotVacuumKind!
   status: String
   batteryPercentage: Float
   currentRoom: String
@@ -1075,73 +936,69 @@ type RobotVacuumEntity @join__type(graph: HOME_GATEWAY) {
   lastSeen: DateTime
 }
 
-type RobotVacuumMutation @join__type(graph: HOME_GATEWAY) {
+type HomeRobotVacuumMutation @join__type(graph: HOME) {
   start: Boolean!
   stop: Boolean!
   dock: Boolean!
 }
 
-type RouteDeparturesObject @join__type(graph: HOME_GATEWAY) {
+type HomeRouteDeparturesObject @join__type(graph: HOME) {
   id: String!
   origin: String!
   destination: String!
   updatedAt: DateTime!
   stale: Boolean!
-  departures: [DepartureObject!]!
+  departures: [HomeDepartureObject!]!
 }
 
-type SolarCurrentResponse @join__type(graph: HOME_GATEWAY) {
+type HomeSolarCurrentResponse @join__type(graph: HOME) {
   currentProductionWh: Float!
   todayProductionKwh: Float!
   yesterdayProductionKwh: Float!
   monthProductionKwh: Float!
   allTimeProductionKwh: Float!
-  statistics: SolarCurrentStatistics!
+  statistics: HomeSolarCurrentStatistics!
   uvLevel: Float
   temperature: Float
 }
 
-type SolarCurrentStatistics @join__type(graph: HOME_GATEWAY) {
-  averages: SolarCurrentStatisticsAverages!
+type HomeSolarCurrentStatistics @join__type(graph: HOME) {
+  averages: HomeSolarCurrentStatisticsAverages!
 }
 
-type SolarCurrentStatisticsAverages @join__type(graph: HOME_GATEWAY) {
+type HomeSolarCurrentStatisticsAverages @join__type(graph: HOME) {
   last15Mins: Float
   last1Hour: Float
   last3Hours: Float
 }
 
-type SolarObject @join__type(graph: HOME_GATEWAY) {
-  current: SolarCurrentResponse!
-  history(input: SolarHistoryInput!): [GenerationHistory!]!
+type HomeSolarObject @join__type(graph: HOME) {
+  current: HomeSolarCurrentResponse!
+  history(input: HomeSolarHistoryInput!): [HomeGenerationHistory!]!
 }
 
-type SolarUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeSolarUpdate @join__type(graph: HOME) {
   eventId: UUID!
   currentWh: Float!
 }
 
-type Subscription @join__type(graph: HOME_GATEWAY) {
-  events(filter: String! = "*"): EventUpdate!
-}
-
-type SunUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeSunUpdate @join__type(graph: HOME) {
   eventId: UUID!
   transition: String!
 }
 
-type SwitchUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeSwitchUpdate @join__type(graph: HOME) {
   eventId: UUID!
   device: String!
   action: String!
 }
 
-type TransperthObject @join__type(graph: HOME_GATEWAY) {
-  routes: [RouteDeparturesObject!]!
-  route(id: String!): RouteDeparturesObject
+type HomeTransperthObject @join__type(graph: HOME) {
+  routes: [HomeRouteDeparturesObject!]!
+  route(id: String!): HomeRouteDeparturesObject
 }
 
-type TransperthUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeTransperthUpdate @join__type(graph: HOME) {
   eventId: UUID!
   routeId: String!
   origin: String!
@@ -1153,21 +1010,21 @@ type TransperthUpdate @join__type(graph: HOME_GATEWAY) {
   nextDelayMinutes: Int
 }
 
-type UnifiUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeUnifiUpdate @join__type(graph: HOME) {
   eventId: UUID!
   macAddress: String!
   client: String!
   connected: Boolean!
 }
 
-type Unraid @join__type(graph: HOME_GATEWAY) {
+type HomeUnraid @join__type(graph: HOME) {
   recordedAt: DateTime!
-  array: UnraidArray!
-  disks: [UnraidDisk!]!
-  disk(name: String!): UnraidDisk
+  array: HomeUnraidArray!
+  disks: [HomeUnraidDisk!]!
+  disk(name: String!): HomeUnraidDisk
 }
 
-type UnraidArray @join__type(graph: HOME_GATEWAY) {
+type HomeUnraidArray @join__type(graph: HOME) {
   state: String!
   usagePercent: Float
   kilobytesFree: Int!
@@ -1177,10 +1034,10 @@ type UnraidArray @join__type(graph: HOME_GATEWAY) {
   parityProgress: Int
   parityErrors: Int
   parityRunning: Boolean!
-  history(since: DateTime!): [UnraidArrayPoint!]!
+  history(since: DateTime!): [HomeUnraidArrayPoint!]!
 }
 
-type UnraidArrayPoint @join__type(graph: HOME_GATEWAY) {
+type HomeUnraidArrayPoint @join__type(graph: HOME) {
   time: DateTime!
   kilobytesUsed: Int!
   kilobytesTotal: Int!
@@ -1189,7 +1046,7 @@ type UnraidArrayPoint @join__type(graph: HOME_GATEWAY) {
   parityProgress: Int
 }
 
-type UnraidDisk @join__type(graph: HOME_GATEWAY) {
+type HomeUnraidDisk @join__type(graph: HOME) {
   name: String!
   kind: String!
   status: String
@@ -1201,10 +1058,10 @@ type UnraidDisk @join__type(graph: HOME_GATEWAY) {
   fsUsedKb: Int
   errors: Int
   spinning: Boolean
-  history(since: DateTime!): [UnraidDiskPoint!]!
+  history(since: DateTime!): [HomeUnraidDiskPoint!]!
 }
 
-type UnraidDiskPoint @join__type(graph: HOME_GATEWAY) {
+type HomeUnraidDiskPoint @join__type(graph: HOME) {
   time: DateTime!
   status: String
   temperature: Int
@@ -1215,7 +1072,7 @@ type UnraidDiskPoint @join__type(graph: HOME_GATEWAY) {
   spinning: Boolean
 }
 
-type UnraidUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeUnraidUpdate @join__type(graph: HOME) {
   eventId: UUID!
   subject: String!
   kind: String
@@ -1230,24 +1087,24 @@ type UnraidUpdate @join__type(graph: HOME_GATEWAY) {
   link: String
 }
 
-type VacationAction @join__type(graph: HOME_GATEWAY) {
+type HomeVacationAction @join__type(graph: HOME) {
   at: DateTime!
   on: Boolean!
   slot: Int!
   onFraction: Float!
 }
 
-type VacationLight @join__type(graph: HOME_GATEWAY) {
+type HomeVacationLight @join__type(graph: HOME) {
   address: String!
   deviceId: String
   name: String!
   coverage: Int!
-  currentTarget: LightTarget!
-  actions: [VacationAction!]!
+  currentTarget: HomeLightTarget!
+  actions: [HomeVacationAction!]!
 }
 
-type VacationMode implements ModeState @join__type(graph: HOME_GATEWAY) @join__implements(graph: HOME_GATEWAY, interface: "ModeState") {
-  mode: Mode!
+type HomeVacationMode implements HomeModeState @join__type(graph: HOME) @join__implements(graph: HOME, interface: "HomeModeState") {
+  mode: HomeMode!
   enabled: Boolean!
   window: String!
   jitter: String!
@@ -1256,44 +1113,44 @@ type VacationMode implements ModeState @join__type(graph: HOME_GATEWAY) @join__i
   The replay plan for every configured light: what it should be doing now,
   and every switch still to come in the next 24 hours.
   """
-  lights: [VacationLight!]!
+  lights: [HomeVacationLight!]!
 }
 
-type WeatherObject @join__type(graph: HOME_GATEWAY) {
-  forecast: Forecast!
+type HomeWeatherObject @join__type(graph: HOME) {
+  forecast: HomeForecast!
 }
 
-type WeatherReadingUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeWeatherReadingUpdate @join__type(graph: HOME) {
   metric: String!
   day: String
   value: Float!
 }
 
-type WeatherUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeWeatherUpdate @join__type(graph: HOME) {
   eventId: UUID!
   source: String!
-  readings: [WeatherReadingUpdate!]!
+  readings: [HomeWeatherReadingUpdate!]!
 }
 
-type WoolworthsObject @join__type(graph: HOME_GATEWAY) {
-  products: [WoolworthsProducts!]!
-  priceHistory(input: WoolworthsPriceHistoryInput!): [WoolworthsPricePoint!]!
+type HomeWoolworthsObject @join__type(graph: HOME) {
+  products: [HomeWoolworthsProducts!]!
+  priceHistory(input: HomeWoolworthsPriceHistoryInput!): [HomeWoolworthsPricePoint!]!
 }
 
-type WoolworthsPricePoint @join__type(graph: HOME_GATEWAY) {
+type HomeWoolworthsPricePoint @join__type(graph: HOME) {
   productId: Int!
   name: String!
   price: Float!
   time: DateTime!
 }
 
-type WoolworthsProducts @join__type(graph: HOME_GATEWAY) {
+type HomeWoolworthsProducts @join__type(graph: HOME) {
   productId: Int!
   name: String!
   price: Float!
 }
 
-type WoolworthsUpdate @join__type(graph: HOME_GATEWAY) {
+type HomeWoolworthsUpdate @join__type(graph: HOME) {
   eventId: UUID!
   productId: Int!
   name: String!
@@ -1301,7 +1158,7 @@ type WoolworthsUpdate @join__type(graph: HOME_GATEWAY) {
   newPrice: Float!
 }
 
-type WorkflowRun @join__type(graph: HOME_GATEWAY) {
+type HomeWorkflowRun @join__type(graph: HOME) {
   id: ID!
   slug: String!
   name: String!
@@ -1312,10 +1169,10 @@ type WorkflowRun @join__type(graph: HOME_GATEWAY) {
   error: String
   trigger: JSON
   startedAt: DateTime!
-  steps: [WorkflowRunStep!]!
+  steps: [HomeWorkflowRunStep!]!
 }
 
-type WorkflowRunStep @join__type(graph: HOME_GATEWAY) {
+type HomeWorkflowRunStep @join__type(graph: HOME) {
   seq: Int!
   depth: Int!
   kind: String!
@@ -1327,7 +1184,7 @@ type WorkflowRunStep @join__type(graph: HOME_GATEWAY) {
   at: DateTime!
 }
 
-type WorkflowStatus @join__type(graph: HOME_GATEWAY) {
+type HomeWorkflowStatus @join__type(graph: HOME) {
   id: String!
   slug: String!
   name: String!
@@ -1337,340 +1194,177 @@ type WorkflowStatus @join__type(graph: HOME_GATEWAY) {
   configEnabled: Boolean!
   dryRun: Boolean!
   reusable: Boolean!
-  modes: [Mode!]!
+  modes: [HomeMode!]!
 }
 
-type AbandonedItem @join__type(graph: SPOTIFY) {
-  item: Item!
-  plays: Int!
-  """
-  Average share of the track played.
-  """
-  averageCompletion: Float!
+type Mutation @join__type(graph: HOME) @join__type(graph: SPOTIFY) {
+  homeLight(id: IdOrAlias!): HomeLightMutation! @join__field(graph: HOME)
+  homeRobotVacuum(id: IdOrAlias!): HomeRobotVacuumMutation! @join__field(graph: HOME)
+  homeGarageDoor(id: IdOrAlias!): HomeGarageDoorMutation! @join__field(graph: HOME)
+  homeAirPurifier(id: IdOrAlias!): HomeAirPurifierMutation! @join__field(graph: HOME)
+  homeDeviceLock(id: IdOrAlias!): HomeDeviceLockMutation! @join__field(graph: HOME)
+  homeMediaPlayer(id: IdOrAlias!): HomeMediaPlayerMutation! @join__field(graph: HOME)
+  homeEinkDisplay(id: IdOrAlias!): HomeEinkDisplayMutation! @join__field(graph: HOME)
+  homeSetWorkflowEnabled(slug: String!, enabled: Boolean!): Boolean! @join__field(graph: HOME)
+  homeSetMode(mode: HomeMode!): HomeMode! @join__field(graph: HOME)
+  homeRunWorkflow(slug: String!, inputs: JSON, dryRun: Boolean): UUID! @join__field(graph: HOME)
+  homeRunPendingAdhocTasks: Boolean! @join__field(graph: HOME)
+  homeRunAdhocCronTask(name: String!): Boolean! @join__field(graph: HOME)
+  homeSendPushNotification(input: HomeSendPushNotificationInput!): Boolean! @join__field(graph: HOME)
+  homeRecordNotificationInteraction(id: UUID!, kind: HomeNotificationInteractionKind!): Boolean! @join__field(graph: HOME)
+  homeExecuteLua(script: String!, vars: JSON, dryRun: Boolean): JSON! @join__field(graph: HOME)
+  spotifyCreateAccount(input: SpotifyCreateAccountInput!): SpotifyCreateAccountPayload! @join__field(graph: SPOTIFY)
+  spotifyCreateExport(input: SpotifyCreateExportInput!): SpotifyCreateExportPayload! @join__field(graph: SPOTIFY) @inaccessible
+  spotifyUploadExportFile(input: SpotifyUploadExportFileInput!, file: Upload!): SpotifyUploadExportFilePayload! @join__field(graph: SPOTIFY) @inaccessible
+  spotifyFinalizeExport(input: SpotifyFinalizeExportInput!): SpotifyFinalizeExportPayload! @join__field(graph: SPOTIFY) @inaccessible
 }
 
-type Account implements Node @join__type(graph: SPOTIFY) @join__implements(graph: SPOTIFY, interface: "Node") {
+type Query @join__type(graph: HOME) @join__type(graph: NODE) @join__type(graph: SPOTIFY) {
+  homeAuth: HomeAuthObject! @join__field(graph: HOME)
+  homeHomeAssistant: HomeHomeAssistantObject! @join__field(graph: HOME)
+  """
+  Every configured entity and its current state. Entity types the caller
+  lacks a `graphql:<type>:read` scope for are silently omitted — this query
+  never errors on missing permissions.
+  The dashboard sections, in display order, with their titles. Categorising
+  a device kind is a backend concern — the frontend renders whatever order
+  and titles this returns.
+  """
+  homeEntitySections: [HomeEntitySection!]! @join__field(graph: HOME)
+  homeDeviceConnections: [HomeDeviceConnection!]! @join__field(graph: HOME)
+  homeEntities: [HomeEntity!]! @join__field(graph: HOME)
+  homeMediaPlayer(id: IdOrAlias!): HomeMediaPlayerEntity! @join__field(graph: HOME)
+  homeLight(id: IdOrAlias!): HomeLightEntity! @join__field(graph: HOME)
+  homeDoor(id: IdOrAlias!): HomeDoorEntity! @join__field(graph: HOME)
+  homePresence(id: IdOrAlias!): HomePresenceEntity! @join__field(graph: HOME)
+  homeEnvironment(id: IdOrAlias!): HomeEnvironmentEntity! @join__field(graph: HOME)
+  homePlant(id: IdOrAlias!): HomePlantEntity! @join__field(graph: HOME)
+  homeEinkDisplay(id: IdOrAlias!): HomeEinkDisplayEntity! @join__field(graph: HOME)
+  homeRobotVacuum(id: IdOrAlias!): HomeRobotVacuumEntity! @join__field(graph: HOME)
+  homeGarageDoor(id: IdOrAlias!): HomeGarageDoorEntity! @join__field(graph: HOME)
+  homeAirPurifier(id: IdOrAlias!): HomeAirPurifierEntity! @join__field(graph: HOME)
+  homeSolar: HomeSolarObject! @join__field(graph: HOME)
+  homeEnergy: HomeEnergyObject! @join__field(graph: HOME)
+  homeWeather(input: HomeWeatherInput!): HomeWeatherObject! @join__field(graph: HOME)
+  homeWoolworths: HomeWoolworthsObject! @join__field(graph: HOME)
+  homeTransperth: HomeTransperthObject! @join__field(graph: HOME)
+  homeFuelwatch(postcode: Int): HomeFuelWatchObject! @join__field(graph: HOME)
+  homeUnraid: HomeUnraid @join__field(graph: HOME)
+  homeWorkflows: [HomeWorkflowStatus!]! @join__field(graph: HOME)
+  homeMode: HomeModeStatus! @join__field(graph: HOME)
+  homeWorkflowRuns(slug: String, eventId: UUID, limit: Int): [HomeWorkflowRun!]! @join__field(graph: HOME)
+  homeJellyfin: HomeJellyfinObject! @join__field(graph: HOME)
+  homeAdhocCronTasks: [HomeAdhocCronTaskStatus!]! @join__field(graph: HOME)
+  homeAdhocTasks: [HomeAdhocTaskStatus!]! @join__field(graph: HOME)
+  homePushNotifications(limit: Int): [HomePushNotification!]! @join__field(graph: HOME)
+  homeLuaApi: HomeLuaApiObject! @join__field(graph: HOME)
+  node(id: ID!): Node @join__field(graph: NODE)
+  spotifyAccounts: [SpotifyAccount!]! @join__field(graph: SPOTIFY)
+  spotifyAccount(slug: String!): SpotifyAccount @join__field(graph: SPOTIFY)
+  """
+  Listening stats across the filtered plays.
+  """
+  spotifyStats(
+    filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): SpotifyStats! @join__field(graph: SPOTIFY)
+  """
+  Search tracks, episodes and artists by name.
+  """
+  spotifySearch(query: String!): SpotifySearch! @join__field(graph: SPOTIFY)
+  spotifyItem(uri: String!): SpotifyItem @join__field(graph: SPOTIFY)
+  spotifyArtist(name: String!): SpotifyArtist @join__field(graph: SPOTIFY)
+  """
+  Progress of Spotify Web API enrichment (metadata, genres, artwork).
+  """
+  spotifyEnrichment: SpotifyEnrichment! @join__field(graph: SPOTIFY)
+  """
+  Whether a file with this sha256 has already been imported for the account, so clients
+  can skip uploading it.
+  """
+  spotifyFileExists(account: String!, sha256: String!): Boolean! @join__field(graph: SPOTIFY) @inaccessible
+}
+
+type SpotifyArtist implements Node @join__type(graph: HOME, key: "name", resolvable: false) @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: SPOTIFY, key: "name") @join__type(graph: SPOTIFY, key: "id") @join__implements(graph: NODE, interface: "Node") @join__implements(graph: SPOTIFY, interface: "Node") {
+  name: String! @join__field(graph: HOME) @join__field(graph: SPOTIFY)
+  id: ID! @join__field(graph: NODE) @join__field(graph: SPOTIFY)
+  stats(
+    filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): SpotifyStats! @join__field(graph: SPOTIFY)
+  """
+  Spotify's genres for this artist; empty until enriched.
+  """
+  genres: [String!]! @join__field(graph: SPOTIFY)
+  imageUrl: String @join__field(graph: SPOTIFY)
+}
+
+type SpotifyItem implements Node @join__type(graph: HOME, key: "uri", resolvable: false) @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: SPOTIFY, key: "uri") @join__type(graph: SPOTIFY, key: "id") @join__implements(graph: NODE, interface: "Node") @join__implements(graph: SPOTIFY, interface: "Node") {
+  uri: String! @join__field(graph: HOME) @join__field(graph: SPOTIFY)
+  id: ID! @join__field(graph: NODE) @join__field(graph: SPOTIFY)
+  kind: SpotifyItemKind! @join__field(graph: SPOTIFY)
+  name: String @join__field(graph: SPOTIFY)
+  """
+  The artist for tracks, the show for episodes, the book for audiobook chapters.
+  """
+  artistName: String @join__field(graph: SPOTIFY)
+  artist: SpotifyArtist @join__field(graph: SPOTIFY)
+  album: SpotifyAlbum @join__field(graph: SPOTIFY)
+  """
+  Album (or podcast show) artwork, once enrichment has stored it.
+  """
+  artworkUrl: String @join__field(graph: SPOTIFY)
+  """
+  Whether Spotify Web API metadata has been fetched for this item.
+  """
+  enriched: Boolean! @join__field(graph: SPOTIFY)
+  durationMs: Int @join__field(graph: SPOTIFY)
+  explicit: Boolean @join__field(graph: SPOTIFY)
+  """
+  `1999`, `1999-03` or `1999-03-14`, as precise as Spotify knows it.
+  """
+  releaseDate: String @join__field(graph: SPOTIFY)
+  releaseYear: Int @join__field(graph: SPOTIFY)
+  """
+  Every credited artist in credit order; empty until enriched.
+  """
+  artists: [SpotifyArtist!]! @join__field(graph: SPOTIFY)
+  stats(
+    filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}
+  ): SpotifyStats! @join__field(graph: SPOTIFY)
+}
+
+type Subscription @join__type(graph: HOME) {
+  homeEvents(filter: String! = "*"): HomeEventUpdate!
+}
+
+type SpotifyAccount implements Node @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: SPOTIFY, key: "id") @join__implements(graph: NODE, interface: "Node") @join__implements(graph: SPOTIFY, interface: "Node") {
   id: ID!
-  slug: String!
-  displayName: String!
-  spotifyUsername: String
-  playCount: Int!
-  exports: [Export!]!
+  slug: String! @join__field(graph: SPOTIFY)
+  displayName: String! @join__field(graph: SPOTIFY)
+  spotifyUsername: String @join__field(graph: SPOTIFY)
+  playCount: Int! @join__field(graph: SPOTIFY)
+  exports: [SpotifyExport!]! @join__field(graph: SPOTIFY)
 }
 
-type Album @join__type(graph: SPOTIFY) {
-  name: String!
-  artist: Artist
-  artworkUrl: String
-  releaseYear: Int
-}
-
-type ArtistConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [ArtistEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Artist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ArtistEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Artist!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type ArtistSkipRate @join__type(graph: SPOTIFY) {
-  artist: Artist!
-  """
-  Plays where the export records whether it was skipped.
-  """
-  plays: Int!
-  skips: Int!
-  skipRate: Float!
-  """
-  1-based position in the leaderboard.
-  """
-  rank: Int!
-}
-
-type BreakdownRow @join__type(graph: SPOTIFY) {
-  """
-  Raw value, e.g. `fwdbtn` or `AU`; null when the export doesn't record it.
-  """
-  key: String
-  """
-  Human-readable form of `key`.
-  """
-  label: String!
-  plays: Int!
-  minutesPlayed: Int!
-}
-
-type Completion @join__type(graph: SPOTIFY) {
-  """
-  Average share of each track played, capped at 100%.
-  """
-  average: Float
-  """
-  Share of plays that reached 90% of the track.
-  """
-  finishedShare: Float
-  """
-  Share of plays with a known duration (grows as enrichment runs).
-  """
-  coverage: Float!
-}
-
-type CreateAccountPayload @join__type(graph: SPOTIFY) {
-  account: Account!
-}
-
-type CreateExportPayload @join__type(graph: SPOTIFY) {
-  export: Export!
-}
-
-type DayStat @join__type(graph: SPOTIFY) {
-  date: NaiveDate!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  The artist with the most listening that day.
-  """
-  topArtist: Artist
-}
-
-type Discovery @join__type(graph: SPOTIFY) {
-  artist: Artist!
-  """
-  First play ever (within the filter's accounts and kinds), which falls in the range.
-  """
-  firstPlayed: DateTime!
-  """
-  The first track heard by this artist.
-  """
-  firstItem: Item
-  """
-  Plays in the range.
-  """
-  plays: Int!
-  minutesPlayed: Int!
-}
-
-type DiscoveryConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [DiscoveryEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Discovery!]!
-}
-
-"""
-An edge in a connection.
-"""
-type DiscoveryEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Discovery!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type Enrichment @join__type(graph: SPOTIFY) {
-  tracksEnriched: Int!
-  tracksPending: Int!
-  """
-  Tracks Spotify no longer has.
-  """
-  tracksMissing: Int!
-  artistsEnriched: Int!
-  artistsPending: Int!
-  artworkStored: Int!
-  """
-  Share of all listening time on enriched items.
-  """
-  listeningCoverage: Float!
-  requestsLast24h: Int!
-  lastRun: DateTime
-  rateLimitedUntil: DateTime
-}
-
-type Export implements Node @join__type(graph: SPOTIFY) @join__implements(graph: SPOTIFY, interface: "Node") {
+type SpotifyExport implements Node @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: SPOTIFY, key: "id") @join__implements(graph: NODE, interface: "Node") @join__implements(graph: SPOTIFY, interface: "Node") {
   id: ID!
-  label: String!
-  asOf: DateTime!
-  createdAt: DateTime!
-  finalizedAt: DateTime
-  account: Account!
-  files: [ExportFile!]!
+  label: String! @join__field(graph: SPOTIFY)
+  asOf: DateTime! @join__field(graph: SPOTIFY)
+  createdAt: DateTime! @join__field(graph: SPOTIFY)
+  finalizedAt: DateTime @join__field(graph: SPOTIFY)
+  account: SpotifyAccount! @join__field(graph: SPOTIFY)
+  files: [SpotifyExportFile!]! @join__field(graph: SPOTIFY)
 }
 
-type ExportFile implements Node @join__type(graph: SPOTIFY) @join__implements(graph: SPOTIFY, interface: "Node") {
+type SpotifyExportFile implements Node @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: SPOTIFY, key: "id") @join__implements(graph: NODE, interface: "Node") @join__implements(graph: SPOTIFY, interface: "Node") {
   id: ID!
-  name: String!
-  kind: FileKind!
-  sha256: String!
-  rowsTotal: Int!
-  rowsInserted: Int!
-  rowsMerged: Int!
-  importedAt: DateTime!
-  export: Export!
-}
-
-type FinalizeExportPayload @join__type(graph: SPOTIFY) {
-  export: Export!
-}
-
-type ForgottenArtist @join__type(graph: SPOTIFY) {
-  artist: Artist!
-  plays: Int!
-  minutesPlayed: Int!
-  lastPlayed: DateTime!
-}
-
-type ForgottenArtistConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [ForgottenArtistEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [ForgottenArtist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ForgottenArtistEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: ForgottenArtist!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type Genre @join__type(graph: SPOTIFY) {
-  name: String!
-}
-
-type GenrePoint @join__type(graph: SPOTIFY) {
-  start: DateTime!
-  minutesPlayed: Int!
-}
-
-type GenreSeries @join__type(graph: SPOTIFY) {
-  genre: String!
-  points: [GenrePoint!]!
-}
-
-type HeatmapCell @join__type(graph: SPOTIFY) {
-  """
-  ISO day of week: 1 is Monday, 7 is Sunday.
-  """
-  dayOfWeek: Int!
-  hour: Int!
-  plays: Int!
-  minutesPlayed: Int!
-}
-
-type ItemConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [ItemEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Item!]!
-}
-
-"""
-An edge in a connection.
-"""
-type ItemEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Item!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type ListeningDays @join__type(graph: SPOTIFY) {
-  """
-  Days with at least one play.
-  """
-  activeDays: Int!
-  """
-  Days from the first to the last play, inclusive.
-  """
-  spanDays: Int!
-  """
-  Longest run of consecutive active days.
-  """
-  longestStreak: Streak
-  """
-  The run ending on the last active day.
-  """
-  latestStreak: Streak
-}
-
-type MusicAge @join__type(graph: SPOTIFY) {
-  """
-  Average years between a track's release and when you played it.
-  """
-  averageYears: Float
-  """
-  Share of plays of music released the same year it was played.
-  """
-  newShare: Float
-  """
-  Share of plays with a known release year (grows as enrichment runs).
-  """
-  coverage: Float!
-  """
-  The oldest track played in the range.
-  """
-  oldest: Item
-  oldestYear: Int
+  name: String! @join__field(graph: SPOTIFY)
+  kind: SpotifyFileKind! @join__field(graph: SPOTIFY)
+  sha256: String! @join__field(graph: SPOTIFY)
+  rowsTotal: Int! @join__field(graph: SPOTIFY)
+  rowsInserted: Int! @join__field(graph: SPOTIFY)
+  rowsMerged: Int! @join__field(graph: SPOTIFY)
+  importedAt: DateTime! @join__field(graph: SPOTIFY)
+  export: SpotifyExport! @join__field(graph: SPOTIFY)
 }
 
 """
@@ -1695,7 +1389,449 @@ type PageInfo @join__type(graph: SPOTIFY) {
   endCursor: String
 }
 
-type Play @join__type(graph: SPOTIFY) {
+type SpotifyAbandonedItem @join__type(graph: SPOTIFY) {
+  item: SpotifyItem!
+  plays: Int!
+  """
+  Average share of the track played.
+  """
+  averageCompletion: Float!
+}
+
+type SpotifyAlbum @join__type(graph: SPOTIFY) {
+  name: String!
+  artist: SpotifyArtist
+  artworkUrl: String
+  releaseYear: Int
+}
+
+type SpotifyAlbumRankedConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyAlbumRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyAlbum!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyAlbumRankedEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyAlbum!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyArtistConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyArtistEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyArtistEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyArtist!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyArtistRankedConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyArtistRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyArtistRankedEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyArtist!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyArtistSkipRate @join__type(graph: SPOTIFY) {
+  artist: SpotifyArtist!
+  """
+  Plays where the export records whether it was skipped.
+  """
+  plays: Int!
+  skips: Int!
+  skipRate: Float!
+  """
+  1-based position in the leaderboard.
+  """
+  rank: Int!
+}
+
+type SpotifyBreakdownRow @join__type(graph: SPOTIFY) {
+  """
+  Raw value, e.g. `fwdbtn` or `AU`; null when the export doesn't record it.
+  """
+  key: String
+  """
+  Human-readable form of `key`.
+  """
+  label: String!
+  plays: Int!
+  minutesPlayed: Int!
+}
+
+type SpotifyCompletion @join__type(graph: SPOTIFY) {
+  """
+  Average share of each track played, capped at 100%.
+  """
+  average: Float
+  """
+  Share of plays that reached 90% of the track.
+  """
+  finishedShare: Float
+  """
+  Share of plays with a known duration (grows as enrichment runs).
+  """
+  coverage: Float!
+}
+
+type SpotifyCreateAccountPayload @join__type(graph: SPOTIFY) {
+  account: SpotifyAccount!
+}
+
+type SpotifyCreateExportPayload @join__type(graph: SPOTIFY) {
+  export: SpotifyExport!
+}
+
+type SpotifyDayStat @join__type(graph: SPOTIFY) {
+  date: NaiveDate!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  The artist with the most listening that day.
+  """
+  topArtist: SpotifyArtist
+}
+
+type SpotifyDiscovery @join__type(graph: SPOTIFY) {
+  artist: SpotifyArtist!
+  """
+  First play ever (within the filter's accounts and kinds), which falls in the range.
+  """
+  firstPlayed: DateTime!
+  """
+  The first track heard by this artist.
+  """
+  firstItem: SpotifyItem
+  """
+  Plays in the range.
+  """
+  plays: Int!
+  minutesPlayed: Int!
+}
+
+type SpotifyDiscoveryConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyDiscoveryEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyDiscovery!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyDiscoveryEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyDiscovery!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyEnrichment @join__type(graph: SPOTIFY) {
+  tracksEnriched: Int!
+  tracksPending: Int!
+  """
+  Tracks Spotify no longer has.
+  """
+  tracksMissing: Int!
+  artistsEnriched: Int!
+  artistsPending: Int!
+  artworkStored: Int!
+  """
+  Share of all listening time on enriched items.
+  """
+  listeningCoverage: Float!
+  requestsLast24h: Int!
+  lastRun: DateTime
+  rateLimitedUntil: DateTime
+}
+
+type SpotifyFinalizeExportPayload @join__type(graph: SPOTIFY) {
+  export: SpotifyExport!
+}
+
+type SpotifyForgottenArtist @join__type(graph: SPOTIFY) {
+  artist: SpotifyArtist!
+  plays: Int!
+  minutesPlayed: Int!
+  lastPlayed: DateTime!
+}
+
+type SpotifyForgottenArtistConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyForgottenArtistEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyForgottenArtist!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyForgottenArtistEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyForgottenArtist!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyGenre @join__type(graph: SPOTIFY) {
+  name: String!
+}
+
+type SpotifyGenrePoint @join__type(graph: SPOTIFY) {
+  start: DateTime!
+  minutesPlayed: Int!
+}
+
+type SpotifyGenreRankedConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyGenreRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyGenre!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyGenreRankedEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyGenre!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyGenreSeries @join__type(graph: SPOTIFY) {
+  genre: String!
+  points: [SpotifyGenrePoint!]!
+}
+
+type SpotifyHeatmapCell @join__type(graph: SPOTIFY) {
+  """
+  ISO day of week: 1 is Monday, 7 is Sunday.
+  """
+  dayOfWeek: Int!
+  hour: Int!
+  plays: Int!
+  minutesPlayed: Int!
+}
+
+type SpotifyItemConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyItemEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyItem!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyItemEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyItem!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyItemRankedConnection @join__type(graph: SPOTIFY) {
+  """
+  Information to aid in pagination.
+  """
+  pageInfo: PageInfo!
+  """
+  A list of edges.
+  """
+  edges: [SpotifyItemRankedEdge!]!
+  """
+  A list of nodes.
+  """
+  nodes: [SpotifyItem!]!
+}
+
+"""
+An edge in a connection.
+"""
+type SpotifyItemRankedEdge @join__type(graph: SPOTIFY) {
+  """
+  The item at the end of the edge
+  """
+  node: SpotifyItem!
+  """
+  1-based position in the ranking.
+  """
+  rank: Int!
+  plays: Int!
+  minutesPlayed: Int!
+  """
+  A cursor for use in pagination
+  """
+  cursor: String!
+}
+
+type SpotifyListeningDays @join__type(graph: SPOTIFY) {
+  """
+  Days with at least one play.
+  """
+  activeDays: Int!
+  """
+  Days from the first to the last play, inclusive.
+  """
+  spanDays: Int!
+  """
+  Longest run of consecutive active days.
+  """
+  longestStreak: SpotifyStreak
+  """
+  The run ending on the last active day.
+  """
+  latestStreak: SpotifyStreak
+}
+
+type SpotifyMusicAge @join__type(graph: SPOTIFY) {
+  """
+  Average years between a track's release and when you played it.
+  """
+  averageYears: Float
+  """
+  Share of plays of music released the same year it was played.
+  """
+  newShare: Float
+  """
+  Share of plays with a known release year (grows as enrichment runs).
+  """
+  coverage: Float!
+  """
+  The oldest track played in the range.
+  """
+  oldest: SpotifyItem
+  oldestYear: Int
+}
+
+type SpotifyPlay @join__type(graph: SPOTIFY) {
   """
   When playback ended.
   """
@@ -1708,11 +1844,11 @@ type Play @join__type(graph: SPOTIFY) {
   isExtended: Boolean!
   name: String
   artistName: String
-  item: Item
-  account: Account!
+  item: SpotifyItem
+  account: SpotifyAccount!
 }
 
-type PlayConnection @join__type(graph: SPOTIFY) {
+type SpotifyPlayConnection @join__type(graph: SPOTIFY) {
   """
   Information to aid in pagination.
   """
@@ -1720,169 +1856,29 @@ type PlayConnection @join__type(graph: SPOTIFY) {
   """
   A list of edges.
   """
-  edges: [PlayEdge!]!
+  edges: [SpotifyPlayEdge!]!
   """
   A list of nodes.
   """
-  nodes: [Play!]!
+  nodes: [SpotifyPlay!]!
 }
 
 """
 An edge in a connection.
 """
-type PlayEdge @join__type(graph: SPOTIFY) {
+type SpotifyPlayEdge @join__type(graph: SPOTIFY) {
   """
   The item at the end of the edge
   """
-  node: Play!
+  node: SpotifyPlay!
   """
   A cursor for use in pagination
   """
   cursor: String!
 }
 
-type RankedAlbumConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedAlbumEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Album!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedAlbumEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Album!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RankedArtistConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedArtistEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Artist!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedArtistEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Artist!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RankedGenreConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedGenreEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Genre!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedGenreEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Genre!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RankedItemConnection @join__type(graph: SPOTIFY) {
-  """
-  Information to aid in pagination.
-  """
-  pageInfo: PageInfo!
-  """
-  A list of edges.
-  """
-  edges: [RankedItemEdge!]!
-  """
-  A list of nodes.
-  """
-  nodes: [Item!]!
-}
-
-"""
-An edge in a connection.
-"""
-type RankedItemEdge @join__type(graph: SPOTIFY) {
-  """
-  The item at the end of the edge
-  """
-  node: Item!
-  """
-  1-based position in the ranking.
-  """
-  rank: Int!
-  plays: Int!
-  minutesPlayed: Int!
-  """
-  A cursor for use in pagination
-  """
-  cursor: String!
-}
-
-type RepeatDay @join__type(graph: SPOTIFY) {
-  item: Item!
+type SpotifyRepeatDay @join__type(graph: SPOTIFY) {
+  item: SpotifyItem!
   """
   The day this item was played most.
   """
@@ -1890,29 +1886,29 @@ type RepeatDay @join__type(graph: SPOTIFY) {
   plays: Int!
 }
 
-type Search @join__type(graph: SPOTIFY) {
-  items(first: Int, after: String): ItemConnection!
-  artists(first: Int, after: String): ArtistConnection!
+type SpotifySearch @join__type(graph: SPOTIFY) {
+  items(first: Int, after: String): SpotifyItemConnection!
+  artists(first: Int, after: String): SpotifyArtistConnection!
 }
 
-type Session @join__type(graph: SPOTIFY) {
+type SpotifySession @join__type(graph: SPOTIFY) {
   start: DateTime!
   end: DateTime!
   plays: Int!
   minutesPlayed: Int!
 }
 
-type Sessions @join__type(graph: SPOTIFY) {
+type SpotifySessions @join__type(graph: SPOTIFY) {
   """
   Listening sessions: plays separated by less than 30 minutes of silence.
   """
   count: Int!
   averageMinutes: Float
-  longest: Session
+  longest: SpotifySession
 }
 
-type SkippedItem @join__type(graph: SPOTIFY) {
-  item: Item!
+type SpotifySkippedItem @join__type(graph: SPOTIFY) {
+  item: SpotifyItem!
   """
   Plays where the export records whether it was skipped.
   """
@@ -1921,99 +1917,99 @@ type SkippedItem @join__type(graph: SPOTIFY) {
   skipRate: Float!
 }
 
-type Stats @join__type(graph: SPOTIFY) {
-  summary: Summary!
-  topArtists(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedArtistConnection!
+type SpotifyStats @join__type(graph: SPOTIFY) {
+  summary: SpotifySummary!
+  topArtists(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyArtistRankedConnection!
   """
   Only plays with an item (extended history) are ranked; account-data plays have none.
   """
-  topItems(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedItemConnection!
-  topAlbums(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedAlbumConnection!
-  timeline(bucket: TimeBucket!): [TimelinePoint!]!
+  topItems(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyItemRankedConnection!
+  topAlbums(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyAlbumRankedConnection!
+  timeline(bucket: SpotifyTimeBucket!): [SpotifyTimelinePoint!]!
   """
   Listening by day of week and hour, in the filter's time zone. Empty cells are omitted.
   """
-  heatmap: [HeatmapCell!]!
+  heatmap: [SpotifyHeatmapCell!]!
   """
   Individual plays, most recent first.
   """
-  plays(first: Int, after: String): PlayConnection!
+  plays(first: Int, after: String): SpotifyPlayConnection!
   """
   The earliest play: for an artist or track, when you first heard it.
   """
-  firstPlay: Play
+  firstPlay: SpotifyPlay
   """
   Active days and streaks of consecutive days.
   """
-  listeningDays: ListeningDays!
+  listeningDays: SpotifyListeningDays!
   """
   Days with the most listening, each with its top artist.
   """
-  topDays(first: Int! = 10): [DayStat!]!
+  topDays(first: Int! = 10): [SpotifyDayStat!]!
   """
   Items played most within a single day, one entry per item.
   """
-  onRepeat(first: Int! = 10): [RepeatDay!]!
+  onRepeat(first: Int! = 10): [SpotifyRepeatDay!]!
   """
   Highest skip rates among items with at least `minPlays` plays. Counts every play,
   whatever the filter's minimum play length.
   """
-  mostSkipped(first: Int! = 10, minPlays: Int! = 10): [SkippedItem!]!
+  mostSkipped(first: Int! = 10, minPlays: Int! = 10): [SpotifySkippedItem!]!
   """
   Artists ranked by skip rate, among those with at least `minPlays` plays. Counts every
   play, whatever the filter's minimum play length.
   """
-  artistSkipRates(order: SkipOrder! = MOST_SKIPPED, first: Int! = 10, minPlays: Int! = 50): [ArtistSkipRate!]!
+  artistSkipRates(order: SpotifySkipOrder! = MOST_SKIPPED, first: Int! = 10, minPlays: Int! = 50): [SpotifyArtistSkipRate!]!
   """
   Listening split by device, country, shuffle, offline or start/end reason.
   """
-  breakdown(by: BreakdownDimension!): [BreakdownRow!]!
-  sessions: Sessions!
+  breakdown(by: SpotifyBreakdownDimension!): [SpotifyBreakdownRow!]!
+  sessions: SpotifySessions!
   """
   Artists first heard within the date range, by listening in the range.
   """
-  discoveries(first: Int, after: String): DiscoveryConnection!
+  discoveries(first: Int, after: String): SpotifyDiscoveryConnection!
   """
   Artists with heavy listening but nothing in the last year of the range.
   """
-  forgottenArtists(first: Int, after: String): ForgottenArtistConnection!
+  forgottenArtists(first: Int, after: String): SpotifyForgottenArtistConnection!
   """
   Genres by listening, from the Spotify genres of each track's primary artist. A play
   counts toward every genre of that artist, so shares overlap. Needs enrichment.
   """
-  topGenres(first: Int, after: String, by: RankBy! = MINUTES_PLAYED): RankedGenreConnection!
+  topGenres(first: Int, after: String, by: SpotifyRankBy! = MINUTES_PLAYED): SpotifyGenreRankedConnection!
   """
   Listening over time for `genres`, or the top `first` genres when none are given,
   chosen over all time by default so they stay stable as the date range changes.
   """
   genreTimeline(
-    bucket: TimeBucket!
+    bucket: SpotifyTimeBucket!
     genres: [String!]! = []
     first: Int! = 5
     topOverAllTime: Boolean! = true
-  ): [GenreSeries!]!
+  ): [SpotifyGenreSeries!]!
   """
   How old the music is when you play it. Needs enrichment.
   """
-  musicAge: MusicAge!
+  musicAge: SpotifyMusicAge!
   """
   How much of each track you play, from Spotify durations. Counts every play, whatever
   the filter's minimum play length.
   """
-  completion: Completion!
+  completion: SpotifyCompletion!
   """
   Tracks with the lowest average completion among those with at least `minPlays` plays.
   """
-  mostAbandoned(first: Int! = 10, minPlays: Int! = 10): [AbandonedItem!]!
+  mostAbandoned(first: Int! = 10, minPlays: Int! = 10): [SpotifyAbandonedItem!]!
 }
 
-type Streak @join__type(graph: SPOTIFY) {
+type SpotifyStreak @join__type(graph: SPOTIFY) {
   start: NaiveDate!
   end: NaiveDate!
   days: Int!
 }
 
-type Summary @join__type(graph: SPOTIFY) {
+type SpotifySummary @join__type(graph: SPOTIFY) {
   plays: Int!
   minutesPlayed: Int!
   distinctTracks: Int!
@@ -2026,7 +2022,7 @@ type Summary @join__type(graph: SPOTIFY) {
   lastPlayed: DateTime
 }
 
-type TimelinePoint @join__type(graph: SPOTIFY) {
+type SpotifyTimelinePoint @join__type(graph: SPOTIFY) {
   """
   Start of the bucket in the filter's time zone.
   """
@@ -2035,160 +2031,160 @@ type TimelinePoint @join__type(graph: SPOTIFY) {
   minutesPlayed: Int!
 }
 
-type UploadExportFilePayload @join__type(graph: SPOTIFY) {
-  status: UploadStatus!
-  file: ExportFile
+type SpotifyUploadExportFilePayload @join__type(graph: SPOTIFY) {
+  status: SpotifyUploadStatus!
+  file: SpotifyExportFile
 }
 
-interface LockableEntity @join__type(graph: HOME_GATEWAY) {
+interface HomeLockableEntity @join__type(graph: HOME) {
   id: String!
-  lock: DeviceLock
+  lock: HomeDeviceLock
 }
 
-interface ModeState @join__type(graph: HOME_GATEWAY) {
-  mode: Mode!
+interface HomeModeState @join__type(graph: HOME) {
+  mode: HomeMode!
 }
 
-interface Node @join__type(graph: SPOTIFY) {
+interface Node @join__type(graph: NODE) @join__type(graph: SPOTIFY) {
   id: ID!
 }
 
-union Entity @join__type(graph: HOME_GATEWAY) @join__unionMember(graph: HOME_GATEWAY, member: "LightEntity") @join__unionMember(graph: HOME_GATEWAY, member: "EnvironmentEntity") @join__unionMember(graph: HOME_GATEWAY, member: "PlantEntity") @join__unionMember(graph: HOME_GATEWAY, member: "DoorEntity") @join__unionMember(graph: HOME_GATEWAY, member: "GarageDoorEntity") @join__unionMember(graph: HOME_GATEWAY, member: "AirPurifierEntity") @join__unionMember(graph: HOME_GATEWAY, member: "PresenceEntity") @join__unionMember(graph: HOME_GATEWAY, member: "EinkDisplayEntity") @join__unionMember(graph: HOME_GATEWAY, member: "RobotVacuumEntity") @join__unionMember(graph: HOME_GATEWAY, member: "MediaPlayerEntity") = LightEntity | EnvironmentEntity | PlantEntity | DoorEntity | GarageDoorEntity | AirPurifierEntity | PresenceEntity | EinkDisplayEntity | RobotVacuumEntity | MediaPlayerEntity
+union HomeEntity @join__type(graph: HOME) @join__unionMember(graph: HOME, member: "HomeLightEntity") @join__unionMember(graph: HOME, member: "HomeEnvironmentEntity") @join__unionMember(graph: HOME, member: "HomePlantEntity") @join__unionMember(graph: HOME, member: "HomeDoorEntity") @join__unionMember(graph: HOME, member: "HomeGarageDoorEntity") @join__unionMember(graph: HOME, member: "HomeAirPurifierEntity") @join__unionMember(graph: HOME, member: "HomePresenceEntity") @join__unionMember(graph: HOME, member: "HomeEinkDisplayEntity") @join__unionMember(graph: HOME, member: "HomeRobotVacuumEntity") @join__unionMember(graph: HOME, member: "HomeMediaPlayerEntity") = HomeLightEntity | HomeEnvironmentEntity | HomePlantEntity | HomeDoorEntity | HomeGarageDoorEntity | HomeAirPurifierEntity | HomePresenceEntity | HomeEinkDisplayEntity | HomeRobotVacuumEntity | HomeMediaPlayerEntity
 
-union EventUpdate @join__type(graph: HOME_GATEWAY) @join__unionMember(graph: HOME_GATEWAY, member: "PresenceUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "DoorUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "GarageDoorUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "AirPurifierUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "SwitchUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "EnvironmentUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "PlantUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "CronUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "SunUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "LightUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "UnifiUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "ModeUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "HomeAssistantUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "WoolworthsUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "DeviceBatteryUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "DeviceConnectionUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "DeviceLockUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "JellyfinUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "MediaPlayerUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "SolarUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "WeatherUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "FuelWatchUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "UnraidUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "TransperthUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "CommandFailedUpdate") @join__unionMember(graph: HOME_GATEWAY, member: "CustomUpdate") = PresenceUpdate | DoorUpdate | GarageDoorUpdate | AirPurifierUpdate | SwitchUpdate | EnvironmentUpdate | PlantUpdate | CronUpdate | SunUpdate | LightUpdate | UnifiUpdate | ModeUpdate | HomeAssistantUpdate | WoolworthsUpdate | DeviceBatteryUpdate | DeviceConnectionUpdate | DeviceLockUpdate | JellyfinUpdate | MediaPlayerUpdate | SolarUpdate | WeatherUpdate | FuelWatchUpdate | UnraidUpdate | TransperthUpdate | CommandFailedUpdate | CustomUpdate
+union HomeEventUpdate @join__type(graph: HOME) @join__unionMember(graph: HOME, member: "HomePresenceUpdate") @join__unionMember(graph: HOME, member: "HomeDoorUpdate") @join__unionMember(graph: HOME, member: "HomeGarageDoorUpdate") @join__unionMember(graph: HOME, member: "HomeAirPurifierUpdate") @join__unionMember(graph: HOME, member: "HomeSwitchUpdate") @join__unionMember(graph: HOME, member: "HomeEnvironmentUpdate") @join__unionMember(graph: HOME, member: "HomePlantUpdate") @join__unionMember(graph: HOME, member: "HomeCronUpdate") @join__unionMember(graph: HOME, member: "HomeSunUpdate") @join__unionMember(graph: HOME, member: "HomeLightUpdate") @join__unionMember(graph: HOME, member: "HomeUnifiUpdate") @join__unionMember(graph: HOME, member: "HomeModeUpdate") @join__unionMember(graph: HOME, member: "HomeHomeAssistantUpdate") @join__unionMember(graph: HOME, member: "HomeWoolworthsUpdate") @join__unionMember(graph: HOME, member: "HomeDeviceBatteryUpdate") @join__unionMember(graph: HOME, member: "HomeDeviceConnectionUpdate") @join__unionMember(graph: HOME, member: "HomeDeviceLockUpdate") @join__unionMember(graph: HOME, member: "HomeJellyfinUpdate") @join__unionMember(graph: HOME, member: "HomeMediaPlayerUpdate") @join__unionMember(graph: HOME, member: "HomeSolarUpdate") @join__unionMember(graph: HOME, member: "HomeWeatherUpdate") @join__unionMember(graph: HOME, member: "HomeFuelWatchUpdate") @join__unionMember(graph: HOME, member: "HomeUnraidUpdate") @join__unionMember(graph: HOME, member: "HomeTransperthUpdate") @join__unionMember(graph: HOME, member: "HomeCommandFailedUpdate") @join__unionMember(graph: HOME, member: "HomeCustomUpdate") = HomePresenceUpdate | HomeDoorUpdate | HomeGarageDoorUpdate | HomeAirPurifierUpdate | HomeSwitchUpdate | HomeEnvironmentUpdate | HomePlantUpdate | HomeCronUpdate | HomeSunUpdate | HomeLightUpdate | HomeUnifiUpdate | HomeModeUpdate | HomeHomeAssistantUpdate | HomeWoolworthsUpdate | HomeDeviceBatteryUpdate | HomeDeviceConnectionUpdate | HomeDeviceLockUpdate | HomeJellyfinUpdate | HomeMediaPlayerUpdate | HomeSolarUpdate | HomeWeatherUpdate | HomeFuelWatchUpdate | HomeUnraidUpdate | HomeTransperthUpdate | HomeCommandFailedUpdate | HomeCustomUpdate
 
 """
 The dashboard section a device kind is displayed under. Owned by the backend
 so categorising a kind never requires a frontend change. Variants are declared
 in display order — see [`EntityCategory::ORDERED`].
 """
-enum EntityCategory @join__type(graph: HOME_GATEWAY) {
-  LIGHTS @join__enumValue(graph: HOME_GATEWAY)
-  DOORS @join__enumValue(graph: HOME_GATEWAY)
-  PRESENCE @join__enumValue(graph: HOME_GATEWAY)
-  ENVIRONMENT @join__enumValue(graph: HOME_GATEWAY)
-  PLANTS @join__enumValue(graph: HOME_GATEWAY)
-  DISPLAYS @join__enumValue(graph: HOME_GATEWAY)
-  VACUUMS @join__enumValue(graph: HOME_GATEWAY)
-  MEDIA @join__enumValue(graph: HOME_GATEWAY)
+enum HomeEntityCategory @join__type(graph: HOME) {
+  LIGHTS @join__enumValue(graph: HOME)
+  DOORS @join__enumValue(graph: HOME)
+  PRESENCE @join__enumValue(graph: HOME)
+  ENVIRONMENT @join__enumValue(graph: HOME)
+  PLANTS @join__enumValue(graph: HOME)
+  DISPLAYS @join__enumValue(graph: HOME)
+  VACUUMS @join__enumValue(graph: HOME)
+  MEDIA @join__enumValue(graph: HOME)
 }
 
-enum AirPurifierMode @join__type(graph: HOME_GATEWAY) {
-  MANUAL @join__enumValue(graph: HOME_GATEWAY)
-  SLEEP @join__enumValue(graph: HOME_GATEWAY)
-  AUTO @join__enumValue(graph: HOME_GATEWAY)
+enum HomeAirPurifierMode @join__type(graph: HOME) {
+  MANUAL @join__enumValue(graph: HOME)
+  SLEEP @join__enumValue(graph: HOME)
+  AUTO @join__enumValue(graph: HOME)
 }
 
-enum CommandOutcome @join__type(graph: HOME_GATEWAY) {
-  SENT @join__enumValue(graph: HOME_GATEWAY)
-  UNCHANGED @join__enumValue(graph: HOME_GATEWAY)
-  LOCKED @join__enumValue(graph: HOME_GATEWAY)
+enum HomeCommandOutcome @join__type(graph: HOME) {
+  SENT @join__enumValue(graph: HOME)
+  UNCHANGED @join__enumValue(graph: HOME)
+  LOCKED @join__enumValue(graph: HOME)
 }
 
-enum BatteryChemistry @join__type(graph: HOME_GATEWAY) {
-  UNKNOWN @join__enumValue(graph: HOME_GATEWAY)
-  LIPO @join__enumValue(graph: HOME_GATEWAY)
-  LI_ION @join__enumValue(graph: HOME_GATEWAY)
-  ALKALINE @join__enumValue(graph: HOME_GATEWAY)
-  CR_2032 @join__enumValue(graph: HOME_GATEWAY)
+enum HomeBatteryChemistry @join__type(graph: HOME) {
+  UNKNOWN @join__enumValue(graph: HOME)
+  LIPO @join__enumValue(graph: HOME)
+  LI_ION @join__enumValue(graph: HOME)
+  ALKALINE @join__enumValue(graph: HOME)
+  CR_2032 @join__enumValue(graph: HOME)
 }
 
-enum Capability @join__type(graph: HOME_GATEWAY) {
-  BRIGHTNESS @join__enumValue(graph: HOME_GATEWAY)
-  COLOUR_TEMP @join__enumValue(graph: HOME_GATEWAY)
-  RGB @join__enumValue(graph: HOME_GATEWAY)
-  TEMPERATURE @join__enumValue(graph: HOME_GATEWAY)
-  HUMIDITY @join__enumValue(graph: HOME_GATEWAY)
-  PRESSURE @join__enumValue(graph: HOME_GATEWAY)
-  LUX @join__enumValue(graph: HOME_GATEWAY)
-  UV_INDEX @join__enumValue(graph: HOME_GATEWAY)
-  PM_25 @join__enumValue(graph: HOME_GATEWAY)
-  VOC_INDEX @join__enumValue(graph: HOME_GATEWAY)
+enum HomeCapability @join__type(graph: HOME) {
+  BRIGHTNESS @join__enumValue(graph: HOME)
+  COLOUR_TEMP @join__enumValue(graph: HOME)
+  RGB @join__enumValue(graph: HOME)
+  TEMPERATURE @join__enumValue(graph: HOME)
+  HUMIDITY @join__enumValue(graph: HOME)
+  PRESSURE @join__enumValue(graph: HOME)
+  LUX @join__enumValue(graph: HOME)
+  UV_INDEX @join__enumValue(graph: HOME)
+  PM_25 @join__enumValue(graph: HOME)
+  VOC_INDEX @join__enumValue(graph: HOME)
 }
 
-enum DeviceLockSource @join__type(graph: HOME_GATEWAY) {
-  PHYSICAL @join__enumValue(graph: HOME_GATEWAY)
-  MANUAL @join__enumValue(graph: HOME_GATEWAY)
+enum HomeDeviceLockSource @join__type(graph: HOME) {
+  PHYSICAL @join__enumValue(graph: HOME)
+  MANUAL @join__enumValue(graph: HOME)
 }
 
-enum EinkMode @join__type(graph: HOME_GATEWAY) {
-  DASHBOARD @join__enumValue(graph: HOME_GATEWAY)
-  REDDIT @join__enumValue(graph: HOME_GATEWAY)
-  IMMICH @join__enumValue(graph: HOME_GATEWAY)
+enum HomeEinkMode @join__type(graph: HOME) {
+  DASHBOARD @join__enumValue(graph: HOME)
+  REDDIT @join__enumValue(graph: HOME)
+  IMMICH @join__enumValue(graph: HOME)
 }
 
-enum RedditTimespan @join__type(graph: HOME_GATEWAY) {
-  HOUR @join__enumValue(graph: HOME_GATEWAY)
-  DAY @join__enumValue(graph: HOME_GATEWAY)
-  WEEK @join__enumValue(graph: HOME_GATEWAY)
-  MONTH @join__enumValue(graph: HOME_GATEWAY)
-  YEAR @join__enumValue(graph: HOME_GATEWAY)
-  ALL @join__enumValue(graph: HOME_GATEWAY)
+enum HomeRedditTimespan @join__type(graph: HOME) {
+  HOUR @join__enumValue(graph: HOME)
+  DAY @join__enumValue(graph: HOME)
+  WEEK @join__enumValue(graph: HOME)
+  MONTH @join__enumValue(graph: HOME)
+  YEAR @join__enumValue(graph: HOME)
+  ALL @join__enumValue(graph: HOME)
 }
 
-enum Orientation @join__type(graph: HOME_GATEWAY) {
-  PORTRAIT @join__enumValue(graph: HOME_GATEWAY)
-  LANDSCAPE @join__enumValue(graph: HOME_GATEWAY)
+enum HomeOrientation @join__type(graph: HOME) {
+  PORTRAIT @join__enumValue(graph: HOME)
+  LANDSCAPE @join__enumValue(graph: HOME)
 }
 
-enum EinkDisplayKind @join__type(graph: HOME_GATEWAY) {
-  TRMNL @join__enumValue(graph: HOME_GATEWAY)
-  EINK_DISPLAY_FIRMWARE @join__enumValue(graph: HOME_GATEWAY)
+enum HomeEinkDisplayKind @join__type(graph: HOME) {
+  TRMNL @join__enumValue(graph: HOME)
+  EINK_DISPLAY_FIRMWARE @join__enumValue(graph: HOME)
 }
 
-enum GarageDoorState @join__type(graph: HOME_GATEWAY) {
-  OPEN @join__enumValue(graph: HOME_GATEWAY)
-  OPENING @join__enumValue(graph: HOME_GATEWAY)
-  CLOSED @join__enumValue(graph: HOME_GATEWAY)
-  CLOSING @join__enumValue(graph: HOME_GATEWAY)
+enum HomeGarageDoorState @join__type(graph: HOME) {
+  OPEN @join__enumValue(graph: HOME)
+  OPENING @join__enumValue(graph: HOME)
+  CLOSED @join__enumValue(graph: HOME)
+  CLOSING @join__enumValue(graph: HOME)
 }
 
-enum LightCommandStatus @join__type(graph: HOME_GATEWAY) {
-  CONFIRMED @join__enumValue(graph: HOME_GATEWAY)
-  PENDING @join__enumValue(graph: HOME_GATEWAY)
+enum HomeLightCommandStatus @join__type(graph: HOME) {
+  CONFIRMED @join__enumValue(graph: HOME)
+  PENDING @join__enumValue(graph: HOME)
 }
 
-enum LightTarget @join__type(graph: HOME_GATEWAY) {
-  ON @join__enumValue(graph: HOME_GATEWAY)
-  OFF @join__enumValue(graph: HOME_GATEWAY)
-  LEAVE_ALONE @join__enumValue(graph: HOME_GATEWAY)
+enum HomeLightTarget @join__type(graph: HOME) {
+  ON @join__enumValue(graph: HOME)
+  OFF @join__enumValue(graph: HOME)
+  LEAVE_ALONE @join__enumValue(graph: HOME)
 }
 
-enum Mode @join__type(graph: HOME_GATEWAY) {
-  HOME @join__enumValue(graph: HOME_GATEWAY)
-  AWAY @join__enumValue(graph: HOME_GATEWAY)
-  VACATION @join__enumValue(graph: HOME_GATEWAY)
-  GUEST @join__enumValue(graph: HOME_GATEWAY)
+enum HomeMode @join__type(graph: HOME) {
+  HOME @join__enumValue(graph: HOME)
+  AWAY @join__enumValue(graph: HOME)
+  VACATION @join__enumValue(graph: HOME)
+  GUEST @join__enumValue(graph: HOME)
 }
 
-enum NotificationInteractionKind @join__type(graph: HOME_GATEWAY) {
-  ACKNOWLEDGED @join__enumValue(graph: HOME_GATEWAY)
-  OPENED @join__enumValue(graph: HOME_GATEWAY)
-  DISMISSED @join__enumValue(graph: HOME_GATEWAY)
-  SNOOZED @join__enumValue(graph: HOME_GATEWAY)
-  SWIPED @join__enumValue(graph: HOME_GATEWAY)
+enum HomeNotificationInteractionKind @join__type(graph: HOME) {
+  ACKNOWLEDGED @join__enumValue(graph: HOME)
+  OPENED @join__enumValue(graph: HOME)
+  DISMISSED @join__enumValue(graph: HOME)
+  SNOOZED @join__enumValue(graph: HOME)
+  SWIPED @join__enumValue(graph: HOME)
 }
 
-enum PushNotificationActionKind @join__type(graph: HOME_GATEWAY) {
-  RUN_WORKFLOW @join__enumValue(graph: HOME_GATEWAY)
-  SNOOZE @join__enumValue(graph: HOME_GATEWAY)
-  DISMISS @join__enumValue(graph: HOME_GATEWAY)
-  ACKNOWLEDGE @join__enumValue(graph: HOME_GATEWAY)
+enum HomePushNotificationActionKind @join__type(graph: HOME) {
+  RUN_WORKFLOW @join__enumValue(graph: HOME)
+  SNOOZE @join__enumValue(graph: HOME)
+  DISMISS @join__enumValue(graph: HOME)
+  ACKNOWLEDGE @join__enumValue(graph: HOME)
 }
 
-enum PushNotificationCategory @join__type(graph: HOME_GATEWAY) {
-  ALARM @join__enumValue(graph: HOME_GATEWAY)
-  DOOR @join__enumValue(graph: HOME_GATEWAY)
-  WATCHDOG @join__enumValue(graph: HOME_GATEWAY)
-  GENERAL @join__enumValue(graph: HOME_GATEWAY)
+enum HomePushNotificationCategory @join__type(graph: HOME) {
+  ALARM @join__enumValue(graph: HOME)
+  DOOR @join__enumValue(graph: HOME)
+  WATCHDOG @join__enumValue(graph: HOME)
+  GENERAL @join__enumValue(graph: HOME)
 }
 
-enum RobotVacuumKind @join__type(graph: HOME_GATEWAY) {
-  ROBOROCK @join__enumValue(graph: HOME_GATEWAY)
-  VALETUDO @join__enumValue(graph: HOME_GATEWAY)
+enum HomeRobotVacuumKind @join__type(graph: HOME) {
+  ROBOROCK @join__enumValue(graph: HOME)
+  VALETUDO @join__enumValue(graph: HOME)
 }
 
-enum BreakdownDimension @join__type(graph: SPOTIFY) {
+enum SpotifyBreakdownDimension @join__type(graph: SPOTIFY) {
   """
   Device family: Android, iOS, macOS, Windows, Linux, Web player, Other.
   """
@@ -2213,7 +2209,7 @@ enum BreakdownDimension @join__type(graph: SPOTIFY) {
   DECADE @join__enumValue(graph: SPOTIFY)
 }
 
-enum FileKind @join__type(graph: SPOTIFY) {
+enum SpotifyFileKind @join__type(graph: SPOTIFY) {
   EXTENDED_AUDIO @join__enumValue(graph: SPOTIFY)
   EXTENDED_VIDEO @join__enumValue(graph: SPOTIFY)
   ACCOUNT_STREAMING_HISTORY @join__enumValue(graph: SPOTIFY)
@@ -2227,18 +2223,18 @@ enum FileKind @join__type(graph: SPOTIFY) {
   PRIVATE @join__enumValue(graph: SPOTIFY)
 }
 
-enum ItemKind @join__type(graph: SPOTIFY) {
+enum SpotifyItemKind @join__type(graph: SPOTIFY) {
   TRACK @join__enumValue(graph: SPOTIFY)
   EPISODE @join__enumValue(graph: SPOTIFY)
   AUDIOBOOK @join__enumValue(graph: SPOTIFY)
 }
 
-enum RankBy @join__type(graph: SPOTIFY) {
+enum SpotifyRankBy @join__type(graph: SPOTIFY) {
   MINUTES_PLAYED @join__enumValue(graph: SPOTIFY)
   PLAYS @join__enumValue(graph: SPOTIFY)
 }
 
-enum SkipOrder @join__type(graph: SPOTIFY) {
+enum SpotifySkipOrder @join__type(graph: SPOTIFY) {
   """
   Highest skip rate first.
   """
@@ -2249,14 +2245,14 @@ enum SkipOrder @join__type(graph: SPOTIFY) {
   LEAST_SKIPPED @join__enumValue(graph: SPOTIFY)
 }
 
-enum TimeBucket @join__type(graph: SPOTIFY) {
+enum SpotifyTimeBucket @join__type(graph: SPOTIFY) {
   DAY @join__enumValue(graph: SPOTIFY)
   WEEK @join__enumValue(graph: SPOTIFY)
   MONTH @join__enumValue(graph: SPOTIFY)
   YEAR @join__enumValue(graph: SPOTIFY)
 }
 
-enum UploadStatus @join__type(graph: SPOTIFY) {
+enum SpotifyUploadStatus @join__type(graph: SPOTIFY) {
   IMPORTED @join__enumValue(graph: SPOTIFY)
   """
   Already imported for this account; nothing was changed.
@@ -2268,25 +2264,25 @@ enum UploadStatus @join__type(graph: SPOTIFY) {
   UNSUPPORTED @join__enumValue(graph: SPOTIFY)
 }
 
-input BrightnessMoveInput @join__type(graph: HOME_GATEWAY) {
+input HomeBrightnessMoveInput @join__type(graph: HOME) {
   value: Int!
   onOff: Boolean!
 }
 
-input ColourTemperatureMoveInput @join__type(graph: HOME_GATEWAY) {
+input HomeColourTemperatureMoveInput @join__type(graph: HOME) {
   value: Int!
 }
 
-input EnergyGapsInput @join__type(graph: HOME_GATEWAY) {
+input HomeEnergyGapsInput @join__type(graph: HOME) {
   since: DateTime!
   intervalSeconds: Int!
 }
 
-input EnergyHistoryInput @join__type(graph: HOME_GATEWAY) {
+input HomeEnergyHistoryInput @join__type(graph: HOME) {
   since: DateTime!
 }
 
-input LightSetInput @join__type(graph: HOME_GATEWAY) {
+input HomeLightSetInput @join__type(graph: HOME) {
   on: Boolean
   brightness: Int
   """
@@ -2296,56 +2292,56 @@ input LightSetInput @join__type(graph: HOME_GATEWAY) {
   colour: String
 }
 
-input PushNotificationAcknowledgeInput @join__type(graph: HOME_GATEWAY) {
+input HomePushNotificationAcknowledgeInput @join__type(graph: HOME) {
   remindAfterSeconds: Int!
   reminders: Int!
 }
 
-input PushNotificationActionInput @join__type(graph: HOME_GATEWAY) {
+input HomePushNotificationActionInput @join__type(graph: HOME) {
   label: String!
-  kind: PushNotificationActionKind!
+  kind: HomePushNotificationActionKind!
   workflowSlug: String
   snoozeSeconds: Int
 }
 
-input SendPushNotificationInput @join__type(graph: HOME_GATEWAY) {
+input HomeSendPushNotificationInput @join__type(graph: HOME) {
   title: String!
   body: String!
-  category: PushNotificationCategory!
+  category: HomePushNotificationCategory!
   tag: String
-  actions: [PushNotificationActionInput!]! = []
-  acknowledge: PushNotificationAcknowledgeInput
+  actions: [HomePushNotificationActionInput!]! = []
+  acknowledge: HomePushNotificationAcknowledgeInput
 }
 
-input SetBrightnessInput @join__type(graph: HOME_GATEWAY) {
+input HomeSetBrightnessInput @join__type(graph: HOME) {
   value: Int!
 }
 
-input SetColourInput @join__type(graph: HOME_GATEWAY) {
+input HomeSetColourInput @join__type(graph: HOME) {
   hex: String!
 }
 
-input SetColourTemperatureInput @join__type(graph: HOME_GATEWAY) {
+input HomeSetColourTemperatureInput @join__type(graph: HOME) {
   """
   Colour temperature in mireds (1000000/kelvin), clamped to the light model's `ranges.colour_temp`.
   """
   value: Int!
 }
 
-input SolarHistoryInput @join__type(graph: HOME_GATEWAY) {
+input HomeSolarHistoryInput @join__type(graph: HOME) {
   since: DateTime!
 }
 
-input WeatherInput @join__type(graph: HOME_GATEWAY) {
+input HomeWeatherInput @join__type(graph: HOME) {
   location: String!
 }
 
-input WoolworthsPriceHistoryInput @join__type(graph: HOME_GATEWAY) {
+input HomeWoolworthsPriceHistoryInput @join__type(graph: HOME) {
   productId: Int!
   since: DateTime!
 }
 
-input CreateAccountInput @join__type(graph: SPOTIFY) {
+input SpotifyCreateAccountInput @join__type(graph: SPOTIFY) {
   """
   Lowercase identifier used by the CLI, e.g. `me`.
   """
@@ -2353,7 +2349,7 @@ input CreateAccountInput @join__type(graph: SPOTIFY) {
   displayName: String
 }
 
-input CreateExportInput @join__type(graph: SPOTIFY) {
+input SpotifyCreateExportInput @join__type(graph: SPOTIFY) {
   """
   Account slug.
   """
@@ -2368,11 +2364,11 @@ input CreateExportInput @join__type(graph: SPOTIFY) {
   asOf: DateTime!
 }
 
-input FinalizeExportInput @join__type(graph: SPOTIFY) {
+input SpotifyFinalizeExportInput @join__type(graph: SPOTIFY) {
   exportId: ID!
 }
 
-input StatsFilter @join__type(graph: SPOTIFY) {
+input SpotifyStatsFilter @join__type(graph: SPOTIFY) {
   """
   Accounts to include; empty means all.
   """
@@ -2388,7 +2384,7 @@ input StatsFilter @join__type(graph: SPOTIFY) {
   """
   Item kinds to include. Account-data plays have no kind and count as tracks.
   """
-  kinds: [ItemKind!]! = [TRACK]
+  kinds: [SpotifyItemKind!]! = [TRACK]
   """
   Ignore plays shorter than this. Defaults to Spotify's 30 second stream threshold; use
   0 to include skips.
@@ -2400,7 +2396,7 @@ input StatsFilter @join__type(graph: SPOTIFY) {
   timeZone: String! = "Australia/Perth"
 }
 
-input UploadExportFileInput @join__type(graph: SPOTIFY) {
+input SpotifyUploadExportFileInput @join__type(graph: SPOTIFY) {
   exportId: ID!
   """
   The file's name inside the export, used to detect its kind.
