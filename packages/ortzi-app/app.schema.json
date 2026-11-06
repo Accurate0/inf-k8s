@@ -1499,7 +1499,7 @@
               },
               "base": {
                 "type": "string",
-                "description": "Hand-written router config the generated router.yaml extends."
+                "description": "Hand-written router config the generated router.yaml extends; router.yaml, supergraph.graphql, schema.graphql and subgraphs/ are written beside it."
               }
             }
           }

@@ -1,6 +1,14 @@
 import { fs, httpSend } from '@ortzi/host';
-import { type App, declared, resolveSubgraphs, supergraphApp, type Target } from '../render.ts';
-import { compose, NODE_SUBGRAPH } from '../supergraph.ts';
+import {
+  type App,
+  declared,
+  isCurrent,
+  resolveSubgraphs,
+  stamped,
+  supergraphApp,
+  type Target,
+} from '../render.ts';
+import { compose, NODE_SUBGRAPH, SUPERGRAPH_HEADER_TEXT } from '../supergraph.ts';
 
 function fetchSchema(url: string): string {
   const response = httpSend({ url, timeoutMs: 30_000 });
@@ -17,15 +25,16 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
   }
 
   const target = found.find(({ app }) => app === router)?.target as Target;
-  const dir = `${target.location}/${router.name}`;
+  const appDir = `${target.location}/${router.name}`;
   const [{ base }] = declared(router, 'supergraph');
+  const dir = `${appDir}/${base}`.replace(/\/[^/]*$/, '');
   const subgraphs = resolveSubgraphs(apps);
 
   const sdls = Object.fromEntries(
     subgraphs.map((subgraph) => [subgraph.name, fetchSchema(subgraph.schemaUrl)]),
   );
 
-  const composed = compose(subgraphs, sdls, fs.readText(`${dir}/${base}`));
+  const composed = compose(subgraphs, sdls, fs.readText(`${appDir}/${base}`));
   const wanted = [
     ...subgraphs.map((subgraph) => [
       `${dir}/subgraphs/${subgraph.name}.graphql`,
@@ -37,13 +46,21 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
     [`${dir}/router.yaml`, composed.router],
   ] as [string, string][];
 
-  const stale = wanted.filter(
-    ([path, contents]) => !fs.exists(path) || fs.readText(path) !== contents,
-  );
+  const header = `# ${SUPERGRAPH_HEADER_TEXT}`;
+  const generated = (contents: string) => contents.startsWith(`${header}\n`);
+  const current = (path: string, contents: string) => {
+    if (!fs.exists(path)) return false;
+    const existing = fs.readText(path);
+
+    return generated(contents) ? isCurrent(existing, contents) : existing === contents;
+  };
+
+  const now = new Date();
+  const stale = wanted.filter(([path, contents]) => !current(path, contents));
   if (!check) fs.mkdir(`${dir}/subgraphs`);
   for (const [path, contents] of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
-    if (!check) fs.write(path, contents);
+    if (!check) fs.write(path, generated(contents) ? stamped(contents, now, header) : contents);
   }
   if (!stale.length) console.log('supergraph is up to date');
 
