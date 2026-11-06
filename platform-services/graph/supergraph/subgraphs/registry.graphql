@@ -1,0 +1,234 @@
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+"""
+A scalar that can represent any JSON value.
+"""
+scalar JSON
+
+type Mutation {
+	registryCreatePackage(input: RegistryCreatePackageInput!): RegistryPackage!
+	registryUpdatePackage(name: String!, input: RegistryUpdatePackageInput!): RegistryPackage!
+	registryArchivePackage(name: String!): RegistryPackage!
+	registryUnarchivePackage(name: String!): RegistryPackage!
+	"""
+	Only packages without published versions can be deleted; archive the rest.
+	"""
+	registryDeletePackage(name: String!): ID!
+	registryYankVersion(id: ID!, reason: String): RegistryVersion!
+	registryUnyankVersion(id: ID!): RegistryVersion!
+	registryCreatePublishToken(input: RegistryCreatePublishTokenInput!): RegistryCreatedPublishToken!
+	registryRevokePublishToken(id: ID!): RegistryPublishToken!
+	registryCreateTrustedPublisher(input: RegistryCreateTrustedPublisherInput!): RegistryTrustedPublisher!
+	registryDeleteTrustedPublisher(id: ID!): ID!
+}
+
+interface Node {
+	id: ID!
+}
+
+type Query {
+	registryWhoami: RegistryWhoAmI!
+	"""
+	Unarchived packages, optionally filtered by name or description.
+	"""
+	registryPackages(query: String): [RegistryPackage!]!
+	registryPackage(name: String!): RegistryPackage!
+	registryVersion(package: String!, version: String!): RegistryVersion!
+	registryPublishTokens: [RegistryPublishToken!]!
+	registryTrustedPublishers(package: String): [RegistryTrustedPublisher!]!
+	registryAudit(package: String, limit: Int! = 100): [RegistryAuditEntry!]!
+	registrySigningKeys: [RegistrySigningKey!]!
+}
+
+type RegistryArtifact implements Node @key(fields: "id") {
+	id: ID!
+	target: RegistryTarget!
+	sha256: String!
+	size: Int!
+	"""
+	A short-lived presigned download link, when the storage backend can sign one.
+	"""
+	downloadUrl: RegistryDownloadUrl
+}
+
+type RegistryAuditEntry implements Node @key(fields: "id") {
+	at: DateTime!
+	actor: String!
+	actorKind: String!
+	action: String!
+	ecosystem: String
+	version: String
+	detail: JSON!
+	id: ID!
+	packageName: String
+}
+
+input RegistryCreatePackageInput {
+	name: String!
+	description: String! = ""
+	binaryName: String
+	aliases: [String!]! = []
+}
+
+input RegistryCreatePublishTokenInput {
+	name: String!
+	"""
+	CLI package names the token may publish.
+	"""
+	packages: [String!]!
+	expiresInDays: Int
+}
+
+input RegistryCreateTrustedPublisherInput {
+	package: String!
+	"""
+	`owner/repo` on Forgejo.
+	"""
+	repository: String!
+	refPattern: String
+	workflow: String
+}
+
+type RegistryCreatedPublishToken {
+	"""
+	Shown once; only its hash is stored.
+	"""
+	secret: String!
+	token: RegistryPublishToken!
+}
+
+type RegistryDownloadUrl {
+	url: String!
+	expiresAt: DateTime!
+}
+
+type RegistryPackage implements Node @key(fields: "id") {
+	id: ID!
+	name: String!
+	description: String!
+	binaryName: String!
+	aliases: [String!]!
+	latestVersion: RegistryVersion
+	createdAt: DateTime!
+	archived: Boolean!
+	"""
+	Published versions, newest first.
+	"""
+	versions: [RegistryVersion!]!
+	version(version: String!): RegistryVersion!
+	trustedPublishers: [RegistryTrustedPublisher!]!
+}
+
+type RegistryPublishToken implements Node @key(fields: "id") {
+	id: ID!
+	name: String!
+	prefix: String!
+	scopes: [RegistryScope!]!
+	createdBy: String!
+	createdAt: DateTime!
+	expiresAt: DateTime
+	lastUsedAt: DateTime
+	revokedAt: DateTime
+}
+
+type RegistryScope {
+	ecosystem: String!
+	package: String!
+}
+
+type RegistrySigningKey implements Node @key(fields: "id") {
+	keyId: String!
+	publicKeyPem: String!
+	id: ID!
+}
+
+type RegistrySource {
+	repository: String
+	gitRef: String
+	sha: String
+	runId: String
+}
+
+enum RegistryTarget {
+	DARWIN_ARM_64
+	LINUX_AMD_64
+	WASM
+}
+
+type RegistryTrustedPublisher implements Node @key(fields: "id") {
+	id: ID!
+	ecosystem: String!
+	package: RegistryPackage
+	provider: String!
+	issuer: String!
+	repository: String!
+	repositoryId: String
+	refPattern: String
+	workflow: String
+	createdBy: String!
+	createdAt: DateTime!
+}
+
+input RegistryUpdatePackageInput {
+	description: String
+	binaryName: String
+	aliases: [String!]
+}
+
+type RegistryVersion implements Node @key(fields: "id") {
+	id: ID!
+	package: RegistryPackage!
+	version: String!
+	status: String!
+	targets: [RegistryTarget!]!
+	description: String!
+	binaryName: String!
+	aliases: [String!]!
+	artifacts: [RegistryArtifact!]!
+	signed: Boolean!
+	publishedAt: DateTime
+	publishedBy: String
+	source: RegistrySource
+	yanked: RegistryYanked
+}
+
+type RegistryWhoAmI {
+	subject: String!
+	admin: Boolean!
+	groups: [String!]!
+}
+
+type RegistryYanked {
+	at: DateTime!
+	by: String!
+	reason: String
+}
+
+type Subscription {
+	"""
+	New audit entries as they are recorded by any replica.
+	"""
+	registryAudit: RegistryAuditEntry!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)

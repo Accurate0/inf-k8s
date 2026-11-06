@@ -1,0 +1,271 @@
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+type Mutation {
+	wafCreateBlock(input: WafCreateBlockInput!): WafBlock!
+	wafDeleteBlock(name: String!): ID!
+	"""
+	Drops the block's expiry.
+	"""
+	wafMakeBlockPermanent(name: String!): WafBlock!
+	wafAddAllowlist(cidr: String!, note: String): WafAllowlist!
+	wafRemoveAllowlist(cidr: String!): WafAllowlist!
+}
+
+interface Node {
+	id: ID!
+}
+
+type Query {
+	"""
+	Offending IPs seen in the current window.
+	"""
+	wafCandidates: WafCandidates!
+	"""
+	Blocks newest first, optionally filtered by a CIDR substring.
+	"""
+	wafBlocks(query: String): WafBlocks!
+	wafBlock(name: String!): WafBlock!
+	"""
+	Everything known about an IP or CIDR: strikes, rules hit, decisions and audit.
+	"""
+	wafIp(addr: String!): WafIpReport!
+	wafAudit(offset: Int! = 0, limit: Int! = 100): WafAuditPage!
+	"""
+	Workflows with their scorecards; `workflow` narrows the decisions to one.
+	"""
+	wafWorkflows(workflow: String): WafWorkflows!
+	wafAllowlist: WafAllowlist!
+}
+
+type Subscription {
+	"""
+	Blocks created, changed (enforced, strikes, expiry) or removed by anyone.
+	"""
+	wafBlocks: WafBlockEvent!
+}
+
+type WafAllowlist {
+	"""
+	Ranges added by hand.
+	"""
+	manual: [WafAllowlistEntry!]!
+	"""
+	Ranges protected by config, counted per source.
+	"""
+	protected: [WafProtectedSource!]!
+}
+
+type WafAllowlistEntry implements Node @key(fields: "id") {
+	cidr: String!
+	note: String
+	createdBy: String!
+	at: DateTime!
+	id: ID!
+}
+
+type WafAuditEntry {
+	at: DateTime!
+	actor: String!
+	action: String!
+	target: String!
+	detail: String
+}
+
+type WafAuditPage {
+	entries: [WafAuditEntry!]!
+	total: Int!
+}
+
+type WafBlock implements Node @key(fields: "id") {
+	"""
+	The WafBlock resource name.
+	"""
+	name: String!
+	cidr: String!
+	gateway: String!
+	reason: String
+	createdBy: String
+	"""
+	Created by a workflow rather than a person.
+	"""
+	automatic: Boolean!
+	createdAt: DateTime
+	"""
+	RFC 3339, or absent for a permanent block.
+	"""
+	expiresAt: String
+	enforced: Boolean!
+	strikes: Int!
+	id: ID!
+	report: WafIpReport!
+}
+
+enum WafBlockChange {
+	CREATED
+	UPDATED
+	REMOVED
+}
+
+type WafBlockEvent {
+	change: WafBlockChange!
+	"""
+	The block as it now stands, or as it was last seen when removed.
+	"""
+	block: WafBlock!
+}
+
+type WafBlocks {
+	blocks: [WafBlock!]!
+	"""
+	Policies the compositor could not apply.
+	"""
+	conflicts: [WafConflict!]!
+}
+
+type WafCandidate {
+	clientIp: String!
+	detections: Int!
+	protectedBy: String
+	report: WafIpReport!
+}
+
+type WafCandidates {
+	window: String!
+	"""
+	Offenders that can be blocked.
+	"""
+	actionable: [WafCandidate!]!
+	"""
+	Offenders inside an allowlisted range.
+	"""
+	protected: [WafCandidate!]!
+	"""
+	Offenders already blocked.
+	"""
+	blocked: [WafCandidate!]!
+}
+
+type WafConflict {
+	source: String!
+	message: String!
+}
+
+input WafCreateBlockInput {
+	cidr: String!
+	"""
+	Defaults to the workflow default gateway.
+	"""
+	gateway: String
+	reason: String
+	"""
+	Omit for a permanent block.
+	"""
+	ttlHours: Int
+}
+
+type WafDecision {
+	at: DateTime!
+	workflow: String!
+	cidr: String!
+	detections: Int!
+	mode: String!
+	outcome: String!
+}
+
+type WafEnrichment {
+	hostname: String
+	asn: String
+	org: String
+	prefix: String
+	country: String
+}
+
+type WafIpReport implements Node @key(fields: "id") {
+	clientIp: String!
+	cidr: String!
+	window: String!
+	strikes: Int!
+	protectedBy: String
+	block: WafBlock
+	decisions: [WafDecision!]!
+	audit: [WafAuditEntry!]!
+	enrichment: WafEnrichment
+	rules: [WafRuleHit!]!
+	uris: [WafUriHit!]!
+	"""
+	Recent raw log lines from Loki.
+	"""
+	lines: [String!]!
+	id: ID!
+}
+
+type WafProtectedSource {
+	source: String!
+	count: Int!
+}
+
+type WafRuleHit {
+	ruleId: String!
+	ruleMsg: String!
+	severity: String!
+	count: Int!
+	ignored: Boolean!
+}
+
+type WafScorecard {
+	enabled: String!
+	decisions: Int!
+	cidrs: Int!
+	unblocked: Int!
+	agreement: Int!
+}
+
+type WafUriHit {
+	uri: String!
+	count: Int!
+}
+
+type WafWorkflow implements Node @key(fields: "id") {
+	name: String!
+	enabled: String!
+	tier: String!
+	window: String!
+	duration: String!
+	gateway: String!
+	reason: String!
+	signals: [String!]!
+	scorecard: WafScorecard
+	id: ID!
+	decisions: [WafDecision!]!
+}
+
+type WafWorkflows {
+	workflows: [WafWorkflow!]!
+	decisions: [WafDecision!]!
+	"""
+	How long a manual unblock keeps workflows from re-blocking.
+	"""
+	cooldown: String!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)

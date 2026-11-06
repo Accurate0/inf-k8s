@@ -38,11 +38,14 @@ resources:
       graph_users:
         - platform_admins
     scopeMaps:
-      graph_users:
-        - openid
-        - email
-        - profile
-        - groups
+      graph_users: [openid, email, profile, groups]
+      registry_users: [openid, email, profile, groups]
+      registry_admins: [openid, email, profile, groups]
+      feature_flags_admins: [openid, email, profile, groups]
+      ai_gateway_admins: [openid, email, profile, groups]
+      janitor_bot_admins: [openid, email, profile, groups]
+      waf_admins: [openid, email, profile, groups]
+      bom_users: [openid, email, profile, groups]
 workloads:
   - name: router
     image: ghcr.io/accurate0/graph-router

@@ -1,0 +1,191 @@
+type AiGatewayChatChunk {
+	delta: String!
+	finishReason: String
+	"""
+	Set on the final chunk.
+	"""
+	inputTokens: Int
+	outputTokens: Int
+}
+
+input AiGatewayChatInput {
+	model: String!
+	messages: [AiGatewayChatMessageInput!]!
+	maxTokens: Int
+	temperature: Float
+}
+
+input AiGatewayChatMessageInput {
+	role: AiGatewayChatRole!
+	content: String!
+}
+
+type AiGatewayChatResult {
+	model: String!
+	content: String!
+	finishReason: String
+	inputTokens: Int!
+	outputTokens: Int!
+}
+
+enum AiGatewayChatRole {
+	SYSTEM
+	USER
+	ASSISTANT
+}
+
+input AiGatewayCreateKeyInput {
+	name: String!
+	allowedModels: [String!]! = []
+	monthlyTokenBudget: Int
+}
+
+type AiGatewayCreatedKey {
+	"""
+	Shown once; only its hash is stored.
+	"""
+	secret: String!
+	key: AiGatewayKey!
+}
+
+type AiGatewayKey implements Node @key(fields: "id") {
+	name: String!
+	"""
+	Empty allows any model.
+	"""
+	allowedModels: [String!]!
+	monthlyTokenBudget: Int
+	revoked: Boolean!
+	createdAt: DateTime!
+	id: ID!
+	monthToDateTokens: Int!
+	usageEvents(limit: Int! = 50): [AiGatewayUsageEvent!]!
+}
+
+type AiGatewayModel implements Node @key(fields: "id") {
+	name: String!
+	provider: String!
+	id: ID!
+	price: AiGatewayModelPrice
+}
+
+type AiGatewayModelPrice implements Node @key(fields: "id") {
+	model: String!
+	inputUsdPerMtok: Float!
+	outputUsdPerMtok: Float!
+	cachedUsdPerMtok: Float
+	updatedAt: DateTime!
+	id: ID!
+}
+
+input AiGatewayModelPriceInput {
+	model: String!
+	inputUsdPerMtok: Float!
+	outputUsdPerMtok: Float!
+	cachedUsdPerMtok: Float
+}
+
+input AiGatewayUpdateKeyInput {
+	name: String
+	allowedModels: [String!]
+	monthlyTokenBudget: Int
+	revoked: Boolean
+}
+
+type AiGatewayUsageEvent implements Node @key(fields: "id") {
+	keyName: String!
+	provider: String!
+	requestedModel: String!
+	resolvedModel: String!
+	inputTokens: Int!
+	outputTokens: Int!
+	latencyMs: Int!
+	status: Int!
+	costUsd: Float!
+	cacheHit: Boolean!
+	createdAt: DateTime!
+	id: ID!
+	key: AiGatewayKey
+}
+
+type AiGatewayUsageSummary {
+	keyName: String!
+	model: String!
+	requests: Int!
+	cacheHits: Int!
+	inputTokens: Int!
+	outputTokens: Int!
+	costUsd: Float!
+}
+
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+type Mutation {
+	aiGatewayCreateKey(input: AiGatewayCreateKeyInput!): AiGatewayCreatedKey!
+	aiGatewayUpdateKey(id: ID!, input: AiGatewayUpdateKeyInput!): AiGatewayKey!
+	aiGatewayRevokeKey(id: ID!): AiGatewayKey!
+	"""
+	Issues a new secret for the key; the old one stops working.
+	"""
+	aiGatewayRegenerateKey(id: ID!): AiGatewayCreatedKey!
+	"""
+	Upserts prices and returns how many rows were written.
+	"""
+	aiGatewayUpsertPrices(prices: [AiGatewayModelPriceInput!]!): Int!
+	"""
+	A chat completion billed to the caller's own key.
+	"""
+	aiGatewayChat(input: AiGatewayChatInput!): AiGatewayChatResult!
+}
+
+interface Node {
+	id: ID!
+}
+
+type Query {
+	aiGatewayKeys: [AiGatewayKey!]!
+	"""
+	The caller's own key, used for graph chat; minted on first use.
+	"""
+	aiGatewayMyKey: AiGatewayKey!
+	aiGatewayModels: [AiGatewayModel!]!
+	aiGatewayPrices: [AiGatewayModelPrice!]!
+	"""
+	Usage per key and model over a window such as `24h`, `7d` or `30d`.
+	"""
+	aiGatewayUsage(since: String! = "30d"): [AiGatewayUsageSummary!]!
+	aiGatewayUsageEvents(keyId: ID, limit: Int! = 100): [AiGatewayUsageEvent!]!
+}
+
+type Subscription {
+	"""
+	Usage events as any replica records them.
+	"""
+	aiGatewayUsage: AiGatewayUsageEvent!
+	"""
+	A streamed chat completion billed to the caller's own key.
+	"""
+	aiGatewayChatStream(input: AiGatewayChatInput!): AiGatewayChatChunk!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)
