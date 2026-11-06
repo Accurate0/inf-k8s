@@ -4,7 +4,7 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::{SystemTime, UNIX_EPOCH};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use hive_router::{
     ArcSwap, DashMap, GraphQLError, async_trait,
@@ -81,7 +81,10 @@ impl RouterPlugin for AccessPlugin {
             subgraphs: config.subgraphs,
             ownership: ArcSwap::default(),
             groups: DashMap::new(),
-            client: reqwest::Client::new(),
+            client: reqwest::Client::builder()
+                .timeout(Duration::from_secs(5))
+                .build()
+                .map_err(|error| error.to_string())?,
         })
     }
 
@@ -89,9 +92,11 @@ impl RouterPlugin for AccessPlugin {
         &'exec self,
         payload: OnSupergraphLoadStartHookPayload,
     ) -> OnSupergraphLoadStartHookResult<'exec> {
-        self.ownership
-            .store(Arc::new(Ownership::from(&payload.new_ast)));
-        payload.proceed()
+        let ownership = Arc::new(Ownership::from(&payload.new_ast));
+        payload.on_end(move |end| {
+            self.ownership.store(ownership);
+            end.proceed()
+        })
     }
 
     async fn on_graphql_analysis<'exec>(
