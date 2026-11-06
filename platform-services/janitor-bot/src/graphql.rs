@@ -23,6 +23,7 @@ pub fn builder() -> SchemaBuilder<QueryRoot, MutationRoot, SubscriptionRoot> {
         .register_output_type::<Node>()
         .enable_federation()
         .enable_subscription_in_federation()
+        .extension(subgraph::Tracing)
 }
 
 pub fn router(state: Arc<AppState>, auth: AuthConfig) -> axum::Router {

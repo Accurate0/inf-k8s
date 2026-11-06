@@ -35,6 +35,7 @@ resources:
       - workflows/management-endpoint-probes.yaml
   - {name: dashboard, type: dashboard, configMap: waf-manager-dashboard, file: dashboards/waf-manager.json}
   - {name: logs, type: platform, export: logs}
+  - {name: traces, type: platform, export: tracing}
   - {name: waf, type: subgraph, prefix: waf, workload: waf-manager, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [waf_admins]}}
   - {name: waf-manager, type: secret, secretName: waf-manager-managed-secrets}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
@@ -124,6 +125,7 @@ workloads:
       POD_NAME: {field: metadata.name}
       DATABASE_URL: {database: waf-manager, key: DATABASE_URL}
       LOKI_URL: {resource: logs}
+      OTEL_TRACING_URL: {resource: traces}
       POLICY_NAMESPACE: envoy-gateway-system
       RESYNC_SECONDS: "300"
       FAST_RESYNC_SECONDS: "20"

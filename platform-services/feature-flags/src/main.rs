@@ -1,3 +1,4 @@
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use feature_flags::auth::{AuthLayer, Authenticator};
 use feature_flags::cache::CacheClient;
 use feature_flags::config::Config;
@@ -58,7 +59,9 @@ async fn main() -> anyhow::Result<()> {
 
     match subgraph::AuthConfig::from_env() {
         Ok(auth) => {
-            let graph = feature_flags::graphql::router(store.clone(), manager.clone(), auth);
+            let graph = feature_flags::graphql::router(store.clone(), manager.clone(), auth)
+                .layer(OtelInResponseLayer)
+                .layer(OtelAxumLayer::default());
             let listener = tokio::net::TcpListener::bind(&config.graphql_addr).await?;
             tracing::info!("feature-flags graphql listening on {}", config.graphql_addr);
             tokio::spawn(async move {

@@ -1,12 +1,14 @@
 pub mod auth;
 pub mod node;
 pub mod server;
+pub mod telemetry;
 
 pub use async_graphql;
 pub use async_graphql_axum;
 
 pub use auth::{AuthConfig, AuthError, Authenticator, Claims, Provider};
 pub use server::{GRAPHQL_PATH, WEBSOCKET_PATH, router};
+pub use telemetry::Tracing;
 
 /// Rewrites the committed federation SDL on drift and fails so the change gets committed.
 pub fn assert_subgraph_current<Q, M, S>(

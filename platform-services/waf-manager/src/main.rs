@@ -1,7 +1,9 @@
 mod api;
 mod graphql;
 mod routes;
+mod tracing_setup;
 
+use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer};
 use futures::StreamExt;
 use kube::{Api, Client, runtime::controller::Controller, runtime::watcher};
 use routes::{AppState, Routes};
@@ -30,7 +32,7 @@ const JWKS_REFRESH: Duration = Duration::from_secs(3600);
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    tracing_subscriber::fmt().init();
+    let _otel = tracing_setup::init();
     Metrics::init();
 
     rustls::crypto::ring::default_provider()
@@ -165,7 +167,9 @@ async fn main() -> Result<()> {
     let app = Routes::router(state.clone())
         .merge(api::Api::router(state))
         .merge(graph)
-        .nest_service("/static", ServeDir::new("static"));
+        .nest_service("/static", ServeDir::new("static"))
+        .layer(OtelInResponseLayer)
+        .layer(OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/metrics")));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await
         .expect("failed to bind :3000");
