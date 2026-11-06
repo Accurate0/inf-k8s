@@ -4,10 +4,10 @@
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::time::Duration;
 
 use hive_router::{
-    ArcSwap, DashMap, GraphQLError, async_trait,
+    ArcSwap, GraphQLError, async_trait,
     executor::{execution::client_request_details::JwtRequestDetails, response::value::Value},
     graphql_tools::{
         parser::schema::{Definition, Directive, TypeDefinition},
@@ -30,6 +30,7 @@ use hive_router::{
     sonic_rs::{JsonContainerTrait, JsonValueTrait},
     tracing,
 };
+use moka::future::Cache;
 use serde::Deserialize;
 
 #[derive(Deserialize)]
@@ -53,7 +54,7 @@ impl Gate {
 pub struct AccessPlugin {
     subgraphs: HashMap<String, Gate>,
     ownership: ArcSwap<Ownership>,
-    groups: DashMap<String, (Arc<Vec<String>>, u64)>,
+    groups: Cache<String, Arc<Vec<String>>>,
     client: reqwest::Client,
 }
 
@@ -80,7 +81,10 @@ impl RouterPlugin for AccessPlugin {
         payload.initialize_plugin(Self {
             subgraphs: config.subgraphs,
             ownership: ArcSwap::default(),
-            groups: DashMap::new(),
+            groups: Cache::builder()
+                .max_capacity(10_000)
+                .time_to_live(Duration::from_secs(300))
+                .build(),
             client: reqwest::Client::builder()
                 .timeout(Duration::from_secs(5))
                 .build()
@@ -196,27 +200,18 @@ impl AccessPlugin {
             );
         }
 
-        let now = now();
-        if let Some(cached) = self.groups.get(token).filter(|entry| entry.1 > now) {
-            return cached.0.clone();
-        }
-
         let Some(issuer) = claims.get("iss").and_then(|iss| iss.as_str()) else {
             return Arc::default();
         };
-        let groups = match self.userinfo(issuer, token).await {
-            Ok(groups) => Arc::new(groups),
-            Err(error) => {
+        self.groups
+            .try_get_with(token.to_owned(), async {
+                self.userinfo(issuer, token).await.map(Arc::new)
+            })
+            .await
+            .unwrap_or_else(|error| {
                 tracing::warn!(issuer, "userinfo lookup failed: {error}");
-                return Arc::default();
-            }
-        };
-
-        if let Some(exp) = claims.get("exp").and_then(|exp| exp.as_u64()) {
-            self.groups.retain(|_, entry| entry.1 > now);
-            self.groups.insert(token.to_owned(), (groups.clone(), exp));
-        }
-        groups
+                Arc::default()
+            })
     }
 
     async fn userinfo(&self, issuer: &str, token: &str) -> Result<Vec<String>, reqwest::Error> {
@@ -237,12 +232,6 @@ impl AccessPlugin {
             .await?;
         Ok(info.groups)
     }
-}
-
-fn now() -> u64 {
-    SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_secs())
 }
 
 /// Kanidm sends groups as SPNs (`name@domain`) and uuids; either the SPN or its short name matches.
