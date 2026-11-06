@@ -1,7 +1,7 @@
 images:
-  ghcr.io/accurate0/maccas-api: 18100f64db2f63572ae26a290e1018e2dcecf06d
-  ghcr.io/accurate0/maccas-clustering: 18100f64db2f63572ae26a290e1018e2dcecf06d
-  ghcr.io/accurate0/maccas-migration: 18100f64db2f63572ae26a290e1018e2dcecf06d
-  ghcr.io/accurate0/maccas-recommendations: 18100f64db2f63572ae26a290e1018e2dcecf06d
-  ghcr.io/accurate0/maccas-scheduler: 18100f64db2f63572ae26a290e1018e2dcecf06d
+  ghcr.io/accurate0/maccas-api: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
+  ghcr.io/accurate0/maccas-clustering: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
+  ghcr.io/accurate0/maccas-migration: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
+  ghcr.io/accurate0/maccas-recommendations: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
+  ghcr.io/accurate0/maccas-scheduler: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
   ghcr.io/accurate0/maccas-web: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
