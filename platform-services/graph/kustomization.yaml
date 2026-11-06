@@ -5,7 +5,7 @@ configMapGenerator:
   - name: graph-router
     namespace: graph
     files:
-      - router.yaml
-      - supergraph.graphql
+      - supergraph/router.yaml
+      - supergraph/supergraph.graphql
 generatorOptions:
   disableNameSuffixHash: true

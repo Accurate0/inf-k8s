@@ -6,11 +6,11 @@ namespace:
   labels:
     internal-gateway-access: "true"
 resources:
-  - {name: graph, type: supergraph, base: router.base.yaml}
+  - {name: graph, type: supergraph, base: supergraph/router.base.yaml}
   - name: config
     type: config
     configMap: graph-router
-    files: [router.yaml, supergraph.graphql]
+    files: [supergraph/router.yaml, supergraph/supergraph.graphql]
   - {name: traces, type: platform, export: tracing}
   - {name: supergraph, type: bucket, provider: garage, bucket: graph-supergraph, secretName: supergraph-bucket-secrets}
   - name: graph
@@ -54,7 +54,7 @@ workloads:
       readiness: {delay: 3, every: 10}
       liveness: {delay: 3, every: 30}
     env:
-      ROUTER_CONFIG_FILE_PATH: /etc/graph/router.yaml
+      ROUTER_CONFIG_FILE_PATH: /etc/graph/supergraph/router.yaml
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - bucket: supergraph
@@ -74,7 +74,7 @@ workloads:
         --aws-sigv4 "aws:amz:$S3_REGION:s3"
         --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY"
         -H "x-amz-content-sha256: UNSIGNED-PAYLOAD"
-        -T /etc/graph/supergraph.graphql
+        -T /etc/graph/supergraph/supergraph.graphql
         "$S3_ENDPOINT/$S3_BUCKET/supergraph.graphql"
     envFrom:
       - bucket: supergraph
