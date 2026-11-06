@@ -5,6 +5,10 @@ network:
 namespace:
   labels:
     internal-gateway-access: "true"
+exports:
+  - name: api
+    workload: router
+    port: http
 resources:
   - {name: graph, type: supergraph, base: supergraph/router.base.yaml}
   - name: config
