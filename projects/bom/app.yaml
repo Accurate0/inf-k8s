@@ -5,6 +5,22 @@ resources:
   - {name: bom, type: secret, secretName: bom-managed-secrets}
   - {name: bom, type: database, secretName: bom-database-secret}
   - {name: images, type: bucket, provider: garage, bucket: bom-images, secretName: images-bucket-secrets}
+  - {name: bom, type: subgraph, prefix: bom, workload: bom, port: api, path: /v1/graphql, websocket: /v1/graphql/ws, repository: https://github.com/Accurate0/bom, ref: main, schema: subgraph.graphql, auth: {clients: [graph], groups: [bom_users]}}
+  - name: images
+    type: route
+    auth:
+      mode: none
+      reason: radar and satellite images are public so they can be embedded anywhere
+    hosts:
+      - bom.anurag.sh
+    backend:
+      name: bom-api
+      port: 8000
+    paths:
+      - /radar/
+      - /satellite/
+    dns: {provider: cloudflare, proxied: true}
+    ratelimit: {requests: 20, per: Second, header: x-real-ip}
 workloads:
   - name: bom
     image: ghcr.io/accurate0/bom
@@ -21,6 +37,9 @@ workloads:
       BUCKET_REGION: {bucket: images, key: S3_REGION}
       BUCKET_ACCESS_KEY_ID: {bucket: images, key: S3_ACCESS_KEY_ID}
       BUCKET_ACCESS_SECRET_KEY: {bucket: images, key: S3_SECRET_ACCESS_KEY}
+      PUBLIC_URL: https://bom.anurag.sh
+      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
+      OIDC_GROUPS: bom_users
     envFrom:
       - secret: bom
       - database: bom
@@ -28,3 +47,6 @@ workloads:
       name: bom-api
 network:
   ingress: []
+namespace:
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"

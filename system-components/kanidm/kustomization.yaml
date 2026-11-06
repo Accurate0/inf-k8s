@@ -14,6 +14,7 @@ resources:
   - backend.policy.yaml
   - groups/all-accounts.yaml
   - groups/platform-admins.yaml
+  - groups/bom-users.yaml
   - users/anurag.yaml
 
 configMapGenerator:
