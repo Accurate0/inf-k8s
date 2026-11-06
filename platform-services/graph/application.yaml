@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-06T10:55:50.581Z
+# generated at 2026-11-06T11:14:56.639Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -31,6 +31,10 @@ spec:
           workloads:
             - name: router
               image: ghcr.io/accurate0/graph-router
+              autoscale:
+                min: 2
+                max: 4
+                cpu: 70
               resources:
                 requests:
                   cpu: 20m

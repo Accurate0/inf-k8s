@@ -49,6 +49,7 @@ resources:
 workloads:
   - name: router
     image: ghcr.io/accurate0/graph-router
+    autoscale: {min: 2, max: 4, cpu: 70}
     resources: {cpu: 20m, memory: 64Mi, memoryLimit: 256Mi}
     ports:
       - {name: http, container: 4000, service: 80}
