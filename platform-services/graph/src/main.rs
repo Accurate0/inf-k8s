@@ -1,5 +1,6 @@
 #![recursion_limit = "256"]
 
+mod access;
 mod node;
 
 use hive_router::{
@@ -13,5 +14,10 @@ configure_global_allocator!();
 async fn main() -> Result<(), RouterInitError> {
     init_rustls_crypto_provider();
 
-    router_entrypoint(PluginRegistry::new().register::<node::NodePlugin>()).await
+    router_entrypoint(
+        PluginRegistry::new()
+            .register::<access::AccessPlugin>()
+            .register::<node::NodePlugin>(),
+    )
+    .await
 }
