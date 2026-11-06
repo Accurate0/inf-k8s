@@ -10,6 +10,11 @@ type Mutation {
 	spotifyCreateExport(input: SpotifyCreateExportInput!): SpotifyCreateExportPayload! @inaccessible
 	spotifyUploadExportFile(input: SpotifyUploadExportFileInput!, file: Upload!): SpotifyUploadExportFilePayload! @inaccessible
 	spotifyFinalizeExport(input: SpotifyFinalizeExportInput!): SpotifyFinalizeExportPayload! @inaccessible
+	"""
+	Links an account to the Spotify user who authorized `code`, so their recently played
+	tracks are fetched until the next export covers them.
+	"""
+	spotifyLinkAccount(input: SpotifyLinkAccountInput!): SpotifyLinkAccountPayload! @inaccessible
 }
 
 """
@@ -53,6 +58,11 @@ type Query {
 	spotifyAccounts: [SpotifyAccount!]!
 	spotifyAccount(slug: String!): SpotifyAccount
 	"""
+	The Spotify app's client id, for the CLI to send users to Spotify's authorize page.
+	Null when the server has no Spotify credentials.
+	"""
+	spotifyClientId: String @inaccessible
+	"""
 	Listening stats across the filtered plays.
 	"""
 	spotifyStats(filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): SpotifyStats!
@@ -87,6 +97,10 @@ type SpotifyAccount implements Node @key(fields: "id") {
 	slug: String!
 	displayName: String!
 	spotifyUsername: String
+	"""
+	The Spotify user whose recently played tracks are fetched, if linked.
+	"""
+	spotifyLink: SpotifyLink
 	playCount: Int!
 	exports: [SpotifyExport!]!
 }
@@ -623,6 +637,40 @@ type SpotifyItemRankedEdge @shareable {
 	cursor: String!
 }
 
+type SpotifyLink {
+	spotifyUserId: String!
+	linkedAt: DateTime!
+	"""
+	The newest recent play fetched.
+	"""
+	lastPlayedAt: DateTime
+	lastPolledAt: DateTime
+	"""
+	When Spotify stopped accepting the link; link the account again to resume.
+	"""
+	revokedAt: DateTime
+}
+
+input SpotifyLinkAccountInput {
+	"""
+	Account slug.
+	"""
+	account: String!
+	"""
+	The authorization code from Spotify's redirect, for `user-read-recently-played`.
+	"""
+	code: String!
+	"""
+	The redirect URI the code was issued for.
+	"""
+	redirectUri: String!
+}
+
+type SpotifyLinkAccountPayload {
+	account: SpotifyAccount!
+	link: SpotifyLink!
+}
+
 type SpotifyListeningDays {
 	"""
 	Days with at least one play.
@@ -667,12 +715,16 @@ type SpotifyPlay {
 	When playback ended.
 	"""
 	ts: DateTime!
-	msPlayed: Int!
+	"""
+	Null for recent plays, whose length the Web API doesn't report.
+	"""
+	msPlayed: Int
 	skipped: Boolean
 	"""
-	False for account-data plays, which have minute precision and no item.
+	False for account-data plays (minute precision, no item) and recent plays; see `source`.
 	"""
 	isExtended: Boolean!
+	source: SpotifyPlaySource!
 	name: String
 	artistName: String
 	item: SpotifyItem
@@ -706,6 +758,24 @@ type SpotifyPlayEdge @shareable {
 	A cursor for use in pagination
 	"""
 	cursor: String!
+}
+
+"""
+Where a play came from.
+"""
+enum SpotifyPlaySource {
+	"""
+	Extended streaming history.
+	"""
+	EXTENDED
+	"""
+	Account data's streaming history: minute precision, no item.
+	"""
+	BASIC
+	"""
+	The Web API's recently played tracks, until an export covers them: no play length.
+	"""
+	RECENT
 }
 
 enum SpotifyRankBy {
@@ -778,9 +848,9 @@ type SpotifyStats {
 	"""
 	heatmap: [SpotifyHeatmapCell!]!
 	"""
-	Individual plays, most recent first.
+	Individual plays, most recent first, optionally only from some `sources`.
 	"""
-	plays(first: Int, after: String): SpotifyPlayConnection!
+	plays(first: Int, after: String, sources: [SpotifyPlaySource!]! = []): SpotifyPlayConnection!
 	"""
 	The earliest play: for an artist or track, when you first heard it.
 	"""
