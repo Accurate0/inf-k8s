@@ -1,16 +1,16 @@
 import { authToken, env, fs, httpSend, readStdin, serve, stdinIsTerminal } from '@ortzi/host';
 import { UsageError, cli } from '@ortzi/kit';
 import * as graphql from './graphql';
-import { LAB_PORT, type Upstream, handle } from './lab';
 
 const DEFAULT_URL = 'https://graph.ortzi.cloud/v1/graphql';
+const LAB_PORT = 4280;
 
 const USAGE = `usage: ortzi graph <command> [flags]
 
 commands:
   query [DOCUMENT]         run a query or mutation against the graph
   token                    print your access token, e.g. for curl or another GraphQL client
-  lab                      run the Hive lab on localhost, signed in as you (no subscriptions)
+  lab                      run the Hive lab on localhost, signed in as you
 
 flags:
   --url URL                GraphQL endpoint (default: $GRAPH_URL or ${DEFAULT_URL})
@@ -22,7 +22,7 @@ query:
   --operation NAME         operation to run when the document has several
 
 lab:
-  --port PORT              port to serve on (default: ${LAB_PORT})
+  --port PORT              port to serve on, 4280-4283 (default: ${LAB_PORT})
 
 log in with \`ortzi login graph\``;
 
@@ -90,65 +90,11 @@ export const run = cli({
         throw new UsageError(`invalid --port ${values.port}`);
       }
 
-      let page: string | undefined;
-      const upstream: Upstream = {
-        page: () => {
-          if (page !== undefined) return page;
-
-          const response = httpSend({
-            url: ctx.url,
-            headers: { authorization: `Bearer ${authToken()}`, accept: 'text/html' },
-            timeoutMs: 60_000,
-          });
-          if (response.status !== 200) {
-            throw new Error(`the router returned ${response.status} for its lab page`);
-          }
-
-          page = response.body;
-          return page;
-        },
-
-        forward: (body, accept) => {
-          const response = httpSend({
-            method: 'POST',
-            url: ctx.url,
-            headers: {
-              authorization: `Bearer ${authToken()}`,
-              'content-type': 'application/json',
-              accept: accept ?? 'application/graphql-response+json, application/json',
-            },
-            body,
-            timeoutMs: 60_000,
-          });
-
-          return {
-            status: response.status,
-            headers: { 'content-type': response.headers['content-type'] ?? 'application/json' },
-            body: response.body,
-          };
-        },
-      };
-
-      serve.listen(port);
       console.error(`lab for ${ctx.url} on http://localhost:${port}, using your graph login`);
-      console.error('subscriptions are not forwarded; stop with ctrl-c');
+      console.error('stop with ctrl-c');
 
-      for (;;) {
-        const request = serve.accept();
-
-        let response;
-        try {
-          response = handle(request, port, upstream);
-        } catch (e) {
-          console.error(`${request.method} ${request.path}: ${e instanceof Error ? e.message : e}`);
-          response = {
-            status: 502,
-            body: 'could not reach the graph; check `ortzi graph token`\n',
-          };
-        }
-
-        serve.respond(response);
-      }
+      serve.proxy(port, ctx.url);
+      return 0;
     },
   },
 });

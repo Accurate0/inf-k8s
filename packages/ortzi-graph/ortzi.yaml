@@ -11,7 +11,7 @@ permissions:
   http: [graph.ortzi.cloud]
   fs: [.]
   env: [GRAPH_URL]
-  listen: [4280]
+  listen: [4280, 4281, 4282, 4283]
 build:
   kind: wasm
   wasm:

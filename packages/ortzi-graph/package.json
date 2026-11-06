@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test src/graphql.test.ts src/lab.test.ts"
+    "test": "node --test src/graphql.test.ts"
   },
   "dependencies": {
     "@ortzi/host": "workspace:*",
