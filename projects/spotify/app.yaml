@@ -98,3 +98,18 @@ workloads:
     envFrom:
       - database: spotify
       - bucket: artwork
+  - name: spotify-recent
+    image: ghcr.io/accurate0/spotify
+    kind: CronJob
+    schedule: "*/30 * * * *"
+    backoffLimit: 0
+    command:
+      - spotify-server
+      - recent
+    resources: {memory: 32Mi, memoryLimit: 128Mi}
+    env:
+      SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID}
+      SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET}
+      OTEL_TRACING_URL: {resource: traces}
+    envFrom:
+      - database: spotify

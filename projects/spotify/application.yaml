@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T16:10:24.352Z
+# generated at 2026-11-06T04:53:30.319Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -146,6 +146,35 @@ spec:
                     name: spotify-database-secret
                 - secretRef:
                     name: artwork-bucket-secrets
+            - name: spotify-recent
+              image: ghcr.io/accurate0/spotify
+              kind: CronJob
+              schedule: "*/30 * * * *"
+              backoffLimit: 0
+              command:
+                - spotify-server
+                - recent
+              resources:
+                requests:
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+              env:
+                - name: SPOTIFY_CLIENT_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: spotify-managed-secrets
+                      key: SPOTIFY_CLIENT_ID
+                - name: SPOTIFY_CLIENT_SECRET
+                  valueFrom:
+                    secretKeyRef:
+                      name: spotify-managed-secrets
+                      key: SPOTIFY_CLIENT_SECRET
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+              envFrom:
+                - secretRef:
+                    name: spotify-database-secret
     - chart: k8s-network
       repoURL: oci://ghcr.io/accurate0/charts/k8s-network
       targetRevision: 0.2.0
