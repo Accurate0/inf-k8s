@@ -1,3 +1,3 @@
 images:
-  ghcr.io/accurate0/graph-router: 1077b118ff09a4d782ffcb616329961a09688b2c
+  ghcr.io/accurate0/graph-router: 10dd2c5fd612459d7aa6d7701e42850f8872cf11
   curlimages/curl: 8.10.1
