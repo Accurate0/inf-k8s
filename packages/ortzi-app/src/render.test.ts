@@ -3236,6 +3236,27 @@ test('subgraphs resolve to their in-cluster url and raw schema', () => {
   );
 });
 
+test('subgraphs without a repository read their schema from the app directory', () => {
+  const [registry] = resolveSubgraphs([
+    subgraphApp('registry', { repository: undefined, ref: undefined }),
+  ]);
+
+  assert.equal(registry?.schemaPath, 'subgraph.graphql');
+  assert.equal(registry?.schemaUrl, undefined);
+
+  assert.throws(
+    () => resolveSubgraphs([subgraphApp('registry', { ref: undefined })]),
+    /registry: resources.registry: repository and ref go together/,
+  );
+  assert.throws(
+    () =>
+      resolveSubgraphs([
+        subgraphApp('registry', { repository: undefined, ref: undefined, schema: '../x' }),
+      ]),
+    /must stay inside the app directory/,
+  );
+});
+
 test('raw file urls need an https owner/repo url', () => {
   assert.throws(() => rawFileUrl('https://github.com/Accurate0', 'main', 'a'), /owner/);
   assert.throws(() => rawFileUrl('ssh://git@git.anurag.sh/a/b.git', 'main', 'a'), /https/);

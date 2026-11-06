@@ -76,9 +76,9 @@ export interface Subgraph {
   path: string;
   websocket?: string;
   prefix: string;
-  repository: string;
+  repository?: string;
   schema: string;
-  ref: string;
+  ref?: string;
 }
 
 export interface Supergraph {
@@ -890,7 +890,8 @@ export interface ResolvedSubgraph {
   prefix: string;
   url: string;
   websocket?: string;
-  schemaUrl: string;
+  schemaUrl?: string;
+  schemaPath?: string;
 }
 
 export function rawFileUrl(repository: string, ref: string, path: string): string {
@@ -906,6 +907,21 @@ export function rawFileUrl(repository: string, ref: string, path: string): strin
     return `https://raw.githubusercontent.com/${owner}/${repo}/${ref}/${path}`;
   }
   return `${parsed.origin}/${owner}/${repo}/raw/branch/${ref}/${path}`;
+}
+
+function schemaSource(subgraph: Subgraph, where: string) {
+  if (subgraph.repository === undefined && subgraph.ref === undefined) {
+    if (subgraph.schema.startsWith('/') || subgraph.schema.split('/').includes('..')) {
+      throw new Error(`${where}: schema ${subgraph.schema} must stay inside the app directory`);
+    }
+
+    return { schemaPath: subgraph.schema };
+  }
+  if (subgraph.repository === undefined || subgraph.ref === undefined) {
+    throw new Error(`${where}: repository and ref go together`);
+  }
+
+  return { schemaUrl: rawFileUrl(subgraph.repository, subgraph.ref, subgraph.schema) };
 }
 
 export function supergraphApp(apps: App[]): App | undefined {
@@ -951,7 +967,7 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
           subgraph.path,
         ),
         ...(subgraph.websocket ? { websocket: subgraph.websocket } : {}),
-        schemaUrl: rawFileUrl(subgraph.repository, subgraph.ref, subgraph.schema),
+        ...schemaSource(subgraph, where),
       };
     }),
   );

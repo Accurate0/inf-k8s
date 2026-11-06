@@ -1427,8 +1427,6 @@
               "workload",
               "port",
               "path",
-              "repository",
-              "ref",
               "schema"
             ],
             "description": "Registers this app's GraphQL API as a federation subgraph of the app declaring a supergraph.",
@@ -1467,15 +1465,15 @@
               },
               "repository": {
                 "type": "string",
-                "description": "https://<host>/<owner>/<repo> holding the federation SDL."
+                "description": "https://<host>/<owner>/<repo> holding the federation SDL. Leave out with ref to read schema from the app directory."
               },
               "schema": {
                 "type": "string",
-                "description": "Path to the federation SDL in the repository."
+                "description": "Path to the federation SDL in the repository, or relative to the app directory when repository is left out."
               },
               "ref": {
                 "type": "string",
-                "description": "Branch or tag to read the SDL from."
+                "description": "Branch or tag to read the SDL from; required with repository."
               }
             }
           },

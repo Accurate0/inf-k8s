@@ -30,8 +30,14 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
   const dir = `${appDir}/${base}`.replace(/\/[^/]*$/, '');
   const subgraphs = resolveSubgraphs(apps);
 
+  const locations = new Map(found.map(({ app, target }) => [app.name, target.location]));
   const sdls = Object.fromEntries(
-    subgraphs.map((subgraph) => [subgraph.name, fetchSchema(subgraph.schemaUrl)]),
+    subgraphs.map((subgraph) => [
+      subgraph.name,
+      subgraph.schemaPath
+        ? fs.readText(`${locations.get(subgraph.app)}/${subgraph.app}/${subgraph.schemaPath}`)
+        : fetchSchema(subgraph.schemaUrl as string),
+    ]),
   );
 
   const composed = compose(subgraphs, sdls, fs.readText(`${appDir}/${base}`));
