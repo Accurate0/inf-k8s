@@ -4,6 +4,7 @@ import { parseDuration } from './duration';
 import { Grafana } from './grafana';
 import * as loki from './loki';
 import * as prometheus from './prometheus';
+import * as tempo from './tempo';
 
 const DEFAULT_GRAFANA = 'https://grafana.ortzi.cloud';
 
@@ -12,12 +13,13 @@ const USAGE = `usage: ortzi obs <command> [flags]
 commands:
   logs [LOGQL]             query Loki; built from --ns/--app/--pod/--grep when LOGQL is omitted
   metrics PROMQL           query Prometheus
+  traces TRACEID|TRACEQL   show a trace's spans, or search Tempo with TraceQL
   whoami                   show the Grafana user the token maps to
 
 flags:
   --grafana URL            Grafana address (default: $OBS_GRAFANA_URL or ${DEFAULT_GRAFANA})
   --token TOKEN            use this token instead of the stored login (default: $OBS_TOKEN)
-  --json                   logs, metrics: print JSON
+  --json                   logs, metrics, traces: print JSON
 
 logs:
   --ns NS, -n NS           namespace
@@ -32,7 +34,12 @@ metrics:
   --range DURATION         evaluate over this window instead of instantly, e.g. 1h
   --step DURATION          resolution for --range (default 1m)
 
-\`ortzi logs\` and \`ortzi metrics\` are shortcuts for the subcommands.
+traces:
+  --since DURATION         search: how far back to look (default 1h)
+  --limit N                search: most traces to list (default 200)
+  --attrs                  trace: print each span's attributes
+
+\`ortzi logs\`, \`ortzi metrics\` and \`ortzi traces\` are shortcuts for the subcommands.
 log in with \`ortzi login obs\``;
 
 const nowNs = () => BigInt(Date.now()) * 1_000_000n;
@@ -76,8 +83,9 @@ export const run = cli({
     follow: { type: 'boolean', short: 'f' },
     range: { type: 'string' },
     step: { type: 'string', default: '1m' },
+    attrs: { type: 'boolean' },
   },
-  aliases: { logs: 'logs', metrics: 'metrics' },
+  aliases: { logs: 'logs', metrics: 'metrics', traces: 'traces' },
   setup: (values) => {
     let grafana: Grafana | undefined;
     const vars = env();
@@ -123,6 +131,63 @@ export const run = cli({
         for (const entry of fresh) console.log(loki.formatEntry(entry));
         last = fresh.at(-1)?.ts ?? last;
       }
+    },
+    traces: (ctx, values, [query]) => {
+      if (!query) throw new UsageError(`missing TRACEID or TRACEQL\n\n${USAGE}`);
+
+      if (tempo.isTraceId(query)) {
+        const response = ctx
+          .grafana()
+          .datasource<tempo.TraceResponse>('tempo', `/api/traces/${query}`, []);
+        const spans = tempo.spans(response);
+        if (values.json) {
+          console.log(JSON.stringify(response, null, 2));
+          return 0;
+        }
+        if (!spans.length) {
+          console.log('no spans');
+          return 0;
+        }
+
+        const lines = tempo.tree(spans);
+        if (!values.attrs) {
+          for (const line of lines) console.log(line);
+          return 0;
+        }
+        const order = tempo.ordered(spans);
+        lines.forEach((line, i) => {
+          console.log(line);
+          for (const [key, value] of Object.entries(order[i]!.span.attributes)) {
+            console.log(`${' '.repeat(22)}${key}=${value}`);
+          }
+        });
+        return 0;
+      }
+
+      const end = Math.floor(Date.now() / 1000);
+      const since = Math.floor(parseDuration(values.since ?? '1h') / 1000);
+      const response = ctx.grafana().datasource<tempo.SearchResponse>('tempo', '/api/search', [
+        ['q', query],
+        ['start', String(end - since)],
+        ['end', String(end)],
+        ['limit', String(parseLimit(values.limit))],
+      ]);
+      const traces = response.traces ?? [];
+      if (values.json) {
+        console.log(JSON.stringify(traces, null, 2));
+        return 0;
+      }
+
+      const rows = traces.map((t) => [
+        t.traceID,
+        t.startTimeUnixNano ? loki.stamp(BigInt(t.startTimeUnixNano)) : '-',
+        t.durationMs === undefined ? '-' : `${t.durationMs}ms`,
+        `${t.rootServiceName ?? '-'}: ${t.rootTraceName ?? '-'}`,
+      ]);
+      console.log(
+        rows.length ? columns(['TRACE', 'START', 'DURATION', 'ROOT'], rows) : 'no traces',
+      );
+      return 0;
     },
     metrics: (ctx, values, [query]) => {
       if (!query) throw new UsageError(`missing PROMQL\n\n${USAGE}`);

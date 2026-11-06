@@ -1,9 +1,9 @@
 package:
   name: obs
-  description: query logs and metrics through Grafana
-  version: 0.2.0
+  description: query logs, metrics and traces through Grafana
+  version: 0.3.0
   completions: cobra
-  aliases: [logs, metrics]
+  aliases: [logs, metrics, traces]
 auth:
   client_id: grafana-cli
   token_env: OBS_TOKEN
