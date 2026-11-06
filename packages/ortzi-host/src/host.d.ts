@@ -47,6 +47,25 @@ declare module 'ortzi:host/http@0.1.0' {
     body: Uint8Array;
   }
 }
+declare module 'ortzi:host/serve@0.1.0' {
+  export function listen(port: number): void;
+  export function accept(): Request;
+  export function respond(response: Response): void;
+  export interface Request {
+    method: string;
+    path: string;
+    headers: Array<[string, string]>;
+    body: Uint8Array;
+  }
+  export interface Response {
+    status: number;
+    headers: Array<[string, string]>;
+    body: Uint8Array;
+  }
+}
+declare module 'ortzi:host/auth@0.1.0' {
+  export function token(): string;
+}
 declare module 'ortzi:host/process@0.1.0' {
   export function run(command: Command): Output;
   /**

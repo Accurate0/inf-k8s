@@ -2005,6 +2005,7 @@ dependencies = [
  "futures",
  "hex",
  "http",
+ "httparse",
  "k8s-openapi",
  "kube",
  "registry-api",

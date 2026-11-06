@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use registry_api::{KubeVerb, Permissions};
+use registry_api::{KubeVerb, PackageAuth, Permissions};
 use wasmtime::{
     Engine, Store,
     component::{Component, HasSelf, Linker, ResourceTable},
@@ -22,7 +22,7 @@ wasmtime::component::bindgen!({
     anyhow: true,
 });
 
-use ortzi::host::{env, fs, http as host_http, kube, process};
+use ortzi::host::{auth, env, fs, http as host_http, kube, process, serve};
 
 pub struct Sandbox {
     pub args: Vec<String>,
@@ -32,6 +32,8 @@ pub struct Sandbox {
     pub roots: Vec<PathBuf>,
     pub kube: Vec<KubeVerb>,
     pub http: Vec<String>,
+    pub listen: Vec<u16>,
+    pub auth: Option<(String, PackageAuth)>,
 }
 
 impl Sandbox {
@@ -39,6 +41,7 @@ impl Sandbox {
         package: &str,
         invoked: &str,
         permissions: &Permissions,
+        auth: Option<PackageAuth>,
         args: Vec<String>,
         extra_vars: Vec<(String, String)>,
     ) -> anyhow::Result<Self> {
@@ -79,6 +82,8 @@ impl Sandbox {
             roots,
             kube: permissions.kube.clone(),
             http: permissions.http.clone(),
+            listen: permissions.listen.clone(),
+            auth: auth.map(|auth| (package.to_owned(), auth)),
         })
     }
 
@@ -156,6 +161,149 @@ struct State {
     sandbox: Sandbox,
     kube: Option<Kube>,
     http: Option<Http>,
+    server: Option<Server>,
+    tokens: Option<tokio::runtime::Runtime>,
+}
+
+const MAX_REQUEST_BYTES: usize = 1 << 20;
+
+/// One request at a time on 127.0.0.1, answered before the next is accepted.
+struct Server {
+    listener: std::net::TcpListener,
+    pending: Option<std::net::TcpStream>,
+}
+
+impl Server {
+    fn accept(&mut self) -> Result<serve::Request, String> {
+        if self.pending.is_some() {
+            return Err("serve: respond to the last request before accepting another".to_owned());
+        }
+
+        loop {
+            let (mut stream, _) = self.listener.accept().map_err(|e| format!("serve: {e}"))?;
+            let _ = stream.set_read_timeout(Some(std::time::Duration::from_secs(10)));
+
+            match read_request(&mut stream) {
+                Ok(request) => {
+                    self.pending = Some(stream);
+                    return Ok(request);
+                }
+                Err(_) => {
+                    let _ = write_response(&mut stream, 400, &[], b"bad request\n");
+                }
+            }
+        }
+    }
+
+    fn respond(&mut self, response: serve::Response) -> Result<(), String> {
+        let mut stream = self
+            .pending
+            .take()
+            .ok_or("serve: no request is waiting for a response")?;
+
+        write_response(
+            &mut stream,
+            response.status,
+            &response.headers,
+            &response.body,
+        )
+        .map_err(|e| format!("serve: {e}"))
+    }
+}
+
+fn read_request(stream: &mut std::net::TcpStream) -> Result<serve::Request, String> {
+    use std::io::Read;
+
+    let mut buffer = Vec::new();
+    let mut chunk = [0u8; 8192];
+    let (head, method, path, headers) = loop {
+        let read = stream.read(&mut chunk).map_err(|e| e.to_string())?;
+        if read == 0 {
+            return Err("connection closed".to_owned());
+        }
+        buffer.extend_from_slice(&chunk[..read]);
+        if buffer.len() > MAX_REQUEST_BYTES {
+            return Err("request too large".to_owned());
+        }
+
+        let mut parsed = [httparse::EMPTY_HEADER; 64];
+        let mut request = httparse::Request::new(&mut parsed);
+        if let httparse::Status::Complete(head) =
+            request.parse(&buffer).map_err(|e| e.to_string())?
+        {
+            let headers: Vec<(String, String)> = request
+                .headers
+                .iter()
+                .map(|h| {
+                    (
+                        h.name.to_owned(),
+                        String::from_utf8_lossy(h.value).into_owned(),
+                    )
+                })
+                .collect();
+            break (
+                head,
+                request.method.unwrap_or_default().to_owned(),
+                request.path.unwrap_or_default().to_owned(),
+                headers,
+            );
+        }
+    };
+
+    let length: usize = headers
+        .iter()
+        .find(|(name, _)| name.eq_ignore_ascii_case("content-length"))
+        .map(|(_, value)| value.trim().parse().map_err(|_| "invalid content-length"))
+        .transpose()?
+        .unwrap_or(0);
+    if head + length > MAX_REQUEST_BYTES {
+        return Err("request too large".to_owned());
+    }
+
+    let mut body = buffer.split_off(head);
+    while body.len() < length {
+        let read = stream.read(&mut chunk).map_err(|e| e.to_string())?;
+        if read == 0 {
+            return Err("connection closed".to_owned());
+        }
+        body.extend_from_slice(&chunk[..read]);
+    }
+    body.truncate(length);
+
+    Ok(serve::Request {
+        method,
+        path,
+        headers,
+        body,
+    })
+}
+
+fn write_response(
+    stream: &mut std::net::TcpStream,
+    status: u16,
+    headers: &[(String, String)],
+    body: &[u8],
+) -> std::io::Result<()> {
+    let reason = http::StatusCode::from_u16(status)
+        .ok()
+        .and_then(|s| s.canonical_reason())
+        .unwrap_or("");
+
+    let mut head = format!("HTTP/1.1 {status} {reason}\r\n");
+    for (name, value) in headers {
+        if name.contains(['\r', '\n']) || value.contains(['\r', '\n']) {
+            continue;
+        }
+        head.push_str(&format!("{name}: {value}\r\n"));
+    }
+    head.push_str(&format!(
+        "content-length: {}\r\nconnection: close\r\n\r\n",
+        body.len()
+    ));
+
+    stream.write_all(head.as_bytes())?;
+    stream.write_all(body)?;
+    stream.flush()
 }
 
 struct Http {
@@ -378,6 +526,65 @@ impl host_http::Host for State {
     }
 }
 
+impl serve::Host for State {
+    fn listen(&mut self, port: u16) -> Result<(), String> {
+        if !self.sandbox.listen.contains(&port) {
+            return Err(format!(
+                "serve: port {port} is not in the package's permissions.listen"
+            ));
+        }
+        if self.server.is_some() {
+            return Err("serve: already listening".to_owned());
+        }
+
+        let listener = std::net::TcpListener::bind(("127.0.0.1", port))
+            .map_err(|e| format!("serve: 127.0.0.1:{port}: {e}"))?;
+        self.server = Some(Server {
+            listener,
+            pending: None,
+        });
+        Ok(())
+    }
+
+    fn accept(&mut self) -> Result<serve::Request, String> {
+        self.server
+            .as_mut()
+            .ok_or("serve: call listen first")?
+            .accept()
+    }
+
+    fn respond(&mut self, response: serve::Response) -> Result<(), String> {
+        self.server
+            .as_mut()
+            .ok_or("serve: call listen first")?
+            .respond(response)
+    }
+}
+
+impl auth::Host for State {
+    fn token(&mut self) -> Result<String, String> {
+        let (package, auth) = self
+            .sandbox
+            .auth
+            .as_ref()
+            .ok_or("auth: the package declares no auth")?;
+
+        let runtime = match &mut self.tokens {
+            Some(runtime) => runtime,
+            None => self.tokens.insert(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())?,
+            ),
+        };
+
+        runtime
+            .block_on(crate::package_auth::token(package, auth))
+            .map_err(|e| format!("auth: {e:#}"))
+    }
+}
+
 impl fs::Host for State {
     fn read_file(&mut self, path: String) -> Result<Vec<u8>, String> {
         let resolved = self.sandbox.resolve(&path)?;
@@ -513,6 +720,8 @@ pub fn run(wasm: &Path, sandbox: Sandbox) -> anyhow::Result<i32> {
             sandbox,
             kube: None,
             http: None,
+            server: None,
+            tokens: None,
         },
     );
 
@@ -540,6 +749,8 @@ mod tests {
             roots: vec![root.canonicalize().unwrap()],
             kube: vec![],
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
+            listen: vec![],
+            auth: None,
         }
     }
 
@@ -592,5 +803,65 @@ mod tests {
                 .is_err()
         );
         assert!(sandbox.url("file:///etc/passwd").is_err());
+    }
+
+    #[test]
+    fn serves_one_request_at_a_time() {
+        use std::io::{Read, Write as _};
+
+        let listener = std::net::TcpListener::bind(("127.0.0.1", 0)).unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let mut server = Server {
+            listener,
+            pending: None,
+        };
+
+        let client = std::thread::spawn(move || {
+            let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).unwrap();
+            stream
+                .write_all(b"POST /token?x=1 HTTP/1.1\r\nOrigin: https://graph.ortzi.cloud\r\nContent-Length: 2\r\n\r\nhi")
+                .unwrap();
+
+            let mut response = String::new();
+            stream.read_to_string(&mut response).unwrap();
+            response
+        });
+
+        let request = server.accept().unwrap();
+        assert_eq!(request.method, "POST");
+        assert_eq!(request.path, "/token?x=1");
+        assert_eq!(request.body, b"hi");
+        assert!(
+            request
+                .headers
+                .contains(&("Origin".to_owned(), "https://graph.ortzi.cloud".to_owned()))
+        );
+        assert!(server.accept().is_err());
+
+        server
+            .respond(serve::Response {
+                status: 200,
+                headers: vec![
+                    ("content-type".to_owned(), "application/json".to_owned()),
+                    ("x-bad".to_owned(), "a\r\nset-cookie: x".to_owned()),
+                ],
+                body: b"{}".to_vec(),
+            })
+            .unwrap();
+        assert!(
+            server
+                .respond(serve::Response {
+                    status: 200,
+                    headers: vec![],
+                    body: vec![],
+                })
+                .is_err()
+        );
+
+        let response = client.join().unwrap();
+        assert!(response.starts_with("HTTP/1.1 200 OK\r\n"));
+        assert!(response.contains("content-type: application/json\r\n"));
+        assert!(!response.contains("set-cookie"));
+        assert!(response.ends_with("\r\n\r\n{}"));
     }
 }

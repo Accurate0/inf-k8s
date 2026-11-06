@@ -230,12 +230,25 @@ async fn dev(
         anyhow::bail!("`ortzi dev` runs wasm packages; build native ones with cargo");
     }
     let wasm = loaded.build(Target::Wasm, &loaded.version()?).await?;
+
+    let auth = loaded.manifest.auth.as_ref().map(|auth| auth.resolve());
+    let mut vars = Vec::new();
+    let os_args: Vec<std::ffi::OsString> = args.iter().map(Into::into).collect();
+    if let Some(auth) = &auth
+        && std::env::var_os(&auth.token_env).is_none()
+        && !dispatch::wants_help(&os_args)
+    {
+        let token = package_auth::token(loaded.name(), auth).await?;
+        vars.push((auth.token_env.clone(), token));
+    }
+
     let sandbox = wasm::Sandbox::new(
         loaded.name(),
         invoked.as_deref().unwrap_or(loaded.name()),
         &loaded.manifest.permissions.clone().unwrap_or_default(),
+        auth,
         args,
-        Vec::new(),
+        vars,
     )?;
     let code = std::thread::spawn(move || wasm::run(&wasm, sandbox))
         .join()

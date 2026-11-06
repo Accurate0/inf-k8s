@@ -75,6 +75,32 @@ interface http {
   send: func(request: request) -> result<response, string>;
 }
 
+interface serve {
+  record request {
+    method: string,
+    path: string,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  record response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  /// Binds 127.0.0.1 on a port from the package's permissions.listen.
+  listen: func(port: u16) -> result<_, string>;
+  /// Blocks until the next request; answer it with respond before accepting another.
+  accept: func() -> result<request, string>;
+  respond: func(response: response) -> result<_, string>;
+}
+
+interface auth {
+  /// The package's access token, refreshed when it is about to expire.
+  token: func() -> result<string, string>;
+}
+
 interface env {
   args: func() -> list<string>;
   vars: func() -> list<tuple<string, string>>;
@@ -89,6 +115,8 @@ world cli {
   import env;
   import kube;
   import http;
+  import serve;
+  import auth;
   export wasi:cli/run@0.2.12;
 }
 

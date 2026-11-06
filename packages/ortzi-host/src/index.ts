@@ -2,6 +2,8 @@ import * as hostEnv from 'ortzi:host/env@0.1.0';
 import * as hostFs from 'ortzi:host/fs@0.1.0';
 import * as hostHttp from 'ortzi:host/http@0.1.0';
 import * as hostKube from 'ortzi:host/kube@0.1.0';
+import * as hostAuth from 'ortzi:host/auth@0.1.0';
+import * as hostServe from 'ortzi:host/serve@0.1.0';
 import * as process from 'ortzi:host/process@0.1.0';
 import { getStderr } from 'wasi:cli/stderr@0.2.12';
 import { getStdin } from 'wasi:cli/stdin@0.2.12';
@@ -162,6 +164,43 @@ export function httpSend(request: HttpRequest): HttpResponse {
   const response = httpSendBytes(request);
   return { ...response, body: decoder.decode(response.body) };
 }
+
+export interface ServeRequest {
+  method: string;
+  path: string;
+  headers: Record<string, string>;
+  body: string;
+}
+
+export interface ServeResponse {
+  status: number;
+  headers?: Record<string, string>;
+  body?: string;
+}
+
+/** Plain HTTP on 127.0.0.1, one request at a time; the port must be in permissions.listen. */
+export const serve = {
+  listen: (port: number) => unwrap(() => hostServe.listen(port)),
+
+  accept: (): ServeRequest => {
+    const raw = unwrap(() => hostServe.accept());
+    const headers = Object.fromEntries(raw.headers.map(([k, v]) => [k.toLowerCase(), v]));
+
+    return { method: raw.method, path: raw.path, headers, body: decoder.decode(raw.body) };
+  },
+
+  respond: (response: ServeResponse) =>
+    unwrap(() =>
+      hostServe.respond({
+        status: response.status,
+        headers: Object.entries(response.headers ?? {}),
+        body: encoder.encode(response.body ?? ''),
+      }),
+    ),
+};
+
+/** The package's access token, refreshed by the host when it is about to expire. */
+export const authToken = (): string => unwrap(() => hostAuth.token());
 
 export const args = (): string[] => hostEnv.args().slice(1);
 export const invokedAs = (): string => hostEnv.args()[0] ?? '';

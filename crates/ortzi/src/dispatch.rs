@@ -55,6 +55,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                     name,
                     &command,
                     &package.permissions.clone().unwrap_or_default(),
+                    package.auth.clone(),
                     args,
                     vars,
                 )?;
@@ -92,7 +93,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
     Err(error).with_context(|| format!("running {command}"))
 }
 
-fn wants_help(args: &[OsString]) -> bool {
+pub fn wants_help(args: &[OsString]) -> bool {
     args.first()
         .is_some_and(|a| a == "help" || a == "__complete")
         || args

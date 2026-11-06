@@ -226,6 +226,9 @@ fn print_permissions(permissions: &Permissions) {
         .collect();
     println!("  kube: {}", list(&kube));
     println!("  http: {}", list(&permissions.http));
+
+    let listen: Vec<String> = permissions.listen.iter().map(u16::to_string).collect();
+    println!("  port: {}", list(&listen));
 }
 
 fn check_conflicts(installed: &Installed, name: &str, version: &Version) -> anyhow::Result<()> {
