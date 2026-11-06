@@ -1,0 +1,17 @@
+{
+  "name": "@ortzi/graph",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node --test src/graphql.test.ts src/lab.test.ts"
+  },
+  "dependencies": {
+    "@ortzi/host": "workspace:*",
+    "@ortzi/kit": "workspace:*"
+  },
+  "devDependencies": {
+    "typescript": "^7.0.0"
+  }
+}

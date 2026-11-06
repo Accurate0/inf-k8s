@@ -221,6 +221,19 @@ importers:
         specifier: ^7.0.0
         version: 7.0.2
 
+  ortzi-graph:
+    dependencies:
+      '@ortzi/host':
+        specifier: workspace:*
+        version: link:../ortzi-host
+      '@ortzi/kit':
+        specifier: workspace:*
+        version: link:../ortzi-kit
+    devDependencies:
+      typescript:
+        specifier: ^7.0.0
+        version: 7.0.2
+
   ortzi-host:
     dependencies:
       '@bytecodealliance/componentize-js':

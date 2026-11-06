@@ -1,0 +1,18 @@
+package:
+  name: graph
+  description: query the federated graph with your kanidm login, and hand that login to the hive lab
+  version: 0.1.0
+  completions: cobra
+auth:
+  client_id: graph
+  token_env: GRAPH_TOKEN
+  scopes: openid email profile groups
+permissions:
+  http: [graph.ortzi.cloud]
+  fs: [.]
+  env: [GRAPH_URL]
+  listen: [4280]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

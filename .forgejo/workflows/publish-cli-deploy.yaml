@@ -7,6 +7,7 @@ on:
       - packages/ortzi-schemas/**
       - packages/ortzi-secrets/**
       - packages/ortzi-obs/**
+      - packages/ortzi-graph/**
       - packages/ortzi-s3/**
       - packages/ortzi-host/**
       - packages/ortzi-kit/**
@@ -22,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [ortzi-schemas, ortzi-secrets, ortzi-obs, ortzi-s3]
+        package: [ortzi-schemas, ortzi-secrets, ortzi-obs, ortzi-s3, ortzi-graph]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - run: ortzi publish packages/${{ matrix.package }}

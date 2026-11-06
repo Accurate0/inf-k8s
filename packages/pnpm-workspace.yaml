@@ -6,6 +6,7 @@ packages:
   - ortzi-app
   - ortzi-secrets
   - ortzi-obs
+  - ortzi-graph
   - ortzi-s3
 
 allowBuilds:
