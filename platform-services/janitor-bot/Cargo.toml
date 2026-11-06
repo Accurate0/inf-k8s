@@ -11,6 +11,9 @@ edition = "2024"
 
 [dependencies]
 janitor-webhook = { path = "webhook" }
+subgraph = { path = "../../crates/subgraph" }
+async-graphql = { version = "7.2.1", features = ["chrono"] }
+async-stream = "0.3"
 axum = "0.8"
 askama = "0.16"
 forgejo-api = "0.12"

@@ -5,14 +5,18 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler libprotobuf-dev
 
-WORKDIR /app/${BINARY_NAME}-build
+# Build context is the repository root: the subgraph is served through crates/subgraph.
+WORKDIR /app
 
-COPY . .
+COPY crates/subgraph ./crates/subgraph
+COPY platform-services/janitor-bot ./platform-services/janitor-bot
 RUN \
-    --mount=type=cache,target=/app/${BINARY_NAME}-build/target/ \
+    --mount=type=cache,target=/app/platform-services/janitor-bot/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    cargo build --locked --release --bin ${BINARY_NAME} && \
-    cp ./target/release/${BINARY_NAME} /app
+    cargo build --locked --release \
+    --manifest-path platform-services/janitor-bot/Cargo.toml \
+    --bin ${BINARY_NAME} && \
+    cp platform-services/janitor-bot/target/release/${BINARY_NAME} /app/${BINARY_NAME}
 
 FROM debian:trixie-slim AS final
 ARG BINARY_NAME
@@ -36,7 +40,7 @@ USER appuser
 
 WORKDIR /opt/${BINARY_NAME}
 
-COPY --from=builder /app/${BINARY_NAME}-build/static ./static
+COPY --from=builder /app/platform-services/janitor-bot/static ./static
 
 RUN ln -s /usr/local/bin/${BINARY_NAME} executable
 ENTRYPOINT ["./executable"]

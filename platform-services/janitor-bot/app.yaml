@@ -32,6 +32,7 @@ resources:
     app: feature-flags
     export: api
   - {name: traces, type: platform, export: tracing}
+  - {name: janitor, type: subgraph, prefix: janitor, workload: janitor-bot, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [janitor_bot_admins]}}
   - name: janitor-bot-route
     type: route
     auth:
@@ -90,6 +91,7 @@ workloads:
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/janitor-bot
       OIDC_AUDIENCE: janitor-bot
       OIDC_GROUPS: janitor_bot_admins
+      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
       RULES_CONFIGMAP_PATH: /etc/janitor-bot/rules/config.yaml
       ARGOCD_SERVER: {resource: argocd}
       FORGEJO_INSTANCE_URL: {resource: forgejo}
@@ -114,6 +116,9 @@ namespace:
     gateway.inf-k8s.net/anurag-sh: "true"
 build:
   image: ghcr.io/accurate0/janitor-bot
+  context: .
+  paths:
+    - crates/subgraph/**
   args:
     BINARY_NAME: janitor-bot
   test:

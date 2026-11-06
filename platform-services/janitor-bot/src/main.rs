@@ -1,3 +1,4 @@
+mod graphql;
 mod routes;
 
 use axum::{
@@ -202,6 +203,14 @@ async fn main() -> anyhow::Result<()> {
         .route("/admin/health/deep", get(routes::handle_admin_health_deep))
         .route_layer(middleware::from_fn_with_state(auth, auth::require_admin));
 
+    let graph = match subgraph::AuthConfig::from_env() {
+        Ok(auth) => graphql::router(state.clone(), auth),
+        Err(e) => {
+            tracing::warn!("graphql subgraph disabled: {e}");
+            Router::new()
+        }
+    };
+
     let app = Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route(
@@ -214,12 +223,13 @@ async fn main() -> anyhow::Result<()> {
         .route("/argocd/webhook", post(routes::handle_argocd_webhook))
         .route("/admin/metrics", get(routes::handle_admin_metrics))
         .merge(admin)
+        .with_state(state)
+        .merge(graph)
         .layer(OtelInResponseLayer)
         .layer(
             OtelAxumLayer::default()
                 .filter(|path| !matches!(path, "/health" | "/admin/metrics" | "/argocd/webhook")),
-        )
-        .with_state(state);
+        );
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());
     let addr = format!("0.0.0.0:{port}");

@@ -1,0 +1,127 @@
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+"""
+A scalar that can represent any JSON value.
+"""
+scalar JSON
+
+input JanitorCommandInput {
+	owner: String!
+	repo: String!
+	number: Int!
+	target: JanitorCommandTarget!
+	"""
+	The comment body, e.g. `/janitor merge`.
+	"""
+	body: String!
+}
+
+enum JanitorCommandTarget {
+	PR
+	ISSUE
+}
+
+type JanitorEvaluation {
+	timestamp: DateTime!
+	eventKind: String!
+	eventKey: String!
+	matchedRules: [JanitorMatchedRule!]!
+	elapsedMs: Int!
+}
+
+type JanitorMatchedRule {
+	name: String!
+	dryRun: Boolean!
+	actions: [JanitorRuleAction!]!
+}
+
+type JanitorRule implements Node @key(fields: "id") {
+	name: String!
+	"""
+	`true`, `false` or `dry_run`.
+	"""
+	enabled: String!
+	priority: Int!
+	dependsOn: [String!]!
+	id: ID!
+}
+
+type JanitorRuleAction {
+	action: String!
+	ran: Boolean!
+}
+
+type JanitorServiceHealth {
+	service: String!
+	healthy: Boolean!
+	error: String
+}
+
+type Mutation {
+	"""
+	Re-evaluates every open PR in the background.
+	"""
+	janitorRunCron: Boolean!
+	"""
+	Merges every PR labelled janitor/queued in the background.
+	"""
+	janitorMergeQueued: Boolean!
+	"""
+	Runs the PR's rules for real in the background.
+	"""
+	janitorEvaluatePr(owner: String!, repo: String!, number: Int!): Boolean!
+	"""
+	Dispatches a comment command as if it had been posted on the PR or issue.
+	"""
+	janitorCommand(input: JanitorCommandInput!): JSON!
+	janitorArgocdResync(app: String!): Boolean!
+}
+
+interface Node {
+	id: ID!
+}
+
+type Query {
+	janitorRules: [JanitorRule!]!
+	"""
+	Recent rule evaluations, oldest first.
+	"""
+	janitorEvaluations: [JanitorEvaluation!]!
+	"""
+	Reachability of forgejo, github and argocd.
+	"""
+	janitorHealth: [JanitorServiceHealth!]!
+	"""
+	Which rules would match the PR, and which actions would run, without running them.
+	"""
+	janitorDryRun(owner: String!, repo: String!, number: Int!): [JanitorMatchedRule!]!
+}
+
+type Subscription {
+	"""
+	Rule evaluations as this replica records them.
+	"""
+	janitorEvaluations: JanitorEvaluation!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)
