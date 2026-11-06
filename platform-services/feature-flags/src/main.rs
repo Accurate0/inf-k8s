@@ -56,6 +56,20 @@ async fn main() -> anyhow::Result<()> {
         None => tracing::warn!("OIDC_ISSUER is not set, admin API is unauthenticated"),
     }
 
+    match subgraph::AuthConfig::from_env() {
+        Ok(auth) => {
+            let graph = feature_flags::graphql::router(store.clone(), manager.clone(), auth);
+            let listener = tokio::net::TcpListener::bind(&config.graphql_addr).await?;
+            tracing::info!("feature-flags graphql listening on {}", config.graphql_addr);
+            tokio::spawn(async move {
+                if let Err(e) = axum::serve(listener, graph).await {
+                    tracing::error!("graphql server failed: {e}");
+                }
+            });
+        }
+        Err(e) => tracing::warn!("graphql subgraph disabled: {e}"),
+    }
+
     let addr = config.grpc_addr.parse()?;
     tracing::info!("feature-flags gRPC listening on {addr}");
 

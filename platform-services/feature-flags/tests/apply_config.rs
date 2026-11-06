@@ -101,11 +101,20 @@ async fn update_is_detected(pool: PgPool) {
 async fn absent_flags_and_segments_are_pruned(pool: PgPool) {
     let store = Store::new(pool);
     store
-        .apply_config("alice", &[bool_flag("f", true)], &[segment("beta")], false, 0)
+        .apply_config(
+            "alice",
+            &[bool_flag("f", true)],
+            &[segment("beta")],
+            false,
+            0,
+        )
         .await
         .unwrap();
 
-    let out = store.apply_config("alice", &[], &[], false, 0).await.unwrap();
+    let out = store
+        .apply_config("alice", &[], &[], false, 0)
+        .await
+        .unwrap();
     assert!(out.applied);
     let ops: Vec<_> = out.changes.iter().map(|c| c.op).collect();
     assert_eq!(ops, vec![ChangeOp::Delete, ChangeOp::Delete]);

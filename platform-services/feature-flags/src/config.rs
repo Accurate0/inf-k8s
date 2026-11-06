@@ -15,6 +15,10 @@ pub struct Config {
     #[arg(long, env = "GRPC_ADDR", default_value = "0.0.0.0:50051")]
     pub grpc_addr: String,
 
+    /// Address the GraphQL subgraph binds to.
+    #[arg(long, env = "GRAPHQL_ADDR", default_value = "0.0.0.0:3000")]
+    pub graphql_addr: String,
+
     #[arg(long, env = "OIDC_ISSUER")]
     pub oidc_issuer: Option<String>,
 

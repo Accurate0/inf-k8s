@@ -650,10 +650,9 @@ impl Store {
         }
 
         let mut tx = self.pool.begin().await?;
-        let locked =
-            sqlx::query_scalar!("SELECT version FROM config_version WHERE id FOR UPDATE")
-                .fetch_one(&mut *tx)
-                .await?;
+        let locked = sqlx::query_scalar!("SELECT version FROM config_version WHERE id FOR UPDATE")
+            .fetch_one(&mut *tx)
+            .await?;
         if locked != current.version || (expected_version != 0 && locked != expected_version) {
             return Err(AppError::Aborted(
                 "configuration changed since the plan was computed; re-run plan".into(),
@@ -856,7 +855,11 @@ fn audit_action(target_kind: &str, op: ChangeOp) -> &'static str {
 /// before anything is written.
 fn validate_desired(flags: &[Flag], _segments: &[Segment]) -> AppResult<()> {
     for flag in flags {
-        if flag.variants.iter().all(|v| v.key != flag.default_variant_key) {
+        if flag
+            .variants
+            .iter()
+            .all(|v| v.key != flag.default_variant_key)
+        {
             return Err(AppError::Invalid(format!(
                 "flag `{}` default variant `{}` is not among its variants",
                 flag.key, flag.default_variant_key
@@ -962,7 +965,13 @@ fn rules_equal(a: &[Rule], b: &[Rule]) -> bool {
         return false;
     }
     a.iter().zip(b).all(|(x, y)| {
-        Rule { rank: 0, ..x.clone() } == Rule { rank: 0, ..y.clone() }
+        Rule {
+            rank: 0,
+            ..x.clone()
+        } == Rule {
+            rank: 0,
+            ..y.clone()
+        }
     })
 }
 

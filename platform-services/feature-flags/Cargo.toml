@@ -6,6 +6,9 @@ edition = "2024"
 [dependencies]
 feature-flag-proto = { path = "../../crates/feature-flag/feature-flag-proto" }
 feature-flag-engine = { path = "../../crates/feature-flag/feature-flag-engine" }
+subgraph = { path = "../../crates/subgraph" }
+async-graphql = { version = "7.2.1", features = ["chrono"] }
+axum = "0.8"
 tokio = { version = "1", features = ["full"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tonic = { version = "0.14", features = ["transport", "gzip", "zstd"] }

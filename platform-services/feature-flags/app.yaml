@@ -11,6 +11,7 @@ resources:
   - {name: cache, type: cache}
   - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
   - {name: traces, type: platform, export: tracing}
+  - {name: feature-flags, type: subgraph, prefix: featureFlags, workload: feature-flags, port: graphql, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [feature_flags_admins]}}
   - name: feature-flags-api
     type: route
     auth:
@@ -34,6 +35,9 @@ resources:
     displayName: Feature Flags
     public: true
     allowLocalhostRedirect: true
+    groups:
+      feature_flags_admins:
+        - platform_admins
 workloads:
   - name: feature-flags
     image: ghcr.io/accurate0/feature-flags
@@ -41,6 +45,7 @@ workloads:
     resources: {memory: 32Mi}
     ports:
       - {name: grpc, container: 50051, service: 50051, appProtocol: grpc}
+      - {name: graphql, container: 3000, service: 3000}
     probes:
       grpc: {port: 50051}
       readiness: {delay: 5, every: 15}
@@ -49,6 +54,8 @@ workloads:
       REDIS_URL: {resource: cache}
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/feature-flags
       OIDC_AUDIENCE: feature-flags
+      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
+      OIDC_GROUPS: feature_flags_admins
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - secret: feature-flags
@@ -71,6 +78,7 @@ build:
   paths:
     - crates/feature-flag/feature-flag-proto/**
     - crates/feature-flag/feature-flag-engine/**
+    - crates/subgraph/**
   test:
     run: |
       cargo test

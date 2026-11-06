@@ -1,0 +1,283 @@
+"""
+Implement the DateTime<Utc> scalar
+
+The input/output is a string in RFC3339 format.
+"""
+scalar DateTime
+
+type FeatureFlagsApplyResult {
+	changes: [FeatureFlagsConfigChange!]!
+	fromVersion: Int!
+	toVersion: Int!
+	applied: Boolean!
+}
+
+type FeatureFlagsChange implements Node @key(fields: "id") {
+	version: Int!
+	actor: String!
+	action: String!
+	targetKind: String!
+	targetKey: String!
+	detail: JSON!
+	createdAt: DateTime!
+	id: ID!
+}
+
+enum FeatureFlagsChangeOp {
+	UNSPECIFIED
+	CREATE
+	UPDATE
+	DELETE
+}
+
+type FeatureFlagsConfigChange {
+	targetKind: String!
+	targetKey: String!
+	op: FeatureFlagsChangeOp!
+	detail: JSON!
+}
+
+type FeatureFlagsConfigEvent {
+	eventType: FeatureFlagsEventType!
+	configVersion: Int!
+	changedFlagKeys: [String!]!
+	changedFlags: [FeatureFlagsFlag!]!
+}
+
+type FeatureFlagsConstraint {
+	attribute: String!
+	operator: FeatureFlagsConstraintOperator!
+	values: [JSON!]!
+}
+
+input FeatureFlagsConstraintInput {
+	attribute: String!
+	operator: FeatureFlagsConstraintOperator!
+	values: [JSON!]! = []
+}
+
+enum FeatureFlagsConstraintOperator {
+	UNSPECIFIED
+	EQ
+	NEQ
+	IN
+	NOT_IN
+	CONTAINS
+	STARTS_WITH
+	ENDS_WITH
+	GT
+	GTE
+	LT
+	LTE
+	EXISTS
+	REGEX
+	FLAG_MATCHES
+}
+
+input FeatureFlagsContextInput {
+	targetingKey: String!
+	"""
+	A JSON object of attributes rules can match on.
+	"""
+	attributes: JSON
+}
+
+input FeatureFlagsCreateFlagInput {
+	key: String!
+	valueType: FeatureFlagsValueType!
+	enabled: Boolean! = false
+	defaultVariantKey: String!
+	variants: [FeatureFlagsVariantInput!]!
+}
+
+type FeatureFlagsDistribution {
+	variantKey: String!
+	weight: Int!
+}
+
+input FeatureFlagsDistributionInput {
+	variantKey: String!
+	weight: Int!
+}
+
+type FeatureFlagsEvaluation {
+	flagKey: String!
+	valueType: FeatureFlagsValueType!
+	"""
+	Null when the evaluation failed; see errorCode.
+	"""
+	value: JSON!
+	variant: String
+	reason: FeatureFlagsReason!
+	errorCode: String
+	errorMessage: String
+	flag: FeatureFlagsFlag!
+}
+
+enum FeatureFlagsEventType {
+	UNSPECIFIED
+	READY
+	CONFIGURATION_CHANGED
+	RESYNC
+}
+
+type FeatureFlagsFlag implements Node @key(fields: "id") {
+	key: String!
+	valueType: FeatureFlagsValueType!
+	enabled: Boolean!
+	defaultVariantKey: String!
+	archived: Boolean!
+	variants: [FeatureFlagsVariant!]!
+	rules: [FeatureFlagsRule!]!
+	id: ID!
+	history(limit: Int! = 50): [FeatureFlagsChange!]!
+}
+
+input FeatureFlagsFlagInput {
+	key: String!
+	valueType: FeatureFlagsValueType!
+	enabled: Boolean!
+	defaultVariantKey: String!
+	archived: Boolean! = false
+	variants: [FeatureFlagsVariantInput!]!
+	rules: [FeatureFlagsRuleInput!]! = []
+}
+
+enum FeatureFlagsReason {
+	UNSPECIFIED
+	STATIC
+	DEFAULT
+	TARGETING_MATCH
+	SPLIT
+	DISABLED
+	ERROR
+}
+
+type FeatureFlagsRule {
+	rank: Int!
+	segmentKey: String
+	variantKey: String
+	distributions: [FeatureFlagsDistribution!]!
+	"""
+	Groups of constraints the rule matches on.
+	"""
+	constraintGroups: [[FeatureFlagsConstraint!]!]!
+	bucketSalt: String!
+	segment: FeatureFlagsSegment
+}
+
+input FeatureFlagsRuleInput {
+	rank: Int!
+	segmentKey: String
+	variantKey: String
+	distributions: [FeatureFlagsDistributionInput!]! = []
+	constraintGroups: [[FeatureFlagsConstraintInput!]!]! = []
+	bucketSalt: String! = ""
+}
+
+type FeatureFlagsSegment implements Node @key(fields: "id") {
+	key: String!
+	name: String!
+	constraints: [FeatureFlagsConstraint!]!
+	id: ID!
+	history(limit: Int! = 50): [FeatureFlagsChange!]!
+}
+
+input FeatureFlagsSegmentInput {
+	key: String!
+	name: String!
+	constraints: [FeatureFlagsConstraintInput!]! = []
+}
+
+enum FeatureFlagsValueType {
+	UNSPECIFIED
+	BOOLEAN
+	STRING
+	INTEGER
+	FLOAT
+	OBJECT
+}
+
+type FeatureFlagsVariant {
+	key: String!
+	value: JSON!
+}
+
+input FeatureFlagsVariantInput {
+	key: String!
+	value: JSON!
+}
+
+"""
+A scalar that can represent any JSON value.
+"""
+scalar JSON
+
+type Mutation {
+	featureFlagsCreateFlag(input: FeatureFlagsCreateFlagInput!): FeatureFlagsFlag!
+	featureFlagsUpdateFlag(key: String!, enabled: Boolean!, defaultVariantKey: String!): FeatureFlagsFlag!
+	"""
+	Flips `enabled` without touching the default variant.
+	"""
+	featureFlagsToggleFlag(key: String!, enabled: Boolean!): FeatureFlagsFlag!
+	featureFlagsArchiveFlag(key: String!, archived: Boolean! = true): FeatureFlagsFlag!
+	featureFlagsDeleteFlag(key: String!): ID!
+	featureFlagsUpsertVariant(flagKey: String!, variant: FeatureFlagsVariantInput!): FeatureFlagsFlag!
+	featureFlagsDeleteVariant(flagKey: String!, variantKey: String!): FeatureFlagsFlag!
+	"""
+	Replaces every rule on the flag.
+	"""
+	featureFlagsSetFlagRules(flagKey: String!, rules: [FeatureFlagsRuleInput!]!): FeatureFlagsFlag!
+	featureFlagsCreateSegment(input: FeatureFlagsSegmentInput!): FeatureFlagsSegment!
+	featureFlagsUpdateSegment(input: FeatureFlagsSegmentInput!): FeatureFlagsSegment!
+	featureFlagsDeleteSegment(key: String!): ID!
+	"""
+	Reconciles the whole config to these flags and segments, like `ffctl apply`.
+	"""
+	featureFlagsApplyConfig(flags: [FeatureFlagsFlagInput!]!, segments: [FeatureFlagsSegmentInput!]!, dryRun: Boolean! = false, expectedVersion: Int! = 0): FeatureFlagsApplyResult!
+}
+
+interface Node {
+	id: ID!
+}
+
+type Query {
+	featureFlagsFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]!
+	featureFlagsFlag(key: String!): FeatureFlagsFlag!
+	featureFlagsSegments: [FeatureFlagsSegment!]!
+	featureFlagsSegment(key: String!): FeatureFlagsSegment!
+	"""
+	The audit log, newest first; targetKind is `flag` or `segment`.
+	"""
+	featureFlagsHistory(targetKind: String, targetKey: String, limit: Int! = 100): [FeatureFlagsChange!]!
+	featureFlagsConfigVersion: Int!
+	"""
+	Evaluates every unarchived flag for the context, as a client would see it.
+	"""
+	featureFlagsEvaluateAll(context: FeatureFlagsContextInput!): [FeatureFlagsEvaluation!]!
+	featureFlagsEvaluate(flagKey: String!, context: FeatureFlagsContextInput!): FeatureFlagsEvaluation!
+}
+
+type Subscription {
+	"""
+	A READY event, then one per config change; RESYNC means events were dropped.
+	"""
+	featureFlagsChanges: FeatureFlagsConfigEvent!
+}
+
+"""
+Directs the executor to include this field or fragment only when the `if` argument is true.
+"""
+directive @include(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Directs the executor to skip this field or fragment when the `if` argument is true.
+"""
+directive @skip(if: Boolean!) on FIELD | FRAGMENT_SPREAD | INLINE_FRAGMENT
+"""
+Provides a scalar specification URL for specifying the behavior of custom scalar types.
+"""
+directive @specifiedBy(url: String!) on SCALAR
+extend schema @link(
+	url: "https://specs.apollo.dev/federation/v2.5",
+	import: ["@key", "@tag", "@shareable", "@inaccessible", "@override", "@external", "@provides", "@requires", "@composeDirective", "@interfaceObject", "@requiresScopes"]
+)

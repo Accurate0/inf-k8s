@@ -111,13 +111,7 @@ impl SnapshotManager {
     }
 
     pub fn list_segments(&self) -> Vec<Segment> {
-        let mut segments: Vec<Segment> = self
-            .current
-            .load()
-            .segments
-            .values()
-            .cloned()
-            .collect();
+        let mut segments: Vec<Segment> = self.current.load().segments.values().cloned().collect();
         segments.sort_by(|a, b| a.key.cmp(&b.key));
         segments
     }
