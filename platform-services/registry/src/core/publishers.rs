@@ -22,9 +22,9 @@ use crate::{
 #[derive(Deserialize)]
 pub struct ListQuery {
     #[serde(default)]
-    ecosystem: Option<String>,
+    pub ecosystem: Option<String>,
     #[serde(default)]
-    package: Option<String>,
+    pub package: Option<String>,
 }
 
 pub async fn list(

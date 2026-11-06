@@ -10,6 +10,7 @@ resources:
   - {name: registry, type: database, secretName: registry-database-secret}
   - {name: storage, type: bucket, provider: r2, bucket: registry, secretName: storage-bucket-secrets}
   - {name: traces, type: platform, export: tracing}
+  - {name: registry, type: subgraph, prefix: registry, workload: registry, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [registry_users, registry_admins]}}
   - name: registry
     type: route
     auth:
@@ -95,6 +96,9 @@ namespace:
     internal-gateway-access: "true"
 build:
   image: ghcr.io/accurate0/registry
+  context: .
+  paths:
+    - crates/subgraph/**
   args:
     BINARY_NAME: registry
   test:

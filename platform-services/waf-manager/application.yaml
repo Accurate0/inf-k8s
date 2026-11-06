@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T16:10:24.423Z
+# generated at 2026-11-06T10:53:21.237Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -81,6 +81,10 @@ spec:
                       name: kanidm-waf-manager-cli-oidc
                       key: client-id
                       optional: true
+                - name: OIDC_PROVIDERS
+                  value: https://idm.anurag.sh/oauth2/openid/graph=graph
+                - name: OIDC_GROUPS
+                  value: waf_admins
               envFrom:
                 - secretRef:
                     name: waf-manager-managed-secrets
@@ -167,6 +171,7 @@ spec:
           ingress:
             - envoy-gateway-system
             - monitoring
+            - graph
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.6.0
@@ -223,6 +228,9 @@ spec:
               secretName: kanidm-waf-manager-oidc
               host: waf-manager.ortzi.cloud
               allowInsecureClientDisablePkce: true
+              groups:
+                waf_admins:
+                  - platform_admins
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret

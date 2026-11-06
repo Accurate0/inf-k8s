@@ -5,14 +5,18 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config
 
-WORKDIR /app/${BINARY_NAME}-build
+# Build context is the repository root: the subgraph is served through crates/subgraph.
+WORKDIR /app
 
-COPY . .
+COPY crates/subgraph ./crates/subgraph
+COPY platform-services/registry ./platform-services/registry
 RUN \
-    --mount=type=cache,target=/app/${BINARY_NAME}-build/target/ \
+    --mount=type=cache,target=/app/platform-services/registry/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    SQLX_OFFLINE=true cargo build --locked --release --bin ${BINARY_NAME} && \
-    cp ./target/release/${BINARY_NAME} /app
+    SQLX_OFFLINE=true cargo build --locked --release \
+    --manifest-path platform-services/registry/Cargo.toml \
+    --bin ${BINARY_NAME} && \
+    cp platform-services/registry/target/release/${BINARY_NAME} /app/${BINARY_NAME}
 
 FROM debian:trixie-slim AS final
 ARG BINARY_NAME

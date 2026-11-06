@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-01T10:01:47.136Z
+# generated at 2026-11-06T10:53:21.224Z
 name: app registry
 on:
   push:
@@ -9,6 +9,7 @@ on:
       - "!platform-services/registry/application.yaml"
       - "!platform-services/registry/app.yaml"
       - "!platform-services/registry/image.values.yaml"
+      - crates/subgraph/**
       - .github/workflows/app-registry.yaml
   workflow_dispatch: null
 jobs:
@@ -21,7 +22,7 @@ jobs:
       service: registry
       directory: platform-services/registry
       image: ghcr.io/accurate0/registry
-      context: platform-services/registry
+      context: .
       dockerfile: platform-services/registry/Dockerfile
       build-args: BINARY_NAME=registry
       test-run: cargo test --workspace

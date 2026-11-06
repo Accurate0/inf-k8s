@@ -41,11 +41,11 @@ pub async fn record_as(pool: &PgPool, principal: &Principal, event: Event<'_>) -
 #[derive(Deserialize)]
 pub struct AuditQuery {
     #[serde(default)]
-    ecosystem: Option<String>,
+    pub ecosystem: Option<String>,
     #[serde(default)]
-    package: Option<String>,
+    pub package: Option<String>,
     #[serde(default = "default_limit")]
-    limit: i64,
+    pub limit: i64,
 }
 
 fn default_limit() -> i64 {

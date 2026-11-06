@@ -50,7 +50,7 @@ pub fn validate_binary_name(binary: &str) -> Result<()> {
 #[derive(Deserialize)]
 pub struct ListQuery {
     #[serde(default)]
-    q: Option<String>,
+    pub q: Option<String>,
 }
 
 pub async fn list(

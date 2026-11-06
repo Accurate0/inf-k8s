@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T16:10:24.363Z
+# generated at 2026-11-06T10:53:21.167Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -134,6 +134,7 @@ spec:
             - monitoring
             - maccas-api
             - tldr-bot
+            - graph
     - chart: k8s-http-routes
       repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
       targetRevision: 2.6.0

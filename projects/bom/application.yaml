@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-05T16:10:24.311Z
+# generated at 2026-11-06T10:53:21.111Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -26,6 +26,8 @@ spec:
           - $values/projects/bom/image.values.yaml
         valuesObject:
           namespace: bom
+          namespaceLabels:
+            gateway.inf-k8s.net/anurag-sh: "true"
           workloads:
             - name: bom
               image: ghcr.io/accurate0/bom
@@ -64,6 +66,12 @@ spec:
                     secretKeyRef:
                       name: images-bucket-secrets
                       key: S3_SECRET_ACCESS_KEY
+                - name: PUBLIC_URL
+                  value: https://bom.anurag.sh
+                - name: OIDC_PROVIDERS
+                  value: https://idm.anurag.sh/oauth2/openid/graph=graph
+                - name: OIDC_GROUPS
+                  value: bom_users
               envFrom:
                 - secretRef:
                     name: bom-managed-secrets
@@ -93,7 +101,48 @@ spec:
       helm:
         valuesObject:
           namespace: bom
-          ingress: []
+          ingress:
+            - envoy-gateway-system
+            - graph
+    - chart: k8s-http-routes
+      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      targetRevision: 2.6.0
+      helm:
+        valuesObject:
+          routes:
+            - name: images
+              gateway:
+                name: public-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "true"
+              hostnames:
+                - bom.anurag.sh
+              ratelimit:
+                rules:
+                  - clientSelectors:
+                      - headers:
+                          - name: x-real-ip
+                            invert: false
+                            type: Distinct
+                    limit:
+                      requests: 20
+                      unit: Second
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: bom-api
+                      port: 8000
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /radar/
+                    - path:
+                        type: PathPrefix
+                        value: /satellite/
     - chart: k8s-postgres
       repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
       targetRevision: 1.3.0

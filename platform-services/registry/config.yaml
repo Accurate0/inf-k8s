@@ -13,6 +13,10 @@ forgejo:
   issuer: https://git.anurag.sh/api/actions
   audience: registry.ortzi.cloud
 
+graph:
+  issuer: https://idm.anurag.sh/oauth2/openid/graph
+  audience: graph
+
 # Endpoint and credentials come from the environment:
 # S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY.
 storage:

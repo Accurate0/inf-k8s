@@ -16,6 +16,14 @@ pub struct Config {
     pub storage: StorageConfig,
     #[serde(default)]
     pub limits: Limits,
+    #[serde(default)]
+    pub graph: Option<GraphConfig>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct GraphConfig {
+    pub issuer: String,
+    pub audience: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -122,5 +130,6 @@ mod tests {
         assert_eq!(config.version, CONFIG_SCHEMA_VERSION);
         assert_eq!(config.storage.bucket, "registry");
         assert!(config.forgejo.is_some());
+        assert!(config.graph.is_some());
     }
 }

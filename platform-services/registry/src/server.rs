@@ -10,6 +10,8 @@ use crate::{cli, core, metrics, state::AppState};
 const INSTALL_SCRIPT: &str = include_str!("install.sh");
 
 pub fn router(state: AppState) -> Router {
+    let graph = crate::graphql::router(state.clone()).unwrap_or_default();
+
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/metrics", get(|| async { metrics::render() }))
@@ -24,7 +26,8 @@ pub fn router(state: AppState) -> Router {
         )
         .nest("/api/v1", core::router())
         .nest("/cli/v1", cli::router())
+        .with_state(state)
+        .merge(graph)
         .layer(OtelInResponseLayer)
         .layer(OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/metrics")))
-        .with_state(state)
 }

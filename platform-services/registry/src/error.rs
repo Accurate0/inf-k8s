@@ -51,7 +51,7 @@ impl ApiError {
         }
     }
 
-    fn code(&self) -> &'static str {
+    pub fn code(&self) -> &'static str {
         match self {
             ApiError::Unauthorized(_) => "unauthorized",
             ApiError::Forbidden(_) => "forbidden",
