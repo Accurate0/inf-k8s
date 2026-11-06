@@ -20,6 +20,7 @@ resources:
     app: feature-flags
     export: api
   - {name: traces, type: platform, export: tracing}
+  - {name: maccas, type: subgraph, prefix: maccas, workload: maccas-api, port: api, path: /v1/graphql, repository: https://github.com/Accurate0/maccas-api, ref: main, schema: subgraph.graphql}
   - name: maccas-web-route
     type: route
     auth:
@@ -59,6 +60,8 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
       OPENAI_BASE_URL: {resource: llm}
       FEATURE_FLAGS_URL: {resource: flags}
+      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
+      OIDC_GROUPS: platform_admins
     envFrom:
       - secret: common
       - secret: api
@@ -151,3 +154,4 @@ workloads:
 namespace:
   labels:
     gateway.inf-k8s.net/maccas-one: "true"
+    internal-gateway-access: "true"
