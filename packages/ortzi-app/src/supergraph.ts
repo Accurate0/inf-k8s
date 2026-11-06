@@ -14,6 +14,7 @@ export interface Composed {
 }
 
 export const NODE_SUBGRAPH = 'node';
+export const KANIDM_ISSUER_BASE = 'https://idm.anurag.sh/oauth2/openid';
 export const NODE_SUBGRAPH_URL = 'http://node-plugin.invalid/graphql';
 const RELAY_TYPES = ['Node', 'PageInfo'];
 
@@ -208,6 +209,42 @@ export function routerConfig(
       node: { enabled: true, config: { subgraph: NODE_SUBGRAPH, types: nodeTypes } },
     };
   }
+  const gated = subgraphs.filter((subgraph) => subgraph.auth);
+
+  if (gated.length) {
+    const issuers = [...new Set(gated.flatMap((subgraph) => subgraph.auth!.clients))]
+      .sort()
+      .map((client) => `${KANIDM_ISSUER_BASE}/${client}`);
+
+    config.jwt = {
+      enabled: true,
+      require_authentication: false,
+      jwks_providers: issuers.map((issuer) => ({
+        source: 'remote',
+        url: `${issuer}/public_key.jwk`,
+        refresh_on_unknown_kid: '30s',
+      })),
+      issuers,
+    };
+    config.plugins = {
+      ...config.plugins,
+      access: {
+        enabled: true,
+        config: {
+          subgraphs: Object.fromEntries(
+            gated.map((subgraph) => [
+              subgraph.name,
+              {
+                issuers: subgraph.auth!.clients.map((client) => `${KANIDM_ISSUER_BASE}/${client}`),
+                groups: subgraph.auth!.groups,
+              },
+            ]),
+          ),
+        },
+      },
+    };
+  }
+
   const websockets = subgraphs.filter((subgraph) => subgraph.websocket);
 
   if (websockets.length) {

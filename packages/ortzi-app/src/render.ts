@@ -76,9 +76,15 @@ export interface Subgraph {
   path: string;
   websocket?: string;
   prefix: string;
+  auth?: SubgraphAuth;
   repository?: string;
   schema: string;
   ref?: string;
+}
+
+export interface SubgraphAuth {
+  clients: string[];
+  groups: string[];
 }
 
 export interface Supergraph {
@@ -890,6 +896,7 @@ export interface ResolvedSubgraph {
   prefix: string;
   url: string;
   websocket?: string;
+  auth?: SubgraphAuth;
   schemaUrl?: string;
   schemaPath?: string;
 }
@@ -948,6 +955,13 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         throw new Error(`${where}: prefix ${subgraph.prefix} must be lowerCamelCase`);
       }
 
+      for (const key of ['clients', 'groups'] as const) {
+        const list = subgraph.auth?.[key];
+        if (subgraph.auth && (!list?.length || list.some((item) => !item))) {
+          throw new Error(`${where}: auth.${key} must list at least one non-empty name`);
+        }
+      }
+
       const spec = appWorkloads(app)[subgraph.workload];
       if (!spec) throw new Error(`${where}: no workload named ${subgraph.workload}`);
       const port = exportPort(app, {
@@ -967,6 +981,7 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
           subgraph.path,
         ),
         ...(subgraph.websocket ? { websocket: subgraph.websocket } : {}),
+        ...(subgraph.auth ? { auth: subgraph.auth } : {}),
         ...schemaSource(subgraph, where),
       };
     }),
@@ -984,6 +999,16 @@ export function validateSubgraphs(apps: App[]) {
   const reserved = subgraphs.find((subgraph) => subgraph.name === 'node');
   if (reserved) {
     throw new Error(`${reserved.app}: subgraph name node is reserved for the router's node plugin`);
+  }
+
+  const clients = new Set(apps.flatMap((app) => Object.keys(appOidc(app))));
+  for (const subgraph of subgraphs) {
+    const missing = subgraph.auth?.clients.filter((client) => !clients.has(client)) ?? [];
+    if (missing.length) {
+      throw new Error(
+        `${subgraph.app}: resources.${subgraph.name}: auth.clients has no oidc resource named ${missing.join(', ')}`,
+      );
+    }
   }
 
   for (const key of ['name', 'prefix'] as const) {

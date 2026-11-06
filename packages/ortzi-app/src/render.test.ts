@@ -3341,6 +3341,82 @@ test('router config adds websocket paths for subgraphs with subscriptions', () =
   });
 });
 
+test('router config gates subgraphs that declare auth', () => {
+  const config = parse(
+    routerConfig(
+      resolveSubgraphs([
+        subgraphApp('spotify', {
+          auth: { clients: ['spotify', 'graph'], groups: ['spotify_users'] },
+        }),
+        subgraphApp('home-gateway', {
+          name: 'home',
+          auth: { clients: ['home-gateway', 'graph'], groups: ['home_gateway_readers'] },
+        }),
+        subgraphApp('maccas-api', { name: 'maccas' }),
+      ]),
+      '{}',
+      [],
+    ),
+  );
+
+  const issuers = ['graph', 'home-gateway', 'spotify'].map(
+    (client) => `https://idm.anurag.sh/oauth2/openid/${client}`,
+  );
+  assert.deepEqual(config.jwt, {
+    enabled: true,
+    require_authentication: false,
+    jwks_providers: issuers.map((issuer) => ({
+      source: 'remote',
+      url: `${issuer}/public_key.jwk`,
+      refresh_on_unknown_kid: '30s',
+    })),
+    issuers,
+  });
+  assert.deepEqual(config.plugins, {
+    access: {
+      enabled: true,
+      config: {
+        subgraphs: {
+          spotify: { issuers: [issuers[2], issuers[0]], groups: ['spotify_users'] },
+          home: { issuers: [issuers[1], issuers[0]], groups: ['home_gateway_readers'] },
+        },
+      },
+    },
+  });
+
+  const open = parse(routerConfig(resolveSubgraphs([subgraphApp('spotify')]), '{}', []));
+  assert.equal(open.jwt, undefined);
+  assert.equal(open.plugins, undefined);
+
+  assert.throws(
+    () =>
+      resolveSubgraphs([subgraphApp('spotify', { auth: { clients: ['spotify'], groups: [] } })]),
+    /spotify: resources.spotify: auth.groups must list at least one non-empty name/,
+  );
+});
+
+test('subgraph auth clients must be oidc resources', () => {
+  const world = (apps: App[]) => ({ platform, apps });
+  const spotify = subgraphApp('spotify', { auth: { clients: ['spotify'], groups: ['g'] } });
+
+  assert.throws(
+    () => validateResources(world([routerApp, spotify])),
+    /spotify: resources.spotify: auth.clients has no oidc resource named spotify/,
+  );
+  validateResources(
+    world([
+      routerApp,
+      {
+        ...spotify,
+        resources: [
+          ...(spotify.resources ?? []),
+          { name: 'spotify', type: 'oidc', host: 'spotify.sh', secretName: 's' },
+        ],
+      },
+    ]),
+  );
+});
+
 test('every root field of a subgraph starts with its prefix', () => {
   const sdl = (s: string) => parseGraphql(s);
 

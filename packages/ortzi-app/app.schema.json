@@ -1463,6 +1463,35 @@
                 "type": "string",
                 "description": "Subscriptions endpoint, when the subgraph has subscriptions."
               },
+              "auth": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "clients",
+                  "groups"
+                ],
+                "description": "Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups. The subgraph still authorizes on its own.",
+                "properties": {
+                  "clients": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": "Kanidm OIDC clients (oidc resource names, in any app) whose tokens the router accepts for this subgraph."
+                  },
+                  "groups": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": "Kanidm groups, short name or SPN; holding any one of them is enough."
+                  }
+                }
+              },
               "repository": {
                 "type": "string",
                 "description": "https://<host>/<owner>/<repo> holding the federation SDL. Leave out with ref to read schema from the app directory."
