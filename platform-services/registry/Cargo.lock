@@ -2783,7 +2783,7 @@ dependencies = [
  "async-stream",
  "axum",
  "axum-tracing-opentelemetry",
- "base64 0.22.1",
+ "base64 0.23.1",
  "bytes",
  "chrono",
  "futures",
@@ -2823,7 +2823,7 @@ dependencies = [
 name = "registry-api"
 version = "0.1.0"
 dependencies = [
- "base64 0.22.1",
+ "base64 0.23.1",
  "chrono",
  "hex",
  "p256",

@@ -6,7 +6,7 @@ description = "Browser-based OIDC (PKCE) login and stored sessions shared by the
 
 [dependencies]
 anyhow = "1"
-base64 = "0.22"
+base64 = "0.23"
 chrono = "0.4"
 dirs = "6"
 open = "5"
