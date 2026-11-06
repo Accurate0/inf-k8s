@@ -119,6 +119,9 @@ pub struct Permissions {
     pub kube: Vec<KubeVerb>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub http: Vec<String>,
+    /// Loopback ports the package may serve HTTP on.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub listen: Vec<u16>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -181,6 +184,9 @@ impl Permissions {
                     "permissions.http: {host:?} must be a bare hostname"
                 ));
             }
+        }
+        if self.listen.contains(&0) {
+            return Err("permissions.listen: ports must be 1-65535".to_owned());
         }
         Ok(())
     }
@@ -607,6 +613,7 @@ mod tests {
             fs: vec![".".to_owned(), "~/.kube".to_owned(), "/tmp".to_owned()],
             kube: vec![KubeVerb::Get, KubeVerb::Patch],
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
+            listen: vec![4280],
         };
         assert!(ok.validate().is_ok());
         for bad in [
@@ -632,6 +639,10 @@ mod tests {
             },
             Permissions {
                 http: vec!["grafana.ortzi.cloud:443".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                listen: vec![0],
                 ..Default::default()
             },
         ] {
