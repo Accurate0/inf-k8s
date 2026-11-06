@@ -1,4 +1,5 @@
 mod api;
+mod graphql;
 mod routes;
 
 use futures::StreamExt;
@@ -153,8 +154,17 @@ async fn main() -> Result<()> {
         enricher: Enricher::new(),
     });
 
+    let graph = match subgraph::AuthConfig::from_env() {
+        Ok(auth) => graphql::router(state.clone(), auth),
+        Err(e) => {
+            tracing::warn!("graphql subgraph disabled: {e}");
+            axum::Router::new()
+        }
+    };
+
     let app = Routes::router(state.clone())
         .merge(api::Api::router(state))
+        .merge(graph)
         .nest_service("/static", ServeDir::new("static"));
     let listener = tokio::net::TcpListener::bind("0.0.0.0:3000")
         .await

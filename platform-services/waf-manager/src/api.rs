@@ -41,7 +41,7 @@ impl Api {
             .with_state(state)
     }
 
-    async fn candidates(
+    pub(crate) async fn candidates(
         State(state): State<Arc<AppState>>,
     ) -> Result<Json<api::Candidates>, AppError> {
         let (actionable, protected, blocked) = Routes::candidates(&state).await?;
@@ -70,7 +70,7 @@ impl Api {
         }))
     }
 
-    async fn blocks(
+    pub(crate) async fn blocks(
         State(state): State<Arc<AppState>>,
         Query(query): Query<BlocksQuery>,
     ) -> Result<Json<api::Blocks>, AppError> {
@@ -95,7 +95,7 @@ impl Api {
         }))
     }
 
-    async fn create_block(
+    pub(crate) async fn create_block(
         State(state): State<Arc<AppState>>,
         Extension(claims): Extension<Claims>,
         Json(request): Json<api::CreateBlock>,
@@ -113,7 +113,7 @@ impl Api {
         Ok((StatusCode::CREATED, Json(to_block(block, &BTreeMap::new()))))
     }
 
-    async fn delete_block(
+    pub(crate) async fn delete_block(
         State(state): State<Arc<AppState>>,
         Extension(claims): Extension<Claims>,
         Path(name): Path<String>,
@@ -122,7 +122,7 @@ impl Api {
         Ok(StatusCode::NO_CONTENT)
     }
 
-    async fn make_permanent(
+    pub(crate) async fn make_permanent(
         State(state): State<Arc<AppState>>,
         Extension(claims): Extension<Claims>,
         Path(name): Path<String>,
@@ -133,7 +133,7 @@ impl Api {
         }
     }
 
-    async fn ip(
+    pub(crate) async fn ip(
         State(state): State<Arc<AppState>>,
         Path(addr): Path<String>,
     ) -> Result<Json<api::IpDetail>, AppError> {
@@ -221,7 +221,7 @@ impl Api {
         }))
     }
 
-    async fn audit(
+    pub(crate) async fn audit(
         State(state): State<Arc<AppState>>,
         Query(query): Query<AuditQuery>,
     ) -> Result<Json<api::AuditPage>, AppError> {
@@ -234,7 +234,7 @@ impl Api {
         }))
     }
 
-    async fn workflows(
+    pub(crate) async fn workflows(
         State(state): State<Arc<AppState>>,
         Query(query): Query<WorkflowsQuery>,
     ) -> Result<Json<api::Workflows>, AppError> {
@@ -285,7 +285,7 @@ impl Api {
         }))
     }
 
-    async fn allowlist(
+    pub(crate) async fn allowlist(
         State(state): State<Arc<AppState>>,
     ) -> Result<Json<api::Allowlist>, AppError> {
         let protected = Routes::protected_rows(&state.ctx.allowlist.entries().await);
@@ -313,7 +313,7 @@ impl Api {
         }))
     }
 
-    async fn create_allowlist(
+    pub(crate) async fn create_allowlist(
         State(state): State<Arc<AppState>>,
         Extension(claims): Extension<Claims>,
         Json(request): Json<api::CreateAllowlist>,
@@ -323,7 +323,7 @@ impl Api {
         Ok(StatusCode::CREATED)
     }
 
-    async fn delete_allowlist(
+    pub(crate) async fn delete_allowlist(
         State(state): State<Arc<AppState>>,
         Extension(claims): Extension<Claims>,
         Query(query): Query<CidrQuery>,
@@ -333,7 +333,7 @@ impl Api {
         Ok(StatusCode::NO_CONTENT)
     }
 
-    async fn all_blocks(state: &AppState) -> Result<Vec<api::Block>, AppError> {
+    pub(crate) async fn all_blocks(state: &AppState) -> Result<Vec<api::Block>, AppError> {
         let mut blocks = state
             .ctx
             .blocks()
@@ -408,26 +408,26 @@ fn to_audit(e: waf_manager::audit::Entry) -> api::AuditEntry {
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct BlocksQuery {
+pub(crate) struct BlocksQuery {
     #[serde(default)]
-    q: String,
+    pub(crate) q: String,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct AuditQuery {
+pub(crate) struct AuditQuery {
     #[serde(default)]
-    offset: i64,
+    pub(crate) offset: i64,
     #[serde(default)]
-    limit: Option<i64>,
+    pub(crate) limit: Option<i64>,
 }
 
 #[derive(Debug, Default, Deserialize)]
-struct WorkflowsQuery {
+pub(crate) struct WorkflowsQuery {
     #[serde(default)]
-    workflow: Option<String>,
+    pub(crate) workflow: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
-struct CidrQuery {
-    cidr: String,
+pub(crate) struct CidrQuery {
+    pub(crate) cidr: String,
 }

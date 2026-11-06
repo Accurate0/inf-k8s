@@ -35,6 +35,7 @@ resources:
       - workflows/management-endpoint-probes.yaml
   - {name: dashboard, type: dashboard, configMap: waf-manager-dashboard, file: dashboards/waf-manager.json}
   - {name: logs, type: platform, export: logs}
+  - {name: waf, type: subgraph, prefix: waf, workload: waf-manager, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [waf_admins]}}
   - {name: waf-manager, type: secret, secretName: waf-manager-managed-secrets}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
   - name: waf-manager-route
@@ -85,6 +86,9 @@ resources:
     host: waf-manager.ortzi.cloud
     displayName: WAF Manager
     allowInsecureClientDisablePkce: true
+    groups:
+      waf_admins:
+        - platform_admins
     secretKeys:
       clientId: client-id
       clientSecret: client-secret
@@ -129,6 +133,8 @@ workloads:
       OIDC_AUDIENCE: {oidc: waf-manager, key: client-id}
       OIDC_CLI_ISSUER: https://idm.anurag.sh/oauth2/openid/waf-manager-cli
       OIDC_CLI_AUDIENCE: {oidc: waf-manager-cli, key: client-id, optional: true}
+      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
+      OIDC_GROUPS: waf_admins
     envFrom:
       - secret: waf-manager
         optional: true
@@ -155,8 +161,13 @@ namespace:
     internal-gateway-access: "true"
 build:
   image: ghcr.io/accurate0/waf-manager
+  context: .
+  paths:
+    - crates/subgraph/**
   args:
     BINARY_NAME: waf-manager
+  test:
+    run: cargo test
 sources:
   - type: manifests
     path: .

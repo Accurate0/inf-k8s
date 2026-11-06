@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-06T10:53:21.192Z
+# generated at 2026-11-06T10:55:50.581Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -174,7 +174,22 @@ spec:
                   - email
                   - profile
                   - groups
+                registry_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
                 feature_flags_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+                ai_gateway_admins:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+                janitor_bot_admins:
                   - openid
                   - email
                   - profile

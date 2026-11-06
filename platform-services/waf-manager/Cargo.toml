@@ -9,6 +9,9 @@ edition = "2024"
 
 [dependencies]
 waf-manager-api = { path = "api" }
+subgraph = { path = "../../crates/subgraph" }
+async-graphql = { version = "7.2.1", features = ["chrono"] }
+async-stream = "0.3"
 askama = "0.16"
 axum = "0.8"
 base64 = "0.23"
