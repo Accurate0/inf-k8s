@@ -4,6 +4,7 @@ mod completions;
 mod dispatch;
 mod manifest;
 mod package_auth;
+mod proxy;
 mod session;
 mod store;
 mod trust;

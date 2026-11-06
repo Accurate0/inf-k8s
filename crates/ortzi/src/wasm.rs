@@ -559,6 +559,31 @@ impl serve::Host for State {
             .ok_or("serve: call listen first")?
             .respond(response)
     }
+
+    fn proxy(&mut self, port: u16, upstream: String) -> Result<(), String> {
+        if !self.sandbox.listen.contains(&port) {
+            return Err(format!(
+                "proxy: port {port} is not in the package's permissions.listen"
+            ));
+        }
+        if self.server.is_some() {
+            return Err("proxy: already listening".to_owned());
+        }
+
+        let upstream = self.sandbox.url(&upstream)?;
+        let (package, auth) = self
+            .sandbox
+            .auth
+            .clone()
+            .ok_or("proxy: the package declares no auth")?;
+
+        crate::proxy::run(crate::proxy::Proxy {
+            port,
+            upstream,
+            package,
+            auth,
+        })
+    }
 }
 
 impl auth::Host for State {

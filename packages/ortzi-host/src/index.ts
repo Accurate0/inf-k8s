@@ -197,6 +197,13 @@ export const serve = {
         body: encoder.encode(response.body ?? ''),
       }),
     ),
+
+  /**
+   * Reverse-proxies HTTP, SSE and websockets on 127.0.0.1:port to upstream with the package's
+   * token until ctrl-c. The port must be in permissions.listen and upstream's host in
+   * permissions.http.
+   */
+  proxy: (port: number, upstream: string) => unwrap(() => hostServe.proxy(port, upstream)),
 };
 
 /** The package's access token, refreshed by the host when it is about to expire. */

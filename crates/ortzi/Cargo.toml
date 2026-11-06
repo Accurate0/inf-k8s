@@ -28,3 +28,10 @@ kube = { version = "4.0.0", default-features = false, features = ["client", "rus
 k8s-openapi = { version = "0.28.0", features = ["latest"] }
 http = "1"
 httparse = "1"
+bytes = "1"
+hyper = { version = "1", features = ["server", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+http-body-util = "0.1"
+rustls = { version = "0.23", default-features = false, features = ["aws_lc_rs", "std"] }
+rustls-platform-verifier = "0.7"
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake", "__rustls-tls"] }

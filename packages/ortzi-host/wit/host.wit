@@ -94,6 +94,12 @@ interface serve {
   /// Blocks until the next request; answer it with respond before accepting another.
   accept: func() -> result<request, string>;
   respond: func(response: response) -> result<_, string>;
+
+  /// Reverse-proxies HTTP, server-sent events and websockets from 127.0.0.1 on a port from
+  /// permissions.listen to upstream, an https URL from permissions.http, until ctrl-c. Each request
+  /// and websocket connection_init carries the package's freshly refreshed token, and only
+  /// localhost hosts and origins are answered.
+  proxy: func(port: u16, upstream: string) -> result<_, string>;
 }
 
 interface auth {
