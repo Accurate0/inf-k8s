@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO virtual_keys (name, key_hash, kanidm_sub) VALUES ($1, $2, $3) ON CONFLICT (kanidm_sub) DO NOTHING",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "c4db1c812e1cb8a368b37ed46e1044404c08fe844b18943e53715f0817fa309a"
+}

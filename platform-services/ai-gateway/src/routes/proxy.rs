@@ -102,6 +102,18 @@ struct RequestContext {
     resolved_model: String,
 }
 
+async fn proxy(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    body: Bytes,
+    sub_path: &'static str,
+) -> Result<Response> {
+    let raw_key = bearer(&headers).ok_or(GatewayError::MissingKey)?;
+    let key = state.keys.authenticate(raw_key).await?;
+    proxy_as(state, key, headers, body, sub_path).await
+}
+
+/// The proxy for an already-resolved key, e.g. a graph user's own key.
 #[tracing::instrument(
     skip_all,
     fields(
@@ -116,17 +128,15 @@ struct RequestContext {
         output_tokens = field::Empty,
     )
 )]
-async fn proxy(
-    State(state): State<AppState>,
+pub async fn proxy_as(
+    state: AppState,
+    key: VirtualKey,
     headers: HeaderMap,
     body: Bytes,
     sub_path: &'static str,
 ) -> Result<Response> {
     let started = Instant::now();
     let span = Span::current();
-
-    let raw_key = bearer(&headers).ok_or(GatewayError::MissingKey)?;
-    let key = state.keys.authenticate(raw_key).await?;
     span.record("key", key.name.as_str());
 
     let mut request = ProxyRequest::from_slice(&body)?;

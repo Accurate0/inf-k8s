@@ -151,6 +151,63 @@ impl KeyStore {
         Ok((raw, info))
     }
 
+    /// The graph user's own key, minted on first use with no model or budget limits.
+    /// A revoked user key stays revoked.
+    pub async fn for_user(&self, sub: &str, identity: &str) -> Result<VirtualKey> {
+        struct QueryRow {
+            id: Uuid,
+            name: String,
+            allowed_models: Vec<String>,
+            monthly_token_budget: Option<i64>,
+            revoked: bool,
+        }
+
+        let existing = sqlx::query_as!(
+            QueryRow,
+            "SELECT id, name, allowed_models, monthly_token_budget, revoked FROM virtual_keys \
+             WHERE kanidm_sub = $1",
+            sub
+        )
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let row = match existing {
+            Some(row) => row,
+            None => {
+                let hash = Self::hash(&generate_token());
+                sqlx::query!(
+                    "INSERT INTO virtual_keys (name, key_hash, kanidm_sub) VALUES ($1, $2, $3) \
+                     ON CONFLICT (kanidm_sub) DO NOTHING",
+                    format!("user:{identity}"),
+                    hash,
+                    sub
+                )
+                .execute(&self.pool)
+                .await?;
+                tracing::info!(identity, "minted graph user key");
+
+                sqlx::query_as!(
+                    QueryRow,
+                    "SELECT id, name, allowed_models, monthly_token_budget, revoked \
+                     FROM virtual_keys WHERE kanidm_sub = $1",
+                    sub
+                )
+                .fetch_one(&self.pool)
+                .await?
+            }
+        };
+
+        if row.revoked {
+            return Err(GatewayError::InvalidKey);
+        }
+        Ok(VirtualKey {
+            id: row.id,
+            name: row.name,
+            allowed_models: row.allowed_models,
+            monthly_token_budget: row.monthly_token_budget,
+        })
+    }
+
     /// Applies config-managed fields to an existing key, matched by name. The key itself
     /// is minted via the admin API; config is the source of truth for every mutable field
     /// (everything but id and created_at). Returns `false` if no key with

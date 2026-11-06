@@ -8,6 +8,8 @@ use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer}
 use crate::{routes, state::AppState};
 
 pub fn router(state: AppState) -> Router {
+    let graph = crate::graphql::router(state.clone()).unwrap_or_default();
+
     Router::new()
         .route("/health", get(|| async { StatusCode::OK }))
         .route("/v1/messages", post(routes::proxy::messages))
@@ -33,9 +35,10 @@ pub fn router(state: AppState) -> Router {
         )
         .route("/admin/usage", get(routes::admin::usage_summary))
         .route("/admin/prices", post(routes::admin::sync_prices))
+        .with_state(state)
+        .merge(graph)
         .layer(OtelInResponseLayer)
         .layer(
             OtelAxumLayer::default().filter(|path| !matches!(path, "/health" | "/admin/metrics")),
         )
-        .with_state(state)
 }

@@ -6,6 +6,10 @@ oauth:
   groups:
     - ai_gateway_admins
 
+graph:
+  issuer: https://idm.anurag.sh/oauth2/openid/graph
+  audience: graph
+
 providers:
   anthropic:
     dialect: anthropic

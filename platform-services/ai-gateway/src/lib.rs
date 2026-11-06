@@ -3,6 +3,7 @@ pub mod cache;
 pub mod config;
 pub mod error;
 pub mod feature_flag;
+pub mod graphql;
 pub mod keys;
 pub mod metrics;
 pub mod pricing;

@@ -22,6 +22,7 @@ pub const CONFIG_SCHEMA_VERSION: u32 = 2;
 pub struct Config {
     pub admin_token: String,
     pub oauth: Option<OAuthConfig>,
+    pub graph: Option<GraphConfig>,
     pub providers: HashMap<String, ProviderConfig>,
     pub keys: Vec<KeyConfig>,
     /// Ordered model-resolution rules, evaluated first-match-wins per request. Subsumes
@@ -35,6 +36,8 @@ struct FileConfig {
     version: u32,
     #[serde(default)]
     oauth: Option<OAuthConfig>,
+    #[serde(default)]
+    graph: Option<GraphConfig>,
     #[serde(default)]
     providers: HashMap<String, ProviderConfig>,
     #[serde(default)]
@@ -54,6 +57,13 @@ pub struct OAuthConfig {
     pub userinfo_endpoint: Option<String>,
     #[serde(default)]
     pub groups: Vec<String>,
+}
+
+/// The graph router's Kanidm client; its tokens reach the subgraph on /v1/graphql.
+#[derive(Clone, Debug, Deserialize)]
+pub struct GraphConfig {
+    pub issuer: String,
+    pub audience: String,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -190,6 +200,7 @@ impl Config {
         Ok(Self {
             admin_token: std::env::var("ADMIN_TOKEN").unwrap_or_default(),
             oauth: file.oauth,
+            graph: file.graph,
             providers: file.providers,
             keys: file.keys,
             rules: file.rules,

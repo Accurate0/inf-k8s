@@ -228,6 +228,7 @@ async fn run_fixture(pool: PgPool, dir: &str, file: &str) {
     let config = Config {
         admin_token: String::new(),
         oauth: None,
+        graph: None,
         providers,
         keys: vec![],
         rules: fixture.rules.clone(),
