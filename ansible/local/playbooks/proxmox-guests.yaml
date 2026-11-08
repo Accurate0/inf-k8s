@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT-0
 ---
 - name: Proxmox host datasets
-  hosts: proxmox
+  hosts: pve
   gather_facts: false
 
   vars:
@@ -30,7 +30,7 @@
         mode: "0755"
 
 - name: Proxmox LXC guests
-  hosts: proxmox
+  hosts: pve
   gather_facts: false
   connection: local
 
@@ -417,7 +417,7 @@
           created and started on {{ proxmox_node }}.
 
 - name: Proxmox VM guests
-  hosts: proxmox
+  hosts: pve
   gather_facts: false
   connection: local
 

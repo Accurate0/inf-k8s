@@ -378,9 +378,16 @@ spec:
                   static_configs:
                     - targets:
                         - "10.0.2.249:9100"
-                  relabel_configs:
-                    - target_label: instance
-                      replacement: pve
+                      labels:
+                        instance: pve
+                    - targets:
+                        - "10.0.2.250:9100"
+                      labels:
+                        instance: pve-node-1
+                    - targets:
+                        - "10.0.2.251:9100"
+                      labels:
+                        instance: pve-node-2
                 - job_name: "pve-api"
                   metrics_path: /pve
                   params:

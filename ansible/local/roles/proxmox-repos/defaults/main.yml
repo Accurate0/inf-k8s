@@ -1,0 +1,5 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_repos_enterprise_sources:
+  - /etc/apt/sources.list.d/pve-enterprise.sources
+  - /etc/apt/sources.list.d/ceph.sources

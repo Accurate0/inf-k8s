@@ -1,0 +1,114 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Look for the cluster configuration
+  ansible.builtin.stat:
+    path: /etc/pve/corosync.conf
+  register: proxmox_cluster_conf
+
+- name: Create the cluster
+  ansible.builtin.command:
+    argv:
+      - pvecm
+      - create
+      - "{{ proxmox_cluster_name }}"
+      - --link0
+      - "{{ ansible_host }}"
+  when:
+    - inventory_hostname == proxmox_cluster_founder
+    - not proxmox_cluster_conf.stat.exists
+
+- name: Join the cluster
+  when:
+    - inventory_hostname != proxmox_cluster_founder
+    - not proxmox_cluster_conf.stat.exists
+  block:
+    - name: Assert the root password is available
+      ansible.builtin.assert:
+        that:
+          - proxmox_cluster_password | default('', true) | length > 0
+        fail_msg: PROXMOX_PASSWORD is not set. Joining needs root@pam on {{ proxmox_cluster_founder }}.
+
+    - name: List the guests on the joining node
+      ansible.builtin.shell: |
+        set -o pipefail
+        { pct list; qm list; } | awk '$1 ~ /^[0-9]+$/' | wc -l
+      args:
+        executable: /bin/bash
+      register: proxmox_cluster_guests
+      changed_when: false
+
+    - name: Read the hostname address
+      ansible.builtin.command: hostname -i
+      register: proxmox_cluster_hostname_ip
+      changed_when: false
+
+    - name: Read the joining node version
+      ansible.builtin.command: pveversion
+      register: proxmox_cluster_version
+      changed_when: false
+
+    - name: Read the founder version
+      ansible.builtin.command: pveversion
+      register: proxmox_cluster_founder_version
+      delegate_to: "{{ proxmox_cluster_founder }}"
+      changed_when: false
+
+    - name: Assert the node has no guests
+      ansible.builtin.assert:
+        that:
+          - proxmox_cluster_guests.stdout | int == 0
+        fail_msg: "{{ inventory_hostname }} has {{ proxmox_cluster_guests.stdout }} guests; only an empty node can join."
+
+    - name: Assert the hostname resolves to the node address
+      ansible.builtin.assert:
+        that:
+          - ansible_host in proxmox_cluster_hostname_ip.stdout.split()
+        fail_msg: >-
+          {{ inventory_hostname }} resolves to {{ proxmox_cluster_hostname_ip.stdout }}, not
+          {{ ansible_host }}. Fix /etc/hosts; corosync would bind the wrong address.
+
+    - name: Assert the versions match
+      vars:
+        proxmox_cluster_major: "{{ proxmox_cluster_version.stdout | regex_search('pve-manager/(\\d+)\\.', '\\1') | first }}"
+        proxmox_cluster_founder_major: "{{ proxmox_cluster_founder_version.stdout | regex_search('pve-manager/(\\d+)\\.', '\\1') | first }}"
+      ansible.builtin.assert:
+        that:
+          - proxmox_cluster_major == proxmox_cluster_founder_major
+        fail_msg: >-
+          {{ inventory_hostname }} runs Proxmox {{ proxmox_cluster_major }},
+          {{ proxmox_cluster_founder }} runs {{ proxmox_cluster_founder_major }}.
+
+    - name: Read the join information
+      ansible.builtin.command: pvesh get /cluster/config/join --output-format json
+      register: proxmox_cluster_join_info
+      delegate_to: "{{ proxmox_cluster_founder }}"
+      changed_when: false
+
+    - name: Join the founder
+      vars:
+        proxmox_cluster_fingerprint: >-
+          {{ (proxmox_cluster_join_info.stdout | from_json).nodelist
+             | selectattr('name', 'equalto', proxmox_cluster_founder)
+             | map(attribute='pve_fp') | first }}
+      ansible.builtin.command:
+        argv:
+          - pvesh
+          - create
+          - /cluster/config/join
+          - --hostname
+          - "{{ hostvars[proxmox_cluster_founder].ansible_host }}"
+          - --fingerprint
+          - "{{ proxmox_cluster_fingerprint }}"
+          - --password
+          - "{{ proxmox_cluster_password }}"
+          - --link0
+          - "{{ ansible_host }}"
+      no_log: true
+
+- name: Wait for quorum
+  ansible.builtin.command: pvecm status
+  register: proxmox_cluster_status
+  changed_when: false
+  retries: 30
+  delay: 10
+  until: proxmox_cluster_status.rc == 0 and proxmox_cluster_status.stdout is search('Quorate:\\s+Yes')

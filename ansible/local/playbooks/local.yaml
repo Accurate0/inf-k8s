@@ -15,8 +15,23 @@
         state: stopped
       failed_when: false
 
-- name: Storage on the Proxmox host
+- name: Proxmox cluster
   hosts: proxmox
+  gather_facts: false
+  serial: 1
+
+  roles:
+    - proxmox-cluster
+
+- name: Proxmox node storage
+  hosts: proxmox:!pve
+  gather_facts: false
+
+  roles:
+    - proxmox-ssd
+
+- name: Storage on the Proxmox host
+  hosts: pve
   gather_facts: true
 
   roles:
@@ -28,18 +43,25 @@
 
 - ansible.builtin.import_playbook: unifi-dns.yaml
 
-- name: Proxmox host
+- name: Proxmox nodes
   hosts: proxmox
+  gather_facts: true
+
+  roles:
+    - proxmox-repos
+    - proxmox-nginx
+    - proxmox-sysctl
+    - proxmox-node-exporter
+
+- name: Proxmox cluster config
+  hosts: pve
   gather_facts: true
 
   vars:
     proxmox_oidc_client_secret: "{{ lookup('ansible.builtin.env', 'PVE_OIDC_CLIENT_SECRET') }}"
 
   roles:
-    - proxmox-nginx
     - proxmox-oidc
-    - proxmox-sysctl
-    - proxmox-node-exporter
     - proxmox-pve-exporter
 
 - name: Wait for guests to accept SSH
@@ -113,7 +135,7 @@
     - pbs
 
 - name: Proxmox backup jobs
-  hosts: proxmox
+  hosts: pve
   gather_facts: false
 
   vars:

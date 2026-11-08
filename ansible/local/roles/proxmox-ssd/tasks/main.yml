@@ -1,0 +1,97 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Look for the pool
+  ansible.builtin.command: zpool list -H -o name {{ proxmox_ssd_pool }}
+  register: proxmox_ssd_zpool
+  changed_when: false
+  failed_when: false
+
+- name: Create the pool
+  when: proxmox_ssd_zpool.rc != 0
+  block:
+    - name: Read the disk signatures
+      ansible.builtin.command: wipefs --no-act --noheadings {{ proxmox_ssd_disk }}
+      register: proxmox_ssd_signatures
+      changed_when: false
+
+    - name: Read the disk partitions
+      ansible.builtin.command: lsblk --noheadings --output TYPE {{ proxmox_ssd_disk }}
+      register: proxmox_ssd_partitions
+      changed_when: false
+
+    - name: Assert the disk is blank
+      ansible.builtin.assert:
+        that:
+          - proxmox_ssd_signatures.stdout | length == 0
+          - "'part' not in proxmox_ssd_partitions.stdout_lines"
+        fail_msg: >-
+          {{ proxmox_ssd_disk }} still has partitions or signatures. Wipe it by hand
+          (wipefs -a on each partition and the disk, then sgdisk --zap-all) and rerun.
+
+    - name: Create the pool on the disk
+      ansible.builtin.command:
+        argv:
+          - zpool
+          - create
+          - -o
+          - ashift=12
+          - -O
+          - compression=zstd
+          - -O
+          - atime=off
+          - "{{ proxmox_ssd_pool }}"
+          - "{{ proxmox_ssd_disk }}"
+
+- name: Read the storage configuration
+  ansible.builtin.command: pvesh get /storage --output-format json
+  register: proxmox_ssd_storages
+  changed_when: false
+  run_once: true
+  delegate_to: "{{ proxmox_cluster_founder }}"
+
+- name: Add the storage
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - add
+      - zfspool
+      - "{{ proxmox_ssd_storage }}"
+      - --pool
+      - "{{ proxmox_ssd_pool }}"
+      - --content
+      - "{{ proxmox_ssd_content }}"
+      - --sparse
+      - "1"
+      - --nodes
+      - "{{ proxmox_ssd_nodes | join(',') }}"
+  run_once: true
+  delegate_to: "{{ proxmox_cluster_founder }}"
+  when: proxmox_ssd_storage not in (proxmox_ssd_storages.stdout | from_json | map(attribute='storage') | list)
+
+- name: Converge the storage nodes
+  vars:
+    proxmox_ssd_live: "{{ proxmox_ssd_storages.stdout | from_json | selectattr('storage', 'equalto', proxmox_ssd_storage) | first }}"
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - set
+      - "{{ proxmox_ssd_storage }}"
+      - --content
+      - "{{ proxmox_ssd_content }}"
+      - --nodes
+      - "{{ proxmox_ssd_nodes | join(',') }}"
+  run_once: true
+  delegate_to: "{{ proxmox_cluster_founder }}"
+  when:
+    - proxmox_ssd_storage in (proxmox_ssd_storages.stdout | from_json | map(attribute='storage') | list)
+    - >-
+      proxmox_ssd_live.nodes | default('') | split(',') | sort != proxmox_ssd_nodes | sort
+      or proxmox_ssd_live.content | default('') | split(',') | sort != proxmox_ssd_content | split(',') | sort
+
+- name: Keep local-zfs on the founder
+  vars:
+    proxmox_ssd_local_zfs: "{{ proxmox_ssd_storages.stdout | from_json | selectattr('storage', 'equalto', 'local-zfs') | first }}"
+  ansible.builtin.command: pvesm set local-zfs --nodes {{ proxmox_cluster_founder }}
+  run_once: true
+  delegate_to: "{{ proxmox_cluster_founder }}"
+  when: proxmox_ssd_local_zfs.nodes | default('') != proxmox_cluster_founder

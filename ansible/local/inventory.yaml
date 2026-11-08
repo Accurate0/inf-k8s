@@ -12,6 +12,17 @@ proxmox:
   hosts:
     pve:
       ansible_host: 10.0.2.249
+    pve-node-1:
+      ansible_host: 10.0.2.250
+      proxmox_ssd_disk: /dev/disk/by-id/wwn-0x500a0751e8af28f2
+      proxmox_nginx_domain: pve-node-1.internal
+    pve-node-2:
+      ansible_host: 10.0.2.251
+      proxmox_ssd_disk: /dev/disk/by-id/nvme-KINGSTON_SNV2S1000G_50026B7686F2F91A
+      proxmox_nginx_domain: pve-node-2.internal
+  vars:
+    proxmox_cluster_name: home
+    proxmox_cluster_founder: pve
 
 media_servers:
   hosts:

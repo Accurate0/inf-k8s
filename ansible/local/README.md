@@ -37,6 +37,43 @@ It is excluded from the nightly PBS job (`proxmox_pbs_exclude_vmids`) on purpose
 it holds no state worth restoring, and is rebuilt from `proxmox-guests.yaml` plus
 `cluster.yaml`.
 
+## Cluster
+
+`pve`, `pve-node-1` (`10.0.2.250`) and `pve-node-2` (`10.0.2.251`) form the
+`home` Proxmox cluster. Every node is managed from
+`pve.internal`. HA is not configured, so guests never move between nodes on
+their own; a guest only changes node if you migrate it by hand.
+
+`roles/proxmox-cluster` creates the cluster on `pve`
+(`proxmox_cluster_founder`), because `pve` already holds guests and only an
+empty node can join. Every other node joins through the API
+(`pvesh create /cluster/config/join`) using root@pam's `PROXMOX_PASSWORD`, one
+node at a time (`serial: 1`). Before joining, the role checks that the node has
+no guests, that its hostname resolves to `ansible_host`, and that it runs the
+same major version as `pve`. A node's corosync address is fixed once it joins,
+so put it on the 10.0.2 network before running the role.
+
+`/etc/pve` is shared across the cluster: storage, users, the OIDC realm, ACLs
+and backup jobs exist once for the whole cluster. The plays that write them
+(`proxmox-oidc`, `proxmox-pbs`, `proxmox-nfs`, the guest plays) therefore run
+only on `pve`. `proxmox-pve-exporter` is pve-only too. Its token belongs to the
+cluster, so a second exporter would remove and reissue it, and one exporter
+already covers every node through `/cluster/resources`. nginx, sysctl and
+node-exporter run on every node.
+
+When a node joins, its own `storage.cfg` is replaced by the cluster's copy.
+The new nodes boot from small drives, so their guests live on a 1TB SSD
+instead. `roles/proxmox-ssd` builds a single-disk `ssd` pool on
+`proxmox_ssd_disk` and registers one `ssd` zfspool storage limited to the
+non-founder nodes. It also limits `local-zfs` to `pve`. The role refuses to
+create a pool on a disk that still has partitions or signatures, so wipe a new
+disk by hand first (`wipefs -a`, `sgdisk --zap-all`).
+
+While the cluster has only two nodes, each needs the other to keep quorum. If
+one node is down, the other can still run its guests, but it can't start them
+or change any config. If that happens, `pvecm expected 1` on the surviving node
+restores quorum. With three nodes, any single node can be down.
+
 ## Storage
 
 Bulk storage lives on **unraid**, a VM on the Proxmox host at `10.0.2.25`
@@ -199,7 +236,7 @@ ansible-galaxy collection install community.general ansible.posix community.dock
 
 | Variable | Used by |
 |---|---|
-| `PROMOX_API_KEY`, `PROXMOX_PASSWORD` | `playbooks/proxmox-guests.yaml` |
+| `PROMOX_API_KEY`, `PROXMOX_PASSWORD` | `playbooks/proxmox-guests.yaml`, `roles/proxmox-cluster` (join) |
 | `UNRAID_USB_ID` | `playbooks/proxmox-guests.yaml` |
 | `UNIFI_API_KEY` | `playbooks/unifi-dns.yaml` |
 | `SONARR_API_KEY`, `RADARR_API_KEY` | `roles/recyclarr` |
