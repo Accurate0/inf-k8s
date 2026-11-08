@@ -108,6 +108,8 @@
 
       - name: homeassistant
         vmid: 206
+        node: pve-node-1
+        storage: ssd
         ip: 10.0.2.15/24
         cores: 2
         memory: 2048
@@ -117,6 +119,8 @@
 
       - name: mirror
         vmid: 208
+        node: pve-node-2
+        storage: ssd
         ip: 10.0.2.17/24
         cores: 2
         memory: 2048
@@ -171,13 +175,15 @@
         api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
         api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_validate_certs }}"
-        node: "{{ proxmox_node }}"
+        node: "{{ item.0 }}"
         storage: "{{ proxmox_lxc_template_storage }}"
-        template: "{{ item }}"
+        template: "{{ item.1 }}"
         content_type: vztmpl
         timeout: 600
         state: present
-      loop: "{{ proxmox_lxc_templates }}"
+      loop: "{{ proxmox_lxc_guests | map(attribute='node', default=proxmox_node) | unique | product(proxmox_lxc_templates) | list }}"
+      loop_control:
+        label: "{{ item.0 }}: {{ item.1 }}"
 
     - name: Gather existing containers
       community.proxmox.proxmox_vm_info:
@@ -187,13 +193,29 @@
         api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
         api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_validate_certs }}"
-        node: "{{ proxmox_node }}"
         type: lxc
       register: proxmox_existing
 
     - name: Index existing vmids
       ansible.builtin.set_fact:
         proxmox_existing_vmids: "{{ proxmox_existing.proxmox_vms | map(attribute='vmid') | map('int') | list }}"
+        proxmox_existing_nodes: "{{ proxmox_existing.proxmox_vms | items2dict(key_name='vmid', value_name='node') }}"
+
+    - name: Migrate containers to their node
+      become: true
+      become_user: root
+      delegate_to: "{{ proxmox_existing_nodes[item.vmid] }}"
+      vars:
+        ansible_connection: ssh
+      ansible.builtin.command: >-
+        pct migrate {{ item.vmid }} {{ item.node | default(proxmox_node) }}
+        --restart --target-storage {{ item.storage | default(proxmox_lxc_storage) }}
+      loop: "{{ proxmox_lxc_guests }}"
+      loop_control:
+        label: "{{ item.name }} ({{ item.vmid }}) -> {{ item.node | default(proxmox_node) }}"
+      when:
+        - item.vmid in proxmox_existing_vmids
+        - proxmox_existing_nodes[item.vmid] != item.node | default(proxmox_node)
 
     - name: Create containers
       community.proxmox.proxmox:
@@ -203,11 +225,11 @@
         api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
         api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_validate_certs }}"
-        node: "{{ proxmox_node }}"
+        node: "{{ item.node | default(proxmox_node) }}"
         vmid: "{{ item.vmid }}"
         hostname: "{{ item.name }}"
         ostemplate: "{{ proxmox_lxc_template_storage }}:vztmpl/{{ item.template | default(proxmox_lxc_template) }}"
-        storage: "{{ proxmox_lxc_storage }}"
+        storage: "{{ item.storage | default(proxmox_lxc_storage) }}"
         disk: "{{ item.disk }}"
         cores: "{{ item.cores }}"
         memory: "{{ item.memory }}"
@@ -238,7 +260,7 @@
         api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
         api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_validate_certs }}"
-        node: "{{ proxmox_node }}"
+        node: "{{ item.node | default(proxmox_node) }}"
         vmid: "{{ item.vmid }}"
         hostname: "{{ item.name }}"
         cores: "{{ item.cores }}"
@@ -265,7 +287,7 @@
     - name: Grow the container root disks
       become: true
       become_user: root
-      delegate_to: pve
+      delegate_to: "{{ item.node | default(proxmox_node) }}"
       vars:
         ansible_connection: ssh
       ansible.builtin.shell: |
@@ -301,7 +323,7 @@
       vars:
         ansible_connection: ssh
       ansible.builtin.lineinfile:
-        path: /etc/pve/lxc/{{ item.0.vmid }}.conf
+        path: /etc/pve/nodes/{{ item.0.node | default(proxmox_node) }}/lxc/{{ item.0.vmid }}.conf
         line: "{{ item.1 }}"
         state: present
       register: proxmox_lxc_extra_config
@@ -321,7 +343,7 @@
         api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
         api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_validate_certs }}"
-        node: "{{ proxmox_node }}"
+        node: "{{ item.node | default(proxmox_node) }}"
         vmid: "{{ item.vmid }}"
         hostname: "{{ item.name }}"
         state: restarted
@@ -340,7 +362,7 @@
         api_token_id: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_id }}"
         api_token_secret: "{{ omit if proxmox_api_password | length > 0 else proxmox_api_token_secret }}"
         validate_certs: "{{ proxmox_validate_certs }}"
-        node: "{{ proxmox_node }}"
+        node: "{{ item.node | default(proxmox_node) }}"
         vmid: "{{ item.vmid }}"
         hostname: "{{ item.name }}"
         state: started
@@ -351,7 +373,7 @@
     - name: Disable the pacman sandbox inside the Arch guests
       become: true
       become_user: root
-      delegate_to: pve
+      delegate_to: "{{ item.node | default(proxmox_node) }}"
       vars:
         ansible_connection: ssh
       ansible.builtin.command: >-
@@ -368,7 +390,7 @@
     - name: Initialise the pacman keyring inside the Arch guests
       become: true
       become_user: root
-      delegate_to: pve
+      delegate_to: "{{ item.node | default(proxmox_node) }}"
       vars:
         ansible_connection: ssh
       ansible.builtin.command: >-
@@ -385,7 +407,7 @@
     - name: Install python inside the Arch guests
       become: true
       become_user: root
-      delegate_to: pve
+      delegate_to: "{{ item.node | default(proxmox_node) }}"
       vars:
         ansible_connection: ssh
       ansible.builtin.command: pct exec {{ item.vmid }} -- pacman -Syu --needed --noconfirm python
@@ -399,7 +421,7 @@
     - name: Enable sshd inside the Arch guests
       become: true
       become_user: root
-      delegate_to: pve
+      delegate_to: "{{ item.node | default(proxmox_node) }}"
       vars:
         ansible_connection: ssh
       ansible.builtin.command: pct exec {{ item.vmid }} -- systemctl enable --now sshd
@@ -413,8 +435,7 @@
     - name: Summary
       ansible.builtin.debug:
         msg: >-
-          {{ proxmox_lxc_guests | map(attribute='name') | join(', ') }}
-          created and started on {{ proxmox_node }}.
+          {% for guest in proxmox_lxc_guests %}{{ guest.name }} on {{ guest.node | default(proxmox_node) }}{{ ', ' if not loop.last }}{% endfor %}.
 
 - name: Proxmox VM guests
   hosts: pve

@@ -13,3 +13,4 @@ proxmox_vfio_modules:
 
 proxmox_vfio_cmdline_params:
   - intel_iommu=on,sp_off
+  - iommu=pt

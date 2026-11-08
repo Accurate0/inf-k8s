@@ -69,6 +69,13 @@ non-founder nodes. It also limits `local-zfs` to `pve`. The role refuses to
 create a pool on a disk that still has partitions or signatures, so wipe a new
 disk by hand first (`wipefs -a`, `sgdisk --zap-all`).
 
+Each guest in `proxmox-guests.yaml` takes an optional `node` and `storage`
+(default `pve` and `local-zfs`). `homeassistant` lives on `pve-node-1` and
+`mirror` on `pve-node-2`, both on `ssd`. When a guest's declared node differs
+from where it runs, the play moves it with
+`pct migrate --restart --target-storage`, which means a short outage while its
+disk is copied. Nothing else ever moves a guest.
+
 While the cluster has only two nodes, each needs the other to keep quorum. If
 one node is down, the other can still run its guests, but it can't start them
 or change any config. If that happens, `pvecm expected 1` on the surviving node
@@ -92,6 +99,9 @@ IOMMU groups, so the host keeps its root disk.
 `intel_iommu=on,sp_off` on the kernel command line is load-bearing: without
 `sp_off` this platform's IOMMU superpage support corrupts the mappings and the
 HBAs fail under the guest.
+
+`iommu=pt` sits next to it, so host devices skip IOMMU translation and only
+the VFIO-bound HBAs keep it, along with `sp_off`.
 
 It uses **internal boot** (7.3+): the VM boots from `scsi0`, a virtual disk on
 `local-zfs`, rather than reading the OS off the flash every boot. First boot
