@@ -164,3 +164,5 @@ jwt:
       refresh_on_unknown_kid: 30s
   issuers:
     - https://idm.anurag.sh/oauth2/openid/graph
+laboratory:
+  enabled: false

@@ -54,3 +54,5 @@ telemetry:
         protocol: http
         endpoint:
           expression: env("OTEL_TRACING_URL")
+laboratory:
+  enabled: false
