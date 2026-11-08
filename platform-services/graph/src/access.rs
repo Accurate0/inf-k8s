@@ -1,6 +1,7 @@
-//! Gates subgraphs on Kanidm groups at the router: operations planned against a subgraph the caller
-//! can't use are rejected before any fetch, and introspection hides what only those subgraphs serve.
-//! Each subgraph still authorizes on its own.
+//! Gates subgraphs on Kanidm groups at the router: fetches to a subgraph the caller can't use are
+//! skipped with a FORBIDDEN error so their fields come back null, subscriptions rooted in one are
+//! rejected, and introspection hides what only those subgraphs serve. Each subgraph still authorizes
+//! on its own.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -20,6 +21,9 @@ use hive_router::{
             on_graphql_analysis::{OnGraphqlAnalysisHookPayload, OnGraphqlAnalysisHookResult},
             on_plugin_init::{OnPluginInitPayload, OnPluginInitResult},
             on_query_plan::{OnQueryPlanStartHookPayload, OnQueryPlanStartHookResult},
+            on_subgraph_execute::{
+                OnSubgraphExecuteStartHookPayload, OnSubgraphExecuteStartHookResult,
+            },
             on_supergraph_load::{
                 OnSupergraphLoadStartHookPayload, OnSupergraphLoadStartHookResult,
             },
@@ -144,8 +148,8 @@ impl RouterPlugin for AccessPlugin {
             return payload.proceed();
         }
 
-        payload.on_end(
-            move |end| match forbidden(end.query_plan(), &denied.0).map(str::to_owned) {
+        payload.on_end(move |end| {
+            match denied_subscription(end.query_plan(), &denied.0).map(str::to_owned) {
                 Some(subgraph) => end.end_with_graphql_error(
                     GraphQLError::from_message_and_code(
                         format!("not allowed to query the {subgraph} subgraph"),
@@ -154,7 +158,31 @@ impl RouterPlugin for AccessPlugin {
                     StatusCode::FORBIDDEN,
                 ),
                 None => end.proceed(),
-            },
+            }
+        })
+    }
+
+    async fn on_subgraph_execute<'exec>(
+        &'exec self,
+        payload: OnSubgraphExecuteStartHookPayload<'exec>,
+    ) -> OnSubgraphExecuteStartHookResult<'exec> {
+        let denied = self.denied(
+            payload
+                .context
+                .get_ref::<Denied>()
+                .map(|d| d.as_ref().clone()),
+        );
+        if !denied.0.contains(payload.subgraph_name) {
+            return payload.proceed();
+        }
+
+        let message = format!(
+            "not allowed to query the {} subgraph",
+            payload.subgraph_name
+        );
+        payload.end_with_graphql_error(
+            GraphQLError::from_message_and_code(message, "FORBIDDEN"),
+            StatusCode::FORBIDDEN,
         )
     }
 
@@ -244,26 +272,16 @@ fn groups_match(held: &[String], allowed: &[String]) -> bool {
     })
 }
 
-fn forbidden<'p>(plan: &'p QueryPlan, denied: &HashSet<String>) -> Option<&'p str> {
-    fn walk<'p>(node: &'p PlanNode, denied: &HashSet<String>) -> Option<&'p str> {
-        let service = |name: &'p String| denied.contains(name).then_some(name.as_str());
-        match node {
-            PlanNode::Fetch(fetch) => service(&fetch.service_name),
-            PlanNode::BatchFetch(fetch) => service(&fetch.service_name),
-            PlanNode::Subscription(subscription) => service(&subscription.primary.service_name),
-            PlanNode::Flatten(flatten) => walk(&flatten.node, denied),
-            PlanNode::Sequence(sequence) => sequence.nodes.iter().find_map(|n| walk(n, denied)),
-            PlanNode::Parallel(parallel) => parallel.nodes.iter().find_map(|n| walk(n, denied)),
-            PlanNode::Defer(defer) => defer
-                .primary
-                .node
-                .iter()
-                .chain(defer.deferred.iter().flat_map(|d| d.node.iter()))
-                .find_map(|n| walk(n, denied)),
+/// Subscriptions skip the subgraph execute hook, so one rooted in a denied subgraph is rejected
+/// outright; its entity fetches still go through the hook.
+fn denied_subscription<'p>(plan: &'p QueryPlan, denied: &HashSet<String>) -> Option<&'p str> {
+    match plan.node.as_ref()? {
+        PlanNode::Subscription(subscription) => {
+            let name = &subscription.primary.service_name;
+            denied.contains(name).then_some(name.as_str())
         }
+        _ => None,
     }
-
-    plan.node.as_ref().and_then(|node| walk(node, denied))
 }
 
 impl From<&Document> for Ownership {
