@@ -1,0 +1,14 @@
+name: forgejo-runner
+
+services:
+  runner:
+    image: {{ forgejo_runner_image }}:{{ forgejo_runner_image_tag }}
+    container_name: forgejo-runner
+    restart: unless-stopped
+    user: "0:0"
+    network_mode: host
+    working_dir: /data
+    command: forgejo-runner daemon --config /data/config.yml
+    volumes:
+      - {{ forgejo_runner_root }}/data:/data
+      - /var/run/docker.sock:/var/run/docker.sock

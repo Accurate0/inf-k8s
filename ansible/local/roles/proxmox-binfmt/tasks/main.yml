@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Install the qemu binfmt handlers
+  become: true
+  become_user: root
+  ansible.builtin.apt:
+    name: qemu-user-binfmt
+    state: present
+    update_cache: true
+    cache_valid_time: 3600

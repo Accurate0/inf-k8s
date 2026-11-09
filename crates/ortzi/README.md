@@ -1,7 +1,7 @@
 # ortzi
 
 Pluggable CLI for the platform. Packages are native binaries published to the registry at
-`registry.ortzi.cloud` (`platform-services/registry`) and run as `ortzi <package> ...`.
+`registry.anurag.sh` (`platform-services/registry`) and run as `ortzi <package> ...`.
 
 ## Using it
 

@@ -129,6 +129,28 @@
         features: [nesting=1, keyctl=1]
         template: "{{ proxmox_lxc_arch_template }}"
 
+      - name: runner-1
+        vmid: 211
+        node: pve-node-1
+        storage: ssd
+        ip: 10.0.2.19/24
+        cores: 4
+        memory: 8192
+        disk: 64
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+
+      - name: runner-2
+        vmid: 212
+        node: pve-node-2
+        storage: ssd
+        ip: 10.0.2.20/24
+        cores: 4
+        memory: 8192
+        disk: 64
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+
       - name: pbs
         vmid: 207
         ip: 10.0.2.16/24
@@ -204,7 +226,7 @@
     - name: Migrate containers to their node
       become: true
       become_user: root
-      delegate_to: "{{ proxmox_existing_nodes[item.vmid] }}"
+      delegate_to: "{{ proxmox_existing_nodes.get(item.vmid, proxmox_node) }}"
       vars:
         ansible_connection: ssh
       ansible.builtin.command: >-

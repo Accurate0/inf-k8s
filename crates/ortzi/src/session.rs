@@ -16,7 +16,7 @@ pub struct Settings {
         long,
         global = true,
         env = "ORTZI_REGISTRY_URL",
-        default_value = "https://registry.ortzi.cloud"
+        default_value = "https://registry.anurag.sh"
     )]
     pub registry: String,
 

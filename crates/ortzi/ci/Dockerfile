@@ -43,4 +43,4 @@ FROM base
 
 COPY --from=build /usr/local/cargo/bin/cargo-zigbuild /usr/local/cargo/bin/cargo-zigbuild
 COPY --from=build /usr/local/bin/ortzi /usr/local/bin/ortzi
-ENV ORTZI_REGISTRY_URL=http://api.registry.svc.cluster.local
+ENV ORTZI_REGISTRY_URL=https://registry.anurag.sh

@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Forgejo runner
+  become: true
+  become_user: root
+  block:
+    - name: Assert the actions secret is available
+      ansible.builtin.assert:
+        that:
+          - forgejo_runner_actions_secret | length > 0
+        fail_msg: Export FORGEJO_ACTIONS_SECRET.
+
+    - name: Create the data directory
+      ansible.builtin.file:
+        path: "{{ forgejo_runner_root }}/data"
+        state: directory
+        mode: "0700"
+
+    - name: Template the runner config
+      ansible.builtin.template:
+        src: config.yml.j2
+        dest: "{{ forgejo_runner_root }}/data/config.yml"
+        mode: "0644"
+      notify: Restart forgejo runner
+
+    - name: Write the runner registration
+      ansible.builtin.command: >-
+        docker run --rm --user 0:0
+        -v {{ forgejo_runner_root }}/data:/data -w /data
+        {{ forgejo_runner_image }}:{{ forgejo_runner_image_tag }}
+        forgejo-runner create-runner-file
+        --instance {{ forgejo_runner_instance }}
+        --name {{ inventory_hostname }}
+        --secret {{ forgejo_runner_secret }}
+      args:
+        creates: "{{ forgejo_runner_root }}/data/.runner"
+      no_log: true
+
+    - name: Template the compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ forgejo_runner_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart forgejo runner
+
+    - name: Bring up the stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ forgejo_runner_root }}"
+        state: present
+        pull: missing
+        remove_orphans: true

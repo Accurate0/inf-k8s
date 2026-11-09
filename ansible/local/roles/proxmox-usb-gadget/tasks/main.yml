@@ -7,14 +7,14 @@
     - name: Gather the running kernel version
       ansible.builtin.setup:
         gather_subset: [min]
-      when: ansible_kernel is not defined
+      when: ansible_facts['kernel'] is not defined
 
     - name: Install dkms and the kernel headers
       ansible.builtin.apt:
         name:
           - dkms
           - proxmox-default-headers
-          - proxmox-headers-{{ ansible_kernel }}
+          - proxmox-headers-{{ ansible_facts["kernel"] }}
         state: present
         update_cache: true
         cache_valid_time: 3600
@@ -64,9 +64,9 @@
     - name: Build and install dummy_hcd
       ansible.builtin.shell: |
         set -o pipefail
-        dkms status -m dummy_hcd -v {{ proxmox_usb_gadget_dkms_version }} -k {{ ansible_kernel }} | grep -q installed && exit 0
+        dkms status -m dummy_hcd -v {{ proxmox_usb_gadget_dkms_version }} -k {{ ansible_facts["kernel"] }} | grep -q installed && exit 0
         dkms status -m dummy_hcd -v {{ proxmox_usb_gadget_dkms_version }} | grep -q . || dkms add dummy_hcd/{{ proxmox_usb_gadget_dkms_version }}
-        dkms install dummy_hcd/{{ proxmox_usb_gadget_dkms_version }} -k {{ ansible_kernel }}
+        dkms install dummy_hcd/{{ proxmox_usb_gadget_dkms_version }} -k {{ ansible_facts["kernel"] }}
       args:
         executable: /bin/bash
       register: proxmox_usb_gadget_dkms_install

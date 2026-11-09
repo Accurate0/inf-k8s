@@ -26,6 +26,6 @@
         content: |
           Types: deb
           URIs: http://download.proxmox.com/debian/pve
-          Suites: {{ ansible_distribution_release }}
+          Suites: {{ ansible_facts["distribution_release"] }}
           Components: pve-no-subscription
           Signed-By: /usr/share/keyrings/proxmox-archive-keyring.gpg

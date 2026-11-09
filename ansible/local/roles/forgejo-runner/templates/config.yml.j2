@@ -1,0 +1,23 @@
+log:
+  level: info
+
+runner:
+  file: /data/.runner
+  capacity: {{ forgejo_runner_capacity }}
+  timeout: 3h
+  shutdown_timeout: 3m
+  labels:
+{% for label, image in forgejo_runner_labels.items() %}
+    - {{ label }}:docker://{{ image }}
+{% endfor %}
+
+cache:
+  enabled: true
+  dir: /data/cache
+  host: {{ ansible_facts["default_ipv4"]["address"] }}
+  port: {{ forgejo_runner_cache_port }}
+
+container:
+  network: bridge
+  docker_host: automount
+  force_pull: true

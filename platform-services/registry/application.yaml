@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-06T10:53:21.223Z
+# generated at 2026-11-09T12:38:49.371Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -28,6 +28,7 @@ spec:
           namespace: registry
           namespaceLabels:
             internal-gateway-access: "true"
+            gateway.inf-k8s.net/anurag-sh: "true"
           workloads:
             - name: registry
               image: ghcr.io/accurate0/registry
@@ -137,6 +138,26 @@ spec:
                 namespace: envoy-gateway-system
               hostnames:
                 - registry.ortzi.cloud
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: api
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+            - name: registry-public
+              gateway:
+                name: public-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "true"
+              hostnames:
+                - registry.anurag.sh
               rules:
                 - backendRefs:
                     - group: ""

@@ -29,6 +29,7 @@
 
   roles:
     - proxmox-ssd
+    - proxmox-binfmt
 
 - name: Storage on the Proxmox host
   hosts: pve
@@ -65,7 +66,7 @@
     - proxmox-pve-exporter
 
 - name: Wait for guests to accept SSH
-  hosts: media_servers:home_automation:backup:mirror
+  hosts: media_servers:home_automation:backup:mirror:ci_runners
   gather_facts: false
 
   tasks:
@@ -76,7 +77,7 @@
         timeout: 300
 
 - name: Base configuration
-  hosts: media_servers:home_automation:backup:mirror
+  hosts: media_servers:home_automation:backup:mirror:ci_runners
   gather_facts: true
 
   roles:
@@ -113,6 +114,17 @@
   roles:
     - docker
     - homeassistant
+
+- name: Forgejo runners
+  hosts: ci_runners
+  gather_facts: true
+
+  vars:
+    forgejo_runner_actions_secret: "{{ lookup('ansible.builtin.env', 'FORGEJO_ACTIONS_SECRET') }}"
+
+  roles:
+    - docker
+    - forgejo-runner
 
 - name: Arch mirror cache
   hosts: mirror

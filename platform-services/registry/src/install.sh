@@ -1,8 +1,8 @@
 #!/bin/sh
-# curl -fsSL https://registry.ortzi.cloud/install.sh | ORTZI_TOKEN=... sh
+# curl -fsSL https://registry.anurag.sh/install.sh | ORTZI_TOKEN=... sh
 set -eu
 
-registry="${ORTZI_REGISTRY_URL:-https://registry.ortzi.cloud}"
+registry="${ORTZI_REGISTRY_URL:-https://registry.anurag.sh}"
 audience="${ORTZI_AUDIENCE:-registry.ortzi.cloud}"
 
 fail() {
