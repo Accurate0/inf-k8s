@@ -58,6 +58,8 @@ pub struct Proxy {
     pub upstream: reqwest::Url,
     pub package: String,
     pub auth: PackageAuth,
+    /// HTML answered for a browser loading `/`, such as a GraphQL IDE pointed back at the proxy.
+    pub page: Option<String>,
 }
 
 struct Shared {
@@ -179,12 +181,39 @@ fn text(status: StatusCode, body: impl Into<Bytes>) -> Response<Body> {
         .expect("static response")
 }
 
+/// A browser navigating to the root, as opposed to a client calling the upstream.
+pub fn wants_page(method: &hyper::Method, path: &str, headers: &HeaderMap) -> bool {
+    method == hyper::Method::GET
+        && path == "/"
+        && headers
+            .get(header::ACCEPT)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|accept| accept.contains("text/html"))
+}
+
+fn html(page: &str) -> Response<Body> {
+    let body = Full::new(Bytes::from(page.to_owned())).map_err(|never: Infallible| match never {});
+
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, "text/html; charset=utf-8")
+        .header(header::CACHE_CONTROL, "no-store")
+        .body(body.boxed())
+        .expect("static response")
+}
+
 async fn handle(
     shared: Arc<Shared>,
     request: Request<Incoming>,
 ) -> Result<Response<Body>, Infallible> {
     if let Err(reason) = local(request.headers(), shared.proxy.port) {
         return Ok(text(StatusCode::FORBIDDEN, format!("{reason}\n")));
+    }
+
+    if let Some(page) = &shared.proxy.page
+        && wants_page(request.method(), request.uri().path(), request.headers())
+    {
+        return Ok(html(page));
     }
 
     let token = match crate::package_auth::token(&shared.proxy.package, &shared.proxy.auth).await {
@@ -439,6 +468,18 @@ mod tests {
             ),
             Err("forbidden origin")
         );
+    }
+
+    #[test]
+    fn page_only_for_a_browser_at_the_root() {
+        let browser = headers(&[("accept", "text/html,application/xhtml+xml")]);
+        let client = headers(&[("accept", "application/graphql-response+json")]);
+
+        assert!(wants_page(&hyper::Method::GET, "/", &browser));
+        assert!(!wants_page(&hyper::Method::POST, "/", &browser));
+        assert!(!wants_page(&hyper::Method::GET, "/favicon.ico", &browser));
+        assert!(!wants_page(&hyper::Method::GET, "/", &client));
+        assert!(!wants_page(&hyper::Method::GET, "/", &headers(&[])));
     }
 
     #[test]

@@ -201,9 +201,10 @@ export const serve = {
   /**
    * Reverse-proxies HTTP, SSE and websockets on 127.0.0.1:port to upstream with the package's
    * token until ctrl-c. The port must be in permissions.listen and upstream's host in
-   * permissions.http.
+   * permissions.http. A browser loading / gets page instead, when one is given.
    */
-  proxy: (port: number, upstream: string) => unwrap(() => hostServe.proxy(port, upstream)),
+  proxy: (port: number, upstream: string, page?: string) =>
+    unwrap(() => hostServe.proxy(port, upstream, page)),
 };
 
 /** The package's access token, refreshed by the host when it is about to expire. */

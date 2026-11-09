@@ -1,6 +1,7 @@
 import { authToken, env, fs, httpSend, readStdin, serve, stdinIsTerminal } from '@ortzi/host';
 import { UsageError, cli } from '@ortzi/kit';
 import * as graphql from './graphql';
+import { labPage } from './lab';
 
 const DEFAULT_URL = 'https://graph.ortzi.cloud/v1/graphql';
 const LAB_PORT = 4280;
@@ -10,7 +11,7 @@ const USAGE = `usage: ortzi graph <command> [flags]
 commands:
   query [DOCUMENT]         run a query or mutation against the graph
   token                    print your access token, e.g. for curl or another GraphQL client
-  lab                      run the Hive lab on localhost, signed in as you
+  lab                      run GraphiQL on localhost, signed in as you
 
 flags:
   --url URL                GraphQL endpoint (default: $GRAPH_URL or ${DEFAULT_URL})
@@ -93,7 +94,7 @@ export const run = cli({
       console.error(`lab for ${ctx.url} on http://localhost:${port}, using your graph login`);
       console.error('stop with ctrl-c');
 
-      serve.proxy(port, ctx.url);
+      serve.proxy(port, ctx.url, labPage(ctx.url));
       return 0;
     },
   },

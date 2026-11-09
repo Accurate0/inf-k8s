@@ -98,8 +98,9 @@ interface serve {
   /// Reverse-proxies HTTP, server-sent events and websockets from 127.0.0.1 on a port from
   /// permissions.listen to upstream, an https URL from permissions.http, until ctrl-c. Each request
   /// and websocket connection_init carries the package's freshly refreshed token, and only
-  /// localhost hosts and origins are answered.
-  proxy: func(port: u16, upstream: string) -> result<_, string>;
+  /// localhost hosts and origins are answered. When page is set, a browser loading / gets that HTML
+  /// instead of the upstream.
+  proxy: func(port: u16, upstream: string, page: option<string>) -> result<_, string>;
 }
 
 interface auth {

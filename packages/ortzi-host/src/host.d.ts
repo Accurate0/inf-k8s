@@ -51,7 +51,7 @@ declare module 'ortzi:host/serve@0.1.0' {
   export function listen(port: number): void;
   export function accept(): Request;
   export function respond(response: Response): void;
-  export function proxy(port: number, upstream: string): void;
+  export function proxy(port: number, upstream: string, page: string | undefined): void;
   export interface Request {
     method: string;
     path: string;
