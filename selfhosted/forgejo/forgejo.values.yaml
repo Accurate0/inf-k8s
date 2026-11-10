@@ -88,6 +88,15 @@ image:
   digest: sha256:5ef02fbcf22beef56b8c844952ffad58cfe177b6f98e46e6abb5df90b88dc8d3
 
 replicaCount: 1
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: NotIn
+              values:
+                - k8s-pve-1
 topologySpreadConstraints:
   - topologyKey: inf-k8s.net/location
     whenUnsatisfiable: ScheduleAnyway
