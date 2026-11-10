@@ -12,7 +12,7 @@ bots:
     path_regex: ^/api/.*$
     action: ALLOW
   - name: git-protocol
-    path_regex: \.git/(info/refs|git-upload-pack|git-receive-pack)$
+    path_regex: ^/[^/]+/[^/]+?(\.git)?/(info/refs|git-upload-pack|git-receive-pack)$
     action: ALLOW
   - name: catchall
     user_agent_regex: .*
