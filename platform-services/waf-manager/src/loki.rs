@@ -21,6 +21,8 @@ const RE_XFF: &str = r#"| regexp `"x-forwarded-for":"(?P<client_ip>[^",]*)"`"#;
 
 const FMT_PATH: &str = r"| label_format path=`{{ .x_envoy_origin_path }}`";
 
+const URI_SAMPLE_LIMIT: usize = 5000;
+
 #[derive(Debug, Clone)]
 pub struct Candidate {
     pub client_ip: String,
@@ -158,30 +160,23 @@ impl Loki {
     pub async fn uris_for_ip(&self, client_ip: &str, window: &str) -> Result<Vec<UriHit>> {
         let ip = Self::sanitise(client_ip)?;
         let query = format!(
-            "topk(20, sum by (uri) (count_over_time(\
-             {SELECTOR} {} {PARSE} {RE_CLIENT} {} {RE_URI} [{window}])))",
+            "{SELECTOR} {} {PARSE} {RE_CLIENT} {} {RE_URI} | uri != `` | line_format `{{{{.uri}}}}` | keep namespace",
             Self::prefilter(&ip),
             Self::exact_client(&ip),
         );
 
-        let mut hits: Vec<UriHit> = self
-            .instant(&query)
-            .await?
-            .into_iter()
-            .filter_map(|s| {
-                let uri = s.metric.get("uri")?.clone();
-                if uri.is_empty() {
-                    return None;
-                }
+        let mut counts: std::collections::HashMap<String, u64> = std::collections::HashMap::new();
+        for uri in self.lines(&query, window, URI_SAMPLE_LIMIT).await? {
+            *counts.entry(uri).or_default() += 1;
+        }
 
-                Some(UriHit {
-                    uri,
-                    count: s.count,
-                })
-            })
+        let mut hits: Vec<UriHit> = counts
+            .into_iter()
+            .map(|(uri, count)| UriHit { uri, count })
             .collect();
 
-        hits.sort_by_key(|h| std::cmp::Reverse(h.count));
+        hits.sort_by(|a, b| b.count.cmp(&a.count).then_with(|| a.uri.cmp(&b.uri)));
+        hits.truncate(20);
         Ok(hits)
     }
 
@@ -199,10 +194,16 @@ impl Loki {
             Self::exact_client(&ip),
         );
 
+        let mut lines = self.lines(&query, window, limit).await?;
+        lines.truncate(limit);
+        Ok(lines)
+    }
+
+    async fn lines(&self, query: &str, window: &str, limit: usize) -> Result<Vec<String>> {
         let url = self.url(
             "query_range",
             &[
-                ("query", query.as_str()),
+                ("query", query),
                 ("since", window),
                 ("limit", &limit.to_string()),
                 ("direction", "backward"),
@@ -231,11 +232,7 @@ impl Loki {
             .collect();
 
         lines.sort_by(|a, b| b.0.cmp(&a.0));
-        Ok(lines
-            .into_iter()
-            .map(|(_, line)| line)
-            .take(limit)
-            .collect())
+        Ok(lines.into_iter().map(|(_, line)| line).collect())
     }
 
     pub async fn scalar(&self, query: &str) -> Result<u64> {
