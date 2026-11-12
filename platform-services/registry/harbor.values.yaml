@@ -35,8 +35,17 @@ database:
     existingSecret: harbor-database-password
     sslmode: disable
 
+# the shared dragonfly runs --cluster_mode=emulated, which only allows db 0
 redis:
-  type: internal
+  type: external
+  external:
+    addr: cache.dragonfly.svc.cluster.local:6379
+    coreDatabaseIndex: "0"
+    jobserviceDatabaseIndex: "0"
+    registryDatabaseIndex: "0"
+    trivyAdapterIndex: "0"
+    harborDatabaseIndex: "0"
+    cacheLayerDatabaseIndex: "0"
 
 core:
   existingSecret: harbor-generated-secrets
