@@ -111,7 +111,7 @@ resources:
     interval: 30s
 workloads:
   - name: waf-manager
-    image: ghcr.io/accurate0/waf-manager
+    image: registry.anurag.sh/containers/waf-manager
     replicas: 2
     resources: {memory: 32Mi}
     ports:
@@ -162,7 +162,8 @@ namespace:
   labels:
     internal-gateway-access: "true"
 build:
-  image: ghcr.io/accurate0/waf-manager
+  image: registry.anurag.sh/containers/waf-manager
+  ci: forgejo
   context: .
   paths:
     - crates/subgraph/**
@@ -170,6 +171,10 @@ build:
     BINARY_NAME: waf-manager
   test:
     run: cargo test
+    packages:
+      - build-essential
+      - pkg-config
+    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 sources:
   - type: manifests
     path: .

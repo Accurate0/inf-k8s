@@ -52,7 +52,7 @@ resources:
       bom_users: [openid, email, profile, groups]
 workloads:
   - name: router
-    image: ghcr.io/accurate0/graph-router
+    image: registry.anurag.sh/containers/graph-router
     autoscale: {min: 2, max: 4, cpu: 70}
     resources: {cpu: 20m, memory: 64Mi, memoryLimit: 256Mi}
     ports:
@@ -89,11 +89,16 @@ workloads:
     mounts:
       config: {path: /etc/graph, config: config}
 build:
-  image: ghcr.io/accurate0/graph-router
+  image: registry.anurag.sh/containers/graph-router
+  ci: forgejo
   args:
     BINARY_NAME: graph-router
   test:
     run: cargo test
+    packages:
+      - build-essential
+      - pkg-config
+    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
 sources:
   - type: manifests
     path: .

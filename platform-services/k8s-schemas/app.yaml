@@ -12,7 +12,7 @@ resources:
   - {name: schemas, type: bucket, provider: r2, bucket: k8s-schemas, secretName: schemas-bucket-secrets}
 workloads:
   - name: k8s-schemas
-    image: ghcr.io/accurate0/k8s-schemas
+    image: registry.anurag.sh/containers/k8s-schemas
     kind: CronJob
     schedule: 0 0 * * 0
     backoffLimit: 2
@@ -29,7 +29,8 @@ workloads:
       tmp: {path: /tmp, emptyDir: true}
     serviceAccount: k8s-schemas
 build:
-  image: ghcr.io/accurate0/k8s-schemas
+  image: registry.anurag.sh/containers/k8s-schemas
+  ci: forgejo
 sources:
   - type: manifests
     path: .

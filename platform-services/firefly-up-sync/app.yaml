@@ -7,7 +7,7 @@ resources:
   - {name: firefly-up-sync, type: secret, secretName: firefly-up-sync-managed-secrets}
 workloads:
   - name: firefly-up-sync
-    image: ghcr.io/accurate0/firefly-up-sync
+    image: registry.anurag.sh/containers/firefly-up-sync
     kind: CronJob
     schedule: 15,45 * * * *
     backoffLimit: 1
@@ -32,4 +32,5 @@ workloads:
       restartPolicy: Never
       automountServiceAccountToken: false
 build:
-  image: ghcr.io/accurate0/firefly-up-sync
+  image: registry.anurag.sh/containers/firefly-up-sync
+  ci: forgejo

@@ -49,7 +49,7 @@ resources:
     interval: 30s
 workloads:
   - name: ai-gateway
-    image: ghcr.io/accurate0/ai-gateway
+    image: registry.anurag.sh/containers/ai-gateway
     replicas: 2
     resources: {memory: 32Mi}
     ports:
@@ -91,7 +91,7 @@ workloads:
             matchLabels:
               app: ai-gateway
   - name: ai-gateway-pricing-sync
-    image: ghcr.io/accurate0/ai-gateway
+    image: registry.anurag.sh/containers/ai-gateway
     kind: CronJob
     schedule: 17 4 * * *
     backoffLimit: 2
@@ -107,7 +107,8 @@ namespace:
   labels:
     internal-gateway-access: "true"
 build:
-  image: ghcr.io/accurate0/ai-gateway
+  image: registry.anurag.sh/containers/ai-gateway
+  ci: forgejo
   context: .
   args:
     BINARY_NAME: ai-gateway
@@ -120,8 +121,12 @@ build:
       image: timescale/timescaledb:latest-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538
       databaseName: ai_gateway
     packages:
+      - build-essential
+      - pkg-config
       - protobuf-compiler
       - libprotobuf-dev
+    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+
 sources:
   - type: manifests
     path: .

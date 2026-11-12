@@ -79,7 +79,7 @@ resources:
     interval: 30s
 workloads:
   - name: janitor-bot
-    image: ghcr.io/accurate0/janitor-bot
+    image: registry.anurag.sh/containers/janitor-bot
     resources: {memory: 32Mi}
     ports:
       - {name: http, container: 3000, service: 80}
@@ -115,7 +115,8 @@ namespace:
     internal-gateway-access: "true"
     gateway.inf-k8s.net/anurag-sh: "true"
 build:
-  image: ghcr.io/accurate0/janitor-bot
+  image: registry.anurag.sh/containers/janitor-bot
+  ci: forgejo
   context: .
   paths:
     - crates/subgraph/**
@@ -124,9 +125,12 @@ build:
   test:
     run: cargo test
     packages:
+      - build-essential
+      - pkg-config
       - protobuf-compiler
       - libprotobuf-dev
     setup: |
+      curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
       chmod +x /usr/local/bin/argocd
 sources:

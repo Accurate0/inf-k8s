@@ -1,2 +1,2 @@
 images:
-  ghcr.io/accurate0/waf-manager: 3790cc6beecfb631f325462c6af7a224920f1524
+  registry.anurag.sh/containers/waf-manager: 3790cc6beecfb631f325462c6af7a224920f1524

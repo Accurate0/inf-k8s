@@ -1,2 +1,2 @@
 images:
-  ghcr.io/accurate0/k8s-schemas: d5e04c02922dea2f8a03228b69b91fbd228380d6
+  registry.anurag.sh/containers/k8s-schemas: d5e04c02922dea2f8a03228b69b91fbd228380d6

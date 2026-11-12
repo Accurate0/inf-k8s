@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-06T10:53:21.203Z
+# generated at 2026-11-12T14:05:49.967Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -31,7 +31,7 @@ spec:
             gateway.inf-k8s.net/anurag-sh: "true"
           workloads:
             - name: janitor-bot
-              image: ghcr.io/accurate0/janitor-bot
+              image: registry.anurag.sh/containers/janitor-bot
               resources:
                 requests:
                   memory: 32Mi

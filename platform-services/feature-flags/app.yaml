@@ -40,7 +40,7 @@ resources:
         - platform_admins
 workloads:
   - name: feature-flags
-    image: ghcr.io/accurate0/feature-flags
+    image: registry.anurag.sh/containers/feature-flags
     kind: DaemonSet
     resources: {memory: 32Mi}
     ports:
@@ -73,7 +73,8 @@ namespace:
   labels:
     internal-gateway-access: "true"
 build:
-  image: ghcr.io/accurate0/feature-flags
+  image: registry.anurag.sh/containers/feature-flags
+  ci: forgejo
   context: .
   paths:
     - crates/feature-flag/feature-flag-proto/**
@@ -88,5 +89,8 @@ build:
       image: postgres:18@sha256:3a4264520e121176619f54ff867d12774bc81e95e7b84db58d63bccdb6144b81
       databaseName: feature_flags
     packages:
+      - build-essential
+      - pkg-config
       - protobuf-compiler
       - libprotobuf-dev
+    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"

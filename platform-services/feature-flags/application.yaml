@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-06T10:53:21.178Z
+# generated at 2026-11-12T14:05:49.939Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -30,7 +30,7 @@ spec:
             internal-gateway-access: "true"
           workloads:
             - name: feature-flags
-              image: ghcr.io/accurate0/feature-flags
+              image: registry.anurag.sh/containers/feature-flags
               kind: DaemonSet
               resources:
                 requests:
