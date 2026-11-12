@@ -55,3 +55,17 @@ resource "cloudflare_dns_record" "tailscale_ortzi" {
   type     = "A"
   ttl      = 1
 }
+
+data "cloudflare_zone" "anurag_sh" {
+  filter = {
+    name = "anurag.sh"
+  }
+}
+
+# lan clients reach registry.anurag.sh directly, and firefox sends the cloudflare-ech.com
+# outer sni from the zone's https record, which the lan gateway has no certificate for
+resource "cloudflare_zone_setting" "anurag_sh_ech" {
+  zone_id    = data.cloudflare_zone.anurag_sh.id
+  setting_id = "ech"
+  value      = "off"
+}
