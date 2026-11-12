@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-04T11:59:28.926Z
+# generated at 2026-11-12T14:54:53.962Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -24,7 +24,7 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       ref: values
     - chart: k8s-network
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      repoURL: oci://registry.anurag.sh/charts/k8s-network
       targetRevision: 0.2.0
       helm:
         valuesObject:
@@ -33,7 +33,7 @@ spec:
             - envoy-gateway-system
             - firefly-up-sync
     - chart: k8s-http-routes
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      repoURL: oci://registry.anurag.sh/charts/k8s-http-routes
       targetRevision: 2.6.0
       helm:
         valuesObject:
@@ -77,7 +77,7 @@ spec:
                   timeouts:
                     request: 0s
     - chart: k8s-oidc
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      repoURL: oci://registry.anurag.sh/charts/k8s-oidc
       targetRevision: 0.6.0
       helm:
         valuesObject:
@@ -131,7 +131,7 @@ spec:
           retainAnnotations:
             argocd.argoproj.io/sync-options: Prune=false,Delete=false
     - chart: k8s-postgres
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-postgres
+      repoURL: oci://registry.anurag.sh/charts/k8s-postgres
       targetRevision: 1.3.0
       helm:
         valuesObject:
@@ -145,7 +145,7 @@ spec:
                 inf-k8s.net/app: firefly
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
     - chart: k8s-secrets
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      repoURL: oci://registry.anurag.sh/charts/k8s-secrets
       targetRevision: 0.7.0
       helm:
         valuesObject:
@@ -168,7 +168,7 @@ spec:
                     data:
                       accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"
     - chart: k8s-storage
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-storage
+      repoURL: oci://registry.anurag.sh/charts/k8s-storage
       targetRevision: 0.1.0
       helm:
         valuesObject:
