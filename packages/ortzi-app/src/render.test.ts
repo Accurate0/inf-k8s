@@ -482,6 +482,10 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   assert.deepEqual(workflow.jobs.deploy.needs, ['build', 'test']);
   assert.match(workflow.jobs.deploy.steps[1].run, /yq .*image.values|strenv\(IMAGE\)/);
   assert.equal(workflow.jobs.deploy.steps[1].env.VALUES_FILE, 'projects/foo/image.values.yaml');
+  assert.equal(
+    workflow.jobs.deploy.steps[1].env.FORGEJO_TOKEN,
+    '${{ secrets.CI_IMAGE_UPDATER_TOKEN }}',
+  );
 });
 
 test('output is stable', () => {

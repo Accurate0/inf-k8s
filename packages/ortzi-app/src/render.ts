@@ -1369,7 +1369,7 @@ function renderForgejoWorkflow(app: App, target: Target): string {
       {
         name: 'Raise image update PR',
         env: {
-          FORGEJO_TOKEN: '${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}',
+          FORGEJO_TOKEN: '${{ secrets.CI_IMAGE_UPDATER_TOKEN }}',
           SERVICE_NAME: app.name,
           IMAGE: build.image,
           TAG: '${{ github.sha }}',
