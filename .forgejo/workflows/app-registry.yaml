@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-12T13:44:24.268Z
+# generated at 2026-11-12T14:25:12.457Z
 name: app registry
 on:
   push:
@@ -61,7 +61,7 @@ jobs:
           path: platform-services/registry/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-registry
       - run: cargo test --workspace
-        working-directory: platform-services/registry
+        working-directory: ${{ github.workspace }}/platform-services/registry
   deploy:
     needs:
       - build
