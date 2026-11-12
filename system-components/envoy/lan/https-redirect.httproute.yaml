@@ -9,6 +9,10 @@ spec:
       kind: Gateway
       name: lan-gateway
       sectionName: http
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: lan-gateway
+      sectionName: registry-anurag-sh-http
   rules:
     - matches:
         - path:

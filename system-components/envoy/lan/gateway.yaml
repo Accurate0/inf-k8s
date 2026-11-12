@@ -16,6 +16,14 @@ spec:
         namespaces:
           from: Same
 
+    - name: registry-anurag-sh-http
+      protocol: HTTP
+      hostname: registry.anurag.sh
+      port: 80
+      allowedRoutes:
+        namespaces:
+          from: Same
+
     - name: wildcard-internal-https
       protocol: HTTPS
       hostname: "*.internal"
