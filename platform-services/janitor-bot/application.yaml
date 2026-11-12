@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-12T14:05:49.967Z
+# generated at 2026-11-12T14:54:53.618Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -19,7 +19,7 @@ spec:
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       ref: values
     - chart: k8s-workload
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
+      repoURL: oci://registry.anurag.sh/charts/k8s-workload
       targetRevision: 0.6.0
       helm:
         valueFiles:
@@ -128,7 +128,7 @@ spec:
                   maxUnavailable: 0
                   maxSurge: 1
     - chart: k8s-network
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-network
+      repoURL: oci://registry.anurag.sh/charts/k8s-network
       targetRevision: 0.2.0
       helm:
         valuesObject:
@@ -140,7 +140,7 @@ spec:
             - forgejo
             - graph
     - chart: k8s-http-routes
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-http-routes
+      repoURL: oci://registry.anurag.sh/charts/k8s-http-routes
       targetRevision: 2.6.0
       helm:
         valuesObject:
@@ -193,7 +193,7 @@ spec:
                         type: Exact
                         value: /github/webhook
     - chart: k8s-oidc
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
+      repoURL: oci://registry.anurag.sh/charts/k8s-oidc
       targetRevision: 0.6.0
       helm:
         valuesObject:
@@ -218,7 +218,7 @@ spec:
           retainAnnotations:
             argocd.argoproj.io/sync-options: Prune=false,Delete=false
     - chart: k8s-secrets
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-secrets
+      repoURL: oci://registry.anurag.sh/charts/k8s-secrets
       targetRevision: 0.7.0
       helm:
         valuesObject:
@@ -234,7 +234,7 @@ spec:
               managedSecrets:
                 - secretName: janitor-bot-managed-secrets
     - chart: k8s-observability
-      repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
+      repoURL: oci://registry.anurag.sh/charts/k8s-observability
       targetRevision: 0.1.0
       helm:
         valuesObject:
