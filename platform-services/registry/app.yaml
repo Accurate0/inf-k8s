@@ -148,7 +148,7 @@ resources:
     interval: 30s
 workloads:
   - name: registry
-    image: ghcr.io/accurate0/registry
+    image: registry.anurag.sh/containers/registry
     replicas: 2
     resources: {memory: 64Mi}
     ports:
@@ -197,7 +197,8 @@ namespace:
     gateway.inf-k8s.net/anurag-sh: "true"
     inf-k8s.net/lan-gateway-access: "true"
 build:
-  image: ghcr.io/accurate0/registry
+  image: registry.anurag.sh/containers/registry
+  ci: forgejo
   context: .
   paths:
     - crates/subgraph/**
@@ -205,6 +206,10 @@ build:
     BINARY_NAME: registry
   test:
     run: cargo test --workspace
+    packages:
+      - build-essential
+      - pkg-config
+    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
     db: postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
     dbName: registry
 sources:
