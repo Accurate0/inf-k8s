@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-12T14:05:49.969Z
+# generated at 2026-11-12T14:25:12.308Z
 name: app janitor-bot
 on:
   push:
@@ -55,7 +55,7 @@ jobs:
           path: platform-services/janitor-bot/target
           key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
       - run: cargo test
-        working-directory: platform-services/janitor-bot
+        working-directory: ${{ github.workspace }}/platform-services/janitor-bot
   deploy:
     needs:
       - build
