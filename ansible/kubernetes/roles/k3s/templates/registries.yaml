@@ -1,0 +1,14 @@
+# containerd falls back to the upstream registry when the mirror is unreachable
+mirrors:
+{% for upstream, project in k3s_registry_mirror_projects.items() %}
+  {{ upstream }}:
+    endpoint:
+      - "https://{{ k3s_registry_mirror }}"
+    rewrite:
+      "^(.*)$": "{{ project }}/$1"
+{% endfor %}
+configs:
+  {{ k3s_registry_mirror }}:
+    auth:
+      username: "{{ k3s_registry_mirror_username }}"
+      password: "{{ k3s_registry_mirror_password }}"

@@ -16,3 +16,14 @@
   become_method: sudo
   become_user: root
   notify: Restart K3S
+
+- name: Template and copy registry mirrors
+  ansible.builtin.template:
+    src: registries.yaml
+    dest: /etc/rancher/k3s/registries.yaml
+    owner: root
+    mode: "0600"
+  become: true
+  become_method: sudo
+  become_user: root
+  notify: Restart K3S

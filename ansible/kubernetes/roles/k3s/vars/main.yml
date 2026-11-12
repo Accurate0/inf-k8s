@@ -6,3 +6,9 @@ k3s_systemd_service: "{{ 'k3s' if k3s_role == 'server' else 'k3s-agent' }}"
 k3s_channel: "latest"
 k3s_version: "v1.37.1+k3s1"
 k3s_label_delegate_host: k8s-optiplex-5
+k3s_registry_mirror: registry.anurag.sh
+k3s_registry_mirror_username: robot$node-pull
+k3s_registry_mirror_projects:
+  ghcr.io: ghcr
+  docker.io: dockerhub
+  quay.io: quay

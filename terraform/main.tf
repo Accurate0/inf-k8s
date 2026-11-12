@@ -59,6 +59,11 @@ terraform {
       source  = "jkossis/garage"
       version = "1.0.5"
     }
+
+    harbor = {
+      source  = "goharbor/harbor"
+      version = "3.12.5"
+    }
   }
 
   backend "s3" {

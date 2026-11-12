@@ -29,6 +29,7 @@
       vars:
         k3s_role: "{{ 'agent' if 'agent' in group_names else 'server' }}"
         k3s_cluster_token: "{{ lookup('ansible.builtin.env', 'K3S_CLUSTER_TOKEN') }}"
+        k3s_registry_mirror_password: "{{ lookup('ansible.builtin.env', 'HARBOR_NODE_PULL_PASSWORD') }}"
 
 - name: Setup proxy servers
   hosts: proxy
