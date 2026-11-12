@@ -165,6 +165,7 @@
       - name: k8s-pve-1
         vmid: 210
         ip: 10.0.2.18/24
+        ip6: auto
         cores: 4
         memory: 12288
         disk: 256
@@ -261,7 +262,7 @@
         features: "{{ item.features | default([]) }}"
         mounts: "{{ item.mounts | default(omit) }}"
         netif:
-          net0: "name=eth0,bridge={{ proxmox_lxc_bridge }},hwaddr={{ proxmox_lxc_mac_prefix }}:{{ '%02X' % (item.vmid // 256) }}:{{ '%02X' % (item.vmid % 256) }},ip={{ item.ip }},gw={{ proxmox_lxc_gateway }},firewall=0"
+          net0: "name=eth0,bridge={{ proxmox_lxc_bridge }},hwaddr={{ proxmox_lxc_mac_prefix }}:{{ '%02X' % (item.vmid // 256) }}:{{ '%02X' % (item.vmid % 256) }},ip={{ item.ip }}{{ ',ip6=' ~ item.ip6 if item.ip6 is defined else '' }},gw={{ proxmox_lxc_gateway }},firewall=0"
         nameserver: "{{ proxmox_lxc_nameserver }}"
         searchdomain: "{{ proxmox_lxc_searchdomain }}"
         timezone: "{{ proxmox_lxc_timezone }}"
@@ -292,7 +293,7 @@
         features: "{{ item.features | default([]) }}"
         mounts: "{{ item.mounts | default(omit) }}"
         netif:
-          net0: "name=eth0,bridge={{ proxmox_lxc_bridge }},hwaddr={{ proxmox_lxc_mac_prefix }}:{{ '%02X' % (item.vmid // 256) }}:{{ '%02X' % (item.vmid % 256) }},ip={{ item.ip }},gw={{ proxmox_lxc_gateway }},firewall=0"
+          net0: "name=eth0,bridge={{ proxmox_lxc_bridge }},hwaddr={{ proxmox_lxc_mac_prefix }}:{{ '%02X' % (item.vmid // 256) }}:{{ '%02X' % (item.vmid % 256) }},ip={{ item.ip }}{{ ',ip6=' ~ item.ip6 if item.ip6 is defined else '' }},gw={{ proxmox_lxc_gateway }},firewall=0"
         nameserver: "{{ proxmox_lxc_nameserver }}"
         searchdomain: "{{ proxmox_lxc_searchdomain }}"
         timezone: "{{ proxmox_lxc_timezone }}"

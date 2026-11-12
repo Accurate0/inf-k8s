@@ -5,9 +5,11 @@ metadata:
   name: envoy-proxy-lan-config
   namespace: envoy-gateway-system
 spec:
+  ipFamily: DualStack
   provider:
     type: "Kubernetes"
     kubernetes:
+      useListenerPortAsContainerPort: true
       envoyDeployment:
         replicas: 1
         strategy:
@@ -24,19 +26,18 @@ spec:
             spec:
               template:
                 spec:
-                  containers:
-                    - name: envoy
-                      ports:
-                        - name: https
-                          containerPort: 10443
-                          hostPort: 443
-                          protocol: TCP
-                        - name: http
-                          containerPort: 10080
-                          hostPort: 80
-                          protocol: TCP
+                  hostNetwork: true
+                  dnsPolicy: ClusterFirstWithHostNet
       envoyService:
         type: ClusterIP
+        # the cluster is ipv4-only, dual-stack is only for the host network listeners
+        patch:
+          type: StrategicMerge
+          value:
+            spec:
+              ipFamilyPolicy: SingleStack
+              ipFamilies:
+                - IPv4
   telemetry:
     metrics:
       prometheus: {}

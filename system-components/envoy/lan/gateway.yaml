@@ -4,7 +4,7 @@ kind: Gateway
 metadata:
   name: lan-gateway
   annotations:
-    external-dns.kubernetes.io/target: 10.0.2.18
+    external-dns.kubernetes.io/target: 10.0.2.18,2402:21a0:21db:2:be24:11ff:fe00:d2
 spec:
   gatewayClassName: envoy-gateway-lan
   listeners:

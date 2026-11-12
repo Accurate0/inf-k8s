@@ -38,3 +38,17 @@
       become: true
       become_user: root
       become_method: sudo
+
+- name: Setup unprivileged ports for the lan proxy
+  when: (node_labels | default({}))['inf-k8s.net/lan-proxy'] | default('') == 'true'
+  block:
+    - name: Copy sysctl file for unprivileged ports
+      ansible.builtin.copy:
+        src: unprivileged-ports.conf
+        dest: /etc/sysctl.d/99-unprivileged-ports.conf
+        owner: root
+        mode: "0644"
+      notify: Restart systemd-sysctl
+      become: true
+      become_user: root
+      become_method: sudo
