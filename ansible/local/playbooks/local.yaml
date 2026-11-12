@@ -124,6 +124,11 @@
 
   roles:
     - docker
+    - role: tailscale
+      vars:
+        tailscale_join_network: true
+        tailscale_auth_key: "{{ lookup('ansible.builtin.env', 'TAILSCALE_CI_AUTH_KEY') }}"
+        tailscale_extra_args: "--advertise-tags=tag:ci --accept-dns=false"
     - forgejo-runner
 
 - name: Arch mirror cache

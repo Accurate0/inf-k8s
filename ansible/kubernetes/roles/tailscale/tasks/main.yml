@@ -26,16 +26,24 @@
           changed_when: false
           check_mode: false
 
+        - name: Get distribution
+          ansible.builtin.shell:
+            cmd: source /etc/os-release && echo "$ID"
+            executable: "/bin/bash"
+          register: release_distribution
+          changed_when: false
+          check_mode: false
+
         - name: Add Tailscale apt key
           ansible.builtin.get_url:
-            url: "https://pkgs.tailscale.com/stable/ubuntu/{{ release_name.stdout }}.noarmor.gpg"
+            url: "https://pkgs.tailscale.com/stable/{{ release_distribution.stdout }}/{{ release_name.stdout }}.noarmor.gpg"
             dest: /usr/share/keyrings/tailscale-archive-keyring.gpg
             mode: "0644"
             force: false
 
         - name: Add Tailscale sources
           ansible.builtin.get_url:
-            url: "https://pkgs.tailscale.com/stable/ubuntu/{{ release_name.stdout }}.tailscale-keyring.list"
+            url: "https://pkgs.tailscale.com/stable/{{ release_distribution.stdout }}/{{ release_name.stdout }}.tailscale-keyring.list"
             dest: /etc/apt/sources.list.d/tailscale.list
             mode: "0644"
             force: true

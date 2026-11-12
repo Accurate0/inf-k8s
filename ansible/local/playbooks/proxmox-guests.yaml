@@ -139,6 +139,8 @@
         disk: 64
         unprivileged: true
         features: [nesting=1, keyctl=1]
+        extra_config:
+          - "dev0: /dev/net/tun"
 
       - name: runner-2
         vmid: 212
@@ -150,6 +152,8 @@
         disk: 64
         unprivileged: true
         features: [nesting=1, keyctl=1]
+        extra_config:
+          - "dev0: /dev/net/tun"
 
       - name: pbs
         vmid: 207
