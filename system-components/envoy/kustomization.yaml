@@ -16,6 +16,7 @@ resources:
   - lan/gatewayclass.yaml
   - lan/gateway.yaml
   - lan/lan-client-ip.securitypolicy.yaml
+  - lan/host-network.networkpolicy.yaml
   - lan/https-redirect.httproute.yaml
   - public/backend.policy.yaml
   - public/gateway.yaml

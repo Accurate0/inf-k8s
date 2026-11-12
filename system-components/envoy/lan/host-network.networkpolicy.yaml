@@ -1,0 +1,32 @@
+# the lan envoy runs on k8s-pve-1's host network, so its traffic to pods on other nodes
+# comes from the node's flannel address rather than the envoy-gateway-system namespace.
+# every namespace with routes on lan-gateway needs an entry here.
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/networking.k8s.io/networkpolicy_v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lan-gateway-host
+  namespace: registry
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.42.5.0/32
+---
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/networking.k8s.io/networkpolicy_v1.json
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-lan-gateway-host
+  namespace: home-gateway
+spec:
+  podSelector: {}
+  policyTypes:
+    - Ingress
+  ingress:
+    - from:
+        - ipBlock:
+            cidr: 10.42.5.0/32
