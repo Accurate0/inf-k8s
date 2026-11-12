@@ -116,8 +116,9 @@ build:
     - crates/subgraph/**
   test:
     run: cargo test
-    db: timescale/timescaledb:latest-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538
-    dbName: ai_gateway
+    db:
+      image: timescale/timescaledb:latest-pg17@sha256:b56a3f51991df1f79d0c1a0841cad5c5fa8058fdd6a3ee6886394a6d4c174538
+      databaseName: ai_gateway
     packages:
       - protobuf-compiler
       - libprotobuf-dev

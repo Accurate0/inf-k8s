@@ -210,8 +210,9 @@ build:
       - build-essential
       - pkg-config
     setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-    db: postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
-    dbName: registry
+    db:
+      image: postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
+      databaseName: registry
 sources:
   - type: helm
     chart: harbor
