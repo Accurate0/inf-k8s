@@ -106,9 +106,8 @@ spec:
                 - secretName: argocd-harbor-repo-creds
                   template:
                     data:
-                      type: helm
-                      enableOCI: "true"
-                      url: registry.anurag.sh/charts
+                      type: oci
+                      url: oci://registry.anurag.sh/charts
                       username: "{{ .USERNAME }}"
                       password: "{{ .PASSWORD }}"
     - chart: argo-cd
