@@ -11,13 +11,21 @@ spec:
     - https://git.anurag.sh/anurag/k8s.git
     - oci://code.forgejo.org/forgejo-helm/forgejo
     - oci://ghcr.io/accurate0/charts/k8s-http-routes
+    - oci://registry.anurag.sh/charts/k8s-http-routes
     - oci://ghcr.io/accurate0/charts/k8s-secrets
+    - oci://registry.anurag.sh/charts/k8s-secrets
     - oci://ghcr.io/accurate0/charts/k8s-oidc
+    - oci://registry.anurag.sh/charts/k8s-oidc
     - oci://ghcr.io/accurate0/charts/k8s-postgres
+    - oci://registry.anurag.sh/charts/k8s-postgres
     - oci://ghcr.io/accurate0/charts/k8s-workload
+    - oci://registry.anurag.sh/charts/k8s-workload
     - oci://ghcr.io/accurate0/charts/k8s-network
+    - oci://registry.anurag.sh/charts/k8s-network
     - oci://ghcr.io/accurate0/charts/k8s-observability
+    - oci://registry.anurag.sh/charts/k8s-observability
     - oci://ghcr.io/accurate0/charts/k8s-storage
+    - oci://registry.anurag.sh/charts/k8s-storage
     - oci://ghcr.io/bjw-s-labs/helm/app-template
     - oci://git.erwanleboucher.dev/eleboucher/charts/forgejo-runner
     - https://firefly-iii.github.io/kubernetes/
