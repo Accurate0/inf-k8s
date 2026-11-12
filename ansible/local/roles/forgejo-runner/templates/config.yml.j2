@@ -18,6 +18,7 @@ cache:
   port: {{ forgejo_runner_cache_port }}
 
 container:
-  network: bridge
+  # empty gives each job its own network, so services resolve by name (e.g. db)
+  network: ""
   docker_host: automount
   force_pull: true
