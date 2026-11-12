@@ -23,6 +23,10 @@
         "type": "string"
       }
     },
+    "chartRegistry": {
+      "type": "string",
+      "description": "OCI registry the k8s-* platform charts are pulled from. Defaults to oci://registry.anurag.sh/charts."
+    },
     "network": {
       "type": "object",
       "additionalProperties": false,

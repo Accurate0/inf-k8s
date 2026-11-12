@@ -3,7 +3,6 @@ import type { Plan, PlanSource } from '../plan.ts';
 import { type ArgocdOverrides, HEADER } from '../render.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
-const CHART_REGISTRY = 'oci://ghcr.io/accurate0/charts';
 const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
 
 const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
@@ -15,7 +14,7 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
     case 'chart':
       return {
         chart: source.chart,
-        repoURL: `${CHART_REGISTRY}/${source.chart}`,
+        repoURL: `${source.registry}/${source.chart}`,
         targetRevision: source.version,
         helm: {
           ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}),

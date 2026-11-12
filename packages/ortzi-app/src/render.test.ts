@@ -512,6 +512,26 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   );
 });
 
+test('platform charts come from registry.anurag.sh unless the app overrides the registry', () => {
+  const sources = (app: App) =>
+    parse(renderApplication(app, versions, target, { platform, apps: [] })).spec.sources;
+  const network = (app: App) =>
+    sources(app).find((source: { chart?: string }) => source.chart === 'k8s-network');
+
+  assert.equal(
+    network({ name: 'foo', network: { ingress: [] } }).repoURL,
+    'oci://registry.anurag.sh/charts/k8s-network',
+  );
+  assert.equal(
+    network({
+      name: 'foo',
+      chartRegistry: 'oci://ghcr.io/accurate0/charts',
+      network: { ingress: [] },
+    }).repoURL,
+    'oci://ghcr.io/accurate0/charts/k8s-network',
+  );
+});
+
 test('output is stable', () => {
   const app: App = { name: 'foo', network: { ingress: [] } };
 

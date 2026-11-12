@@ -259,6 +259,7 @@ export interface App {
   name: string;
   repository?: string;
   charts?: Record<string, string>;
+  chartRegistry?: string;
   workloads?: NamedWorkload[];
   resources?: Resource[];
   exports?: Export[];

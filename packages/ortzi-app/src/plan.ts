@@ -26,9 +26,12 @@ import {
 } from './render.ts';
 import { expandWorkload, SECRET_KINDS, type SecretKind } from './workload.ts';
 
+export const CHART_REGISTRY = 'oci://registry.anurag.sh/charts';
+
 export interface PlatformChart {
   type: 'chart';
   chart: string;
+  registry: string;
   version: string;
   valueFiles?: string[];
   values: Record<string, unknown>;
@@ -140,6 +143,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     return {
       type: 'chart',
       chart: chartName,
+      registry: app.chartRegistry ?? CHART_REGISTRY,
       version,
       ...(valueFiles ? { valueFiles } : {}),
       values,
