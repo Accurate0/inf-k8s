@@ -54,6 +54,16 @@ resource "harbor_robot_account" "node-pull" {
   secret_wo         = ephemeral.random_password.harbor-node-pull.result
   secret_wo_version = 1
 
+  permissions {
+    kind      = "project"
+    namespace = harbor_project.own["containers"].name
+
+    access {
+      action   = "pull"
+      resource = "repository"
+    }
+  }
+
   dynamic "permissions" {
     for_each = harbor_project.proxy
 
