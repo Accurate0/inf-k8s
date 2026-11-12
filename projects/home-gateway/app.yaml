@@ -96,7 +96,7 @@ resources:
     interval: 30s
 workloads:
   - name: home-gateway
-    image: ghcr.io/accurate0/home-gateway
+    image: registry.anurag.sh/containers/home-gateway
     resources: {cpu: 30m, memory: 336Mi}
     ports:
       - {name: api, container: 8000, service: 80}
@@ -153,7 +153,7 @@ workloads:
           hostnames:
             - home-assistant.internal
   - name: home-web
-    image: ghcr.io/accurate0/home-gateway-web
+    image: registry.anurag.sh/containers/home-gateway-web
     resources: {memory: 32Mi}
     ports:
       - {name: http, container: 8080, service: 80}

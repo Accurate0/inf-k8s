@@ -49,7 +49,7 @@ resources:
         - groups
 workloads:
   - name: spotify-api
-    image: ghcr.io/accurate0/spotify
+    image: registry.anurag.sh/containers/spotify
     resources: {cpu: 30m, memory: 64Mi, memoryLimit: 512Mi}
     ports:
       - {name: http, container: 8000, service: 80}
@@ -71,7 +71,7 @@ workloads:
     service:
       name: api
   - name: spotify-web
-    image: ghcr.io/accurate0/spotify-web
+    image: registry.anurag.sh/containers/spotify-web
     resources: {memory: 32Mi}
     ports:
       - {name: http, container: 8080, service: 80}
@@ -83,7 +83,7 @@ workloads:
     service:
       name: spotify-web
   - name: spotify-enrich
-    image: ghcr.io/accurate0/spotify
+    image: registry.anurag.sh/containers/spotify
     kind: CronJob
     schedule: "*/15 * * * *"
     backoffLimit: 0
@@ -99,7 +99,7 @@ workloads:
       - database: spotify
       - bucket: artwork
   - name: spotify-recent
-    image: ghcr.io/accurate0/spotify
+    image: registry.anurag.sh/containers/spotify
     kind: CronJob
     schedule: "*/30 * * * *"
     backoffLimit: 0
