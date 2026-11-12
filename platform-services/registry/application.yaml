@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-09T12:38:49.371Z
+# generated at 2026-11-12T12:10:46.895Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -29,6 +29,7 @@ spec:
           namespaceLabels:
             internal-gateway-access: "true"
             gateway.inf-k8s.net/anurag-sh: "true"
+            inf-k8s.net/lan-gateway-access: "true"
           workloads:
             - name: registry
               image: ghcr.io/accurate0/registry
@@ -168,7 +169,70 @@ spec:
                   matches:
                     - path:
                         type: PathPrefix
+                        value: /api/v1
+                    - path:
+                        type: PathPrefix
+                        value: /cli/v1
+                    - path:
+                        type: PathPrefix
+                        value: /install.sh
+                  timeouts:
+                    request: 0s
+                    backendRequest: 0s
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: harbor
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
                         value: /
+                  timeouts:
+                    request: 0s
+                    backendRequest: 0s
+            - name: registry-lan
+              gateway:
+                name: lan-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed-unifi: "true"
+              hostnames:
+                - registry.anurag.sh
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: api
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /api/v1
+                    - path:
+                        type: PathPrefix
+                        value: /cli/v1
+                    - path:
+                        type: PathPrefix
+                        value: /install.sh
+                  timeouts:
+                    request: 0s
+                    backendRequest: 0s
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: harbor
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
+                  timeouts:
+                    request: 0s
+                    backendRequest: 0s
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
       targetRevision: 0.6.0
@@ -198,6 +262,31 @@ spec:
               annotations:
                 inf-k8s.net/app: registry
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+            - name: harbor
+              namespace: registry
+              displayName: Harbor
+              preferShortUsername: true
+              secretName: kanidm-harbor-oidc
+              host: registry.anurag.sh
+              callbackPath: /c/oidc/callback
+              secretKeys:
+                clientId: client-id
+                clientSecret: client-secret
+              groups:
+                harbor_admins:
+                  - platform_admins
+                harbor_users:
+                  - harbor_admins
+              scopeMaps:
+                harbor_users:
+                  - openid
+                  - email
+                  - profile
+                  - groups
+              secretNamespace: registry
+              annotations:
+                inf-k8s.net/app: registry
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
           retainAnnotations:
             argocd.argoproj.io/sync-options: Prune=false,Delete=false
     - chart: k8s-postgres
@@ -210,6 +299,14 @@ spec:
               namespace: registry
               databaseName: registry
               secretName: registry-database-secret
+              host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+              annotations:
+                inf-k8s.net/app: registry
+                inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+            - name: harbor
+              namespace: registry
+              databaseName: harbor
+              secretName: harbor-database-secret
               host: cloudnative-pg-cluster-pooler-rw.cnpg-system
               annotations:
                 inf-k8s.net/app: registry
@@ -233,9 +330,54 @@ spec:
             - name: signing
               managedSecrets:
                 - secretName: registry-signing-secrets
+            - name: harbor-token
+              managedSecrets:
+                - secretName: harbor-token-secrets
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      tls.key: "{{ .TOKEN_KEY }}"
+                      tls.crt: "{{ .TOKEN_CERT }}"
+            - name: harbor-registry
+              managedSecrets:
+                - secretName: harbor-registry-credentials
+                  template:
+                    includeAllSecrets: false
+                    data:
+                      REGISTRY_PASSWD: "{{ .REGISTRY_PASSWD }}"
+                      REGISTRY_HTPASSWD: "{{ .REGISTRY_HTPASSWD }}"
             - name: resource-storage
               managedSecrets:
                 - secretName: storage-bucket-secrets
+            - name: resource-harbor-storage
+              managedSecrets:
+                - secretName: harbor-storage-bucket-secrets
+                  template:
+                    data:
+                      REGISTRY_STORAGE_S3_ACCESSKEY: "{{ .S3_ACCESS_KEY_ID }}"
+                      REGISTRY_STORAGE_S3_SECRETKEY: "{{ .S3_SECRET_ACCESS_KEY }}"
+          generated:
+            - name: harbor-generated
+              secretName: harbor-generated-secrets
+              keys:
+                - name: HARBOR_ADMIN_PASSWORD
+                  length: 32
+                  symbols: 0
+                - name: secretKey
+                  length: 16
+                  symbols: 0
+                - name: secret
+                  length: 16
+                  symbols: 0
+                - name: CSRF_KEY
+                  length: 32
+                  symbols: 0
+                - name: JOBSERVICE_SECRET
+                  length: 16
+                  symbols: 0
+                - name: REGISTRY_HTTP_SECRET
+                  length: 16
+                  symbols: 0
     - chart: k8s-observability
       repoURL: oci://ghcr.io/accurate0/charts/k8s-observability
       targetRevision: 0.1.0
@@ -246,6 +388,12 @@ spec:
           path: /metrics
           port: http
           interval: 30s
+    - chart: harbor
+      repoURL: https://helm.goharbor.io
+      targetRevision: 1.19.4
+      helm:
+        valueFiles:
+          - $values/platform-services/registry/harbor.values.yaml
     - repoURL: https://github.com/Accurate0/inf-k8s.git
       name: application
       path: platform-services/registry

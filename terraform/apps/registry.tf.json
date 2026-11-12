@@ -8,12 +8,23 @@
         "db_name": "${var.database_name}",
         "username": "registry",
         "rotation_period": 315360000
+      },
+      "harbor": {
+        "backend": "${var.database_mount}",
+        "name": "harbor",
+        "db_name": "${var.database_name}",
+        "username": "harbor",
+        "rotation_period": 315360000
       }
     },
     "vault_policy": {
       "registry": {
         "name": "db-registry",
         "policy": "path \"${var.database_mount}/static-creds/registry\" {\n  capabilities = [\"read\"]\n}\n"
+      },
+      "harbor": {
+        "name": "db-harbor",
+        "policy": "path \"${var.database_mount}/static-creds/harbor\" {\n  capabilities = [\"read\"]\n}\n"
       }
     },
     "vault_kubernetes_auth_backend_role": {
@@ -28,6 +39,20 @@
         ],
         "token_policies": [
           "${vault_policy.registry.name}"
+        ],
+        "token_ttl": 3600
+      },
+      "harbor": {
+        "backend": "${var.kubernetes_auth_path}",
+        "role_name": "db-harbor",
+        "bound_service_account_names": [
+          "openbao-database"
+        ],
+        "bound_service_account_namespaces": [
+          "registry"
+        ],
+        "token_policies": [
+          "${vault_policy.harbor.name}"
         ],
         "token_ttl": 3600
       }
@@ -63,6 +88,32 @@
         "mount": "${var.kv_mount}",
         "name": "registry/resource-storage",
         "data_json": "{\"S3_BUCKET\":\"${cloudflare_r2_bucket.registry-storage.name}\",\"S3_ENDPOINT\":\"https://${var.cloudflare_account_id}.r2.cloudflarestorage.com\",\"S3_REGION\":\"auto\",\"S3_ACCESS_KEY_ID\":\"${cloudflare_account_token.registry-storage.id}\",\"S3_SECRET_ACCESS_KEY\":\"${sha256(cloudflare_account_token.registry-storage.value)}\"}"
+      },
+      "registry-harbor-storage": {
+        "mount": "${var.kv_mount}",
+        "name": "registry/resource-harbor-storage",
+        "data_json": "{\"S3_BUCKET\":\"harbor\",\"S3_ENDPOINT\":\"${var.garage_s3_endpoint}\",\"S3_REGION\":\"garage\",\"S3_ACCESS_KEY_ID\":\"${garage_key.registry-harbor-storage.id}\",\"S3_SECRET_ACCESS_KEY\":\"${garage_key.registry-harbor-storage.secret_access_key}\"}"
+      }
+    },
+    "garage_bucket": {
+      "registry-harbor-storage": {
+        "global_alias": "harbor",
+        "lifecycle": {
+          "prevent_destroy": true
+        }
+      }
+    },
+    "garage_key": {
+      "registry-harbor-storage": {
+        "name": "registry-harbor-storage"
+      }
+    },
+    "garage_bucket_permission": {
+      "registry-harbor-storage": {
+        "bucket_id": "${garage_bucket.registry-harbor-storage.id}",
+        "access_key_id": "${garage_key.registry-harbor-storage.id}",
+        "read": true,
+        "write": true
       }
     }
   }

@@ -5,6 +5,7 @@ namespaces:
       - monitoring
       - bom
       - graph
+      - registry
       - spotify
   dragonfly:
     ingress:

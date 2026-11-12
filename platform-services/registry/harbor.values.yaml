@@ -1,0 +1,96 @@
+expose:
+  type: clusterIP
+  tls:
+    enabled: false
+  clusterIP:
+    name: harbor
+    ports:
+      httpPort: 80
+
+externalURL: https://registry.anurag.sh
+
+existingSecretAdminPassword: harbor-generated-secrets
+existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+existingSecretSecretKey: harbor-generated-secrets
+
+persistence:
+  enabled: false
+  imageChartStorage:
+    disableredirect: true
+    type: s3
+    s3:
+      region: garage
+      bucket: harbor
+      regionendpoint: http://garage.garage.svc.cluster.local:3900
+      existingSecret: harbor-storage-bucket-secrets
+      v4auth: true
+
+database:
+  type: external
+  external:
+    host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+    port: "5432"
+    username: harbor
+    coreDatabase: harbor
+    existingSecret: harbor-database-password
+    sslmode: disable
+
+redis:
+  type: internal
+
+core:
+  existingSecret: harbor-generated-secrets
+  existingXsrfSecret: harbor-generated-secrets
+  existingXsrfSecretKey: CSRF_KEY
+  secretName: harbor-token-secrets
+  extraEnvVars:
+    - name: OIDC_CLIENT_SECRET
+      valueFrom:
+        secretKeyRef:
+          name: kanidm-harbor-oidc
+          key: client-secret
+    - name: OIDC_CLIENT_ID
+      valueFrom:
+        secretKeyRef:
+          name: kanidm-harbor-oidc
+          key: client-id
+    - name: CONFIG_OVERWRITE_JSON
+      value: >-
+        {"auth_mode":"oidc_auth",
+        "oidc_name":"Kanidm",
+        "oidc_endpoint":"https://idm.anurag.sh/oauth2/openid/harbor",
+        "oidc_client_id":"$(OIDC_CLIENT_ID)",
+        "oidc_client_secret":"$(OIDC_CLIENT_SECRET)",
+        "oidc_scope":"openid,email,profile,groups",
+        "oidc_user_claim":"preferred_username",
+        "oidc_groups_claim":"groups",
+        "oidc_admin_group":"harbor_admins",
+        "oidc_verify_cert":true,
+        "oidc_auto_onboard":true}
+
+jobservice:
+  existingSecret: harbor-generated-secrets
+  existingSecretKey: JOBSERVICE_SECRET
+  jobLoggers:
+    - database
+
+registry:
+  registry:
+    extraEnvVars:
+      - name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
+        value: "true"
+  existingSecret: harbor-generated-secrets
+  existingSecretKey: REGISTRY_HTTP_SECRET
+  credentials:
+    username: harbor_registry_user
+    existingSecret: harbor-registry-credentials
+
+trivy:
+  enabled: true
+
+metrics:
+  enabled: true
+  serviceMonitor:
+    enabled: true
+    metricRelabelings: []
+    relabelings: []

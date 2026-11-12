@@ -9,6 +9,7 @@
         "feature-flags",
         "firefly",
         "forgejo",
+        "harbor",
         "home-gateway",
         "immich",
         "registry",

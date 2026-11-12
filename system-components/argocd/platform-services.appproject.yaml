@@ -17,6 +17,7 @@ spec:
     - oci://ghcr.io/accurate0/charts/k8s-network
     - oci://ghcr.io/accurate0/charts/k8s-observability
     - oci://ghcr.io/accurate0/charts/k8s-storage
+    - https://helm.goharbor.io
   destinations:
     - namespace: "*"
       server: "*"

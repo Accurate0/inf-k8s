@@ -125,6 +125,7 @@ spec:
           annotationFilter: "external-dns.kubernetes.io/managed-unifi=true"
           domainFilters:
             - internal
+            - registry.anurag.sh
   destination:
     server: https://kubernetes.default.svc
     namespace: external-dns

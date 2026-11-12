@@ -11,6 +11,7 @@ resources:
   - internal/inf-k8s-redirect.httproute.yaml
   - internal/tailscale-client-ip.securitypolicy.yaml
   - lan/certificate.yaml
+  - lan/registry.certificate.yaml
   - lan/config.yaml
   - lan/gatewayclass.yaml
   - lan/gateway.yaml

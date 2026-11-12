@@ -26,13 +26,35 @@ resources:
     type: route
     auth:
       mode: app
-      reason: accepts opaque registry tokens and forgejo OIDC
+      reason: ortzi accepts opaque registry tokens and forgejo OIDC, harbor issues its own registry tokens behind a kanidm login or robot account
     hosts:
       - registry.anurag.sh
-    backend:
-      name: api
-      port: 80
+    rules:
+      - paths: [/api/v1, /cli/v1, /install.sh]
+        backend: {name: api, port: 80}
+      - paths: [/]
+        backend: {name: harbor, port: 80}
+    timeouts:
+      request: 0s
+      backendRequest: 0s
     dns: {provider: cloudflare, proxied: true}
+  - name: registry-lan
+    type: route
+    auth:
+      mode: app
+      reason: ortzi accepts opaque registry tokens and forgejo OIDC, harbor issues its own registry tokens behind a kanidm login or robot account
+    gateway: lan-gateway
+    hosts:
+      - registry.anurag.sh
+    rules:
+      - paths: [/api/v1, /cli/v1, /install.sh]
+        backend: {name: api, port: 80}
+      - paths: [/]
+        backend: {name: harbor, port: 80}
+    timeouts:
+      request: 0s
+      backendRequest: 0s
+    dns: {provider: unifi}
   - name: registry
     type: oidc
     secretName: kanidm-registry-oidc
@@ -47,6 +69,65 @@ resources:
         - registry_admins
     scopeMaps:
       registry_users:
+        - openid
+        - email
+        - profile
+        - groups
+  - name: harbor
+    type: database
+    secretName: harbor-database-secret
+  - name: harbor-storage
+    type: bucket
+    provider: garage
+    bucket: harbor
+    secretName: harbor-storage-bucket-secrets
+    secretTemplate:
+      data:
+        REGISTRY_STORAGE_S3_ACCESSKEY: "{{ .S3_ACCESS_KEY_ID }}"
+        REGISTRY_STORAGE_S3_SECRETKEY: "{{ .S3_SECRET_ACCESS_KEY }}"
+  - name: harbor-generated
+    type: secret
+    secretName: harbor-generated-secrets
+    generate:
+      HARBOR_ADMIN_PASSWORD: {length: 32, symbols: 0}
+      secretKey: {length: 16, symbols: 0}
+      secret: {length: 16, symbols: 0}
+      CSRF_KEY: {length: 32, symbols: 0}
+      JOBSERVICE_SECRET: {length: 16, symbols: 0}
+      REGISTRY_HTTP_SECRET: {length: 16, symbols: 0}
+  - name: harbor-token
+    type: secret
+    secretName: harbor-token-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        tls.key: "{{ .TOKEN_KEY }}"
+        tls.crt: "{{ .TOKEN_CERT }}"
+  - name: harbor-registry
+    type: secret
+    secretName: harbor-registry-credentials
+    secretTemplate:
+      includeAllSecrets: false
+      data:
+        REGISTRY_PASSWD: "{{ .REGISTRY_PASSWD }}"
+        REGISTRY_HTPASSWD: "{{ .REGISTRY_HTPASSWD }}"
+  - name: harbor
+    type: oidc
+    secretName: kanidm-harbor-oidc
+    host: registry.anurag.sh
+    displayName: Harbor
+    callbackPath: /c/oidc/callback
+    preferShortUsername: true
+    secretKeys:
+      clientId: client-id
+      clientSecret: client-secret
+    groups:
+      harbor_admins:
+        - platform_admins
+      harbor_users:
+        - harbor_admins
+    scopeMaps:
+      harbor_users:
         - openid
         - email
         - profile
@@ -106,6 +187,7 @@ namespace:
   labels:
     internal-gateway-access: "true"
     gateway.inf-k8s.net/anurag-sh: "true"
+    inf-k8s.net/lan-gateway-access: "true"
 build:
   image: ghcr.io/accurate0/registry
   context: .
@@ -118,5 +200,10 @@ build:
     db: postgres:17@sha256:3b0cda93be7c8dba2ed484d19393d93845dc3dafb88973e248ba8e6d99d784e1
     dbName: registry
 sources:
+  - type: helm
+    chart: harbor
+    repo: https://helm.goharbor.io
+    version: 1.19.4
+    values: harbor.values.yaml
   - type: manifests
     path: .

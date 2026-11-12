@@ -32,3 +32,20 @@ spec:
           - group: ""
             kind: Secret
             name: lan-gateway-tls
+
+    - name: registry-anurag-sh-https
+      protocol: HTTPS
+      hostname: registry.anurag.sh
+      port: 443
+      allowedRoutes:
+        namespaces:
+          from: Selector
+          selector:
+            matchLabels:
+              inf-k8s.net/lan-gateway-access: "true"
+      tls:
+        mode: Terminate
+        certificateRefs:
+          - group: ""
+            kind: Secret
+            name: registry-anurag-sh-tls
