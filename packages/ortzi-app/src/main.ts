@@ -25,6 +25,7 @@ import {
   isCurrent,
   kustomizationPath,
   appWorkloads,
+  HEADER,
   needsKustomization,
   rbacPath,
   type Listener,
@@ -273,6 +274,21 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   return stale;
 }
 
+function staleWorkflows(apps: App[]): string[] {
+  const wanted = new Set(apps.filter((app) => app.build).map(workflowPath));
+  return ['.github/workflows', '.forgejo/workflows'].flatMap((dir) =>
+    fs
+      .readDir(dir)
+      .map((entry) => `${dir}/${entry.name}`)
+      .filter(
+        (path) =>
+          /\/app-[^/]+\.yaml$/.test(path) &&
+          !wanted.has(path) &&
+          fs.readText(path).startsWith(HEADER),
+      ),
+  );
+}
+
 function staleTerraform(apps: App[]): string[] {
   const wanted = new Set(apps.filter((app) => renderAppTerraform(app)).map(appTerraformPath));
   return fs
@@ -337,7 +353,7 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
     if (!check) fs.write(path, wanted);
   }
 
-  const removed = staleTerraform(world.apps);
+  const removed = [...staleTerraform(world.apps), ...staleWorkflows(world.apps)];
   for (const path of removed) {
     console.log(`${check ? 'stale' : 'removed'} ${path}`);
     if (!check) fs.remove(path);

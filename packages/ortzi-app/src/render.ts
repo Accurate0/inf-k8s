@@ -212,6 +212,7 @@ export type OidcClient = { host: string; displayName?: string; secretName: strin
 
 export interface Build {
   image: string;
+  ci?: 'github' | 'forgejo';
   context?: string;
   dockerfile?: string;
   args?: Record<string, string>;
@@ -1169,9 +1170,13 @@ export const appFiles = (app: App, target: Target) =>
       .map(({ path }) => (path === '.' ? 'kustomization.yaml' : `${path}/kustomization.yaml`)),
   ].map((file) => `${target.location}/${app.name}/${file}`);
 
-export const workflowPath = (app: App) => `.github/workflows/app-${app.name}.yaml`;
+export const ciProvider = (app: App) => (app.build as Build | undefined)?.ci ?? 'github';
+
+export const workflowPath = (app: App) => `.${ciProvider(app)}/workflows/app-${app.name}.yaml`;
 
 export function renderWorkflow(app: App, target: Target): string {
+  if (ciProvider(app) === 'forgejo') return renderForgejoWorkflow(app, target);
+
   const build = app.build as Build;
   const dir = `${target.location}/${app.name}`;
   const context = build.context ?? dir;
@@ -1219,6 +1224,186 @@ export function renderWorkflow(app: App, target: Target): string {
         secrets: 'inherit',
       },
     },
+  };
+
+  return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
+
+const ACTIONS = {
+  checkout: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
+  buildx: 'docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069',
+  login: 'docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6',
+  buildPush: 'docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc',
+  cache: 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9',
+};
+
+const ON_MAIN = "github.ref == 'refs/heads/main'";
+
+const DEPLOY_SCRIPT = String.raw`COMMITTED_AT=$(git show -s --format=%ct "$COMMIT_SHA")
+git config --global user.name ci-image-updater
+git config --global user.email ci-image-updater@git.anurag.sh
+git clone "https://x-access-token:$FORGEJO_TOKEN@git.anurag.sh/anurag/k8s.git" config-repo
+cd config-repo
+PR_BRANCH="ci/update-$SERVICE_NAME-app-$SERVICE_NAME-$TAG"
+TITLE="chore(deploy): update $SERVICE_NAME images to $TAG [skip ci]"
+git checkout -b "$PR_BRANCH"
+IMAGE="$IMAGE" yq -I2 -P -i '.images[strenv(IMAGE)] = strenv(TAG)' "$VALUES_FILE"
+git add "$MANIFESTS_PATH"
+git commit -m "$TITLE" || { echo "No changes to commit"; exit 0; }
+git push -f origin "$PR_BRANCH"
+METADATA=$(jq -cn --arg service "$SERVICE_NAME" --arg tag "$TAG" --arg images "$IMAGE" \
+  --arg path "$MANIFESTS_PATH" --arg repo "$REPOSITORY" --arg ref "$REF_NAME" --arg run "$RUN_NUMBER" \
+  --arg sha "$COMMIT_SHA" --arg committed_at "$COMMITTED_AT" \
+  '{service: $service, tag: $tag, images: $images, path: $path, branch: "main", repo: $repo, ref: $ref, run: $run, sha: $sha, committed_at: $committed_at}')
+BODY=$(printf '## Image Update\n\n| Field | Value |\n|-------|-------|\n| **Service** | \x60%s\x60 |\n| **Tag** | \x60%s\x60 |\n| **Manifests Path** | \x60%s\x60 |\n| **Target Branch** | \x60main\x60 |\n\n**Triggered by:** [%s@%s](%s)\n\n<!-- metadata:%s -->\n' \
+  "$SERVICE_NAME" "$TAG" "$MANIFESTS_PATH" "$REPOSITORY" "$REF_NAME" "$RUN_URL" "$METADATA")
+PAYLOAD=$(jq -n --arg title "$TITLE" --arg head "$PR_BRANCH" --arg body "$BODY" \
+  '{title: $title, head: $head, base: "main", body: $body}')
+CODE=$(curl -s -o response.json -w '%{http_code}' -X POST \
+  -H "Authorization: token $FORGEJO_TOKEN" -H 'Content-Type: application/json' \
+  -d "$PAYLOAD" https://git.anurag.sh/api/v1/repos/anurag/k8s/pulls)
+case "$CODE" in
+  2*) jq -r .html_url response.json ;;
+  409) echo "PR already exists for $PR_BRANCH" ;;
+  *) echo "failed to create PR (HTTP $CODE)"; cat response.json; exit 1 ;;
+esac
+`;
+
+function renderForgejoWorkflow(app: App, target: Target): string {
+  const build = app.build as Build;
+  const dir = `${target.location}/${app.name}`;
+  const context = build.context ?? dir;
+  const args = Object.entries(build.args ?? {}).map(([k, v]) => `${k}=${v}`);
+  const test = build.test;
+  const registry = build.image.split('/')[0];
+  const cacheRef = `type=registry,ref=${build.image}:buildcache`;
+
+  const buildJob = {
+    'runs-on': 'docker',
+    steps: [
+      { uses: ACTIONS.checkout },
+      {
+        name: 'Compute commit metadata',
+        id: 'commit-meta',
+        run: 'echo "committed-at=$(git show -s --format=%ct ${{ github.sha }})" >> "$GITHUB_OUTPUT"',
+      },
+      { uses: ACTIONS.buildx },
+      {
+        uses: ACTIONS.login,
+        if: ON_MAIN,
+        with: {
+          registry,
+          username: '${{ secrets.REGISTRY_USERNAME }}',
+          password: '${{ secrets.REGISTRY_PASSWORD }}',
+        },
+      },
+      {
+        uses: ACTIONS.buildPush,
+        with: {
+          context,
+          file: build.dockerfile ?? `${dir}/Dockerfile`,
+          push: `\${{ ${ON_MAIN} }}`,
+          tags: `${build.image}:latest,${build.image}:\${{ github.sha }}`,
+          labels: [
+            'net.inf-k8s.commit-sha=${{ github.sha }}',
+            'net.inf-k8s.committed-at=${{ steps.commit-meta.outputs.committed-at }}',
+          ].join('\n'),
+          ...(args.length ? { 'build-args': args.join('\n') } : {}),
+          'cache-from': cacheRef,
+          'cache-to': `\${{ ${ON_MAIN} && '${cacheRef},mode=max' || '' }}`,
+        },
+      },
+    ],
+  };
+
+  const testJob = test && {
+    'runs-on': 'docker',
+    ...(test.db
+      ? {
+          services: {
+            db: {
+              image: test.db,
+              env: {
+                POSTGRES_USER: 'postgres',
+                POSTGRES_PASSWORD: 'postgres',
+                POSTGRES_DB: test.dbName ?? 'postgres',
+              },
+              options:
+                '--health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5',
+            },
+          },
+        }
+      : {}),
+    env: {
+      ...(test.db
+        ? { DATABASE_URL: `postgres://postgres:postgres@db:5432/${test.dbName ?? 'postgres'}` }
+        : {}),
+      SQLX_OFFLINE: 'true',
+    },
+    steps: [
+      { uses: ACTIONS.checkout },
+      ...(test.packages
+        ? [{ run: `apt-get update && apt-get install -y ${test.packages.join(' ')}` }]
+        : []),
+      ...(test.setup ? [{ run: test.setup }] : []),
+      {
+        uses: ACTIONS.cache,
+        with: {
+          path: `${dir}/target`,
+          key: `\${{ runner.os }}-app-target-\${{ hashFiles('**/Cargo.lock') }}-${app.name}`,
+        },
+      },
+      { run: test.run, 'working-directory': dir },
+    ],
+  };
+
+  const needs = test ? ['build', 'test'] : ['build'];
+  const deployJob = {
+    needs,
+    if: `\${{ ${ON_MAIN} && !cancelled() && needs.build.result == 'success'${
+      test ? " && needs.test.result == 'success'" : ''
+    } }}`,
+    'runs-on': 'docker',
+    steps: [
+      { uses: ACTIONS.checkout },
+      {
+        name: 'Raise image update PR',
+        env: {
+          FORGEJO_TOKEN: '${{ secrets.FORGEJO_CI_IMAGE_UPDATER }}',
+          SERVICE_NAME: app.name,
+          IMAGE: build.image,
+          TAG: '${{ github.sha }}',
+          COMMIT_SHA: '${{ github.sha }}',
+          MANIFESTS_PATH: dir,
+          VALUES_FILE: `${dir}/image.values.yaml`,
+          REPOSITORY: '${{ github.repository }}',
+          REF_NAME: '${{ github.ref_name }}',
+          RUN_NUMBER: '${{ github.run_number }}',
+          RUN_URL:
+            '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}',
+        },
+        run: DEPLOY_SCRIPT,
+      },
+    ],
+  };
+
+  const workflow = {
+    name: `app ${app.name}`,
+    on: {
+      push: {
+        paths: [
+          `${dir}/**`,
+          `!${dir}/manifests/**`,
+          `!${dir}/application.yaml`,
+          `!${dir}/app.yaml`,
+          `!${dir}/image.values.yaml`,
+          ...(build.paths ?? []),
+          workflowPath(app),
+        ],
+      },
+      workflow_dispatch: null,
+    },
+    jobs: { build: buildJob, ...(testJob ? { test: testJob } : {}), deploy: deployJob },
   };
 
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;

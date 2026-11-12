@@ -19,6 +19,7 @@ import {
   renderKustomization,
   renderRbac,
   renderWorkflow,
+  workflowPath,
   rawFileUrl,
   resolveSubgraphs,
   stamped,
@@ -455,6 +456,32 @@ test('generates a workflow from the build block', () => {
   assert.equal(inputs['build-args'], 'BINARY_NAME=foo');
   assert.equal(inputs['test-packages'], 'a b');
   assert.equal(workflow.jobs.app.uses, './.github/workflows/app-build.yaml');
+});
+
+test('generates a forgejo workflow that pushes to the build image registry', () => {
+  const app: App = {
+    name: 'foo',
+    build: {
+      image: 'registry.anurag.sh/containers/foo',
+      ci: 'forgejo',
+      test: { run: 'cargo test', db: 'postgres:17', dbName: 'foo' },
+    },
+    network: { ingress: [] },
+  };
+  const workflow = parse(renderWorkflow(app, { location: 'projects', hasManifests: false }));
+
+  assert.equal(workflowPath(app), '.forgejo/workflows/app-foo.yaml');
+  assert.ok(workflow.on.push.paths.includes('.forgejo/workflows/app-foo.yaml'));
+  const login = workflow.jobs.build.steps.find((step: { uses?: string }) =>
+    step.uses?.startsWith('docker/login-action'),
+  );
+
+  assert.equal(login.with.registry, 'registry.anurag.sh');
+  assert.equal(login.with.username, '${{ secrets.REGISTRY_USERNAME }}');
+  assert.equal(workflow.jobs.test.env.DATABASE_URL, 'postgres://postgres:postgres@db:5432/foo');
+  assert.deepEqual(workflow.jobs.deploy.needs, ['build', 'test']);
+  assert.match(workflow.jobs.deploy.steps[1].run, /yq .*image.values|strenv\(IMAGE\)/);
+  assert.equal(workflow.jobs.deploy.steps[1].env.VALUES_FILE, 'projects/foo/image.values.yaml');
 });
 
 test('output is stable', () => {

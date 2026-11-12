@@ -2,7 +2,12 @@ import { type App, appDatabases } from './render.ts';
 import { databasePath } from './providers/cnpg.ts';
 import { TERRAFORM_APPS } from './terraform.ts';
 
-const CI_PATHS = ['.github/workflows/', 'terraform/', 'system-components/postgres-cluster/'];
+const CI_PATHS = [
+  '.github/workflows/',
+  '.forgejo/workflows/',
+  'terraform/',
+  'system-components/postgres-cluster/',
+];
 const INDEX = `${TERRAFORM_APPS}/_index.tf.json`;
 
 export interface PlannedCommit {
@@ -14,7 +19,7 @@ function owner(path: string, databases: Map<string, string>): string | undefined
   if (path === INDEX) return undefined;
   const match =
     path.match(/^(?:projects|platform-services)\/([^/]+)\//) ??
-    path.match(/^\.github\/workflows\/app-(.+)\.yaml$/) ??
+    path.match(/^\.(?:github|forgejo)\/workflows\/app-(.+)\.yaml$/) ??
     path.match(new RegExp(`^${TERRAFORM_APPS}/(.+)\\.tf\\.json$`));
   return match?.[1] ?? databases.get(path);
 }

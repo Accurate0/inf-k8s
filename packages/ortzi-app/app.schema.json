@@ -1698,6 +1698,14 @@
         "image": {
           "type": "string"
         },
+        "ci": {
+          "type": "string",
+          "enum": [
+            "github",
+            "forgejo"
+          ],
+          "description": "Where the image is built and pushed from. Defaults to github; forgejo pushes with the REGISTRY_USERNAME and REGISTRY_PASSWORD secrets."
+        },
         "context": {
           "type": "string",
           "description": "Defaults to the app directory."
