@@ -1173,8 +1173,8 @@ export const ciProvider = (app: App) => (app.build as Build | undefined)?.ci ?? 
 
 export const workflowPath = (app: App) => `.${ciProvider(app)}/workflows/app-${app.name}.yaml`;
 
-export function renderWorkflow(app: App, target: Target): string {
-  if (ciProvider(app) === 'forgejo') return renderForgejoWorkflow(app, target);
+export function renderWorkflow(app: App, target: Target, actions: ActionVersions = {}): string {
+  if (ciProvider(app) === 'forgejo') return renderForgejoWorkflow(app, target, actions);
 
   const build = app.build as Build;
   const dir = `${target.location}/${app.name}`;
@@ -1228,12 +1228,13 @@ export function renderWorkflow(app: App, target: Target): string {
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }
 
-const ACTIONS = {
-  checkout: 'actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1',
-  buildx: 'docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069',
-  login: 'docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6',
-  buildPush: 'docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc',
-  cache: 'actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9',
+export type ActionVersions = Record<string, string>;
+
+const pinned = (actions: ActionVersions, name: string) => {
+  const version = actions[name];
+  if (!version?.includes('@'))
+    throw new Error(`platform/versions.yaml: actions.${name} needs <tag>@<sha>`);
+  return `${name}@${version.split('@')[1]}`;
 };
 
 const ON_MAIN = "github.ref == 'refs/heads/main'";
@@ -1268,8 +1269,15 @@ case "$CODE" in
 esac
 `;
 
-function renderForgejoWorkflow(app: App, target: Target): string {
+function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions): string {
   const build = app.build as Build;
+  const ACTIONS = {
+    checkout: pinned(actions, 'actions/checkout'),
+    buildx: pinned(actions, 'docker/setup-buildx-action'),
+    login: pinned(actions, 'docker/login-action'),
+    buildPush: pinned(actions, 'docker/build-push-action'),
+    cache: pinned(actions, 'actions/cache'),
+  };
   const dir = `${target.location}/${app.name}`;
   const context = build.context ?? dir;
   const args = Object.entries(build.args ?? {}).map(([k, v]) => `${k}=${v}`);

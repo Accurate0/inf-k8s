@@ -218,7 +218,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
 
     if (app.build) {
       const workflow = workflowPath(app);
-      const rendered = renderWorkflow(app, target);
+      const rendered = renderWorkflow(app, target, parse(fs.readText(VERSIONS)).actions);
       if (force || !fs.exists(workflow) || !isCurrent(fs.readText(workflow), rendered)) {
         stale.push({ path: workflow, wanted: stamped(rendered, new Date()) });
       }

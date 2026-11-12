@@ -474,8 +474,22 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
     },
     network: { ingress: [] },
   };
-  const workflow = parse(renderWorkflow(app, { location: 'projects', hasManifests: false }));
+  const actions = {
+    'actions/checkout': 'v7@aaa',
+    'docker/setup-buildx-action': 'v4@bbb',
+    'docker/login-action': 'v4@ccc',
+    'docker/build-push-action': 'v7@ddd',
+    'actions/cache': 'v6@eee',
+  };
+  const workflow = parse(
+    renderWorkflow(app, { location: 'projects', hasManifests: false }, actions),
+  );
 
+  assert.equal(workflow.jobs.build.steps[0].uses, 'actions/checkout@aaa');
+  assert.throws(
+    () => renderWorkflow(app, { location: 'projects', hasManifests: false }, {}),
+    /actions\.actions\/checkout/,
+  );
   assert.equal(workflowPath(app), '.forgejo/workflows/app-foo.yaml');
   assert.ok(workflow.on.push.paths.includes('.forgejo/workflows/app-foo.yaml'));
   const login = workflow.jobs.build.steps.find((step: { uses?: string }) =>

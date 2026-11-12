@@ -49,7 +49,7 @@
       "customType": "regex",
       "managerFilePatterns": ["/^(projects|platform-services)/[^/]+/app\\.yaml$/"],
       "matchStrings": [
-        "db:\\s*(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]+)"
+        "db:\\s*\\n\\s*image:\\s*(?<depName>[^:\\s]+):(?<currentValue>[^@\\s]+)@(?<currentDigest>sha256:[0-9a-f]+)"
       ],
       "datasourceTemplate": "docker"
     },
@@ -82,6 +82,14 @@
       "packageNameTemplate": "ghcr.io/accurate0/charts/{{{depName}}}",
       "datasourceTemplate": "docker",
       "versioningTemplate": "semver"
+    },
+    {
+      "customType": "regex",
+      "managerFilePatterns": ["/^platform/versions\\.yaml$/"],
+      "matchStrings": [
+        "(?<depName>[\\w.-]+/[\\w.-]+):\\s*(?<currentValue>v[^@\\s]+)@(?<currentDigest>[0-9a-f]{40})"
+      ],
+      "datasourceTemplate": "github-tags"
     },
     {
       "customType": "regex",
@@ -147,6 +155,16 @@
     }
   ],
   "packageRules": [
+    {
+      "matchManagers": ["github-actions"],
+      "matchFileNames": [".forgejo/workflows/app-*.yaml"],
+      "enabled": false
+    },
+    {
+      "matchFileNames": ["platform/versions.yaml"],
+      "matchDatasources": ["github-tags"],
+      "groupName": "github-actions"
+    },
     {
       "matchManagers": ["argocd"],
       "matchDatasources": ["docker"],
