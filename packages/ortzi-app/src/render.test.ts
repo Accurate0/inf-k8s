@@ -438,7 +438,11 @@ test('generates a workflow from the build block', () => {
       context: '.',
       args: { BINARY_NAME: 'foo' },
       paths: ['crates/x/**'],
-      test: { run: 'cargo test', db: 'postgres:17', dbName: 'foo', packages: ['a', 'b'] },
+      test: {
+        run: 'cargo test',
+        db: { image: 'postgres:17', databaseName: 'foo' },
+        packages: ['a', 'b'],
+      },
     },
     network: { ingress: [] },
   };
@@ -455,6 +459,8 @@ test('generates a workflow from the build block', () => {
   assert.equal(inputs.context, '.');
   assert.equal(inputs['build-args'], 'BINARY_NAME=foo');
   assert.equal(inputs['test-packages'], 'a b');
+  assert.equal(inputs['test-db-image'], 'postgres:17');
+  assert.equal(inputs['test-db-name'], 'foo');
   assert.equal(workflow.jobs.app.uses, './.github/workflows/app-build.yaml');
 });
 
@@ -464,7 +470,7 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
     build: {
       image: 'registry.anurag.sh/containers/foo',
       ci: 'forgejo',
-      test: { run: 'cargo test', db: 'postgres:17', dbName: 'foo' },
+      test: { run: 'cargo test', db: { image: 'postgres:17', databaseName: 'foo' } },
     },
     network: { ingress: [] },
   };

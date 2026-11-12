@@ -219,8 +219,7 @@ export interface Build {
   paths?: string[];
   test?: {
     run: string;
-    db?: string;
-    dbName?: string;
+    db?: { image: string; databaseName?: string };
     packages?: string[];
     setup?: string;
   };
@@ -1213,8 +1212,8 @@ export function renderWorkflow(app: App, target: Target): string {
           ...(test
             ? {
                 'test-run': test.run,
-                ...(test.db ? { 'test-db-image': test.db } : {}),
-                ...(test.dbName ? { 'test-db-name': test.dbName } : {}),
+                ...(test.db ? { 'test-db-image': test.db.image } : {}),
+                ...(test.db?.databaseName ? { 'test-db-name': test.db.databaseName } : {}),
                 ...(test.packages ? { 'test-packages': test.packages.join(' ') } : {}),
                 ...(test.setup ? { 'test-setup': test.setup } : {}),
               }
@@ -1322,11 +1321,11 @@ function renderForgejoWorkflow(app: App, target: Target): string {
       ? {
           services: {
             db: {
-              image: test.db,
+              image: test.db.image,
               env: {
                 POSTGRES_USER: 'postgres',
                 POSTGRES_PASSWORD: 'postgres',
-                POSTGRES_DB: test.dbName ?? 'postgres',
+                POSTGRES_DB: test.db.databaseName ?? 'postgres',
               },
               options:
                 '--health-cmd "pg_isready -U postgres" --health-interval 10s --health-timeout 5s --health-retries 5',
@@ -1336,7 +1335,9 @@ function renderForgejoWorkflow(app: App, target: Target): string {
       : {}),
     env: {
       ...(test.db
-        ? { DATABASE_URL: `postgres://postgres:postgres@db:5432/${test.dbName ?? 'postgres'}` }
+        ? {
+            DATABASE_URL: `postgres://postgres:postgres@db:5432/${test.db.databaseName ?? 'postgres'}`,
+          }
         : {}),
       SQLX_OFFLINE: 'true',
     },
