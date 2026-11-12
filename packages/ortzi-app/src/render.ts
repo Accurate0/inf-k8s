@@ -604,6 +604,7 @@ const ALLOWED = new Set([
   'name',
   'repository',
   'charts',
+  'chartRegistry',
   'workloads',
   'resources',
   'exports',

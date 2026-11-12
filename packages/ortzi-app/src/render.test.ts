@@ -523,11 +523,12 @@ test('platform charts come from registry.anurag.sh unless the app overrides the 
     'oci://registry.anurag.sh/charts/k8s-network',
   );
   assert.equal(
-    network({
-      name: 'foo',
-      chartRegistry: 'oci://ghcr.io/accurate0/charts',
-      network: { ingress: [] },
-    }).repoURL,
+    network(
+      validate(
+        { name: 'foo', chartRegistry: 'oci://ghcr.io/accurate0/charts', network: { ingress: [] } },
+        'test',
+      ),
+    ).repoURL,
     'oci://ghcr.io/accurate0/charts/k8s-network',
   );
 });
