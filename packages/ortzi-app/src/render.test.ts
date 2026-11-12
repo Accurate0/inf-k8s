@@ -499,6 +499,10 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   assert.equal(login.with.registry, 'registry.anurag.sh');
   assert.equal(login.with.username, '${{ secrets.REGISTRY_USERNAME }}');
   assert.equal(workflow.jobs.test.env.DATABASE_URL, 'postgres://postgres:postgres@db:5432/foo');
+  assert.equal(
+    workflow.jobs.test.steps.at(-1)['working-directory'],
+    '${{ github.workspace }}/projects/foo',
+  );
   assert.deepEqual(workflow.jobs.deploy.needs, ['build', 'test']);
   assert.match(workflow.jobs.deploy.steps[1].run, /yq .*image.values|strenv\(IMAGE\)/);
   assert.equal(workflow.jobs.deploy.steps[1].env.VALUES_FILE, 'projects/foo/image.values.yaml');

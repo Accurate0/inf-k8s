@@ -1362,7 +1362,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
           key: `\${{ runner.os }}-app-target-\${{ hashFiles('**/Cargo.lock') }}-${app.name}`,
         },
       },
-      { run: test.run, 'working-directory': dir },
+      { run: test.run, 'working-directory': `${'$'}{{ github.workspace }}/${dir}` },
     ],
   };
 
