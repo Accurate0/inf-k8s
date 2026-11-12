@@ -121,6 +121,14 @@ resources:
     secretKeys:
       clientId: client-id
       clientSecret: client-secret
+    claimMaps:
+      harbor_groups:
+        join: array
+        valuesByGroup:
+          harbor_admins:
+            - admin
+          harbor_users:
+            - user
     groups:
       harbor_admins:
         - platform_admins

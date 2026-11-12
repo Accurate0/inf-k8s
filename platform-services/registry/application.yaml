@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-12T12:10:46.895Z
+# generated at 2026-11-12T12:24:57.206Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -272,6 +272,14 @@ spec:
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret
+              claimMaps:
+                harbor_groups:
+                  join: array
+                  valuesByGroup:
+                    harbor_admins:
+                      - admin
+                    harbor_users:
+                      - user
               groups:
                 harbor_admins:
                   - platform_admins
