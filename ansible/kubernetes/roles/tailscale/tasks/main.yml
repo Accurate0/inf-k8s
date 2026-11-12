@@ -78,6 +78,13 @@
       ansible.builtin.set_fact:
         tailscale_is_online: "{{ (tailscale_status.stdout | from_json).Self.Online }}"
 
+    - name: Assert the auth key is set
+      ansible.builtin.assert:
+        that:
+          - tailscale_auth_key | default('', true) | length > 0
+        fail_msg: tailscale_auth_key is empty, tailscale up would wait for an interactive login
+      when: tailscale_join_network and not tailscale_is_online
+
     - name: Join network
       ansible.builtin.command: tailscale up --auth-key='{{ tailscale_auth_key }}' {{ tailscale_extra_args }}
       when: tailscale_join_network and not tailscale_is_online
