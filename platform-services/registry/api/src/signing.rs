@@ -218,6 +218,13 @@ pub fn verify_release(
     Ok(manifest)
 }
 
+pub fn verify_catalog(
+    roots: &[VerifyingKey],
+    envelope: &Envelope,
+) -> Result<crate::Catalog, String> {
+    open(envelope, root_for(roots, envelope)?)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -7,7 +7,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-registry-api = { path = "api" }
+registry-api = { path = "api", features = ["oci"] }
 subgraph = { path = "../../crates/subgraph" }
 async-graphql = { version = "7.2.1", features = ["chrono"] }
 async-stream = "0.3"

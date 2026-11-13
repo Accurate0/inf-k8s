@@ -1,0 +1,25 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE cli_versions SET\n            status = 'published', published_at = $9, published_by = $2, publisher_kind = $3,\n            source_repository = $4, source_ref = $5, source_sha = $6, source_run_id = $7,\n            signatures = $10, index_digest = $11, signatures_digest = $12\n         WHERE id = $1 AND status = $8",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Text",
+        "Timestamptz",
+        "Jsonb",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "eaca719f93e220c001a0aaad64d6294e9e0d5c967447574858c75bc8ebd4dc97"
+}

@@ -1,6 +1,8 @@
 pub mod artifacts;
+pub mod catalog;
 pub mod db;
 pub mod packages;
+pub mod release;
 pub mod versions;
 
 use axum::{
@@ -45,4 +47,10 @@ pub fn router() -> Router<AppState> {
             "/packages/{name}/versions/{version}/artifacts/{target}/url",
             get(artifacts::download_url),
         )
+        .route(
+            "/packages/{name}/versions/{version}/artifacts/{target}/manifest",
+            axum::routing::put(artifacts::register),
+        )
+        .route("/admin/backfill", post(packages::backfill))
+        .route("/admin/catalog", post(packages::render_catalog))
 }

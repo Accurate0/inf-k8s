@@ -13,4 +13,13 @@ hex = "0.4"
 p256 = { version = "0.13", features = ["ecdsa", "pkcs8", "pem"] }
 rand = "0.10"
 semver = "1"
+thiserror = { version = "2", optional = true }
 sha2 = "0.11"
+reqwest = { version = "0.13", default-features = false, features = ["json", "stream"], optional = true }
+futures = { version = "0.3", optional = true }
+bytes = { version = "1", optional = true }
+tokio = { version = "1", features = ["fs", "io-util"], optional = true }
+url = { version = "2", optional = true }
+
+[features]
+oci = ["dep:thiserror", "dep:reqwest", "dep:futures", "dep:bytes", "dep:tokio", "dep:url"]

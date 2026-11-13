@@ -1,0 +1,230 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT package_id, version, targets, description, binary_name, aliases,\n                  auth as \"auth: Json<PackageAuth>\", published_at as \"published_at!\",\n                  published_by, source_repository, source_ref, source_sha, source_run_id,\n                  yanked_at, yanked_by, yank_reason,\n                  index_digest as \"index_digest!\", signatures_digest as \"signatures_digest!\"\n           FROM cli_versions\n           WHERE status = 'published' AND published_at IS NOT NULL\n             AND index_digest IS NOT NULL AND signatures_digest IS NOT NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "package_id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "package_id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "version",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "version"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "targets",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "targets"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "binary_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "binary_name"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "aliases",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "aliases"
+          }
+        }
+      },
+      {
+        "ordinal": 6,
+        "name": "auth: Json<PackageAuth>",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "auth"
+          }
+        }
+      },
+      {
+        "ordinal": 7,
+        "name": "published_at!",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "published_at"
+          }
+        }
+      },
+      {
+        "ordinal": 8,
+        "name": "published_by",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "published_by"
+          }
+        }
+      },
+      {
+        "ordinal": 9,
+        "name": "source_repository",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "source_repository"
+          }
+        }
+      },
+      {
+        "ordinal": 10,
+        "name": "source_ref",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "source_ref"
+          }
+        }
+      },
+      {
+        "ordinal": 11,
+        "name": "source_sha",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "source_sha"
+          }
+        }
+      },
+      {
+        "ordinal": 12,
+        "name": "source_run_id",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "source_run_id"
+          }
+        }
+      },
+      {
+        "ordinal": 13,
+        "name": "yanked_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "yanked_at"
+          }
+        }
+      },
+      {
+        "ordinal": 14,
+        "name": "yanked_by",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "yanked_by"
+          }
+        }
+      },
+      {
+        "ordinal": 15,
+        "name": "yank_reason",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "yank_reason"
+          }
+        }
+      },
+      {
+        "ordinal": 16,
+        "name": "index_digest!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "index_digest"
+          }
+        }
+      },
+      {
+        "ordinal": 17,
+        "name": "signatures_digest!",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_versions",
+            "name": "signatures_digest"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true,
+      true
+    ]
+  },
+  "hash": "9353e1dc833f302dd6c6e4e7149eabd356204af0420f0afdcd6029fd5e07adb9"
+}

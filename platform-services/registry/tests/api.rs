@@ -117,10 +117,139 @@ impl Drop for Idp {
     }
 }
 
+type Manifests = std::collections::HashMap<String, (String, Vec<u8>)>;
+
 #[derive(Clone, Default)]
 struct HarborCalls {
     created: Arc<Mutex<Vec<Value>>>,
     deleted: Arc<Mutex<Vec<i64>>>,
+    blobs: Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>,
+    manifests: Arc<Mutex<Manifests>>,
+    uploads: Arc<Mutex<std::collections::HashMap<String, Vec<u8>>>>,
+}
+
+impl HarborCalls {
+    fn manifest(&self, repository: &str, reference: &str) -> Option<Value> {
+        let manifests = self.manifests.lock().unwrap();
+        let (_, body) = manifests.get(&format!("{repository}@{reference}"))?;
+        Some(serde_json::from_slice(body).unwrap())
+    }
+
+    fn blob(&self, digest: &str) -> Option<Vec<u8>> {
+        self.blobs.lock().unwrap().get(digest).cloned()
+    }
+}
+
+fn oci_digest(bytes: &[u8]) -> String {
+    format!("sha256:{}", sha(bytes))
+}
+
+async fn mock_oci(
+    axum::extract::State(calls): axum::extract::State<HarborCalls>,
+    method: axum::http::Method,
+    uri: axum::http::Uri,
+    headers: axum::http::HeaderMap,
+    body: axum::body::Bytes,
+) -> axum::response::Response {
+    use axum::{
+        http::{Method, StatusCode, header},
+        response::IntoResponse,
+    };
+
+    let path = uri.path().trim_start_matches("/v2/").to_owned();
+    let query = uri.query().unwrap_or_default().to_owned();
+
+    if path.is_empty() {
+        return StatusCode::OK.into_response();
+    }
+
+    if let Some((repository, rest)) = path.split_once("/blobs/uploads/") {
+        let id = if rest.is_empty() {
+            let id = format!("u{}", calls.uploads.lock().unwrap().len());
+            calls.uploads.lock().unwrap().insert(id.clone(), Vec::new());
+            id
+        } else {
+            rest.to_owned()
+        };
+        if method == Method::POST {
+            return (
+                StatusCode::ACCEPTED,
+                [(
+                    header::LOCATION,
+                    format!(
+                        "https://registry.example.test/v2/{repository}/blobs/uploads/{id}?_state=x"
+                    ),
+                )],
+            )
+                .into_response();
+        }
+        let mut uploads = calls.uploads.lock().unwrap();
+        let Some(data) = uploads.get_mut(&id) else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        data.extend_from_slice(&body);
+        if method == Method::PATCH {
+            return (
+                StatusCode::ACCEPTED,
+                [(
+                    header::LOCATION,
+                    format!("/v2/{repository}/blobs/uploads/{id}?_state=y"),
+                )],
+            )
+                .into_response();
+        }
+        let digest = query
+            .split('&')
+            .find_map(|p| p.strip_prefix("digest="))
+            .unwrap()
+            .replace("%3A", ":");
+        let data = uploads.remove(&id).unwrap();
+        if oci_digest(&data) != digest {
+            return StatusCode::BAD_REQUEST.into_response();
+        }
+        calls.blobs.lock().unwrap().insert(digest, data);
+        return StatusCode::CREATED.into_response();
+    }
+
+    if let Some((_, digest)) = path.split_once("/blobs/") {
+        let Some(blob) = calls.blob(digest) else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        return if method == Method::HEAD {
+            [(header::CONTENT_LENGTH, blob.len().to_string())].into_response()
+        } else {
+            blob.into_response()
+        };
+    }
+
+    if let Some((repository, reference)) = path.split_once("/manifests/") {
+        let key = format!("{repository}@{reference}");
+        if method == Method::PUT {
+            let media_type = headers
+                .get(header::CONTENT_TYPE)
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_owned();
+            let mut manifests = calls.manifests.lock().unwrap();
+            if !reference.starts_with("sha256:")
+                && reference.contains('.')
+                && manifests.contains_key(&key)
+            {
+                return StatusCode::PRECONDITION_FAILED.into_response();
+            }
+            let entry = (media_type, body.to_vec());
+            manifests.insert(format!("{repository}@{}", oci_digest(&body)), entry.clone());
+            manifests.insert(key, entry);
+            return StatusCode::CREATED.into_response();
+        }
+        let Some((media_type, body)) = calls.manifests.lock().unwrap().get(&key).cloned() else {
+            return StatusCode::NOT_FOUND.into_response();
+        };
+        return ([(header::CONTENT_TYPE, media_type)], body).into_response();
+    }
+
+    StatusCode::NOT_FOUND.into_response()
 }
 
 struct MockHarbor {
@@ -165,6 +294,8 @@ impl MockHarbor {
         let app = Router::new()
             .route("/api/v2.0/robots", post(create))
             .route("/api/v2.0/robots/{id}", delete(remove))
+            .route("/v2/", axum::routing::any(mock_oci))
+            .route("/v2/{*path}", axum::routing::any(mock_oci))
             .with_state(calls.clone());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
@@ -189,6 +320,7 @@ struct Registry {
     kanidm: Idp,
     forgejo: Idp,
     harbor: MockHarbor,
+    signer: Signer,
     admin: String,
 }
 
@@ -207,12 +339,8 @@ impl Registry {
         config.limits.max_artifact_bytes = 1024;
 
         let harbor = MockHarbor::spawn().await;
-        let mut state = AppState::new(
-            config,
-            pool,
-            Storage::memory(),
-            Signer::new(signing::generate()),
-        );
+        let signer = Signer::new(signing::generate());
+        let mut state = AppState::new(config, pool, Storage::memory(), signer.clone());
         state.harbor = Some(Harbor::new(
             &harbor.url,
             "admin".to_owned(),
@@ -234,6 +362,7 @@ impl Registry {
             kanidm,
             forgejo,
             harbor,
+            signer,
             admin,
         }
     }
@@ -1285,4 +1414,243 @@ async fn harbor_token_as_docker_config(pool: PgPool) {
     .unwrap();
     assert!(decoded.starts_with("robot$exch-forgejo-"), "{decoded}");
     assert!(decoded.ends_with(":secret-1"), "{decoded}");
+}
+
+fn fetch_catalog(registry: &Registry) -> registry_api::Catalog {
+    let calls = &registry.harbor.calls;
+    let manifest = calls
+        .manifest("ortzi-catalog/catalog", "latest")
+        .expect("catalog is published");
+    let layer = manifest["layers"][0]["digest"].as_str().unwrap();
+    let envelope: signing::Envelope = serde_json::from_slice(&calls.blob(layer).unwrap()).unwrap();
+    signing::verify_catalog(&[registry.signer.verifying_key()], &envelope).unwrap()
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn publishing_releases_into_harbor_with_a_signed_catalog(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("tool").await;
+    assert_eq!(
+        registry.publish(&registry.admin, "tool", "1.0.0").await,
+        200
+    );
+
+    let calls = &registry.harbor.calls;
+    let index = calls.manifest("ortzi-packages/tool", "1.0.0").unwrap();
+    assert_eq!(index["mediaType"], registry_api::oci::INDEX);
+    assert_eq!(index["artifactType"], registry_api::PACKAGE_ARTIFACT);
+    let mut platforms: Vec<String> = index["manifests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|m| {
+            format!(
+                "{}/{}",
+                m["platform"]["os"].as_str().unwrap(),
+                m["platform"]["architecture"].as_str().unwrap()
+            )
+        })
+        .collect();
+    platforms.sort();
+    assert_eq!(platforms, ["darwin/arm64", "linux/amd64"]);
+
+    let linux = index["manifests"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|m| m["platform"]["os"] == "linux")
+        .unwrap();
+    let binary = calls
+        .manifest("ortzi-packages/tool", linux["digest"].as_str().unwrap())
+        .unwrap();
+    let layer = &binary["layers"][0];
+    assert_eq!(
+        layer["annotations"]["org.opencontainers.image.title"],
+        "tool"
+    );
+    assert_eq!(
+        calls.blob(layer["digest"].as_str().unwrap()).unwrap(),
+        b"tool-1.0.0-linux-amd64"
+    );
+
+    let catalog = fetch_catalog(&registry);
+    let entry = &catalog.packages["tool"].versions["1.0.0"];
+    let index_body = calls.manifests.lock().unwrap()["ortzi-packages/tool@1.0.0"]
+        .1
+        .clone();
+    assert_eq!(entry.index, oci_digest(&index_body));
+
+    let signatures = calls
+        .manifest("ortzi-packages/tool", &entry.signatures)
+        .unwrap();
+    assert_eq!(signatures["subject"]["digest"], entry.index);
+    let signatures: signing::Signatures = serde_json::from_slice(
+        &calls
+            .blob(signatures["layers"][0]["digest"].as_str().unwrap())
+            .unwrap(),
+    )
+    .unwrap();
+    let release = signing::verify_release(
+        &[registry.signer.verifying_key()],
+        "tool",
+        "1.0.0",
+        &signatures,
+    )
+    .unwrap();
+    assert_eq!(release.statement.artifacts.len(), 2);
+    assert_eq!(
+        catalog
+            .latest("tool", Some(Target::LinuxAmd64), false)
+            .map(|(v, _)| v),
+        Some("1.0.0")
+    );
+
+    let seq = catalog.seq;
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/cli/v1/packages/tool/versions/1.0.0/yank",
+            Some(&registry.admin),
+            Some(json!({ "reason": "broken" })),
+        )
+        .await;
+    assert_eq!(status, 200);
+    let catalog = fetch_catalog(&registry);
+    assert!(catalog.seq > seq);
+    assert_eq!(
+        catalog.packages["tool"].versions["1.0.0"]
+            .yanked
+            .as_ref()
+            .unwrap()
+            .reason
+            .as_deref(),
+        Some("broken")
+    );
+    assert!(catalog.latest("tool", None, false).is_none());
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn oci_pushed_artifacts_register_publish_and_download(pool: PgPool) {
+    use registry_api::{BINARY_ARTIFACT, oci};
+
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("tool").await;
+    let base = "/cli/v1/packages/tool/versions";
+    let (status, _) = registry
+        .call(
+            "POST",
+            base,
+            Some(&registry.admin),
+            Some(json!({ "version": "2.0.0", "targets": ["linux-amd64", "wasm"] })),
+        )
+        .await;
+    assert_eq!(status, 201);
+
+    let client = oci::Client::new(reqwest::Client::new(), &registry.harbor.url, None).unwrap();
+    let chunked = oci::Client::new(reqwest::Client::new(), &registry.harbor.url, None)
+        .unwrap()
+        .with_chunk_size(4);
+    let repository = "ortzi-packages/tool";
+    let mut artifacts = Vec::new();
+    for target in [Target::LinuxAmd64, Target::Wasm] {
+        let bytes = format!("oci-{target}").into_bytes();
+        let path =
+            std::env::temp_dir().join(format!("registry-test-{}-{target}", std::process::id()));
+        std::fs::write(&path, &bytes).unwrap();
+        let layer = chunked
+            .push_file(repository, target.media_type(), &path)
+            .await
+            .unwrap();
+        std::fs::remove_file(&path).unwrap();
+        client
+            .push_bytes(repository, oci::EMPTY, oci::EMPTY_JSON)
+            .await
+            .unwrap();
+        let manifest = client
+            .push_json(
+                repository,
+                &oci_digest(
+                    &serde_json::to_vec(&oci::Manifest::artifact(
+                        BINARY_ARTIFACT,
+                        vec![layer.clone()],
+                    ))
+                    .unwrap(),
+                ),
+                oci::MANIFEST,
+                &oci::Manifest::artifact(BINARY_ARTIFACT, vec![layer]),
+            )
+            .await
+            .unwrap();
+
+        let (status, body) = registry
+            .call(
+                "PUT",
+                &format!("{base}/2.0.0/artifacts/{target}/manifest"),
+                Some(&registry.admin),
+                Some(json!({ "manifest": manifest.digest })),
+            )
+            .await;
+        assert_eq!(status, 200, "{body}");
+        assert_eq!(body["sha256"], sha(&bytes));
+        artifacts.push(Artifact {
+            target,
+            sha256: sha(&bytes),
+            size: bytes.len() as i64,
+        });
+    }
+
+    let wrong = client
+        .push_json(
+            repository,
+            &oci_digest(
+                &serde_json::to_vec(&oci::Manifest::artifact("application/vnd.other", vec![]))
+                    .unwrap(),
+            ),
+            oci::MANIFEST,
+            &oci::Manifest::artifact("application/vnd.other", vec![]),
+        )
+        .await
+        .unwrap();
+    let (status, _) = registry
+        .call(
+            "PUT",
+            &format!("{base}/2.0.0/artifacts/linux-amd64/manifest"),
+            Some(&registry.admin),
+            Some(json!({ "manifest": wrong.digest })),
+        )
+        .await;
+    assert_eq!(status, 422);
+
+    let (status, body) = registry
+        .sign_and_publish(&registry.admin, "tool", "2.0.0", artifacts)
+        .await;
+    assert_eq!(status, 200, "{body}");
+
+    let (status, bytes, sha256) = registry
+        .download(
+            &registry.admin,
+            &format!("{base}/2.0.0/artifacts/linux-amd64"),
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(bytes, b"oci-linux-amd64");
+    assert_eq!(sha256.as_deref(), Some(sha(b"oci-linux-amd64").as_str()));
+
+    let (status, _) = registry
+        .call(
+            "GET",
+            &format!("{base}/2.0.0/artifacts/linux-amd64/url"),
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    let catalog = fetch_catalog(&registry);
+    assert_eq!(
+        catalog
+            .latest("tool", Some(Target::DarwinArm64), false)
+            .map(|(v, _)| v),
+        Some("2.0.0")
+    );
 }

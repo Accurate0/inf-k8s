@@ -1,10 +1,24 @@
 use std::time::Duration;
 
-use crate::{error::Result, state::AppState};
+use crate::{cli::catalog, error::Result, state::AppState};
+
+async fn retry_catalog(state: AppState) {
+    let mut ticker = tokio::time::interval(CATALOG_INTERVAL);
+    loop {
+        ticker.tick().await;
+        if let Err(e) = catalog::render_if_dirty(&state).await {
+            tracing::warn!("catalog render failed: {e}");
+        }
+    }
+}
 
 const INTERVAL: Duration = Duration::from_secs(3600);
 
+const CATALOG_INTERVAL: Duration = Duration::from_secs(60);
+
 pub async fn run(state: AppState) {
+    tokio::spawn(retry_catalog(state.clone()));
+
     let mut ticker = tokio::time::interval(INTERVAL);
     loop {
         ticker.tick().await;
@@ -12,6 +26,13 @@ pub async fn run(state: AppState) {
             Ok(0) => {}
             Ok(removed) => tracing::info!(removed, "garbage collected stale drafts"),
             Err(e) => tracing::warn!("draft garbage collection failed: {e}"),
+        }
+        if state.harbor.is_some() {
+            match catalog::backfill(&state).await {
+                Ok(0) => {}
+                Ok(done) => tracing::info!(done, "backfilled versions into harbor"),
+                Err(e) => tracing::warn!("harbor backfill failed: {e}"),
+            }
         }
         match collect_expired_robots(&state).await {
             Ok(0) => {}
@@ -38,7 +59,9 @@ pub async fn collect_stale_drafts(state: &AppState) -> Result<usize> {
         .fetch_all(&state.pool)
         .await?;
         for key in keys {
-            state.storage.delete(&key).await?;
+            if crate::cli::release::oci_manifest(&key).is_none() {
+                state.storage.delete(&key).await?;
+            }
         }
         sqlx::query!(
             "DELETE FROM cli_versions WHERE id = $1 AND status = 'draft'",

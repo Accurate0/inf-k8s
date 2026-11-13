@@ -1,3 +1,5 @@
+#[cfg(feature = "oci")]
+pub mod oci;
 pub mod signing;
 
 use std::{fmt, str::FromStr};
@@ -244,6 +246,28 @@ impl Target {
 
     pub fn runs_on(self, host: Target) -> bool {
         self == host || self == Target::Wasm
+    }
+
+    pub fn platform(self) -> (&'static str, &'static str) {
+        match self {
+            Target::DarwinArm64 => ("darwin", "arm64"),
+            Target::LinuxAmd64 => ("linux", "amd64"),
+            Target::Wasm => ("wasip2", "wasm"),
+        }
+    }
+
+    pub fn file_name(self, binary: &str) -> String {
+        match self {
+            Target::Wasm => format!("{binary}.wasm"),
+            _ => binary.to_owned(),
+        }
+    }
+
+    pub fn media_type(self) -> &'static str {
+        match self {
+            Target::Wasm => WASM_MEDIA_TYPE,
+            _ => BINARY_MEDIA_TYPE,
+        }
     }
 
     pub fn host() -> Option<Target> {
@@ -538,6 +562,201 @@ pub struct Yanked {
 pub struct Yank {
     #[serde(default)]
     pub reason: Option<String>,
+}
+
+pub const BINARY_ARTIFACT: &str = "application/vnd.ortzi.binary.v1";
+pub const PACKAGE_ARTIFACT: &str = "application/vnd.ortzi.package.v1";
+pub const SIGNATURES_ARTIFACT: &str = "application/vnd.ortzi.signatures.v1";
+pub const SIGNATURES_MEDIA_TYPE: &str = "application/vnd.ortzi.signatures.v1+json";
+pub const CATALOG_ARTIFACT: &str = "application/vnd.ortzi.catalog.v1";
+pub const CATALOG_MEDIA_TYPE: &str = "application/vnd.ortzi.catalog.v1+json";
+pub const BINARY_MEDIA_TYPE: &str = "application/octet-stream";
+pub const WASM_MEDIA_TYPE: &str = "application/wasm";
+pub const CATALOG_REPOSITORY: &str = "ortzi-catalog/catalog";
+pub const MAX_CATALOG_BYTES: u64 = 16 * 1024 * 1024;
+
+pub fn package_repository(project: &str, name: &str) -> String {
+    format!("{project}/{name}")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RegisterArtifact {
+    pub manifest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Catalog {
+    pub seq: i64,
+    pub generated_at: DateTime<Utc>,
+    pub packages_project: String,
+    pub packages: std::collections::BTreeMap<String, CatalogPackage>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogPackage {
+    pub description: String,
+    pub binary_name: String,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub archived: bool,
+    pub versions: std::collections::BTreeMap<String, CatalogVersion>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogVersion {
+    pub targets: Vec<Target>,
+    pub index: String,
+    pub signatures: String,
+    pub description: String,
+    pub binary_name: String,
+    #[serde(default)]
+    pub aliases: Vec<String>,
+    #[serde(default)]
+    pub auth: Option<PackageAuth>,
+    pub published_at: DateTime<Utc>,
+    #[serde(default)]
+    pub published_by: Option<String>,
+    #[serde(default)]
+    pub source: Option<Source>,
+    #[serde(default)]
+    pub yanked: Option<Yanked>,
+}
+
+impl Catalog {
+    pub fn repository(&self, name: &str) -> String {
+        package_repository(&self.packages_project, name)
+    }
+
+    pub fn version(&self, name: &str, version: &str) -> Option<(&str, &CatalogVersion)> {
+        let wanted = semver::Version::parse(version.strip_prefix('v').unwrap_or(version))
+            .map(|v| v.to_string())
+            .unwrap_or_else(|_| version.to_owned());
+        self.packages
+            .get(name)?
+            .versions
+            .get_key_value(&wanted)
+            .map(|(v, entry)| (v.as_str(), entry))
+    }
+
+    pub fn latest(
+        &self,
+        name: &str,
+        target: Option<Target>,
+        prerelease: bool,
+    ) -> Option<(&str, &CatalogVersion)> {
+        self.packages
+            .get(name)?
+            .versions
+            .iter()
+            .filter(|(_, v)| v.yanked.is_none())
+            .filter(|(_, v)| target.is_none_or(|t| v.targets.iter().any(|v| v.runs_on(t))))
+            .filter_map(|(version, v)| Some((semver::Version::parse(version).ok()?, version, v)))
+            .filter(|(semver, _, _)| prerelease || is_release(semver))
+            .max_by_key(|(semver, _, _)| version_key(semver))
+            .map(|(_, version, v)| (version.as_str(), v))
+    }
+}
+
+impl CatalogVersion {
+    pub fn to_version(
+        &self,
+        package: &str,
+        version: &str,
+        signatures: signing::Signatures,
+    ) -> Version {
+        Version {
+            package: package.to_owned(),
+            version: version.to_owned(),
+            status: "published".to_owned(),
+            targets: self.targets.clone(),
+            description: self.description.clone(),
+            binary_name: self.binary_name.clone(),
+            aliases: self.aliases.clone(),
+            auth: self.auth.clone(),
+            artifacts: Vec::new(),
+            signatures: Some(signatures),
+            published_at: Some(self.published_at),
+            published_by: self.published_by.clone(),
+            source: self.source.clone(),
+            yanked: self.yanked.clone(),
+        }
+    }
+}
+
+#[cfg(test)]
+mod catalog_tests {
+    use super::*;
+
+    fn entry(targets: &[Target], yanked: bool) -> CatalogVersion {
+        CatalogVersion {
+            targets: targets.to_vec(),
+            index: String::new(),
+            signatures: String::new(),
+            description: String::new(),
+            binary_name: "ff".to_owned(),
+            aliases: Vec::new(),
+            auth: None,
+            published_at: Utc::now(),
+            published_by: None,
+            source: None,
+            yanked: yanked.then(|| Yanked {
+                at: Utc::now(),
+                by: "someone".to_owned(),
+                reason: None,
+            }),
+        }
+    }
+
+    #[test]
+    fn latest_matches_the_registry_rules() {
+        let both = [Target::DarwinArm64, Target::LinuxAmd64];
+        let versions = [
+            ("0.9.0", entry(&both, false)),
+            ("0.10.0", entry(&[Target::LinuxAmd64], false)),
+            ("1.0.0", entry(&both, true)),
+            ("1.1.0-rc.1", entry(&both, false)),
+            ("3.0.0-2", entry(&[Target::Wasm], false)),
+        ];
+        let mut catalog = Catalog {
+            seq: 1,
+            generated_at: Utc::now(),
+            packages_project: "ortzi-packages".to_owned(),
+            packages: Default::default(),
+        };
+        catalog.packages.insert(
+            "ff".to_owned(),
+            CatalogPackage {
+                description: String::new(),
+                binary_name: "ff".to_owned(),
+                aliases: Vec::new(),
+                archived: false,
+                versions: versions
+                    .into_iter()
+                    .map(|(v, e)| (v.to_owned(), e))
+                    .collect(),
+            },
+        );
+
+        let pick = |target, pre| catalog.latest("ff", target, pre).map(|(v, _)| v);
+        assert_eq!(pick(None, false), Some("3.0.0-2"));
+        assert_eq!(pick(Some(Target::DarwinArm64), false), Some("3.0.0-2"));
+        catalog
+            .packages
+            .get_mut("ff")
+            .unwrap()
+            .versions
+            .remove("3.0.0-2");
+        let pick = |target, pre| catalog.latest("ff", target, pre).map(|(v, _)| v);
+        assert_eq!(pick(None, false), Some("0.10.0"));
+        assert_eq!(pick(Some(Target::DarwinArm64), false), Some("0.9.0"));
+        assert_eq!(pick(None, true), Some("1.1.0-rc.1"));
+        assert_eq!(
+            catalog.version("ff", "v0.9.0").map(|(v, _)| v),
+            Some("0.9.0")
+        );
+        assert_eq!(catalog.repository("ff"), "ortzi-packages/ff");
+    }
 }
 
 #[cfg(test)]

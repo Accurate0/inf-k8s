@@ -1,0 +1,86 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id, name, description, binary_name, aliases, archived_at FROM cli_packages",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "name"
+          }
+        }
+      },
+      {
+        "ordinal": 2,
+        "name": "description",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "description"
+          }
+        }
+      },
+      {
+        "ordinal": 3,
+        "name": "binary_name",
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "binary_name"
+          }
+        }
+      },
+      {
+        "ordinal": 4,
+        "name": "aliases",
+        "type_info": "TextArray",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "aliases"
+          }
+        }
+      },
+      {
+        "ordinal": 5,
+        "name": "archived_at",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "cli_packages",
+            "name": "archived_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": []
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "b2835958f0da547996a51c85c1b0990491d71feb9b507cefb6431854749ea485"
+}

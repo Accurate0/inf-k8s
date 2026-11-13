@@ -1,12 +1,21 @@
-use std::time::Duration;
+use std::{sync::Arc, time::Duration};
 
 use chrono::{DateTime, Utc};
-use registry_api::{HarborAccess, HarborAction};
+use registry_api::{
+    HarborAccess, HarborAction,
+    oci::{self, Credentials},
+};
 use reqwest::StatusCode;
 use serde::Deserialize;
 use serde_json::{Value, json};
 
 use crate::{config::HarborConfig, error::ApiError};
+
+impl From<oci::Error> for ApiError {
+    fn from(e: oci::Error) -> Self {
+        ApiError::Harbor(e.to_string())
+    }
+}
 
 #[derive(Clone)]
 pub struct Harbor {
@@ -14,6 +23,7 @@ pub struct Harbor {
     url: String,
     username: String,
     password: String,
+    oci: Arc<oci::Client>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -56,6 +66,22 @@ fn permissions(access: &[HarborAccess]) -> Value {
 
 impl Harbor {
     pub fn new(url: &str, username: String, password: String) -> Self {
+        let transfers = reqwest::Client::builder()
+            .connect_timeout(Duration::from_secs(10))
+            .read_timeout(Duration::from_secs(120))
+            .user_agent("registry")
+            .build()
+            .unwrap_or_default();
+        let oci = oci::Client::new(
+            transfers,
+            url,
+            Some(Credentials {
+                username: username.clone(),
+                password: password.clone(),
+            }),
+        )
+        .expect("harbor url is valid");
+
         Self {
             http: reqwest::Client::builder()
                 .timeout(Duration::from_secs(20))
@@ -65,7 +91,12 @@ impl Harbor {
             url: url.trim_end_matches('/').to_owned(),
             username,
             password,
+            oci: Arc::new(oci),
         }
+    }
+
+    pub fn oci(&self) -> &oci::Client {
+        &self.oci
     }
 
     pub fn from_env(config: &HarborConfig) -> Option<Self> {

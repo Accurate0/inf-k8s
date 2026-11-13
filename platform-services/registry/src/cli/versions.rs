@@ -13,8 +13,10 @@ use registry_api::{
 use serde_json::json;
 
 use super::{
+    catalog,
     db::{self, DRAFT},
     packages::{validate_aliases, validate_binary_name},
+    release,
 };
 use crate::{
     auth::{Principal, policy::authorize_publish},
@@ -201,18 +203,48 @@ pub async fn publish(
             published_at,
         },
     );
-    let signatures = sqlx::types::Json(Signatures {
+    let signatures = Signatures {
         manifest,
         certificate: request.certificate,
         statement: request.statement,
-    });
+    };
+
+    let released = match (&state.harbor, &state.config.harbor) {
+        (Some(harbor), Some(config)) => match release::release(
+            &state,
+            harbor,
+            &config.packages_project,
+            &name,
+            &row,
+            &artifacts,
+            &signatures,
+        )
+        .await
+        {
+            Ok(released) => Some(released),
+            Err(e) => {
+                tracing::warn!(
+                    package = name,
+                    version = row.version,
+                    "harbor release failed; backfill will retry: {e}"
+                );
+                None
+            }
+        },
+        _ => None,
+    };
+    let (index_digest, signatures_digest) = match released {
+        Some(r) => (Some(r.index), Some(r.signatures)),
+        None => (None, None),
+    };
+    let signatures = sqlx::types::Json(signatures);
 
     let source = publisher.source.clone().unwrap_or_default();
     let updated = sqlx::query!(
         "UPDATE cli_versions SET
             status = 'published', published_at = $9, published_by = $2, publisher_kind = $3,
             source_repository = $4, source_ref = $5, source_sha = $6, source_run_id = $7,
-            signatures = $10
+            signatures = $10, index_digest = $11, signatures_digest = $12
          WHERE id = $1 AND status = $8",
         row.id,
         publisher.actor,
@@ -223,7 +255,9 @@ pub async fn publish(
         source.run_id,
         DRAFT,
         published_at,
-        signatures as sqlx::types::Json<Signatures>
+        signatures as sqlx::types::Json<Signatures>,
+        index_digest,
+        signatures_digest
     )
     .execute(&state.pool)
     .await?
@@ -266,6 +300,7 @@ pub async fn publish(
     )
     .await?;
     metrics::record_publish(ECOSYSTEM_CLI, &name, publisher.kind);
+    catalog::changed(&state).await;
     tracing::info!(
         package = name,
         version = row.version,
@@ -353,6 +388,8 @@ async fn set_yanked(
         },
     )
     .await?;
+
+    catalog::changed(state).await;
 
     let row = db::get_version(&state.pool, &package, &row.version).await?;
     let artifacts = db::artifacts(&state.pool, row.id).await?;

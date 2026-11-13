@@ -13,7 +13,10 @@ use serde::Deserialize;
 use serde_json::json;
 use uuid::Uuid;
 
-use super::db::{self, PackageRow, VersionRow};
+use super::{
+    catalog,
+    db::{self, PackageRow, VersionRow},
+};
 use crate::{
     auth::Principal,
     core::{
@@ -201,6 +204,8 @@ pub async fn update(
     )
     .await?;
 
+    catalog::changed(&state).await;
+
     let versions = db::versions(&state.pool, row.id).await?;
     let latest = db::latest(&versions, None, false).cloned();
     Ok(Json(to_api(row, latest.as_ref())))
@@ -245,6 +250,8 @@ async fn set_archived(
     )
     .await?;
 
+    catalog::changed(state).await;
+
     let versions = db::versions(&state.pool, row.id).await?;
     let latest = db::latest(&versions, None, false).cloned();
     Ok(to_api(row, latest.as_ref()))
@@ -284,7 +291,9 @@ pub async fn delete(
 
     for version in &versions {
         for artifact in db::artifacts(&state.pool, version.id).await? {
-            state.storage.delete(&artifact.object_key).await?;
+            if super::release::oci_manifest(&artifact.object_key).is_none() {
+                state.storage.delete(&artifact.object_key).await?;
+            }
         }
     }
 
@@ -305,6 +314,7 @@ pub async fn delete(
         },
     )
     .await?;
+    catalog::changed(&state).await;
 
     Ok(StatusCode::NO_CONTENT)
 }
@@ -368,4 +378,47 @@ pub async fn latest(
 
     let artifacts = db::artifacts(&state.pool, version.id).await?;
     Ok(Json(version.into_api(&name, &artifacts)))
+}
+
+pub async fn backfill(
+    State(state): State<AppState>,
+    principal: Principal,
+) -> Result<(StatusCode, Json<serde_json::Value>)> {
+    principal.require_admin()?;
+    if state.harbor.is_none() {
+        return Err(ApiError::Harbor("harbor is not configured".to_owned()));
+    }
+
+    audit::record_as(
+        &state.pool,
+        &principal,
+        Event {
+            action: "catalog.backfill",
+            ecosystem: Some(ECOSYSTEM_CLI),
+            package: None,
+            version: None,
+            detail: json!({}),
+        },
+    )
+    .await?;
+
+    tokio::spawn(async move {
+        match catalog::backfill(&state).await {
+            Ok(done) => tracing::info!(done, "harbor backfill finished"),
+            Err(e) => tracing::error!("harbor backfill failed: {e}"),
+        }
+    });
+    Ok((StatusCode::ACCEPTED, Json(json!({ "started": true }))))
+}
+
+pub async fn render_catalog(
+    State(state): State<AppState>,
+    principal: Principal,
+) -> Result<Json<serde_json::Value>> {
+    principal.require_admin()?;
+    if state.harbor.is_none() {
+        return Err(ApiError::Harbor("harbor is not configured".to_owned()));
+    }
+    let seq = catalog::render(&state).await?;
+    Ok(Json(json!({ "seq": seq })))
 }

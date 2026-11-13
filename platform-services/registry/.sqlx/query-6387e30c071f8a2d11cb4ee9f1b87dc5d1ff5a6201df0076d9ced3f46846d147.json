@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE core_catalog SET seq = $1, digest = $2, dirty = false, rendered_at = now()",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "6387e30c071f8a2d11cb4ee9f1b87dc5d1ff5a6201df0076d9ced3f46846d147"
+}
