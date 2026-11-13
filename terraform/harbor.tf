@@ -96,61 +96,6 @@ resource "harbor_project" "own" {
   public = false
 }
 
-ephemeral "random_password" "harbor-forgejo" {
-  length  = 32
-  special = false
-}
-
-resource "harbor_robot_account" "forgejo" {
-  name              = "forgejo"
-  level             = "system"
-  secret_wo         = ephemeral.random_password.harbor-forgejo.result
-  secret_wo_version = 1
-
-  dynamic "permissions" {
-    for_each = harbor_project.own
-
-    content {
-      kind      = "project"
-      namespace = permissions.value.name
-
-      access {
-        action   = "pull"
-        resource = "repository"
-      }
-
-      access {
-        action   = "push"
-        resource = "repository"
-      }
-    }
-  }
-
-  dynamic "permissions" {
-    for_each = harbor_project.proxy
-
-    content {
-      kind      = "project"
-      namespace = permissions.value.name
-
-      access {
-        action   = "pull"
-        resource = "repository"
-      }
-    }
-  }
-}
-
-resource "vault_kv_secret_v2" "harbor-forgejo" {
-  mount = vault_mount.kv.path
-  name  = "harbor/forgejo"
-  data_json_wo = jsonencode({
-    USERNAME = harbor_robot_account.forgejo.full_name
-    PASSWORD = ephemeral.random_password.harbor-forgejo.result
-  })
-  data_json_wo_version = 1
-}
-
 ephemeral "random_password" "harbor-argocd" {
   length  = 32
   special = false
