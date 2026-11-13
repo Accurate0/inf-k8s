@@ -208,6 +208,20 @@ resource "harbor_robot_account" "exchange" {
   secret_wo         = ephemeral.random_password.harbor-exchange.result
   secret_wo_version = 1
 
+  permissions {
+    kind      = "system"
+    namespace = "/"
+
+    dynamic "access" {
+      for_each = ["create", "list", "read", "delete"]
+
+      content {
+        action   = access.value
+        resource = "robot"
+      }
+    }
+  }
+
   dynamic "permissions" {
     for_each = merge(harbor_project.own, harbor_project.proxy, harbor_project.ortzi)
 
