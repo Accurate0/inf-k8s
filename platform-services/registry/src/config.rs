@@ -1,5 +1,7 @@
 use serde::Deserialize;
 
+use crate::auth::grants::Grant;
+
 const CONFIG_YAML: &str = include_str!("../config.yaml");
 
 const CONFIG_PATH_ENV: &str = "CONFIG_PATH";
@@ -18,6 +20,19 @@ pub struct Config {
     pub limits: Limits,
     #[serde(default)]
     pub graph: Option<GraphConfig>,
+    #[serde(default)]
+    pub harbor: Option<HarborConfig>,
+}
+
+#[derive(Clone, Debug, Deserialize)]
+pub struct HarborConfig {
+    pub url: String,
+    pub registry: String,
+    pub packages_project: String,
+    #[serde(default = "default_robot_duration_days")]
+    pub robot_duration_days: i64,
+    #[serde(default)]
+    pub grants: Vec<Grant>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -85,6 +100,10 @@ fn default_draft_ttl_hours() -> i64 {
     24
 }
 
+fn default_robot_duration_days() -> i64 {
+    1
+}
+
 impl Config {
     pub fn load() -> anyhow::Result<Self> {
         let Ok(path) = std::env::var(CONFIG_PATH_ENV) else {
@@ -96,6 +115,7 @@ impl Config {
             .map_err(|e| anyhow::anyhow!("failed to read config ConfigMap at {path}: {e}"))?;
         let config: Config = serde_yaml::from_str(&contents)
             .map_err(|e| anyhow::anyhow!("failed to parse config ConfigMap at {path}: {e}"))?;
+        config.validate()?;
 
         if config.version != CONFIG_SCHEMA_VERSION {
             tracing::warn!(
@@ -115,8 +135,26 @@ impl Config {
     }
 
     pub fn baked_in() -> anyhow::Result<Self> {
-        serde_yaml::from_str(CONFIG_YAML)
-            .map_err(|e| anyhow::anyhow!("failed to parse baked-in config.yaml: {e}"))
+        let config: Config = serde_yaml::from_str(CONFIG_YAML)
+            .map_err(|e| anyhow::anyhow!("failed to parse baked-in config.yaml: {e}"))?;
+        config.validate()?;
+        Ok(config)
+    }
+
+    fn validate(&self) -> anyhow::Result<()> {
+        let Some(harbor) = &self.harbor else {
+            return Ok(());
+        };
+
+        if harbor.robot_duration_days < 1 {
+            anyhow::bail!("harbor.robot_duration_days must be at least 1");
+        }
+        for (i, grant) in harbor.grants.iter().enumerate() {
+            grant
+                .validate()
+                .map_err(|e| anyhow::anyhow!("harbor.grants[{i}]: {e}"))?;
+        }
+        Ok(())
     }
 }
 
@@ -131,5 +169,6 @@ mod tests {
         assert_eq!(config.storage.bucket, "registry");
         assert!(config.forgejo.is_some());
         assert!(config.graph.is_some());
+        assert!(!config.harbor.unwrap().grants.is_empty());
     }
 }

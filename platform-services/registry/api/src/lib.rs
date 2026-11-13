@@ -677,3 +677,34 @@ mod tests {
         );
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum HarborAction {
+    Pull,
+    Push,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HarborAccess {
+    pub project: String,
+    pub actions: Vec<HarborAction>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub package: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarborTokenRequest {
+    pub access: Vec<HarborAccess>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarborToken {
+    pub registry: String,
+    pub username: String,
+    pub password: String,
+    pub expires_at: DateTime<Utc>,
+    pub access: Vec<HarborAccess>,
+}
+
+pub const DOCKER_CONFIG_MEDIA_TYPE: &str = "application/vnd.docker.config+json";

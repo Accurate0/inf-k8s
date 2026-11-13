@@ -4,7 +4,7 @@ use anyhow::Context;
 use p256::ecdsa::{SigningKey, VerifyingKey};
 use sqlx::PgPool;
 
-use crate::{auth::Auth, config::Config, storage::Storage};
+use crate::{auth::Auth, config::Config, harbor::Harbor, storage::Storage};
 
 #[derive(Clone)]
 pub struct Signer {
@@ -38,6 +38,7 @@ pub struct AppState {
     pub storage: Storage,
     pub auth: Auth,
     pub signer: Signer,
+    pub harbor: Option<Harbor>,
 }
 
 impl AppState {
@@ -48,6 +49,7 @@ impl AppState {
             pool,
             storage,
             signer,
+            harbor: None,
         }
     }
 }

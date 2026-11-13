@@ -28,3 +28,33 @@ storage:
 limits:
   max_artifact_bytes: 268435456
   draft_ttl_hours: 24
+
+harbor:
+  url: http://harbor.registry.svc.cluster.local
+  registry: registry.anurag.sh
+  packages_project: ortzi-packages
+  robot_duration_days: 1
+  grants:
+    - kanidm: {groups: [registry_users, registry_admins]}
+      allow:
+        - {project: ortzi-*, actions: [pull]}
+    - kanidm: {groups: [registry_admins]}
+      allow:
+        - {project: ortzi-*, actions: [pull, push]}
+        - {project: containers, actions: [pull, push]}
+        - {project: charts, actions: [pull, push]}
+    - token: {}
+      allow:
+        - {project: ortzi-*, actions: [pull]}
+    - forgejo: {repository: "*"}
+      allow:
+        - {project: ortzi-*, actions: [pull]}
+        - {project: containers, actions: [pull]}
+        - {project: charts, actions: [pull]}
+        - {project: ghcr, actions: [pull]}
+        - {project: dockerhub, actions: [pull]}
+        - {project: quay, actions: [pull]}
+    - forgejo: {repository: anurag/k8s, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+        - {project: charts, actions: [pull, push]}

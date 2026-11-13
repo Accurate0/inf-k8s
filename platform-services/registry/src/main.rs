@@ -1,6 +1,7 @@
 use anyhow::Context;
 use registry::{
     config::Config,
+    harbor::Harbor,
     jobs, metrics, server,
     state::{AppState, Signer},
     storage::Storage,
@@ -37,7 +38,9 @@ async fn main() -> anyhow::Result<()> {
     let config = Config::load()?;
     let storage = Storage::from_env(&config.storage)?;
     let signer = Signer::from_env()?;
-    let state = AppState::new(config, pool, storage, signer);
+    let harbor = config.harbor.as_ref().and_then(Harbor::from_env);
+    let mut state = AppState::new(config, pool, storage, signer);
+    state.harbor = harbor;
 
     state.auth.start().await;
     tokio::spawn(jobs::run(state.clone()));

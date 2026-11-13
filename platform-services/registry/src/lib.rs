@@ -4,6 +4,7 @@ pub mod config;
 pub mod core;
 pub mod error;
 pub mod graphql;
+pub mod harbor;
 pub mod jobs;
 pub mod metrics;
 pub mod server;

@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-13T10:34:26.355Z
+# generated at 2026-11-13T10:43:15.911Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -159,6 +159,9 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /install.sh
+                    - path:
+                        type: PathPrefix
+                        value: /harbor-login.sh
                   timeouts:
                     request: 0s
                     backendRequest: 0s
@@ -200,6 +203,9 @@ spec:
                     - path:
                         type: PathPrefix
                         value: /install.sh
+                    - path:
+                        type: PathPrefix
+                        value: /harbor-login.sh
                   timeouts:
                     request: 0s
                     backendRequest: 0s

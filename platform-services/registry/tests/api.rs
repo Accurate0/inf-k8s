@@ -1,7 +1,10 @@
 use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
 use p256::pkcs8::EncodePrivateKey;
+use std::sync::{Arc, Mutex};
+
 use registry::{
     config::{Config, ForgejoConfig},
+    harbor::Harbor,
     server,
     state::{AppState, Signer},
     storage::Storage,
@@ -114,12 +117,78 @@ impl Drop for Idp {
     }
 }
 
+#[derive(Clone, Default)]
+struct HarborCalls {
+    created: Arc<Mutex<Vec<Value>>>,
+    deleted: Arc<Mutex<Vec<i64>>>,
+}
+
+struct MockHarbor {
+    url: String,
+    calls: HarborCalls,
+    handle: JoinHandle<()>,
+}
+
+impl MockHarbor {
+    async fn spawn() -> Self {
+        use axum::{
+            Json, Router,
+            extract::{Path, State},
+            http::StatusCode,
+            routing::{delete, post},
+        };
+
+        async fn create(
+            State(calls): State<HarborCalls>,
+            Json(body): Json<Value>,
+        ) -> (StatusCode, Json<Value>) {
+            let mut created = calls.created.lock().unwrap();
+            created.push(body.clone());
+            let id = created.len() as i64;
+            (
+                StatusCode::CREATED,
+                Json(json!({
+                    "id": id,
+                    "name": format!("robot${}", body["name"].as_str().unwrap()),
+                    "secret": format!("secret-{id}"),
+                    "expires_at": chrono::Utc::now().timestamp() + 86400,
+                })),
+            )
+        }
+
+        async fn remove(State(calls): State<HarborCalls>, Path(id): Path<i64>) -> StatusCode {
+            calls.deleted.lock().unwrap().push(id);
+            StatusCode::OK
+        }
+
+        let calls = HarborCalls::default();
+        let app = Router::new()
+            .route("/api/v2.0/robots", post(create))
+            .route("/api/v2.0/robots/{id}", delete(remove))
+            .with_state(calls.clone());
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let url = format!("http://{}", listener.local_addr().unwrap());
+        let handle = tokio::spawn(async move {
+            axum::serve(listener, app).await.unwrap();
+        });
+
+        Self { url, calls, handle }
+    }
+}
+
+impl Drop for MockHarbor {
+    fn drop(&mut self) {
+        self.handle.abort();
+    }
+}
+
 struct Registry {
     url: String,
     http: reqwest::Client,
     handle: JoinHandle<()>,
     kanidm: Idp,
     forgejo: Idp,
+    harbor: MockHarbor,
     admin: String,
 }
 
@@ -137,12 +206,18 @@ impl Registry {
         });
         config.limits.max_artifact_bytes = 1024;
 
-        let state = AppState::new(
+        let harbor = MockHarbor::spawn().await;
+        let mut state = AppState::new(
             config,
             pool,
             Storage::memory(),
             Signer::new(signing::generate()),
         );
+        state.harbor = Some(Harbor::new(
+            &harbor.url,
+            "admin".to_owned(),
+            "password".to_owned(),
+        ));
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let app = server::router(state);
@@ -158,6 +233,7 @@ impl Registry {
             handle,
             kanidm,
             forgejo,
+            harbor,
             admin,
         }
     }
@@ -1033,4 +1109,180 @@ async fn releases_are_signed_end_to_end(pool: PgPool) {
         .sign_and_publish(&admin, "ff", "2.0.0", claimed(sha(b"real")))
         .await;
     assert_eq!(status, 200);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn harbor_token_exchange(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    let pull = json!({ "access": [{ "project": "containers", "actions": ["pull"] }] });
+    let push = json!({ "access": [{ "project": "containers", "actions": ["push"] }] });
+
+    let ci = registry.forgejo.forgejo(json!({}));
+    let (status, token) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&ci),
+            Some(pull.clone()),
+        )
+        .await;
+    assert_eq!(status, 200, "{token}");
+    assert_eq!(token["registry"], "registry.anurag.sh");
+    assert_eq!(token["password"], "secret-1");
+    let username = token["username"].as_str().unwrap().to_owned();
+    assert!(
+        username.starts_with("robot$exch-forgejo-forgejo-anurag-tools-"),
+        "{username}"
+    );
+
+    let created = registry.harbor.calls.created.lock().unwrap()[0].clone();
+    assert_eq!(created["duration"], 1);
+    assert_eq!(created["description"], "forgejo:anurag/tools run 7");
+    assert_eq!(
+        created["permissions"],
+        json!([{
+            "kind": "project",
+            "namespace": "containers",
+            "access": [{ "resource": "repository", "action": "pull" }],
+        }])
+    );
+
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&ci),
+            Some(push.clone()),
+        )
+        .await;
+    assert_eq!(status, 403, "{body}");
+    assert!(
+        body["error"]["message"]
+            .as_str()
+            .unwrap()
+            .contains("no push grant on harbor project containers")
+    );
+
+    let k8s_main = registry.forgejo.forgejo(json!({
+        "repository": "anurag/k8s",
+        "workflow_ref": "anurag/k8s/.forgejo/workflows/build.yaml@refs/heads/main",
+    }));
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&k8s_main),
+            Some(push.clone()),
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let pull_request = registry
+        .forgejo
+        .forgejo(json!({ "event_name": "pull_request" }));
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&pull_request),
+            Some(pull.clone()),
+        )
+        .await;
+    assert_eq!(status, 403);
+
+    let reader = registry
+        .kanidm
+        .user("reader", &["registry_users@idm.example.test"]);
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&reader),
+            Some(json!({ "access": [{ "project": "ortzi-catalog", "actions": ["pull"] }] })),
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let path = format!("/api/v1/harbor/token/{}", username.replace('$', "%24"));
+    let (status, _) = registry.call("DELETE", &path, Some(&reader), None).await;
+    assert_eq!(status, 403);
+    let (status, _) = registry.call("DELETE", &path, Some(&ci), None).await;
+    assert_eq!(status, 204);
+    assert_eq!(*registry.harbor.calls.deleted.lock().unwrap(), vec![1]);
+    let (status, _) = registry.call("DELETE", &path, Some(&ci), None).await;
+    assert_eq!(status, 404);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn harbor_token_for_ortzi_publishing(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("tool").await;
+    let request = json!({
+        "access": [{ "project": "ortzi-packages", "actions": ["push"], "package": "tool" }]
+    });
+
+    let ci = registry.forgejo.forgejo(json!({}));
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&ci),
+            Some(request.clone()),
+        )
+        .await;
+    assert_eq!(status, 403);
+
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/trusted-publishers",
+            Some(&registry.admin),
+            Some(json!({ "package": "tool", "repository": "anurag/tools" })),
+        )
+        .await;
+    assert_eq!(status, 201);
+
+    let (status, token) = registry
+        .call("POST", "/api/v1/harbor/token", Some(&ci), Some(request))
+        .await;
+    assert_eq!(status, 200, "{token}");
+
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/token",
+            Some(&ci),
+            Some(json!({
+                "access": [{ "project": "containers", "actions": ["pull"], "package": "tool" }]
+            })),
+        )
+        .await;
+    assert_eq!(status, 400);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn harbor_token_as_docker_config(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    let ci = registry.forgejo.forgejo(json!({}));
+
+    let response = registry
+        .http
+        .post(format!("{}/api/v1/harbor/token", registry.url))
+        .bearer_auth(&ci)
+        .header("accept", "application/vnd.docker.config+json")
+        .json(&json!({ "access": [{ "project": "containers", "actions": ["pull"] }] }))
+        .send()
+        .await
+        .unwrap();
+    assert_eq!(response.status(), 200);
+    let config: Value = response.json().await.unwrap();
+    let auth = config["auths"]["registry.anurag.sh"]["auth"]
+        .as_str()
+        .unwrap();
+    let decoded = String::from_utf8(
+        base64::Engine::decode(&base64::engine::general_purpose::STANDARD, auth).unwrap(),
+    )
+    .unwrap();
+    assert!(decoded.starts_with("robot$exch-forgejo-"), "{decoded}");
+    assert!(decoded.ends_with(":secret-1"), "{decoded}");
 }

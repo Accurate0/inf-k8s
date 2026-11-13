@@ -25,6 +25,8 @@ pub enum ApiError {
     AuthUnavailable(String),
     #[error("storage error: {0}")]
     Storage(String),
+    #[error("harbor error: {0}")]
+    Harbor(String),
     #[error("database error: {0}")]
     Database(Box<sqlx::Error>),
 }
@@ -46,7 +48,7 @@ impl ApiError {
             ApiError::Unprocessable(_) => StatusCode::UNPROCESSABLE_ENTITY,
             ApiError::TooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             ApiError::AuthUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
-            ApiError::Storage(_) => StatusCode::BAD_GATEWAY,
+            ApiError::Storage(_) | ApiError::Harbor(_) => StatusCode::BAD_GATEWAY,
             ApiError::Database(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
@@ -62,6 +64,7 @@ impl ApiError {
             ApiError::TooLarge(_) => "too_large",
             ApiError::AuthUnavailable(_) => "auth_unavailable",
             ApiError::Storage(_) => "storage",
+            ApiError::Harbor(_) => "harbor",
             ApiError::Database(_) => "internal",
         }
     }

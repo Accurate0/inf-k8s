@@ -8,6 +8,7 @@ use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer}
 use crate::{cli, core, metrics, state::AppState};
 
 const INSTALL_SCRIPT: &str = include_str!("install.sh");
+const HARBOR_LOGIN_SCRIPT: &str = include_str!("harbor-login.sh");
 
 pub fn router(state: AppState) -> Router {
     let graph = crate::graphql::router(state.clone()).unwrap_or_default();
@@ -21,6 +22,15 @@ pub fn router(state: AppState) -> Router {
                 (
                     [(header::CONTENT_TYPE, "text/x-shellscript")],
                     INSTALL_SCRIPT,
+                )
+            }),
+        )
+        .route(
+            "/harbor-login.sh",
+            get(|| async {
+                (
+                    [(header::CONTENT_TYPE, "text/x-shellscript")],
+                    HARBOR_LOGIN_SCRIPT,
                 )
             }),
         )
