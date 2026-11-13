@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-12T14:05:49.976Z
+# generated at 2026-11-13T13:20:13.976Z
 name: app k8s-schemas
 on:
   push:
@@ -11,6 +11,7 @@ on:
       - "!platform-services/k8s-schemas/image.values.yaml"
       - .forgejo/workflows/app-k8s-schemas.yaml
   workflow_dispatch: null
+enable-openid-connect: true
 jobs:
   build:
     runs-on: docker
@@ -20,13 +21,17 @@ jobs:
         id: commit-meta
         run: echo "committed-at=$(git show -s --format=%ct ${{ github.sha }})" >> "$GITHUB_OUTPUT"
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
-      - uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6
+      - name: Install ortzi
         if: github.ref == 'refs/heads/main'
-        with:
-          registry: registry.anurag.sh
-          username: ${{ secrets.REGISTRY_USERNAME }}
-          password: ${{ secrets.REGISTRY_PASSWORD }}
-      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        run: |-
+          curl -fsSL https://registry.anurag.sh/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: Log in to harbor
+        id: login
+        if: github.ref == 'refs/heads/main'
+        run: ortzi registry login containers:push
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
         with:
           context: platform-services/k8s-schemas
           file: platform-services/k8s-schemas/Dockerfile
@@ -37,6 +42,14 @@ jobs:
             net.inf-k8s.committed-at=${{ steps.commit-meta.outputs.committed-at }}
           cache-from: type=registry,ref=registry.anurag.sh/containers/k8s-schemas:buildcache
           cache-to: ${{ github.ref == 'refs/heads/main' && 'type=registry,ref=registry.anurag.sh/containers/k8s-schemas:buildcache,mode=max' || '' }}
+      - name: Sign image
+        if: github.ref == 'refs/heads/main'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: ortzi registry sign "registry.anurag.sh/containers/k8s-schemas@$DIGEST"
+      - name: Log out of harbor
+        if: ${{ always() && steps.login.outcome == 'success' }}
+        run: ortzi registry logout
   deploy:
     needs:
       - build
