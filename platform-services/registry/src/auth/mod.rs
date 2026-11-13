@@ -135,7 +135,7 @@ impl Auth {
 
         let kanidm = Verifier::new(
             &oauth.issuer,
-            oauth.audience.clone(),
+            oauth.audience.iter().cloned().collect(),
             oauth
                 .jwks_uri
                 .clone()
@@ -146,7 +146,7 @@ impl Auth {
             let base = forgejo.issuer.trim_end_matches('/');
             Verifier::new(
                 &forgejo.issuer,
-                Some(forgejo.audience.clone()),
+                forgejo.audiences.clone(),
                 forgejo
                     .jwks_uri
                     .clone()

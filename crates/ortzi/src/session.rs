@@ -51,7 +51,7 @@ pub struct Settings {
         long,
         global = true,
         env = "ORTZI_AUDIENCE",
-        default_value = "registry.ortzi.cloud",
+        default_value = "registry.anurag.sh",
         hide_short_help = true
     )]
     pub audience: String,

@@ -18,7 +18,7 @@ use tokio::net::TcpListener;
 use tokio::task::JoinHandle;
 
 const KANIDM_AUDIENCE: &str = "registry";
-const FORGEJO_AUDIENCE: &str = "registry.ortzi.cloud";
+const FORGEJO_AUDIENCE: &str = "registry.anurag.sh";
 
 struct Idp {
     issuer: String,
@@ -132,7 +132,7 @@ impl Registry {
         config.oauth.issuer = kanidm.issuer.clone();
         config.forgejo = Some(ForgejoConfig {
             issuer: forgejo.issuer.clone(),
-            audience: FORGEJO_AUDIENCE.to_owned(),
+            audiences: vec![FORGEJO_AUDIENCE.to_owned()],
             jwks_uri: None,
         });
         config.limits.max_artifact_bytes = 1024;

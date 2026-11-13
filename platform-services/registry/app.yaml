@@ -13,17 +13,6 @@ resources:
   - {name: storage, type: bucket, provider: r2, bucket: registry, secretName: storage-bucket-secrets}
   - {name: traces, type: platform, export: tracing}
   - {name: registry, type: subgraph, prefix: registry, workload: registry, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [registry_users, registry_admins]}}
-  - name: registry
-    type: route
-    auth:
-      mode: app
-      reason: accepts opaque registry tokens and forgejo OIDC
-    gateway: internal-gateway
-    hosts:
-      - registry.ortzi.cloud
-    backend:
-      name: api
-      port: 80
   - name: registry-public
     type: route
     auth:
@@ -60,7 +49,7 @@ resources:
   - name: registry
     type: oidc
     secretName: kanidm-registry-oidc
-    host: registry.ortzi.cloud
+    host: registry.anurag.sh
     displayName: Registry
     public: true
     allowLocalhostRedirect: true

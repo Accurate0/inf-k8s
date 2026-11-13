@@ -3,7 +3,7 @@
 set -eu
 
 registry="${ORTZI_REGISTRY_URL:-https://registry.anurag.sh}"
-audience="${ORTZI_AUDIENCE:-registry.ortzi.cloud}"
+audience="${ORTZI_AUDIENCE:-registry.anurag.sh}"
 
 fail() {
   echo "ortzi install: $*" >&2

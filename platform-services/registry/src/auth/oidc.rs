@@ -33,7 +33,7 @@ pub struct Verifier {
 struct VerifierInner {
     client: reqwest::Client,
     issuer: String,
-    audience: Option<String>,
+    audiences: Vec<String>,
     jwks_uri: String,
     keys: RwLock<BTreeMap<String, VerifyingKey>>,
 }
@@ -47,7 +47,7 @@ struct UserInfo {
 impl Verifier {
     const REFRESH_INTERVAL: Duration = Duration::from_secs(3600);
 
-    pub fn new(issuer: &str, audience: Option<String>, jwks_uri: String) -> Self {
+    pub fn new(issuer: &str, audiences: Vec<String>, jwks_uri: String) -> Self {
         Self {
             inner: Arc::new(VerifierInner {
                 client: reqwest::Client::builder()
@@ -56,7 +56,7 @@ impl Verifier {
                     .build()
                     .unwrap_or_default(),
                 issuer: issuer.to_owned(),
-                audience,
+                audiences,
                 jwks_uri,
                 keys: RwLock::new(BTreeMap::new()),
             }),
@@ -93,9 +93,10 @@ impl Verifier {
         validation.set_issuer(&[&self.inner.issuer]);
         validation.leeway = 60;
 
-        match &self.inner.audience {
-            Some(audience) => validation.set_audience(&[audience]),
-            None => validation.validate_aud = false,
+        if self.inner.audiences.is_empty() {
+            validation.validate_aud = false;
+        } else {
+            validation.set_audience(&self.inner.audiences);
         }
 
         decode::<C>(token, &key.key, &validation)

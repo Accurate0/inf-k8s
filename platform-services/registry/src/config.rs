@@ -44,7 +44,7 @@ pub struct OAuthConfig {
 #[derive(Clone, Debug, Deserialize)]
 pub struct ForgejoConfig {
     pub issuer: String,
-    pub audience: String,
+    pub audiences: Vec<String>,
     #[serde(default)]
     pub jwks_uri: Option<String>,
 }

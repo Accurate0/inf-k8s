@@ -11,7 +11,9 @@ oauth:
 
 forgejo:
   issuer: https://git.anurag.sh/api/actions
-  audience: registry.ortzi.cloud
+  audiences:
+    - registry.anurag.sh
+    - registry.ortzi.cloud
 
 graph:
   issuer: https://idm.anurag.sh/oauth2/openid/graph
