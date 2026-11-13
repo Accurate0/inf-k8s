@@ -477,7 +477,6 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   const actions = {
     'actions/checkout': 'v7@aaa',
     'docker/setup-buildx-action': 'v4@bbb',
-    'docker/login-action': 'v4@ccc',
     'docker/build-push-action': 'v7@ddd',
     'actions/cache': 'v6@eee',
   };
@@ -492,12 +491,21 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   );
   assert.equal(workflowPath(app), '.forgejo/workflows/app-foo.yaml');
   assert.ok(workflow.on.push.paths.includes('.forgejo/workflows/app-foo.yaml'));
-  const login = workflow.jobs.build.steps.find((step: { uses?: string }) =>
-    step.uses?.startsWith('docker/login-action'),
-  );
+  const step = (name: string) =>
+    workflow.jobs.build.steps.find((step: { name?: string }) => step.name === name);
 
-  assert.equal(login.with.registry, 'registry.anurag.sh');
-  assert.equal(login.with.username, '${{ secrets.REGISTRY_USERNAME }}');
+  assert.equal(workflow['enable-openid-connect'], true);
+  assert.match(step('Install ortzi').run, /https:\/\/registry\.anurag\.sh\/install\.sh/);
+  assert.equal(step('Log in to harbor').run, 'ortzi registry login containers:push');
+  assert.equal(
+    step('Sign image').run,
+    'ortzi registry sign "registry.anurag.sh/containers/foo@$DIGEST"',
+  );
+  assert.equal(step('Sign image').env.DIGEST, '${{ steps.build.outputs.digest }}');
+  assert.match(step('Log out of harbor').if, /always\(\) && steps\.login\.outcome == 'success'/);
+  assert.ok(
+    !workflow.jobs.build.steps.some((s: { uses?: string }) => s.uses?.includes('login-action')),
+  );
   assert.equal(workflow.jobs.test.env.DATABASE_URL, 'postgres://postgres:postgres@db:5432/foo');
   assert.equal(
     workflow.jobs.test.steps.at(-1)['working-directory'],

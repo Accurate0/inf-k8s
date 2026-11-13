@@ -1276,7 +1276,6 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   const ACTIONS = {
     checkout: pinned(actions, 'actions/checkout'),
     buildx: pinned(actions, 'docker/setup-buildx-action'),
-    login: pinned(actions, 'docker/login-action'),
     buildPush: pinned(actions, 'docker/build-push-action'),
     cache: pinned(actions, 'actions/cache'),
   };
@@ -1284,7 +1283,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   const context = build.context ?? dir;
   const args = Object.entries(build.args ?? {}).map(([k, v]) => `${k}=${v}`);
   const test = build.test;
-  const registry = build.image.split('/')[0];
+  const [registry, project] = build.image.split('/');
   const cacheRef = `type=registry,ref=${build.image}:buildcache`;
 
   const buildJob = {
@@ -1298,15 +1297,18 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
       },
       { uses: ACTIONS.buildx },
       {
-        uses: ACTIONS.login,
+        name: 'Install ortzi',
         if: ON_MAIN,
-        with: {
-          registry,
-          username: '${{ secrets.REGISTRY_USERNAME }}',
-          password: '${{ secrets.REGISTRY_PASSWORD }}',
-        },
+        run: `curl -fsSL https://${registry}/install.sh | sh\necho "$HOME/.local/bin" >> "$GITHUB_PATH"`,
       },
       {
+        name: 'Log in to harbor',
+        id: 'login',
+        if: ON_MAIN,
+        run: `ortzi registry login ${project}:push`,
+      },
+      {
+        id: 'build',
         uses: ACTIONS.buildPush,
         with: {
           context,
@@ -1321,6 +1323,17 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
           'cache-from': cacheRef,
           'cache-to': `\${{ ${ON_MAIN} && '${cacheRef},mode=max' || '' }}`,
         },
+      },
+      {
+        name: 'Sign image',
+        if: ON_MAIN,
+        env: { DIGEST: '${{ steps.build.outputs.digest }}' },
+        run: `ortzi registry sign "${build.image}@$DIGEST"`,
+      },
+      {
+        name: 'Log out of harbor',
+        if: `\${{ always() && steps.login.outcome == 'success' }}`,
+        run: 'ortzi registry logout',
       },
     ],
   };
@@ -1414,6 +1427,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
       },
       workflow_dispatch: null,
     },
+    'enable-openid-connect': true,
     jobs: { build: buildJob, ...(testJob ? { test: testJob } : {}), deploy: deployJob },
   };
 

@@ -1708,7 +1708,7 @@
             "github",
             "forgejo"
           ],
-          "description": "Where the image is built and pushed from. Defaults to github; forgejo pushes with the REGISTRY_USERNAME and REGISTRY_PASSWORD secrets."
+          "description": "Where the image is built and pushed from. Defaults to github; forgejo pushes with a short-lived robot from `ortzi registry login` and cosign-signs the image with `ortzi registry sign`."
         },
         "context": {
           "type": "string",
