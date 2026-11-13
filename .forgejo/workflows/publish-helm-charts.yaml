@@ -8,6 +8,8 @@ on:
       - .forgejo/workflows/publish-helm-charts.yaml
   workflow_dispatch:
 
+enable-openid-connect: true
+
 jobs:
   release:
     runs-on: ubuntu-latest
@@ -22,13 +24,16 @@ jobs:
         with:
           version: v4.3.1
 
-      - name: Login to registry.anurag.sh
-        env:
-          REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
-          REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+      - name: Install ortzi
         run: |
-          printf '%s' "$REGISTRY_PASSWORD" |
-            helm registry login registry.anurag.sh --username "$REGISTRY_USERNAME" --password-stdin
+          curl -fsSL https://registry.anurag.sh/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Log in to harbor
+        id: login
+        run: |
+          ortzi registry login charts:push
+          echo "HELM_REGISTRY_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}/config.json" >> "$GITHUB_ENV"
 
       - name: Package helm charts
         run: |
@@ -55,3 +60,7 @@ jobs:
 
             helm push "${pkg}" "oci://${chart_registry}"
           done
+
+      - name: Log out of harbor
+        if: ${{ always() && steps.login.outcome == 'success' }}
+        run: ortzi registry logout
