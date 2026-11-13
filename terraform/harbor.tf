@@ -182,3 +182,71 @@ resource "vault_kv_secret_v2" "harbor-argocd" {
   })
   data_json_wo_version = 1
 }
+
+resource "harbor_project" "ortzi" {
+  for_each = toset(["ortzi-packages", "ortzi-catalog"])
+
+  name   = each.key
+  public = false
+}
+
+resource "harbor_immutable_tag_rule" "ortzi-releases" {
+  project_id    = harbor_project.ortzi["ortzi-packages"].id
+  repo_matching = "**"
+  tag_matching  = "*.*.*"
+}
+
+ephemeral "random_password" "harbor-exchange" {
+  length  = 32
+  special = false
+}
+
+resource "harbor_robot_account" "exchange" {
+  name              = "exchange"
+  description       = "registry service: mints short-lived robots and writes the ortzi catalog"
+  level             = "system"
+  secret_wo         = ephemeral.random_password.harbor-exchange.result
+  secret_wo_version = 1
+
+  dynamic "permissions" {
+    for_each = merge(harbor_project.own, harbor_project.proxy, harbor_project.ortzi)
+
+    content {
+      kind      = "project"
+      namespace = permissions.value.name
+
+      access {
+        action   = "pull"
+        resource = "repository"
+      }
+
+      dynamic "access" {
+        for_each = startswith(permissions.value.name, "ortzi-") ? ["push"] : []
+
+        content {
+          action   = access.value
+          resource = "repository"
+        }
+      }
+
+      dynamic "access" {
+        for_each = ["create", "list", "read", "delete"]
+
+        content {
+          action   = access.value
+          resource = "robot"
+        }
+      }
+    }
+  }
+}
+
+resource "vault_kv_secret_v2" "harbor-exchange" {
+  mount = vault_mount.kv.path
+  name  = "registry/harbor-exchange"
+  data_json_wo = jsonencode({
+    HARBOR_USERNAME = harbor_robot_account.exchange.full_name
+    HARBOR_PASSWORD = ephemeral.random_password.harbor-exchange.result
+  })
+  data_json_wo_version = 1
+}
