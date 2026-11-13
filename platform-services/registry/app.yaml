@@ -9,6 +9,7 @@ resources:
   - {name: config, type: config, configMap: registry-config, files: [config.yaml]}
   - {name: registry, type: secret, secretName: registry-managed-secrets}
   - {name: signing, type: secret, secretName: registry-signing-secrets}
+  - {name: harbor-exchange, type: secret, secretName: registry-harbor-exchange-secrets}
   - {name: registry, type: database, secretName: registry-database-secret}
   - {name: storage, type: bucket, provider: r2, bucket: registry, secretName: storage-bucket-secrets}
   - {name: traces, type: platform, export: tracing}
@@ -157,6 +158,7 @@ workloads:
     envFrom:
       - secret: registry
       - secret: signing
+      - secret: harbor-exchange
       - database: registry
     mounts:
       config: {path: /etc/registry, config: config}
