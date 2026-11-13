@@ -33,6 +33,11 @@ pub async fn run(state: AppState) {
                 Ok(done) => tracing::info!(done, "backfilled versions into harbor"),
                 Err(e) => tracing::warn!("harbor backfill failed: {e}"),
             }
+            match catalog::sign_unsigned(&state).await {
+                Ok(0) => {}
+                Ok(signed) => tracing::info!(signed, "cosign-signed releases in harbor"),
+                Err(e) => tracing::warn!("cosign signing failed: {e}"),
+            }
         }
         match collect_expired_robots(&state).await {
             Ok(0) => {}

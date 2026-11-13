@@ -233,7 +233,7 @@ async fn mock_oci(
                 .to_owned();
             let mut manifests = calls.manifests.lock().unwrap();
             if !reference.starts_with("sha256:")
-                && reference.contains('.')
+                && reference.matches('.').count() >= 2
                 && manifests.contains_key(&key)
             {
                 return StatusCode::PRECONDITION_FAILED.into_response();
@@ -1489,6 +1489,16 @@ async fn publishing_releases_into_harbor_with_a_signed_catalog(pool: PgPool) {
         .clone();
     assert_eq!(entry.index, oci_digest(&index_body));
 
+    for (repository, digest) in [
+        ("ortzi-packages/tool", entry.index.clone()),
+        (
+            "ortzi-catalog/catalog",
+            current["digest"].as_str().unwrap().to_owned(),
+        ),
+    ] {
+        assert_cosign_signed(&registry, repository, &digest);
+    }
+
     let signatures = calls
         .manifest("ortzi-packages/tool", &entry.signatures)
         .unwrap();
@@ -1662,4 +1672,43 @@ async fn oci_pushed_artifacts_register_publish_and_download(pool: PgPool) {
             .map(|(v, _)| v),
         Some("2.0.0")
     );
+}
+
+fn assert_cosign_signed(registry: &Registry, repository: &str, digest: &str) {
+    use p256::ecdsa::{Signature, signature::Verifier};
+
+    let calls = &registry.harbor.calls;
+    let tag = format!("{}.sig", digest.replacen(':', "-", 1));
+    let manifest = calls
+        .manifest(repository, &tag)
+        .unwrap_or_else(|| panic!("{repository}:{tag} is missing"));
+    let layer = &manifest["layers"][0];
+    assert_eq!(
+        layer["mediaType"],
+        "application/vnd.dev.cosign.simplesigning.v1+json"
+    );
+
+    let payload = calls.blob(layer["digest"].as_str().unwrap()).unwrap();
+    let claims: Value = serde_json::from_slice(&payload).unwrap();
+    assert_eq!(
+        claims["critical"]["image"]["docker-manifest-digest"],
+        digest
+    );
+    assert_eq!(
+        claims["critical"]["identity"]["docker-reference"],
+        format!("registry.anurag.sh/{repository}")
+    );
+
+    let signature = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        layer["annotations"]["dev.cosignproject.cosign/signature"]
+            .as_str()
+            .unwrap(),
+    )
+    .unwrap();
+    registry
+        .signer
+        .verifying_key()
+        .verify(&payload, &Signature::from_der(&signature).unwrap())
+        .expect("cosign signature verifies with the registry key");
 }

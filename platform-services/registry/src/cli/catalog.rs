@@ -155,6 +155,14 @@ pub async fn render(state: &AppState) -> Result<i64> {
             .await?;
     }
     let digest = oci::digest(&manifest);
+    super::cosign::sign(
+        harbor,
+        &state.signer,
+        &config.registry,
+        CATALOG_REPOSITORY,
+        &digest,
+    )
+    .await?;
 
     sqlx::query!(
         "UPDATE core_catalog SET seq = $1, digest = $2, dirty = false, rendered_at = now()",
@@ -206,7 +214,8 @@ pub async fn backfill(state: &AppState) -> Result<usize> {
         {
             Ok(released) => {
                 sqlx::query!(
-                    "UPDATE cli_versions SET index_digest = $2, signatures_digest = $3 WHERE id = $1",
+                    "UPDATE cli_versions SET index_digest = $2, signatures_digest = $3, cosign_signed = true
+                     WHERE id = $1",
                     row.id,
                     released.index,
                     released.signatures
@@ -248,4 +257,72 @@ pub async fn current(
         seq: row.seq,
         digest: row.digest,
     }))
+}
+
+pub async fn sign_unsigned(state: &AppState) -> Result<usize> {
+    let (Some(harbor), Some(config)) = (&state.harbor, &state.config.harbor) else {
+        return Ok(0);
+    };
+
+    let unsigned = sqlx::query!(
+        r#"SELECT v.id, p.name, v.version, v.index_digest as "index_digest!"
+           FROM cli_versions v JOIN cli_packages p ON p.id = v.package_id
+           WHERE v.status = 'published' AND v.index_digest IS NOT NULL AND NOT v.cosign_signed"#
+    )
+    .fetch_all(&state.pool)
+    .await?;
+
+    let mut signed = 0;
+    for row in &unsigned {
+        let repository = registry_api::package_repository(&config.packages_project, &row.name);
+        match super::cosign::sign(
+            harbor,
+            &state.signer,
+            &config.registry,
+            &repository,
+            &row.index_digest,
+        )
+        .await
+        {
+            Ok(()) => {
+                sqlx::query!(
+                    "UPDATE cli_versions SET cosign_signed = true WHERE id = $1",
+                    row.id
+                )
+                .execute(&state.pool)
+                .await?;
+                signed += 1;
+            }
+            Err(e) => {
+                tracing::warn!(
+                    package = row.name,
+                    version = row.version,
+                    "cosign signing failed: {e}"
+                );
+            }
+        }
+    }
+
+    let current = sqlx::query_scalar!("SELECT digest FROM core_catalog WHERE id")
+        .fetch_optional(&state.pool)
+        .await?
+        .flatten();
+    if let Some(digest) = current
+        && harbor
+            .oci()
+            .manifest(CATALOG_REPOSITORY, &super::cosign::signature_tag(&digest))
+            .await?
+            .is_none()
+    {
+        super::cosign::sign(
+            harbor,
+            &state.signer,
+            &config.registry,
+            CATALOG_REPOSITORY,
+            &digest,
+        )
+        .await?;
+        signed += 1;
+    }
+    Ok(signed)
 }

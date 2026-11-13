@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE cli_versions SET index_digest = $2, signatures_digest = $3, cosign_signed = true\n                     WHERE id = $1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "2ac91d5f6a51fbc7127e64c01945180e4bdaf1de0210ceb7e9ece2c7a54902d5"
+}

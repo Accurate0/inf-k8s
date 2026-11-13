@@ -244,7 +244,8 @@ pub async fn publish(
         "UPDATE cli_versions SET
             status = 'published', published_at = $9, published_by = $2, publisher_kind = $3,
             source_repository = $4, source_ref = $5, source_sha = $6, source_run_id = $7,
-            signatures = $10, index_digest = $11, signatures_digest = $12
+            signatures = $10, index_digest = $11, signatures_digest = $12,
+            cosign_signed = $11::text IS NOT NULL
          WHERE id = $1 AND status = $8",
         row.id,
         publisher.actor,

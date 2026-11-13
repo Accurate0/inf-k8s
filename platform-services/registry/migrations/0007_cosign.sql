@@ -1,0 +1,1 @@
+ALTER TABLE cli_versions ADD COLUMN IF NOT EXISTS cosign_signed BOOLEAN NOT NULL DEFAULT false;

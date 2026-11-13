@@ -1,5 +1,6 @@
 pub mod artifacts;
 pub mod catalog;
+pub mod cosign;
 pub mod db;
 pub mod packages;
 pub mod release;

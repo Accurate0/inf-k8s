@@ -7,7 +7,10 @@ use registry_api::{
     signing::Signatures,
 };
 
-use super::db::{ArtifactRow, VersionRow};
+use super::{
+    cosign,
+    db::{ArtifactRow, VersionRow},
+};
 use crate::{
     error::{ApiError, Result},
     harbor::Harbor,
@@ -19,6 +22,14 @@ pub const OCI_KEY_PREFIX: &str = "oci:";
 pub struct Released {
     pub index: String,
     pub signatures: String,
+}
+
+pub fn cosign_registry(state: &AppState) -> &str {
+    state
+        .config
+        .harbor
+        .as_ref()
+        .map_or("", |h| h.registry.as_str())
 }
 
 pub fn oci_manifest(object_key: &str) -> Option<&str> {
@@ -188,6 +199,15 @@ pub async fn release(
                 .await?;
         }
     }
+
+    cosign::sign(
+        harbor,
+        &state.signer,
+        cosign_registry(state),
+        &repository,
+        &index_digest,
+    )
+    .await?;
 
     let signatures_body = serde_json::to_vec(signatures).expect("signatures always serialise");
     let layer = harbor
