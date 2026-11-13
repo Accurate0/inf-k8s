@@ -8,7 +8,7 @@ use registry_api::{
 
 include!(concat!(env!("OUT_DIR"), "/trusted_keys.rs"));
 
-fn roots() -> anyhow::Result<Vec<PublicKeyHandle>> {
+pub fn roots() -> anyhow::Result<Vec<PublicKeyHandle>> {
     TRUSTED_KEYS
         .iter()
         .map(|pem| signing::verifying_key_from_pem(pem).map_err(anyhow::Error::msg))

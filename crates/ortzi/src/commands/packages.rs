@@ -3,14 +3,15 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
-    LatestRequest, Package, PackageDetail, Permissions, Target, Version, validate_binary_name,
-    validate_package_name, version_key,
+    LatestRequest, Permissions, Target, Version, validate_binary_name, validate_package_name,
+    version_key,
 };
 
 use reqwest::{Method, StatusCode};
 
 use crate::{
     client::{self, Client},
+    remote::Remote,
     session::Settings,
     store::{self, Installed, InstalledPackage, Store},
     trust, wasm,
@@ -86,7 +87,7 @@ pub async fn latest_versions(
 }
 
 async fn install_version(
-    client: &Client,
+    remote: &Remote,
     store: &Store,
     name: &str,
     version: &Version,
@@ -134,15 +135,7 @@ async fn install_version(
         version.version,
         client::human_size(artifact.size)
     );
-    let sha = client
-        .download_artifact(
-            &format!(
-                "/cli/v1/packages/{name}/versions/{}/artifacts/{target}",
-                version.version
-            ),
-            &download,
-        )
-        .await?;
+    let sha = remote.download(name, version, &artifact, &download).await?;
     if sha != artifact.sha256 {
         let _ = std::fs::remove_file(&download);
         bail!(
@@ -294,10 +287,21 @@ fn link_shim(store: &Store, name: &str, binary: &str) -> anyhow::Result<()> {
 }
 
 pub async fn install(settings: &Settings, specs: &[String], force: bool) -> anyhow::Result<()> {
-    let client = settings.reader().await?;
     let store = Store::open()?;
     let target = host_target()?;
+    let remote = Remote::open(settings.reader().await?).await?;
+    let result = install_all(&remote, &store, target, specs, force).await;
+    remote.close().await;
+    result
+}
 
+async fn install_all(
+    remote: &Remote,
+    store: &Store,
+    target: Target,
+    specs: &[String],
+    force: bool,
+) -> anyhow::Result<()> {
     for spec in specs {
         let (name, version) = split_spec(spec);
         let installed = store.load()?;
@@ -305,7 +309,7 @@ pub async fn install(settings: &Settings, specs: &[String], force: bool) -> anyh
             if installed.self_pinned && version.is_none() && !force {
                 bail!("ortzi is pinned; run `ortzi unpin ortzi` or name a version");
             }
-            self_update_with(&client, target, version, true).await?;
+            self_update_with(remote, target, version, true).await?;
             continue;
         }
         if let Some(current) = installed.packages.get(name)
@@ -318,8 +322,8 @@ pub async fn install(settings: &Settings, specs: &[String], force: bool) -> anyh
                 current.version
             );
         }
-        let version = resolve(&client, name, version, target).await?;
-        install_version(&client, &store, name, &version, target, force).await?;
+        let version = remote.resolve(name, version, target).await?;
+        install_version(remote, store, name, &version, target, force).await?;
     }
 
     Ok(())
@@ -459,8 +463,11 @@ pub async fn self_update(settings: &Settings, version: Option<&str>) -> anyhow::
         );
         return Ok(());
     }
-    let client = settings.reader().await?;
-    if !self_update_with(&client, host_target()?, version, version.is_some()).await? {
+    let target = host_target()?;
+    let remote = Remote::open(settings.reader().await?).await?;
+    let result = self_update_with(&remote, target, version, version.is_some()).await;
+    remote.close().await;
+    if !result? {
         println!("ortzi {} is up to date", env!("ORTZI_VERSION"));
     }
     Ok(())
@@ -477,12 +484,12 @@ pub fn is_newer(candidate: &str, current: &str) -> bool {
 }
 
 async fn self_update_with(
-    client: &Client,
+    remote: &Remote,
     target: Target,
     version: Option<&str>,
     exact: bool,
 ) -> anyhow::Result<bool> {
-    let release = resolve(client, SELF, version, target).await?;
+    let release = remote.resolve(SELF, version, target).await?;
     let running = env!("ORTZI_VERSION");
     let newer = is_newer(&release.version, running);
     if release.version == running || (!newer && !exact) {
@@ -497,14 +504,8 @@ async fn self_update_with(
     let exe = std::env::current_exe()?.canonicalize()?;
     let staged = exe.with_file_name(format!(".ortzi-{}-{}", release.version, std::process::id()));
     eprintln!("downloading ortzi@{} ({target})", release.version);
-    let sha = client
-        .download_artifact(
-            &format!(
-                "/cli/v1/packages/{SELF}/versions/{}/artifacts/{target}",
-                release.version
-            ),
-            &staged,
-        )
+    let sha = remote
+        .download(SELF, &release, &artifact, &staged)
         .await
         .with_context(|| format!("writing next to {}", exe.display()))?;
     if sha != artifact.sha256 {
@@ -521,9 +522,20 @@ async fn self_update_with(
 
 pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()> {
     let store = Store::open()?;
-    let installed = store.load()?;
-    let client = settings.reader().await?;
     let target = host_target()?;
+    let remote = Remote::open(settings.reader().await?).await?;
+    let result = update_all(&remote, &store, target, names).await;
+    remote.close().await;
+    result
+}
+
+async fn update_all(
+    remote: &Remote,
+    store: &Store,
+    target: Target,
+    names: &[String],
+) -> anyhow::Result<()> {
+    let installed = store.load()?;
     let mut updated = 0;
 
     let everything = names.is_empty();
@@ -542,7 +554,7 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
     if update_self && !installed.self_pinned {
         checked.push(SELF);
     }
-    let latest = latest_versions(&client, &checked, target).await?;
+    let latest = remote.latest_versions(&checked, target).await?;
 
     if update_self && installed.self_pinned {
         println!("ortzi is pinned at {}; skipping", env!("ORTZI_VERSION"));
@@ -551,7 +563,7 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
             .get(SELF)
             .is_some_and(|version| is_newer(version, env!("ORTZI_VERSION")))
     {
-        match self_update_with(&client, target, None, false).await {
+        match self_update_with(remote, target, None, false).await {
             Ok(true) => updated += 1,
             Ok(false) => {}
             Err(e) if everything => eprintln!("skipping ortzi self-update: {e:#}"),
@@ -568,7 +580,7 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
             println!("{name} is pinned at {}; skipping", current.version);
             continue;
         }
-        match update_one(&client, &store, name, current, latest.get(name), target).await {
+        match update_one(remote, store, name, current, latest.get(name), target).await {
             Ok(true) => updated += 1,
             Ok(false) => {}
             Err(e) => {
@@ -588,7 +600,7 @@ pub async fn update(settings: &Settings, names: &[String]) -> anyhow::Result<()>
 }
 
 async fn update_one(
-    client: &Client,
+    remote: &Remote,
     store: &Store,
     name: &str,
     current: &InstalledPackage,
@@ -599,8 +611,8 @@ async fn update_one(
         latest.with_context(|| format!("no published {name} for {target}; see `ortzi search`"))?;
     let newer = is_newer(latest, &current.version);
     if newer {
-        let release = resolve(client, name, Some(latest), target).await?;
-        install_version(client, store, name, &release, target, false).await?;
+        let release = remote.resolve(name, Some(latest), target).await?;
+        install_version(remote, store, name, &release, target, false).await?;
     }
     Ok(newer)
 }
@@ -635,12 +647,10 @@ pub fn list() -> anyhow::Result<()> {
 }
 
 pub async fn search(settings: &Settings, query: Option<&str>) -> anyhow::Result<()> {
-    let client = settings.reader().await?;
-    let path = match query {
-        Some(q) => format!("/cli/v1/packages?q={}", urlencode(q)),
-        None => "/cli/v1/packages".to_owned(),
-    };
-    let packages: Vec<Package> = client.get(&path).await?;
+    let remote = Remote::open(settings.reader().await?).await?;
+    let packages = remote.search(query).await;
+    remote.close().await;
+    let packages = packages?;
     let installed = Store::open()?.load()?;
 
     let mut table = Table::new();
@@ -670,8 +680,14 @@ pub async fn search(settings: &Settings, query: Option<&str>) -> anyhow::Result<
 }
 
 pub async fn info(settings: &Settings, name: &str) -> anyhow::Result<()> {
-    let client = settings.reader().await?;
-    let detail: PackageDetail = client.get(&format!("/cli/v1/packages/{name}")).await?;
+    let remote = Remote::open(settings.reader().await?).await?;
+    let result = show_info(&remote, name).await;
+    remote.close().await;
+    result
+}
+
+async fn show_info(remote: &Remote, name: &str) -> anyhow::Result<()> {
+    let detail = remote.detail(name).await?;
     let package = &detail.package;
 
     println!("{}  {}", package.name, package.description);
@@ -684,9 +700,9 @@ pub async fn info(settings: &Settings, name: &str) -> anyhow::Result<()> {
     }
     println!("latest   {}", package.latest.as_deref().unwrap_or("-"));
     if let Some(latest) = &package.latest
-        && let Some(version) = client
-            .find::<Version>(&format!("/cli/v1/packages/{name}/versions/{latest}"))
-            .await?
+        && let Ok(version) = remote
+            .resolve(name, Some(latest), Target::host().unwrap_or(Target::Wasm))
+            .await
     {
         match trust::verified_statement(name, &version) {
             Ok(statement) => {

@@ -51,6 +51,7 @@ pub fn router() -> Router<AppState> {
             "/packages/{name}/versions/{version}/artifacts/{target}/manifest",
             axum::routing::put(artifacts::register),
         )
+        .route("/catalog", get(catalog::current))
         .route("/admin/backfill", post(packages::backfill))
         .route("/admin/catalog", post(packages::render_catalog))
 }

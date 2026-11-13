@@ -6,7 +6,7 @@ description = "Pluggable CLI for the ortzi platform"
 
 [dependencies]
 cli-auth = { path = "../cli-auth" }
-registry-api = { path = "../../platform-services/registry/api" }
+registry-api = { path = "../../platform-services/registry/api", features = ["oci"] }
 anyhow = "1"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clap_complete = { version = "4", features = ["unstable-dynamic"] }

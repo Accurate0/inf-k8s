@@ -1474,6 +1474,15 @@ async fn publishing_releases_into_harbor_with_a_signed_catalog(pool: PgPool) {
     );
 
     let catalog = fetch_catalog(&registry);
+    let (status, current) = registry
+        .call("GET", "/cli/v1/catalog", Some(&registry.admin), None)
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(current["seq"], catalog.seq);
+    let latest_body = calls.manifests.lock().unwrap()["ortzi-catalog/catalog@latest"]
+        .1
+        .clone();
+    assert_eq!(current["digest"], oci_digest(&latest_body));
     let entry = &catalog.packages["tool"].versions["1.0.0"];
     let index_body = calls.manifests.lock().unwrap()["ortzi-packages/tool@1.0.0"]
         .1

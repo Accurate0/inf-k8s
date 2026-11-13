@@ -235,3 +235,17 @@ pub async fn backfill(state: &AppState) -> Result<usize> {
     }
     Ok(done)
 }
+
+pub async fn current(
+    axum::extract::State(state): axum::extract::State<AppState>,
+    principal: crate::auth::Principal,
+) -> Result<axum::Json<registry_api::CatalogRef>> {
+    principal.require_reader()?;
+    let row = sqlx::query!("SELECT seq, digest FROM core_catalog WHERE id")
+        .fetch_one(&state.pool)
+        .await?;
+    Ok(axum::Json(registry_api::CatalogRef {
+        seq: row.seq,
+        digest: row.digest,
+    }))
+}

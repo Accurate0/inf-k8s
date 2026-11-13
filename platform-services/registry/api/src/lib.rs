@@ -573,10 +573,18 @@ pub const CATALOG_MEDIA_TYPE: &str = "application/vnd.ortzi.catalog.v1+json";
 pub const BINARY_MEDIA_TYPE: &str = "application/octet-stream";
 pub const WASM_MEDIA_TYPE: &str = "application/wasm";
 pub const CATALOG_REPOSITORY: &str = "ortzi-catalog/catalog";
+pub const CATALOG_PROJECT: &str = "ortzi-catalog";
+pub const PACKAGES_PROJECT: &str = "ortzi-packages";
 pub const MAX_CATALOG_BYTES: u64 = 16 * 1024 * 1024;
 
 pub fn package_repository(project: &str, name: &str) -> String {
     format!("{project}/{name}")
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CatalogRef {
+    pub seq: i64,
+    pub digest: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

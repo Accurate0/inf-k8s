@@ -560,12 +560,7 @@ impl serve::Host for State {
             .respond(response)
     }
 
-    fn proxy(
-        &mut self,
-        port: u16,
-        upstream: String,
-        page: Option<String>,
-    ) -> Result<(), String> {
+    fn proxy(&mut self, port: u16, upstream: String, page: Option<String>) -> Result<(), String> {
         if !self.sandbox.listen.contains(&port) {
             return Err(format!(
                 "proxy: port {port} is not in the package's permissions.listen"

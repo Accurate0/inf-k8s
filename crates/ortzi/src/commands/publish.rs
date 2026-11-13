@@ -2,16 +2,64 @@ use std::path::Path;
 
 use anyhow::bail;
 use registry_api::{
-    Artifact, CreateVersion, ECOSYSTEM_CLI, Target, Version,
+    Artifact, BINARY_ARTIFACT, CreateVersion, ECOSYSTEM_CLI, HarborAction, HarborToken,
+    PACKAGES_PROJECT, RegisterArtifact, Target, Version,
+    oci::{self, Manifest},
+    package_repository,
     signing::{self, CertificateRequest, Envelope, PublishRequest, Statement},
 };
 use reqwest::{Method, StatusCode};
 
 use crate::{
-    client::{api_error, human_size, sha256_file},
+    client::{Client, api_error, human_size, sha256_file},
     manifest::Loaded,
+    remote,
     session::Settings,
 };
+
+struct Built {
+    target: Target,
+    path: std::path::PathBuf,
+    sha: String,
+}
+
+async fn push_to_harbor(
+    client: &Client,
+    token: &HarborToken,
+    base: &str,
+    name: &str,
+    version: &str,
+    binary: &str,
+    built: &Built,
+) -> anyhow::Result<Artifact> {
+    let oci = remote::oci_client(token)?;
+    let repository = package_repository(PACKAGES_PROJECT, name);
+
+    let mut layer = oci
+        .push_file(&repository, built.target.media_type(), &built.path)
+        .await?;
+    if layer.digest != oci::sha256_digest(&built.sha) {
+        bail!("{} changed while it was being pushed", built.path.display());
+    }
+    layer
+        .annotations
+        .insert(oci::TITLE.to_owned(), built.target.file_name(binary));
+    oci.push_bytes(&repository, oci::EMPTY, oci::EMPTY_JSON)
+        .await?;
+
+    let manifest = serde_json::to_vec(&Manifest::artifact(BINARY_ARTIFACT, vec![layer]))?;
+    let digest = oci::digest(&manifest);
+    oci.put_manifest(&repository, &digest, oci::MANIFEST, &manifest)
+        .await?;
+
+    client
+        .send(
+            Method::PUT,
+            &format!("{base}/{version}/artifacts/{}/manifest", built.target),
+            &RegisterArtifact { manifest: digest },
+        )
+        .await
+}
 
 pub struct Options<'a> {
     pub path: &'a Path,
@@ -72,7 +120,11 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
     for target in &targets {
         let path = loaded.build(*target, &version).await?;
         let sha = sha256_file(&path).await?;
-        built.push((*target, path, sha));
+        built.push(Built {
+            target: *target,
+            path,
+            sha,
+        });
     }
 
     let draft = CreateVersion {
@@ -93,11 +145,65 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
         return Err(e);
     }
 
-    for (target, path, sha) in &built {
-        let artifact: Artifact = client
-            .upload(&format!("{base}/{version}/artifacts/{target}"), path, sha)
-            .await?;
-        eprintln!("uploaded {target} ({})", human_size(artifact.size));
+    let token = remote::exchange(
+        &client,
+        vec![remote::access(
+            PACKAGES_PROJECT,
+            &[HarborAction::Push],
+            Some(&name),
+        )],
+    )
+    .await?;
+    let result = finish(
+        &client,
+        token.as_ref(),
+        &loaded,
+        &options,
+        &base,
+        &name,
+        &version,
+        &built,
+    )
+    .await;
+    if let Some(token) = &token {
+        remote::revoke(&client, token).await;
+    }
+    result
+}
+
+#[allow(clippy::too_many_arguments)]
+async fn finish(
+    client: &Client,
+    token: Option<&HarborToken>,
+    loaded: &Loaded,
+    options: &Options<'_>,
+    base: &str,
+    name: &str,
+    version: &str,
+    built: &[Built],
+) -> anyhow::Result<()> {
+    let (name, version) = (name.to_owned(), version.to_owned());
+    for item in built {
+        let target = item.target;
+        let artifact: Artifact = match token {
+            Some(token) => {
+                push_to_harbor(client, token, base, &name, &version, loaded.binary(), item).await?
+            }
+            None => {
+                client
+                    .upload(
+                        &format!("{base}/{version}/artifacts/{target}"),
+                        &item.path,
+                        &item.sha,
+                    )
+                    .await?
+            }
+        };
+        eprintln!(
+            "uploaded {target} ({}{})",
+            human_size(artifact.size),
+            if token.is_some() { ", harbor" } else { "" }
+        );
     }
 
     if options.no_finalize {
@@ -108,13 +214,16 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
     }
 
     let draft: Version = client.get(&format!("{base}/{version}")).await?;
-    for (target, _, sha) in &built {
+    for item in built {
         if !draft
             .artifacts
             .iter()
-            .any(|a| a.target == *target && &a.sha256 == sha)
+            .any(|a| a.target == item.target && a.sha256 == item.sha)
         {
-            bail!("the registry's {target} artifact doesn't match what was just uploaded");
+            bail!(
+                "the registry's {} artifact doesn't match what was just uploaded",
+                item.target
+            );
         }
     }
 
