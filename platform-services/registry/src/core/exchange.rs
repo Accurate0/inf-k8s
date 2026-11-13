@@ -9,8 +9,8 @@ use axum::{
 use base64::{Engine, engine::general_purpose::STANDARD};
 use chrono::{Duration, Utc};
 use registry_api::{
-    DOCKER_CONFIG_MEDIA_TYPE, ECOSYSTEM_CLI, HarborAccess, HarborAction, HarborToken,
-    HarborTokenRequest,
+    DOCKER_CONFIG_MEDIA_TYPE, ECOSYSTEM_CLI, HarborAccess, HarborAction, HarborSignRequest,
+    HarborSignature, HarborToken, HarborTokenRequest,
 };
 use serde_json::json;
 
@@ -18,9 +18,10 @@ use super::audit::{self, Event};
 use crate::{
     auth::{
         Principal,
-        grants::{allowed, validate_request},
+        grants::{allowed, valid_project, validate_request},
         policy::authorize_publish,
     },
+    cli::{cosign, release::cosign_registry},
     config::HarborConfig,
     error::{ApiError, Result},
     harbor::Harbor,
@@ -248,9 +249,133 @@ pub async fn revoke(
     Ok(StatusCode::NO_CONTENT)
 }
 
+fn sign_target(request: &HarborSignRequest) -> std::result::Result<&str, String> {
+    let digest_valid = request.digest.strip_prefix("sha256:").is_some_and(|hex| {
+        hex.len() == 64
+            && hex
+                .bytes()
+                .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+    });
+    if !digest_valid {
+        return Err(format!("{:?} is not a sha256 digest", request.digest));
+    }
+
+    let Some((project, path)) = request.repository.split_once('/') else {
+        return Err(format!(
+            "{:?} is not <project>/<repository>",
+            request.repository
+        ));
+    };
+    let path_valid = !path.is_empty()
+        && path.split('/').all(|segment| {
+            !segment.is_empty()
+                && segment
+                    .bytes()
+                    .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
+        });
+    if !valid_project(project) || !path_valid {
+        return Err(format!(
+            "{:?} is not a harbor repository",
+            request.repository
+        ));
+    }
+    if project.starts_with("ortzi-") {
+        return Err(format!("{project} is signed by ortzi releases"));
+    }
+    Ok(project)
+}
+
+pub async fn sign(
+    State(state): State<AppState>,
+    principal: Principal,
+    Json(request): Json<HarborSignRequest>,
+) -> Result<Json<HarborSignature>> {
+    let (harbor, config) = configured(&state)?;
+    let project = sign_target(&request).map_err(ApiError::BadRequest)?;
+
+    if !allowed(&config.grants, &principal, project).contains(&HarborAction::Push) {
+        return Err(ApiError::Forbidden(format!(
+            "{} has no push grant on harbor project {project}",
+            principal.actor()
+        )));
+    }
+
+    let repository = &request.repository;
+    let digest = &request.digest;
+    if harbor.oci().manifest(repository, digest).await?.is_none() {
+        return Err(ApiError::NotFound(format!(
+            "{repository}@{digest} is not in harbor"
+        )));
+    }
+
+    let tag = cosign::signature_tag(digest);
+    if harbor.oci().manifest(repository, &tag).await?.is_none() {
+        cosign::sign(
+            harbor,
+            &state.signer,
+            cosign_registry(&state),
+            repository,
+            digest,
+        )
+        .await?;
+        audit::record_as(
+            &state.pool,
+            &principal,
+            Event {
+                action: "harbor.sign",
+                ecosystem: None,
+                package: None,
+                version: None,
+                detail: json!({ "repository": repository, "digest": digest }),
+            },
+        )
+        .await?;
+        tracing::info!(
+            repository,
+            digest,
+            actor = principal.actor(),
+            "cosign-signed image"
+        );
+    }
+
+    Ok(Json(HarborSignature {
+        repository: request.repository.clone(),
+        digest: request.digest.clone(),
+        tag,
+    }))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn sign_targets_are_validated() {
+        let target = |repository: &str, digest: &str| {
+            sign_target(&HarborSignRequest {
+                repository: repository.to_owned(),
+                digest: digest.to_owned(),
+            })
+            .map(str::to_owned)
+        };
+        let digest = format!("sha256:{}", "ab".repeat(32));
+
+        assert_eq!(
+            target("containers/registry", &digest),
+            Ok("containers".to_owned())
+        );
+        assert_eq!(
+            target("containers/a/b-c.d", &digest),
+            Ok("containers".to_owned())
+        );
+        assert!(target("containers", &digest).is_err());
+        assert!(target("containers/", &digest).is_err());
+        assert!(target("containers//x", &digest).is_err());
+        assert!(target("Containers/x", &digest).is_err());
+        assert!(target("ortzi-packages/x", &digest).is_err());
+        assert!(target("containers/x", "sha256:abc").is_err());
+        assert!(target("containers/x", &format!("sha512:{}", "ab".repeat(32))).is_err());
+    }
 
     #[test]
     fn robot_names_are_harbor_safe() {

@@ -235,7 +235,7 @@ resource "harbor_robot_account" "exchange" {
       }
 
       dynamic "access" {
-        for_each = startswith(permissions.value.name, "ortzi-") ? ["push"] : []
+        for_each = contains(keys(harbor_project.proxy), permissions.value.name) ? [] : ["push"]
 
         content {
           action   = access.value

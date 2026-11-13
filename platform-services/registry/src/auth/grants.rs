@@ -134,6 +134,14 @@ pub fn allowed(grants: &[Grant], principal: &Principal, project: &str) -> BTreeS
         .collect()
 }
 
+pub fn valid_project(project: &str) -> bool {
+    !project.is_empty()
+        && project.len() <= 255
+        && project
+            .bytes()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
+}
+
 pub fn validate_request(access: &[HarborAccess]) -> Result<(), String> {
     if access.is_empty() {
         return Err("request at least one project".to_owned());
@@ -142,13 +150,7 @@ pub fn validate_request(access: &[HarborAccess]) -> Result<(), String> {
         return Err("at most 32 projects per token".to_owned());
     }
     for item in access {
-        let valid = !item.project.is_empty()
-            && item.project.len() <= 255
-            && item
-                .project
-                .bytes()
-                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b));
-        if !valid {
+        if !valid_project(&item.project) {
             return Err(format!("{:?} is not a harbor project name", item.project));
         }
         if item.actions.is_empty() {

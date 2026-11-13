@@ -6,7 +6,7 @@ use registry_api::{
 };
 use reqwest::Method;
 
-use super::packages::urlencode;
+use super::{harbor, packages::urlencode};
 use crate::{client::Client, session::Settings};
 
 #[derive(Subcommand)]
@@ -30,6 +30,18 @@ pub enum RegistryCommand {
     Version {
         #[command(subcommand)]
         action: VersionAction,
+    },
+    /// Mint a short-lived Harbor robot into the docker config, e.g. `containers:pull charts:push`
+    Login {
+        #[arg(required = true, value_name = "PROJECT:ACTIONS")]
+        specs: Vec<String>,
+    },
+    /// Revoke the Harbor robot in the docker config and remove it
+    Logout,
+    /// Cosign-sign an image in Harbor with the registry key
+    Sign {
+        #[arg(value_name = "IMAGE@DIGEST")]
+        image: String,
     },
     /// Show the audit log
     Audit {
@@ -137,6 +149,9 @@ pub async fn run(settings: &Settings, command: RegistryCommand) -> anyhow::Resul
         RegistryCommand::Token { action } => token(&client, action).await,
         RegistryCommand::Version { action } => version(&client, action).await,
         RegistryCommand::Audit { package, limit } => audit(&client, package, limit).await,
+        RegistryCommand::Login { specs } => harbor::login(&client, &specs).await,
+        RegistryCommand::Logout => harbor::logout(&client, &settings.registry).await,
+        RegistryCommand::Sign { image } => harbor::sign(&client, &image).await,
     }
 }
 

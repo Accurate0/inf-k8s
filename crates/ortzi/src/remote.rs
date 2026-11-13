@@ -62,16 +62,20 @@ pub async fn exchange(
 }
 
 pub async fn revoke(api: &Client, token: &HarborToken) {
-    let path = format!(
-        "/api/v1/harbor/token/{}",
-        crate::commands::packages::urlencode(&token.username)
-    );
-    if let Err(e) = api.delete(&path).await {
+    if let Err(e) = revoke_robot(api, &token.username).await {
         eprintln!(
             "warning: could not revoke harbor robot {}: {e:#}",
             token.username
         );
     }
+}
+
+pub async fn revoke_robot(api: &Client, username: &str) -> anyhow::Result<()> {
+    let path = format!(
+        "/api/v1/harbor/token/{}",
+        crate::commands::packages::urlencode(username)
+    );
+    api.delete(&path).await
 }
 
 pub fn oci_client(token: &HarborToken) -> anyhow::Result<oci::Client> {

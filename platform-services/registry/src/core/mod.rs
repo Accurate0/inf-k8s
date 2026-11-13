@@ -32,6 +32,7 @@ pub fn router() -> Router<AppState> {
         .route("/signing/certificate", post(signing::certificate))
         .route("/harbor/token", post(exchange::create))
         .route("/harbor/token/{username}", delete(exchange::revoke))
+        .route("/harbor/sign", post(exchange::sign))
 }
 
 async fn whoami(principal: Principal) -> Json<WhoAmI> {

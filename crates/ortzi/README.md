@@ -16,6 +16,11 @@ ortzi update                 # ortzi itself and every installed package
 
 Optionally put `$(ortzi bin-dir)` on `PATH` to run installed binaries (`ffctl`, `aig`, ...) directly.
 
+Harbor has no long-lived passwords: `ortzi registry login containers:pull charts:push` mints a
+one-day robot from your grants into the docker config, and `ortzi registry logout` revokes it. In
+forgejo actions the same commands authenticate with the job's OIDC token, and
+`ortzi registry sign <image>@<digest>` cosign-signs a pushed image with the registry key.
+
 ## Publishing a package
 
 ```sh

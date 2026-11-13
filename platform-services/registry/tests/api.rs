@@ -1343,6 +1343,96 @@ async fn harbor_token_exchange(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn ci_signs_its_images(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    let image = br#"{"schemaVersion":2}"#.to_vec();
+    let digest = oci_digest(&image);
+    for key in [
+        "containers/app@latest".to_owned(),
+        format!("containers/app@{digest}"),
+    ] {
+        registry.harbor.calls.manifests.lock().unwrap().insert(
+            key,
+            (
+                "application/vnd.oci.image.index.v1+json".to_owned(),
+                image.clone(),
+            ),
+        );
+    }
+    let request = json!({ "repository": "containers/app", "digest": digest });
+
+    let k8s_main = registry.forgejo.forgejo(json!({
+        "repository": "anurag/k8s",
+        "workflow_ref": "anurag/k8s/.forgejo/workflows/app-x.yaml@refs/heads/main",
+    }));
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/sign",
+            Some(&k8s_main),
+            Some(request.clone()),
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(body["tag"], format!("{}.sig", digest.replacen(':', "-", 1)));
+    assert_cosign_signed(&registry, "containers/app", &digest);
+
+    let signatures = registry.harbor.calls.manifests.lock().unwrap().len();
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/sign",
+            Some(&k8s_main),
+            Some(request.clone()),
+        )
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        registry.harbor.calls.manifests.lock().unwrap().len(),
+        signatures
+    );
+
+    let other_ref = registry.forgejo.forgejo(json!({
+        "repository": "anurag/k8s",
+        "ref": "refs/heads/feature",
+        "workflow_ref": "anurag/k8s/.forgejo/workflows/app-x.yaml@refs/heads/feature",
+    }));
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/sign",
+            Some(&other_ref),
+            Some(request.clone()),
+        )
+        .await;
+    assert_eq!(status, 403, "{body}");
+
+    let missing = json!({
+        "repository": "containers/app",
+        "digest": format!("sha256:{}", "00".repeat(32)),
+    });
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/sign",
+            Some(&k8s_main),
+            Some(missing),
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/api/v1/harbor/sign",
+            Some(&registry.admin),
+            Some(json!({ "repository": "ortzi-packages/tool", "digest": digest })),
+        )
+        .await;
+    assert_eq!(status, 400);
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn harbor_token_for_ortzi_publishing(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
     registry.create_package("tool").await;

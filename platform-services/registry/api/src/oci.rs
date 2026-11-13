@@ -14,6 +14,8 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 pub const INDEX: &str = "application/vnd.oci.image.index.v1+json";
 pub const MANIFEST: &str = "application/vnd.oci.image.manifest.v1+json";
+pub const DOCKER_MANIFEST: &str = "application/vnd.docker.distribution.manifest.v2+json";
+pub const DOCKER_MANIFEST_LIST: &str = "application/vnd.docker.distribution.manifest.list.v2+json";
 pub const EMPTY: &str = "application/vnd.oci.empty.v1+json";
 pub const EMPTY_JSON: &[u8] = b"{}";
 pub const TITLE: &str = "org.opencontainers.image.title";
@@ -332,7 +334,10 @@ impl Client {
         let response = self
             .request(Method::GET, url.clone(), repository, false)
             .await?
-            .header(header::ACCEPT, format!("{INDEX}, {MANIFEST}"))
+            .header(
+                header::ACCEPT,
+                format!("{INDEX}, {MANIFEST}, {DOCKER_MANIFEST_LIST}, {DOCKER_MANIFEST}"),
+            )
             .send()
             .await?;
         if response.status() == StatusCode::NOT_FOUND {

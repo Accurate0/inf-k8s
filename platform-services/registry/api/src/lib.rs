@@ -934,4 +934,17 @@ pub struct HarborToken {
     pub access: Vec<HarborAccess>,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarborSignRequest {
+    pub repository: String,
+    pub digest: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct HarborSignature {
+    pub repository: String,
+    pub digest: String,
+    pub tag: String,
+}
+
 pub const DOCKER_CONFIG_MEDIA_TYPE: &str = "application/vnd.docker.config+json";

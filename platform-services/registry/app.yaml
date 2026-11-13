@@ -22,7 +22,7 @@ resources:
     hosts:
       - registry.anurag.sh
     rules:
-      - paths: [/api/v1, /cli/v1, /install.sh, /harbor-login.sh]
+      - paths: [/api/v1, /cli/v1, /install.sh]
         backend: {name: api, port: 80}
       - paths: [/]
         backend: {name: harbor, port: 80}
@@ -39,7 +39,7 @@ resources:
     hosts:
       - registry.anurag.sh
     rules:
-      - paths: [/api/v1, /cli/v1, /install.sh, /harbor-login.sh]
+      - paths: [/api/v1, /cli/v1, /install.sh]
         backend: {name: api, port: 80}
       - paths: [/]
         backend: {name: harbor, port: 80}
