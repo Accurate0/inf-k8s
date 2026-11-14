@@ -10,7 +10,7 @@ resources:
     path: /v1
 workloads:
   - name: tldr-bot
-    image: ghcr.io/accurate0/tldr-bot
+    image: registry.anurag.sh/containers/tldr-bot
     resources: {memory: 32Mi}
     env:
       OPENAI_API_BASE: {resource: llm}
