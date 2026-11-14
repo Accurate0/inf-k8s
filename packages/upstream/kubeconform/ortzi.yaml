@@ -1,0 +1,16 @@
+package:
+  name: kubeconform
+  description: Kubernetes manifest validator (upstream yannh/kubeconform)
+  # renovate: datasource=github-releases depName=yannh/kubeconform extractVersion=^v(?<version>.+)$
+  version: 0.7.0
+build:
+  kind: prebuilt
+  prebuilt:
+    darwin-arm64:
+      url: https://github.com/yannh/kubeconform/releases/download/v${version}/kubeconform-darwin-arm64.tar.gz
+      sha256: b5d32b2cb77f9c781c976b20a85e2d0bc8f9184d5d1cfe665a2f31a19f99eeb9
+      extract: kubeconform
+    linux-amd64:
+      url: https://github.com/yannh/kubeconform/releases/download/v${version}/kubeconform-linux-amd64.tar.gz
+      sha256: c31518ddd122663b3f3aa874cfe8178cb0988de944f29c74a0b9260920d115d3
+      extract: kubeconform

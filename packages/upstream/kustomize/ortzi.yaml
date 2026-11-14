@@ -1,0 +1,17 @@
+package:
+  name: kustomize
+  description: Kustomize CLI (upstream kubernetes-sigs/kustomize)
+  # renovate: datasource=github-releases depName=kubernetes-sigs/kustomize extractVersion=^kustomize/v(?<version>.+)$
+  version: 5.7.1
+  completions: cobra
+build:
+  kind: prebuilt
+  prebuilt:
+    darwin-arm64:
+      url: https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${version}/kustomize_v${version}_darwin_arm64.tar.gz
+      sha256: 073e9d16d5a235e2ff83e62d6b76edb5d962adbc33be1e4860c4b3f1f39b33b9
+      extract: kustomize
+    linux-amd64:
+      url: https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2Fv${version}/kustomize_v${version}_linux_amd64.tar.gz
+      sha256: ea375e7372f9aa029129d4b2d16c66b7750b7f1213c4f66f910d981c895818d8
+      extract: kustomize
