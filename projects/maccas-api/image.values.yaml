@@ -5,3 +5,4 @@ images:
   ghcr.io/accurate0/maccas-recommendations: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
   ghcr.io/accurate0/maccas-scheduler: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
   ghcr.io/accurate0/maccas-web: c75e4fa7a74bdf11f43e5445e146d9609f49eccf
+  registry.anurag.sh/containers/maccas-web: 581e13706b10ec426a76ff1706fcb23c41574df3
