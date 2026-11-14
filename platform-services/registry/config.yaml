@@ -43,6 +43,7 @@ harbor:
         - {project: ortzi-*, actions: [pull, push]}
         - {project: containers, actions: [pull, push]}
         - {project: charts, actions: [pull, push]}
+        - {project: manifests, actions: [pull, push]}
     - token: {}
       allow:
         - {project: ortzi-*, actions: [pull]}
@@ -58,6 +59,7 @@ harbor:
       allow:
         - {project: containers, actions: [pull, push]}
         - {project: charts, actions: [pull, push]}
+        - {project: manifests, actions: [pull, push]}
     - forgejo: {repository: anurag/spotify, ref: refs/heads/main}
       allow:
         - {project: containers, actions: [pull, push]}
