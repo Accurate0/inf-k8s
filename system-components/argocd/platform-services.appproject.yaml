@@ -25,6 +25,7 @@ spec:
     - oci://registry.anurag.sh/charts/k8s-observability
     - oci://ghcr.io/accurate0/charts/k8s-storage
     - oci://registry.anurag.sh/charts/k8s-storage
+    - oci://registry.anurag.sh/manifests/k8s-schemas
     - https://helm.goharbor.io
   destinations:
     - namespace: "*"

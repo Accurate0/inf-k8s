@@ -110,6 +110,13 @@ spec:
                       url: oci://registry.anurag.sh/charts
                       username: "{{ .USERNAME }}"
                       password: "{{ .PASSWORD }}"
+                - secretName: argocd-harbor-manifests-repo-creds
+                  template:
+                    data:
+                      type: oci
+                      url: oci://registry.anurag.sh/manifests
+                      username: "{{ .USERNAME }}"
+                      password: "{{ .PASSWORD }}"
     - chart: argo-cd
       repoURL: https://argoproj.github.io/argo-helm
       targetRevision: 10.11.6

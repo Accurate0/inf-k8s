@@ -90,7 +90,7 @@ resource "vault_kv_secret_v2" "harbor-node-pull" {
 }
 
 resource "harbor_project" "own" {
-  for_each = toset(["charts", "containers"])
+  for_each = toset(["charts", "containers", "manifests"])
 
   name   = each.key
   public = false
@@ -107,13 +107,17 @@ resource "harbor_robot_account" "argocd" {
   secret_wo         = ephemeral.random_password.harbor-argocd.result
   secret_wo_version = 1
 
-  permissions {
-    kind      = "project"
-    namespace = harbor_project.own["charts"].name
+  dynamic "permissions" {
+    for_each = toset(["charts", "manifests"])
 
-    access {
-      action   = "pull"
-      resource = "repository"
+    content {
+      kind      = "project"
+      namespace = harbor_project.own[permissions.value].name
+
+      access {
+        action   = "pull"
+        resource = "repository"
+      }
     }
   }
 }

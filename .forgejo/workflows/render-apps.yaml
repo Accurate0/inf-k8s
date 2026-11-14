@@ -85,3 +85,7 @@ jobs:
           [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
           .forgejo/scripts/retry.sh 5 15 bash -c 'if git pull --rebase origin main; then git push origin HEAD:main; else git rebase --abort; exit 1; fi'
+      - name: Push manifest artifacts
+        run: |
+          .forgejo/scripts/retry.sh 3 30 ortzi registry push platform-services/k8s-schemas \
+            oci://registry.anurag.sh/manifests/k8s-schemas --tag main --revision "$(git rev-parse HEAD)"
