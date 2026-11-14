@@ -7,6 +7,8 @@ use std::{
 
 use anyhow::{Context, bail};
 use registry_api::{KubeVerb, PackageAuth, Permissions};
+
+use crate::{commands::artifact, session::Settings};
 use wasmtime::{
     Engine, Store,
     component::{Component, HasSelf, Linker, ResourceTable},
@@ -22,7 +24,7 @@ wasmtime::component::bindgen!({
     anyhow: true,
 });
 
-use ortzi::host::{auth, env, fs, http as host_http, kube, process, serve};
+use ortzi::host::{auth, env, fs, http as host_http, kube, process, registry, serve};
 
 pub struct Sandbox {
     pub args: Vec<String>,
@@ -33,6 +35,8 @@ pub struct Sandbox {
     pub kube: Vec<KubeVerb>,
     pub http: Vec<String>,
     pub listen: Vec<u16>,
+    pub registry: Vec<String>,
+    pub settings: Settings,
     pub auth: Option<(String, PackageAuth)>,
 }
 
@@ -44,6 +48,7 @@ impl Sandbox {
         auth: Option<PackageAuth>,
         args: Vec<String>,
         extra_vars: Vec<(String, String)>,
+        settings: Settings,
     ) -> anyhow::Result<Self> {
         let cwd = std::env::current_dir()?;
         let home = dirs::home_dir();
@@ -83,6 +88,8 @@ impl Sandbox {
             kube: permissions.kube.clone(),
             http: permissions.http.clone(),
             listen: permissions.listen.clone(),
+            registry: permissions.registry.clone(),
+            settings,
             auth: auth.map(|auth| (package.to_owned(), auth)),
         })
     }
@@ -611,6 +618,55 @@ impl auth::Host for State {
     }
 }
 
+impl registry::Host for State {
+    fn push_dir(&mut self, request: registry::Push) -> Result<registry::Pushed, String> {
+        let project =
+            artifact::project(&request.reference).map_err(|e| format!("registry: {e}"))?;
+        if !self
+            .sandbox
+            .registry
+            .iter()
+            .any(|allowed| allowed == project)
+        {
+            return Err(format!(
+                "registry: {project} is not in the package's permissions.registry"
+            ));
+        }
+        let dir = self.sandbox.resolve(&request.dir)?;
+        let settings = self.sandbox.settings.clone();
+
+        let runtime = match &mut self.tokens {
+            Some(runtime) => runtime,
+            None => self.tokens.insert(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())?,
+            ),
+        };
+
+        let pushed = runtime
+            .block_on(async {
+                let api = settings.reader().await?;
+                artifact::push_dir(
+                    &api,
+                    &dir,
+                    &request.reference,
+                    &request.tags,
+                    request.revision.as_deref(),
+                    request.sign,
+                )
+                .await
+            })
+            .map_err(|e| format!("registry: {e:#}"))?;
+
+        Ok(registry::Pushed {
+            digest: pushed.digest,
+            changed: pushed.changed,
+        })
+    }
+}
+
 impl fs::Host for State {
     fn read_file(&mut self, path: String) -> Result<Vec<u8>, String> {
         let resolved = self.sandbox.resolve(&path)?;
@@ -776,6 +832,14 @@ mod tests {
             kube: vec![],
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
             listen: vec![],
+            registry: vec![],
+            settings: Settings {
+                registry: "https://registry.example.test".to_owned(),
+                issuer: String::new(),
+                client_id: String::new(),
+                token: None,
+                audience: String::new(),
+            },
             auth: None,
         }
     }

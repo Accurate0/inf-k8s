@@ -108,6 +108,26 @@ interface auth {
   token: func() -> result<string, string>;
 }
 
+interface registry {
+  record push {
+    dir: string,
+    reference: string,
+    tags: list<string>,
+    revision: option<string>,
+    sign: bool,
+  }
+
+  record pushed {
+    digest: string,
+    changed: bool,
+  }
+
+  /// Pushes dir as a single-layer OCI artifact to reference (oci://host/project/name), whose
+  /// project must be in permissions.registry. Nothing is uploaded or signed when every tag already
+  /// holds the same content.
+  push-dir: func(request: push) -> result<pushed, string>;
+}
+
 interface env {
   args: func() -> list<string>;
   vars: func() -> list<tuple<string, string>>;
@@ -124,6 +144,7 @@ world cli {
   import http;
   import serve;
   import auth;
+  import registry;
   export wasi:cli/run@0.2.12;
 }
 

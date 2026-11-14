@@ -58,6 +58,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                     package.auth.clone(),
                     args,
                     vars,
+                    settings.clone(),
                 )?;
                 let name = name.clone();
                 let code = std::thread::spawn(move || wasm::run(&binary, sandbox))

@@ -67,6 +67,20 @@ declare module 'ortzi:host/serve@0.1.0' {
 declare module 'ortzi:host/auth@0.1.0' {
   export function token(): string;
 }
+declare module 'ortzi:host/registry@0.1.0' {
+  export function pushDir(request: Push): Pushed;
+  export interface Push {
+    dir: string;
+    reference: string;
+    tags: string[];
+    revision?: string;
+    sign: boolean;
+  }
+  export interface Pushed {
+    digest: string;
+    changed: boolean;
+  }
+}
 declare module 'ortzi:host/process@0.1.0' {
   export function run(command: Command): Output;
   /**

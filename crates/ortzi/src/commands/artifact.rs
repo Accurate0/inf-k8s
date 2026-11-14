@@ -20,6 +20,10 @@ struct Target<'a> {
     repository: &'a str,
 }
 
+pub fn project(reference: &str) -> anyhow::Result<&str> {
+    Ok(parse_reference(reference)?.project)
+}
+
 fn parse_reference(reference: &str) -> anyhow::Result<Target<'_>> {
     let Some(rest) = reference.strip_prefix("oci://") else {
         bail!("{reference} is not oci://<host>/<project>/<name>");
@@ -91,6 +95,11 @@ fn archive(root: &Path) -> anyhow::Result<Vec<u8>> {
     Ok(tar.into_inner()?.finish()?)
 }
 
+pub struct Pushed {
+    pub digest: String,
+    pub changed: bool,
+}
+
 pub async fn push(
     api: &Client,
     dir: &Path,
@@ -99,9 +108,27 @@ pub async fn push(
     revision: Option<&str>,
     sign: bool,
 ) -> anyhow::Result<()> {
+    let pushed = push_dir(api, dir, reference, tags, revision, sign).await?;
+    let verb = if pushed.changed {
+        "pushed"
+    } else {
+        "unchanged"
+    };
+    println!("{verb} {reference}@{} ({})", pushed.digest, tags.join(", "));
+    Ok(())
+}
+
+pub async fn push_dir(
+    api: &Client,
+    dir: &Path,
+    reference: &str,
+    tags: &[String],
+    revision: Option<&str>,
+    sign: bool,
+) -> anyhow::Result<Pushed> {
     let target = parse_reference(reference)?;
     if tags.is_empty() {
-        bail!("pass at least one --tag");
+        bail!("pass at least one tag");
     }
 
     let layer = archive(dir)?;
@@ -117,19 +144,40 @@ pub async fn push(
 
     let pushed = upload(&token, &target, &layer, tags, revision).await;
     remote::revoke(api, &token).await;
-    let digest = pushed?;
+    let pushed = pushed?;
 
-    println!("pushed {reference}@{digest} ({})", tags.join(", "));
-
-    if sign {
+    if sign && pushed.changed {
         harbor::sign(
             api,
-            &format!("{}/{}@{digest}", target.host, target.repository),
+            &format!("{}/{}@{}", target.host, target.repository, pushed.digest),
         )
         .await?;
     }
 
-    Ok(())
+    Ok(pushed)
+}
+
+async fn current(
+    oci: &oci::Client,
+    repository: &str,
+    tags: &[String],
+    layer: &str,
+) -> anyhow::Result<Option<String>> {
+    let mut digest: Option<String> = None;
+    for tag in tags {
+        let Some(fetched) = oci.manifest(repository, tag).await? else {
+            return Ok(None);
+        };
+        let manifest: Manifest = serde_json::from_slice(&fetched.body)?;
+        if !matches!(manifest.layers.as_slice(), [only] if only.digest == layer) {
+            return Ok(None);
+        }
+        if digest.as_ref().is_some_and(|d| *d != fetched.digest) {
+            return Ok(None);
+        }
+        digest.get_or_insert(fetched.digest);
+    }
+    Ok(digest)
 }
 
 async fn upload(
@@ -138,7 +186,7 @@ async fn upload(
     layer: &[u8],
     tags: &[String],
     revision: Option<&str>,
-) -> anyhow::Result<String> {
+) -> anyhow::Result<Pushed> {
     if token.registry != target.host {
         bail!(
             "{} is not the ortzi registry ({})",
@@ -148,6 +196,13 @@ async fn upload(
     }
 
     let oci = remote::oci_client(token)?;
+    if let Some(digest) = current(&oci, target.repository, tags, &oci::digest(layer)).await? {
+        return Ok(Pushed {
+            digest,
+            changed: false,
+        });
+    }
+
     let descriptor = oci.push_bytes(target.repository, LAYER, layer).await?;
     oci.push_bytes(target.repository, oci::EMPTY, oci::EMPTY_JSON)
         .await?;
@@ -166,7 +221,10 @@ async fn upload(
             .await?;
     }
 
-    Ok(digest)
+    Ok(Pushed {
+        digest,
+        changed: true,
+    })
 }
 
 #[cfg(test)]

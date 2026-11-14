@@ -210,7 +210,7 @@ async fn main() -> anyhow::Result<()> {
             path,
             invoked,
             args,
-        } => dev(&path, invoked, args).await,
+        } => dev(&settings, &path, invoked, args).await,
         Command::Registry { command } => commands::registry::run(&settings, command).await,
         Command::Doctor => doctor::run(&settings).await,
         Command::Completions { shell } => completions::print_script(&shell),
@@ -223,6 +223,7 @@ async fn main() -> anyhow::Result<()> {
 }
 
 async fn dev(
+    settings: &Settings,
     path: &std::path::Path,
     invoked: Option<String>,
     args: Vec<String>,
@@ -251,6 +252,7 @@ async fn dev(
         auth,
         args,
         vars,
+        settings.clone(),
     )?;
     let code = std::thread::spawn(move || wasm::run(&wasm, sandbox))
         .join()

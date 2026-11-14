@@ -3,6 +3,7 @@ import * as hostFs from 'ortzi:host/fs@0.1.0';
 import * as hostHttp from 'ortzi:host/http@0.1.0';
 import * as hostKube from 'ortzi:host/kube@0.1.0';
 import * as hostAuth from 'ortzi:host/auth@0.1.0';
+import * as hostRegistry from 'ortzi:host/registry@0.1.0';
 import * as hostServe from 'ortzi:host/serve@0.1.0';
 import * as process from 'ortzi:host/process@0.1.0';
 import { getStderr } from 'wasi:cli/stderr@0.2.12';
@@ -209,6 +210,24 @@ export const serve = {
 
 /** The package's access token, refreshed by the host when it is about to expire. */
 export const authToken = (): string => unwrap(() => hostAuth.token());
+
+export interface PushOptions {
+  tags: string[];
+  revision?: string;
+  sign?: boolean;
+}
+
+export function pushDir(dir: string, reference: string, options: PushOptions): hostRegistry.Pushed {
+  return unwrap(() =>
+    hostRegistry.pushDir({
+      dir,
+      reference,
+      tags: options.tags,
+      revision: options.revision,
+      sign: options.sign ?? false,
+    }),
+  );
+}
 
 export const args = (): string[] => hostEnv.args().slice(1);
 export const invokedAs = (): string => hostEnv.args()[0] ?? '';
