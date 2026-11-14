@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-13T13:20:13.976Z
+# generated at 2026-11-14T02:41:08.237Z
 name: app k8s-schemas
 on:
   push:
@@ -77,7 +77,7 @@ jobs:
           git clone "https://x-access-token:$FORGEJO_TOKEN@git.anurag.sh/anurag/k8s.git" config-repo
           cd config-repo
           PR_BRANCH="ci/update-$SERVICE_NAME-app-$SERVICE_NAME-$TAG"
-          TITLE="chore(deploy): update $SERVICE_NAME images to $TAG [skip ci]"
+          TITLE="chore(deploy): update $SERVICE_NAME images to $TAG"
           git checkout -b "$PR_BRANCH"
           IMAGE="$IMAGE" yq -I2 -P -i '.images[strenv(IMAGE)] = strenv(TAG)' "$VALUES_FILE"
           git add "$MANIFESTS_PATH"

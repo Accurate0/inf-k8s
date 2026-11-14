@@ -34,5 +34,6 @@ build:
 sources:
   - type: manifests
     path: .
-    artifact: oci://registry.anurag.sh/manifests/k8s-schemas
-    tag: main
+artifact:
+  repo: oci://registry.anurag.sh/manifests/k8s-schemas
+  tag: main

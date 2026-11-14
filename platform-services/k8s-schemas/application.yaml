@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-14T02:16:54.720Z
+# generated at 2026-11-14T02:41:08.233Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,89 +16,6 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
-      ref: values
-    - chart: k8s-workload
-      repoURL: oci://registry.anurag.sh/charts/k8s-workload
-      targetRevision: 0.6.0
-      helm:
-        valueFiles:
-          - $values/platform-services/k8s-schemas/image.values.yaml
-        valuesObject:
-          namespace: k8s-schemas
-          serviceAccounts:
-            - k8s-schemas
-          workloads:
-            - name: k8s-schemas
-              image: registry.anurag.sh/containers/k8s-schemas
-              kind: CronJob
-              schedule: 0 0 * * 0
-              backoffLimit: 2
-              resources:
-                requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  memory: 512Mi
-              env:
-                - name: S3_BUCKET
-                  valueFrom:
-                    secretKeyRef:
-                      name: schemas-bucket-secrets
-                      key: S3_BUCKET
-                - name: S3_ENDPOINT
-                  valueFrom:
-                    secretKeyRef:
-                      name: schemas-bucket-secrets
-                      key: S3_ENDPOINT
-                - name: AWS_ACCESS_KEY_ID
-                  valueFrom:
-                    secretKeyRef:
-                      name: schemas-bucket-secrets
-                      key: S3_ACCESS_KEY_ID
-                - name: AWS_SECRET_ACCESS_KEY
-                  valueFrom:
-                    secretKeyRef:
-                      name: schemas-bucket-secrets
-                      key: S3_SECRET_ACCESS_KEY
-                - name: K8S_VERSION
-                  value: v1.37.1
-              envFrom:
-                - secretRef:
-                    name: k8s-schemas-managed-secrets
-              volumes:
-                - name: tmp
-                  emptyDir: {}
-              volumeMounts:
-                - name: tmp
-                  mountPath: /tmp
-              serviceAccountName: k8s-schemas
-    - chart: k8s-network
-      repoURL: oci://registry.anurag.sh/charts/k8s-network
-      targetRevision: 0.2.0
-      helm:
-        valuesObject:
-          namespace: k8s-schemas
-          ingress: []
-    - chart: k8s-secrets
-      repoURL: oci://registry.anurag.sh/charts/k8s-secrets
-      targetRevision: 0.7.0
-      helm:
-        valuesObject:
-          defaults:
-            namespace: k8s-schemas
-            provider: openbao
-            resyncInterval: 900
-            annotations:
-              inf-k8s.net/app: k8s-schemas
-              inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
-          secrets:
-            - name: k8s-schemas
-              managedSecrets:
-                - secretName: k8s-schemas-managed-secrets
-            - name: resource-schemas
-              managedSecrets:
-                - secretName: schemas-bucket-secrets
     - repoURL: oci://registry.anurag.sh/manifests/k8s-schemas
       name: application
       path: .
