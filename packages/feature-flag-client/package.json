@@ -9,7 +9,7 @@
     "directory": "packages/feature-flag-client"
   },
   "publishConfig": {
-    "registry": "https://npm.pkg.github.com",
+    "registry": "https://git.anurag.sh/api/packages/anurag/npm/",
     "access": "public"
   },
   "main": "./dist/index.js",
