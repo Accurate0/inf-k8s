@@ -1,5 +1,6 @@
 import {
   type App,
+  type Artifact,
   appDatabases,
   appMetrics,
   appNamespace,
@@ -58,7 +59,6 @@ export interface GitPath {
 export interface LocalManifests {
   type: 'manifests';
   path: string;
-  artifact?: { repo: string; tag: string; path: string };
 }
 
 export type PlanSource = PlatformChart | ExternalChart | GitPath | LocalManifests;
@@ -71,6 +71,7 @@ export interface Plan {
   namespaceLabels?: Record<string, string>;
   ownsNamespace: boolean;
   sources: PlanSource[];
+  artifact?: Artifact;
 }
 
 function dnsAnnotations(dns: RouteDns): Record<string, string> {
@@ -401,9 +402,6 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
       sources.push({
         type: 'manifests',
         path: source.path === '.' ? directory : `${directory}/${source.path}`,
-        ...(source.artifact && source.tag
-          ? { artifact: { repo: source.artifact, tag: source.tag, path: source.path } }
-          : {}),
       });
     }
   }
@@ -416,6 +414,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
     ownsNamespace: hasWorkloads,
     sources,
+    ...(app.artifact ? { artifact: app.artifact } : {}),
   };
 }
 
@@ -424,25 +423,42 @@ function externalChartLocation({ chart, repo, version }: ExternalChart): string[
   return [repo.endsWith(`/${chart}`) ? repo : `${repo}/${chart}`, '--version', version];
 }
 
-export function helmTemplates(plan: Plan): { args: string[]; values: string }[] {
+const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
+
+export const chartValues = (source: PlatformChart) => ({
+  ...source.values,
+  ...(source.retain ? { retainAnnotations: RETAIN } : {}),
+});
+
+export function helmTemplates(
+  plan: Plan,
+  published = false,
+): { name: string; args: string[]; values: string }[] {
   return plan.sources.flatMap((source) => {
     if (source.type !== 'chart' && source.type !== 'helm') return [];
     const release = source.type === 'helm' ? (source.releaseName ?? plan.name) : plan.name;
-    const location =
-      source.type === 'chart' ? [`charts/${source.chart}`] : externalChartLocation(source);
+    let location = [`charts/${source.chart}`];
+    if (source.type === 'helm') {
+      location = externalChartLocation(source);
+    } else if (published) {
+      location = [`${source.registry}/${source.chart}`, '--version', source.version];
+    }
+
     return [
       {
+        name: source.type === 'helm' ? (source.releaseName ?? source.chart) : source.chart,
         args: [
           'template',
           release,
           ...location,
           '--namespace',
           plan.namespace,
+          ...(published ? ['--include-crds'] : []),
           ...(source.valueFiles ?? []).flatMap((file) => ['-f', file]),
           '-f',
           '-',
         ],
-        values: JSON.stringify(source.type === 'chart' ? source.values : {}),
+        values: JSON.stringify(source.type === 'chart' ? chartValues(source) : {}),
       },
     ];
   });

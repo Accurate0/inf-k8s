@@ -1,4 +1,4 @@
-import { fs, run as exec } from '@ortzi/host';
+import { capture, fs, run as exec } from '@ortzi/host';
 import { cli, columns, Kube, parseMinutes, UsageError } from '@ortzi/kit';
 import { listApps } from './argo';
 import { changedScope, parseStatus } from './changed';
@@ -44,6 +44,7 @@ import {
   workflowPath,
   workloadImages,
 } from './render';
+import { publishArtifact } from './hydrate';
 import { renderOutputs } from './outputs';
 import { planApp } from './plan';
 import { addRoles, databasePath, renderDatabase } from './providers/cnpg';
@@ -89,6 +90,8 @@ definition (run from the root of the k8s repo):
   diff [app]               show what render would change, exit 1 if anything would
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
+  publish [app...]         template each app with an artifact and push it to its oci repo, unchanged
+                           ones are skipped (default: every app with an artifact)
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
 
@@ -365,6 +368,38 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   return check && stale.length + removed.length > 0 ? 1 : 0;
 }
 
+function publish(names: string[]): number {
+  const versions = parse(fs.readText(VERSIONS)).charts;
+  const apps = discover();
+  const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
+
+  const unknown = names.filter(
+    (name) => !apps.some(({ app }) => app.name === name && app.artifact),
+  );
+  if (unknown.length) {
+    throw new UsageError(`no app with an artifact named ${unknown.join(', ')}`);
+  }
+
+  const selected = apps.filter(
+    ({ app }) => app.artifact && (!names.length || names.includes(app.name)),
+  );
+  const dirs = selected.map(({ app, target }) => `${target.location}/${app.name}`);
+  if (dirs.length && capture('git', ['status', '--porcelain', '--', ...dirs]).trim()) {
+    console.error(`uncommitted changes in ${dirs.join(', ')}; commit before publishing`);
+    return 1;
+  }
+
+  const revision = capture('git', ['rev-parse', 'HEAD']).trim();
+  for (const { app, target } of selected) {
+    publishArtifact(planApp(app, versions, target, world), revision);
+  }
+
+  if (!selected.length) {
+    console.log('no apps declare an artifact');
+  }
+  return 0;
+}
+
 function diff(only?: string): number {
   const stale = staleFiles(only);
   for (const { path, wanted } of stale) {
@@ -401,6 +436,7 @@ export const run = cli({
   commands: {
     render: (_ctx, values) => render(values.check, values.commit, values.changed, values.force),
     diff: (_ctx, _values, rest) => diff(rest[0]),
+    publish: (_ctx, _values, rest) => publish(rest),
     supergraph: (_ctx, values) => supergraph(discover(), values.check),
     list: () => {
       const count = (block?: object) => {

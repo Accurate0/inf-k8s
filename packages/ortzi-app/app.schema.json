@@ -1565,6 +1565,23 @@
         }
       }
     },
+    "artifact": {
+      "description": "Deliver the app to Argo CD as one OCI artifact instead of git and chart sources. `ortzi app publish` templates every chart and kustomization into it, so image tags and values never come from git.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repo", "tag"],
+      "properties": {
+        "repo": {
+          "type": "string",
+          "pattern": "^oci://[^/]+/[^/]+/[^/]+$",
+          "description": "Repository to push to and sync from, e.g. oci://registry.anurag.sh/manifests/<app>."
+        },
+        "tag": {
+          "type": "string",
+          "description": "Tag publish moves and Argo CD syncs."
+        }
+      }
+    },
     "sources": {
       "type": "array",
       "description": "What the app deploys beyond its workloads and resources.",
@@ -1649,20 +1666,7 @@
               "path": {
                 "type": "string",
                 "description": "Kustomization directory, relative to the app directory. Use . for the app directory."
-              },
-              "artifact": {
-                "type": "string",
-                "pattern": "^oci://[^/]+/[^/]+/[^/]+$",
-                "description": "OCI artifact Argo CD syncs this source from instead of git. CI pushes the app directory to it with `ortzi registry push`."
-              },
-              "tag": {
-                "type": "string",
-                "description": "Tag or digest of the artifact to sync."
               }
-            },
-            "dependencies": {
-              "artifact": ["tag"],
-              "tag": ["artifact"]
             }
           }
         ]

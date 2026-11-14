@@ -2345,21 +2345,15 @@ test('typed sources render in the order listed', () => {
   ]);
 });
 
-test('manifests sources can sync from an oci artifact', () => {
+test('artifact apps sync one oci source instead of git and charts', () => {
   const rendered = render({
     name: 'foo',
     network: { ingress: [] },
-    sources: [
-      {
-        type: 'manifests',
-        path: '.',
-        artifact: 'oci://registry.anurag.sh/manifests/foo',
-        tag: 'main',
-      },
-    ] as App['sources'],
+    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+    sources: [{ type: 'manifests', path: '.' }] as App['sources'],
   });
 
-  assert.deepEqual(rendered.spec.sources.slice(1), [
+  assert.deepEqual(rendered.spec.sources, [
     {
       repoURL: 'oci://registry.anurag.sh/manifests/foo',
       name: 'application',
@@ -2368,14 +2362,28 @@ test('manifests sources can sync from an oci artifact', () => {
     },
   ]);
 
-  const app = (source: Record<string, string>) => ({
+  const app = (extra: Record<string, unknown>) => ({
     name: 'foo',
     network: { ingress: [] },
-    sources: [{ type: 'manifests', path: '.', ...source }],
+    ...extra,
   });
-  assert.throws(() => validate(app({ artifact: 'oci://registry.anurag.sh/manifests/foo' }), 'x'));
-  assert.throws(() => validate(app({ tag: 'main' }), 'x'));
-  assert.throws(() => validate(app({ artifact: 'https://example.com/foo', tag: 'main' }), 'x'));
+  assert.throws(() =>
+    validate(app({ artifact: { repo: 'oci://registry.anurag.sh/manifests/foo' } }), 'x'),
+  );
+  assert.throws(() =>
+    validate(app({ artifact: { repo: 'https://example.com/foo', tag: 'main' } }), 'x'),
+  );
+  assert.throws(
+    () =>
+      validate(
+        app({
+          artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+          sources: [{ type: 'git', repo: 'https://example.com/r.git', path: 'x' }],
+        }),
+        'x',
+      ),
+    /git sources/,
+  );
 });
 
 test('manifests sources are limited and stay in the app directory', () => {

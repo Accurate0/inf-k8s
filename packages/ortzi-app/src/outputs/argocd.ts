@@ -1,11 +1,9 @@
 import { stringify } from 'yaml';
-import type { Plan, PlanSource } from '../plan.ts';
+import { chartValues, type Plan, type PlanSource } from '../plan.ts';
 import { type ArgocdOverrides, HEADER } from '../render.ts';
 
 const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
 const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
-
-const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
 
 const valueFiles = (files: string[]) => files.map((file) => `$values/${file}`);
 
@@ -18,10 +16,7 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         targetRevision: source.version,
         helm: {
           ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}),
-          valuesObject: {
-            ...source.values,
-            ...(source.retain ? { retainAnnotations: RETAIN } : {}),
-          },
+          valuesObject: chartValues(source),
         },
       };
     case 'helm':
@@ -42,15 +37,6 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         ...(source.revision ? { targetRevision: source.revision } : {}),
       };
     case 'manifests':
-      if (source.artifact) {
-        return {
-          repoURL: source.artifact.repo,
-          name: 'application',
-          path: source.artifact.path,
-          targetRevision: source.artifact.tag,
-        };
-      }
-
       return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
   }
 }
@@ -70,10 +56,19 @@ export function renderApplication(plan: Plan, overrides?: ArgocdOverrides): stri
           : {}),
       },
       project: plan.location,
-      sources: [
-        ...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []),
-        ...plan.sources.map(applicationSource),
-      ],
+      sources: plan.artifact
+        ? [
+            {
+              repoURL: plan.artifact.repo,
+              name: 'application',
+              path: '.',
+              targetRevision: plan.artifact.tag,
+            },
+          ]
+        : [
+            ...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []),
+            ...plan.sources.map(applicationSource),
+          ],
       destination: { server: 'https://kubernetes.default.svc', namespace: plan.namespace },
       ...(overrides?.ignoreDifferences ? { ignoreDifferences: overrides.ignoreDifferences } : {}),
     },

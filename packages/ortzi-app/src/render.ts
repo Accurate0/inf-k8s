@@ -245,8 +245,11 @@ export interface GitSource {
 export interface ManifestsSource {
   type: 'manifests';
   path: string;
-  artifact?: string;
-  tag?: string;
+}
+
+export interface Artifact {
+  repo: string;
+  tag: string;
 }
 
 export type Source = HelmSource | GitSource | ManifestsSource;
@@ -266,6 +269,7 @@ export interface App {
   resources?: Resource[];
   exports?: Export[];
   sources?: Source[];
+  artifact?: Artifact;
   overrides?: { argocd?: { application?: ArgocdOverrides } };
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
@@ -615,6 +619,7 @@ const ALLOWED = new Set([
   'namespace',
   'build',
   'overrides',
+  'artifact',
 ]);
 
 export function validate(raw: unknown, where: string): App {
@@ -790,6 +795,13 @@ export function validate(raw: unknown, where: string): App {
   for (const release of releases) {
     if (releases.indexOf(release) !== releases.lastIndexOf(release))
       fail(`sources: duplicate helm release ${release}, set releaseName`);
+  }
+
+  if (app.artifact && sourcesOf(app, 'git').length) {
+    fail('artifact: git sources cannot be published into an artifact');
+  }
+  if (app.artifact && app.build && ciProvider(app) !== 'forgejo') {
+    fail('artifact: image updates must run on forgejo ci to republish the artifact');
   }
 
   const manifests = sourcesOf(app, 'manifests');
@@ -1243,13 +1255,15 @@ const pinned = (actions: ActionVersions, name: string) => {
 
 const ON_MAIN = "github.ref == 'refs/heads/main'";
 
-const DEPLOY_SCRIPT = String.raw`COMMITTED_AT=$(git show -s --format=%ct "$COMMIT_SHA")
+const deployScript = (
+  skipCi: boolean,
+) => String.raw`COMMITTED_AT=$(git show -s --format=%ct "$COMMIT_SHA")
 git config --global user.name ci-image-updater
 git config --global user.email ci-image-updater@git.anurag.sh
 git clone "https://x-access-token:$FORGEJO_TOKEN@git.anurag.sh/anurag/k8s.git" config-repo
 cd config-repo
 PR_BRANCH="ci/update-$SERVICE_NAME-app-$SERVICE_NAME-$TAG"
-TITLE="chore(deploy): update $SERVICE_NAME images to $TAG [skip ci]"
+TITLE="chore(deploy): update $SERVICE_NAME images to $TAG${skipCi ? ' [skip ci]' : ''}"
 git checkout -b "$PR_BRANCH"
 IMAGE="$IMAGE" yq -I2 -P -i '.images[strenv(IMAGE)] = strenv(TAG)' "$VALUES_FILE"
 git add "$MANIFESTS_PATH"
@@ -1408,7 +1422,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
           RUN_URL:
             '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}',
         },
-        run: DEPLOY_SCRIPT,
+        run: deployScript(!app.artifact),
       },
     ],
   };
