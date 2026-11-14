@@ -49,6 +49,9 @@ pub enum RegistryCommand {
         tags: Vec<String>,
         #[arg(long, value_name = "SHA")]
         revision: Option<String>,
+        /// Cosign-sign the pushed digest with the registry key
+        #[arg(long)]
+        sign: bool,
     },
     /// Cosign-sign an image in Harbor with the registry key
     Sign {
@@ -169,7 +172,8 @@ pub async fn run(settings: &Settings, command: RegistryCommand) -> anyhow::Resul
             reference,
             tags,
             revision,
-        } => artifact::push(&client, &dir, &reference, &tags, revision.as_deref()).await,
+            sign,
+        } => artifact::push(&client, &dir, &reference, &tags, revision.as_deref(), sign).await,
     }
 }
 

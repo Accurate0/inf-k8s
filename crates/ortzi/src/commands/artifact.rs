@@ -7,6 +7,7 @@ use registry_api::{
     oci::{self, Manifest},
 };
 
+use super::harbor;
 use crate::{client::Client, remote};
 
 const ARTIFACT_TYPE: &str = "application/vnd.ortzi.manifests.v1";
@@ -96,6 +97,7 @@ pub async fn push(
     reference: &str,
     tags: &[String],
     revision: Option<&str>,
+    sign: bool,
 ) -> anyhow::Result<()> {
     let target = parse_reference(reference)?;
     if tags.is_empty() {
@@ -118,6 +120,15 @@ pub async fn push(
     let digest = pushed?;
 
     println!("pushed {reference}@{digest} ({})", tags.join(", "));
+
+    if sign {
+        harbor::sign(
+            api,
+            &format!("{}/{}@{digest}", target.host, target.repository),
+        )
+        .await?;
+    }
+
     Ok(())
 }
 
