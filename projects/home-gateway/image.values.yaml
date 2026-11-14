@@ -1,3 +1,3 @@
 images:
   registry.anurag.sh/containers/home-gateway: 5c42c953ac6f35c970e89692907c7fa997180f3c
-  registry.anurag.sh/containers/home-gateway-web: 4c2a6bafeb0a475daa12fdc73d1e2d6ceae16a8d
+  registry.anurag.sh/containers/home-gateway-web: ab01dd5f014e78ad4981fbf8f2c936c7e8e29835
