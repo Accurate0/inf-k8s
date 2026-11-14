@@ -35,14 +35,14 @@ resources:
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
 workloads:
   - name: maccas-migration
-    image: ghcr.io/accurate0/maccas-migration
+    image: registry.anurag.sh/containers/maccas-migration
     kind: Job
     phase: preSync
     resources: {cpu: 50m, memory: 64Mi}
     envFrom:
       - secret: migration
   - name: maccas-api
-    image: ghcr.io/accurate0/maccas-api
+    image: registry.anurag.sh/containers/maccas-api
     autoscale: {min: 2, max: 3, cpu: 70}
     resources: {cpu: 50m, memory: 144Mi, memoryLimit: 1Gi}
     ports:
@@ -77,7 +77,7 @@ workloads:
               app: maccas-api
           whenUnsatisfiable: ScheduleAnyway
   - name: maccas-web
-    image: ghcr.io/accurate0/maccas-web
+    image: registry.anurag.sh/containers/maccas-web
     autoscale: {min: 2, max: 3, cpu: 70}
     resources: {cpu: 50m, memory: 312Mi}
     ports:
@@ -106,7 +106,7 @@ workloads:
               app: maccas-web
           whenUnsatisfiable: ScheduleAnyway
   - name: maccas-scheduler
-    image: ghcr.io/accurate0/maccas-scheduler
+    image: registry.anurag.sh/containers/maccas-scheduler
     resources: {memory: 32Mi}
     env:
       EVENT_API_BASE: {service: maccas-api, port: api, path: /v1}
@@ -123,7 +123,7 @@ workloads:
                   app: maccas-scheduler
               topologyKey: kubernetes.io/hostname
   - name: maccas-recommendations
-    image: ghcr.io/accurate0/maccas-recommendations
+    image: registry.anurag.sh/containers/maccas-recommendations
     resources: {memory: 48Mi, memoryLimit: 1000Mi}
     ports:
       - {name: api, container: 8003, service: 8003}
@@ -138,7 +138,7 @@ workloads:
       - secret: common
       - secret: api
     sidecars:
-      - image: ghcr.io/accurate0/maccas-clustering
+      - image: registry.anurag.sh/containers/maccas-clustering
         name: maccas-clustering
         resources: {cpu: 10m, memory: 192Mi}
         ports:
