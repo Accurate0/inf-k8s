@@ -124,6 +124,9 @@ pub struct Permissions {
     /// Loopback ports the package may serve HTTP on.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub listen: Vec<u16>,
+    /// Harbor projects the package may push artifacts to.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub registry: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -189,6 +192,17 @@ impl Permissions {
         }
         if self.listen.contains(&0) {
             return Err("permissions.listen: ports must be 1-65535".to_owned());
+        }
+        for project in &self.registry {
+            let valid = !project.is_empty()
+                && project
+                    .chars()
+                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+            if !valid {
+                return Err(format!(
+                    "permissions.registry: {project:?} must be a harbor project name"
+                ));
+            }
         }
         Ok(())
     }
@@ -841,6 +855,7 @@ mod tests {
             kube: vec![KubeVerb::Get, KubeVerb::Patch],
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
             listen: vec![4280],
+            registry: vec!["manifests".to_owned()],
         };
         assert!(ok.validate().is_ok());
         for bad in [
@@ -870,6 +885,10 @@ mod tests {
             },
             Permissions {
                 listen: vec![0],
+                ..Default::default()
+            },
+            Permissions {
+                registry: vec!["Manifests/x".to_owned()],
                 ..Default::default()
             },
         ] {
