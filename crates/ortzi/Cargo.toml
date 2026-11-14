@@ -8,7 +8,7 @@ description = "Pluggable CLI for the ortzi platform"
 cli-auth = { path = "../cli-auth" }
 registry-api = { path = "../../platform-services/registry/api", features = ["oci"] }
 anyhow = "1"
-base64 = "0.22"
+base64 = "0.23"
 clap = { version = "4", features = ["derive", "env", "string"] }
 clap_complete = { version = "4", features = ["unstable-dynamic"] }
 comfy-table = "7"
