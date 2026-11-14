@@ -24,7 +24,7 @@ resources:
     ratelimit: {requests: 20, per: Second, header: x-real-ip}
 workloads:
   - name: bom
-    image: ghcr.io/accurate0/bom
+    image: registry.anurag.sh/containers/bom
     ports:
       - {name: api, container: 8000, service: 8000}
     probes:

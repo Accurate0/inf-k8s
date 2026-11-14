@@ -5,17 +5,17 @@ resources:
   - {name: ozbargain, type: secret, secretName: ozb-managed-secrets}
 workloads:
   - name: ozb-discord-bot
-    image: ghcr.io/accurate0/ozb-discord-bot
+    image: registry.anurag.sh/containers/ozb-discord-bot
     resources: {memory: 16Mi}
     envFrom:
       - secret: ozbargain
   - name: ozb-finder
-    image: ghcr.io/accurate0/ozb-finder
+    image: registry.anurag.sh/containers/ozb-finder
     resources: {memory: 16Mi}
     envFrom:
       - secret: ozbargain
   - name: ozb-trigger
-    image: ghcr.io/accurate0/ozb-trigger
+    image: registry.anurag.sh/containers/ozb-trigger
     resources: {memory: 16Mi}
     envFrom:
       - secret: ozbargain

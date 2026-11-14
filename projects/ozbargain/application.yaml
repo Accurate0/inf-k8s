@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-12T14:54:53.308Z
+# generated at 2026-11-14T01:04:53.367Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -28,7 +28,7 @@ spec:
           namespace: ozbargain
           workloads:
             - name: ozb-discord-bot
-              image: ghcr.io/accurate0/ozb-discord-bot
+              image: registry.anurag.sh/containers/ozb-discord-bot
               resources:
                 requests:
                   memory: 16Mi
@@ -36,7 +36,7 @@ spec:
                 - secretRef:
                     name: ozb-managed-secrets
             - name: ozb-finder
-              image: ghcr.io/accurate0/ozb-finder
+              image: registry.anurag.sh/containers/ozb-finder
               resources:
                 requests:
                   memory: 16Mi
@@ -44,7 +44,7 @@ spec:
                 - secretRef:
                     name: ozb-managed-secrets
             - name: ozb-trigger
-              image: ghcr.io/accurate0/ozb-trigger
+              image: registry.anurag.sh/containers/ozb-trigger
               resources:
                 requests:
                   memory: 16Mi

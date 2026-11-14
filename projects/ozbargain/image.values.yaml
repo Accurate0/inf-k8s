@@ -1,4 +1,4 @@
 images:
-  ghcr.io/accurate0/ozb-discord-bot: 4244046453085abff15029c383ac9854ba746e50
-  ghcr.io/accurate0/ozb-finder: 4244046453085abff15029c383ac9854ba746e50
-  ghcr.io/accurate0/ozb-trigger: 4244046453085abff15029c383ac9854ba746e50
+  registry.anurag.sh/containers/ozb-discord-bot: 4908502ba3d5979349e1cc6a418a6758acb2504c
+  registry.anurag.sh/containers/ozb-finder: 4908502ba3d5979349e1cc6a418a6758acb2504c
+  registry.anurag.sh/containers/ozb-trigger: 4908502ba3d5979349e1cc6a418a6758acb2504c
