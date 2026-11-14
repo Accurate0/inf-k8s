@@ -51,7 +51,6 @@ runnerConfig: |
       - default:k8s:///config/podspec-default.yaml
       - docker:k8s:///config/podspec-dind.yaml
       - multiarch:k8s:///config/podspec-dind.yaml
-      - ortzi:k8s:///config/podspec-ortzi.yaml
     timeout: 3h
     shutdown_timeout: 3m
 podSpecs:
@@ -70,24 +69,6 @@ podSpecs:
           requests:
             cpu: 100m
             memory: 256Mi
-    restartPolicy: Never
-  podspec-ortzi.yaml: |
-    containers:
-      - env:
-          - name: DEBIAN_FRONTEND
-            value: noninteractive
-          - name: ORTZI_REGISTRY_URL
-            value: http://api.registry.svc.cluster.local
-        image: registry.anurag.sh/containers/ortzi-ci:latest
-        imagePullPolicy: Always
-        name: main
-        resources:
-          limits:
-            cpu: "4"
-            memory: 6Gi
-          requests:
-            cpu: 500m
-            memory: 1Gi
     restartPolicy: Never
   podspec-dind.yaml: |
     initContainers:
@@ -137,8 +118,8 @@ podSpecs:
         name: main
         resources:
           limits:
-            cpu: 1500m
-            memory: 2Gi
+            cpu: "4"
+            memory: 6Gi
           requests:
             cpu: 100m
             memory: 256Mi

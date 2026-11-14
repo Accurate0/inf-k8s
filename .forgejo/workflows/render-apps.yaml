@@ -27,7 +27,7 @@ enable-openid-connect: true
 
 jobs:
   changes:
-    runs-on: ortzi
+    runs-on: docker
     outputs:
       package: ${{ steps.package.outputs.changed }}
     steps:
@@ -47,9 +47,11 @@ jobs:
 
   test:
     needs: changes
-    runs-on: ortzi
+    runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: needs.changes.outputs.package == 'true'
+      - run: npm install -g pnpm@12.6.0
         if: needs.changes.outputs.package == 'true'
       - run: pnpm --dir packages install --frozen-lockfile
         if: needs.changes.outputs.package == 'true'
@@ -58,9 +60,11 @@ jobs:
 
   publish:
     needs: [changes, test]
-    runs-on: ortzi
+    runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        if: needs.changes.outputs.package == 'true'
+      - run: npm install -g pnpm@12.6.0
         if: needs.changes.outputs.package == 'true'
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
         if: needs.changes.outputs.package == 'true'
@@ -69,14 +73,14 @@ jobs:
 
   render:
     needs: publish
-    runs-on: ortzi
+    runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
         with:
-          packages: app
+          packages: app helm kustomize kubeconform
       - name: Render and commit
         run: |
           git config user.name "reconciler[bot]"

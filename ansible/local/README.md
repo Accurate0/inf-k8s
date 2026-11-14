@@ -91,14 +91,10 @@ stay off the hypervisors. `roles/forgejo-runner` runs the runner in compose
 with the docker executor and mounts the guest's docker socket into jobs.
 
 They advertise every label the in-cluster runner does (`ubuntu-latest`,
-`default`, `docker`, `multiarch`, `ortzi`), so jobs go to whichever runner is
-free. An unprivileged LXC can't register binfmt handlers, so
+`default`, `docker`, `multiarch`), so jobs go to whichever runner is free. An unprivileged LXC can't register binfmt handlers, so
 `roles/proxmox-binfmt` installs `qemu-user-binfmt` on pve-node-1 and
 pve-node-2. Its handlers are registered with the fix-binary flag, so job
-containers in the guests can use them. `ortzi` jobs reach the registry at
-`https://registry.anurag.sh` (baked into the `ortzi-ci` image), since the
-in-cluster service address only resolves inside the cluster. `force_pull` keeps
-`ortzi-ci:latest` current, as `imagePullPolicy: Always` does in the cluster.
+containers in the guests can use them.
 
 Each runner registers offline. A Forgejo runner's 40-hex secret is also its
 identity, so each one gets its own secret,

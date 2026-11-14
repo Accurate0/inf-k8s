@@ -15,8 +15,9 @@ enable-openid-connect: true
 
 jobs:
   publish:
-    runs-on: ortzi
+    runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: https://git.anurag.sh/anurag/workflows/setup-zigbuild@main
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
       - run: ortzi publish crates/feature-flag/ffctl

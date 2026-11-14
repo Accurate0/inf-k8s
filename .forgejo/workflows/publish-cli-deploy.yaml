@@ -19,12 +19,13 @@ enable-openid-connect: true
 
 jobs:
   publish:
-    runs-on: ortzi
+    runs-on: docker
     strategy:
       fail-fast: false
       matrix:
         package: [ortzi-schemas, ortzi-secrets, ortzi-obs, ortzi-s3, ortzi-graph]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - run: npm install -g pnpm@12.6.0
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
       - run: ortzi publish packages/${{ matrix.package }}
