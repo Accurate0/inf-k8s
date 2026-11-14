@@ -9,6 +9,7 @@ on:
       - "**/*.application.yaml"
       - "**/manifests/**"
       - "**/kustomization.yaml"
+      - "**/image.values.yaml"
       - selfhosted/*/*.values.yaml
       - system-components/*/*.values.yaml
       - charts/**
@@ -85,7 +86,13 @@ jobs:
           [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
           .forgejo/scripts/retry.sh 5 15 bash -c 'if git pull --rebase origin main; then git push origin HEAD:main; else git rebase --abort; exit 1; fi'
-      - name: Push manifest artifacts
+      - name: Log in to harbor
+        id: login
         run: |
-          .forgejo/scripts/retry.sh 3 30 ortzi registry push platform-services/k8s-schemas \
-            oci://registry.anurag.sh/manifests/k8s-schemas --tag main --revision "$(git rev-parse HEAD)" --sign
+          ortzi registry login charts:pull
+          echo "HELM_REGISTRY_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}/config.json" >> "$GITHUB_ENV"
+      - name: Publish artifacts
+        run: .forgejo/scripts/retry.sh 3 30 ortzi app publish
+      - name: Log out of harbor
+        if: ${{ always() && steps.login.outcome == 'success' }}
+        run: ortzi registry logout
