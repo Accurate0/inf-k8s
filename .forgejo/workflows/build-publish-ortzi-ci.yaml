@@ -4,10 +4,7 @@ on:
     branches:
       - main
     paths:
-      - crates/ortzi/**
-      - crates/cli-auth/**
-      - platform-services/registry/api/**
-      - packages/ortzi-host/wit/**
+      - crates/ortzi/ci/**
       - .forgejo/workflows/build-publish-ortzi-ci.yaml
   workflow_dispatch:
 

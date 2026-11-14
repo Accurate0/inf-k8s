@@ -27,20 +27,11 @@ ENV SDKROOT=/opt/MacOSX11.3.sdk
 
 FROM base AS build
 
-WORKDIR /src
-COPY crates/cli-auth ./crates/cli-auth
-COPY crates/ortzi ./crates/ortzi
-COPY platform-services/registry/api ./platform-services/registry/api
-COPY packages/ortzi-host/wit ./packages/ortzi-host/wit
 RUN \
-    --mount=type=cache,target=/src/crates/ortzi/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    cargo install --locked cargo-zigbuild@0.24.0 && \
-    cargo build --locked --release --manifest-path crates/ortzi/Cargo.toml && \
-    cp crates/ortzi/target/release/ortzi /usr/local/bin/ortzi
+    cargo install --locked cargo-zigbuild@0.24.0
 
 FROM base
 
 COPY --from=build /usr/local/cargo/bin/cargo-zigbuild /usr/local/cargo/bin/cargo-zigbuild
-COPY --from=build /usr/local/bin/ortzi /usr/local/bin/ortzi
 ENV ORTZI_REGISTRY_URL=https://registry.anurag.sh

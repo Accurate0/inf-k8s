@@ -62,6 +62,8 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         if: needs.changes.outputs.package == 'true'
+      - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+        if: needs.changes.outputs.package == 'true'
       - run: .forgejo/scripts/retry.sh 3 30 ortzi publish packages/ortzi-app
         if: needs.changes.outputs.package == 'true'
 
@@ -72,7 +74,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
           persist-credentials: false
-      - run: .forgejo/scripts/retry.sh 3 30 ortzi install app --force
+      - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+        with:
+          packages: app
       - name: Render and commit
         run: |
           git config user.name "reconciler[bot]"
