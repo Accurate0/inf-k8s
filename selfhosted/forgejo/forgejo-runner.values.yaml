@@ -78,7 +78,7 @@ podSpecs:
             value: noninteractive
           - name: ORTZI_REGISTRY_URL
             value: http://api.registry.svc.cluster.local
-        image: ghcr.io/accurate0/ortzi-ci:latest
+        image: registry.anurag.sh/containers/ortzi-ci:latest
         imagePullPolicy: Always
         name: main
         resources:

@@ -10,11 +10,25 @@
           - forgejo_runner_actions_secret | length > 0
         fail_msg: Export FORGEJO_ACTIONS_SECRET.
 
+    - name: Assert the harbor pull password is available
+      ansible.builtin.assert:
+        that:
+          - forgejo_runner_registry_password | length > 0
+        fail_msg: Export HARBOR_NODE_PULL_PASSWORD.
+
     - name: Create the data directory
       ansible.builtin.file:
         path: "{{ forgejo_runner_root }}/data"
         state: directory
         mode: "0700"
+
+    - name: Log in to harbor for job images
+      community.docker.docker_login:
+        registry_url: "{{ forgejo_runner_registry }}"
+        username: "{{ forgejo_runner_registry_username }}"
+        password: "{{ forgejo_runner_registry_password }}"
+        config_path: "{{ forgejo_runner_root }}/docker/config.json"
+      no_log: true
 
     - name: Template the runner config
       ansible.builtin.template:

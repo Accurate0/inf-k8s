@@ -121,6 +121,7 @@
 
   vars:
     forgejo_runner_actions_secret: "{{ lookup('ansible.builtin.env', 'FORGEJO_ACTIONS_SECRET') }}"
+    forgejo_runner_registry_password: "{{ lookup('ansible.builtin.env', 'HARBOR_NODE_PULL_PASSWORD') }}"
 
   roles:
     - docker

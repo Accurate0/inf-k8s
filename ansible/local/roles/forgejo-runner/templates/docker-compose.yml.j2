@@ -9,6 +9,9 @@ services:
     network_mode: host
     working_dir: /data
     command: forgejo-runner daemon --config /data/config.yml
+    environment:
+      DOCKER_CONFIG: /docker
     volumes:
       - {{ forgejo_runner_root }}/data:/data
       - /var/run/docker.sock:/var/run/docker.sock
+      - {{ forgejo_runner_root }}/docker:/docker:ro
