@@ -1,3 +1,4 @@
+pub mod artifact;
 pub mod doctor;
 pub mod harbor;
 pub mod init;

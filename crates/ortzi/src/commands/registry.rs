@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use clap::Subcommand;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
@@ -6,7 +8,7 @@ use registry_api::{
 };
 use reqwest::Method;
 
-use super::{harbor, packages::urlencode};
+use super::{artifact, harbor, packages::urlencode};
 use crate::{client::Client, session::Settings};
 
 #[derive(Subcommand)]
@@ -38,6 +40,16 @@ pub enum RegistryCommand {
     },
     /// Revoke the Harbor robot in the docker config and remove it
     Logout,
+    /// Push a directory as a single-layer OCI artifact, e.g. rendered manifests for Argo CD
+    Push {
+        dir: PathBuf,
+        #[arg(value_name = "oci://HOST/PROJECT/NAME")]
+        reference: String,
+        #[arg(long = "tag", required = true)]
+        tags: Vec<String>,
+        #[arg(long, value_name = "SHA")]
+        revision: Option<String>,
+    },
     /// Cosign-sign an image in Harbor with the registry key
     Sign {
         #[arg(value_name = "IMAGE@DIGEST")]
@@ -152,6 +164,12 @@ pub async fn run(settings: &Settings, command: RegistryCommand) -> anyhow::Resul
         RegistryCommand::Login { specs } => harbor::login(&client, &specs).await,
         RegistryCommand::Logout => harbor::logout(&client, &settings.registry).await,
         RegistryCommand::Sign { image } => harbor::sign(&client, &image).await,
+        RegistryCommand::Push {
+            dir,
+            reference,
+            tags,
+            revision,
+        } => artifact::push(&client, &dir, &reference, &tags, revision.as_deref()).await,
     }
 }
 
