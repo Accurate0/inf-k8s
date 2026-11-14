@@ -88,4 +88,4 @@ jobs:
       - name: Push manifest artifacts
         run: |
           .forgejo/scripts/retry.sh 3 30 ortzi registry push platform-services/k8s-schemas \
-            oci://registry.anurag.sh/manifests/k8s-schemas --tag main --revision "$(git rev-parse HEAD)"
+            oci://registry.anurag.sh/manifests/k8s-schemas --tag main --revision "$(git rev-parse HEAD)" --sign
