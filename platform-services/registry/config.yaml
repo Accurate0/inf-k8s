@@ -58,3 +58,24 @@ harbor:
       allow:
         - {project: containers, actions: [pull, push]}
         - {project: charts, actions: [pull, push]}
+    - forgejo: {repository: anurag/spotify, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+    - forgejo: {repository: anurag/home-gateway, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+    - forgejo: {repository: anurag/tldr-bot, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+    - forgejo: {repository: anurag/anurag.sh, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+    - forgejo: {repository: anurag/bom, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+    - forgejo: {repository: anurag/ozb, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
+    - forgejo: {repository: anurag/maccas-api, ref: refs/heads/main}
+      allow:
+        - {project: containers, actions: [pull, push]}
