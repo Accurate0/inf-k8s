@@ -86,7 +86,7 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
     if !options.no_workflow {
         match &repo {
             Some((root, _)) => {
-                let workflow = write_workflow(root, &dir, &name, options.force)?;
+                let workflow = write_workflow(root, &dir, &name, kind, options.force)?;
                 println!("wrote {}", workflow.display());
             }
             None => eprintln!("not in a git repository; skipping the Forgejo workflow"),
@@ -173,7 +173,21 @@ fn repository_from_remote(url: &str) -> Option<String> {
     (!owner.is_empty() && !repo.is_empty()).then(|| format!("{owner}/{repo}"))
 }
 
-fn write_workflow(root: &Path, dir: &Path, name: &str, force: bool) -> anyhow::Result<PathBuf> {
+fn toolchain_steps(kind: Kind) -> &'static str {
+    match kind {
+        Kind::Cargo => "      - uses: https://git.anurag.sh/anurag/workflows/setup-zigbuild@main\n",
+        Kind::Wasm => "      - run: npm install -g pnpm@12.6.0\n",
+        Kind::Prebuilt => "",
+    }
+}
+
+fn write_workflow(
+    root: &Path,
+    dir: &Path,
+    name: &str,
+    kind: Kind,
+    force: bool,
+) -> anyhow::Result<PathBuf> {
     let relative = dir.strip_prefix(root).unwrap_or(Path::new(""));
     let relative = relative.to_string_lossy();
     let (paths, publish_dir) = if relative.is_empty() {
@@ -195,7 +209,8 @@ fn write_workflow(root: &Path, dir: &Path, name: &str, force: bool) -> anyhow::R
         .replace("{name}", name)
         .replace("{paths}", &paths)
         .replace("{workflow}", &file)
-        .replace("{dir}", &publish_dir);
+        .replace("{dir}", &publish_dir)
+        .replace("      # toolchain\n", toolchain_steps(kind));
     std::fs::create_dir_all(path.parent().unwrap())?;
     std::fs::write(&path, contents)?;
     Ok(path)
@@ -228,7 +243,7 @@ mod tests {
         let dir = root.join("tools/foo");
         std::fs::create_dir_all(&dir).unwrap();
 
-        let path = write_workflow(&root, &dir, "foo", false).unwrap();
+        let path = write_workflow(&root, &dir, "foo", Kind::Cargo, false).unwrap();
         let contents = std::fs::read_to_string(&path).unwrap();
         std::fs::remove_dir_all(&root).unwrap();
 
@@ -237,5 +252,7 @@ mod tests {
         assert!(contents.contains(".forgejo/workflows/publish-cli-foo.yaml"));
         assert!(contents.contains("run: ortzi publish tools/foo"));
         assert!(contents.contains("enable-openid-connect: true"));
+        assert!(contents.contains("runs-on: docker"));
+        assert!(contents.contains("setup-zigbuild@main"));
     }
 }
