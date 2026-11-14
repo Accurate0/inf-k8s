@@ -1649,7 +1649,20 @@
               "path": {
                 "type": "string",
                 "description": "Kustomization directory, relative to the app directory. Use . for the app directory."
+              },
+              "artifact": {
+                "type": "string",
+                "pattern": "^oci://[^/]+/[^/]+/[^/]+$",
+                "description": "OCI artifact Argo CD syncs this source from instead of git. CI pushes the app directory to it with `ortzi registry push`."
+              },
+              "tag": {
+                "type": "string",
+                "description": "Tag or digest of the artifact to sync."
               }
+            },
+            "dependencies": {
+              "artifact": ["tag"],
+              "tag": ["artifact"]
             }
           }
         ]

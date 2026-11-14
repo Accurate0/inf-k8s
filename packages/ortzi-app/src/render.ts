@@ -245,6 +245,8 @@ export interface GitSource {
 export interface ManifestsSource {
   type: 'manifests';
   path: string;
+  artifact?: string;
+  tag?: string;
 }
 
 export type Source = HelmSource | GitSource | ManifestsSource;

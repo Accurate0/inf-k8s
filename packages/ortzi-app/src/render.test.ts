@@ -2345,6 +2345,39 @@ test('typed sources render in the order listed', () => {
   ]);
 });
 
+test('manifests sources can sync from an oci artifact', () => {
+  const rendered = render({
+    name: 'foo',
+    network: { ingress: [] },
+    sources: [
+      {
+        type: 'manifests',
+        path: '.',
+        artifact: 'oci://registry.anurag.sh/manifests/foo',
+        tag: 'main',
+      },
+    ] as App['sources'],
+  });
+
+  assert.deepEqual(rendered.spec.sources.slice(1), [
+    {
+      repoURL: 'oci://registry.anurag.sh/manifests/foo',
+      name: 'application',
+      path: '.',
+      targetRevision: 'main',
+    },
+  ]);
+
+  const app = (source: Record<string, string>) => ({
+    name: 'foo',
+    network: { ingress: [] },
+    sources: [{ type: 'manifests', path: '.', ...source }],
+  });
+  assert.throws(() => validate(app({ artifact: 'oci://registry.anurag.sh/manifests/foo' }), 'x'));
+  assert.throws(() => validate(app({ tag: 'main' }), 'x'));
+  assert.throws(() => validate(app({ artifact: 'https://example.com/foo', tag: 'main' }), 'x'));
+});
+
 test('manifests sources are limited and stay in the app directory', () => {
   const app = (sources: unknown[], extra = {}) => ({
     name: 'foo',

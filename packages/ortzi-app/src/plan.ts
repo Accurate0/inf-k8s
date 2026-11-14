@@ -58,6 +58,7 @@ export interface GitPath {
 export interface LocalManifests {
   type: 'manifests';
   path: string;
+  artifact?: { repo: string; tag: string; path: string };
 }
 
 export type PlanSource = PlatformChart | ExternalChart | GitPath | LocalManifests;
@@ -400,6 +401,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
       sources.push({
         type: 'manifests',
         path: source.path === '.' ? directory : `${directory}/${source.path}`,
+        ...(source.artifact && source.tag
+          ? { artifact: { repo: source.artifact, tag: source.tag, path: source.path } }
+          : {}),
       });
     }
   }

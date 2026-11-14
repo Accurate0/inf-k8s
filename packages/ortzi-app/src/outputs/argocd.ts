@@ -42,6 +42,15 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         ...(source.revision ? { targetRevision: source.revision } : {}),
       };
     case 'manifests':
+      if (source.artifact) {
+        return {
+          repoURL: source.artifact.repo,
+          name: 'application',
+          path: source.artifact.path,
+          targetRevision: source.artifact.tag,
+        };
+      }
+
       return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
   }
 }
