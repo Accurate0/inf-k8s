@@ -5,4 +5,5 @@ ansible
 terraform
 system-components
 charts
+!charts/*/values.schema.json
 projects

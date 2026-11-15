@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-14T02:41:08.237Z
+# generated at 2026-11-15T03:55:14.281Z
 name: app k8s-schemas
 on:
   push:
@@ -9,6 +9,8 @@ on:
       - "!platform-services/k8s-schemas/application.yaml"
       - "!platform-services/k8s-schemas/app.yaml"
       - "!platform-services/k8s-schemas/image.values.yaml"
+      - packages/ortzi-app/app.schema.json
+      - charts/*/values.schema.json
       - .forgejo/workflows/app-k8s-schemas.yaml
   workflow_dispatch: null
 enable-openid-connect: true
@@ -33,7 +35,7 @@ jobs:
       - id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
         with:
-          context: platform-services/k8s-schemas
+          context: .
           file: platform-services/k8s-schemas/Dockerfile
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: registry.anurag.sh/containers/k8s-schemas:latest,registry.anurag.sh/containers/k8s-schemas:${{ github.sha }}
