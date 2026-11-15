@@ -2175,6 +2175,7 @@ test('published helm templates pull from the registry and pin the cluster', () =
   ]);
   for (const flag of [
     ['--include-crds'],
+    ['--skip-tests'],
     ['--kube-version', 'v1.37.1'],
     ['--api-versions', 'monitoring.coreos.com/v1'],
   ]) {

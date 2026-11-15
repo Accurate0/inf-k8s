@@ -451,6 +451,7 @@ export function helmTemplates(
   const cluster = published
     ? [
         '--include-crds',
+        '--skip-tests',
         '--kube-version',
         published.version,
         ...published.apiVersions.flatMap((version) => ['--api-versions', version]),
