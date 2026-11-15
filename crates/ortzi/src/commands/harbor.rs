@@ -30,23 +30,6 @@ fn load(path: &PathBuf) -> anyhow::Result<Value> {
     }
 }
 
-fn save(path: &PathBuf, config: &Value) -> anyhow::Result<()> {
-    if let Some(dir) = path.parent() {
-        std::fs::create_dir_all(dir)?;
-    }
-
-    let tmp = path.with_extension("json.tmp");
-    std::fs::write(&tmp, serde_json::to_vec_pretty(config)?)?;
-
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::PermissionsExt;
-        std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600))?;
-    }
-
-    std::fs::rename(&tmp, path).with_context(|| format!("writing {}", path.display()))
-}
-
 fn robot(config: &Value, host: &str) -> Option<String> {
     let auth = config["auths"][host]["auth"].as_str()?;
     let decoded = String::from_utf8(STANDARD.decode(auth).ok()?).ok()?;
@@ -83,12 +66,67 @@ fn registry_host(registry: &str) -> &str {
     host.split('/').next().unwrap_or(host)
 }
 
-async fn revoke_existing(api: &Client, config: &Value, host: &str) {
-    if let Some(username) = robot(config, host)
-        && let Err(e) = remote::revoke_robot(api, &username).await
-    {
-        eprintln!("warning: could not revoke harbor robot {username}: {e:#}");
+fn cred_helper(config: &Value, host: &str) -> Option<String> {
+    match config["credHelpers"][host].as_str() {
+        Some(helper) => Some(helper),
+        None => config["credsStore"].as_str(),
     }
+    .filter(|helper| !helper.is_empty())
+    .map(str::to_owned)
+}
+
+async fn docker(args: &[&str], stdin: Option<&str>) -> anyhow::Result<String> {
+    run(&["docker"], args, stdin).await
+}
+
+async fn run(program: &[&str], args: &[&str], stdin: Option<&str>) -> anyhow::Result<String> {
+    use tokio::io::AsyncWriteExt;
+
+    let name = program.join(" ");
+    let mut child = tokio::process::Command::new(program[0])
+        .args(&program[1..])
+        .args(args)
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .with_context(|| format!("running {name}"))?;
+
+    let mut pipe = child.stdin.take().context("no stdin")?;
+    pipe.write_all(stdin.unwrap_or_default().as_bytes()).await?;
+    drop(pipe);
+
+    let output = child.wait_with_output().await?;
+    let stdout = String::from_utf8_lossy(&output.stdout).into_owned();
+    if !output.status.success() {
+        bail!(
+            "{name} {}: {}{}",
+            args.join(" "),
+            stdout.trim(),
+            String::from_utf8_lossy(&output.stderr).trim()
+        );
+    }
+
+    Ok(stdout)
+}
+
+async fn current_robot(host: &str) -> anyhow::Result<Option<String>> {
+    let config = load(&docker_config()?)?;
+    let Some(helper) = cred_helper(&config, host) else {
+        return Ok(robot(&config, host));
+    };
+
+    let program = format!("docker-credential-{helper}");
+    let Ok(stored) = run(&[&program], &["get"], Some(host)).await else {
+        return Ok(None);
+    };
+    let stored: Value = serde_json::from_str(&stored)
+        .with_context(|| format!("{program} get returned invalid json"))?;
+
+    Ok(stored["Username"]
+        .as_str()
+        .filter(|username| username.starts_with(ROBOT_PREFIX))
+        .map(str::to_owned))
 }
 
 pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<()> {
@@ -100,22 +138,28 @@ pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<()> {
         bail!("the registry has no harbor token exchange");
     };
 
-    let path = docker_config()?;
-    let mut config = match load(&path) {
-        Ok(config) => config,
-        Err(e) => {
-            remote::revoke(api, &token).await;
-            return Err(e);
+    match current_robot(&token.registry).await {
+        Ok(Some(username)) => {
+            if let Err(e) = remote::revoke_robot(api, &username).await {
+                eprintln!("warning: could not revoke harbor robot {username}: {e:#}");
+            }
         }
-    };
-    revoke_existing(api, &config, &token.registry).await;
-
-    let auth = STANDARD.encode(format!("{}:{}", token.username, token.password));
-    if !config["auths"].is_object() {
-        config["auths"] = json!({});
+        Ok(None) => {}
+        Err(e) => eprintln!("warning: could not read the current docker login: {e:#}"),
     }
-    config["auths"][&token.registry] = json!({ "auth": auth });
-    if let Err(e) = save(&path, &config) {
+
+    let login = docker(
+        &[
+            "login",
+            "--username",
+            &token.username,
+            "--password-stdin",
+            &token.registry,
+        ],
+        Some(&token.password),
+    )
+    .await;
+    if let Err(e) = login {
         remote::revoke(api, &token).await;
         return Err(e);
     }
@@ -137,19 +181,13 @@ pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<()> {
 
 pub async fn logout(api: &Client, registry: &str) -> anyhow::Result<()> {
     let host = registry_host(registry);
-    let path = docker_config()?;
-    let mut config = load(&path)?;
-
-    let Some(username) = robot(&config, host) else {
+    let Some(username) = current_robot(host).await? else {
         println!("not logged in to {host}");
         return Ok(());
     };
-    remote::revoke_robot(api, &username).await?;
 
-    if let Some(auths) = config["auths"].as_object_mut() {
-        auths.remove(host);
-    }
-    save(&path, &config)?;
+    remote::revoke_robot(api, &username).await?;
+    docker(&["logout", host], None).await?;
     println!("revoked {username} and logged out of {host}");
     Ok(())
 }
@@ -207,6 +245,21 @@ mod tests {
         );
         assert_eq!(robot(&config, "ghcr.io"), None);
         assert_eq!(robot(&config, "missing"), None);
+    }
+
+    #[test]
+    fn host_helpers_win_over_the_store() {
+        let config = json!({
+            "credsStore": "desktop",
+            "credHelpers": { "registry.anurag.sh": "pass", "ghcr.io": "" },
+        });
+        assert_eq!(
+            cred_helper(&config, "registry.anurag.sh").as_deref(),
+            Some("pass")
+        );
+        assert_eq!(cred_helper(&config, "quay.io").as_deref(), Some("desktop"));
+        assert_eq!(cred_helper(&config, "ghcr.io"), None);
+        assert_eq!(cred_helper(&json!({}), "registry.anurag.sh"), None);
     }
 
     #[test]

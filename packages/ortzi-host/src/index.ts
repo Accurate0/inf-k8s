@@ -229,6 +229,9 @@ export function pushDir(dir: string, reference: string, options: PushOptions): h
   );
 }
 
+export const pullConfig = (projects: string[]): string =>
+  unwrap(() => hostRegistry.pullConfig(projects));
+
 export const args = (): string[] => hostEnv.args().slice(1);
 export const invokedAs = (): string => hostEnv.args()[0] ?? '';
 export const env = (): Record<string, string> => Object.fromEntries(hostEnv.vars());

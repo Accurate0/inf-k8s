@@ -6,7 +6,7 @@ use std::{
 };
 
 use anyhow::{Context, bail};
-use registry_api::{KubeVerb, PackageAuth, Permissions};
+use registry_api::{HarborAction, KubeVerb, PackageAuth, Permissions};
 
 use crate::{commands::artifact, session::Settings};
 use wasmtime::{
@@ -36,6 +36,7 @@ pub struct Sandbox {
     pub http: Vec<String>,
     pub listen: Vec<u16>,
     pub registry: Vec<String>,
+    pub pull: Vec<String>,
     pub settings: Settings,
     pub auth: Option<(String, PackageAuth)>,
 }
@@ -89,6 +90,7 @@ impl Sandbox {
             http: permissions.http.clone(),
             listen: permissions.listen.clone(),
             registry: permissions.registry.clone(),
+            pull: permissions.pull.clone(),
             settings,
             auth: auth.map(|auth| (package.to_owned(), auth)),
         })
@@ -170,6 +172,7 @@ struct State {
     http: Option<Http>,
     server: Option<Server>,
     tokens: Option<tokio::runtime::Runtime>,
+    pulls: Vec<(PathBuf, registry_api::HarborToken)>,
 }
 
 const MAX_REQUEST_BYTES: usize = 1 << 20;
@@ -618,7 +621,112 @@ impl auth::Host for State {
     }
 }
 
+impl State {
+    fn runtime(&mut self) -> Result<&tokio::runtime::Runtime, String> {
+        if self.tokens.is_none() {
+            self.tokens = Some(
+                tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .map_err(|e| e.to_string())?,
+            );
+        }
+        self.tokens.as_ref().ok_or_else(|| "no runtime".to_owned())
+    }
+
+    fn close_pulls(&mut self) {
+        if self.pulls.is_empty() {
+            return;
+        }
+
+        let pulls = std::mem::take(&mut self.pulls);
+        for (dir, _) in &pulls {
+            let _ = std::fs::remove_dir_all(dir);
+        }
+
+        let settings = self.sandbox.settings.clone();
+        let Ok(runtime) = self.runtime() else {
+            return;
+        };
+        runtime.block_on(async {
+            match settings.reader().await {
+                Ok(api) => {
+                    for (_, token) in &pulls {
+                        crate::remote::revoke(&api, token).await;
+                    }
+                }
+                Err(e) => eprintln!("warning: could not revoke pull robots: {e:#}"),
+            }
+        });
+    }
+}
+
+fn write_pull_config(token: &registry_api::HarborToken) -> anyhow::Result<PathBuf> {
+    use base64::{Engine, engine::general_purpose::STANDARD};
+    use std::os::unix::fs::{DirBuilderExt, OpenOptionsExt};
+
+    let dir = std::env::temp_dir().join(format!(
+        "ortzi-pull-{}-{}",
+        std::process::id(),
+        token.username.rsplit('-').next().unwrap_or_default()
+    ));
+    std::fs::DirBuilder::new().mode(0o700).create(&dir)?;
+
+    let auth = STANDARD.encode(format!("{}:{}", token.username, token.password));
+    let config = serde_json::json!({ "auths": { &token.registry: { "auth": auth } } });
+    let path = dir.join("config.json");
+    std::fs::OpenOptions::new()
+        .write(true)
+        .create_new(true)
+        .mode(0o600)
+        .open(&path)?
+        .write_all(&serde_json::to_vec(&config)?)?;
+
+    Ok(path)
+}
+
 impl registry::Host for State {
+    fn pull_config(&mut self, projects: Vec<String>) -> Result<String, String> {
+        if projects.is_empty() {
+            return Err("registry: pass at least one project".to_owned());
+        }
+        if let Some(project) = projects
+            .iter()
+            .find(|project| !self.sandbox.pull.contains(project))
+        {
+            return Err(format!(
+                "registry: {project} is not in the package's permissions.pull"
+            ));
+        }
+
+        let settings = self.sandbox.settings.clone();
+        let access = projects
+            .iter()
+            .map(|project| crate::remote::access(project, &[HarborAction::Pull], None))
+            .collect();
+        let token = self
+            .runtime()?
+            .block_on(async {
+                let api = settings.reader().await?;
+                crate::remote::exchange(&api, access).await
+            })
+            .map_err(|e| format!("registry: {e:#}"))?
+            .ok_or("registry: the registry has no harbor token exchange")?;
+
+        match write_pull_config(&token) {
+            Ok(path) => {
+                self.pulls
+                    .push((path.parent().unwrap_or(&path).to_owned(), token));
+                Ok(path.display().to_string())
+            }
+            Err(e) => {
+                self.pulls.push((PathBuf::new(), token));
+                self.close_pulls();
+                Err(format!("registry: writing the pull config: {e:#}"))
+            }
+        }
+    }
+
     fn push_dir(&mut self, request: registry::Push) -> Result<registry::Pushed, String> {
         let project =
             artifact::project(&request.reference).map_err(|e| format!("registry: {e}"))?;
@@ -804,11 +912,15 @@ pub fn run(wasm: &Path, sandbox: Sandbox) -> anyhow::Result<i32> {
             http: None,
             server: None,
             tokens: None,
+            pulls: vec![],
         },
     );
 
     let cli = Cli::instantiate(&mut store, &component, &linker)?;
-    match cli.wasi_cli_run().call_run(&mut store) {
+    let result = cli.wasi_cli_run().call_run(&mut store);
+    store.data_mut().close_pulls();
+
+    match result {
         Ok(Ok(())) => Ok(0),
         Ok(Err(())) => Ok(1),
         Err(e) => match e.downcast_ref::<I32Exit>() {
@@ -833,6 +945,7 @@ mod tests {
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
             listen: vec![],
             registry: vec![],
+            pull: vec![],
             settings: Settings {
                 registry: "https://registry.example.test".to_owned(),
                 issuer: String::new(),

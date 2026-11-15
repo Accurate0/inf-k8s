@@ -126,6 +126,11 @@ interface registry {
   /// project must be in permissions.registry. Nothing is uploaded or signed when every tag already
   /// holds the same content.
   push-dir: func(request: push) -> result<pushed, string>;
+
+  /// Writes a docker config holding a pull-only robot for projects, each of which must be in
+  /// permissions.pull, and returns its path for programs such as helm (HELM_REGISTRY_CONFIG). The
+  /// robot is revoked and the file removed when the package exits.
+  pull-config: func(projects: list<string>) -> result<string, string>;
 }
 
 interface env {

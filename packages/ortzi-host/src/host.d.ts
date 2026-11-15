@@ -69,6 +69,7 @@ declare module 'ortzi:host/auth@0.1.0' {
 }
 declare module 'ortzi:host/registry@0.1.0' {
   export function pushDir(request: Push): Pushed;
+  export function pullConfig(projects: string[]): string;
   export interface Push {
     dir: string;
     reference: string;

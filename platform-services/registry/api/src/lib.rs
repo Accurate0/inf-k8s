@@ -127,6 +127,9 @@ pub struct Permissions {
     /// Harbor projects the package may push artifacts to.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub registry: Vec<String>,
+    /// Harbor projects the package may hand its programs a pull-only robot for.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub pull: Vec<String>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -193,15 +196,17 @@ impl Permissions {
         if self.listen.contains(&0) {
             return Err("permissions.listen: ports must be 1-65535".to_owned());
         }
-        for project in &self.registry {
-            let valid = !project.is_empty()
-                && project
-                    .chars()
-                    .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
-            if !valid {
-                return Err(format!(
-                    "permissions.registry: {project:?} must be a harbor project name"
-                ));
+        for (field, projects) in [("registry", &self.registry), ("pull", &self.pull)] {
+            for project in projects {
+                let valid = !project.is_empty()
+                    && project
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-');
+                if !valid {
+                    return Err(format!(
+                        "permissions.{field}: {project:?} must be a harbor project name"
+                    ));
+                }
             }
         }
         Ok(())
