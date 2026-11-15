@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T04:52:55.173Z
+# generated at 2026-11-15T05:09:24.372Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,10 +16,68 @@ spec:
       selfHeal: true
   project: projects
   sources:
-    - repoURL: oci://registry.anurag.sh/manifests/anurag-sh
-      name: application
-      path: .
-      targetRevision: main
+    - chart: k8s-workload
+      repoURL: oci://registry.anurag.sh/charts/k8s-workload
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          images:
+            registry.anurag.sh/containers/anurag-sh: 57aaa4616d90991cb0a1b072856bcf61d10b9dcb
+          namespace: anurag-sh
+          namespaceLabels:
+            gateway.inf-k8s.net/anurag-sh: "true"
+            gateway.inf-k8s.net/anurag-id-au: "true"
+          workloads:
+            - name: anurag-sh
+              image: registry.anurag.sh/containers/anurag-sh
+              ports:
+                - name: http
+                  containerPort: 3000
+              resources:
+                requests:
+                  memory: 16Mi
+              service:
+                name: anurag-sh
+                ports:
+                  - name: http
+                    port: 80
+                    targetPort: 3000
+                    protocol: TCP
+    - chart: k8s-network
+      repoURL: oci://registry.anurag.sh/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: anurag-sh
+          ingress:
+            - envoy-gateway-system
+    - chart: k8s-http-routes
+      repoURL: oci://registry.anurag.sh/charts/k8s-http-routes
+      targetRevision: 2.6.0
+      helm:
+        valuesObject:
+          routes:
+            - name: anurag-sh-route
+              gateway:
+                name: public-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "true"
+              hostnames:
+                - anurag.sh
+                - anurag.id.au
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: anurag-sh
+                      port: 80
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /
   destination:
     server: https://kubernetes.default.svc
     namespace: anurag-sh
