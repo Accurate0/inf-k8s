@@ -23,6 +23,8 @@ function workloadTags(
 ): Map<string, string> | undefined {
   const helm = sources.find((s) => s.chart === 'k8s-workload')?.helm;
   if (!helm) return undefined;
+  if (helm.valuesObject?.images) return new Map(Object.entries(helm.valuesObject.images));
+
   const file = helm.valueFiles?.[0]?.replace('$values/', '');
   if (!file || !revision) return new Map();
   const text = fetchText(`https://raw.githubusercontent.com/${REPO}/${revision}/${file}`);

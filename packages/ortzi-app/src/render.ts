@@ -312,6 +312,7 @@ export interface World {
   platform: PlatformExport[];
   apps: App[];
   external?: Set<string>;
+  readValues?: (path: string) => Record<string, unknown>;
 }
 
 function servicePorts(workload: string, spec: Workload) {

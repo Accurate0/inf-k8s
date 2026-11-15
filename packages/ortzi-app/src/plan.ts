@@ -45,7 +45,8 @@ export interface ExternalChart {
   repo: string;
   version: string;
   releaseName?: string;
-  valueFiles: string[];
+  valueFiles?: string[];
+  values?: Record<string, unknown>;
 }
 
 export interface GitPath {
@@ -128,6 +129,10 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
 
   const databaseSecret = (database: string) => appDatabases(app)[database].secretName;
   const directory = `${target.location}/${name}`;
+  const readValues = (path: string) => {
+    if (!world.readValues) throw new Error(`${name}: artifact apps inline values, pass readValues`);
+    return world.readValues(path);
+  };
   const routes = Object.entries(appRoutes(app));
   const tcpRoutes = Object.entries(appTcpRoutes(app));
   const sources: PlanSource[] = [];
@@ -151,6 +156,11 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   ): PlatformChart => {
     const version = app.charts?.[chartName] ?? versions[chartName];
     if (!version) throw new Error(`${app.name}: no version for chart ${chartName}`);
+    if (app.artifact && valueFiles) {
+      values = Object.assign({}, ...valueFiles.map(readValues), values);
+      valueFiles = undefined;
+    }
+
     return {
       type: 'chart',
       chart: chartName,
@@ -403,7 +413,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
         repo,
         version,
         ...(releaseName ? { releaseName } : {}),
-        valueFiles: [`${directory}/${values}`],
+        ...(app.artifact
+          ? { values: readValues(`${directory}/${values}`) }
+          : { valueFiles: [`${directory}/${values}`] }),
       });
     } else if (source.type === 'git' || source.type === 'artifact') {
       sources.push(source);
@@ -439,50 +451,27 @@ export const chartValues = (source: PlatformChart) => ({
   ...(source.retain ? { retainAnnotations: RETAIN } : {}),
 });
 
-export interface Kubernetes {
-  version: string;
-  apiVersions: string[];
-}
-
-export function helmTemplates(
-  plan: Plan,
-  published?: Kubernetes,
-): { name: string; args: string[]; values: string }[] {
-  const cluster = published
-    ? [
-        '--include-crds',
-        '--skip-tests',
-        '--kube-version',
-        published.version,
-        ...published.apiVersions.flatMap((version) => ['--api-versions', version]),
-      ]
-    : [];
-
+export function helmTemplates(plan: Plan): { args: string[]; values: string }[] {
   return plan.sources.flatMap((source) => {
     if (source.type !== 'chart' && source.type !== 'helm') return [];
     const release = source.type === 'helm' ? (source.releaseName ?? plan.name) : plan.name;
-    let location = [`charts/${source.chart}`];
-    if (source.type === 'helm') {
-      location = externalChartLocation(source);
-    } else if (published) {
-      location = [`${source.registry}/${source.chart}`, '--version', source.version];
-    }
-
+    const location =
+      source.type === 'chart' ? [`charts/${source.chart}`] : externalChartLocation(source);
     return [
       {
-        name: source.type === 'helm' ? (source.releaseName ?? source.chart) : source.chart,
         args: [
           'template',
           release,
           ...location,
           '--namespace',
           plan.namespace,
-          ...cluster,
           ...(source.valueFiles ?? []).flatMap((file) => ['-f', file]),
           '-f',
           '-',
         ],
-        values: JSON.stringify(source.type === 'chart' ? chartValues(source) : {}),
+        values: JSON.stringify(
+          source.type === 'chart' ? chartValues(source) : (source.values ?? {}),
+        ),
       },
     ];
   });

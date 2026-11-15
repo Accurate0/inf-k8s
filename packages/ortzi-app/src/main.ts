@@ -43,8 +43,9 @@ import {
   validateResources,
   workflowPath,
   workloadImages,
+  type World,
 } from './render';
-import { publishArtifact, publishBundle, unstableFiles } from './hydrate';
+import { publishArtifact, publishBundle } from './hydrate';
 import { renderOutputs } from './outputs';
 import { planApp } from './plan';
 import { addRoles, databasePath, renderDatabase } from './providers/cnpg';
@@ -91,9 +92,10 @@ definition (run from the root of the k8s repo):
   diff [app]               show what render would change, exit 1 if anything would
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
-  publish [app...]         template each app with an artifact and push it to its oci repo (default: every
-                           app with an artifact), then push every app's application.yaml, bootstrap
-                           apps aside, to the platform/apps.yaml bundle; unchanged pushes are skipped
+  publish [app...]         push the kustomize build of each app with an artifact and manifests to its oci
+                           repo (default: all of them), then push every app's application.yaml,
+                           bootstrap apps aside, to the platform/apps.yaml bundle; unchanged pushes
+                           are skipped
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
 
@@ -111,7 +113,6 @@ cluster:
 flags:
   --format FMT     graph: mermaid or dot (default mermaid)
   --check          render, supergraph: write nothing, exit 1 if invalid or out of date
-                   publish: push nothing, template twice and exit 1 if the output differs
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
   --force          render: regenerate every file, even those already up to date
@@ -150,6 +151,11 @@ function requireOnOff(
   }
   return { name, state };
 }
+
+const readValues = (path: string): Record<string, unknown> =>
+  fs.exists(path) ? (parse(fs.readText(path)) ?? {}) : {};
+
+const worldOf = (apps: App[]): World => ({ platform: platformExports(), apps, readValues });
 
 function discover(): { app: App; target: Target }[] {
   const found = [];
@@ -203,14 +209,14 @@ function loadApp(name: string | undefined, command: string) {
   const apps = discover().map(({ app }) => app);
   const found = apps.find((candidate) => candidate.name === app);
   if (!found) throw new Error(`no app named ${app}`);
-  return { app: found, world: { platform: platformExports(), apps } };
+  return { app: found, world: worldOf(apps) };
 }
 
 function staleFiles(only?: string, force = false): { path: string; wanted: string }[] {
   const versions = parse(fs.readText(VERSIONS)).charts;
   const stale = [];
   const apps = discover();
-  const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
+  const world = worldOf(apps.map(({ app }) => app));
 
   if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
 
@@ -332,7 +338,7 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
 
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
-  const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
+  const world = worldOf(apps.map(({ app }) => app));
   const generated = new Map(
     apps.flatMap(({ app, target }) => {
       const plan = planApp(app, versions, target, world);
@@ -371,34 +377,16 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   return check && stale.length + removed.length > 0 ? 1 : 0;
 }
 
-function publish(names: string[], check: boolean): number {
-  const { charts: versions, kubernetes } = parse(fs.readText(VERSIONS));
+function publish(names: string[]): number {
+  const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
-  const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
+  const world = worldOf(apps.map(({ app }) => app));
 
   const unknown = names.filter(
     (name) => !apps.some(({ app }) => app.name === name && app.artifact),
   );
   if (unknown.length) {
     throw new UsageError(`no app with an artifact named ${unknown.join(', ')}`);
-  }
-
-  const published = apps.filter(({ app }) => app.artifact);
-  const selected = published.filter(({ app }) => !names.length || names.includes(app.name));
-
-  if (check) {
-    let unstable = 0;
-    for (const { app, target } of selected) {
-      const files = unstableFiles(planApp(app, versions, target, world), kubernetes);
-      if (files.length) {
-        unstable++;
-        console.error(`${app.name}: templates differ between runs: ${files.join(', ')}`);
-      } else {
-        console.log(`${app.name}: stable, hydrated into .cache/ortzi-app/artifacts/${app.name}`);
-      }
-    }
-
-    return unstable ? 1 : 0;
   }
 
   const dirs = [...apps.map(({ app, target }) => `${target.location}/${app.name}`), APPS_BUNDLE];
@@ -408,8 +396,10 @@ function publish(names: string[], check: boolean): number {
   }
 
   const revision = capture('git', ['rev-parse', 'HEAD']).trim();
-  for (const { app, target } of selected) {
-    publishArtifact(planApp(app, versions, target, world), kubernetes, revision);
+  for (const { app, target } of apps) {
+    if (app.artifact && (!names.length || names.includes(app.name))) {
+      publishArtifact(planApp(app, versions, target, world), revision);
+    }
   }
 
   const { artifact, bootstrap } = parse(fs.readText(APPS_BUNDLE)) as {
@@ -426,11 +416,15 @@ function publish(names: string[], check: boolean): number {
       ...artifact,
       applications: apps
         .filter(({ app }) => !bootstrap.includes(app.name))
-        .map(({ app, target }) => ({
-          location: target.location,
-          name: app.name,
-          path: `${target.location}/${app.name}/application.yaml`,
-        })),
+        .map(({ app, target }) => {
+          const dir = `${target.location}/${app.name}`;
+          return {
+            location: target.location,
+            name: app.name,
+            path: `${dir}/application.yaml`,
+            revision: capture('git', ['log', '-1', '--format=%H', '--', dir]).trim(),
+          };
+        }),
     },
     revision,
   );
@@ -474,7 +468,7 @@ export const run = cli({
   commands: {
     render: (_ctx, values) => render(values.check, values.commit, values.changed, values.force),
     diff: (_ctx, _values, rest) => diff(rest[0]),
-    publish: (_ctx, values, rest) => publish(rest, values.check),
+    publish: (_ctx, _values, rest) => publish(rest),
     supergraph: (_ctx, values) => supergraph(discover(), values.check),
     list: () => {
       const count = (block?: object) => {

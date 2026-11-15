@@ -7,7 +7,7 @@ const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.j
 
 const valueFiles = (files: string[]) => files.map((file) => `$values/${file}`);
 
-function applicationSource(source: PlanSource): Record<string, unknown> {
+function applicationSource(plan: Plan, source: PlanSource): Record<string, unknown> {
   switch (source.type) {
     case 'chart':
       return {
@@ -26,7 +26,8 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         targetRevision: source.version,
         helm: {
           ...(source.releaseName ? { releaseName: source.releaseName } : {}),
-          valueFiles: valueFiles(source.valueFiles),
+          ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}),
+          ...(source.values ? { valuesObject: source.values } : {}),
         },
       };
     case 'git':
@@ -44,12 +45,21 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         targetRevision: source.tag,
       };
     case 'manifests':
+      if (plan.artifact) {
+        return {
+          repoURL: plan.artifact.repo,
+          name: 'application',
+          path: '.',
+          targetRevision: plan.artifact.tag,
+        };
+      }
+
       return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
   }
 }
 
 export function renderApplication(plan: Plan, overrides?: ArgocdOverrides): string {
-  const usesValues = plan.sources.some((source) => 'valueFiles' in source);
+  const usesValues = plan.sources.some((source) => 'valueFiles' in source && source.valueFiles);
   const application = {
     apiVersion: 'argoproj.io/v1alpha1',
     kind: 'Application',
@@ -63,22 +73,10 @@ export function renderApplication(plan: Plan, overrides?: ArgocdOverrides): stri
           : {}),
       },
       project: plan.location,
-      sources: plan.artifact
-        ? [
-            {
-              repoURL: plan.artifact.repo,
-              name: 'application',
-              path: '.',
-              targetRevision: plan.artifact.tag,
-            },
-            ...plan.sources
-              .filter((source) => source.type === 'git' || source.type === 'artifact')
-              .map(applicationSource),
-          ]
-        : [
-            ...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []),
-            ...plan.sources.map(applicationSource),
-          ],
+      sources: [
+        ...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []),
+        ...plan.sources.map((source) => applicationSource(plan, source)),
+      ],
       destination: { server: 'https://kubernetes.default.svc', namespace: plan.namespace },
       ...(overrides?.ignoreDifferences ? { ignoreDifferences: overrides.ignoreDifferences } : {}),
     },

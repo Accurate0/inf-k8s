@@ -1566,7 +1566,7 @@
       }
     },
     "artifact": {
-      "description": "Deliver the app's charts and manifests to Argo CD as one OCI artifact. `ortzi app publish` templates every chart and the kustomization into it, so image tags and values never come from git. git and artifact sources stay live sources next to it.",
+      "description": "Deliver the app to Argo CD without git: charts come from their registries with values and image tags inline in the Application, and `ortzi app publish` pushes the kustomization's build to this repository. git and artifact sources stay live sources next to it.",
       "type": "object",
       "additionalProperties": false,
       "required": ["repo", "tag"],
@@ -1574,7 +1574,7 @@
         "repo": {
           "type": "string",
           "pattern": "^oci://[^/]+/[^/]+/[^/]+$",
-          "description": "Repository to push to and sync from, e.g. oci://registry.anurag.sh/manifests/<app>."
+          "description": "Repository the kustomization's build is pushed to and synced from, e.g. oci://registry.anurag.sh/manifests/<app>."
         },
         "tag": {
           "type": "string",
