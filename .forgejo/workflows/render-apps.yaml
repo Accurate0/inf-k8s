@@ -14,6 +14,7 @@ on:
       - system-components/*/*.values.yaml
       - charts/**
       - platform/versions.yaml
+      - platform/apps.yaml
       - platform/exports/**
       - packages/ortzi-app/**
       - packages/ortzi-host/**

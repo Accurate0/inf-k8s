@@ -61,7 +61,16 @@ export interface LocalManifests {
   path: string;
 }
 
-export type PlanSource = PlatformChart | ExternalChart | GitPath | LocalManifests;
+export interface ExternalArtifact {
+  type: 'artifact';
+  repo: string;
+  tag: string;
+  path?: string;
+  name?: string;
+}
+
+export type PlanSource =
+  PlatformChart | ExternalChart | GitPath | LocalManifests | ExternalArtifact;
 
 export interface Plan {
   name: string;
@@ -396,7 +405,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
         ...(releaseName ? { releaseName } : {}),
         valueFiles: [`${directory}/${values}`],
       });
-    } else if (source.type === 'git') {
+    } else if (source.type === 'git' || source.type === 'artifact') {
       sources.push(source);
     } else {
       sources.push({
@@ -430,10 +439,24 @@ export const chartValues = (source: PlatformChart) => ({
   ...(source.retain ? { retainAnnotations: RETAIN } : {}),
 });
 
+export interface Kubernetes {
+  version: string;
+  apiVersions: string[];
+}
+
 export function helmTemplates(
   plan: Plan,
-  published = false,
+  published?: Kubernetes,
 ): { name: string; args: string[]; values: string }[] {
+  const cluster = published
+    ? [
+        '--include-crds',
+        '--kube-version',
+        published.version,
+        ...published.apiVersions.flatMap((version) => ['--api-versions', version]),
+      ]
+    : [];
+
   return plan.sources.flatMap((source) => {
     if (source.type !== 'chart' && source.type !== 'helm') return [];
     const release = source.type === 'helm' ? (source.releaseName ?? plan.name) : plan.name;
@@ -453,7 +476,7 @@ export function helmTemplates(
           ...location,
           '--namespace',
           plan.namespace,
-          ...(published ? ['--include-crds'] : []),
+          ...cluster,
           ...(source.valueFiles ?? []).flatMap((file) => ['-f', file]),
           '-f',
           '-',

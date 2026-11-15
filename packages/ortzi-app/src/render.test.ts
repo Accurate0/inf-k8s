@@ -2158,6 +2158,32 @@ test('helm templates pull upstream charts', () => {
   assert.ok(oci.includes('projects/foo/forgejo.values.yaml'));
 });
 
+test('published helm templates pull from the registry and pin the cluster', () => {
+  const plan = planApp(
+    { name: 'foo', network: { ingress: [] }, sources: [release] },
+    versions,
+    target,
+    { platform, apps: [] },
+  );
+  const kubernetes = { version: 'v1.37.1', apiVersions: ['monitoring.coreos.com/v1'] };
+  const [network] = helmTemplates(plan, kubernetes).map(({ args }) => args);
+
+  assert.deepEqual(network.slice(2, 5), [
+    'oci://registry.anurag.sh/charts/k8s-network',
+    '--version',
+    '0.1.0',
+  ]);
+  for (const flag of [
+    ['--include-crds'],
+    ['--kube-version', 'v1.37.1'],
+    ['--api-versions', 'monitoring.coreos.com/v1'],
+  ]) {
+    const at = network.indexOf(flag[0]);
+    assert.deepEqual(network.slice(at, at + flag.length), flag);
+  }
+  assert.ok(!helmTemplates(plan)[0].args.includes('--kube-version'));
+});
+
 test('argocd overrides replace the default policy', () => {
   const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
   const rendered = render({
@@ -2378,12 +2404,88 @@ test('artifact apps sync one oci source instead of git and charts', () => {
       validate(
         app({
           artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
-          sources: [{ type: 'git', repo: 'https://example.com/r.git', path: 'x' }],
+          sources: [
+            { type: 'git', repo: 'https://example.com/r.git', path: 'x', name: 'application' },
+          ],
         }),
         'x',
       ),
-    /git sources/,
+    /duplicate source name application/,
   );
+  assert.throws(
+    () =>
+      validate(
+        app({
+          artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+          sources: [
+            { type: 'artifact', repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+          ],
+        }),
+        'x',
+      ),
+    /own artifact/,
+  );
+  assert.throws(() =>
+    validate(
+      app({ sources: [{ type: 'artifact', repo: 'oci://registry.anurag.sh/manifests/x' }] }),
+      'x',
+    ),
+  );
+});
+
+test('artifact apps keep git and artifact sources live next to the hydrated one', () => {
+  const rendered = render({
+    name: 'foo',
+    network: { ingress: [] },
+    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+    sources: [
+      { type: 'manifests', path: '.' },
+      { type: 'git', repo: 'https://git.anurag.sh/anurag/foo.git', name: 'config', path: 'config' },
+      {
+        type: 'artifact',
+        repo: 'oci://registry.anurag.sh/manifests/foo-extra',
+        tag: 'v1',
+        name: 'extra',
+      },
+    ] as App['sources'],
+  });
+
+  assert.deepEqual(rendered.spec.sources, [
+    {
+      repoURL: 'oci://registry.anurag.sh/manifests/foo',
+      name: 'application',
+      path: '.',
+      targetRevision: 'main',
+    },
+    { repoURL: 'https://git.anurag.sh/anurag/foo.git', name: 'config', path: 'config' },
+    {
+      repoURL: 'oci://registry.anurag.sh/manifests/foo-extra',
+      name: 'extra',
+      path: '.',
+      targetRevision: 'v1',
+    },
+  ]);
+});
+
+test('artifact sources render without a hydrated artifact', () => {
+  const rendered = render({
+    name: 'foo',
+    network: { ingress: [] },
+    sources: [
+      {
+        type: 'artifact',
+        repo: 'oci://registry.anurag.sh/manifests/foo-extra',
+        tag: 'main',
+        path: 'deploy',
+      },
+    ] as App['sources'],
+  });
+
+  assert.deepEqual(rendered.spec.sources.at(-1), {
+    repoURL: 'oci://registry.anurag.sh/manifests/foo-extra',
+    path: 'deploy',
+    targetRevision: 'main',
+  });
 });
 
 test('manifests sources are limited and stay in the app directory', () => {

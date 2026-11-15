@@ -36,6 +36,13 @@ function applicationSource(source: PlanSource): Record<string, unknown> {
         path: source.path,
         ...(source.revision ? { targetRevision: source.revision } : {}),
       };
+    case 'artifact':
+      return {
+        repoURL: source.repo,
+        ...(source.name ? { name: source.name } : {}),
+        path: source.path ?? '.',
+        targetRevision: source.tag,
+      };
     case 'manifests':
       return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
   }
@@ -64,6 +71,9 @@ export function renderApplication(plan: Plan, overrides?: ArgocdOverrides): stri
               path: '.',
               targetRevision: plan.artifact.tag,
             },
+            ...plan.sources
+              .filter((source) => source.type === 'git' || source.type === 'artifact')
+              .map(applicationSource),
           ]
         : [
             ...(usesValues ? [{ repoURL: CONFIG_REPO, ref: 'values' }] : []),

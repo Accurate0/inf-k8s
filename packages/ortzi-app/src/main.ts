@@ -44,7 +44,7 @@ import {
   workflowPath,
   workloadImages,
 } from './render';
-import { publishArtifact } from './hydrate';
+import { publishArtifact, publishBundle, unstableFiles } from './hydrate';
 import { renderOutputs } from './outputs';
 import { planApp } from './plan';
 import { addRoles, databasePath, renderDatabase } from './providers/cnpg';
@@ -58,6 +58,7 @@ import { type RenderedOutput, validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services', 'selfhosted', 'system-components'];
 const VERSIONS = 'platform/versions.yaml';
+const APPS_BUNDLE = 'platform/apps.yaml';
 const PLATFORM_EXPORTS = 'platform/exports';
 const GATEWAYS = 'system-components/envoy';
 const POSTGRES_CLUSTER = 'system-components/postgres-cluster/postgres.yaml';
@@ -90,8 +91,9 @@ definition (run from the root of the k8s repo):
   diff [app]               show what render would change, exit 1 if anything would
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
-  publish [app...]         template each app with an artifact and push it to its oci repo, unchanged
-                           ones are skipped (default: every app with an artifact)
+  publish [app...]         template each app with an artifact and push it to its oci repo (default: every
+                           app with an artifact), then push every app's application.yaml, bootstrap
+                           apps aside, to the platform/apps.yaml bundle; unchanged pushes are skipped
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
 
@@ -109,6 +111,7 @@ cluster:
 flags:
   --format FMT     graph: mermaid or dot (default mermaid)
   --check          render, supergraph: write nothing, exit 1 if invalid or out of date
+                   publish: push nothing, template twice and exit 1 if the output differs
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
   --force          render: regenerate every file, even those already up to date
@@ -368,8 +371,8 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   return check && stale.length + removed.length > 0 ? 1 : 0;
 }
 
-function publish(names: string[]): number {
-  const versions = parse(fs.readText(VERSIONS)).charts;
+function publish(names: string[], check: boolean): number {
+  const { charts: versions, kubernetes } = parse(fs.readText(VERSIONS));
   const apps = discover();
   const world = { platform: platformExports(), apps: apps.map(({ app }) => app) };
 
@@ -380,23 +383,58 @@ function publish(names: string[]): number {
     throw new UsageError(`no app with an artifact named ${unknown.join(', ')}`);
   }
 
-  const selected = apps.filter(
-    ({ app }) => app.artifact && (!names.length || names.includes(app.name)),
-  );
-  const dirs = selected.map(({ app, target }) => `${target.location}/${app.name}`);
-  if (dirs.length && capture('git', ['status', '--porcelain', '--', ...dirs]).trim()) {
+  const published = apps.filter(({ app }) => app.artifact);
+  const selected = published.filter(({ app }) => !names.length || names.includes(app.name));
+
+  if (check) {
+    let unstable = 0;
+    for (const { app, target } of selected) {
+      const files = unstableFiles(planApp(app, versions, target, world), kubernetes);
+      if (files.length) {
+        unstable++;
+        console.error(`${app.name}: templates differ between runs: ${files.join(', ')}`);
+      } else {
+        console.log(`${app.name}: stable, hydrated into .cache/ortzi-app/artifacts/${app.name}`);
+      }
+    }
+
+    return unstable ? 1 : 0;
+  }
+
+  const dirs = [...apps.map(({ app, target }) => `${target.location}/${app.name}`), APPS_BUNDLE];
+  if (capture('git', ['status', '--porcelain', '--', ...dirs]).trim()) {
     console.error(`uncommitted changes in ${dirs.join(', ')}; commit before publishing`);
     return 1;
   }
 
   const revision = capture('git', ['rev-parse', 'HEAD']).trim();
   for (const { app, target } of selected) {
-    publishArtifact(planApp(app, versions, target, world), revision);
+    publishArtifact(planApp(app, versions, target, world), kubernetes, revision);
   }
 
-  if (!selected.length) {
-    console.log('no apps declare an artifact');
+  const { artifact, bootstrap } = parse(fs.readText(APPS_BUNDLE)) as {
+    artifact: { repo: string; tag: string };
+    bootstrap: string[];
+  };
+  const missing = bootstrap.filter((name) => !apps.some(({ app }) => app.name === name));
+  if (missing.length) {
+    throw new Error(`${APPS_BUNDLE}: bootstrap names unknown apps ${missing.join(', ')}`);
   }
+
+  publishBundle(
+    {
+      ...artifact,
+      applications: apps
+        .filter(({ app }) => !bootstrap.includes(app.name))
+        .map(({ app, target }) => ({
+          location: target.location,
+          name: app.name,
+          path: `${target.location}/${app.name}/application.yaml`,
+        })),
+    },
+    revision,
+  );
+
   return 0;
 }
 
@@ -436,7 +474,7 @@ export const run = cli({
   commands: {
     render: (_ctx, values) => render(values.check, values.commit, values.changed, values.force),
     diff: (_ctx, _values, rest) => diff(rest[0]),
-    publish: (_ctx, _values, rest) => publish(rest),
+    publish: (_ctx, values, rest) => publish(rest, values.check),
     supergraph: (_ctx, values) => supergraph(discover(), values.check),
     list: () => {
       const count = (block?: object) => {

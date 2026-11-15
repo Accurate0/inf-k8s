@@ -252,7 +252,15 @@ export interface Artifact {
   tag: string;
 }
 
-export type Source = HelmSource | GitSource | ManifestsSource;
+export interface ArtifactSource {
+  type: 'artifact';
+  repo: string;
+  tag: string;
+  path?: string;
+  name?: string;
+}
+
+export type Source = HelmSource | GitSource | ManifestsSource | ArtifactSource;
 
 export interface ArgocdOverrides {
   options?: string[];
@@ -797,8 +805,22 @@ export function validate(raw: unknown, where: string): App {
       fail(`sources: duplicate helm release ${release}, set releaseName`);
   }
 
-  if (app.artifact && sourcesOf(app, 'git').length) {
-    fail('artifact: git sources cannot be published into an artifact');
+  const names = [
+    ...(app.artifact || sourcesOf(app, 'manifests').length ? ['application'] : []),
+    ...[...sourcesOf(app, 'git'), ...sourcesOf(app, 'artifact')].flatMap((source) =>
+      source.name ? [source.name] : [],
+    ),
+  ];
+  for (const name of names) {
+    if (names.indexOf(name) !== names.lastIndexOf(name)) {
+      fail(`sources: duplicate source name ${name}`);
+    }
+  }
+
+  for (const source of sourcesOf(app, 'artifact')) {
+    if (source.repo === app.artifact?.repo) {
+      fail(`sources: ${source.repo} is the app's own artifact`);
+    }
   }
   if (app.artifact && app.build && ciProvider(app) !== 'forgejo') {
     fail('artifact: image updates must run on forgejo ci to republish the artifact');

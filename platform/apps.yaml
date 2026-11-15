@@ -1,0 +1,5 @@
+artifact:
+  repo: oci://registry.anurag.sh/manifests/apps
+  tag: main
+bootstrap:
+  - registry
