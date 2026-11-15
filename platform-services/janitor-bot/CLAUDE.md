@@ -104,7 +104,9 @@ serialize concurrent evaluations of the same PR; workflow events share one globa
 dry-run logs `[dry-run] would execute` instead of calling the action.
 
 **Clients** (`clients.rs`): `ForgejoClient`, `GitHubClient`, `ArgocdClient`,
-`FeatureFlagClient`, each constructed `from_env()`. `git.rs` uses `git2` for local clone
+`FeatureFlagClient`, `HarborClient`, each constructed `from_env()`. `HarborClient` maps an
+ArgoCD sync of a hydrated OCI artifact (a `sha256:` revision plus the payload's `artifact`
+repo) back to the commit in the manifest's `org.opencontainers.image.revision` annotation. `git.rs` uses `git2` for local clone
 operations (conflict detection / revert).
 
 ## Testing approach

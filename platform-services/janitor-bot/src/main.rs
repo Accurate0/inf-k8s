@@ -11,8 +11,8 @@ use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer}
 use chrono_tz::Australia;
 use janitor_bot::auth::{self, Authenticator, OAuthConfig};
 use janitor_bot::{
-    argocd::ArgocdClient, cache::CacheAccessor, clients::Clients, github::GitHubClient, metrics,
-    registry::RegistryClient,
+    argocd::ArgocdClient, cache::CacheAccessor, clients::Clients, github::GitHubClient,
+    harbor::HarborClient, metrics, registry::RegistryClient,
 };
 use janitor_bot::{event, rules, tracing_setup};
 use janitor_bot::{feature_flag::FeatureFlagClient, forgejo::ForgejoClient};
@@ -112,6 +112,7 @@ async fn main() -> anyhow::Result<()> {
             ArgocdClient::from_env()?,
             FeatureFlagClient::from_env().await,
             RegistryClient::from_env()?,
+            HarborClient::from_env(),
         ),
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,

@@ -18,6 +18,7 @@ use janitor_bot::clients::Clients;
 use janitor_bot::dashboard;
 use janitor_bot::forgejo::ForgejoClient;
 use janitor_bot::github::GitHubClient;
+use janitor_bot::harbor::HarborClient;
 use janitor_bot::registry::RegistryClient;
 use janitor_bot::rules;
 use janitor_bot::server::{self, AppState};
@@ -136,6 +137,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     let github_server = MockServer::start().await;
     let argocd_server = MockServer::start().await;
     let registry_server = MockServer::start().await;
+    let harbor_server = MockServer::start().await;
 
     let payload_str = serde_json::to_string(&fixture.payload)
         .unwrap()
@@ -148,6 +150,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             "argocd" => setup_mocks(&argocd_server, slice::from_ref(mock_def)).await,
             "forgejo" => setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await,
             "registry" => setup_mocks(&registry_server, slice::from_ref(mock_def)).await,
+            "harbor" => setup_mocks(&harbor_server, slice::from_ref(mock_def)).await,
             _ => unreachable!(),
         }
     }
@@ -159,6 +162,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
             ArgocdClient::new(argocd_server.uri(), "test-token".into()),
             FeatureFlagClient::new(None).await,
             RegistryClient::new(registry_server.uri(), None),
+            HarborClient::new(Some(harbor_server.uri()), None),
         ),
         orchestrator: rules::RulesOrchestrator::new(),
     });
@@ -191,6 +195,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     github_server.verify().await;
     argocd_server.verify().await;
     registry_server.verify().await;
+    harbor_server.verify().await;
 
     let forgejo_requests = forgejo_server.received_requests().await.unwrap_or_default();
     let github_requests = github_server.received_requests().await.unwrap_or_default();
@@ -351,6 +356,7 @@ async fn renovate_dashboard_snapshot() {
         ArgocdClient::new(unused_server.uri(), "test-token".into()),
         FeatureFlagClient::new(None).await,
         RegistryClient::new(unused_server.uri(), None),
+        HarborClient::new(Some(unused_server.uri()), None),
     );
     let orchestrator = rules::RulesOrchestrator::new();
 

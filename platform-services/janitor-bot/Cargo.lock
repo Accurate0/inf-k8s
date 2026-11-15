@@ -2076,6 +2076,7 @@ dependencies = [
  "opentelemetry_sdk",
  "p256",
  "regex",
+ "registry-api",
  "reqwest",
  "rstest",
  "schemars",
@@ -3513,6 +3514,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "registry-api"
+version = "0.1.0"
+dependencies = [
+ "base64 0.22.1",
+ "bytes",
+ "chrono",
+ "futures",
+ "hex",
+ "p256",
+ "rand 0.10.1",
+ "reqwest",
+ "semver",
+ "serde",
+ "serde_json",
+ "sha2 0.11.1",
+ "thiserror",
+ "tokio",
+ "url",
+ "uuid",
+]
+
+[[package]]
 name = "relative-path"
 version = "1.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3552,12 +3575,14 @@ dependencies = [
  "sync_wrapper",
  "tokio",
  "tokio-rustls",
+ "tokio-util",
  "tower",
  "tower-http 0.6.11",
  "tower-service",
  "url",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
 ]
 
@@ -4885,6 +4910,7 @@ checksum = "144d6b123cef80b301b8f72a9e2ca4370ddec21950d0a103dd22c437006d2db7"
 dependencies = [
  "getrandom 0.4.2",
  "js-sys",
+ "serde_core",
  "wasm-bindgen",
 ]
 
@@ -5040,6 +5066,19 @@ dependencies = [
  "indexmap",
  "wasm-encoder",
  "wasmparser",
+]
+
+[[package]]
+name = "wasm-streams"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9d1ec4f6517c9e11ae630e200b2b65d193279042e28edd4a2cda233e46670bbb"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
 ]
 
 [[package]]

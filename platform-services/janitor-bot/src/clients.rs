@@ -2,6 +2,7 @@ use crate::argocd::ArgocdClient;
 use crate::feature_flag::FeatureFlagClient;
 use crate::forgejo::ForgejoClient;
 use crate::github::GitHubClient;
+use crate::harbor::HarborClient;
 use crate::registry::RegistryClient;
 
 pub struct Clients {
@@ -10,6 +11,7 @@ pub struct Clients {
     pub argocd: ArgocdClient,
     pub feature_flag: FeatureFlagClient,
     pub registry: RegistryClient,
+    pub harbor: HarborClient,
 }
 
 impl Clients {
@@ -19,6 +21,7 @@ impl Clients {
         argocd: ArgocdClient,
         feature_flag: FeatureFlagClient,
         registry: RegistryClient,
+        harbor: HarborClient,
     ) -> Self {
         Self {
             forgejo,
@@ -26,6 +29,7 @@ impl Clients {
             argocd,
             feature_flag,
             registry,
+            harbor,
         }
     }
 }

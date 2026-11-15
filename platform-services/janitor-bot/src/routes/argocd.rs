@@ -42,9 +42,25 @@ pub async fn handle_argocd_webhook(
         return StatusCode::OK;
     }
 
+    let sha = match state
+        .clients
+        .harbor
+        .sync_commit(&payload.sha, &payload.artifact)
+        .await
+    {
+        Ok(sha) => sha,
+        Err(e) => {
+            tracing::warn!(
+                app_name = payload.app_name,
+                "skipping argocd sync event: {e:#}"
+            );
+            return StatusCode::OK;
+        }
+    };
+
     let sync_event = event::ArgoSyncEvent {
         app_name: payload.app_name,
-        sha: payload.sha,
+        sha,
         sync_status: payload.sync_status,
         health_status: payload.health_status,
         phase: payload.phase,

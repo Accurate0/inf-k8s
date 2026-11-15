@@ -1,0 +1,37 @@
+type: argocd_sync
+payload:
+  app_name: janitor-bot
+  sha: "sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713"
+  artifact: oci://registry.anurag.sh/manifests/janitor-bot
+  sync_status: "Synced"
+  health_status: "Healthy"
+  phase: "Succeeded"
+  message: "successfully synced"
+mocks:
+  - service: harbor
+    method: GET
+    path: /v2/
+    status: 200
+  - service: harbor
+    method: GET
+    path: /v2/manifests/janitor-bot/manifests/sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713
+    status: 200
+    body_text: '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","annotations":{"org.opencontainers.image.revision":"abc1234567890def"}}'
+  - service: forgejo
+    method: GET
+    path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def
+    status: 200
+    body:
+      sha: abc1234567890def
+      created: "2025-01-01T00:00:00Z"
+      html_url: ""
+      url: ""
+      files:
+        - filename: "platform-services/janitor-bot/application.yaml"
+  - service: forgejo
+    method: POST
+    path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def
+    status: 201
+    body:
+      id: 1
+      status: success

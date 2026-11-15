@@ -54,6 +54,8 @@ pub struct ArgoSyncPayload {
     pub phase: String,
     #[serde(default)]
     pub message: String,
+    #[serde(default)]
+    pub artifact: String,
 }
 
 pub struct SourceDiff {

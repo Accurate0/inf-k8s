@@ -27,6 +27,7 @@ resources:
   - {name: argocd, type: platform, export: argocd}
   - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
+  - {name: harbor, type: secret, secretName: janitor-bot-harbor-secrets}
   - name: flags
     type: app
     app: feature-flags
@@ -97,6 +98,8 @@ workloads:
       FORGEJO_INSTANCE_URL: {resource: forgejo}
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
+      HARBOR_USERNAME: {secret: harbor, key: USERNAME}
+      HARBOR_PASSWORD: {secret: harbor, key: PASSWORD}
     envFrom:
       - secret: janitor-bot
     mounts:
@@ -120,6 +123,7 @@ build:
   context: .
   paths:
     - crates/subgraph/**
+    - platform-services/registry/api/**
   args:
     BINARY_NAME: janitor-bot
   test:

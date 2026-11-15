@@ -259,9 +259,24 @@ async fn handle_evaluate(
                     );
                 }
             };
+            let sha = match state
+                .clients
+                .harbor
+                .sync_commit(&payload.sha, &payload.artifact)
+                .await
+            {
+                Ok(sha) => sha,
+                Err(e) => {
+                    return (
+                        StatusCode::OK,
+                        Json(serde_json::json!({"skipped": format!("{e:#}")})),
+                    );
+                }
+            };
+
             let sync_event = event::ArgoSyncEvent {
                 app_name: payload.app_name,
-                sha: payload.sha,
+                sha,
                 sync_status: payload.sync_status,
                 health_status: payload.health_status,
                 phase: payload.phase,

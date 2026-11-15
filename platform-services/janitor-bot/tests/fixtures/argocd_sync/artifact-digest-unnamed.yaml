@@ -1,0 +1,9 @@
+type: argocd_sync
+payload:
+  app_name: janitor-bot
+  sha: "sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713"
+  sync_status: "Synced"
+  health_status: "Healthy"
+  phase: "Succeeded"
+  message: "successfully synced"
+mocks: []

@@ -9,6 +9,7 @@ pub mod feature_flag;
 pub mod forgejo;
 pub mod git;
 pub mod github;
+pub mod harbor;
 pub mod marker;
 pub mod metrics;
 pub mod registry;

@@ -204,7 +204,8 @@ spec:
                     body: |
                       {
                         "app_name": "{{.app.metadata.name}}",
-                        "sha": "{{if .app.status.sync.revision}}{{.app.status.sync.revision}}{{else}}{{range $i, $src := .app.spec.sources}}{{if eq (default "" $src.repoURL) "https://github.com/Accurate0/inf-k8s.git"}}{{index $.app.status.operationState.syncResult.revisions $i}}{{end}}{{end}}{{end}}",
+                        "sha": "{{if .app.status.sync.revision}}{{.app.status.sync.revision}}{{else}}{{range $i, $src := .app.spec.sources}}{{if eq (default "" $src.repoURL) "https://github.com/Accurate0/inf-k8s.git"}}{{index $.app.status.operationState.syncResult.revisions $i}}{{end}}{{if and (eq (default "" $src.name) "application") (hasPrefix "oci://" (default "" $src.repoURL))}}{{index $.app.status.operationState.syncResult.revisions $i}}{{end}}{{end}}{{end}}",
+                        "artifact": "{{range $src := .app.spec.sources}}{{if and (eq (default "" $src.name) "application") (hasPrefix "oci://" (default "" $src.repoURL))}}{{$src.repoURL}}{{end}}{{end}}",
                         "sync_status": "{{.app.status.sync.status}}",
                         "health_status": "{{.app.status.health.status}}",
                         "phase": "{{.app.status.operationState.phase}}",

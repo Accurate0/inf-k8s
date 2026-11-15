@@ -9,6 +9,7 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config l
 WORKDIR /app
 
 COPY crates/subgraph ./crates/subgraph
+COPY platform-services/registry/api ./platform-services/registry/api
 COPY platform-services/janitor-bot ./platform-services/janitor-bot
 RUN \
     --mount=type=cache,target=/app/platform-services/janitor-bot/target/ \

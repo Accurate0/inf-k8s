@@ -12,6 +12,7 @@ edition = "2024"
 [dependencies]
 janitor-webhook = { path = "webhook" }
 subgraph = { path = "../../crates/subgraph" }
+registry-api = { path = "../registry/api", features = ["oci"] }
 async-graphql = { version = "7.2.1", features = ["chrono"] }
 async-stream = "0.3"
 axum = "0.8"
