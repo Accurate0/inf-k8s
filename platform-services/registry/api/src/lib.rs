@@ -861,6 +861,7 @@ mod tests {
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
             listen: vec![4280],
             registry: vec!["manifests".to_owned()],
+            pull: vec!["charts".to_owned()],
         };
         assert!(ok.validate().is_ok());
         for bad in [
@@ -894,6 +895,10 @@ mod tests {
             },
             Permissions {
                 registry: vec!["Manifests/x".to_owned()],
+                ..Default::default()
+            },
+            Permissions {
+                pull: vec!["Charts".to_owned()],
                 ..Default::default()
             },
         ] {
