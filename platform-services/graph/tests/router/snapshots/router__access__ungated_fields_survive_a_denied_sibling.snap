@@ -1,0 +1,14 @@
+---
+source: tests/router/access.rs
+expression: response.snapshot()
+---
+body:
+  data:
+    secret: ~
+    whoami: tester
+  errors:
+    - extensions:
+        code: FORBIDDEN
+        service: gated
+      message: Unexpected error
+status: 200

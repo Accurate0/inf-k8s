@@ -1,0 +1,27 @@
+---
+source: tests/router/subscriptions.rs
+expression: "socket.messages(\"1\").await"
+---
+- id: "1"
+  payload:
+    data:
+      ticks:
+        n: 1
+        user: tester
+  type: next
+- id: "1"
+  payload:
+    data:
+      ticks:
+        n: 2
+        user: tester
+  type: next
+- id: "1"
+  payload:
+    data:
+      ticks:
+        n: 3
+        user: tester
+  type: next
+- id: "1"
+  type: complete

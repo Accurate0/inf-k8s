@@ -1,0 +1,10 @@
+---
+source: tests/router/subscriptions.rs
+expression: "socket.messages(\"1\").await"
+---
+- id: "1"
+  payload:
+    - extensions:
+        code: SUBGRAPH_WEBSOCKET_HANDSHAKE_FAILURE
+      message: Internal server error
+  type: error

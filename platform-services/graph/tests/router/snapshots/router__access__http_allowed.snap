@@ -1,0 +1,8 @@
+---
+source: tests/router/access.rs
+expression: allowed.snapshot()
+---
+body:
+  data:
+    secret: hunter2
+status: 200

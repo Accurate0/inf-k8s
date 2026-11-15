@@ -1,0 +1,11 @@
+---
+source: tests/router/node.rs
+expression: response.snapshot()
+---
+body:
+  data:
+    node:
+      __typename: OpenThing
+      id: "open:thing:42"
+      name: thing 42
+status: 200

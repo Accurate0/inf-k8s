@@ -1,0 +1,8 @@
+---
+source: tests/router/http.rs
+expression: response.snapshot()
+---
+body:
+  data:
+    whoami: tester
+status: 200

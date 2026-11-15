@@ -1,0 +1,15 @@
+---
+source: tests/router/http.rs
+expression: "events.lines().collect::<Vec<_>>()"
+---
+- "event: next"
+- "data: {\"data\":{\"ticks\":{\"n\":1,\"user\":\"tester\"}}}"
+- ""
+- "event: next"
+- "data: {\"data\":{\"ticks\":{\"n\":2,\"user\":\"tester\"}}}"
+- ""
+- "event: next"
+- "data: {\"data\":{\"ticks\":{\"n\":3,\"user\":\"tester\"}}}"
+- ""
+- "event: complete"
+- ""

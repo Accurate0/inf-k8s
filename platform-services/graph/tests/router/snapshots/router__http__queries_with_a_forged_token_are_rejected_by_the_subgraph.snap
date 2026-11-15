@@ -1,0 +1,18 @@
+---
+source: tests/router/http.rs
+expression: response.snapshot()
+---
+body:
+  data: ~
+  errors:
+    - extensions:
+        code: UNAUTHENTICATED
+        service: open
+      message: Unexpected error
+    - extensions:
+        code: SUBREQUEST_HTTP_ERROR
+        http:
+          status: 401
+        service: open
+      message: Unexpected error
+status: 200

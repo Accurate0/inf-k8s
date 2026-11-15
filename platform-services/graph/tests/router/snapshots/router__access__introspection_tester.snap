@@ -1,0 +1,13 @@
+---
+source: tests/router/access.rs
+expression: root_fields(&tester)
+---
+query:
+  - whoami
+  - fail
+  - secret
+  - node
+subscription:
+  - ticks
+  - failingTicks
+  - secretTicks

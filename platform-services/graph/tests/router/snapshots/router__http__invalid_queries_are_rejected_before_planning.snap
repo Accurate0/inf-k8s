@@ -1,0 +1,13 @@
+---
+source: tests/router/http.rs
+expression: response.snapshot()
+---
+body:
+  errors:
+    - extensions:
+        code: FieldsOnCorrectType
+      locations:
+        - column: 10
+          line: 1
+      message: "Cannot query field \"nope\" on type \"Query\"."
+status: 200

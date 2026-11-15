@@ -1,0 +1,13 @@
+---
+source: tests/router/access.rs
+expression: "socket.messages(\"1\").await"
+---
+- id: "1"
+  payload:
+    errors:
+      - extensions:
+          code: FORBIDDEN
+        message: not allowed to query the gated subgraph
+  type: next
+- id: "1"
+  type: complete

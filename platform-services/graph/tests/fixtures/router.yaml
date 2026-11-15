@@ -1,0 +1,51 @@
+supergraph:
+  source: file
+  path: ./supergraph.graphql
+http:
+  host: 127.0.0.1
+  graphql_endpoint: /v1/graphql
+traffic_shaping:
+  router:
+    request_timeout: 2s
+    max_long_lived_clients: 2
+websocket:
+  enabled: true
+  headers:
+    source: connection
+subscriptions:
+  enabled: true
+  websocket:
+    subgraphs:
+      open:
+        path: /v1/graphql/ws
+      gated:
+        path: /v1/graphql/ws
+headers:
+  all:
+    request:
+      - propagate:
+          named: [Authorization]
+plugins:
+  node:
+    enabled: true
+    config:
+      subgraph: node
+      types: [OpenThing]
+  access:
+    enabled: true
+    config:
+      subgraphs:
+        gated:
+          issuers: ["{issuer}"]
+          groups: [graph_testers]
+jwt:
+  enabled: true
+  require_authentication: false
+  jwks_providers:
+    - source: remote
+      url: "{issuer}/public_key.jwk"
+      prefetch: true
+      refresh_on_unknown_kid: 30s
+  issuers: ["{issuer}"]
+laboratory:
+  enabled: false

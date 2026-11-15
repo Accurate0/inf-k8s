@@ -1,0 +1,20 @@
+---
+source: tests/router/access.rs
+expression: "socket.messages(\"1\").await"
+---
+- id: "1"
+  payload:
+    data:
+      secretTicks:
+        n: 1
+        user: tester
+  type: next
+- id: "1"
+  payload:
+    data:
+      secretTicks:
+        n: 2
+        user: tester
+  type: next
+- id: "1"
+  type: complete

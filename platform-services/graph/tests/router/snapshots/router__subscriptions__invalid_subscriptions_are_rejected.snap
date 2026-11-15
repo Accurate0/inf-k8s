@@ -1,0 +1,10 @@
+---
+source: tests/router/subscriptions.rs
+expression: "socket.messages(\"1\").await"
+---
+- id: "1"
+  payload:
+    - extensions:
+        code: GRAPHQL_VALIDATION_FAILED
+      message: Validation errors
+  type: error

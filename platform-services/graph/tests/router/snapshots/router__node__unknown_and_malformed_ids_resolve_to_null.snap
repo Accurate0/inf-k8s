@@ -1,0 +1,9 @@
+---
+source: tests/router/node.rs
+expression: response.snapshot()
+---
+body:
+  data:
+    malformed: ~
+    unknown: ~
+status: 200

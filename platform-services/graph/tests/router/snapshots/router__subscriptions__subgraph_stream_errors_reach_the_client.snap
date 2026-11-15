@@ -1,0 +1,31 @@
+---
+source: tests/router/subscriptions.rs
+expression: "socket.messages(\"1\").await"
+---
+- id: "1"
+  payload:
+    data:
+      failingTicks:
+        n: 1
+        user: tester
+  type: next
+- id: "1"
+  payload:
+    data:
+      failingTicks:
+        n: 2
+        user: tester
+  type: next
+- id: "1"
+  payload:
+    data: ~
+    errors:
+      - locations:
+          - column: 25
+            line: 1
+        message: stream exploded
+        path:
+          - failingTicks
+  type: next
+- id: "1"
+  type: complete

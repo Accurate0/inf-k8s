@@ -1,0 +1,63 @@
+schema
+  @link(url: "https://specs.apollo.dev/link/v1.0")
+  @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
+{
+  query: Query
+  subscription: Subscription
+}
+
+directive @join__enumValue(graph: join__Graph!) repeatable on ENUM_VALUE
+
+directive @join__field(graph: join__Graph, requires: join__FieldSet, provides: join__FieldSet, type: String, external: Boolean, override: String, usedOverridden: Boolean) repeatable on FIELD_DEFINITION | INPUT_FIELD_DEFINITION
+
+directive @join__graph(name: String!, url: String!) on ENUM_VALUE
+
+directive @join__implements(graph: join__Graph!, interface: String!) repeatable on OBJECT | INTERFACE
+
+directive @join__type(graph: join__Graph!, key: join__FieldSet, extension: Boolean! = false, resolvable: Boolean! = true, isInterfaceObject: Boolean! = false) repeatable on OBJECT | INTERFACE | UNION | ENUM | INPUT_OBJECT | SCALAR
+
+directive @join__unionMember(graph: join__Graph!, member: String!) repeatable on UNION
+
+directive @link(url: String, as: String, for: link__Purpose, import: [link__Import]) repeatable on SCHEMA
+
+scalar join__FieldSet
+
+scalar link__Import
+
+enum link__Purpose {
+  SECURITY
+  EXECUTION
+}
+
+enum join__Graph {
+  GATED @join__graph(name: "gated", url: "{subgraph}/v1/graphql")
+  NODE @join__graph(name: "node", url: "http://node-plugin.invalid/graphql")
+  OPEN @join__graph(name: "open", url: "{subgraph}/v1/graphql")
+}
+
+interface Node @join__type(graph: NODE) {
+  id: ID!
+}
+
+type Query @join__type(graph: GATED) @join__type(graph: NODE) @join__type(graph: OPEN) {
+  whoami: String! @join__field(graph: OPEN)
+  fail: String @join__field(graph: OPEN)
+  secret: String @join__field(graph: GATED)
+  node(id: ID!): Node @join__field(graph: NODE)
+}
+
+type Subscription @join__type(graph: GATED) @join__type(graph: OPEN) {
+  ticks(count: Int!, everyMs: Int!): Tick! @join__field(graph: OPEN)
+  failingTicks(after: Int!): Tick! @join__field(graph: OPEN)
+  secretTicks(count: Int!, everyMs: Int!): Tick! @join__field(graph: GATED)
+}
+
+type Tick @join__type(graph: GATED) @join__type(graph: OPEN) {
+  n: Int!
+  user: String!
+}
+
+type OpenThing implements Node @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: OPEN, key: "id") @join__implements(graph: NODE, interface: "Node") {
+  id: ID!
+  name: String! @join__field(graph: OPEN)
+}

@@ -1,0 +1,19 @@
+---
+source: tests/router/http.rs
+expression: response.snapshot()
+---
+body:
+  data:
+    fail: ~
+    whoami: tester
+  errors:
+    - extensions:
+        code: DOWNSTREAM_SERVICE_ERROR
+        service: open
+      locations:
+        - column: 9
+          line: 1
+      message: Unexpected error
+      path:
+        - fail
+status: 200
