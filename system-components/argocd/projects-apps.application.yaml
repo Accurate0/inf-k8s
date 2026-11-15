@@ -14,11 +14,9 @@ spec:
       selfHeal: true
   project: bootstrap
   source:
-    repoURL: https://github.com/Accurate0/inf-k8s.git
+    repoURL: oci://registry.anurag.sh/manifests/apps
     path: projects
-    directory:
-      recurse: true
-      include: "*/application.yaml"
+    targetRevision: main
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

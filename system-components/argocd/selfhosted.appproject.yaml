@@ -7,6 +7,7 @@ metadata:
 spec:
   description: Self-hosted applications
   sourceRepos:
+    - oci://registry.anurag.sh/manifests/*
     - https://github.com/Accurate0/inf-k8s.git
     - https://git.anurag.sh/anurag/k8s.git
     - oci://code.forgejo.org/forgejo-helm/forgejo
