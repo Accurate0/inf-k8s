@@ -1,5 +1,5 @@
-import { capture, fs, pushDir } from '@ortzi/host';
-import { helmTemplates, type Kubernetes, type Plan } from './plan';
+import { capture, fs, pullConfig, pushDir } from '@ortzi/host';
+import { CHART_REGISTRY, helmTemplates, type Kubernetes, type Plan } from './plan';
 
 const ARTIFACT_ROOT = '.cache/ortzi-app/artifacts';
 
@@ -16,11 +16,24 @@ function freshDir(dir: string) {
   fs.mkdir(dir);
 }
 
+let helmConfig: string | undefined;
+
 export function hydrate(plan: Plan, kubernetes: Kubernetes, dir = `${ARTIFACT_ROOT}/${plan.name}`) {
   freshDir(dir);
 
-  for (const { name, args, values } of helmTemplates(plan, kubernetes)) {
-    fs.write(`${dir}/${name}.yaml`, capture('helm', args, { stdin: values }));
+  const templates = helmTemplates(plan, kubernetes);
+  if (templates.some(({ args }) => args.some((arg) => arg.startsWith(CHART_REGISTRY)))) {
+    helmConfig ??= pullConfig(['charts']);
+  }
+
+  for (const { name, args, values } of templates) {
+    fs.write(
+      `${dir}/${name}.yaml`,
+      capture('helm', args, {
+        stdin: values,
+        ...(helmConfig ? { env: { HELM_REGISTRY_CONFIG: helmConfig } } : {}),
+      }),
+    );
   }
 
   for (const source of plan.sources) {
