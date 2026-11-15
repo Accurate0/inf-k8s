@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T04:52:55.181Z
+# generated at 2026-11-15T05:09:24.561Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,10 +16,64 @@ spec:
       selfHeal: true
   project: projects
   sources:
-    - repoURL: oci://registry.anurag.sh/manifests/ozbargain
-      name: application
-      path: .
-      targetRevision: main
+    - chart: k8s-workload
+      repoURL: oci://registry.anurag.sh/charts/k8s-workload
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          images:
+            registry.anurag.sh/containers/ozb-discord-bot: 4908502ba3d5979349e1cc6a418a6758acb2504c
+            registry.anurag.sh/containers/ozb-finder: 4908502ba3d5979349e1cc6a418a6758acb2504c
+            registry.anurag.sh/containers/ozb-trigger: 4908502ba3d5979349e1cc6a418a6758acb2504c
+          namespace: ozbargain
+          workloads:
+            - name: ozb-discord-bot
+              image: registry.anurag.sh/containers/ozb-discord-bot
+              resources:
+                requests:
+                  memory: 16Mi
+              envFrom:
+                - secretRef:
+                    name: ozb-managed-secrets
+            - name: ozb-finder
+              image: registry.anurag.sh/containers/ozb-finder
+              resources:
+                requests:
+                  memory: 16Mi
+              envFrom:
+                - secretRef:
+                    name: ozb-managed-secrets
+            - name: ozb-trigger
+              image: registry.anurag.sh/containers/ozb-trigger
+              resources:
+                requests:
+                  memory: 16Mi
+              envFrom:
+                - secretRef:
+                    name: ozb-managed-secrets
+    - chart: k8s-network
+      repoURL: oci://registry.anurag.sh/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: ozbargain
+          ingress: []
+    - chart: k8s-secrets
+      repoURL: oci://registry.anurag.sh/charts/k8s-secrets
+      targetRevision: 0.7.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: ozbargain
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: ozbargain
+              inf-k8s.net/repository: https://github.com/Accurate0/ozb
+          secrets:
+            - name: ozbargain
+              managedSecrets:
+                - secretName: ozb-managed-secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: ozbargain
