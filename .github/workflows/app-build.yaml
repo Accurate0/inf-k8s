@@ -115,7 +115,7 @@ jobs:
     if: >-
       inputs.deploy && !cancelled() && needs.build.result == 'success'
       && (needs.test.result == 'success' || needs.test.result == 'skipped')
-    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@de7af992f2080a64a9ff4f6befbbc0fd509a7ef4 # main
+    uses: Accurate0/workflows/.github/workflows/deploy-app-k8s-v2.yaml@b8049c1451ccc48245e2fac587e4a1f64b5e8f0c # main
     with:
       service-name: ${{ inputs.service }}
       images: ${{ inputs.image }}
