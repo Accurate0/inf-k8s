@@ -132,6 +132,38 @@ resource "vault_kv_secret_v2" "harbor-argocd" {
   data_json_wo_version = 1
 }
 
+ephemeral "random_password" "harbor-janitor-bot" {
+  length  = 32
+  special = false
+}
+
+resource "harbor_robot_account" "janitor-bot" {
+  name              = "janitor-bot"
+  level             = "system"
+  secret_wo         = ephemeral.random_password.harbor-janitor-bot.result
+  secret_wo_version = 1
+
+  permissions {
+    kind      = "project"
+    namespace = harbor_project.own["manifests"].name
+
+    access {
+      action   = "pull"
+      resource = "repository"
+    }
+  }
+}
+
+resource "vault_kv_secret_v2" "harbor-janitor-bot" {
+  mount = vault_mount.kv.path
+  name  = "janitor-bot/harbor"
+  data_json_wo = jsonencode({
+    USERNAME = harbor_robot_account.janitor-bot.full_name
+    PASSWORD = ephemeral.random_password.harbor-janitor-bot.result
+  })
+  data_json_wo_version = 1
+}
+
 resource "harbor_project" "ortzi" {
   for_each = toset(["ortzi-packages", "ortzi-catalog"])
 
