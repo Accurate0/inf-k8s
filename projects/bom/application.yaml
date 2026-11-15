@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T04:52:55.175Z
+# generated at 2026-11-15T05:09:24.406Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,10 +16,166 @@ spec:
       selfHeal: true
   project: projects
   sources:
-    - repoURL: oci://registry.anurag.sh/manifests/bom
-      name: application
-      path: .
-      targetRevision: main
+    - chart: k8s-workload
+      repoURL: oci://registry.anurag.sh/charts/k8s-workload
+      targetRevision: 0.6.0
+      helm:
+        valuesObject:
+          images:
+            registry.anurag.sh/containers/bom: 10af352a28e573cd9a71601e5f0d7c5915081acc
+          namespace: bom
+          namespaceLabels:
+            gateway.inf-k8s.net/anurag-sh: "true"
+          workloads:
+            - name: bom
+              image: registry.anurag.sh/containers/bom
+              ports:
+                - name: api
+                  containerPort: 8000
+              resources:
+                requests:
+                  cpu: 30m
+                  memory: 56Mi
+                limits:
+                  memory: 512Mi
+              env:
+                - name: BUCKET_NAME
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_BUCKET
+                - name: BUCKET_ENDPOINT
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_ENDPOINT
+                - name: BUCKET_REGION
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_REGION
+                - name: BUCKET_ACCESS_KEY_ID
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_ACCESS_KEY_ID
+                - name: BUCKET_ACCESS_SECRET_KEY
+                  valueFrom:
+                    secretKeyRef:
+                      name: images-bucket-secrets
+                      key: S3_SECRET_ACCESS_KEY
+                - name: PUBLIC_URL
+                  value: https://bom.anurag.sh
+                - name: OTEL_TRACING_URL
+                  value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+                - name: OIDC_PROVIDERS
+                  value: https://idm.anurag.sh/oauth2/openid/graph=graph
+                - name: OIDC_GROUPS
+                  value: bom_users
+              envFrom:
+                - secretRef:
+                    name: bom-managed-secrets
+                - secretRef:
+                    name: bom-database-secret
+              service:
+                name: bom-api
+                ports:
+                  - name: api
+                    port: 8000
+                    targetPort: 8000
+                    protocol: TCP
+              readinessProbe:
+                httpGet:
+                  path: /health
+                  port: 8000
+                periodSeconds: 10
+              livenessProbe:
+                httpGet:
+                  path: /health
+                  port: 8000
+                initialDelaySeconds: 3
+                periodSeconds: 30
+    - chart: k8s-network
+      repoURL: oci://registry.anurag.sh/charts/k8s-network
+      targetRevision: 0.2.0
+      helm:
+        valuesObject:
+          namespace: bom
+          ingress:
+            - envoy-gateway-system
+            - graph
+    - chart: k8s-http-routes
+      repoURL: oci://registry.anurag.sh/charts/k8s-http-routes
+      targetRevision: 2.6.0
+      helm:
+        valuesObject:
+          routes:
+            - name: images
+              gateway:
+                name: public-gateway
+                namespace: envoy-gateway-system
+              annotations:
+                external-dns.kubernetes.io/managed: "true"
+                external-dns.kubernetes.io/cloudflare-proxied: "true"
+              hostnames:
+                - bom.anurag.sh
+              ratelimit:
+                rules:
+                  - clientSelectors:
+                      - headers:
+                          - name: x-real-ip
+                            invert: false
+                            type: Distinct
+                    limit:
+                      requests: 20
+                      unit: Second
+              rules:
+                - backendRefs:
+                    - group: ""
+                      kind: Service
+                      name: bom-api
+                      port: 8000
+                      weight: 1
+                  matches:
+                    - path:
+                        type: PathPrefix
+                        value: /radar/
+                    - path:
+                        type: PathPrefix
+                        value: /satellite/
+    - chart: k8s-postgres
+      repoURL: oci://registry.anurag.sh/charts/k8s-postgres
+      targetRevision: 1.3.0
+      helm:
+        valuesObject:
+          databases:
+            - name: bom
+              namespace: bom
+              databaseName: bom
+              secretName: bom-database-secret
+              host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+              annotations:
+                inf-k8s.net/app: bom
+                inf-k8s.net/repository: https://github.com/Accurate0/bom
+    - chart: k8s-secrets
+      repoURL: oci://registry.anurag.sh/charts/k8s-secrets
+      targetRevision: 0.7.0
+      helm:
+        valuesObject:
+          defaults:
+            namespace: bom
+            provider: openbao
+            resyncInterval: 900
+            annotations:
+              inf-k8s.net/app: bom
+              inf-k8s.net/repository: https://github.com/Accurate0/bom
+          secrets:
+            - name: bom
+              managedSecrets:
+                - secretName: bom-managed-secrets
+            - name: resource-images
+              managedSecrets:
+                - secretName: images-bucket-secrets
   destination:
     server: https://kubernetes.default.svc
     namespace: bom
