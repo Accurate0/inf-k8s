@@ -109,3 +109,6 @@ sources:
     repo: https://firefly-iii.github.io/kubernetes/
     version: 1.6.1
     values: importer.values.yaml
+artifact:
+  repo: oci://registry.anurag.sh/manifests/firefly
+  tag: main

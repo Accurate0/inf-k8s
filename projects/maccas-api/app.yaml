@@ -155,3 +155,6 @@ namespace:
   labels:
     gateway.inf-k8s.net/maccas-one: "true"
     internal-gateway-access: "true"
+artifact:
+  repo: oci://registry.anurag.sh/manifests/maccas-api
+  tag: main

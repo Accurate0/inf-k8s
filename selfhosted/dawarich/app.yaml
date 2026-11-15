@@ -160,3 +160,6 @@ workloads:
                     operator: In
                     values:
                       - k8s-optiplex-4
+artifact:
+  repo: oci://registry.anurag.sh/manifests/dawarich
+  tag: main

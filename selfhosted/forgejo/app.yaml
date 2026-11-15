@@ -130,3 +130,6 @@ sources:
     releaseName: forgejo-runner
   - type: manifests
     path: .
+artifact:
+  repo: oci://registry.anurag.sh/manifests/forgejo
+  tag: main

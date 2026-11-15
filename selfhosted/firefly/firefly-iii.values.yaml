@@ -62,3 +62,5 @@ resources:
     memory: 256Mi
   limits:
     memory: 1Gi
+secrets:
+  appKey: overridden-by-managed-secrets-ok

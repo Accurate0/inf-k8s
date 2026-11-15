@@ -18,3 +18,6 @@ workloads:
       - secret: tldr-bot
 network:
   ingress: []
+artifact:
+  repo: oci://registry.anurag.sh/manifests/tldr-bot
+  tag: main

@@ -34,3 +34,6 @@ workloads:
 build:
   image: registry.anurag.sh/containers/firefly-up-sync
   ci: forgejo
+artifact:
+  repo: oci://registry.anurag.sh/manifests/firefly-up-sync
+  tag: main

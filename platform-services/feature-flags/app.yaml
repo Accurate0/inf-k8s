@@ -94,3 +94,6 @@ build:
       - protobuf-compiler
       - libprotobuf-dev
     setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+artifact:
+  repo: oci://registry.anurag.sh/manifests/feature-flags
+  tag: main

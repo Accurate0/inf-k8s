@@ -52,3 +52,6 @@ network:
 namespace:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
+artifact:
+  repo: oci://registry.anurag.sh/manifests/bom
+  tag: main

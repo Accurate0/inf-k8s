@@ -21,3 +21,6 @@ workloads:
       - secret: ozbargain
 network:
   ingress: []
+artifact:
+  repo: oci://registry.anurag.sh/manifests/ozbargain
+  tag: main

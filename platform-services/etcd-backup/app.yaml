@@ -19,3 +19,6 @@ resources:
         etcd-s3-region: '{{ .S3_REGION }}'
         etcd-s3-access-key: '{{ .S3_ACCESS_KEY_ID }}'
         etcd-s3-secret-key: '{{ .S3_SECRET_ACCESS_KEY }}'
+artifact:
+  repo: oci://registry.anurag.sh/manifests/etcd-backup
+  tag: main

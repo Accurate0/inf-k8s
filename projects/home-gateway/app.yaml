@@ -173,3 +173,6 @@ workloads:
                     operator: In
                     values:
                       - perth
+artifact:
+  repo: oci://registry.anurag.sh/manifests/home-gateway
+  tag: main

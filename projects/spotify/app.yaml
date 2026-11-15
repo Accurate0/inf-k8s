@@ -113,3 +113,6 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - database: spotify
+artifact:
+  repo: oci://registry.anurag.sh/manifests/spotify
+  tag: main

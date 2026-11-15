@@ -140,3 +140,6 @@ build:
 sources:
   - type: manifests
     path: .
+artifact:
+  repo: oci://registry.anurag.sh/manifests/janitor-bot
+  tag: main
