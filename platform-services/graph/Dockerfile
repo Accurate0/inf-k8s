@@ -5,14 +5,18 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config nodejs npm
 
-WORKDIR /app/${BINARY_NAME}-build
+WORKDIR /app
 
-COPY . .
+COPY crates/subgraph ./crates/subgraph
+COPY platform-services/graph ./platform-services/graph
+
 RUN \
-    --mount=type=cache,target=/app/${BINARY_NAME}-build/target/ \
+    --mount=type=cache,target=/app/platform-services/graph/target/ \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
-    cargo build --locked --release --bin ${BINARY_NAME} && \
-    cp ./target/release/${BINARY_NAME} /app
+    cargo build --locked --release \
+    --manifest-path platform-services/graph/Cargo.toml \
+    --bin ${BINARY_NAME} && \
+    cp platform-services/graph/target/release/${BINARY_NAME} /app/${BINARY_NAME}
 
 FROM debian:trixie-slim AS final
 ARG BINARY_NAME
