@@ -32,6 +32,18 @@ resource "forgejo_repository_action_secret" "home-gateway-ci" {
   data_wo_version = local.home_gateway_ci_secrets_version
 }
 
+ephemeral "vault_kv_secret_v2" "github-readonly" {
+  mount = vault_mount.kv.path
+  name  = "github/readonly"
+}
+
+resource "forgejo_repository_action_secret" "home-gateway-readonly-gh-token" {
+  repository_id   = data.forgejo_repository.home-gateway.id
+  name            = "READONLY_GH_TOKEN"
+  data_wo         = ephemeral.vault_kv_secret_v2.github-readonly.data["READONLY_GH_TOKEN"]
+  data_wo_version = 1
+}
+
 resource "google_project_service" "iam" {
   service            = "iam.googleapis.com"
   disable_on_destroy = false
