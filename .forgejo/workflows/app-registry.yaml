@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T03:33:31.860Z
+# generated at 2026-11-16T09:48:04.866Z
 name: app registry
 on:
   push:
@@ -56,7 +56,7 @@ jobs:
     runs-on: docker
     services:
       db:
-        image: postgres:17@sha256:846a7ddaa67a4b354ae1d21087b683901aa6113a4ed626d3787cfbf6c85e3e07
+        image: postgres:17@sha256:0d938e975177bef9f1f61f3f9dbcf2e0aa0a139568f66d3415ed8892eb97f6ac
         env:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
