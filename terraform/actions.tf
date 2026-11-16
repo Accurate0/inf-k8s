@@ -8,7 +8,6 @@ locals {
     "bom",
     "inf-k8s",
     "solar-panels",
-    "home-gateway",
     "spotify",
   ])
 

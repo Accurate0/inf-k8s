@@ -64,6 +64,11 @@ terraform {
       source  = "goharbor/harbor"
       version = "3.12.5"
     }
+
+    forgejo = {
+      source  = "svalabs/forgejo"
+      version = "1.7.0"
+    }
   }
 
   backend "s3" {
@@ -128,6 +133,17 @@ variable "TAILSCALE_CLIENT_SECRET" {
   type      = string
   nullable  = false
   sensitive = true
+}
+
+variable "FORGEJO_API_TOKEN" {
+  type      = string
+  nullable  = false
+  sensitive = true
+}
+
+provider "forgejo" {
+  host      = "https://git.anurag.sh"
+  api_token = var.FORGEJO_API_TOKEN
 }
 
 provider "tailscale" {

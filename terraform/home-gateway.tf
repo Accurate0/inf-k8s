@@ -1,13 +1,35 @@
-resource "github_actions_secret" "aws-key-id" {
-  repository  = "home-gateway"
-  secret_name = "AWS_ACCESS_KEY_ID"
-  value       = module.apps.s3_access_keys["home-gateway-storage"].id
+data "forgejo_repository" "home-gateway" {
+  owner = "anurag"
+  name  = "home-gateway"
 }
 
-resource "github_actions_secret" "aws-key-secret" {
-  repository  = "home-gateway"
-  secret_name = "AWS_SECRET_ACCESS_KEY"
-  value       = module.apps.s3_access_keys["home-gateway-storage"].secret
+ephemeral "vault_kv_secret_v2" "home-gateway-ci" {
+  mount = vault_mount.kv.path
+  name  = "home-gateway/ci"
+}
+
+locals {
+  home_gateway_ci_secrets_version = 1
+}
+
+resource "forgejo_repository_action_secret" "home-gateway-aws-key-id" {
+  repository_id = data.forgejo_repository.home-gateway.id
+  name          = "AWS_ACCESS_KEY_ID"
+  data          = module.apps.s3_access_keys["home-gateway-storage"].id
+}
+
+resource "forgejo_repository_action_secret" "home-gateway-aws-key-secret" {
+  repository_id = data.forgejo_repository.home-gateway.id
+  name          = "AWS_SECRET_ACCESS_KEY"
+  data          = module.apps.s3_access_keys["home-gateway-storage"].secret
+}
+
+resource "forgejo_repository_action_secret" "home-gateway-ci" {
+  for_each        = toset(["HOME_GATEWAY_API_KEY", "WIFI_SSID", "WIFI_PASSWORD"])
+  repository_id   = data.forgejo_repository.home-gateway.id
+  name            = each.value
+  data_wo         = ephemeral.vault_kv_secret_v2.home-gateway-ci.data[each.value]
+  data_wo_version = local.home_gateway_ci_secrets_version
 }
 
 resource "google_project_service" "iam" {

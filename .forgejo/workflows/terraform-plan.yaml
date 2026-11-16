@@ -32,6 +32,7 @@ jobs:
       TF_VAR_TAILSCALE_CLIENT_ID: ${{ secrets.TF_VAR_TAILSCALE_CLIENT_ID }}
       TF_VAR_TAILSCALE_CLIENT_SECRET: ${{ secrets.TF_VAR_TAILSCALE_CLIENT_SECRET }}
       TF_VAR_tf_github_token: ${{ secrets.TF_GITHUB_TOKEN }}
+      TF_VAR_FORGEJO_API_TOKEN: ${{ secrets.TF_VAR_FORGEJO_API_TOKEN }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
 
