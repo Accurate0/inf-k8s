@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T04:52:55.222Z
+# generated at 2026-11-17T14:18:35.468Z
 name: app janitor-bot
 on:
   push:
@@ -66,8 +66,10 @@ jobs:
           chmod +x /usr/local/bin/argocd
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: platform-services/janitor-bot/target
-          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-janitor-bot
+          path: |-
+            platform-services/janitor-bot/target
+            ~/.cargo/registry
+          key: ${{ runner.os }}-app-target-${{ hashFiles('platform-services/janitor-bot/Cargo.lock') }}-janitor-bot
       - run: cargo test
         working-directory: ${{ github.workspace }}/platform-services/janitor-bot
   deploy:
