@@ -169,7 +169,7 @@ export interface Route {
   protocol?: 'http' | 'tcp';
   listener?: string;
   hosts: string[];
-  gateway?: string;
+  gateway: string;
   auth: RouteAuth;
   backend?: { name: string; port: number };
   paths?: (string | { type: string; value: string })[];
@@ -195,7 +195,7 @@ export type OidcClient = { host: string; displayName?: string; secretName: strin
 
 export interface Build {
   image: string;
-  ci?: 'github' | 'forgejo';
+  ci: 'github' | 'forgejo';
   context?: string;
   dockerfile?: string;
   args?: Record<string, string>;

@@ -181,7 +181,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
       'kubernetes.io/metadata.name': appNamespace(app),
     };
     for (const [name, route] of Object.entries(appTcpRoutes(app))) {
-      const gateway = route.gateway ?? 'public-gateway';
+      const gateway = route.gateway;
       const listener = listeners.find((l) => l.gateway === gateway && l.name === route.listener);
       if (!listener?.labels || listener.protocol !== 'TCP') {
         throw new Error(
@@ -198,7 +198,7 @@ export function validateGatewayAccess(apps: App[], listeners: Listener[]) {
     }
 
     for (const [name, route] of Object.entries(appRoutes(app))) {
-      const gateway = route.gateway ?? 'public-gateway';
+      const gateway = route.gateway;
       for (const host of route.hosts) {
         const matching = listeners.filter(
           (l) => l.gateway === gateway && l.labels && listenerMatches(l.hostname, host),
@@ -357,6 +357,9 @@ export function validate(raw: unknown, where: string): App {
     }
     if (!route.backend === !route.rules) {
       fail(`routes.${name} needs either backend or rules`);
+    }
+    if (route.backend && !route.paths) {
+      fail(`routes.${name}.paths is required with backend`);
     }
     if (route.loadBalancer) {
       const { type, headers } = route.loadBalancer;

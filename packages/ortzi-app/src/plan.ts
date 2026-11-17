@@ -17,6 +17,7 @@ import {
   imageValuesPath,
   type ManifestsSource,
   refsFor,
+  type Route,
   type RouteDns,
   type RouteLoadBalancer,
   type RouteRatelimit,
@@ -209,7 +210,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
               tcpRoutes: tcpRoutes.map(([routeName, route]) => ({
                 name: routeName,
                 gateway: {
-                  name: route.gateway ?? 'public-gateway',
+                  name: route.gateway,
                   namespace: 'envoy-gateway-system',
                 },
                 listener: route.listener,
@@ -222,7 +223,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
             name: routeName,
             ...(route.auth?.mode === 'jwt' ? { jwtClients: route.auth.clients } : {}),
             gateway: {
-              name: route.gateway ?? 'public-gateway',
+              name: route.gateway,
               namespace: 'envoy-gateway-system',
             },
             ...(route.dns ? { annotations: dnsAnnotations(route.dns) } : {}),
@@ -232,7 +233,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
             rules: (
               route.rules ?? [
                 {
-                  paths: route.paths ?? ['/'],
+                  paths: route.paths as NonNullable<Route['paths']>,
                   backend: route.backend as { name: string; port: number },
                 },
               ]
@@ -257,8 +258,6 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
           clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
             name: client,
             namespace,
-            displayName: client,
-            preferShortUsername: true,
             ...spec,
             ...loginPolicy(client),
             secretName: spec.secretName,

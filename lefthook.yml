@@ -42,6 +42,10 @@ pre-commit:
       glob: "*.tf"
       run: tofu -chdir=terraform validate
 
+    app-fmt:
+      glob: "**/app.yaml"
+      run: ortzi app fmt --check {staged_files}
+
     render-apps:
       glob: "{**/app.yaml,platform/versions.yaml,platform/apps.yaml,platform/exports/**,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml},{selfhosted,system-components}/*/*.values.yaml}"
       run: |

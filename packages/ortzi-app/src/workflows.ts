@@ -2,7 +2,7 @@ import { stringify } from 'yaml';
 import type { App, Build, Target } from './types.ts';
 import { HEADER } from './generated.ts';
 
-export const ciProvider = (app: App) => (app.build as Build | undefined)?.ci ?? 'github';
+export const ciProvider = (app: App) => (app.build as Build).ci;
 
 export const workflowPath = (app: App) => `.${ciProvider(app)}/workflows/app-${app.name}.yaml`;
 
@@ -83,6 +83,8 @@ const pinned = (actions: ActionVersions, name: string) => {
 const rustup = (version: string) =>
   `curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${version} && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"`;
 
+const SETUP_ORTZI = 'https://git.anurag.sh/anurag/workflows/setup-ortzi@main';
+
 const ON_MAIN = "github.ref == 'refs/heads/main'";
 
 const deployScript = (
@@ -129,7 +131,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   const context = build.context ?? dir;
   const args = Object.entries(build.args ?? {}).map(([k, v]) => `${k}=${v}`);
   const test = build.test;
-  const [registry, project] = build.image.split('/');
+  const [, project] = build.image.split('/');
   const cacheRef = `type=registry,ref=${build.image}:buildcache`;
 
   const buildJob = {
@@ -145,7 +147,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
       {
         name: 'Install ortzi',
         if: ON_MAIN,
-        run: `curl -fsSL https://${registry}/install.sh | sh\necho "$HOME/.local/bin" >> "$GITHUB_PATH"`,
+        uses: SETUP_ORTZI,
       },
       {
         name: 'Log in to harbor',

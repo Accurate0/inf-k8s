@@ -119,11 +119,20 @@ test('route and metrics open the network to their callers', () => {
       {
         name: 'foo',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['foo.anurag.sh'],
         backend: { name: 'foo', port: 3000 },
         auth: { mode: 'jwt', clients: ['foo'] },
       },
-      { name: 'foo', type: 'oidc', host: 'foo.anurag.sh', secretName: 'kanidm-foo-oidc' },
+      {
+        name: 'foo',
+        type: 'oidc',
+        displayName: 'foo',
+        preferShortUsername: true,
+        host: 'foo.anurag.sh',
+        secretName: 'kanidm-foo-oidc',
+      },
       { name: 'scrape', type: 'metrics', workload: 'foo', port: 'http' },
     ],
     network: { ingress: ['ai-gateway', 'monitoring'] },
@@ -158,6 +167,8 @@ test('renders several workloads and routes to the named one', () => {
       {
         name: 'foo',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['foo.anurag.sh'],
         backend: { name: 'web', port: 8080 },
         auth: { mode: 'none', reason: 'public' },
@@ -249,6 +260,7 @@ test('routes to an explicit backend without a workload', () => {
       {
         name: 'foo-route',
         type: 'route',
+        gateway: 'public-gateway',
         hosts: ['a.sh', 'b.sh'],
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
@@ -257,14 +269,24 @@ test('routes to an explicit backend without a workload', () => {
       {
         name: 'foo-api',
         type: 'route',
+        paths: ['/'],
         hosts: ['c.sh'],
         gateway: 'internal-gateway',
         backend: { name: 'svc', port: 80 },
       },
-      { name: 'foo', type: 'oidc', host: 'c.sh', groups: { admins: ['x'] } },
+      {
+        name: 'foo',
+        type: 'oidc',
+        displayName: 'foo',
+        preferShortUsername: true,
+        host: 'c.sh',
+        groups: { admins: ['x'] },
+      },
       {
         name: 'foo-cli',
         type: 'oidc',
+        displayName: 'foo-cli',
+        preferShortUsername: true,
         host: 'a.sh',
         secretName: 'kanidm-foo-cli-oidc',
         public: true,
@@ -318,6 +340,8 @@ test('jwt routes pass their clients to the chart', () => {
       {
         name: 'api',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] },
@@ -325,12 +349,28 @@ test('jwt routes pass their clients to the chart', () => {
       {
         name: 'web',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth: { mode: 'app', reason: 'api keys' },
       },
-      { name: 'foo', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-oidc' },
-      { name: 'foo-cli', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-cli-oidc' },
+      {
+        name: 'foo',
+        type: 'oidc',
+        displayName: 'foo',
+        preferShortUsername: true,
+        host: 'a.sh',
+        secretName: 'kanidm-foo-oidc',
+      },
+      {
+        name: 'foo-cli',
+        type: 'oidc',
+        displayName: 'foo-cli',
+        preferShortUsername: true,
+        host: 'a.sh',
+        secretName: 'kanidm-foo-cli-oidc',
+      },
     ],
     network: { ingress: [] },
   });
@@ -344,8 +384,24 @@ test('rejects invalid route auth', () => {
   const app = (auth: unknown, client: Record<string, unknown> = {}) => ({
     name: 'foo',
     resources: [
-      { name: 'foo', type: 'route', hosts: ['a.sh'], backend: { name: 'svc', port: 80 }, auth },
-      { name: 'foo', type: 'oidc', host: 'a.sh', secretName: 'kanidm-foo-oidc', ...client },
+      {
+        name: 'foo',
+        type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
+        hosts: ['a.sh'],
+        backend: { name: 'svc', port: 80 },
+        auth,
+      },
+      {
+        name: 'foo',
+        type: 'oidc',
+        displayName: 'foo',
+        preferShortUsername: true,
+        host: 'a.sh',
+        secretName: 'kanidm-foo-oidc',
+        ...client,
+      },
     ],
     network: { ingress: [] },
   });
@@ -436,6 +492,7 @@ test('generates a workflow from the build block', () => {
   const app: App = {
     name: 'foo',
     build: {
+      ci: 'github',
       image: 'ghcr.io/accurate0/foo',
       context: '.',
       args: { BINARY_NAME: 'foo' },
@@ -470,6 +527,7 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   const app: App = {
     name: 'foo',
     build: {
+      ci: 'forgejo',
       image: 'registry.anurag.sh/containers/foo',
       ci: 'forgejo',
       test: { run: 'cargo test', db: { image: 'postgres:17', databaseName: 'foo' } },
@@ -497,7 +555,10 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
     workflow.jobs.build.steps.find((step: { name?: string }) => step.name === name);
 
   assert.equal(workflow['enable-openid-connect'], true);
-  assert.match(step('Install ortzi').run, /https:\/\/registry\.anurag\.sh\/install\.sh/);
+  assert.equal(
+    step('Install ortzi').uses,
+    'https://git.anurag.sh/anurag/workflows/setup-ortzi@main',
+  );
   assert.equal(step('Log in to harbor').run, 'ortzi registry login containers:push');
   assert.equal(
     step('Sign image').run,
@@ -527,6 +588,7 @@ test('installs the rust toolchain and caches by the app lockfile', () => {
     name: 'foo',
     workloads: [{ name: 'foo', image: 'registry.anurag.sh/containers/foo' }],
     build: {
+      ci: 'forgejo',
       image: 'registry.anurag.sh/containers/foo',
       ci: 'forgejo',
       test: { run: 'cargo test', toolchain: { rust: '1.99.1' }, setup: 'echo extra' },
@@ -552,7 +614,10 @@ test('installs the rust toolchain and caches by the app lockfile', () => {
   assert.throws(
     () =>
       validate(
-        { ...app, build: { ...app.build, test: { run: 'x', toolchain: { rust: '1.99' } } } },
+        {
+          ...app,
+          build: { ci: 'forgejo', ...app.build, test: { run: 'x', toolchain: { rust: '1.99' } } },
+        },
         'x',
       ),
     /toolchain\.rust does not match pattern/,
@@ -661,6 +726,8 @@ test('rejects invalid apps', () => {
             {
               name: 'foo',
               type: 'route',
+              gateway: 'public-gateway',
+              paths: ['/'],
               hosts: ['foo.anurag.sh'],
               backend: { name: 'foo', port: 1 },
             },
@@ -1469,7 +1536,16 @@ test('rejects bad route and metrics resources', () => {
       validate(
         {
           ...base,
-          resources: [{ name: 'r', type: 'route', hosts: ['a'], backend: { name: 'x', port: 1 } }],
+          resources: [
+            {
+              name: 'r',
+              type: 'route',
+              gateway: 'public-gateway',
+              paths: ['/'],
+              hosts: ['a'],
+              backend: { name: 'x', port: 1 },
+            },
+          ],
         },
         'test',
       ),
@@ -1551,7 +1627,16 @@ test('an oidc client secret can be referenced by resource name', () => {
   const app = validate(
     {
       ...base,
-      resources: [{ name: 'foo', type: 'oidc', host: 'a.sh', secretName: 'foo-oidc' }],
+      resources: [
+        {
+          name: 'foo',
+          type: 'oidc',
+          displayName: 'foo',
+          preferShortUsername: true,
+          host: 'a.sh',
+          secretName: 'foo-oidc',
+        },
+      ],
       workloads: [
         {
           name: 'foo',
@@ -1581,7 +1666,16 @@ test('rejects resources without a secret name and unknown references', () => {
     );
   }
   assert.throws(
-    () => validate({ ...base, resources: [{ name: 'a', type: 'oidc', host: 'a.sh' }] }, 'test'),
+    () =>
+      validate(
+        {
+          ...base,
+          resources: [
+            { name: 'a', type: 'oidc', displayName: 'a', preferShortUsername: true, host: 'a.sh' },
+          ],
+        },
+        'test',
+      ),
     /resources/,
   );
   assert.throws(
@@ -1653,6 +1747,8 @@ test('rejects a route backend that is not a service in the app', () => {
       {
         name: 'r',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['a.sh'],
         backend,
         auth: { mode: 'none', reason: 'public' },
@@ -1715,7 +1811,10 @@ test('rejects a resource no workload uses', () => {
 });
 
 test('rejects a build image no workload runs', () => {
-  const build = (image: string) => ({ build: { image }, workloads: [{ name: 'foo', image: 'i' }] });
+  const build = (image: string) => ({
+    build: { ci: 'forgejo', image },
+    workloads: [{ name: 'foo', image: 'i' }],
+  });
   checkRefs(build('i'));
 
   assert.throws(() => checkRefs(build('j')), /build.image j/);
@@ -1731,7 +1830,13 @@ test('rejects a route whose namespace lacks the listener label', () => {
     ...base,
     namespace: { labels },
     resources: [
-      { name: 'r', type: 'route', hosts: [host], auth: { mode: 'none', reason: 'public' } },
+      {
+        name: 'r',
+        type: 'route',
+        gateway: 'public-gateway',
+        hosts: [host],
+        auth: { mode: 'none', reason: 'public' },
+      },
     ],
   });
   validateGatewayAccess([app('a.anurag.sh', { wild: 'true' })], listeners);
@@ -1761,7 +1866,17 @@ test('rejects unknown oidc fields and envFrom keys', () => {
       validate(
         {
           ...base,
-          resources: [{ name: 'a', type: 'oidc', secretName: 's', host: 'a.sh', nope: 1 }],
+          resources: [
+            {
+              name: 'a',
+              type: 'oidc',
+              displayName: 'a',
+              preferShortUsername: true,
+              secretName: 's',
+              host: 'a.sh',
+              nope: 1,
+            },
+          ],
         },
         'test',
       ),
@@ -1871,11 +1986,20 @@ test('the login policy on a route reaches its oidc client', () => {
         {
           name: 'web',
           type: 'route',
+          gateway: 'public-gateway',
+          paths: ['/'],
           hosts: ['a.sh'],
           backend: { name: 's', port: 1 },
           auth: { mode: 'oidc', client: 'c', scopes: ['openid'], forwardAccessToken: true },
         },
-        { name: 'c', type: 'oidc', host: 'a.sh', secretName: 's' },
+        {
+          name: 'c',
+          type: 'oidc',
+          displayName: 'c',
+          preferShortUsername: true,
+          host: 'a.sh',
+          secretName: 's',
+        },
       ],
     },
     'test',
@@ -1894,11 +2018,20 @@ test('the login policy on a route reaches its oidc client', () => {
         {
           name: 'web',
           type: 'route',
+          gateway: 'public-gateway',
+          paths: ['/'],
           hosts: ['a.sh'],
           backend: { name: 's', port: 1 },
           auth: { mode: 'oidc', client: 'c' },
         },
-        { name: 'c', type: 'oidc', host: 'a.sh', secretName: 's' },
+        {
+          name: 'c',
+          type: 'oidc',
+          displayName: 'c',
+          preferShortUsername: true,
+          host: 'a.sh',
+          secretName: 's',
+        },
       ],
     },
     'test',
@@ -1916,6 +2049,8 @@ test('the login policy on a route reaches its oidc client', () => {
             {
               name: 'a',
               type: 'route',
+              gateway: 'public-gateway',
+              paths: ['/'],
               hosts: ['a.sh'],
               backend: { name: 's', port: 1 },
               auth: { mode: 'oidc', client: 'c' },
@@ -1923,11 +2058,20 @@ test('the login policy on a route reaches its oidc client', () => {
             {
               name: 'b',
               type: 'route',
+              gateway: 'public-gateway',
+              paths: ['/'],
               hosts: ['a.sh'],
               backend: { name: 's', port: 1 },
               auth: { mode: 'oidc', client: 'c' },
             },
-            { name: 'c', type: 'oidc', host: 'a.sh', secretName: 's' },
+            {
+              name: 'c',
+              type: 'oidc',
+              displayName: 'c',
+              preferShortUsername: true,
+              host: 'a.sh',
+              secretName: 's',
+            },
           ],
         },
         'test',
@@ -2045,6 +2189,7 @@ test('rejects the removed shorthands', () => {
   const route = (extra: Record<string, unknown>) => ({
     name: 'r',
     type: 'route',
+    gateway: 'public-gateway',
     hosts: ['a.sh'],
     auth: { mode: 'none', reason: 'public' },
     ...extra,
@@ -2069,7 +2214,22 @@ test('rejects the removed shorthands', () => {
     /resources/,
   );
   assert.throws(
-    () => validate({ ...base, resources: [{ name: 'a', type: 'oidc', secretName: 's' }] }, 'test'),
+    () =>
+      validate(
+        {
+          ...base,
+          resources: [
+            {
+              name: 'a',
+              type: 'oidc',
+              displayName: 'a',
+              preferShortUsername: true,
+              secretName: 's',
+            },
+          ],
+        },
+        'test',
+      ),
     /resources/,
   );
   assert.throws(
@@ -2309,6 +2469,8 @@ test('consumers outside workloads relax only the checks they can satisfy', () =>
       {
         name: 'web',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['foo.example.com'],
         auth: { mode: 'app', reason: 'r' },
         backend: { name: 'chart-service', port: 80 },
@@ -2772,6 +2934,8 @@ test('route dns becomes external-dns annotations', () => {
   const route = (dns: unknown) => ({
     name: 'foo',
     type: 'route',
+    gateway: 'public-gateway',
+    paths: ['/'],
     auth: { mode: 'none', reason: 'public' },
     hosts: ['foo.example.com'],
     backend: { name: 'foo', port: 80 },
@@ -2805,6 +2969,8 @@ test('ratelimit renders a distinct header rule', () => {
         {
           name: 'foo',
           type: 'route',
+          gateway: 'public-gateway',
+          paths: ['/'],
           auth: { mode: 'none', reason: 'public' },
           hosts: ['foo.example.com'],
           backend: { name: 'foo', port: 80 },
@@ -2962,7 +3128,16 @@ test('only the argocd output adds retention annotations', () => {
     {
       name: 'foo',
       network: { ingress: [] },
-      resources: [{ name: 'foo', type: 'oidc', secretName: 'foo-oidc', host: 'foo.example.com' }],
+      resources: [
+        {
+          name: 'foo',
+          type: 'oidc',
+          displayName: 'foo',
+          preferShortUsername: true,
+          secretName: 'foo-oidc',
+          host: 'foo.example.com',
+        },
+      ],
     },
     'x',
   );
@@ -2987,6 +3162,8 @@ test('legacy route and argocd fields are rejected', () => {
   const route = {
     name: 'foo',
     type: 'route',
+    gateway: 'public-gateway',
+    paths: ['/'],
     auth: { mode: 'none', reason: 'public' },
     hosts: ['foo.example.com'],
     backend: { name: 'foo', port: 80 },
@@ -3055,6 +3232,8 @@ test('route loadBalancer renders to envoy and checks headers', () => {
       {
         name: 'web',
         type: 'route',
+        gateway: 'public-gateway',
+        paths: ['/'],
         hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth: { mode: 'app', reason: 'sessions' },
@@ -3298,7 +3477,14 @@ test('a config with values renders through a secret template', () => {
     {
       ...base,
       resources: [
-        { name: 'login', type: 'oidc', host: 'foo.anurag.sh', secretName: 'foo-oidc' },
+        {
+          name: 'login',
+          type: 'oidc',
+          displayName: 'login',
+          preferShortUsername: true,
+          host: 'foo.anurag.sh',
+          secretName: 'foo-oidc',
+        },
         { name: 'foo', type: 'database', secretName: 'foo-db' },
         {
           name: 'settings',
@@ -3413,6 +3599,7 @@ test('a tcp route attaches to a gateway listener', () => {
           {
             name: 'ssh',
             type: 'route',
+            gateway: 'public-gateway',
             protocol: 'tcp',
             listener: 'git-ssh',
             auth: { mode: 'app', reason: 'ssh keys' },
@@ -3467,6 +3654,8 @@ test('a tcp route attaches to a gateway listener', () => {
             {
               name: 'web',
               type: 'route',
+              gateway: 'public-gateway',
+              paths: ['/'],
               listener: 'git-ssh',
               hosts: ['a.sh'],
               auth: { mode: 'none', reason: 'public' },
@@ -3745,7 +3934,14 @@ test('subgraph auth clients must be oidc resources', () => {
         ...spotify,
         resources: [
           ...(spotify.resources ?? []),
-          { name: 'spotify', type: 'oidc', host: 'spotify.sh', secretName: 's' },
+          {
+            name: 'spotify',
+            type: 'oidc',
+            displayName: 'spotify',
+            preferShortUsername: true,
+            host: 'spotify.sh',
+            secretName: 's',
+          },
         ],
       },
     ]),
@@ -3915,4 +4111,46 @@ test('warns about raw env lists, envFrom entries and configMap mounts', () => {
     'foo: workloads.web.envFrom has a raw entry; reference a secret, database, bucket or oidc resource',
     'foo: workloads.web.mounts.cfg mounts a raw configMap; declare a config resource',
   ]);
+});
+
+test('routes, oidc clients and builds spell out what used to be defaulted', () => {
+  const base = { name: 'foo', network: { ingress: [] } };
+  const route = {
+    name: 'web',
+    type: 'route',
+    gateway: 'public-gateway',
+    auth: { mode: 'none', reason: 'public' },
+    hosts: ['a.sh'],
+    backend: { name: 'web', port: 80 },
+    paths: ['/'],
+  };
+  const oidc = {
+    name: 'foo',
+    type: 'oidc',
+    host: 'a.sh',
+    secretName: 's',
+    displayName: 'Foo',
+    preferShortUsername: true,
+  };
+  const without = (object: Record<string, unknown>, key: string) =>
+    Object.fromEntries(Object.entries(object).filter(([k]) => k !== key));
+
+  assert.throws(
+    () => validate({ ...base, resources: [without(route, 'gateway')] }, 'x'),
+    /resources\[0\] requires property "gateway"/,
+  );
+  assert.throws(
+    () => validate({ ...base, resources: [without(route, 'paths')] }, 'x'),
+    /routes\.web\.paths is required with backend/,
+  );
+  for (const key of ['displayName', 'preferShortUsername']) {
+    assert.throws(
+      () => validate({ ...base, resources: [without(oidc, key)] }, 'x'),
+      new RegExp(`resources\\[0\\] requires property "${key}"`),
+    );
+  }
+  assert.throws(
+    () => validate({ ...base, build: { image: 'foo' } }, 'x'),
+    /build requires property "ci"/,
+  );
 });
