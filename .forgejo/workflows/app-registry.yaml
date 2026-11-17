@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-16T09:48:04.866Z
+# generated at 2026-11-17T14:18:35.609Z
 name: app registry
 on:
   push:
@@ -71,8 +71,10 @@ jobs:
       - run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: platform-services/registry/target
-          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-registry
+          path: |-
+            platform-services/registry/target
+            ~/.cargo/registry
+          key: ${{ runner.os }}-app-target-${{ hashFiles('platform-services/registry/Cargo.lock') }}-registry
       - run: cargo test --workspace
         working-directory: ${{ github.workspace }}/platform-services/registry
   deploy:
