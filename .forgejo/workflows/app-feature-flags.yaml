@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T08:41:30.860Z
+# generated at 2026-11-17T14:18:35.329Z
 name: app feature-flags
 on:
   push:
@@ -72,8 +72,10 @@ jobs:
       - run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: platform-services/feature-flags/target
-          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-feature-flags
+          path: |-
+            platform-services/feature-flags/target
+            ~/.cargo/registry
+          key: ${{ runner.os }}-app-target-${{ hashFiles('platform-services/feature-flags/Cargo.lock') }}-feature-flags
       - run: |
           cargo test
           cd ../../crates/feature-flag
