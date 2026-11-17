@@ -48,32 +48,31 @@ jobs:
 
   test:
     needs: changes
+    if: needs.changes.outputs.package == 'true'
     runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        if: needs.changes.outputs.package == 'true'
-      - run: npm install -g pnpm@12.6.0
-        if: needs.changes.outputs.package == 'true'
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          package_json_file: packages/package.json
       - run: pnpm --dir packages install --frozen-lockfile
-        if: needs.changes.outputs.package == 'true'
       - run: pnpm --dir packages/ortzi-app test && pnpm --dir packages/ortzi-app check
-        if: needs.changes.outputs.package == 'true'
 
   publish:
     needs: [changes, test]
+    if: needs.changes.outputs.package == 'true'
     runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        if: needs.changes.outputs.package == 'true'
-      - run: npm install -g pnpm@12.6.0
-        if: needs.changes.outputs.package == 'true'
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6
+        with:
+          package_json_file: packages/package.json
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
-        if: needs.changes.outputs.package == 'true'
       - run: .forgejo/scripts/retry.sh 3 30 ortzi publish packages/ortzi-app
-        if: needs.changes.outputs.package == 'true'
 
   render:
     needs: publish
+    if: ${{ !failure() && !cancelled() }}
     runs-on: docker
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7

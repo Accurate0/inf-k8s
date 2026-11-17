@@ -24,10 +24,7 @@ jobs:
         with:
           version: v4.3.2
 
-      - name: Install ortzi
-        run: |
-          curl -fsSL https://registry.anurag.sh/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
 
       - name: Log in to harbor
         id: login
@@ -36,15 +33,7 @@ jobs:
           echo "HELM_REGISTRY_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}/config.json" >> "$GITHUB_ENV"
 
       - name: Package helm charts
-        run: |
-          helm package charts/k8s-secrets
-          helm package charts/k8s-http-routes
-          helm package charts/k8s-oidc
-          helm package charts/k8s-postgres
-          helm package charts/k8s-workload
-          helm package charts/k8s-network
-          helm package charts/k8s-observability
-          helm package charts/k8s-storage
+        run: for chart in charts/*/; do helm package "$chart"; done
 
       - name: Push charts to registry.anurag.sh
         run: |
