@@ -6,6 +6,7 @@ import { planCommits } from './commits';
 import { buildGraph, toDot, toMermaid } from './graph';
 import { doctor } from './commands/doctor';
 import { env } from './commands/env';
+import { fmt } from './commands/fmt';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { rollback } from './commands/rollback';
@@ -90,6 +91,7 @@ const USAGE = `usage: ortzi app <command> [flags]
 definition (run from the root of the k8s repo):
   render                   validate manifests, then write application.yaml for every app.yaml
   diff [app]               show what render would change, exit 1 if anything would
+  fmt [file...]            put every app.yaml (or the given files) in canonical key order and style
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
   publish [app...]         push the kustomize build of each app with an artifact and manifests to its oci
@@ -112,7 +114,7 @@ cluster:
 
 flags:
   --format FMT     graph: mermaid or dot (default mermaid)
-  --check          render, supergraph: write nothing, exit 1 if invalid or out of date
+  --check          render, supergraph, fmt: write nothing, exit 1 if invalid or out of date
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
   --force          render: regenerate every file, even those already up to date
@@ -158,6 +160,15 @@ const readValues = (path: string): Record<string, unknown> =>
   fs.exists(path) ? (parse(fs.readText(path)) ?? {}) : {};
 
 const worldOf = (apps: App[]): World => ({ platform: platformExports(), apps, readValues });
+
+const appPaths = () =>
+  LOCATIONS.flatMap((location) =>
+    fs
+      .readDir(location)
+      .filter((entry) => entry.dir)
+      .map((entry) => `${location}/${entry.name}/app.yaml`)
+      .filter((path) => fs.exists(path)),
+  );
 
 function discover(): { app: App; target: Target }[] {
   const found = [];
@@ -518,6 +529,7 @@ export const run = cli({
   commands: {
     render: (_ctx, values) => render(values.check, values.commit, values.changed, values.force),
     diff: (_ctx, _values, rest) => diff(rest[0]),
+    fmt: (_ctx, values, rest) => fmt(rest.length ? rest : appPaths(), values.check),
     publish: (_ctx, _values, rest) => publish(rest),
     supergraph: (_ctx, values) => supergraph(discover(), values.check),
     list: () => {
