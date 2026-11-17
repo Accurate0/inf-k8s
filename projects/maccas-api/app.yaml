@@ -1,6 +1,10 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: maccas-api
 repository: https://github.com/Accurate0/maccas-api
+namespace:
+  labels:
+    gateway.inf-k8s.net/maccas-one: "true"
+    internal-gateway-access: "true"
 network:
   ingress: []
 resources:
@@ -10,27 +14,25 @@ resources:
   - {name: migration, type: secret, secretName: maccas-migration-managed-secrets}
   - {name: cache, type: cache}
   - {name: images, type: bucket, provider: r2, bucket: maccas-images, secretName: images-bucket-secrets}
-  - name: llm
-    type: app
-    app: ai-gateway
-    export: api
-    path: /v1
-  - name: flags
-    type: app
-    app: feature-flags
-    export: api
+  - {name: llm, type: app, app: ai-gateway, export: api, path: /v1}
+  - {name: flags, type: app, app: feature-flags, export: api}
   - {name: traces, type: platform, export: tracing}
-  - {name: maccas, type: subgraph, prefix: maccas, workload: maccas-api, port: api, path: /v1/graphql, repository: https://github.com/Accurate0/maccas-api, ref: main, schema: subgraph.graphql}
+  - name: maccas
+    type: subgraph
+    prefix: maccas
+    workload: maccas-api
+    port: api
+    path: /v1/graphql
+    repository: https://github.com/Accurate0/maccas-api
+    ref: main
+    schema: subgraph.graphql
   - name: maccas-web-route
     type: route
-    auth:
-      mode: none
-      reason: public website, the app handles its own logins
-    hosts:
-      - maccas.one
-    backend:
-      name: maccas-web
-      port: 3000
+    auth: {mode: none, reason: "public website, the app handles its own logins"}
+    gateway: public-gateway
+    hosts: [maccas.one]
+    backend: {name: maccas-web, port: 3000}
+    paths: [/]
     dns: {provider: cloudflare, proxied: true}
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
 workloads:
@@ -40,7 +42,7 @@ workloads:
     phase: preSync
     resources: {cpu: 50m, memory: 64Mi}
     envFrom:
-      - secret: migration
+      - {secret: migration}
   - name: maccas-api
     image: registry.anurag.sh/containers/maccas-api
     autoscale: {min: 2, max: 3, cpu: 70}
@@ -63,11 +65,9 @@ workloads:
       OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
       OIDC_GROUPS: platform_admins
     envFrom:
-      - secret: common
-      - secret: api
-    service:
-      name: maccas-api
-      trafficDistribution: PreferSameNode
+      - {secret: common}
+      - {secret: api}
+    service: {name: maccas-api, trafficDistribution: PreferSameNode}
     overrides:
       topologySpreadConstraints:
         - maxSkew: 2
@@ -93,10 +93,9 @@ workloads:
       FEATURE_FLAGS_URL: {resource: flags}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - secret: web
+      - {secret: web}
     runAsNonRoot: false
-    service:
-      name: maccas-web
+    service: {name: maccas-web}
     overrides:
       topologySpreadConstraints:
         - maxSkew: 2
@@ -112,8 +111,8 @@ workloads:
       EVENT_API_BASE: {service: maccas-api, port: api, path: /v1}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - secret: common
-      - secret: api
+      - {secret: common}
+      - {secret: api}
     overrides:
       affinity:
         podAntiAffinity:
@@ -135,26 +134,21 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
       OPENAI_BASE_URL: {resource: llm}
     envFrom:
-      - secret: common
-      - secret: api
+      - {secret: common}
+      - {secret: api}
     sidecars:
-      - image: registry.anurag.sh/containers/maccas-clustering
-        name: maccas-clustering
+      - name: maccas-clustering
+        image: registry.anurag.sh/containers/maccas-clustering
         resources: {cpu: 10m, memory: 192Mi}
         ports:
           - {name: clustering, container: 8004, service: 8004}
-        envFrom:
-          - secret: common
-          - secret: api
         probes:
           http: {path: /health, port: 8004}
           liveness: {delay: 3, every: 30}
-    service:
-      name: maccas-recommendations
-namespace:
-  labels:
-    gateway.inf-k8s.net/maccas-one: "true"
-    internal-gateway-access: "true"
+        envFrom:
+          - {secret: common}
+          - {secret: api}
+    service: {name: maccas-recommendations}
 artifact:
   repo: oci://registry.anurag.sh/manifests/maccas-api
   tag: main

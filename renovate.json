@@ -55,6 +55,13 @@
     },
     {
       "customType": "regex",
+      "managerFilePatterns": ["/^(projects|platform-services)/[^/]+/app\\.yaml$/"],
+      "matchStrings": ["toolchain:\\s*\\{?\\s*rust:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+)\"?"],
+      "depNameTemplate": "rust-lang/rust",
+      "datasourceTemplate": "github-releases"
+    },
+    {
+      "customType": "regex",
       "managerFilePatterns": [
         "/system-components/.*\\.application\\.yaml$/",
         "/selfhosted/.*\\.application\\.yaml$/",

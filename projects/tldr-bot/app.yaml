@@ -1,13 +1,11 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: tldr-bot
 repository: https://github.com/Accurate0/tldr-bot
+network:
+  ingress: []
 resources:
   - {name: tldr-bot, type: secret, secretName: tldr-bot-managed-secrets}
-  - name: llm
-    type: app
-    app: ai-gateway
-    export: api
-    path: /v1
+  - {name: llm, type: app, app: ai-gateway, export: api, path: /v1}
 workloads:
   - name: tldr-bot
     image: registry.anurag.sh/containers/tldr-bot
@@ -15,9 +13,7 @@ workloads:
     env:
       OPENAI_API_BASE: {resource: llm}
     envFrom:
-      - secret: tldr-bot
-network:
-  ingress: []
+      - {secret: tldr-bot}
 artifact:
   repo: oci://registry.anurag.sh/manifests/tldr-bot
   tag: main

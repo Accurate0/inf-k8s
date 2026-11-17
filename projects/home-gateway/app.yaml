@@ -1,69 +1,60 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: home-gateway
 repository: https://github.com/Accurate0/home-gateway
-sources:
-  - type: git
-    repo: https://github.com/Accurate0/home-gateway.git
-    name: config
-    path: config
-network:
-  ingress: []
 namespace:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
     internal-gateway-access: "true"
     inf-k8s.net/lan-gateway-access: "true"
+network:
+  ingress: []
 resources:
-  - name: home-web
-    type: route
-    auth:
-      mode: app
-      reason: home-gateway verifies JWTs and api keys on /v1, the rest is a static spa
-    gateway: internal-gateway
-    hosts:
-      - home.ortzi.cloud
-    dns: {provider: cloudflare, proxied: false}
-    rules:
-      - paths: [/v1]
-        backend: {name: home-gateway, port: 80}
-      - paths: [/]
-        backend: {name: home-web, port: 80}
-  - name: home-web-lan
-    type: route
-    auth:
-      mode: app
-      reason: home-gateway verifies JWTs and api keys on /v1, the rest is a static spa
-    gateway: lan-gateway
-    hosts:
-      - home.internal
-    dns: {provider: unifi}
-    rules:
-      - paths: [/v1]
-        backend: {name: home-gateway, port: 80}
-      - paths: [/]
-        backend: {name: home-web, port: 80}
   - {name: home-gateway, type: secret, secretName: home-gateway-managed-secrets}
   - {name: terraform, type: secret, secretName: home-gateway-terraform-secrets}
   - {name: home-gateway, type: database, secretName: home-gateway-db-credentials}
-  - {name: storage, type: bucket, provider: s3, bucket: home-gateway-bucket, user: home-gateway, secretName: storage-bucket-secrets}
-  - name: flags
-    type: app
-    app: feature-flags
-    export: api
+  - name: storage
+    type: bucket
+    provider: s3
+    bucket: home-gateway-bucket
+    user: home-gateway
+    secretName: storage-bucket-secrets
+  - {name: flags, type: app, app: feature-flags, export: api}
   - {name: traces, type: platform, export: tracing}
-  - {name: home, type: subgraph, prefix: home, workload: home-gateway, port: api, path: /v1/graphql, websocket: /v1/graphql/ws, repository: https://github.com/Accurate0/home-gateway, ref: main, schema: subgraph.graphql}
+  - name: home
+    type: subgraph
+    prefix: home
+    workload: home-gateway
+    port: api
+    path: /v1/graphql
+    websocket: /v1/graphql/ws
+    repository: https://github.com/Accurate0/home-gateway
+    ref: main
+    schema: subgraph.graphql
+  - name: home-web
+    type: route
+    auth: {mode: app, reason: "home-gateway verifies JWTs and api keys on /v1, the rest is a static spa"}
+    gateway: internal-gateway
+    hosts: [home.ortzi.cloud]
+    dns: {provider: cloudflare, proxied: false}
+    rules:
+      - {paths: [/v1], backend: {name: home-gateway, port: 80}}
+      - {paths: [/], backend: {name: home-web, port: 80}}
+  - name: home-web-lan
+    type: route
+    auth: {mode: app, reason: "home-gateway verifies JWTs and api keys on /v1, the rest is a static spa"}
+    gateway: lan-gateway
+    hosts: [home.internal]
+    dns: {provider: unifi}
+    rules:
+      - {paths: [/v1], backend: {name: home-gateway, port: 80}}
+      - {paths: [/], backend: {name: home-web, port: 80}}
   - name: api-route
     type: route
-    auth:
-      mode: app
-      reason: accepts X-Api-Key as well as JWTs
-    hosts:
-      - home.anurag.sh
-    backend:
-      name: home-gateway
-      port: 80
-    paths:
-      - /v1
+    auth: {mode: app, reason: accepts X-Api-Key as well as JWTs}
+    gateway: public-gateway
+    hosts: [home.anurag.sh]
+    backend: {name: home-gateway, port: 80}
+    paths: [/v1]
     dns: {provider: cloudflare, proxied: false}
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
   - name: home-gateway
@@ -71,29 +62,17 @@ resources:
     secretName: kanidm-home-gateway-oidc
     host: home.ortzi.cloud
     displayName: Home Gateway
+    preferShortUsername: true
     callbackPath: /callback
-    extraRedirectUrls:
-      - net.infk8s.homegateway:/oauth2redirect
-      - https://home.internal/callback
+    extraRedirectUrls: [net.infk8s.homegateway:/oauth2redirect, https://home.internal/callback]
     public: true
     allowLocalhostRedirect: true
     groups:
-      home_gateway_admins:
-        - platform_admins
-      home_gateway_readers:
-        - home_gateway_admins
+      home_gateway_admins: [platform_admins]
+      home_gateway_readers: [home_gateway_admins]
     scopeMaps:
-      home_gateway_readers:
-        - openid
-        - email
-        - profile
-        - groups
-  - name: home-gateway
-    type: metrics
-    workload: home-gateway
-    path: /metrics
-    port: api
-    interval: 30s
+      home_gateway_readers: [openid, email, profile, groups]
+  - {name: home-gateway, type: metrics, workload: home-gateway, path: /metrics, port: api, interval: 30s}
 workloads:
   - name: home-gateway
     image: registry.anurag.sh/containers/home-gateway
@@ -112,25 +91,32 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
     envFrom:
-      - secret: home-gateway
-      - secret: terraform
-      - database: home-gateway
+      - {secret: home-gateway}
+      - {secret: terraform}
+      - {database: home-gateway}
     mounts:
       config: {path: /etc/home-gateway/config, configMap: home-gateway-config}
       config-sections: {path: /etc/home-gateway/config/sections, configMap: home-gateway-config-sections}
       config-devices: {path: /etc/home-gateway/config/devices, configMap: home-gateway-config-devices}
       config-workflows: {path: /etc/home-gateway/config/workflows, configMap: home-gateway-config-workflows}
       config-lua-lib: {path: /etc/home-gateway/config/lua/lib, configMap: home-gateway-config-lua-lib}
-      config-lua-model-lib: {path: /etc/home-gateway/config/lua/models/lib, configMap: home-gateway-config-lua-model-lib}
+      config-lua-model-lib:
+        path: /etc/home-gateway/config/lua/models/lib
+        configMap: home-gateway-config-lua-model-lib
       config-lua-workflows: {path: /etc/home-gateway/config/lua/workflows, configMap: home-gateway-config-lua-workflows}
-      config-lua-integrations: {path: /etc/home-gateway/config/lua/integrations, configMap: home-gateway-config-lua-integrations}
+      config-lua-integrations:
+        path: /etc/home-gateway/config/lua/integrations
+        configMap: home-gateway-config-lua-integrations
       config-lua-mqtt: {path: /etc/home-gateway/config/lua/models/mqtt, configMap: home-gateway-config-lua-mqtt}
-      config-lua-home-assistant: {path: /etc/home-gateway/config/lua/models/home_assistant, configMap: home-gateway-config-lua-home-assistant}
-      config-lua-esphome-native-api: {path: /etc/home-gateway/config/lua/models/esphome_native_api, configMap: home-gateway-config-lua-esphome-native-api}
+      config-lua-home-assistant:
+        path: /etc/home-gateway/config/lua/models/home_assistant
+        configMap: home-gateway-config-lua-home-assistant
+      config-lua-esphome-native-api:
+        path: /etc/home-gateway/config/lua/models/esphome_native_api
+        configMap: home-gateway-config-lua-esphome-native-api
       config-lua-tuya: {path: /etc/home-gateway/config/lua/models/tuya, configMap: home-gateway-config-lua-tuya}
     runAsNonRoot: false
-    service:
-      name: home-gateway
+    service: {name: home-gateway}
     overrides:
       strategy:
         type: RollingUpdate
@@ -161,8 +147,7 @@ workloads:
       http: {path: /, port: 8080}
       readiness: {delay: 3, every: 30}
     runAsNonRoot: false
-    service:
-      name: home-web
+    service: {name: home-web}
     overrides:
       affinity:
         nodeAffinity:
@@ -173,6 +158,11 @@ workloads:
                     operator: In
                     values:
                       - perth
+sources:
+  - type: git
+    repo: https://github.com/Accurate0/home-gateway.git
+    name: config
+    path: config
 artifact:
   repo: oci://registry.anurag.sh/manifests/home-gateway
   tag: main

@@ -1,11 +1,10 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: firefly
-network:
-  ingress:
-    - firefly-up-sync
 namespace:
   labels:
     internal-gateway-access: "true"
+network:
+  ingress: [firefly-up-sync]
 overrides:
   argocd:
     application:
@@ -21,50 +20,39 @@ overrides:
           jsonPointers:
             - /data
 resources:
+  - {name: firefly, type: secret, secretName: firefly-managed-secrets}
+  - name: integrations
+    type: secret
+    secretName: firefly-importer-managed-secrets
+    secretTemplate: {includeAllSecrets: false, data: {accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"}}
+  - {name: firefly, type: database, secretName: firefly-db-credentials, enableConnectionPooling: false}
+  - name: upload
+    type: volume
+    claimName: firefly-upload
+    class: replicated
+    size: 5Gi
+    access: ReadWriteOnce
+    backup: daily
   - name: firefly
     type: route
     gateway: internal-gateway
     auth:
       mode: oidc
       client: firefly
-      scopes:
-        - openid
-        - email
-        - profile
-      jwt:
-        cacheDuration: 3600s
-        idToken: true
-        claimToHeaders:
-          - claim: email
-            header: x-firefly-user-email
-    hosts:
-      - firefly.ortzi.cloud
-    backend:
-      name: firefly
-      port: 80
-    paths:
-      - /
-    timeouts:
-      request: 0s
+      scopes: [openid, email, profile]
+      jwt: {cacheDuration: 3600s, idToken: true, claimToHeaders: [{claim: email, header: x-firefly-user-email}]}
+    hosts: [firefly.ortzi.cloud]
+    backend: {name: firefly, port: 80}
+    paths: [/]
+    timeouts: {request: 0s}
   - name: firefly-importer
     type: route
     gateway: internal-gateway
-    auth:
-      mode: oidc
-      client: firefly-importer
-      scopes:
-        - openid
-        - email
-        - profile
-    hosts:
-      - firefly-importer.ortzi.cloud
-    backend:
-      name: firefly-importer
-      port: 80
-    paths:
-      - /
-    timeouts:
-      request: 0s
+    auth: {mode: oidc, client: firefly-importer, scopes: [openid, email, profile]}
+    hosts: [firefly-importer.ortzi.cloud]
+    backend: {name: firefly-importer, port: 80}
+    paths: [/]
+    timeouts: {request: 0s}
   - name: firefly
     type: oidc
     secretName: kanidm-firefly-oidc
@@ -72,9 +60,7 @@ resources:
     displayName: Firefly III
     preferShortUsername: true
     allowInsecureClientDisablePkce: true
-    secretKeys:
-      clientId: client-id
-      clientSecret: client-secret
+    secretKeys: {clientId: client-id, clientSecret: client-secret}
   - name: firefly-importer
     type: oidc
     secretName: kanidm-firefly-importer-oidc
@@ -82,22 +68,7 @@ resources:
     displayName: Firefly III Importer
     preferShortUsername: true
     allowInsecureClientDisablePkce: true
-    secretKeys:
-      clientId: client-id
-      clientSecret: client-secret
-  - name: firefly
-    type: database
-    secretName: firefly-db-credentials
-    enableConnectionPooling: false
-  - {name: upload, type: volume, claimName: firefly-upload, class: replicated, size: 5Gi, access: ReadWriteOnce, backup: daily}
-  - {name: firefly, type: secret, secretName: firefly-managed-secrets}
-  - name: integrations
-    type: secret
-    secretName: firefly-importer-managed-secrets
-    secretTemplate:
-      includeAllSecrets: false
-      data:
-        accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"
+    secretKeys: {clientId: client-id, clientSecret: client-secret}
 sources:
   - type: helm
     chart: firefly-iii

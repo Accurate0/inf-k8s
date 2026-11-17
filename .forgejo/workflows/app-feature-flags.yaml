@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-17T14:18:35.329Z
+# generated at 2026-11-17T14:18:36.852Z
 name: app feature-flags
 on:
   push:
@@ -78,8 +78,7 @@ jobs:
           key: ${{ runner.os }}-app-target-${{ hashFiles('platform-services/feature-flags/Cargo.lock') }}-feature-flags
       - run: |
           cargo test
-          cd ../../crates/feature-flag
-          cargo test
+          cargo test --manifest-path ../../crates/feature-flag/Cargo.toml
         working-directory: ${{ github.workspace }}/platform-services/feature-flags
   deploy:
     needs:

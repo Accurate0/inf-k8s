@@ -1,6 +1,8 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: ozbargain
 repository: https://github.com/Accurate0/ozb
+network:
+  ingress: []
 resources:
   - {name: ozbargain, type: secret, secretName: ozb-managed-secrets}
 workloads:
@@ -8,19 +10,17 @@ workloads:
     image: registry.anurag.sh/containers/ozb-discord-bot
     resources: {memory: 16Mi}
     envFrom:
-      - secret: ozbargain
+      - {secret: ozbargain}
   - name: ozb-finder
     image: registry.anurag.sh/containers/ozb-finder
     resources: {memory: 16Mi}
     envFrom:
-      - secret: ozbargain
+      - {secret: ozbargain}
   - name: ozb-trigger
     image: registry.anurag.sh/containers/ozb-trigger
     resources: {memory: 16Mi}
     envFrom:
-      - secret: ozbargain
-network:
-  ingress: []
+      - {secret: ozbargain}
 artifact:
   repo: oci://registry.anurag.sh/manifests/ozbargain
   tag: main

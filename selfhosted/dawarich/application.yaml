@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T05:09:25.271Z
+# generated at 2026-11-17T14:18:36.945Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -40,7 +40,6 @@ spec:
                 - "3000"
                 - -b
                 - "::"
-              runAsNonRoot: false
               resources:
                 requests:
                   cpu: 100m
@@ -211,6 +210,16 @@ spec:
                         secretKeyRef:
                           name: dawarich-managed-secrets
                           key: SECRET_KEY_BASE
+                    - name: OIDC_CLIENT_ID
+                      valueFrom:
+                        secretKeyRef:
+                          name: kanidm-dawarich-oidc
+                          key: client-id
+                    - name: OIDC_CLIENT_SECRET
+                      valueFrom:
+                        secretKeyRef:
+                          name: kanidm-dawarich-oidc
+                          key: client-secret
                   livenessProbe:
                     exec:
                       command:
@@ -226,6 +235,7 @@ spec:
                       mountPath: /var/app/public
                     - name: watched
                       mountPath: /var/app/tmp/imports/watched
+              runAsNonRoot: false
               service:
                 name: dawarich
                 ports:
@@ -267,7 +277,6 @@ spec:
             - name: photon
               image: rtuszik/photon-docker
               replicas: 1
-              runAsNonRoot: false
               resources:
                 requests:
                   cpu: 250m
@@ -280,6 +289,7 @@ spec:
               env:
                 - name: UPDATE_STRATEGY
                   value: DISABLED
+              runAsNonRoot: false
               service:
                 name: photon
                 ports:

@@ -1,43 +1,48 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: feature-flags
+namespace:
+  labels:
+    internal-gateway-access: "true"
 network:
   ingress: []
 exports:
-  - name: api
-    workload: feature-flags
-    port: grpc
+  - {name: api, workload: feature-flags, port: grpc}
 resources:
   - {name: feature-flags, type: secret, secretName: feature-flags-managed-secrets}
-  - {name: cache, type: cache}
   - {name: feature-flags, type: database, secretName: feature-flags-db-credentials}
+  - {name: cache, type: cache}
   - {name: traces, type: platform, export: tracing}
-  - {name: feature-flags, type: subgraph, prefix: featureFlags, workload: feature-flags, port: graphql, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [feature_flags_admins]}}
+  - name: feature-flags
+    type: subgraph
+    prefix: featureFlags
+    workload: feature-flags
+    port: graphql
+    path: /v1/graphql
+    websocket: /v1/graphql/ws
+    schema: subgraph.graphql
+    auth:
+      clients: [graph]
+      groups: [feature_flags_admins]
   - name: feature-flags-api
     type: route
     auth:
       mode: app
       reason: admin verified by the app; evaluation only checks client-id, gateway JWT not rolled out yet
     gateway: internal-gateway
-    hosts:
-      - feature-flags.ortzi.cloud
-    backend:
-      name: api
-      port: 50051
-    paths:
-      - /featureflag.v1.Admin/
-      - /featureflag.v1.Evaluation/
-    timeouts:
-      request: 0s
+    hosts: [feature-flags.ortzi.cloud]
+    backend: {name: api, port: 50051}
+    paths: [/featureflag.v1.Admin/, /featureflag.v1.Evaluation/]
+    timeouts: {request: 0s}
   - name: feature-flags
     type: oidc
     secretName: kanidm-feature-flags-oidc
     host: feature-flags.ortzi.cloud
     displayName: Feature Flags
+    preferShortUsername: true
     public: true
     allowLocalhostRedirect: true
     groups:
-      feature_flags_admins:
-        - platform_admins
+      feature_flags_admins: [platform_admins]
 workloads:
   - name: feature-flags
     image: registry.anurag.sh/containers/feature-flags
@@ -58,42 +63,29 @@ workloads:
       OIDC_GROUPS: feature_flags_admins
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - secret: feature-flags
-      - database: feature-flags
-    service:
-      name: api
-      trafficDistribution: PreferSameNode
+      - {secret: feature-flags}
+      - {database: feature-flags}
+    service: {name: api, trafficDistribution: PreferSameNode}
     overrides:
       updateStrategy:
         type: RollingUpdate
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
-namespace:
-  labels:
-    internal-gateway-access: "true"
 build:
   image: registry.anurag.sh/containers/feature-flags
   ci: forgejo
   context: .
-  paths:
-    - crates/feature-flag/feature-flag-proto/**
-    - crates/feature-flag/feature-flag-engine/**
-    - crates/subgraph/**
+  paths: [crates/feature-flag/feature-flag-proto/**, crates/feature-flag/feature-flag-engine/**, crates/subgraph/**]
   test:
     run: |
       cargo test
-      cd ../../crates/feature-flag
-      cargo test
+      cargo test --manifest-path ../../crates/feature-flag/Cargo.toml
     db:
       image: postgres:18@sha256:2ea8630df176ad090ec92136dee850397c5af8781e4bcf2e4162593691c61bbc
       databaseName: feature_flags
-    packages:
-      - build-essential
-      - pkg-config
-      - protobuf-compiler
-      - libprotobuf-dev
-    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+    packages: [build-essential, pkg-config, protobuf-compiler, libprotobuf-dev]
+    toolchain: {rust: 1.99.1}
 artifact:
   repo: oci://registry.anurag.sh/manifests/feature-flags
   tag: main

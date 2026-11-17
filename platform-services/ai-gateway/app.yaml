@@ -1,52 +1,48 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: ai-gateway
+namespace:
+  labels:
+    internal-gateway-access: "true"
 network:
   ingress: []
 exports:
-  - name: api
-    workload: ai-gateway
-    port: http
+  - {name: api, workload: ai-gateway, port: http}
 resources:
   - {name: config, type: config, configMap: ai-gateway-config, files: [config.yaml]}
-  - {name: dashboard, type: dashboard, configMap: ai-gateway-dashboard, file: dashboards/ai-gateway.json}
   - {name: ai-gateway, type: secret, secretName: ai-gateway-managed-secrets}
-  - {name: cache, type: cache}
   - {name: ai-gateway, type: database, secretName: ai-gateway-database-secret}
-  - name: flags
-    type: app
-    app: feature-flags
-    export: api
+  - {name: cache, type: cache}
+  - {name: flags, type: app, app: feature-flags, export: api}
   - {name: traces, type: platform, export: tracing}
-  - {name: ai-gateway, type: subgraph, prefix: aiGateway, workload: ai-gateway, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [ai_gateway_admins]}}
+  - name: ai-gateway
+    type: subgraph
+    prefix: aiGateway
+    workload: ai-gateway
+    port: http
+    path: /v1/graphql
+    websocket: /v1/graphql/ws
+    schema: subgraph.graphql
+    auth:
+      clients: [graph]
+      groups: [ai_gateway_admins]
   - name: ai-gateway
     type: route
-    auth:
-      mode: app
-      reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
+    auth: {mode: app, reason: "app verifies kanidm JWTs, gateway JWT not rolled out yet"}
     gateway: internal-gateway
-    hosts:
-      - ai-gateway.ortzi.cloud
-    backend:
-      name: api
-      port: 80
+    hosts: [ai-gateway.ortzi.cloud]
+    backend: {name: api, port: 80}
+    paths: [/]
   - name: ai-gateway
     type: oidc
     secretName: kanidm-ai-gateway-oidc
     host: ai-gateway.ortzi.cloud
     displayName: AI Gateway
+    preferShortUsername: true
     public: true
     allowLocalhostRedirect: true
-    scopes:
-      - openid
-      - email
-      - profile
-      - groups
-  - name: ai-gateway
-    type: metrics
-    workload: ai-gateway
-    path: /admin/metrics
-    port: http
-    interval: 30s
+    scopes: [openid, email, profile, groups]
+  - {name: ai-gateway, type: metrics, workload: ai-gateway, path: /admin/metrics, port: http, interval: 30s}
+  - {name: dashboard, type: dashboard, configMap: ai-gateway-dashboard, file: dashboards/ai-gateway.json}
 workloads:
   - name: ai-gateway
     image: registry.anurag.sh/containers/ai-gateway
@@ -64,12 +60,11 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
     envFrom:
-      - secret: ai-gateway
-      - database: ai-gateway
+      - {secret: ai-gateway}
+      - {database: ai-gateway}
     mounts:
       config: {path: /etc/ai-gateway, config: config}
-    service:
-      name: api
+    service: {name: api}
     overrides:
       strategy:
         type: RollingUpdate
@@ -95,38 +90,25 @@ workloads:
     kind: CronJob
     schedule: 17 4 * * *
     backoffLimit: 2
-    command:
-      - aig
-      - prices
-      - sync
+    command: [aig, prices, sync]
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
       AIG_ADMIN_TOKEN: {secret: ai-gateway, key: ADMIN_TOKEN}
       AIG_URL: {service: api, port: http}
-namespace:
-  labels:
-    internal-gateway-access: "true"
 build:
   image: registry.anurag.sh/containers/ai-gateway
   ci: forgejo
   context: .
   args:
     BINARY_NAME: ai-gateway
-  paths:
-    - crates/cli-auth/**
-    - crates/subgraph/**
+  paths: [crates/cli-auth/**, crates/subgraph/**]
   test:
     run: cargo test
     db:
       image: timescale/timescaledb:latest-pg17@sha256:6a6b7d7a346d7c6be03a310c240706f3bbc6d7adbdf3fbc07823570b34337f5e
       databaseName: ai_gateway
-    packages:
-      - build-essential
-      - pkg-config
-      - protobuf-compiler
-      - libprotobuf-dev
-    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-
+    packages: [build-essential, pkg-config, protobuf-compiler, libprotobuf-dev]
+    toolchain: {rust: 1.99.1}
 sources:
   - type: manifests
     path: .

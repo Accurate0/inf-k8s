@@ -1,18 +1,11 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: waf-manager
+namespace:
+  labels:
+    internal-gateway-access: "true"
 network:
   ingress: []
 resources:
-  - name: waf-manager
-    type: serviceAccount
-    clusterRole: waf-manager-access
-    clusterRules:
-      - {apiGroups: [inf-k8s.net], resources: [wafblocks, wafpolicies], verbs: [get, list, watch, create, patch, delete]}
-      - {apiGroups: [inf-k8s.net], resources: [wafblocks/status, wafpolicies/status], verbs: [get, update, patch]}
-      - {apiGroups: [gateway.envoyproxy.io], resources: [securitypolicies], verbs: [get, list, watch, create, patch, update, delete]}
-      - {apiGroups: [""], resources: [namespaces], verbs: [get]}
-      - {apiGroups: [""], resources: [configmaps], verbs: [get, list, delete]}
-      - {apiGroups: [coordination.k8s.io], resources: [leases], verbs: [get, create, update, patch]}
   - name: workflows
     type: config
     configMap: waf-manager-workflows
@@ -33,82 +26,81 @@ resources:
       - workflows/nextjs-middleware-bypass.yaml
       - workflows/dev-server-file-leaks.yaml
       - workflows/management-endpoint-probes.yaml
-  - {name: dashboard, type: dashboard, configMap: waf-manager-dashboard, file: dashboards/waf-manager.json}
-  - {name: logs, type: platform, export: logs}
-  - {name: traces, type: platform, export: tracing}
-  - {name: waf, type: subgraph, prefix: waf, workload: waf-manager, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [waf_admins]}}
   - {name: waf-manager, type: secret, secretName: waf-manager-managed-secrets}
   - {name: waf-manager, type: database, secretName: waf-manager-db-credentials}
+  - name: waf-manager
+    type: serviceAccount
+    clusterRole: waf-manager-access
+    clusterRules:
+      - apiGroups: [inf-k8s.net]
+        resources: [wafblocks, wafpolicies]
+        verbs: [get, list, watch, create, patch, delete]
+      - {apiGroups: [inf-k8s.net], resources: [wafblocks/status, wafpolicies/status], verbs: [get, update, patch]}
+      - apiGroups: [gateway.envoyproxy.io]
+        resources: [securitypolicies]
+        verbs: [get, list, watch, create, patch, update, delete]
+      - {apiGroups: [""], resources: [namespaces], verbs: [get]}
+      - {apiGroups: [""], resources: [configmaps], verbs: [get, list, delete]}
+      - {apiGroups: [coordination.k8s.io], resources: [leases], verbs: [get, create, update, patch]}
+  - {name: logs, type: platform, export: logs}
+  - {name: traces, type: platform, export: tracing}
+  - name: waf
+    type: subgraph
+    prefix: waf
+    workload: waf-manager
+    port: http
+    path: /v1/graphql
+    websocket: /v1/graphql/ws
+    schema: subgraph.graphql
+    auth:
+      clients: [graph]
+      groups: [waf_admins]
   - name: waf-manager-route
     type: route
     auth:
       mode: oidc
       client: waf-manager
-      scopes:
-        - openid
-        - email
-        - profile
+      scopes: [openid, email, profile]
       forwardAccessToken: true
       jwt:
         cacheDuration: 3600s
         claimToHeaders:
-          - claim: preferred_username
-            header: x-waf-user
-          - claim: name
-            header: x-waf-user-name
-          - claim: email
-            header: x-waf-user-email
-          - claim: sub
-            header: x-waf-user-sub
+          - {claim: preferred_username, header: x-waf-user}
+          - {claim: name, header: x-waf-user-name}
+          - {claim: email, header: x-waf-user-email}
+          - {claim: sub, header: x-waf-user-sub}
     gateway: internal-gateway
-    hosts:
-      - waf-manager.ortzi.cloud
-    backend:
-      name: api
-      port: 80
+    hosts: [waf-manager.ortzi.cloud]
+    backend: {name: api, port: 80}
+    paths: [/]
   - name: waf-manager-api
     type: route
-    auth:
-      mode: jwt
-      clients:
-        - waf-manager-cli
-        - waf-manager
+    auth: {mode: jwt, clients: [waf-manager-cli, waf-manager]}
     gateway: internal-gateway
-    hosts:
-      - waf-manager.ortzi.cloud
-    backend:
-      name: api
-      port: 80
-    paths:
-      - /api/
+    hosts: [waf-manager.ortzi.cloud]
+    backend: {name: api, port: 80}
+    paths: [/api/]
   - name: waf-manager
     type: oidc
     secretName: kanidm-waf-manager-oidc
     host: waf-manager.ortzi.cloud
     displayName: WAF Manager
+    preferShortUsername: true
     allowInsecureClientDisablePkce: true
     groups:
-      waf_admins:
-        - platform_admins
-    secretKeys:
-      clientId: client-id
-      clientSecret: client-secret
+      waf_admins: [platform_admins]
+    secretKeys: {clientId: client-id, clientSecret: client-secret}
   - name: waf-manager-cli
     type: oidc
     secretName: kanidm-waf-manager-cli-oidc
     displayName: WAF Manager CLI
+    preferShortUsername: true
     host: waf-manager.ortzi.cloud
     public: true
     allowLocalhostRedirect: true
-    secretKeys:
-      clientId: client-id
-      clientSecret: client-secret
-  - name: waf-manager
-    type: metrics
-    workload: waf-manager
-    path: /metrics
-    port: http
-    interval: 30s
+    secretKeys: {clientId: client-id, clientSecret: client-secret}
+  - {name: waf-manager, type: metrics, workload: waf-manager, path: /metrics, port: http, interval: 30s}
+  - {name: dashboard, type: dashboard, configMap: waf-manager-dashboard, file: dashboards/waf-manager.json}
 workloads:
   - name: waf-manager
     image: registry.anurag.sh/containers/waf-manager
@@ -138,13 +130,11 @@ workloads:
       OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
       OIDC_GROUPS: waf_admins
     envFrom:
-      - secret: waf-manager
-        optional: true
+      - {secret: waf-manager, optional: true}
     mounts:
       workflows: {path: /etc/waf-manager/config, config: workflows}
     serviceAccount: waf-manager
-    service:
-      name: api
+    service: {name: api}
     overrides:
       strategy:
         type: RollingUpdate
@@ -158,23 +148,17 @@ workloads:
           labelSelector:
             matchLabels:
               app: waf-manager
-namespace:
-  labels:
-    internal-gateway-access: "true"
 build:
   image: registry.anurag.sh/containers/waf-manager
   ci: forgejo
   context: .
-  paths:
-    - crates/subgraph/**
+  paths: [crates/subgraph/**]
   args:
     BINARY_NAME: waf-manager
   test:
     run: cargo test
-    packages:
-      - build-essential
-      - pkg-config
-    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+    packages: [build-essential, pkg-config]
+    toolchain: {rust: 1.99.1}
 sources:
   - type: manifests
     path: .

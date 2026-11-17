@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-17T14:12:13.253Z
+# generated at 2026-11-17T14:18:36.889Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -76,14 +76,14 @@ spec:
               kind: Job
               phase: postSync
               backoffLimit: 2
+              args:
+                - repo
               resources:
                 requests:
                   cpu: 10m
                   memory: 64Mi
                 limits:
                   memory: 256Mi
-              args:
-                - repo
               env:
                 - name: S3_BUCKET
                   valueFrom:

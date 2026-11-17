@@ -1,52 +1,47 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: spotify
 repository: https://github.com/Accurate0/spotify
-network:
-  ingress: []
 namespace:
   labels:
     internal-gateway-access: "true"
+network:
+  ingress: []
 resources:
   - {name: spotify, type: secret, secretName: spotify-managed-secrets}
-  - {name: spotify, type: subgraph, prefix: spotify, workload: spotify-api, port: http, path: /v1/graphql, repository: https://github.com/Accurate0/spotify, ref: main, schema: subgraph.graphql}
-  - {name: traces, type: platform, export: tracing}
+  - {name: spotify, type: database, secretName: spotify-database-secret, extensions: [pg_trgm]}
   - {name: artwork, type: bucket, provider: garage, bucket: spotify-artwork, secretName: artwork-bucket-secrets}
+  - {name: traces, type: platform, export: tracing}
   - name: spotify
-    type: database
-    secretName: spotify-database-secret
-    extensions:
-      - pg_trgm
+    type: subgraph
+    prefix: spotify
+    workload: spotify-api
+    port: http
+    path: /v1/graphql
+    repository: https://github.com/Accurate0/spotify
+    ref: main
+    schema: subgraph.graphql
   - name: spotify
     type: route
-    auth:
-      mode: app
-      reason: spotify-api verifies Kanidm JWTs on /v1/graphql, the rest is a static spa
+    auth: {mode: app, reason: "spotify-api verifies Kanidm JWTs on /v1/graphql, the rest is a static spa"}
     gateway: internal-gateway
-    hosts:
-      - spotify.ortzi.cloud
+    hosts: [spotify.ortzi.cloud]
     dns: {provider: cloudflare, proxied: false}
     rules:
-      - paths: [/v1/graphql, /health, /art]
-        backend: {name: api, port: 80}
-      - paths: [/]
-        backend: {name: spotify-web, port: 80}
+      - {paths: [/v1/graphql, /health, /art], backend: {name: api, port: 80}}
+      - {paths: [/], backend: {name: spotify-web, port: 80}}
   - name: spotify
     type: oidc
     secretName: kanidm-spotify-oidc
     host: spotify.ortzi.cloud
     displayName: Spotify
+    preferShortUsername: true
     callbackPath: /callback
     public: true
     allowLocalhostRedirect: true
     groups:
-      spotify_users:
-        - platform_admins
+      spotify_users: [platform_admins]
     scopeMaps:
-      spotify_users:
-        - openid
-        - email
-        - profile
-        - groups
+      spotify_users: [openid, email, profile, groups]
 workloads:
   - name: spotify-api
     image: registry.anurag.sh/containers/spotify
@@ -64,12 +59,11 @@ workloads:
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET, optional: true}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - database: spotify
-      - bucket: artwork
+      - {database: spotify}
+      - {bucket: artwork}
     mounts:
       tmp: {path: /tmp, emptyDir: true}
-    service:
-      name: api
+    service: {name: api}
   - name: spotify-web
     image: registry.anurag.sh/containers/spotify-web
     resources: {memory: 32Mi}
@@ -80,39 +74,34 @@ workloads:
       readiness: {delay: 3, every: 30}
     mounts:
       tmp: {path: /tmp, emptyDir: true}
-    service:
-      name: spotify-web
+    service: {name: spotify-web}
   - name: spotify-enrich
     image: registry.anurag.sh/containers/spotify
     kind: CronJob
     schedule: "*/15 * * * *"
     backoffLimit: 0
-    command:
-      - spotify-server
-      - enrich
+    command: [spotify-server, enrich]
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - database: spotify
-      - bucket: artwork
+      - {database: spotify}
+      - {bucket: artwork}
   - name: spotify-recent
     image: registry.anurag.sh/containers/spotify
     kind: CronJob
     schedule: "*/30 * * * *"
     backoffLimit: 0
-    command:
-      - spotify-server
-      - recent
+    command: [spotify-server, recent]
     resources: {memory: 32Mi, memoryLimit: 128Mi}
     env:
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET}
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - database: spotify
+      - {database: spotify}
 artifact:
   repo: oci://registry.anurag.sh/manifests/spotify
   tag: main

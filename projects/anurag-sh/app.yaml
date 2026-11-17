@@ -1,33 +1,28 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: anurag-sh
 repository: https://github.com/Accurate0/anurag.sh
-workloads:
-  - name: anurag-sh
-    image: registry.anurag.sh/containers/anurag-sh
-    ports:
-      - {name: http, container: 3000, service: 80}
-    resources: {memory: 16Mi}
-    service:
-      name: anurag-sh
-network:
-  ingress: []
 namespace:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
     gateway.inf-k8s.net/anurag-id-au: "true"
+network:
+  ingress: []
 resources:
   - name: anurag-sh-route
     type: route
-    auth:
-      mode: none
-      reason: public website
-    hosts:
-      - anurag.sh
-      - anurag.id.au
-    backend:
-      name: anurag-sh
-      port: 80
+    auth: {mode: none, reason: public website}
+    gateway: public-gateway
+    hosts: [anurag.sh, anurag.id.au]
+    backend: {name: anurag-sh, port: 80}
+    paths: [/]
     dns: {provider: cloudflare, proxied: true}
+workloads:
+  - name: anurag-sh
+    image: registry.anurag.sh/containers/anurag-sh
+    resources: {memory: 16Mi}
+    ports:
+      - {name: http, container: 3000, service: 80}
+    service: {name: anurag-sh}
 artifact:
   repo: oci://registry.anurag.sh/manifests/anurag-sh
   tag: main

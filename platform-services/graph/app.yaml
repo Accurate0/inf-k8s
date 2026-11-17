@@ -1,46 +1,40 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: graph
-network:
-  ingress: []
 namespace:
   labels:
     internal-gateway-access: "true"
+network:
+  ingress: []
 exports:
-  - name: api
-    workload: router
-    port: http
+  - {name: api, workload: router, port: http}
 resources:
-  - {name: graph, type: supergraph, base: supergraph/router.base.yaml}
   - name: config
     type: config
     configMap: graph-router
     files: [supergraph/router.yaml, supergraph/supergraph.graphql]
-  - {name: traces, type: platform, export: tracing}
   - {name: supergraph, type: bucket, provider: garage, bucket: graph-supergraph, secretName: supergraph-bucket-secrets}
+  - {name: traces, type: platform, export: tracing}
+  - {name: graph, type: supergraph, base: supergraph/router.base.yaml}
   - name: graph
     type: route
-    auth:
-      mode: app
-      reason: the router forwards credentials, each subgraph verifies kanidm jwts or api keys
+    auth: {mode: app, reason: "the router forwards credentials, each subgraph verifies kanidm jwts or api keys"}
     gateway: internal-gateway
-    hosts:
-      - graph.ortzi.cloud
+    hosts: [graph.ortzi.cloud]
     dns: {provider: cloudflare, proxied: false}
     backend: {name: router, port: 80}
     paths: [/v1/graphql]
-    timeouts:
-      request: 0s
+    timeouts: {request: 0s}
   - name: graph
     type: oidc
     secretName: kanidm-graph-oidc
     host: graph.ortzi.cloud
     displayName: Graph
+    preferShortUsername: true
     callbackPath: /callback
     public: true
     allowLocalhostRedirect: true
     groups:
-      graph_users:
-        - platform_admins
+      graph_users: [platform_admins]
     scopeMaps:
       graph_users: [openid, email, profile, groups]
       registry_users: [openid, email, profile, groups]
@@ -65,27 +59,26 @@ workloads:
       ROUTER_CONFIG_FILE_PATH: /etc/graph/supergraph/router.yaml
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
-      - bucket: supergraph
+      - {bucket: supergraph}
     mounts:
       config: {path: /etc/graph, config: config}
-    service:
-      name: router
+    service: {name: router}
   - name: supergraph-upload
     image: curlimages/curl
     kind: Job
     phase: postSync
-    resources: {cpu: 10m, memory: 16Mi}
     command: [sh, -c]
     args:
-      - >-
-        curl -fsS --retry 5 --retry-connrefused --retry-delay 2
-        --aws-sigv4 "aws:amz:$S3_REGION:s3"
-        --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY"
-        -H "x-amz-content-sha256: UNSIGNED-PAYLOAD"
-        -T /etc/graph/supergraph/supergraph.graphql
-        "$S3_ENDPOINT/$S3_BUCKET/supergraph.graphql"
+      - |-
+        curl -fsS --retry 5 --retry-connrefused --retry-delay 2 \
+          --aws-sigv4 "aws:amz:$S3_REGION:s3" \
+          --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY" \
+          -H "x-amz-content-sha256: UNSIGNED-PAYLOAD" \
+          -T /etc/graph/supergraph/supergraph.graphql \
+          "$S3_ENDPOINT/$S3_BUCKET/supergraph.graphql"
+    resources: {cpu: 10m, memory: 16Mi}
     envFrom:
-      - bucket: supergraph
+      - {bucket: supergraph}
     mounts:
       config: {path: /etc/graph, config: config}
 build:
@@ -94,14 +87,11 @@ build:
   context: .
   args:
     BINARY_NAME: graph-router
-  paths:
-    - crates/subgraph/**
+  paths: [crates/subgraph/**]
   test:
     run: cargo test
-    packages:
-      - build-essential
-      - pkg-config
-    setup: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+    packages: [build-essential, pkg-config]
+    toolchain: {rust: 1.99.1}
 sources:
   - type: manifests
     path: .

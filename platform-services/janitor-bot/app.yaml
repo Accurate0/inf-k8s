@@ -1,9 +1,11 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: janitor-bot
+namespace:
+  labels:
+    internal-gateway-access: "true"
+    gateway.inf-k8s.net/anurag-sh: "true"
 network:
-  ingress:
-    - argocd
-    - forgejo
+  ingress: [argocd, forgejo]
 resources:
   - name: rules
     type: config
@@ -24,60 +26,50 @@ resources:
       - rules/merge-on-label.yaml
       - rules/clear-queued-on-unmergeable.yaml
       - rules/label-eink-firmware-update.yaml
-  - {name: argocd, type: platform, export: argocd}
-  - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
   - {name: harbor, type: secret, secretName: janitor-bot-harbor-secrets}
-  - name: flags
-    type: app
-    app: feature-flags
-    export: api
+  - {name: flags, type: app, app: feature-flags, export: api}
+  - {name: argocd, type: platform, export: argocd}
+  - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: traces, type: platform, export: tracing}
-  - {name: janitor, type: subgraph, prefix: janitor, workload: janitor-bot, port: http, path: /v1/graphql, websocket: /v1/graphql/ws, schema: subgraph.graphql, auth: {clients: [graph], groups: [janitor_bot_admins]}}
+  - name: janitor
+    type: subgraph
+    prefix: janitor
+    workload: janitor-bot
+    port: http
+    path: /v1/graphql
+    websocket: /v1/graphql/ws
+    schema: subgraph.graphql
+    auth:
+      clients: [graph]
+      groups: [janitor_bot_admins]
   - name: janitor-bot-route
     type: route
-    auth:
-      mode: app
-      reason: app verifies kanidm JWTs, gateway JWT not rolled out yet
+    auth: {mode: app, reason: "app verifies kanidm JWTs, gateway JWT not rolled out yet"}
     gateway: internal-gateway
-    hosts:
-      - janitor-bot.ortzi.cloud
-    backend:
-      name: api
-      port: 80
+    hosts: [janitor-bot.ortzi.cloud]
+    backend: {name: api, port: 80}
+    paths: [/]
   - name: janitor-bot-public-route
     type: route
-    auth:
-      mode: app
-      reason: github webhook, verified by its signature
-    hosts:
-      - janitor-bot.anurag.sh
-    backend:
-      name: api
-      port: 80
+    auth: {mode: app, reason: "github webhook, verified by its signature"}
+    gateway: public-gateway
+    hosts: [janitor-bot.anurag.sh]
+    backend: {name: api, port: 80}
     paths:
-      - type: Exact
-        value: /github/webhook
+      - {type: Exact, value: /github/webhook}
     dns: {provider: cloudflare, proxied: true}
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
   - name: janitor-bot
     type: oidc
     secretName: kanidm-janitor-bot-oidc
     displayName: Janitor Bot
+    preferShortUsername: true
     host: janitor-bot.ortzi.cloud
     public: true
     allowLocalhostRedirect: true
-    scopes:
-      - openid
-      - email
-      - profile
-      - groups
-  - name: janitor-bot
-    type: metrics
-    workload: janitor-bot
-    path: /admin/metrics
-    port: http
-    interval: 30s
+    scopes: [openid, email, profile, groups]
+  - {name: janitor-bot, type: metrics, workload: janitor-bot, path: /admin/metrics, port: http, interval: 30s}
 workloads:
   - name: janitor-bot
     image: registry.anurag.sh/containers/janitor-bot
@@ -101,41 +93,31 @@ workloads:
       HARBOR_USERNAME: {secret: harbor, key: USERNAME}
       HARBOR_PASSWORD: {secret: harbor, key: PASSWORD}
     envFrom:
-      - secret: janitor-bot
+      - {secret: janitor-bot}
     mounts:
       tmp: {path: /tmp, emptyDir: true}
       rules: {path: /etc/janitor-bot/rules, config: rules}
-    service:
-      name: api
+    service: {name: api}
     overrides:
       strategy:
         type: RollingUpdate
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
-namespace:
-  labels:
-    internal-gateway-access: "true"
-    gateway.inf-k8s.net/anurag-sh: "true"
 build:
   image: registry.anurag.sh/containers/janitor-bot
   ci: forgejo
   context: .
-  paths:
-    - crates/subgraph/**
-    - platform-services/registry/api/**
+  paths: [crates/subgraph/**, platform-services/registry/api/**]
   args:
     BINARY_NAME: janitor-bot
   test:
     run: cargo test
-    packages:
-      - build-essential
-      - pkg-config
-      - protobuf-compiler
-      - libprotobuf-dev
+    packages: [build-essential, pkg-config, protobuf-compiler, libprotobuf-dev]
+    toolchain: {rust: 1.99.1}
     setup: |
-      curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-      curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+      curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/download/v3.5.6/argocd-linux-amd64
+      echo "db9d17b70593d3f86a4dcf08d9ebbb85a42e995426ac5f928b737260656102d3  /usr/local/bin/argocd" | sha256sum -c -
       chmod +x /usr/local/bin/argocd
 sources:
   - type: manifests

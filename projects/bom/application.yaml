@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T05:09:24.406Z
+# generated at 2026-11-17T14:18:36.782Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -29,15 +29,15 @@ spec:
           workloads:
             - name: bom
               image: registry.anurag.sh/containers/bom
-              ports:
-                - name: api
-                  containerPort: 8000
               resources:
                 requests:
                   cpu: 30m
                   memory: 56Mi
                 limits:
                   memory: 512Mi
+              ports:
+                - name: api
+                  containerPort: 8000
               env:
                 - name: BUCKET_NAME
                   valueFrom:

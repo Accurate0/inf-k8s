@@ -1,37 +1,48 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: bom
 repository: https://github.com/Accurate0/bom
+namespace:
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"
+network:
+  ingress: []
 resources:
   - {name: bom, type: secret, secretName: bom-managed-secrets}
   - {name: bom, type: database, secretName: bom-database-secret}
   - {name: images, type: bucket, provider: garage, bucket: bom-images, secretName: images-bucket-secrets}
   - {name: traces, type: platform, export: tracing}
-  - {name: bom, type: subgraph, prefix: bom, workload: bom, port: api, path: /v1/graphql, websocket: /v1/graphql/ws, repository: https://github.com/Accurate0/bom, ref: main, schema: subgraph.graphql, auth: {clients: [graph], groups: [bom_users]}}
+  - name: bom
+    type: subgraph
+    prefix: bom
+    workload: bom
+    port: api
+    path: /v1/graphql
+    websocket: /v1/graphql/ws
+    repository: https://github.com/Accurate0/bom
+    ref: main
+    schema: subgraph.graphql
+    auth:
+      clients: [graph]
+      groups: [bom_users]
   - name: images
     type: route
-    auth:
-      mode: none
-      reason: radar and satellite images are public so they can be embedded anywhere
-    hosts:
-      - bom.anurag.sh
-    backend:
-      name: bom-api
-      port: 8000
-    paths:
-      - /radar/
-      - /satellite/
+    auth: {mode: none, reason: radar and satellite images are public so they can be embedded anywhere}
+    gateway: public-gateway
+    hosts: [bom.anurag.sh]
+    backend: {name: bom-api, port: 8000}
+    paths: [/radar/, /satellite/]
     dns: {provider: cloudflare, proxied: true}
     ratelimit: {requests: 20, per: Second, header: x-real-ip}
 workloads:
   - name: bom
     image: registry.anurag.sh/containers/bom
+    resources: {cpu: 30m, memory: 56Mi, memoryLimit: 512Mi}
     ports:
       - {name: api, container: 8000, service: 8000}
     probes:
       http: {path: /health, port: 8000}
       readiness: {every: 10}
       liveness: {delay: 3, every: 30}
-    resources: {cpu: 30m, memory: 56Mi, memoryLimit: 512Mi}
     env:
       BUCKET_NAME: {bucket: images, key: S3_BUCKET}
       BUCKET_ENDPOINT: {bucket: images, key: S3_ENDPOINT}
@@ -43,15 +54,9 @@ workloads:
       OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
       OIDC_GROUPS: bom_users
     envFrom:
-      - secret: bom
-      - database: bom
-    service:
-      name: bom-api
-network:
-  ingress: []
-namespace:
-  labels:
-    gateway.inf-k8s.net/anurag-sh: "true"
+      - {secret: bom}
+      - {database: bom}
+    service: {name: bom-api}
 artifact:
   repo: oci://registry.anurag.sh/manifests/bom
   tag: main

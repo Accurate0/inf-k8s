@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-17T14:18:35.468Z
+# generated at 2026-11-17T14:18:36.883Z
 name: app janitor-bot
 on:
   push:
@@ -60,9 +60,10 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - run: apt-get update && apt-get install -y build-essential pkg-config protobuf-compiler libprotobuf-dev
+      - run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - run: |
-          curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
-          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/latest/download/argocd-linux-amd64
+          curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/download/v3.5.6/argocd-linux-amd64
+          echo "db9d17b70593d3f86a4dcf08d9ebbb85a42e995426ac5f928b737260656102d3  /usr/local/bin/argocd" | sha256sum -c -
           chmod +x /usr/local/bin/argocd
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:

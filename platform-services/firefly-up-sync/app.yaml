@@ -3,15 +3,15 @@ name: firefly-up-sync
 network:
   ingress: []
 resources:
-  - {name: firefly, type: platform, export: firefly}
   - {name: firefly-up-sync, type: secret, secretName: firefly-up-sync-managed-secrets}
+  - {name: firefly, type: platform, export: firefly}
 workloads:
   - name: firefly-up-sync
     image: registry.anurag.sh/containers/firefly-up-sync
     kind: CronJob
     schedule: 15,45 * * * *
     backoffLimit: 1
-    resources: {memoryLimit: 256Mi, memory: 64Mi}
+    resources: {memory: 64Mi, memoryLimit: 256Mi}
     env:
       FIREFLY_URL: {resource: firefly}
       LOOKBACK_DAYS: "14"
@@ -27,7 +27,7 @@ workloads:
           {"name": "Spendings", "matches": ["Spendings"]}
         ]
     envFrom:
-      - secret: firefly-up-sync
+      - {secret: firefly-up-sync}
     overrides:
       restartPolicy: Never
       automountServiceAccountToken: false

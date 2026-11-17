@@ -1,12 +1,10 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: forgejo
-network:
-  ingress:
-    - janitor-bot
-    - monitoring
 namespace:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
+network:
+  ingress: [janitor-bot, monitoring]
 overrides:
   argocd:
     application:
@@ -15,60 +13,29 @@ overrides:
         - CreateNamespace=true
         - ServerSideApply=true
 resources:
-  - name: forgejo
-    type: route
-    auth:
-      mode: app
-      reason: forgejo requires a kanidm login or token, with anubis in front of the web ui
-    hosts:
-      - git.anurag.sh
-    backend:
-      name: forgejo-anubis
-      port: 8923
-    paths:
-      - /
-    dns: {provider: cloudflare, proxied: false}
-    timeouts:
-      request: 90s
-      backendRequest: 90s
-    loadBalancer: {type: consistentHash, headers: [Cookie, User-Agent]}
-  - name: forgejo-ssh
-    type: route
-    protocol: tcp
-    listener: git-ssh
-    auth:
-      mode: app
-      reason: forgejo checks the ssh key of every git connection
-    backend:
-      name: forgejo-ssh
-      port: 22
-  - name: forgejo
-    type: oidc
-    secretName: kanidm-forgejo-oidc
-    host: git.anurag.sh
-    displayName: Forgejo
-    callbackPath: /user/oauth2/kanidm/callback
-    preferShortUsername: true
-    secretKeys:
-      clientId: key
-      clientSecret: secret
-    scopes:
-      - openid
-      - email
-      - profile
-      - groups
-    claimMaps:
-      forgejo:
-        join: ssv
-        valuesByGroup:
-          forgejo_admins:
-            - admin
-    icon:
-      configMap: forgejo-kanidm-icon
-      key: Forgejo.svg
-  - name: forgejo
-    type: database
-    secretName: forgejo-db-credentials
+  - name: ssh-signing
+    type: secret
+    secretName: forgejo-ssh-signing-managed-secrets
+    secretTemplate:
+      includeAllSecrets: false
+      data: {ed25519: "{{ .SSH_SIGNING_KEY }}", ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC }}"}
+  - name: ssh-host
+    type: secret
+    secretName: forgejo-ssh-host-managed-secrets
+    secretTemplate: {includeAllSecrets: false, data: {ssh_host_ed25519_key: "{{ .SSH_HOST_KEY }}"}}
+  - name: gpg
+    type: secret
+    secretName: forgejo-gpg-managed-secrets
+    secretTemplate: {includeAllSecrets: false, data: {privateKey: "{{ .GPG_PRIVATE_KEY }}"}}
+  - name: runner
+    type: secret
+    secretName: forgejo-runner-secret
+    secretTemplate: {includeAllSecrets: false, data: {uuid: "{{ .UUID }}", token: "{{ .TOKEN }}"}}
+  - name: anubis
+    type: secret
+    secretName: forgejo-anubis-managed-secrets
+    secretTemplate: {includeAllSecrets: false, data: {ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"}}
+  - {name: forgejo, type: database, secretName: forgejo-db-credentials}
   - name: storage
     type: bucket
     provider: r2
@@ -79,43 +46,35 @@ resources:
         MINIO_ENDPOINT: '{{ .S3_ENDPOINT | trimPrefix "https://" }}'
         MINIO_ACCESS_KEY_ID: "{{ .S3_ACCESS_KEY_ID }}"
         MINIO_SECRET_ACCESS_KEY: "{{ .S3_SECRET_ACCESS_KEY }}"
-  - name: ssh-signing
-    type: secret
-    secretName: forgejo-ssh-signing-managed-secrets
-    secretTemplate:
-      includeAllSecrets: false
-      data:
-        ed25519: "{{ .SSH_SIGNING_KEY }}"
-        ed25519.pub: "{{ .SSH_SIGNING_KEY_PUBLIC }}"
-  - name: ssh-host
-    type: secret
-    secretName: forgejo-ssh-host-managed-secrets
-    secretTemplate:
-      includeAllSecrets: false
-      data:
-        ssh_host_ed25519_key: "{{ .SSH_HOST_KEY }}"
-  - name: gpg
-    type: secret
-    secretName: forgejo-gpg-managed-secrets
-    secretTemplate:
-      includeAllSecrets: false
-      data:
-        privateKey: "{{ .GPG_PRIVATE_KEY }}"
-  - name: runner
-    type: secret
-    secretName: forgejo-runner-secret
-    secretTemplate:
-      includeAllSecrets: false
-      data:
-        uuid: "{{ .UUID }}"
-        token: "{{ .TOKEN }}"
-  - name: anubis
-    type: secret
-    secretName: forgejo-anubis-managed-secrets
-    secretTemplate:
-      includeAllSecrets: false
-      data:
-        ED25519_PRIVATE_KEY_HEX: "{{ .ED25519_PRIVATE_KEY_HEX }}"
+  - name: forgejo
+    type: route
+    auth: {mode: app, reason: "forgejo requires a kanidm login or token, with anubis in front of the web ui"}
+    gateway: public-gateway
+    hosts: [git.anurag.sh]
+    backend: {name: forgejo-anubis, port: 8923}
+    paths: [/]
+    dns: {provider: cloudflare, proxied: false}
+    timeouts: {request: 90s, backendRequest: 90s}
+    loadBalancer: {type: consistentHash, headers: [Cookie, User-Agent]}
+  - name: forgejo-ssh
+    type: route
+    protocol: tcp
+    listener: git-ssh
+    auth: {mode: app, reason: forgejo checks the ssh key of every git connection}
+    gateway: public-gateway
+    backend: {name: forgejo-ssh, port: 22}
+  - name: forgejo
+    type: oidc
+    secretName: kanidm-forgejo-oidc
+    host: git.anurag.sh
+    displayName: Forgejo
+    callbackPath: /user/oauth2/kanidm/callback
+    preferShortUsername: true
+    secretKeys: {clientId: key, clientSecret: secret}
+    scopes: [openid, email, profile, groups]
+    claimMaps:
+      forgejo: {join: ssv, valuesByGroup: {forgejo_admins: [admin]}}
+    icon: {configMap: forgejo-kanidm-icon, key: Forgejo.svg}
 sources:
   - type: helm
     chart: forgejo

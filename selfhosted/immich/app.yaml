@@ -1,51 +1,8 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: immich
 network:
-  ingress:
-    - home-gateway
+  ingress: [home-gateway]
 resources:
-  - name: immich
-    type: route
-    auth:
-      mode: app
-      reason: immich requires a kanidm login or api key on every api route
-    hosts:
-      - photos.anurag.sh
-    backend:
-      name: immich-server
-      port: 80
-    paths:
-      - /
-    dns: {provider: cloudflare, proxied: false}
-    timeouts:
-      request: 3600s
-      backendRequest: 3600s
-  - name: immich
-    type: oidc
-    secretName: kanidm-immich-oidc
-    host: photos.anurag.sh
-    displayName: Immich
-    callbackPath: /auth/login
-    extraRedirectUrls:
-      - https://photos.anurag.sh/user-settings
-      - https://photos.anurag.sh/api/oauth/mobile-redirect
-    preferShortUsername: true
-    secretKeys:
-      clientId: client-id
-      clientSecret: client-secret
-    claimMaps:
-      immich_role:
-        join: ssv
-        valuesByGroup:
-          immich_admins:
-            - admin
-  - name: immich
-    type: database
-    secretName: immich-db-credentials
-    enableConnectionPooling: false
-    extensions: [vector, vchord, cube, earthdistance]
-  - {name: library, type: volume, claimName: immich-library, class: nfs-perth, size: 1Ti, access: ReadWriteMany}
-  - {name: cache, type: cache}
   - name: config
     type: config
     configMap: immich-config
@@ -54,11 +11,37 @@ resources:
     values:
       OIDC_CLIENT_ID: {oidc: immich, key: client-id}
       OIDC_CLIENT_SECRET: {oidc: immich, key: client-secret}
+  - name: immich
+    type: database
+    secretName: immich-db-credentials
+    enableConnectionPooling: false
+    extensions: [vector, vchord, cube, earthdistance]
+  - {name: cache, type: cache}
+  - {name: library, type: volume, claimName: immich-library, class: nfs-perth, size: 1Ti, access: ReadWriteMany}
+  - name: immich
+    type: route
+    auth: {mode: app, reason: immich requires a kanidm login or api key on every api route}
+    gateway: public-gateway
+    hosts: [photos.anurag.sh]
+    backend: {name: immich-server, port: 80}
+    paths: [/]
+    dns: {provider: cloudflare, proxied: false}
+    timeouts: {request: 3600s, backendRequest: 3600s}
+  - name: immich
+    type: oidc
+    secretName: kanidm-immich-oidc
+    host: photos.anurag.sh
+    displayName: Immich
+    callbackPath: /auth/login
+    extraRedirectUrls: [https://photos.anurag.sh/user-settings, https://photos.anurag.sh/api/oauth/mobile-redirect]
+    preferShortUsername: true
+    secretKeys: {clientId: client-id, clientSecret: client-secret}
+    claimMaps:
+      immich_role: {join: ssv, valuesByGroup: {immich_admins: [admin]}}
 workloads:
   - name: immich-server
     image: ghcr.io/immich-app/immich-server
     replicas: 1
-    runAsNonRoot: false
     resources: {cpu: 500m, memory: 1Gi, memoryLimit: 4Gi}
     ports:
       - {name: http, container: 2283, service: 80}
@@ -82,8 +65,8 @@ workloads:
     mounts:
       library: {path: /data, volume: library}
       config: {path: /config, config: config}
-    service:
-      name: immich-server
+    runAsNonRoot: false
+    service: {name: immich-server}
     overrides:
       strategy:
         type: Recreate
