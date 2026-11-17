@@ -225,7 +225,7 @@ function loadApp(name: string | undefined, command: string) {
 }
 
 function staleFiles(only?: string, force = false): { path: string; wanted: string }[] {
-  const versions = parse(fs.readText(VERSIONS)).charts;
+  const { charts: versions, actions } = parse(fs.readText(VERSIONS));
   const stale = [];
   const apps = discover();
   const world = worldOf(apps.map(({ app }) => app));
@@ -246,7 +246,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
 
     if (app.build) {
       const workflow = workflowPath(app);
-      const rendered = renderWorkflow(app, target, parse(fs.readText(VERSIONS)).actions);
+      const rendered = renderWorkflow(app, target, actions);
       if (force || !fs.exists(workflow) || !isCurrent(fs.readText(workflow), rendered)) {
         stale.push({ path: workflow, wanted: stamped(rendered, new Date()) });
       }

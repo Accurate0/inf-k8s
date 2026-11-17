@@ -4,10 +4,10 @@ package:
   version: 0.62.0
   completions: cobra
 permissions:
-  exec: [diff, git, kubectl, curl, helm, kustomize, kubeconform]
+  exec: [diff, git, helm, kustomize, kubeconform]
   fs: [.]
   kube: [get, patch]
-  http: [raw.githubusercontent.com, git.anurag.sh]
+  http: [raw.githubusercontent.com, git.anurag.sh, k8s-schemas.anurag.sh]
   registry: [manifests]
 build:
   kind: wasm

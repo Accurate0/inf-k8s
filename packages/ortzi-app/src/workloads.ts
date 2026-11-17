@@ -1,5 +1,6 @@
 import { type Kube, parseImage } from '@ortzi/kit';
 import type { Application } from './argo';
+import { type RolloutStatus, ROLLED_OUT, rolledOut } from './rollout.ts';
 
 const KINDS = 'deployments,statefulsets,daemonsets,cronjobs,jobs';
 
@@ -15,11 +16,13 @@ interface PodSpec {
 
 export interface Workload {
   kind: string;
-  metadata: { name: string; namespace: string };
+  metadata: { name: string; namespace: string; generation?: number; resourceVersion?: string };
   spec: {
+    replicas?: number;
     template?: { spec?: PodSpec };
     jobTemplate?: { spec?: { template?: { spec?: PodSpec } } };
   };
+  status?: RolloutStatus;
 }
 
 export const listWorkloads = (kube: Kube) => kube.list<Workload>(KINDS);
@@ -57,10 +60,14 @@ export function waitForRollout(kube: Kube, workload: Workload, minutes: number):
     return true;
   }
 
-  const output = kube
+  if (!ROLLED_OUT[workload.kind]) {
+    console.log(`${ref} has no rollout to wait for`);
+    return false;
+  }
+
+  return kube
     .namespace(workload.metadata.namespace)
-    .run(['rollout', 'status', ref, `--timeout=${minutes * 60}s`], { check: false });
-  return output.ok;
+    .waitFor<Workload>(workload.kind.toLowerCase(), workload.metadata.name, rolledOut, minutes);
 }
 
 export function waitForRollouts(kube: Kube, workloads: Workload[], minutes: number): boolean {

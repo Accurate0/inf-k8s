@@ -29,7 +29,7 @@ export interface HistoryEntry extends Revisions {
 }
 
 export interface Application {
-  metadata: { name: string; annotations?: Record<string, string> };
+  metadata: { name: string; annotations?: Record<string, string>; resourceVersion?: string };
   spec: { source?: Source; sources?: Source[]; syncPolicy?: { automated?: Automated } };
   status?: {
     sync?: Revisions & { status?: string };
@@ -51,15 +51,12 @@ function patchApp(kube: Kube, name: string, patch: unknown): void {
 }
 
 export function waitForSync(kube: Kube, name: string, minutes: number): boolean {
-  return argocd(kube).run(
-    [
-      'wait',
-      `application/${name}`,
-      '--for=jsonpath={.status.sync.status}=Synced',
-      `--timeout=${minutes * 60}s`,
-    ],
-    { check: false },
-  ).ok;
+  return argocd(kube).waitFor<Application>(
+    'application',
+    name,
+    (app) => app.status?.sync?.status === 'Synced',
+    minutes,
+  );
 }
 
 export const isEmergency = (app: Application) =>

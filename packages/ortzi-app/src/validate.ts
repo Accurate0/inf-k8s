@@ -1,4 +1,4 @@
-import { fs, run } from '@ortzi/host';
+import { fs, httpSend, run } from '@ortzi/host';
 import { helmTemplates, type Plan } from './plan';
 
 export interface RenderedOutput {
@@ -11,12 +11,17 @@ const CACHE_ROOT = '.cache/kubeconform';
 const MANIFEST_ROOTS = ['system-components', 'platform-services', 'projects', 'selfhosted'];
 const SKIPPED_DIRS = new Set(['node_modules', 'target', 'dist', '.git']);
 
+function schemaVersion(): string | undefined {
+  try {
+    const response = httpSend({ url: `${SCHEMA_BASE}/version.json`, timeoutMs: 5000 });
+    return response.status === 200 ? response.body.match(/[0-9a-f]{64}/)?.[0] : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 function schemaCache(): string {
-  const version = run('curl', ['-fsS', '-m', '5', `${SCHEMA_BASE}/version.json`], {
-    stdout: 'piped',
-    stderr: 'piped',
-    check: false,
-  }).stdout.match(/[0-9a-f]{64}/)?.[0];
+  const version = schemaVersion();
 
   fs.mkdir(CACHE_ROOT);
   const cached = fs

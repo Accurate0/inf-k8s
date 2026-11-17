@@ -7,6 +7,12 @@ import {
   findResource,
 } from './discovery';
 
+const WATCH_SECONDS = 30;
+
+export interface Watched {
+  metadata: { resourceVersion?: string };
+}
+
 interface Status {
   kind?: string;
   message?: string;
@@ -125,13 +131,61 @@ export class Kube {
     });
   }
 
-  patch<T>(resource: string, name: string, patch: unknown): T {
-    return this.request<T>(
-      'PATCH',
-      this.path(this.resource(resource), name),
-      patch,
-      'application/merge-patch+json',
-    );
+  patch<T>(
+    resource: string,
+    name: string,
+    patch: unknown,
+    contentType = 'application/merge-patch+json',
+  ): T {
+    return this.request<T>('PATCH', this.path(this.resource(resource), name), patch, contentType);
+  }
+
+  // blocks on short server-side watches instead of sleeping, the host has no sleep
+  waitFor<T extends Watched>(
+    resource: string,
+    name: string,
+    done: (object: T) => boolean,
+    minutes: number,
+  ): boolean {
+    const deadline = Date.now() + minutes * 60_000;
+    const path = this.path(this.resource(resource));
+    let current = this.get<T>(resource, name);
+
+    while (!done(current)) {
+      const remaining = Math.ceil((deadline - Date.now()) / 1000);
+      if (remaining <= 0) {
+        return false;
+      }
+
+      const query = new URLSearchParams({
+        watch: 'true',
+        fieldSelector: `metadata.name=${name}`,
+        resourceVersion: current.metadata.resourceVersion ?? '',
+        timeoutSeconds: String(Math.min(remaining, WATCH_SECONDS)),
+      });
+      const response = kubeSend({
+        context: this.context,
+        method: 'GET',
+        path: `${path}?${query}`,
+        headers: { Accept: 'application/json' },
+      });
+      if (response.status >= 400) {
+        throw new Error(`GET ${path}: watch failed with ${response.status}`);
+      }
+
+      for (const line of response.body.split('\n').filter(Boolean)) {
+        const event = JSON.parse(line) as { type: string; object: T };
+        if (event.type === 'ERROR') {
+          current = this.get<T>(resource, name);
+        } else if (event.type === 'DELETED') {
+          throw new Error(`${resource}/${name} was deleted while waiting`);
+        } else {
+          current = event.object;
+        }
+      }
+    }
+
+    return true;
   }
 
   create<T>(resource: string, body: unknown): T {

@@ -78,9 +78,25 @@ function planEdits(workloads: Workload[], targets: Map<string, string>): Edit[] 
 }
 
 function applyEdit(kube: Kube, { workload, container, repository, to }: Edit): void {
+  const pod =
+    workload.kind === 'CronJob'
+      ? workload.spec.jobTemplate?.spec?.template?.spec
+      : workload.spec.template?.spec;
+  const list = pod?.initContainers?.some((c) => c.name === container)
+    ? 'initContainers'
+    : 'containers';
+  const podPatch = { spec: { [list]: [{ name: container, image: `${repository}:${to}` }] } };
+
   kube
     .namespace(workload.metadata.namespace)
-    .capture(['set', 'image', workloadRef(workload), `${container}=${repository}:${to}`]);
+    .patch(
+      workload.kind.toLowerCase(),
+      workload.metadata.name,
+      workload.kind === 'CronJob'
+        ? { spec: { jobTemplate: { spec: { template: podPatch } } } }
+        : { spec: { template: podPatch } },
+      'application/strategic-merge-patch+json',
+    );
 }
 
 export interface RollbackOptions {
