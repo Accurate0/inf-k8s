@@ -75,7 +75,9 @@ export class Kube {
           path,
           headers: { Accept: DISCOVERY },
         });
-        if (response.status >= 400) throw new Error(`GET ${path}: ${response.status}`);
+        if (response.status >= 400) {
+          throw new Error(`GET ${path}: ${response.status}`);
+        }
         return discovered(JSON.parse(response.body) as DiscoveryList);
       };
       this.cache.resources = [...fetch('/api'), ...fetch('/apis')];
@@ -86,7 +88,9 @@ export class Kube {
 
   resource(name: string): Resource {
     const found = findResource(this.resources(), name);
-    if (!found) throw new Error(`the server doesn't have a resource type "${name}"`);
+    if (!found) {
+      throw new Error(`the server doesn't have a resource type "${name}"`);
+    }
     return found;
   }
 

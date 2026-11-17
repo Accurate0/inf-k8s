@@ -30,15 +30,20 @@ export function completionCandidates<C>(
   const previous = words.slice(0, -1);
   const current = words.at(-1) ?? '';
   const last = previous.at(-1) ?? '';
-  if (last.startsWith('--') && spec.flags[last.slice(2)]?.type === 'string') return [];
+  if (last.startsWith('--') && spec.flags[last.slice(2)]?.type === 'string') {
+    return [];
+  }
 
   let candidates: string[];
   if (current.startsWith('-')) {
     candidates = Object.keys(spec.flags).map((flag) => `--${flag}`);
   } else {
     const [command, ...rest] = positionalWords(previous, spec.flags);
-    if (!command) candidates = spec.commands;
-    else candidates = spec.completers?.[command]?.(context(), rest.length) ?? [];
+    if (!command) {
+      candidates = spec.commands;
+    } else {
+      candidates = spec.completers?.[command]?.(context(), rest.length) ?? [];
+    }
   }
   return candidates.filter((candidate) => candidate.startsWith(current));
 }

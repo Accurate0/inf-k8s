@@ -10,10 +10,14 @@ const MANIFEST_TYPES = [
 
 export function ghcrDigest(repository: string, tag: string): string | undefined {
   const path = repository.replace(/^ghcr\.io\//, '');
-  if (path === repository) return undefined;
+  if (path === repository) {
+    return undefined;
+  }
 
   const token = fetchText(`https://ghcr.io/token?scope=repository:${path}:pull`);
-  if (!token) return undefined;
+  if (!token) {
+    return undefined;
+  }
 
   const headers = fetchHeaders(`https://ghcr.io/v2/${path}/manifests/${tag}`, {
     headers: {

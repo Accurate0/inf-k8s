@@ -27,7 +27,9 @@ export interface Resource {
 export function discovered(list: DiscoveryList): Resource[] {
   return list.items.flatMap((group) => {
     const [preferred] = group.versions;
-    if (!preferred) return [];
+    if (!preferred) {
+      return [];
+    }
 
     return (preferred.resources ?? []).map((r) => {
       const kind = r.responseKind?.kind ?? '';

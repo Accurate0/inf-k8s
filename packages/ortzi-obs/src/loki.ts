@@ -19,13 +19,23 @@ export interface Entry {
 const escape = (value: string) => value.replaceAll('\\', '\\\\').replaceAll('"', '\\"');
 
 export function buildQuery(selector: Selector): string {
-  if (selector.query !== undefined) return selector.query;
+  if (selector.query !== undefined) {
+    return selector.query;
+  }
 
   const matchers: string[] = [];
-  if (selector.ns !== undefined) matchers.push(`namespace="${escape(selector.ns)}"`);
-  if (selector.app !== undefined) matchers.push(`app="${escape(selector.app)}"`);
-  if (selector.pod !== undefined) matchers.push(`pod=~"${escape(selector.pod)}.*"`);
-  if (!matchers.length) throw new Error('pass a LogQL query or at least one of --ns, --app, --pod');
+  if (selector.ns !== undefined) {
+    matchers.push(`namespace="${escape(selector.ns)}"`);
+  }
+  if (selector.app !== undefined) {
+    matchers.push(`app="${escape(selector.app)}"`);
+  }
+  if (selector.pod !== undefined) {
+    matchers.push(`pod=~"${escape(selector.pod)}.*"`);
+  }
+  if (!matchers.length) {
+    throw new Error('pass a LogQL query or at least one of --ns, --app, --pod');
+  }
 
   const query = `{${matchers.join(',')}}`;
   return selector.grep === undefined ? query : `${query} |= "${escape(selector.grep)}"`;
@@ -57,7 +67,9 @@ export function stamp(ts: bigint): string {
 
 export function source(labels: Record<string, string>): string {
   const { namespace, pod, job } = labels;
-  if (namespace !== undefined) return pod === undefined ? namespace : `${namespace}/${pod}`;
+  if (namespace !== undefined) {
+    return pod === undefined ? namespace : `${namespace}/${pod}`;
+  }
   return job ?? '-';
 }
 

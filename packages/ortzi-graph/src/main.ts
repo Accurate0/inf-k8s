@@ -28,9 +28,15 @@ lab:
 log in with \`ortzi login graph\``;
 
 function readDocument(argument: string | undefined, file: string | undefined): string {
-  if (file !== undefined) return fs.readText(file);
-  if (argument !== undefined) return argument;
-  if (!stdinIsTerminal()) return new TextDecoder().decode(readStdin());
+  if (file !== undefined) {
+    return fs.readText(file);
+  }
+  if (argument !== undefined) {
+    return argument;
+  }
+  if (!stdinIsTerminal()) {
+    return new TextDecoder().decode(readStdin());
+  }
 
   throw new UsageError(`missing DOCUMENT\n\n${USAGE}`);
 }
@@ -52,7 +58,9 @@ export const run = cli({
   commands: {
     query: (ctx, values, [argument]) => {
       const document = readDocument(argument, values.file).trim();
-      if (!document) throw new UsageError('the document is empty');
+      if (!document) {
+        throw new UsageError('the document is empty');
+      }
 
       const body = graphql.body(document, values.variables, values.var, values.operation);
       const token = ctx.token ?? authToken();

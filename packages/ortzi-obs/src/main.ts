@@ -64,7 +64,9 @@ function fetchLogs(
 
 function parseLimit(value: string | undefined): number {
   const limit = Number(value);
-  if (!Number.isInteger(limit) || limit <= 0) throw new UsageError(`invalid --limit ${value}`);
+  if (!Number.isInteger(limit) || limit <= 0) {
+    throw new UsageError(`invalid --limit ${value}`);
+  }
   return limit;
 }
 
@@ -94,7 +96,9 @@ export const run = cli({
       base,
       grafana: () => {
         const token = values.token || vars.OBS_TOKEN;
-        if (!token) throw new Error('not logged in; run `ortzi login obs` or set OBS_TOKEN');
+        if (!token) {
+          throw new Error('not logged in; run `ortzi login obs` or set OBS_TOKEN');
+        }
         return (grafana ??= new Grafana(base, token));
       },
     };
@@ -121,19 +125,27 @@ export const run = cli({
         return 0;
       }
 
-      for (const entry of entries) console.log(loki.formatEntry(entry));
-      if (!values.follow) return 0;
+      for (const entry of entries) {
+        console.log(loki.formatEntry(entry));
+      }
+      if (!values.follow) {
+        return 0;
+      }
 
       let last = entries.at(-1)?.ts ?? end;
       for (;;) {
         exec('sleep', ['2']);
         const fresh = fetchLogs(grafana, logql, last + 1n, nowNs(), 5000, 'forward');
-        for (const entry of fresh) console.log(loki.formatEntry(entry));
+        for (const entry of fresh) {
+          console.log(loki.formatEntry(entry));
+        }
         last = fresh.at(-1)?.ts ?? last;
       }
     },
     traces: (ctx, values, [query]) => {
-      if (!query) throw new UsageError(`missing TRACEID or TRACEQL\n\n${USAGE}`);
+      if (!query) {
+        throw new UsageError(`missing TRACEID or TRACEQL\n\n${USAGE}`);
+      }
 
       if (tempo.isTraceId(query)) {
         const response = ctx
@@ -151,7 +163,9 @@ export const run = cli({
 
         const lines = tempo.tree(spans);
         if (!values.attrs) {
-          for (const line of lines) console.log(line);
+          for (const line of lines) {
+            console.log(line);
+          }
           return 0;
         }
         const order = tempo.ordered(spans);
@@ -190,7 +204,9 @@ export const run = cli({
       return 0;
     },
     metrics: (ctx, values, [query]) => {
-      if (!query) throw new UsageError(`missing PROMQL\n\n${USAGE}`);
+      if (!query) {
+        throw new UsageError(`missing PROMQL\n\n${USAGE}`);
+      }
 
       const now = Date.now();
       const seconds = (ms: number) => String(Math.floor(ms / 1000));

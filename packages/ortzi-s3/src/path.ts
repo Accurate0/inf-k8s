@@ -9,7 +9,9 @@ export function parseRemote(path: string): Remote {
   const rest = path.replace(/^s3:\/\//, '');
   const slash = rest.indexOf('/');
   const bucket = slash === -1 ? rest : rest.slice(0, slash);
-  if (!bucket) throw new Error(`no bucket in ${path}`);
+  if (!bucket) {
+    throw new Error(`no bucket in ${path}`);
+  }
 
   return { bucket, key: slash === -1 ? '' : rest.slice(slash + 1) };
 }
@@ -21,7 +23,9 @@ export const join = (dir: string, name: string) =>
 
 export function parseDuration(value: string): number {
   const match = /^(\d+)([smhd])$/.exec(value);
-  if (!match) throw new Error(`invalid duration ${value}; use e.g. 30m, 1h, 7d`);
+  if (!match) {
+    throw new Error(`invalid duration ${value}; use e.g. 30m, 1h, 7d`);
+  }
 
   const unit = { s: 1, m: 60, h: 3600, d: 86400 }[match[2] as 's' | 'm' | 'h' | 'd'];
   return Number(match[1]) * unit;

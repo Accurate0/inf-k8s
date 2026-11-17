@@ -58,7 +58,9 @@ export function request(url: string, options: RequestOptions = {}): Response {
     stderr: 'piped',
     check: false,
   });
-  if (!output.ok) throw new Error(`${url}: ${output.stderr.trim() || 'curl failed'}`);
+  if (!output.ok) {
+    throw new Error(`${url}: ${output.stderr.trim() || 'curl failed'}`);
+  }
 
   const split = output.stdout.lastIndexOf('\n');
   return {

@@ -14,7 +14,9 @@ export function parseVars(pairs: string[]): Record<string, unknown> {
   return Object.fromEntries(
     pairs.map((pair) => {
       const at = pair.indexOf('=');
-      if (at <= 0) throw new Error(`--var ${pair}: expected name=value`);
+      if (at <= 0) {
+        throw new Error(`--var ${pair}: expected name=value`);
+      }
 
       const raw = pair.slice(at + 1);
       let value: unknown = raw;

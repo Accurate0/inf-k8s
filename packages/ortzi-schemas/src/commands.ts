@@ -20,7 +20,9 @@ export function sync(kube: Kube, namespace: string, options: SyncOptions): numbe
   const before = publishedVersion();
   const name = createJob(kube, namespace, options.k8sVersion);
   console.log(`started ${name}`);
-  if (options.detach) return 0;
+  if (options.detach) {
+    return 0;
+  }
 
   const state = followJob(kube, name, Date.now() + options.timeoutMinutes * 60_000);
   if (state === 'failed') {

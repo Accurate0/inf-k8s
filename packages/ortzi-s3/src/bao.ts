@@ -31,11 +31,15 @@ export function readSecret(addr: string, jwt: string, path: string): Record<stri
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ role: 'cli', jwt }),
   }).auth?.client_token;
-  if (!token) throw new Error('openbao jwt login returned no token');
+  if (!token) {
+    throw new Error('openbao jwt login returned no token');
+  }
 
   const data = call(`${base}/v1/kv/data/${path}`, { headers: { 'X-Vault-Token': token } }).data
     ?.data;
-  if (!data) throw new Error(`openbao has no secret at kv/${path}`);
+  if (!data) {
+    throw new Error(`openbao has no secret at kv/${path}`);
+  }
 
   return data;
 }

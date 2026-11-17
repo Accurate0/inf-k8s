@@ -28,6 +28,12 @@ pre-commit:
       exclude: "packages/feature-flag-client/**"
       run: packages/node_modules/.bin/prettier --check {staged_files}
 
+    eslint:
+      root: packages/
+      glob: "**/*.{ts,mts,mjs}"
+      exclude: "feature-flag-client/**"
+      run: node_modules/.bin/eslint {staged_files}
+
     tofu-fmt:
       glob: "*.tf"
       run: tofu fmt -check -diff {staged_files}

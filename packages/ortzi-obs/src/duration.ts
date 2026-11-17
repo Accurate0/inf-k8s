@@ -10,8 +10,12 @@ export function parseDuration(value: string): number {
   const trimmed = value.trim();
   const match = /^(\d*)(.*)$/s.exec(trimmed);
   const [, number, unit] = match ?? ['', '', ''];
-  if (!unit) throw new Error(`${JSON.stringify(trimmed)} needs a unit (s, m, h, d, w)`);
-  if (!number) throw new Error(`invalid duration ${JSON.stringify(trimmed)}`);
+  if (!unit) {
+    throw new Error(`${JSON.stringify(trimmed)} needs a unit (s, m, h, d, w)`);
+  }
+  if (!number) {
+    throw new Error(`invalid duration ${JSON.stringify(trimmed)}`);
+  }
 
   const scale = UNITS[unit];
   if (scale === undefined) {

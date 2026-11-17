@@ -52,7 +52,9 @@ export class GarageAdmin {
     const stale = this.call<KeyItem[]>('GET', 'ListKeys').filter(
       (key) => key.expired && key.name.startsWith(KEY_PREFIX),
     );
-    for (const key of stale) this.call('POST', 'DeleteKey', `?id=${encodeURIComponent(key.id)}`);
+    for (const key of stale) {
+      this.call('POST', 'DeleteKey', `?id=${encodeURIComponent(key.id)}`);
+    }
 
     return stale.length;
   }
@@ -64,7 +66,9 @@ export class GarageAdmin {
       expiration,
       allow: { createBucket: true },
     });
-    if (!key.secretAccessKey) throw new Error('garage CreateKey returned no secret');
+    if (!key.secretAccessKey) {
+      throw new Error('garage CreateKey returned no secret');
+    }
 
     for (const bucket of this.call<{ id: string }[]>('GET', 'ListBuckets')) {
       this.call('POST', 'AllowBucketKey', '', {

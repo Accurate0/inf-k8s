@@ -55,14 +55,20 @@ export function listJobs(kube: Kube): Job[] {
 
 export function jobResult(job: Job): JobResult {
   const conditions = job.status?.conditions ?? [];
-  if (conditions.some((c) => c.type === 'Complete' && c.status === 'True')) return 'complete';
-  if (conditions.some((c) => c.type === 'Failed' && c.status === 'True')) return 'failed';
+  if (conditions.some((c) => c.type === 'Complete' && c.status === 'True')) {
+    return 'complete';
+  }
+  if (conditions.some((c) => c.type === 'Failed' && c.status === 'True')) {
+    return 'failed';
+  }
   return 'running';
 }
 
 export function publishedVersion(): string {
   const text = fetchText(VERSION_URL, { timeoutSeconds: 10 });
-  if (text === undefined) return 'unknown';
+  if (text === undefined) {
+    return 'unknown';
+  }
 
   try {
     const parsed = JSON.parse(text);
@@ -82,8 +88,11 @@ function jobFromCronJob(
   for (const container of k8sVersion ? spec.template.spec.containers : []) {
     const env: { name: string; value?: string }[] = container.env ?? [];
     const existing = env.find((e) => e.name === 'K8S_VERSION');
-    if (existing) existing.value = k8sVersion;
-    else env.push({ name: 'K8S_VERSION', value: k8sVersion });
+    if (existing) {
+      existing.value = k8sVersion;
+    } else {
+      env.push({ name: 'K8S_VERSION', value: k8sVersion });
+    }
     container.env = env;
   }
 
@@ -119,7 +128,9 @@ export function followJob(kube: Kube, name: string, deadline: number): JobResult
   while (Date.now() < deadline) {
     kube.run(['logs', '-f', `job/${name}`, '--pod-running-timeout=5m'], { check: false });
     const state = jobResult(kube.get<Job>('job', name));
-    if (state !== 'running') return state;
+    if (state !== 'running') {
+      return state;
+    }
   }
   return 'running';
 }

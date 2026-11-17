@@ -35,7 +35,9 @@ function failure(status: number, body: string): Error {
   let detail = body;
   try {
     const errors = (JSON.parse(body) as Body).errors;
-    if (errors?.length) detail = errors.join('; ');
+    if (errors?.length) {
+      detail = errors.join('; ');
+    }
   } catch {}
   return new Error(`openbao returned ${status}: ${detail.trim()}`);
 }
@@ -65,7 +67,9 @@ export class Bao {
     }
 
     const token = (JSON.parse(response.body) as Body).auth?.client_token;
-    if (!token) throw new Error('openbao jwt login returned no token');
+    if (!token) {
+      throw new Error('openbao jwt login returned no token');
+    }
     return Bao.fromToken(base, mount, token);
   }
 
@@ -79,15 +83,25 @@ export class Bao {
       body: body && JSON.stringify(body[1]),
     });
 
-    if (response.status === 404) return undefined;
-    if (response.status === 204) return {};
-    if (response.status >= 200 && response.status < 300) return JSON.parse(response.body) as Body;
+    if (response.status === 404) {
+      return undefined;
+    }
+    if (response.status === 204) {
+      return {};
+    }
+    if (response.status >= 200 && response.status < 300) {
+      return JSON.parse(response.body) as Body;
+    }
     throw failure(response.status, response.body);
   }
 
   private static dataOf<T>(body: Body | undefined, missing: string): T {
-    if (!body) throw new Error(missing);
-    if (body.data === undefined) throw new Error('openbao response has no data');
+    if (!body) {
+      throw new Error(missing);
+    }
+    if (body.data === undefined) {
+      throw new Error('openbao response has no data');
+    }
     return body.data as T;
   }
 
@@ -122,9 +136,13 @@ export class Bao {
     let written = this.call('PATCH', api, ['application/merge-patch+json', { data: changes }]);
     if (!written) {
       const created = Object.fromEntries(Object.entries(changes).filter(([, v]) => v !== null));
-      if (!Object.keys(created).length) throw new Error(this.missing(path));
+      if (!Object.keys(created).length) {
+        throw new Error(this.missing(path));
+      }
       written = this.call('POST', api, ['application/json', { data: created }]);
-      if (!written) throw new Error('openbao did not create the secret');
+      if (!written) {
+        throw new Error('openbao did not create the secret');
+      }
     }
 
     return (written.data as { version?: number } | undefined)?.version ?? 0;

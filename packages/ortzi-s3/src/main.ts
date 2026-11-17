@@ -62,7 +62,9 @@ function username(jwt: string): string {
 
 function mint(jwt: string): Key {
   const { GARAGE_ADMIN_TOKEN: adminToken } = readSecret(OPENBAO, jwt, 'garage');
-  if (!adminToken) throw new Error('openbao kv/garage has no GARAGE_ADMIN_TOKEN');
+  if (!adminToken) {
+    throw new Error('openbao kv/garage has no GARAGE_ADMIN_TOKEN');
+  }
 
   const admin = new GarageAdmin(GARAGE_ADMIN, adminToken);
   admin.pruneExpired();
@@ -91,7 +93,9 @@ function walk(dir: string, prefix = ''): string[] {
 
 function writeLocal(path: string, body: Uint8Array) {
   const parent = path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '';
-  if (parent) fs.mkdir(parent);
+  if (parent) {
+    fs.mkdir(parent);
+  }
   fs.write(path, body);
 }
 
@@ -100,7 +104,9 @@ const dirPrefix = (key: string) => (!key || key.endsWith('/') ? key : `${key}/`)
 const intoDir = (key: string) => !key || key.endsWith('/');
 
 function remote(path: string | undefined, what = 's3://BUCKET/KEY'): Remote {
-  if (!path) throw new UsageError(`missing ${what}\n\n${USAGE}`);
+  if (!path) {
+    throw new UsageError(`missing ${what}\n\n${USAGE}`);
+  }
   return parseRemote(path);
 }
 
@@ -122,12 +128,20 @@ export const run = cli({
     const endpoint = values.endpoint ?? vars.S3_ENDPOINT ?? DEFAULT_ENDPOINT;
 
     const credentials = () => {
-      if (key) return key;
-      if (!values.refresh) key = readCache();
-      if (key) return key;
+      if (key) {
+        return key;
+      }
+      if (!values.refresh) {
+        key = readCache();
+      }
+      if (key) {
+        return key;
+      }
 
       const jwt = values.token || vars.S3_TOKEN;
-      if (!jwt) throw new Error('not logged in; run `ortzi login s3` or set S3_TOKEN');
+      if (!jwt) {
+        throw new Error('not logged in; run `ortzi login s3` or set S3_TOKEN');
+      }
       return (key = mint(jwt));
     };
 
@@ -193,8 +207,12 @@ export const run = cli({
       return 0;
     },
     cp: (ctx, values, [src, dst]) => {
-      if (!src || !dst) throw new UsageError(`missing SRC or DST\n\n${USAGE}`);
-      if (!isRemote(src) && !isRemote(dst)) throw new UsageError('one side must be s3://');
+      if (!src || !dst) {
+        throw new UsageError(`missing SRC or DST\n\n${USAGE}`);
+      }
+      if (!isRemote(src) && !isRemote(dst)) {
+        throw new UsageError('one side must be s3://');
+      }
       const s3 = ctx.s3();
 
       if (isRemote(src)) {
@@ -204,7 +222,9 @@ export const run = cli({
               .list(from.bucket, dirPrefix(from.key))
               .objects.map((o) => ({ key: o.key, rel: o.key.slice(dirPrefix(from.key).length) }))
           : [{ key: from.key, rel: basename(from.key) }];
-        if (!sources.length || !sources[0].key) throw new Error(`nothing to copy at ${src}`);
+        if (!sources.length || !sources[0].key) {
+          throw new Error(`nothing to copy at ${src}`);
+        }
 
         for (const { key, rel } of sources) {
           if (isRemote(dst)) {
@@ -234,7 +254,9 @@ export const run = cli({
         return 0;
       }
 
-      if (src === '-' && intoDir(to.key)) throw new UsageError('give a key when copying stdin');
+      if (src === '-' && intoDir(to.key)) {
+        throw new UsageError('give a key when copying stdin');
+      }
       const target = intoDir(to.key) ? join(to.key, basename(src)) : to.key;
       s3.put(to.bucket, target, src === '-' ? readStdin() : fs.read(src));
       console.error(`upload: ${src} -> s3://${to.bucket}/${target}`);
@@ -247,7 +269,9 @@ export const run = cli({
       return 0;
     },
     rm: (ctx, values, paths) => {
-      if (!paths.length) throw new UsageError(`missing s3://BUCKET/KEY\n\n${USAGE}`);
+      if (!paths.length) {
+        throw new UsageError(`missing s3://BUCKET/KEY\n\n${USAGE}`);
+      }
       const s3 = ctx.s3();
 
       for (const path of paths) {
@@ -257,7 +281,9 @@ export const run = cli({
           s3.deleteMany(bucket, keys);
           console.error(`delete: ${keys.length} objects under s3://${bucket}/${key}`);
         } else {
-          if (!key) throw new UsageError(`${path} names a bucket; use rb or rm -r`);
+          if (!key) {
+            throw new UsageError(`${path} names a bucket; use rb or rm -r`);
+          }
           s3.delete(bucket, key);
           console.error(`delete: s3://${bucket}/${key}`);
         }
@@ -274,11 +300,12 @@ export const run = cli({
     rb: (ctx, values, [path]) => {
       const { bucket } = remote(path, 's3://BUCKET');
       const s3 = ctx.s3();
-      if (values.force)
+      if (values.force) {
         s3.deleteMany(
           bucket,
           s3.list(bucket, '').objects.map((o) => o.key),
         );
+      }
 
       s3.deleteBucket(bucket);
       console.error(`remove bucket: ${bucket}`);

@@ -8,8 +8,12 @@ const ENTITIES: Record<string, string> = {
 
 export const unescape = (text: string) =>
   text.replace(/&(#x?[0-9a-fA-F]+|\w+);/g, (match, entity: string) => {
-    if (entity.startsWith('#x')) return String.fromCodePoint(parseInt(entity.slice(2), 16));
-    if (entity.startsWith('#')) return String.fromCodePoint(parseInt(entity.slice(1), 10));
+    if (entity.startsWith('#x')) {
+      return String.fromCodePoint(parseInt(entity.slice(2), 16));
+    }
+    if (entity.startsWith('#')) {
+      return String.fromCodePoint(parseInt(entity.slice(1), 10));
+    }
     return ENTITIES[entity] ?? match;
   });
 

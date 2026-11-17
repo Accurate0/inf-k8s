@@ -28,13 +28,17 @@ export function labels(metric: Record<string, string>): string {
     .sort()
     .map((k) => `${k}="${metric[k]}"`);
 
-  if (!rest.length) return name || '{}';
+  if (!rest.length) {
+    return name || '{}';
+  }
   return `${name}{${rest.join(', ')}}`;
 }
 
 export function summarise(values: Sample[]): Summary | undefined {
   const numbers = values.map(([, v]) => Number.parseFloat(v)).filter(Number.isFinite);
-  if (!numbers.length) return undefined;
+  if (!numbers.length) {
+    return undefined;
+  }
 
   return {
     last: numbers[numbers.length - 1],

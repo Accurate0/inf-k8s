@@ -18,7 +18,9 @@ export interface CliSpec<C, F extends Flags> {
 
 function aliased(argv: string[], aliases: Record<string, string> = {}): string[] {
   const invoked = invokedAs();
-  if (!Object.hasOwn(aliases, invoked)) return argv;
+  if (!Object.hasOwn(aliases, invoked)) {
+    return argv;
+  }
 
   const command = aliases[invoked];
   return argv[0] === '__complete' ? ['__complete', command, ...argv.slice(1)] : [command, ...argv];
@@ -59,7 +61,9 @@ export function cli<C, F extends Flags>(spec: CliSpec<C, F>): { run(): void } {
     try {
       return command(spec.setup(values), values, rest);
     } catch (e) {
-      if (!(e instanceof UsageError)) throw e;
+      if (!(e instanceof UsageError)) {
+        throw e;
+      }
       console.error(e.message);
       return 2;
     }
@@ -67,6 +71,8 @@ export function cli<C, F extends Flags>(spec: CliSpec<C, F>): { run(): void } {
 }
 
 export function applying(yes: boolean): boolean {
-  if (!yes) console.log('dry run; pass --yes to apply');
+  if (!yes) {
+    console.log('dry run; pass --yes to apply');
+  }
   return yes;
 }

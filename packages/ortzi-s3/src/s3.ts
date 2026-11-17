@@ -71,7 +71,9 @@ export class S3 {
       body: options.body,
       timeoutMs: 3_600_000,
     });
-    if (response.status >= 300) throw failure(method, path, response);
+    if (response.status >= 300) {
+      throw failure(method, path, response);
+    }
 
     return response;
   }
@@ -95,8 +97,12 @@ export class S3 {
         ['list-type', '2'],
         ['prefix', prefix],
       ];
-      if (delimiter) query.push(['delimiter', delimiter]);
-      if (token) query.push(['continuation-token', token]);
+      if (delimiter) {
+        query.push(['delimiter', delimiter]);
+      }
+      if (token) {
+        query.push(['continuation-token', token]);
+      }
 
       const xml = this.xml('GET', bucket, undefined, { query });
       for (const c of blocks(xml, 'Contents')) {
@@ -106,7 +112,9 @@ export class S3 {
           modified: text(c, 'LastModified') ?? '',
         });
       }
-      for (const p of blocks(xml, 'CommonPrefixes')) listing.prefixes.push(text(p, 'Prefix') ?? '');
+      for (const p of blocks(xml, 'CommonPrefixes')) {
+        listing.prefixes.push(text(p, 'Prefix') ?? '');
+      }
 
       token = text(xml, 'IsTruncated') === 'true' ? text(xml, 'NextContinuationToken') : undefined;
     } while (token);
@@ -125,7 +133,9 @@ export class S3 {
     }
 
     const upload = text(this.xml('POST', bucket, key, { query: [['uploads', '']] }), 'UploadId');
-    if (!upload) throw new Error(`no upload id for s3://${bucket}/${key}`);
+    if (!upload) {
+      throw new Error(`no upload id for s3://${bucket}/${key}`);
+    }
 
     try {
       const parts: string[] = [];
@@ -178,7 +188,9 @@ export class S3 {
         body,
       });
       const errors = blocks(xml, 'Error').map((e) => `${text(e, 'Key')}: ${text(e, 'Message')}`);
-      if (errors.length) throw new Error(`failed to delete:\n  ${errors.join('\n  ')}`);
+      if (errors.length) {
+        throw new Error(`failed to delete:\n  ${errors.join('\n  ')}`);
+      }
     }
   }
 
@@ -204,7 +216,9 @@ export class S3 {
 
 function etag(response: HttpBytesResponse): string {
   const found = Object.entries(response.headers).find(([name]) => name.toLowerCase() === 'etag');
-  if (!found) throw new Error('upload part returned no ETag');
+  if (!found) {
+    throw new Error('upload part returned no ETag');
+  }
   return found[1];
 }
 

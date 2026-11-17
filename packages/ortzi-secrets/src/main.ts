@@ -46,17 +46,23 @@ interface Ctx {
 function connect(addr: string, mount: string, token?: string, baoToken?: string): Bao {
   const vars = env();
   const direct = baoToken || vars.BAO_TOKEN;
-  if (direct) return Bao.fromToken(addr, mount, direct);
+  if (direct) {
+    return Bao.fromToken(addr, mount, direct);
+  }
 
   const jwt = token || vars.SECRETSCTL_TOKEN;
-  if (!jwt) throw new Error('not logged in; run `ortzi login secrets` or set SECRETSCTL_TOKEN');
+  if (!jwt) {
+    throw new Error('not logged in; run `ortzi login secrets` or set SECRETSCTL_TOKEN');
+  }
   return Bao.login(addr, mount, jwt);
 }
 
 function readSecret(key: string): string {
   if (!stdinIsTerminal()) {
     const line = readLine();
-    if (line === undefined) throw new Error(`no value for ${key} on stdin`);
+    if (line === undefined) {
+      throw new Error(`no value for ${key} on stdin`);
+    }
     return line;
   }
 
@@ -70,12 +76,16 @@ function readSecret(key: string): string {
 }
 
 function confirm(question: string): boolean {
-  if (!stdinIsTerminal()) throw new Error(`${question}: pass --yes to confirm non-interactively`);
+  if (!stdinIsTerminal()) {
+    throw new Error(`${question}: pass --yes to confirm non-interactively`);
+  }
   return ['y', 'Y', 'yes'].includes((prompt(`${question} [y/N] `) ?? '').trim());
 }
 
 function needed(value: string | undefined, what: string): string {
-  if (!value) throw new UsageError(`missing ${what}\n\n${USAGE}`);
+  if (!value) {
+    throw new UsageError(`missing ${what}\n\n${USAGE}`);
+  }
   return value;
 }
 
@@ -127,14 +137,18 @@ export const run = cli({
       }
 
       const base = prefix?.replace(/^\/+|\/+$/g, '');
-      for (const key of found) console.log(base === undefined ? key : `${base}/${key}`);
+      for (const key of found) {
+        console.log(base === undefined ? key : `${base}/${key}`);
+      }
 
       return 0;
     },
     get: (ctx, values, [path, key]) => {
       const secret = ctx.bao().require(needed(path, 'PATH'));
       if (key !== undefined) {
-        if (!Object.hasOwn(secret.data, key)) throw new Error(`${path} has no key ${key}`);
+        if (!Object.hasOwn(secret.data, key)) {
+          throw new Error(`${path} has no key ${key}`);
+        }
         console.log(display(secret.data[key]));
         return 0;
       }
@@ -160,8 +174,9 @@ export const run = cli({
     },
     set: (ctx, values, [path, ...names]) => {
       needed(path, 'PATH');
-      if (!names.length && !values.file.length)
+      if (!names.length && !values.file.length) {
         throw new UsageError(`pass KEY... or --file KEY=PATH\n\n${USAGE}`);
+      }
 
       const changes: Record<string, string> = {};
       for (const key of names) {
@@ -173,7 +188,9 @@ export const run = cli({
 
       for (const file of values.file) {
         const split = file.indexOf('=');
-        if (split < 0) throw new UsageError('--file takes KEY=PATH');
+        if (split < 0) {
+          throw new UsageError('--file takes KEY=PATH');
+        }
         changes[file.slice(0, split)] = fs.readText(file.slice(split + 1));
       }
 
@@ -193,11 +210,15 @@ export const run = cli({
         bao.deleteLatest(path);
         console.log(`deleted the latest version of ${path}`);
       } else {
-        if (!names.length) throw new UsageError(`pass KEY... or --all\n\n${USAGE}`);
+        if (!names.length) {
+          throw new UsageError(`pass KEY... or --all\n\n${USAGE}`);
+        }
 
         const secret = bao.require(path);
         const missing = names.find((key) => !Object.hasOwn(secret.data, key));
-        if (missing) throw new Error(`${path} has no key ${missing}`);
+        if (missing) {
+          throw new Error(`${path} has no key ${missing}`);
+        }
 
         const version = bao.patch(path, Object.fromEntries(names.map((k) => [k, null])));
         console.log(`removed ${names.join(', ')} from ${path} (version ${version})`);
@@ -240,10 +261,14 @@ export const run = cli({
       return 0;
     },
     env: (ctx, values, paths) => {
-      if (!paths.length) throw new UsageError(`missing PATH\n\n${USAGE}`);
+      if (!paths.length) {
+        throw new UsageError(`missing PATH\n\n${USAGE}`);
+      }
       const secrets = paths.map((path): [string, Data] => [path, ctx.bao().require(path).data]);
       const lines = exports(collect(secrets, values.prefix ?? ''));
-      if (lines) console.log(lines.trimEnd());
+      if (lines) {
+        console.log(lines.trimEnd());
+      }
 
       return 0;
     },

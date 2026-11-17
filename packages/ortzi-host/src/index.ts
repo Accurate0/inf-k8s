@@ -253,10 +253,14 @@ export function readLine(): string | undefined {
     }
 
     if (chunk.length === 0) {
-      if (!bytes.length) return undefined;
+      if (!bytes.length) {
+        return undefined;
+      }
       break;
     }
-    if (chunk[0] === 0x0a) break;
+    if (chunk[0] === 0x0a) {
+      break;
+    }
     bytes.push(chunk[0]);
   }
 
@@ -275,7 +279,9 @@ export function readStdin(): Uint8Array {
       break;
     }
 
-    if (chunk.length === 0) break;
+    if (chunk.length === 0) {
+      break;
+    }
     chunks.push(chunk);
     size += chunk.length;
   }
@@ -356,20 +362,26 @@ export function parseArgs<F extends Flags>(
       [name, inline] = arg.slice(2).split(/=(.*)/s, 2);
     } else if (arg.startsWith('-') && arg.length > 1) {
       name = byShort.get(arg.slice(1));
-      if (!name) throw new Error(`unknown flag ${arg}`);
+      if (!name) {
+        throw new Error(`unknown flag ${arg}`);
+      }
     } else {
       positionals.push(arg);
       continue;
     }
 
     const flag = flags[name];
-    if (!flag) throw new Error(`unknown flag --${name}`);
+    if (!flag) {
+      throw new Error(`unknown flag --${name}`);
+    }
 
     if (flag.type === 'boolean') {
       values[name] = true;
     } else {
       const value = inline ?? argv[++i];
-      if (value === undefined) throw new Error(`--${name} needs a value`);
+      if (value === undefined) {
+        throw new Error(`--${name} needs a value`);
+      }
       values[name] = flag.multiple ? [...(values[name] as string[]), value] : value;
     }
   }
@@ -381,7 +393,9 @@ export function main(body: () => void | number): { run(): void } {
     run() {
       try {
         const code = body();
-        if (typeof code === 'number' && code !== 0) exit(code);
+        if (typeof code === 'number' && code !== 0) {
+          exit(code);
+        }
       } catch (e) {
         console.error(e instanceof Error ? e.message : String(e));
         exit(1);

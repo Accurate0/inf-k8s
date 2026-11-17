@@ -56,7 +56,9 @@ export function sync(kube: Kube, target: string): boolean {
     }
 
     pending = still;
-    if (pending.length) run('sleep', ['1']);
+    if (pending.length) {
+      run('sleep', ['1']);
+    }
   }
 
   return ok;
