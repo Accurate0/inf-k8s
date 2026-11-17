@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T04:52:55.215Z
+# generated at 2026-11-17T14:18:35.408Z
 name: app graph
 on:
   push:
@@ -62,8 +62,10 @@ jobs:
       - run: curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain 1.99.1 && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
         with:
-          path: platform-services/graph/target
-          key: ${{ runner.os }}-app-target-${{ hashFiles('**/Cargo.lock') }}-graph
+          path: |-
+            platform-services/graph/target
+            ~/.cargo/registry
+          key: ${{ runner.os }}-app-target-${{ hashFiles('platform-services/graph/Cargo.lock') }}-graph
       - run: cargo test
         working-directory: ${{ github.workspace }}/platform-services/graph
   deploy:
