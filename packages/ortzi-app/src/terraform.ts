@@ -152,8 +152,9 @@ const BUCKET_PROVIDERS = { r2: r2Resources, s3: s3Resources, garage: garageResou
 const merge = (blocks: Block[]): Block => {
   const out: Block = {};
   for (const block of blocks) {
-    for (const [type, resources] of Object.entries(block))
+    for (const [type, resources] of Object.entries(block)) {
       out[type] = { ...out[type], ...resources };
+    }
   }
   return out;
 };
@@ -169,7 +170,9 @@ export function renderAppTerraform(app: App): string | undefined {
       databaseResources(app, database, databaseRole(database, spec)),
     ),
     ...(app.resources ?? []).flatMap((resource) => {
-      if (resource.type !== 'bucket') return [];
+      if (resource.type !== 'bucket') {
+        return [];
+      }
       const id = `${app.name}-${resource.name}`;
       return [BUCKET_PROVIDERS[resource.provider](app, id, resource, resource.bucket)];
     }),

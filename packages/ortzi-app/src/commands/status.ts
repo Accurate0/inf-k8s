@@ -20,7 +20,9 @@ function printSummary(reports: Report[]): void {
 
   for (const { app, problems } of bad) {
     console.log(`${symbol(problems)} ${app.metadata.name}`);
-    for (const problem of problems) console.log(`    ${problem.text}`);
+    for (const problem of problems) {
+      console.log(`    ${problem.text}`);
+    }
     console.log('');
   }
   console.log(`✓ ${reports.length - bad.length} apps ok`);
@@ -61,7 +63,9 @@ function printApp({ app, images, problems }: Report): void {
 
   if (problems.length > 0) {
     console.log('');
-    for (const problem of problems) console.log(`  ${problem.text}`);
+    for (const problem of problems) {
+      console.log(`  ${problem.text}`);
+    }
   }
 
   if (images.length > 0) {
@@ -88,7 +92,10 @@ export function status(
   }
 
   const reports = listApps(kube).map((app) => buildReport(app, workloads, latest));
-  if (all) printAll(reports, latest);
-  else printSummary(reports);
+  if (all) {
+    printAll(reports, latest);
+  } else {
+    printSummary(reports);
+  }
   return 0;
 }

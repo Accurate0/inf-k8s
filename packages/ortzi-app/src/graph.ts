@@ -19,7 +19,9 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
   const nodes = new Map<string, Node>();
   const edges: Edge[] = [];
   const node = (id: string, label: string, kind: Node['kind']) => {
-    if (!nodes.has(id)) nodes.set(id, { id, label, kind });
+    if (!nodes.has(id)) {
+      nodes.set(id, { id, label, kind });
+    }
     return id;
   };
 
@@ -30,7 +32,9 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
         edges.push({ from: app.name, to: resource.app, label: resource.export });
       } else if (resource.type === 'subgraph') {
         const supergraph = supergraphApp(apps);
-        if (supergraph) edges.push({ from: supergraph.name, to: app.name, label: 'subgraph' });
+        if (supergraph) {
+          edges.push({ from: supergraph.name, to: app.name, label: 'subgraph' });
+        }
       } else if (resource.type === 'supergraph') {
         continue;
       } else if (
@@ -73,13 +77,19 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
 
   for (const app of apps) {
     for (const from of app.network.ingress) {
-      if (edges.some((edge) => edge.from === from && edge.to === app.name)) continue;
-      if (!known.has(from)) node(from, from, 'namespace');
+      if (edges.some((edge) => edge.from === from && edge.to === app.name)) {
+        continue;
+      }
+      if (!known.has(from)) {
+        node(from, from, 'namespace');
+      }
       edges.push({ from, to: app.name, label: 'ingress', dashed: true });
     }
   }
 
-  if (!only) return { nodes: [...nodes.values()], edges };
+  if (!only) {
+    return { nodes: [...nodes.values()], edges };
+  }
   const near = edges.filter((edge) => edge.from === only || edge.to === only);
   const keep = new Set([only, ...near.flatMap((edge) => [edge.from, edge.to])]);
   return { nodes: [...nodes.values()].filter((n) => keep.has(n.id)), edges: near };

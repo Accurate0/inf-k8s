@@ -147,7 +147,9 @@ function rootTypes(sdl: DocumentNode): Set<string> {
     }
   }
   if (!roots.size) {
-    for (const name of ['Query', 'Mutation', 'Subscription']) roots.add(name);
+    for (const name of ['Query', 'Mutation', 'Subscription']) {
+      roots.add(name);
+    }
   }
   return roots;
 }
@@ -180,7 +182,9 @@ export function unprefixedTypes(sdl: DocumentNode, prefix: string, others: strin
   ]);
 
   const names = sdl.definitions.flatMap((definition) => {
-    if (!named.has(definition.kind) || !('name' in definition) || !definition.name) return [];
+    if (!named.has(definition.kind) || !('name' in definition) || !definition.name) {
+      return [];
+    }
     const name = definition.name.value;
     const entity = (
       definition as { directives?: readonly { name: { value: string } }[] }

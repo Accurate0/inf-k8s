@@ -358,7 +358,7 @@ test('rejects invalid route auth', () => {
     /no oidc client named nope/,
   );
   assert.throws(() => validate(app({ mode: 'none' }), 'x'), /auth.reason is required/);
-  assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode must be/);
+  assert.throws(() => validate(app({ mode: 'open' }), 'x'), /auth.mode is not one of enum values/);
   validate(app({ mode: 'oidc', client: 'foo' }), 'x');
 
   assert.throws(
@@ -551,8 +551,11 @@ test('output is stable', () => {
 });
 
 test('rejects invalid apps', () => {
-  assert.throws(() => validate({ name: 'foo' }, 'x'), /network.ingress/);
-  assert.throws(() => validate({ name: 'Foo', network: { ingress: [] } }, 'x'), /kebab-case/);
+  assert.throws(() => validate({ name: 'foo' }, 'x'), /requires property "network"/);
+  assert.throws(
+    () => validate({ name: 'Foo', network: { ingress: [] } }, 'x'),
+    /name does not match pattern/,
+  );
   assert.throws(
     () => validate({ name: 'foo', nope: 1, network: { ingress: [] } }, 'x'),
     /unknown block/,
@@ -582,7 +585,7 @@ test('rejects invalid apps', () => {
         },
         'x',
       ),
-    /routes.foo.auth is required/,
+    /resources\[0\] requires property "auth"/,
   );
 });
 
@@ -1386,7 +1389,7 @@ test('rejects bad route and metrics resources', () => {
         },
         'test',
       ),
-    /auth is required/,
+    /resources\[0\] requires property "auth"/,
   );
 });
 
@@ -2596,7 +2599,10 @@ test('workloads are a list with unique names', () => {
   const app = (workloads: unknown) => ({ name: 'foo', network: { ingress: [] }, workloads });
   validate(app([{ name: 'foo', image: 'i' }]), 'x');
 
-  assert.throws(() => validate(app({ foo: { image: 'i' } }), 'x'), /workloads must be a list/);
+  assert.throws(
+    () => validate(app({ foo: { image: 'i' } }), 'x'),
+    /workloads is not of a type\(s\) array/,
+  );
   assert.throws(
     () =>
       validate(
@@ -3192,7 +3198,10 @@ test('a generated secret pushes each key to openbao and syncs it back', () => {
       'test',
     );
   assert.throws(() => generated({}), /generate/);
-  assert.throws(() => generated({ KEY: { length: 32 } }), /resources\[0\] is not exactly one/);
+  assert.throws(
+    () => generated({ KEY: { length: 32 } }),
+    /resources\[0\].generate.KEY requires property "symbols"/,
+  );
   assert.throws(() => generated({ 'a-b': { length: 8, symbols: 0 } }), /letters, digits/);
   assert.throws(
     () => generated({ A_B: { length: 8, symbols: 0 }, a_b: { length: 8, symbols: 0 } }),
@@ -3276,7 +3285,7 @@ test('a config with values renders through a secret template', () => {
   );
   assert.throws(
     () => config({ secretName: 's', values: { A: { secret: 'x' } } }),
-    /resources\[0\] is not exactly one/,
+    /resources\[0\].values.A is not exactly one/,
   );
   assert.throws(
     () =>

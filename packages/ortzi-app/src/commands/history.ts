@@ -3,9 +3,13 @@ import { getApp, historyNewestFirst } from '../argo';
 import { gitRevision, tagsAt } from '../git';
 
 function describeTags(tags: Map<string, string>): string {
-  if (tags.size === 0) return '-';
+  if (tags.size === 0) {
+    return '-';
+  }
   const entries = [...tags];
-  if (new Set(tags.values()).size === 1) return short(entries[0][1]);
+  if (new Set(tags.values()).size === 1) {
+    return short(entries[0][1]);
+  }
   return entries.map(([image, tag]) => `${image.split('/').pop()}=${short(tag)}`).join(' ');
 }
 

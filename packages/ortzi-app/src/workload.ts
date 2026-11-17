@@ -36,9 +36,15 @@ const TIMINGS = {
 
 function expandEnv(env: Values, refs: Refs) {
   return Object.entries(env).map(([name, value]) => {
-    if (typeof value !== 'object' || value === null) return { name, value: String(value) };
-    if (value.resource) return refs.resource(value.resource, name, value.part);
-    if (value.service) return { name, value: refs.service(value.service, value.port, value.path) };
+    if (typeof value !== 'object' || value === null) {
+      return { name, value: String(value) };
+    }
+    if (value.resource) {
+      return refs.resource(value.resource, name, value.part);
+    }
+    if (value.service) {
+      return { name, value: refs.service(value.service, value.port, value.path) };
+    }
 
     const kind = secretKind(value);
     if (kind) {
@@ -51,7 +57,9 @@ function expandEnv(env: Values, refs: Refs) {
       };
     }
 
-    if (value.field) return { name, valueFrom: { fieldRef: { fieldPath: value.field } } };
+    if (value.field) {
+      return { name, valueFrom: { fieldRef: { fieldPath: value.field } } };
+    }
     return { name, ...value };
   });
 }
@@ -101,7 +109,9 @@ export function describeEnv(env: Values, refs: Refs): EnvSource[] {
       };
     }
 
-    if (value.field) return { name, from: 'field', value: value.field };
+    if (value.field) {
+      return { name, from: 'field', value: value.field };
+    }
     return { name, from: 'raw', value: JSON.stringify(value) };
   });
 }
@@ -109,7 +119,9 @@ export function describeEnv(env: Values, refs: Refs): EnvSource[] {
 export function describeEnvFrom(from: unknown, refs: Refs): EnvSource {
   const value = from as Values;
   const kind = secretKind(value);
-  if (!kind) return { name: 'envFrom', from: 'raw', value: JSON.stringify(value) };
+  if (!kind) {
+    return { name: 'envFrom', from: 'raw', value: JSON.stringify(value) };
+  }
 
   return {
     name: value.prefix ? `envFrom ${value.prefix}*` : 'envFrom',
@@ -138,8 +150,12 @@ function expandProbes({ http, grpc, exec, ...probes }: Values) {
 
 function expandMounts(mounts: Values, refs: Refs) {
   const entries = Object.entries<Values>(mounts).map(([name, mount]): [string, Values] => {
-    if (mount.volume) return [name, { ...mount, claimName: refs.volume(mount.volume) }];
-    if (!mount.config) return [name, mount];
+    if (mount.volume) {
+      return [name, { ...mount, claimName: refs.volume(mount.volume) }];
+    }
+    if (!mount.config) {
+      return [name, mount];
+    }
     const { configMap, files, secretName } = refs.config(mount.config);
     const items = files.map((path) => ({ key: path.split('/').pop(), path }));
     return [name, { ...mount, ...(secretName ? { secretName } : { configMap }), items }];
@@ -147,8 +163,12 @@ function expandMounts(mounts: Values, refs: Refs) {
 
   return {
     volumes: entries.map(([name, { claimName, configMap, secretName, items }]) => {
-      if (claimName) return { name, persistentVolumeClaim: { claimName } };
-      if (secretName) return { name, secret: { secretName, items } };
+      if (claimName) {
+        return { name, persistentVolumeClaim: { claimName } };
+      }
+      if (secretName) {
+        return { name, secret: { secretName, items } };
+      }
       return configMap
         ? {
             name,
@@ -182,7 +202,9 @@ export const declaredPorts = (spec: Values): Values[] =>
 function expandEnvFrom(from: unknown, refs: Refs) {
   const value = from as Values;
   const kind = secretKind(value);
-  if (!kind) return value;
+  if (!kind) {
+    return value;
+  }
 
   const { [kind]: name, optional, prefix } = value;
   return {
@@ -194,11 +216,15 @@ function expandEnvFrom(from: unknown, refs: Refs) {
 export function expandContainer(spec: Values, refs: Refs): Values {
   const { probes, mounts, ...out } = spec;
 
-  if (out.env && !Array.isArray(out.env)) out.env = expandEnv(out.env, refs);
+  if (out.env && !Array.isArray(out.env)) {
+    out.env = expandEnv(out.env, refs);
+  }
   if (out.envFrom) {
     out.envFrom = out.envFrom.map((from: unknown) => expandEnvFrom(from, refs));
   }
-  if (out.resources) out.resources = expandResources(out.resources);
+  if (out.resources) {
+    out.resources = expandResources(out.resources);
+  }
   if (out.ports) {
     out.ports = out.ports.map((port: Values) => ({
       name: port.name,
@@ -216,7 +242,9 @@ export function expandContainer(spec: Values, refs: Refs): Values {
 export function expandWorkload(spec: Values, refs: Refs): Values {
   const { overrides, serviceAccount, ...rest } = spec;
   const out = expandContainer(rest, refs);
-  if (serviceAccount) out.serviceAccountName = serviceAccount;
+  if (serviceAccount) {
+    out.serviceAccountName = serviceAccount;
+  }
 
   const exposed = declaredPorts(spec).filter((port) => port.service);
   if (exposed.length) {
@@ -234,26 +262,38 @@ export function expandWorkload(spec: Values, refs: Refs): Values {
 
   const volumes: Values[] = out.volumes ?? [];
   for (const key of ['initContainers', 'sidecars']) {
-    if (!out[key]) continue;
+    if (!out[key]) {
+      continue;
+    }
     out[key] = out[key].map((container: Values) => {
       const { volumes: own = [], ...expanded } = expandContainer(container, refs);
       for (const volume of own) {
         const existing = volumes.find((v) => v.name === volume.name);
-        if (!existing) volumes.push(volume);
-        else if (JSON.stringify(existing) !== JSON.stringify(volume))
+        if (!existing) {
+          volumes.push(volume);
+        } else if (JSON.stringify(existing) !== JSON.stringify(volume)) {
           throw new Error(`volume ${volume.name} is mounted from different sources`);
+        }
       }
       return expanded;
     });
   }
-  if (volumes.length) out.volumes = volumes;
+  if (volumes.length) {
+    out.volumes = volumes;
+  }
 
   return { ...out, ...overrides };
 }
 
 export function overrideConflicts(spec: Values): string[] {
   const set = new Set(Object.keys(spec));
-  if (spec.probes) for (const probe of Object.values(PROBES)) set.add(probe);
-  if (spec.mounts) ['volumes', 'volumeMounts'].forEach((key) => set.add(key));
+  if (spec.probes) {
+    for (const probe of Object.values(PROBES)) {
+      set.add(probe);
+    }
+  }
+  if (spec.mounts) {
+    ['volumes', 'volumeMounts'].forEach((key) => set.add(key));
+  }
   return Object.keys(spec.overrides ?? {}).filter((key) => set.has(key));
 }

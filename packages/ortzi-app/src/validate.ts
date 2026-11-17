@@ -25,7 +25,9 @@ function schemaCache(): string {
     .map((entry) => entry.name);
   const current = version ?? cached[0] ?? 'unversioned';
   for (const old of cached) {
-    if (old !== current) fs.remove(`${CACHE_ROOT}/${old}`);
+    if (old !== current) {
+      fs.remove(`${CACHE_ROOT}/${old}`);
+    }
   }
 
   fs.mkdir(`${CACHE_ROOT}/${current}`);
@@ -34,8 +36,11 @@ function schemaCache(): string {
 
 function walk(dir: string, visit: (dir: string, file: string) => void) {
   for (const entry of fs.readDir(dir)) {
-    if (!entry.dir) visit(dir, entry.name);
-    else if (!SKIPPED_DIRS.has(entry.name)) walk(`${dir}/${entry.name}`, visit);
+    if (!entry.dir) {
+      visit(dir, entry.name);
+    } else if (!SKIPPED_DIRS.has(entry.name)) {
+      walk(`${dir}/${entry.name}`, visit);
+    }
   }
 }
 
@@ -66,7 +71,9 @@ export function validateManifests(
       ],
       { stdin, stdout: 'piped', stderr: 'piped', check: false },
     );
-    if (!output.ok) failures.push(`${where}\n${output.stdout}${output.stderr}`);
+    if (!output.ok) {
+      failures.push(`${where}\n${output.stdout}${output.stderr}`);
+    }
   };
 
   const apps = [...generated].filter(([path]) => selected(path));
@@ -81,8 +88,11 @@ export function validateManifests(
         stderr: 'piped',
         check: false,
       });
-      if (output.ok) documents.push(output.stdout);
-      else failures.push(`${path}: helm ${args[2]}\n${output.stderr}`);
+      if (output.ok) {
+        documents.push(output.stdout);
+      } else {
+        failures.push(`${path}: helm ${args[2]}\n${output.stderr}`);
+      }
     }
 
     kubeconform(path, [], documents.join('\n---\n'));
@@ -93,8 +103,12 @@ export function validateManifests(
   const applications: string[] = [];
   for (const root of MANIFEST_ROOTS) {
     walk(root, (dir, file) => {
-      if (!selected(dir)) return;
-      if (file === 'kustomization.yaml' || file === 'kustomization.yml') kustomizations.push(dir);
+      if (!selected(dir)) {
+        return;
+      }
+      if (file === 'kustomization.yaml' || file === 'kustomization.yml') {
+        kustomizations.push(dir);
+      }
       const path = `${dir}/${file}`;
       if (
         !generated.has(path) &&

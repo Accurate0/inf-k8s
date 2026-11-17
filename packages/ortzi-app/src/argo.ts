@@ -82,7 +82,9 @@ export function setSelfHeal(kube: Kube, name: string, enabled: boolean): void {
 
 export function turnAutosyncOff(kube: Kube, app: Application): void {
   const automated = app.spec.syncPolicy?.automated;
-  if (!automated) return;
+  if (!automated) {
+    return;
+  }
   const annotations = isEmergency(app) ? {} : { [SAVED_AUTOMATED]: JSON.stringify(automated) };
   patchApp(kube, app.metadata.name, {
     metadata: { annotations },

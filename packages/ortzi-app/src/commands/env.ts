@@ -25,8 +25,12 @@ export function secretChecker(kube: Kube, namespace: string): (key: SecretKey) =
   return ({ name, key, optional }) => {
     const secret = fetch(name);
     const found = secret && (key === undefined || secret.data?.[key] !== undefined);
-    if (found) return 'ok';
-    if (optional) return 'optional';
+    if (found) {
+      return 'ok';
+    }
+    if (optional) {
+      return 'optional';
+    }
     return secret ? 'missing key' : 'missing secret';
   };
 }
@@ -42,19 +46,27 @@ export function env(kube: Kube, app: App, world: World, only?: string): number {
   const containers = containerEnv(app, world).filter(
     ({ container }) => !only || container === only || container.startsWith(`${only}/`),
   );
-  if (only && !containers.length) throw new Error(`${app.name}: no workload named ${only}`);
+  if (only && !containers.length) {
+    throw new Error(`${app.name}: no workload named ${only}`);
+  }
 
   const check = secretChecker(kube, appNamespace(app));
   let missing = 0;
 
   for (const { container, rows } of containers) {
-    if (!rows.length) continue;
+    if (!rows.length) {
+      continue;
+    }
 
     const table = rows.map((row) => {
-      if (!('secret' in row)) return [row.name, row.from, row.value];
+      if (!('secret' in row)) {
+        return [row.name, row.from, row.value];
+      }
 
       const result = check(row.secret);
-      if (result.startsWith('missing')) missing++;
+      if (result.startsWith('missing')) {
+        missing++;
+      }
       const where = row.secret.key ? `${row.secret.name}/${row.secret.key}` : row.secret.name;
       return [row.name, `${row.from} → ${where}`, MARKS[result]];
     });
@@ -62,6 +74,8 @@ export function env(kube: Kube, app: App, world: World, only?: string): number {
     console.log(`${container}\n${columns(['NAME', 'FROM', 'VALUE'], table)}\n`);
   }
 
-  if (missing) console.error(`${missing} required secret reference(s) missing`);
+  if (missing) {
+    console.error(`${missing} required secret reference(s) missing`);
+  }
   return missing ? 1 : 0;
 }

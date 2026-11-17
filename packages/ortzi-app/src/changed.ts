@@ -7,7 +7,9 @@ export const parseStatus = (output: string) =>
     .map((entry) => entry.slice(3));
 
 export function changedScope(changed: string[]): (path: string) => boolean {
-  if (changed.some((path) => path.startsWith('charts/'))) return () => true;
+  if (changed.some((path) => path.startsWith('charts/'))) {
+    return () => true;
+  }
   const components = new Set(changed.map(component));
   return (path) => components.has(component(path));
 }

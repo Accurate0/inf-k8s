@@ -22,11 +22,17 @@ function workloadTags(
   revision: string | undefined,
 ): Map<string, string> | undefined {
   const helm = sources.find((s) => s.chart === 'k8s-workload')?.helm;
-  if (!helm) return undefined;
-  if (helm.valuesObject?.images) return new Map(Object.entries(helm.valuesObject.images));
+  if (!helm) {
+    return undefined;
+  }
+  if (helm.valuesObject?.images) {
+    return new Map(Object.entries(helm.valuesObject.images));
+  }
 
   const file = helm.valueFiles?.[0]?.replace('$values/', '');
-  if (!file || !revision) return new Map();
+  if (!file || !revision) {
+    return new Map();
+  }
   const text = fetchText(`https://raw.githubusercontent.com/${REPO}/${revision}/${file}`);
   return text ? parseValuesImages(text) : new Map();
 }
@@ -35,18 +41,24 @@ export function tagsAt(app: Application, entry: Entry | undefined): Map<string, 
   const sources = sourcesOf(app, entry);
   const revision = gitRevision(app, entry);
   const workload = workloadTags(sources, revision);
-  if (workload) return workload;
+  if (workload) {
+    return workload;
+  }
 
   const source = sources.find((s) => s.path && s.repoURL?.includes(REPO)) ?? app.spec.source;
   const path = source?.repoURL?.includes(REPO) ? source.path : undefined;
-  if (!path || !revision) return new Map();
+  if (!path || !revision) {
+    return new Map();
+  }
 
   for (const dir of [path, `${path}/manifests`]) {
     const text = fetchText(
       `https://raw.githubusercontent.com/${REPO}/${revision}/${dir}/kustomization.yaml`,
     );
     const images = text ? parseKustomizationImages(text) : new Map<string, string>();
-    if (images.size > 0) return images;
+    if (images.size > 0) {
+      return images;
+    }
   }
   return new Map();
 }

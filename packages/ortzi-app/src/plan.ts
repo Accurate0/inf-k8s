@@ -1,6 +1,7 @@
 import {
   type App,
   type Artifact,
+  type ArtifactSource,
   appDatabases,
   appMetrics,
   appNamespace,
@@ -12,7 +13,9 @@ import {
   databaseHost,
   databaseRole,
   declared,
+  type GitSource,
   imageValuesPath,
+  type ManifestsSource,
   refsFor,
   type RouteDns,
   type RouteLoadBalancer,
@@ -49,29 +52,8 @@ export interface ExternalChart {
   values?: Record<string, unknown>;
 }
 
-export interface GitPath {
-  type: 'git';
-  repo: string;
-  path: string;
-  name?: string;
-  revision?: string;
-}
-
-export interface LocalManifests {
-  type: 'manifests';
-  path: string;
-}
-
-export interface ExternalArtifact {
-  type: 'artifact';
-  repo: string;
-  tag: string;
-  path?: string;
-  name?: string;
-}
-
 export type PlanSource =
-  PlatformChart | ExternalChart | GitPath | LocalManifests | ExternalArtifact;
+  PlatformChart | ExternalChart | GitSource | ManifestsSource | ArtifactSource;
 
 export interface Plan {
   name: string;
@@ -85,7 +67,9 @@ export interface Plan {
 }
 
 function dnsAnnotations(dns: RouteDns): Record<string, string> {
-  if (dns.provider === 'unifi') return { 'external-dns.kubernetes.io/managed-unifi': 'true' };
+  if (dns.provider === 'unifi') {
+    return { 'external-dns.kubernetes.io/managed-unifi': 'true' };
+  }
   return {
     'external-dns.kubernetes.io/managed': 'true',
     'external-dns.kubernetes.io/cloudflare-proxied': String(dns.proxied),
@@ -130,7 +114,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   const databaseSecret = (database: string) => appDatabases(app)[database].secretName;
   const directory = `${target.location}/${name}`;
   const readValues = (path: string) => {
-    if (!world.readValues) throw new Error(`${name}: artifact apps inline values, pass readValues`);
+    if (!world.readValues) {
+      throw new Error(`${name}: artifact apps inline values, pass readValues`);
+    }
     return world.readValues(path);
   };
   const routes = Object.entries(appRoutes(app));
@@ -140,7 +126,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
 
   const loginPolicy = (client: string) => {
     const route = routes.find(([, r]) => r.auth?.mode === 'oidc' && r.auth.client === client);
-    if (!route) return {};
+    if (!route) {
+      return {};
+    }
     const {
       mode: _mode,
       client: _client,
@@ -155,7 +143,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     { valueFiles, retain }: { valueFiles?: string[]; retain?: boolean } = {},
   ): PlatformChart => {
     const version = app.charts?.[chartName] ?? versions[chartName];
-    if (!version) throw new Error(`${app.name}: no version for chart ${chartName}`);
+    if (!version) {
+      throw new Error(`${app.name}: no version for chart ${chartName}`);
+    }
     if (app.artifact && valueFiles) {
       values = Object.assign({}, ...valueFiles.map(readValues), values);
       valueFiles = undefined;
@@ -440,7 +430,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
 }
 
 function externalChartLocation({ chart, repo, version }: ExternalChart): string[] {
-  if (!repo.startsWith('oci://')) return [chart, '--repo', repo, '--version', version];
+  if (!repo.startsWith('oci://')) {
+    return [chart, '--repo', repo, '--version', version];
+  }
   return [repo.endsWith(`/${chart}`) ? repo : `${repo}/${chart}`, '--version', version];
 }
 
@@ -453,7 +445,9 @@ export const chartValues = (source: PlatformChart) => ({
 
 export function helmTemplates(plan: Plan): { args: string[]; values: string }[] {
   return plan.sources.flatMap((source) => {
-    if (source.type !== 'chart' && source.type !== 'helm') return [];
+    if (source.type !== 'chart' && source.type !== 'helm') {
+      return [];
+    }
     const release = source.type === 'helm' ? (source.releaseName ?? plan.name) : plan.name;
     const location =
       source.type === 'chart' ? [`charts/${source.chart}`] : externalChartLocation(source);

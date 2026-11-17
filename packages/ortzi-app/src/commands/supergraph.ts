@@ -12,7 +12,9 @@ import { compose, NODE_SUBGRAPH, SUPERGRAPH_HEADER_TEXT } from '../supergraph.ts
 
 function fetchSchema(url: string): string {
   const response = httpSend({ url, timeoutMs: 30_000 });
-  if (response.status !== 200) throw new Error(`${url}: ${response.status}`);
+  if (response.status !== 200) {
+    throw new Error(`${url}: ${response.status}`);
+  }
   return response.body;
 }
 
@@ -55,7 +57,9 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
   const header = `# ${SUPERGRAPH_HEADER_TEXT}`;
   const generated = (contents: string) => contents.startsWith(`${header}\n`);
   const current = (path: string, contents: string) => {
-    if (!fs.exists(path)) return false;
+    if (!fs.exists(path)) {
+      return false;
+    }
     const existing = fs.readText(path);
 
     return generated(contents) ? isCurrent(existing, contents) : existing === contents;
@@ -63,12 +67,18 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
 
   const now = new Date();
   const stale = wanted.filter(([path, contents]) => !current(path, contents));
-  if (!check) fs.mkdir(`${dir}/subgraphs`);
+  if (!check) {
+    fs.mkdir(`${dir}/subgraphs`);
+  }
   for (const [path, contents] of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
-    if (!check) fs.write(path, generated(contents) ? stamped(contents, now, header) : contents);
+    if (!check) {
+      fs.write(path, generated(contents) ? stamped(contents, now, header) : contents);
+    }
   }
-  if (!stale.length) console.log('supergraph is up to date');
+  if (!stale.length) {
+    console.log('supergraph is up to date');
+  }
 
   return check && stale.length ? 1 : 0;
 }

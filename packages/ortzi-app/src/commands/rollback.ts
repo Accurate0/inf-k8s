@@ -31,12 +31,16 @@ function chooseTargets(
   workloads: Workload[],
   tag: string | undefined,
 ): Map<string, string> {
-  if (tag) return new Map([...syncedTags(app).keys()].map((image) => [image, tag]));
+  if (tag) {
+    return new Map([...syncedTags(app).keys()].map((image) => [image, tag]));
+  }
   const previous = previousTags(
     runningTags(workloads),
     historyNewestFirst(app).map((entry) => tagsAt(app, entry)),
   );
-  if (!previous) throw new Error(`no different tags in ${app.metadata.name}'s history; pass a tag`);
+  if (!previous) {
+    throw new Error(`no different tags in ${app.metadata.name}'s history; pass a tag`);
+  }
   return previous;
 }
 
@@ -52,7 +56,9 @@ function assertTagsExist(targets: Map<string, string>): void {
   const missing = [...targets].filter(
     ([image, tag]) => image.startsWith('ghcr.io/') && !ghcrDigest(image, tag),
   );
-  if (missing.length === 0) return;
+  if (missing.length === 0) {
+    return;
+  }
   const lines = missing.map(([image, tag]) => `${image}:${tag} does not exist in ghcr`);
   throw new Error([...lines, 'nothing changed; use --image to limit the rollback'].join('\n'));
 }
@@ -105,11 +111,17 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
   for (const { workload, container, from, to } of edits) {
     console.log(`  ${workloadRef(workload)} ${container}: ${short(from)} -> ${short(to)}`);
   }
-  if (!yes) console.log('auto-sync would be turned off');
-  if (!applying(yes)) return 0;
+  if (!yes) {
+    console.log('auto-sync would be turned off');
+  }
+  if (!applying(yes)) {
+    return 0;
+  }
 
   turnAutosyncOff(kube, app);
-  for (const edit of edits) applyEdit(kube, edit);
+  for (const edit of edits) {
+    applyEdit(kube, edit);
+  }
   const undo = `auto-sync is off; to return to git: ortzi app autosync ${name} on --yes`;
   if (!options.wait) {
     console.log(undo);

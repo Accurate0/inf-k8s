@@ -26,7 +26,9 @@ export const displayImage = (image: string) => image.replace(/^ghcr\.io\/accurat
 function latestState(image: string, running: string | undefined): ImageState['latest'] {
   const current = running ? ghcrDigest(image, running) : undefined;
   const newest = ghcrDigest(image, 'latest');
-  if (!current || !newest) return 'unknown';
+  if (!current || !newest) {
+    return 'unknown';
+  }
   return current === newest ? 'yes' : 'behind';
 }
 
@@ -44,7 +46,9 @@ function imageProblems({ image, running, git, latest }: ImageState, emergency: b
     });
   }
 
-  if (latest === 'behind') problems.push({ severe: false, text: `${name} is behind latest` });
+  if (latest === 'behind') {
+    problems.push({ severe: false, text: `${name} is behind latest` });
+  }
   return problems;
 }
 
@@ -63,7 +67,9 @@ function appProblems(app: Application): Problem[] {
   }
 
   const sync = app.status?.sync?.status ?? 'Unknown';
-  if (sync !== 'Synced') problems.push({ severe: false, text: `sync is ${sync}` });
+  if (sync !== 'Synced') {
+    problems.push({ severe: false, text: `sync is ${sync}` });
+  }
 
   const health = app.status?.health?.status ?? 'Unknown';
   if (health !== 'Healthy') {
@@ -89,6 +95,8 @@ export function buildReport(app: Application, workloads: Workload[], latest: boo
 }
 
 export function symbol(problems: Problem[]): string {
-  if (problems.length === 0) return '✓';
+  if (problems.length === 0) {
+    return '✓';
+  }
   return problems.some((p) => p.severe) ? '✗' : '!';
 }

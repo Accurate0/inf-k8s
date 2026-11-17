@@ -16,7 +16,9 @@ export interface PlannedCommit {
 }
 
 function owner(path: string, databases: Map<string, string>): string | undefined {
-  if (path === INDEX) return undefined;
+  if (path === INDEX) {
+    return undefined;
+  }
   const match =
     path.match(/^(?:projects|platform-services)\/([^/]+)\//) ??
     path.match(/^\.(?:github|forgejo)\/workflows\/app-(.+)\.yaml$/) ??
@@ -35,8 +37,11 @@ export function planCommits(paths: string[], apps: App[]): PlannedCommit[] {
   const shared: string[] = [];
   for (const path of paths) {
     const name = owner(path, databases);
-    if (name) owned.set(name, [...(owned.get(name) ?? []), path]);
-    else shared.push(path);
+    if (name) {
+      owned.set(name, [...(owned.get(name) ?? []), path]);
+    } else {
+      shared.push(path);
+    }
   }
 
   const suffix = paths.some((path) => CI_PATHS.some((prefix) => path.startsWith(prefix)))
@@ -47,10 +52,11 @@ export function planCommits(paths: string[], apps: App[]): PlannedCommit[] {
     paths: owned.get(name) as string[],
   }));
 
-  if (shared.length)
+  if (shared.length) {
     commits.push({
       message: `chore(render): update shared generated files${suffix}`,
       paths: shared,
     });
+  }
   return commits;
 }

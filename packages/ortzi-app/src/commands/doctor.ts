@@ -67,7 +67,9 @@ function attempt(label: string, check: () => Check[]): Check[] {
 const unmet = (conditions: Condition[] | undefined, wanted: string[]) =>
   wanted.flatMap((type) => {
     const found = conditions?.find((c) => c.type === type);
-    if (found?.status === 'True') return [];
+    if (found?.status === 'True') {
+      return [];
+    }
     return [`${type}${found?.message ? `: ${found.message}` : ' not reported'}`];
   });
 
@@ -76,7 +78,9 @@ function argo(kube: Kube, app: App): Check[] {
   const sync = status?.sync?.status ?? 'Unknown';
   const health = status?.health?.status ?? 'Unknown';
   const text = `argo ${sync}, ${health}`;
-  if (health === 'Degraded' || health === 'Missing') return [fail(text)];
+  if (health === 'Degraded' || health === 'Missing') {
+    return [fail(text)];
+  }
   return [sync === 'Synced' && health === 'Healthy' ? ok(text) : warn(text)];
 }
 
@@ -86,7 +90,9 @@ function workloads(app: App, ns: Kube): Check[] {
 
   for (const [name, spec] of Object.entries(appWorkloads(app))) {
     const kind = spec.kind ?? 'Deployment';
-    if (kind === 'CronJob' || kind === 'Job') continue;
+    if (kind === 'CronJob' || kind === 'Job') {
+      continue;
+    }
 
     const resource = kind === 'DaemonSet' ? 'daemonsets' : 'deployments';
     const workload = ns.get<KubeObject>(resource, name);
@@ -120,9 +126,13 @@ function workloads(app: App, ns: Kube): Check[] {
       const current = hpa.status?.currentReplicas ?? 0;
       const problems = unmet(hpa.status?.conditions, ['AbleToScale', 'ScalingActive']);
       const text = `${name} autoscaling at ${current} (${spec.autoscale.min}-${spec.autoscale.max})`;
-      if (problems.length) checks.push(fail(`${text}: ${problems.join('; ')}`));
-      else if (current >= spec.autoscale.max) checks.push(warn(`${text}, at max`));
-      else checks.push(ok(text));
+      if (problems.length) {
+        checks.push(fail(`${text}: ${problems.join('; ')}`));
+      } else if (current >= spec.autoscale.max) {
+        checks.push(warn(`${text}, at max`));
+      } else {
+        checks.push(ok(text));
+      }
     }
   }
 
@@ -179,7 +189,9 @@ function routes(app: App, ns: Kube): Check[] {
 }
 
 function oidc(app: App, ns: Kube): Check[] {
-  if (!Object.keys(appOidc(app)).length) return [];
+  if (!Object.keys(appOidc(app)).length) {
+    return [];
+  }
   return ns.list<KubeObject>('kanidmoauth2clients').map((client) => {
     const problems = unmet(client.status?.conditions, ['Accepted', 'Programmed']);
     const text = `oidc client ${client.metadata.name}`;
@@ -189,7 +201,9 @@ function oidc(app: App, ns: Kube): Check[] {
 
 function databases(kube: Kube, app: App): Check[] {
   const specs = Object.entries(appDatabases(app));
-  if (!specs.length) return [];
+  if (!specs.length) {
+    return [];
+  }
 
   const cnpg = kube.namespace('cnpg-system');
   const reconciled: string[] =
@@ -214,9 +228,13 @@ function env(kube: Kube, app: App, world: World): Check[] {
   const check = secretChecker(kube, appNamespace(app));
   const missing = containerEnv(app, world).flatMap(({ container, rows }) =>
     rows.flatMap((row) => {
-      if (!('secret' in row)) return [];
+      if (!('secret' in row)) {
+        return [];
+      }
       const result = check(row.secret);
-      if (!result.startsWith('missing')) return [];
+      if (!result.startsWith('missing')) {
+        return [];
+      }
       const where = row.secret.key ? `${row.secret.name}/${row.secret.key}` : row.secret.name;
       return [fail(`${container} ${row.name}: ${result} ${where}`)];
     }),
@@ -238,7 +256,9 @@ export function doctor(kube: Kube, app: App, world: World): number {
   ];
 
   const checks = sections.flatMap(([label, check]) => attempt(label, check));
-  for (const { level, text } of checks) console.log(`${MARKS[level]} ${text}`);
+  for (const { level, text } of checks) {
+    console.log(`${MARKS[level]} ${text}`);
+  }
 
   const failed = checks.filter((c) => c.level === 'fail').length;
   const warned = checks.filter((c) => c.level === 'warn').length;

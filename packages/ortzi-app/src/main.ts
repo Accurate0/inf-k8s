@@ -137,7 +137,9 @@ const appThenOnOff = (ctx: Ctx, position: number) =>
   position === 1 ? ['on', 'off'] : appNames(ctx, position);
 
 function requireApp(name: string | undefined, command: string): string {
-  if (!name) throw new UsageError(`usage: ortzi app ${command} <app>`);
+  if (!name) {
+    throw new UsageError(`usage: ortzi app ${command} <app>`);
+  }
   return name;
 }
 
@@ -161,11 +163,17 @@ function discover(): { app: App; target: Target }[] {
   const found = [];
   for (const location of LOCATIONS) {
     for (const entry of fs.readDir(location)) {
-      if (!entry.dir) continue;
+      if (!entry.dir) {
+        continue;
+      }
       const path = `${location}/${entry.name}/app.yaml`;
-      if (!fs.exists(path)) continue;
+      if (!fs.exists(path)) {
+        continue;
+      }
       const app = validate(parse(fs.readText(path)), path);
-      if (app.name !== entry.name) throw new Error(`${path}: name must match its directory`);
+      if (app.name !== entry.name) {
+        throw new Error(`${path}: name must match its directory`);
+      }
 
       const target = {
         location,
@@ -175,7 +183,9 @@ function discover(): { app: App; target: Target }[] {
       validateManifestSources(app, { hasManifests: target.hasManifests, hasRootKustomization });
 
       for (const file of appFiles(app, target)) {
-        if (!fs.exists(file)) throw new Error(`${path}: no file named ${file}`);
+        if (!fs.exists(file)) {
+          throw new Error(`${path}: no file named ${file}`);
+        }
       }
 
       found.push({ app, target });
@@ -208,7 +218,9 @@ function loadApp(name: string | undefined, command: string) {
   const app = requireApp(name, command);
   const apps = discover().map(({ app }) => app);
   const found = apps.find((candidate) => candidate.name === app);
-  if (!found) throw new Error(`no app named ${app}`);
+  if (!found) {
+    throw new Error(`no app named ${app}`);
+  }
   return { app: found, world: worldOf(apps) };
 }
 
@@ -218,10 +230,14 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   const apps = discover();
   const world = worldOf(apps.map(({ app }) => app));
 
-  if (only && !apps.some(({ app }) => app.name === only)) throw new Error(`no app named ${only}`);
+  if (only && !apps.some(({ app }) => app.name === only)) {
+    throw new Error(`no app named ${only}`);
+  }
 
   for (const { app, target } of apps) {
-    if (only && app.name !== only) continue;
+    if (only && app.name !== only) {
+      continue;
+    }
     for (const [path, wanted] of renderOutputs(planApp(app, versions, target, world), app)) {
       if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
         stale.push({ path, wanted: stamped(wanted, new Date()) });
@@ -240,7 +256,9 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
       const values = imageValuesPath(app, target);
       const current = fs.exists(values) ? parse(fs.readText(values)) : {};
       const images = { ...current?.images };
-      for (const image of workloadImages(app)) images[image] ??= 'latest';
+      for (const image of workloadImages(app)) {
+        images[image] ??= 'latest';
+      }
       const output = stringify({ images });
       if (force || !fs.exists(values) || stringify({ images: current?.images ?? {} }) !== output) {
         stale.push({ path: values, wanted: output });
@@ -249,7 +267,9 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
   }
 
   for (const { app } of apps) {
-    if (only && app.name !== only) continue;
+    if (only && app.name !== only) {
+      continue;
+    }
     for (const [database, spec] of Object.entries(appDatabases(app))) {
       const path = databasePath(database);
       const wanted = renderDatabase(database, spec);
@@ -261,26 +281,38 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
 
   const cluster = fs.readText(POSTGRES_CLUSTER);
   const withRoles = addRoles(cluster, appRoles(world.apps));
-  if (force || withRoles !== cluster) stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
+  if (force || withRoles !== cluster) {
+    stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
+  }
 
   const generated = new Map([
     [`${TERRAFORM_APPS}/_index.tf.json`, renderTerraformIndex(world.apps)],
   ]);
   for (const app of world.apps) {
     const terraform = renderAppTerraform(app);
-    if (terraform) generated.set(appTerraformPath(app), terraform);
+    if (terraform) {
+      generated.set(appTerraformPath(app), terraform);
+    }
   }
 
   for (const { app, target } of apps) {
-    if (only && app.name !== only) continue;
+    if (only && app.name !== only) {
+      continue;
+    }
     const kustomization = renderKustomization(app, target);
-    if (kustomization) generated.set(kustomizationPath(app, target), kustomization);
+    if (kustomization) {
+      generated.set(kustomizationPath(app, target), kustomization);
+    }
     const rbac = renderRbac(app);
-    if (rbac) generated.set(rbacPath(app, target), rbac);
+    if (rbac) {
+      generated.set(rbacPath(app, target), rbac);
+    }
   }
 
   for (const [path, wanted] of generated) {
-    if (force || !fs.exists(path) || fs.readText(path) !== wanted) stale.push({ path, wanted });
+    if (force || !fs.exists(path) || fs.readText(path) !== wanted) {
+      stale.push({ path, wanted });
+    }
   }
 
   return stale;
@@ -314,7 +346,9 @@ function staleTerraform(apps: App[]): string[] {
 function commitAll(paths: string[], apps: App[]) {
   for (const { message, paths: group } of planCommits(paths, apps)) {
     exec('git', ['add', '-A', '--', ...group]);
-    if (exec('git', ['diff', '--cached', '--quiet'], { check: false }).ok) continue;
+    if (exec('git', ['diff', '--cached', '--quiet'], { check: false }).ok) {
+      continue;
+    }
     exec('git', ['commit', '--quiet', '-m', message]);
     console.log(`committed ${message}`);
   }
@@ -332,9 +366,15 @@ function changedPaths(generated: Map<string, RenderedOutput>): string[] {
 }
 
 function render(check: boolean, commit: boolean, changed: boolean, force: boolean): number {
-  if (check && commit) throw new UsageError('--check and --commit cannot be used together');
-  if (force && check) throw new UsageError('--force and --check cannot be used together');
-  if (force && changed) throw new UsageError('--force and --changed cannot be used together');
+  if (check && commit) {
+    throw new UsageError('--check and --commit cannot be used together');
+  }
+  if (force && check) {
+    throw new UsageError('--force and --check cannot be used together');
+  }
+  if (force && changed) {
+    throw new UsageError('--force and --changed cannot be used together');
+  }
 
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
@@ -354,7 +394,9 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
     changed ? changedScope(changedPaths(generated)) : undefined,
   );
   if (failures.length) {
-    for (const failure of failures) console.error(failure);
+    for (const failure of failures) {
+      console.error(failure);
+    }
     console.error(`${failures.length} validation failure(s), nothing written`);
     return 1;
   }
@@ -362,17 +404,25 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   const stale = staleFiles(undefined, force);
   for (const { path, wanted } of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
-    if (!check) fs.write(path, wanted);
+    if (!check) {
+      fs.write(path, wanted);
+    }
   }
 
   const removed = [...staleTerraform(world.apps), ...staleWorkflows(world.apps)];
   for (const path of removed) {
     console.log(`${check ? 'stale' : 'removed'} ${path}`);
-    if (!check) fs.remove(path);
+    if (!check) {
+      fs.remove(path);
+    }
   }
 
-  if (!stale.length && !removed.length) console.log('everything is up to date');
-  if (commit) commitAll([...stale.map(({ path }) => path), ...removed], world.apps);
+  if (!stale.length && !removed.length) {
+    console.log('everything is up to date');
+  }
+  if (commit) {
+    commitAll([...stale.map(({ path }) => path), ...removed], world.apps);
+  }
 
   return check && stale.length + removed.length > 0 ? 1 : 0;
 }
@@ -513,7 +563,9 @@ export const run = cli({
       }
 
       const apps = discover().map(({ app }) => app);
-      if (name && !apps.some((app) => app.name === name)) throw new Error(`no app named ${name}`);
+      if (name && !apps.some((app) => app.name === name)) {
+        throw new Error(`no app named ${name}`);
+      }
 
       const graph = buildGraph(apps, name);
       console.log(values.format === 'dot' ? toDot(graph) : toMermaid(graph));

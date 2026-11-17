@@ -35,7 +35,9 @@ export function addRoles(cluster: string, roles: string[]): string {
   const doc = parseDocument(cluster);
   const existing = (doc.toJS().spec.managed.roles as { name: string }[]).map((role) => role.name);
   const missing = roles.filter((role) => !existing.includes(role));
-  if (!missing.length) return cluster;
+  if (!missing.length) {
+    return cluster;
+  }
 
   for (const name of missing) {
     doc.addIn(['spec', 'managed', 'roles'], {
