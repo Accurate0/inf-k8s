@@ -1,3 +1,12 @@
+export interface Sidecar {
+  name: string;
+  image: string;
+  inherit?: ('env' | 'envFrom' | 'mounts')[];
+  env?: Record<string, unknown>;
+  envFrom?: (string | Record<string, unknown>)[];
+  mounts?: Record<string, unknown>;
+}
+
 export interface Workload {
   image: string;
   kind?: 'Deployment' | 'DaemonSet' | 'CronJob' | 'Job';
@@ -7,7 +16,7 @@ export interface Workload {
   phase?: 'preSync' | 'postSync';
   service?: { name: string; trafficDistribution?: string };
   initContainers?: { image: string }[];
-  sidecars?: { image: string }[];
+  sidecars?: Sidecar[];
   resources?: Record<string, unknown>;
   env?: Record<string, unknown>[] | Record<string, unknown>;
   envFrom?: (string | Record<string, unknown>)[];
@@ -196,6 +205,7 @@ export interface Build {
     db?: { image: string; databaseName?: string };
     packages?: string[];
     setup?: string;
+    toolchain?: { rust: string };
   };
 }
 

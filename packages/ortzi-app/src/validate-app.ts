@@ -7,7 +7,14 @@ import {
   SECRET_KINDS,
   type SecretKind,
 } from './workload.ts';
-import { type App, isValueResource, RESOURCE_TYPES, type Workload, type World } from './types.ts';
+import {
+  type App,
+  isValueResource,
+  type NamedWorkload,
+  RESOURCE_TYPES,
+  type Workload,
+  type World,
+} from './types.ts';
 import {
   appDatabases,
   appMetrics,
@@ -569,3 +576,33 @@ const HTTP_ONLY = [
   'timeouts',
   'loadBalancer',
 ] as const;
+
+export function passthroughWarnings(app: App): string[] {
+  return Object.entries(appWorkloads(app)).flatMap(([workload, spec]) =>
+    [
+      [workload, spec] as const,
+      ...((spec.initContainers ?? []) as NamedWorkload[]).map(
+        (c) => [`${workload}/${c.name}`, c] as const,
+      ),
+      ...((spec.sidecars ?? []) as NamedWorkload[]).map(
+        (c) => [`${workload}/${c.name}`, c] as const,
+      ),
+    ].flatMap(([container, c]) => {
+      const where = `${app.name}: workloads.${container}`;
+      return [
+        ...(Array.isArray(c.env) ? [`${where}.env is a raw list; use a map with refs`] : []),
+        ...(c.envFrom ?? [])
+          .filter((from) => !SECRET_KINDS.some((kind) => (from as Record<string, unknown>)[kind]))
+          .map(
+            () =>
+              `${where}.envFrom has a raw entry; reference a secret, database, bucket or oidc resource`,
+          ),
+        ...Object.entries((c.mounts ?? {}) as Record<string, { configMap?: string }>)
+          .filter(([, mount]) => mount.configMap)
+          .map(
+            ([name]) => `${where}.mounts.${name} mounts a raw configMap; declare a config resource`,
+          ),
+      ];
+    }),
+  );
+}

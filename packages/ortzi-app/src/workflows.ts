@@ -50,7 +50,14 @@ export function renderWorkflow(app: App, target: Target, actions: ActionVersions
                 ...(test.db ? { 'test-db-image': test.db.image } : {}),
                 ...(test.db?.databaseName ? { 'test-db-name': test.db.databaseName } : {}),
                 ...(test.packages ? { 'test-packages': test.packages.join(' ') } : {}),
-                ...(test.setup ? { 'test-setup': test.setup } : {}),
+                ...(test.toolchain || test.setup
+                  ? {
+                      'test-setup': [
+                        ...(test.toolchain ? [rustup(test.toolchain.rust)] : []),
+                        ...(test.setup ? [test.setup] : []),
+                      ].join('\n'),
+                    }
+                  : {}),
               }
             : {}),
           deploy: "${{ github.ref == 'refs/heads/main' }}",
@@ -72,6 +79,9 @@ const pinned = (actions: ActionVersions, name: string) => {
   }
   return `${name}@${version.split('@')[1]}`;
 };
+
+const rustup = (version: string) =>
+  `curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${version} && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"`;
 
 const ON_MAIN = "github.ref == 'refs/heads/main'";
 
@@ -205,12 +215,13 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
       ...(test.packages
         ? [{ run: `apt-get update && apt-get install -y ${test.packages.join(' ')}` }]
         : []),
+      ...(test.toolchain ? [{ run: rustup(test.toolchain.rust) }] : []),
       ...(test.setup ? [{ run: test.setup }] : []),
       {
         uses: ACTIONS.cache,
         with: {
-          path: `${dir}/target`,
-          key: `\${{ runner.os }}-app-target-\${{ hashFiles('**/Cargo.lock') }}-${app.name}`,
+          path: [`${dir}/target`, '~/.cargo/registry'].join('\n'),
+          key: `\${{ runner.os }}-app-target-\${{ hashFiles('${dir}/Cargo.lock') }}-${app.name}`,
         },
       },
       { run: test.run, 'working-directory': `${'$'}{{ github.workspace }}/${dir}` },

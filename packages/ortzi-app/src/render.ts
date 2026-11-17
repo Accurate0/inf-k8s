@@ -53,6 +53,7 @@ export {
 export { containerEnv, databaseHost, refsFor, storageClass, type UrlPart } from './refs.ts';
 export {
   type Listener,
+  passthroughWarnings,
   validate,
   validateGatewayAccess,
   validateIngress,

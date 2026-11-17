@@ -529,6 +529,14 @@
             "items": {
               "type": "object",
               "properties": {
+                "inherit": {
+                  "type": "array",
+                  "description": "Copy these from the workload's main container. The sidecar's own env entries win over inherited ones.",
+                  "uniqueItems": true,
+                  "items": {
+                    "enum": ["env", "envFrom", "mounts"]
+                  }
+                },
                 "ports": {
                   "type": "array",
                   "description": "{name, container, service}. service adds the port to the workload's Service.",
@@ -1816,7 +1824,20 @@
               }
             },
             "setup": {
-              "type": "string"
+              "type": "string",
+              "description": "Extra shell run before the tests, after packages and the toolchain are installed."
+            },
+            "toolchain": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["rust"],
+              "properties": {
+                "rust": {
+                  "type": "string",
+                  "pattern": "^\\d+\\.\\d+\\.\\d+$",
+                  "description": "Rust toolchain installed with rustup before the tests, e.g. 1.99.1."
+                }
+              }
             }
           }
         }

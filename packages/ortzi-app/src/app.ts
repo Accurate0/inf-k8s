@@ -7,12 +7,41 @@ import type {
   Resource,
   Route,
   SecretTemplate,
+  Sidecar,
   Source,
   Workload,
 } from './types.ts';
 
+function inherit(app: App, workload: string, spec: Workload): Workload {
+  if (!spec.sidecars) {
+    return spec;
+  }
+
+  const sidecars = spec.sidecars.map(({ inherit: keys = [], ...sidecar }) => {
+    const merged: Sidecar = { ...sidecar };
+    for (const key of keys) {
+      if (spec[key] === undefined) {
+        throw new Error(
+          `${app.name}: workloads.${workload}: sidecar ${sidecar.name} inherits ${key}, but the workload has none`,
+        );
+      }
+
+      if (key === 'envFrom') {
+        merged.envFrom = [...(spec.envFrom ?? []), ...(sidecar.envFrom ?? [])];
+      } else {
+        merged[key] = { ...spec[key], ...sidecar[key] };
+      }
+    }
+    return merged;
+  });
+
+  return { ...spec, sidecars };
+}
+
 export function appWorkloads(app: App): Record<string, Workload> {
-  return Object.fromEntries((app.workloads ?? []).map(({ name, ...spec }) => [name, spec]));
+  return Object.fromEntries(
+    (app.workloads ?? []).map(({ name, ...spec }) => [name, inherit(app, name, spec)]),
+  );
 }
 
 export const appNamespace = (app: App) => app.namespace?.name ?? app.name;

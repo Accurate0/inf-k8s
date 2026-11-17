@@ -12,6 +12,8 @@ import { compose, routerConfig, unprefixedRootFields, unprefixedTypes } from './
 import {
   validateManifestSources,
   type App,
+  appWorkloads,
+  passthroughWarnings,
   appRoles,
   containerEnv,
   HEADER,
@@ -517,6 +519,88 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
   assert.equal(
     workflow.jobs.deploy.steps[1].env.FORGEJO_TOKEN,
     '${{ secrets.CI_IMAGE_UPDATER_TOKEN }}',
+  );
+});
+
+test('installs the rust toolchain and caches by the app lockfile', () => {
+  const app = {
+    name: 'foo',
+    workloads: [{ name: 'foo', image: 'registry.anurag.sh/containers/foo' }],
+    build: {
+      image: 'registry.anurag.sh/containers/foo',
+      ci: 'forgejo',
+      test: { run: 'cargo test', toolchain: { rust: '1.99.1' }, setup: 'echo extra' },
+    },
+    network: { ingress: [] },
+  };
+  const actions = {
+    'actions/checkout': 'v7@aaa',
+    'docker/setup-buildx-action': 'v4@bbb',
+    'docker/build-push-action': 'v7@ddd',
+    'actions/cache': 'v6@eee',
+  };
+  const steps = parse(renderWorkflow(app, { location: 'projects', hasManifests: false }, actions))
+    .jobs.test.steps;
+  const runs = steps.map((step: { run?: string }) => step.run).filter(Boolean);
+  const cache = steps.find((step: { uses?: string }) => step.uses === 'actions/cache@eee');
+
+  assert.match(runs[0], /--default-toolchain 1\.99\.1 /);
+  assert.equal(runs[1], 'echo extra');
+  assert.equal(cache.with.path, 'projects/foo/target\n~/.cargo/registry');
+  assert.match(cache.with.key, /hashFiles\('projects\/foo\/Cargo\.lock'\)/);
+  assert.equal(validate(app, 'x'), app);
+  assert.throws(
+    () =>
+      validate(
+        { ...app, build: { ...app.build, test: { run: 'x', toolchain: { rust: '1.99' } } } },
+        'x',
+      ),
+    /toolchain\.rust does not match pattern/,
+  );
+});
+
+test('a sidecar inherits env, envFrom and mounts from its workload', () => {
+  const app = {
+    name: 'foo',
+    network: { ingress: [] },
+    workloads: [
+      {
+        name: 'web',
+        image: 'web',
+        env: { A: '1', B: '2' },
+        envFrom: [{ secret: 'foo' }],
+        mounts: { tmp: { path: '/tmp', emptyDir: true } },
+        sidecars: [{ name: 'worker', image: 'web', inherit: ['env', 'mounts'], env: { B: '3' } }],
+      },
+    ],
+  };
+
+  const [sidecar] = appWorkloads(app as unknown as App).web.sidecars ?? [];
+
+  assert.deepEqual(sidecar, {
+    name: 'worker',
+    image: 'web',
+    env: { A: '1', B: '3' },
+    mounts: { tmp: { path: '/tmp', emptyDir: true } },
+  });
+});
+
+test('a sidecar cannot inherit what its workload does not have', () => {
+  const app = {
+    name: 'foo',
+    network: { ingress: [] },
+    workloads: [
+      {
+        name: 'web',
+        image: 'web',
+        sidecars: [{ name: 'worker', image: 'web', inherit: ['mounts'] }],
+      },
+    ],
+  };
+
+  assert.throws(
+    () => appWorkloads(app as unknown as App),
+    /foo: workloads\.web: sidecar worker inherits mounts, but the workload has none/,
   );
 });
 
@@ -3809,4 +3893,26 @@ test('the node plugin serves node for every Node type keyed by id, and only when
       validateResources({ platform, apps: [routerApp, subgraphApp('spotify', { name: 'node' })] }),
     /subgraph name node is reserved/,
   );
+});
+
+test('warns about raw env lists, envFrom entries and configMap mounts', () => {
+  const app = {
+    name: 'foo',
+    network: { ingress: [] },
+    workloads: [
+      {
+        name: 'web',
+        image: 'web',
+        env: [{ name: 'A', value: '1' }],
+        envFrom: [{ secretRef: { name: 'raw' } }, { secret: 'declared' }],
+        mounts: { cfg: { path: '/etc/cfg', configMap: 'raw-config' } },
+      },
+    ],
+  } as unknown as App;
+
+  assert.deepEqual(passthroughWarnings(app), [
+    'foo: workloads.web.env is a raw list; use a map with refs',
+    'foo: workloads.web.envFrom has a raw entry; reference a secret, database, bucket or oidc resource',
+    'foo: workloads.web.mounts.cfg mounts a raw configMap; declare a config resource',
+  ]);
 });

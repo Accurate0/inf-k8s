@@ -38,6 +38,7 @@ import {
   renderWorkflow,
   stamped,
   type Target,
+  passthroughWarnings,
   validate,
   validateGatewayAccess,
   validateIngress,
@@ -389,6 +390,12 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
 
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
+  for (const { app } of apps) {
+    for (const warning of passthroughWarnings(app)) {
+      console.error(`warning: ${warning}`);
+    }
+  }
+
   const world = worldOf(apps.map(({ app }) => app));
   const generated = new Map(
     apps.flatMap(({ app, target }) => {
