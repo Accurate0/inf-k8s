@@ -1,5 +1,5 @@
 import type { Plan } from '../plan.ts';
-import type { App } from '../render.ts';
+import type { App } from '../types.ts';
 import { renderApplication } from './argocd.ts';
 
 export interface Output {

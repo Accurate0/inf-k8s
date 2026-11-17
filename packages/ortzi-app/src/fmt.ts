@@ -9,7 +9,7 @@ import {
   type YAMLMap,
   type YAMLSeq,
 } from 'yaml';
-import { RESOURCE_TYPES } from './types.ts';
+import { RESOURCES } from './providers/index.ts';
 
 const WIDTH = 120;
 
@@ -103,7 +103,7 @@ function order(root: YAMLMap) {
 
   const resources = root.get('resources', true);
   if (isSeq(resources)) {
-    const types = Object.keys(RESOURCE_TYPES);
+    const types: string[] = RESOURCES.map((provider) => provider.type);
     const rank = (item: unknown) => {
       const index = isMap(item) ? types.indexOf(String(item.get('type'))) : -1;
       return index === -1 ? types.length : index;

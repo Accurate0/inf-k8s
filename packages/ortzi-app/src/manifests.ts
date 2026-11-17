@@ -1,49 +1,23 @@
 import { stringify } from 'yaml';
 import type { App, Target } from './types.ts';
+import type { Kustomize, ResourceType } from './providers/provider.ts';
 import { HEADER } from './generated.ts';
-import { appNamespace, declared, sourcesOf } from './app.ts';
+import { declared, sourcesOf } from './app.ts';
+import { RESOURCES, sourceProvider } from './providers/index.ts';
 
 export const imageValuesPath = (app: App, target: Target) =>
   `${target.location}/${app.name}/image.values.yaml`;
 
-export const rbacPath = (app: App, target: Target) =>
-  `${target.location}/${app.name}/manifests/rbac.generated.yaml`;
-
-const clusterRoles = (app: App) =>
-  declared(app, 'serviceAccount').filter((account) => account.clusterRules);
-
-export function renderRbac(app: App): string | undefined {
-  const documents = clusterRoles(app).flatMap((account) => {
-    const role = account.clusterRole ?? account.name;
-    return [
-      {
-        apiVersion: 'rbac.authorization.k8s.io/v1',
-        kind: 'ClusterRole',
-        metadata: { name: role },
-        rules: account.clusterRules,
-      },
-      {
-        apiVersion: 'rbac.authorization.k8s.io/v1',
-        kind: 'ClusterRoleBinding',
-        metadata: { name: account.name },
-        subjects: [{ kind: 'ServiceAccount', name: account.name, namespace: appNamespace(app) }],
-        roleRef: { apiGroup: 'rbac.authorization.k8s.io', kind: 'ClusterRole', name: role },
-      },
-    ];
-  });
-
-  if (!documents.length) {
-    return undefined;
-  }
-  return `${HEADER}\n${documents.map((doc) => stringify(doc, { lineWidth: 0, aliasDuplicateObjects: false })).join('---\n')}`;
-}
+const kustomizations = (app: App): Kustomize[] =>
+  RESOURCES.flatMap((provider) =>
+    provider.kustomize
+      ? [provider.kustomize(app, declared(app, provider.type as ResourceType))]
+      : [],
+  );
 
 export const needsKustomization = (app: App) =>
-  (app.resources ?? []).some(
-    (r) =>
-      r.type === 'config' ||
-      r.type === 'dashboard' ||
-      (r.type === 'serviceAccount' && r.clusterRules),
+  kustomizations(app).some(
+    (kustomize) => kustomize.generators?.length || kustomize.resources?.length,
   );
 
 export const kustomizationPath = (app: App, target: Target) =>
@@ -54,23 +28,10 @@ export function renderKustomization(app: App, target: Target): string | undefine
     return undefined;
   }
 
-  const generators = [
-    ...declared(app, 'config').map(({ configMap, files }) => ({
-      name: configMap,
-      namespace: appNamespace(app),
-      files,
-    })),
-    ...declared(app, 'dashboard').map(({ configMap, file }) => ({
-      name: configMap,
-      namespace: appNamespace(app),
-      files: [file],
-      options: { disableNameSuffixHash: true, labels: { 'inf-k8s.net/grafana-dashboard': 'true' } },
-    })),
-  ];
-
+  const generators = kustomizations(app).flatMap((kustomize) => kustomize.generators ?? []);
   const resources = [
     ...(target.hasManifests ? ['manifests'] : []),
-    ...(clusterRoles(app).length ? ['manifests/rbac.generated.yaml'] : []),
+    ...kustomizations(app).flatMap((kustomize) => kustomize.resources ?? []),
   ];
 
   const kustomization = {
@@ -87,9 +48,12 @@ export function renderKustomization(app: App, target: Target): string | undefine
 
 export const appFiles = (app: App, target: Target) =>
   [
-    ...declared(app, 'config').flatMap((config) => config.files),
-    ...declared(app, 'dashboard').map((dashboard) => dashboard.file),
-    ...sourcesOf(app, 'helm').map((release) => release.values),
+    ...RESOURCES.flatMap(
+      (provider) => provider.files?.(app, declared(app, provider.type as ResourceType)) ?? [],
+    ),
+    ...(app.sources ?? []).flatMap(
+      (source) => sourceProvider(source.type).files?.(app, source as never) ?? [],
+    ),
     ...sourcesOf(app, 'manifests')
       .filter(() => !needsKustomization(app))
       .map(({ path }) => (path === '.' ? 'kustomization.yaml' : `${path}/kustomization.yaml`)),

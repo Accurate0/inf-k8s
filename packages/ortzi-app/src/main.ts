@@ -21,20 +21,15 @@ import {
   appOidc,
   appRoutes,
   appSecrets,
-  appRoles,
   imageValuesPath,
   isCurrent,
-  kustomizationPath,
   appWorkloads,
   HEADER,
   needsKustomization,
-  rbacPath,
   type Listener,
   type PlatformExport,
   sourcesOf,
   validateManifestSources,
-  renderKustomization,
-  renderRbac,
   renderWorkflow,
   stamped,
   type Target,
@@ -50,13 +45,8 @@ import {
 import { publishArtifact, publishBundle } from './hydrate';
 import { renderOutputs } from './outputs';
 import { planApp } from './plan';
-import { addRoles, databasePath, renderDatabase } from './providers/cnpg';
-import {
-  appTerraformPath,
-  renderAppTerraform,
-  renderTerraformIndex,
-  TERRAFORM_APPS,
-} from './terraform';
+import { generatedFiles } from './files';
+import { appTerraformPath, renderAppTerraform, TERRAFORM_APPS } from './terraform';
 import { type RenderedOutput, validateManifests } from './validate';
 
 const LOCATIONS = ['projects', 'platform-services', 'selfhosted', 'system-components'];
@@ -64,7 +54,6 @@ const VERSIONS = 'platform/versions.yaml';
 const APPS_BUNDLE = 'platform/apps.yaml';
 const PLATFORM_EXPORTS = 'platform/exports';
 const GATEWAYS = 'system-components/envoy';
-const POSTGRES_CLUSTER = 'system-components/postgres-cluster/postgres.yaml';
 
 const platformExports = (): PlatformExport[] =>
   fs
@@ -278,52 +267,15 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
     }
   }
 
-  for (const { app } of apps) {
-    if (only && app.name !== only) {
-      continue;
-    }
-    for (const [database, spec] of Object.entries(appDatabases(app))) {
-      const path = databasePath(database);
-      const wanted = renderDatabase(database, spec);
-      if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
-        stale.push({ path, wanted: stamped(wanted, new Date()) });
+  const selected = apps.filter(({ app }) => !only || app.name === only);
+  for (const { path, content, stamp } of generatedFiles(world, selected, fs.readText)) {
+    const current = fs.exists(path) ? fs.readText(path) : undefined;
+    if (stamp) {
+      if (force || current === undefined || !isCurrent(current, content)) {
+        stale.push({ path, wanted: stamped(content, new Date()) });
       }
-    }
-  }
-
-  const cluster = fs.readText(POSTGRES_CLUSTER);
-  const withRoles = addRoles(cluster, appRoles(world.apps));
-  if (force || withRoles !== cluster) {
-    stale.push({ path: POSTGRES_CLUSTER, wanted: withRoles });
-  }
-
-  const generated = new Map([
-    [`${TERRAFORM_APPS}/_index.tf.json`, renderTerraformIndex(world.apps)],
-  ]);
-  for (const app of world.apps) {
-    const terraform = renderAppTerraform(app);
-    if (terraform) {
-      generated.set(appTerraformPath(app), terraform);
-    }
-  }
-
-  for (const { app, target } of apps) {
-    if (only && app.name !== only) {
-      continue;
-    }
-    const kustomization = renderKustomization(app, target);
-    if (kustomization) {
-      generated.set(kustomizationPath(app, target), kustomization);
-    }
-    const rbac = renderRbac(app);
-    if (rbac) {
-      generated.set(rbacPath(app, target), rbac);
-    }
-  }
-
-  for (const [path, wanted] of generated) {
-    if (force || !fs.exists(path) || fs.readText(path) !== wanted) {
-      stale.push({ path, wanted });
+    } else if (force || current !== content) {
+      stale.push({ path, wanted: content });
     }
   }
 

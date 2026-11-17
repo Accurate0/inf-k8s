@@ -1,5 +1,5 @@
 import { type App, appDatabases } from './render.ts';
-import { databasePath } from './providers/cnpg.ts';
+import { databasePath } from './providers/database.ts';
 import { TERRAFORM_APPS } from './terraform.ts';
 
 const CI_PATHS = [

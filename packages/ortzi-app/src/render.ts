@@ -2,60 +2,55 @@ export {
   type App,
   type ArgocdOverrides,
   type Artifact,
-  type ArtifactSource,
-  type Bucket,
   type Build,
-  type Config,
-  type DatabaseSpec,
   type Export,
-  type GeneratedKey,
-  type GitSource,
-  type HelmSource,
-  type ManifestsSource,
-  type Metrics,
   type NamedWorkload,
-  type OidcClient,
   type PlatformExport,
-  type Resource,
-  type Route,
-  type RouteAuth,
-  type RouteDns,
-  type RouteLoadBalancer,
-  type RouteRatelimit,
-  type SecretTemplate,
-  type ServiceAccount,
-  type Source,
-  type Subgraph,
-  type SubgraphAuth,
-  type Supergraph,
   type Target,
   type Versions,
-  type Volume,
   type Workload,
   type World,
 } from './types.ts';
+export type { Resource, Source } from './providers/provider.ts';
+export type { Bucket } from './providers/bucket.ts';
+export type { Config } from './providers/config.ts';
+export type { DatabaseSpec } from './providers/database.ts';
+export type { Metrics } from './providers/metrics.ts';
+export type { OidcClient } from './providers/oidc.ts';
+export type {
+  Route,
+  RouteAuth,
+  RouteDns,
+  RouteLoadBalancer,
+  RouteRatelimit,
+} from './providers/route.ts';
+export type { GeneratedKey, SecretTemplate } from './providers/secret.ts';
+export type { ServiceAccount } from './providers/service-account.ts';
+export type { Subgraph, SubgraphAuth } from './providers/subgraph.ts';
+export type { Supergraph } from './providers/supergraph.ts';
+export type { Volume } from './providers/volume.ts';
+export type { ArtifactSource } from './providers/sources/artifact.ts';
+export type { GitSource } from './providers/sources/git.ts';
+export type { HelmSource } from './providers/sources/helm.ts';
+export type { ManifestsSource } from './providers/sources/manifests.ts';
 export { HEADER, HEADER_TEXT, isCurrent, stamped } from './generated.ts';
+export { appNamespace, declared, sourcesOf } from './app.ts';
+export { appWorkloads, passthroughWarnings, workloadImages } from './providers/workload.ts';
+export { appDatabases, appRoles, databaseHost, databaseRole } from './providers/database.ts';
+export { appMetrics } from './providers/metrics.ts';
+export { appOidc } from './providers/oidc.ts';
 export {
-  appDatabases,
-  appMetrics,
-  appNamespace,
-  appOidc,
-  appRoles,
   appRoutes,
-  appSecrets,
   appTcpRoutes,
-  appWorkloads,
-  databaseRole,
-  declared,
-  sourcesOf,
-  workloadImages,
-} from './app.ts';
-export { containerEnv, databaseHost, refsFor, storageClass, type UrlPart } from './refs.ts';
-export {
   type Listener,
-  passthroughWarnings,
-  validate,
   validateGatewayAccess,
+} from './providers/route.ts';
+export { appSecrets } from './providers/secret.ts';
+export { rbacPath, renderRbac } from './providers/service-account.ts';
+export { storageClass } from './providers/volume.ts';
+export { containerEnv, refsFor, type UrlPart } from './refs.ts';
+export {
+  validate,
   validateIngress,
   validateManifestSources,
   validateResources,
@@ -72,8 +67,6 @@ export {
   imageValuesPath,
   kustomizationPath,
   needsKustomization,
-  rbacPath,
   renderKustomization,
-  renderRbac,
 } from './manifests.ts';
 export { type ActionVersions, ciProvider, renderWorkflow, workflowPath } from './workflows.ts';

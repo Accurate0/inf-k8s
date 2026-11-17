@@ -2,52 +2,18 @@ import type { Kube } from '@ortzi/kit';
 import { getApp } from '../argo';
 import {
   type App,
-  appDatabases,
   appNamespace,
-  appOidc,
-  appRoutes,
   appWorkloads,
   containerEnv,
-  databaseRole,
   declared,
   type World,
 } from '../render';
+import { type Check, fail, type KubeObject, type Level, ok, unmet, warn } from '../checks';
+import type { ResourceType } from '../providers/provider';
+import { RESOURCES } from '../providers/index';
 import { secretChecker } from './env';
 
-type Level = 'ok' | 'warn' | 'fail';
-
-interface Check {
-  level: Level;
-  text: string;
-}
-
-interface Condition {
-  type: string;
-  status: string;
-  reason?: string;
-  message?: string;
-}
-
-interface ParentRef {
-  name: string;
-  namespace?: string;
-  sectionName?: string;
-}
-
-const sameParent = (a: ParentRef, b: ParentRef) =>
-  a.name === b.name && a.namespace === b.namespace && a.sectionName === b.sectionName;
-
-interface KubeObject {
-  metadata: { name: string; labels?: Record<string, string> };
-  spec?: Record<string, any>;
-  status?: Record<string, any>;
-}
-
 const MARKS: Record<Level, string> = { ok: '✓', warn: '!', fail: '✗' };
-
-const ok = (text: string): Check => ({ level: 'ok', text });
-const warn = (text: string): Check => ({ level: 'warn', text });
-const fail = (text: string): Check => ({ level: 'fail', text });
 
 const WAITING = new Set([
   'CrashLoopBackOff',
@@ -63,15 +29,6 @@ function attempt(label: string, check: () => Check[]): Check[] {
     return [fail(`${label}: ${(error as Error).message}`)];
   }
 }
-
-const unmet = (conditions: Condition[] | undefined, wanted: string[]) =>
-  wanted.flatMap((type) => {
-    const found = conditions?.find((c) => c.type === type);
-    if (found?.status === 'True') {
-      return [];
-    }
-    return [`${type}${found?.message ? `: ${found.message}` : ' not reported'}`];
-  });
 
 function argo(kube: Kube, app: App): Check[] {
   const status = getApp(kube, app.name).status;
@@ -147,83 +104,6 @@ function externalSecrets(ns: Kube): Check[] {
   });
 }
 
-function volumes(app: App, ns: Kube): Check[] {
-  return declared(app, 'volume').map(({ claimName }) => {
-    const phase = ns.get<KubeObject>('persistentvolumeclaims', claimName).status?.phase;
-    return phase === 'Bound'
-      ? ok(`volume ${claimName} bound`)
-      : fail(`volume ${claimName} ${phase}`);
-  });
-}
-
-function routes(app: App, ns: Kube): Check[] {
-  const checks = Object.keys(appRoutes(app)).map((name) => {
-    const route = ns.get<KubeObject>('httproutes', name);
-    const refs: ParentRef[] = route.spec?.parentRefs ?? [];
-    const parents = (route.status?.parents ?? []).filter((parent: { parentRef: ParentRef }) =>
-      refs.some((ref) => sameParent(ref, parent.parentRef)),
-    );
-    const problems = parents.length
-      ? parents.flatMap((parent: { conditions?: Condition[] }) =>
-          unmet(parent.conditions, ['Accepted', 'ResolvedRefs']),
-        )
-      : ['no gateway has picked it up'];
-    return problems.length
-      ? fail(`route ${name}: ${problems.join('; ')}`)
-      : ok(`route ${name} accepted`);
-  });
-
-  for (const kind of ['backendtrafficpolicies', 'securitypolicies']) {
-    for (const policy of ns.list<KubeObject>(kind)) {
-      const problems = (policy.status?.ancestors ?? []).flatMap(
-        (ancestor: { conditions?: Condition[] }) => unmet(ancestor.conditions, ['Accepted']),
-      );
-      const text = policy.metadata.name;
-      checks.push(
-        problems.length ? fail(`${text}: ${problems.join('; ')}`) : ok(`${text} accepted`),
-      );
-    }
-  }
-
-  return checks;
-}
-
-function oidc(app: App, ns: Kube): Check[] {
-  if (!Object.keys(appOidc(app)).length) {
-    return [];
-  }
-  return ns.list<KubeObject>('kanidmoauth2clients').map((client) => {
-    const problems = unmet(client.status?.conditions, ['Accepted', 'Programmed']);
-    const text = `oidc client ${client.metadata.name}`;
-    return problems.length ? fail(`${text}: ${problems.join('; ')}`) : ok(`${text} provisioned`);
-  });
-}
-
-function databases(kube: Kube, app: App): Check[] {
-  const specs = Object.entries(appDatabases(app));
-  if (!specs.length) {
-    return [];
-  }
-
-  const cnpg = kube.namespace('cnpg-system');
-  const reconciled: string[] =
-    cnpg.get<KubeObject>('clusters.postgresql.cnpg.io', 'cloudnative-pg-cluster').status
-      ?.managedRolesStatus?.byStatus?.reconciled ?? [];
-
-  return specs.flatMap(([database, spec]) => {
-    const role = databaseRole(database, spec);
-    const applied = cnpg.get<KubeObject>('databases.postgresql.cnpg.io', database).status;
-    return [
-      applied?.applied
-        ? ok(`database ${database} applied`)
-        : fail(`database ${database} not applied${applied?.message ? `: ${applied.message}` : ''}`),
-      reconciled.includes(role)
-        ? ok(`role ${role} reconciled`)
-        : fail(`role ${role} not reconciled`),
-    ];
-  });
-}
-
 function env(kube: Kube, app: App, world: World): Check[] {
   const check = secretChecker(kube, appNamespace(app));
   const missing = containerEnv(app, world).flatMap(({ container, rows }) =>
@@ -249,10 +129,16 @@ export function doctor(kube: Kube, app: App, world: World): number {
     ['workloads', () => workloads(app, ns)],
     ['secrets', () => externalSecrets(ns)],
     ['env', () => env(kube, app, world)],
-    ['volumes', () => volumes(app, ns)],
-    ['routes', () => routes(app, ns)],
-    ['oidc', () => oidc(app, ns)],
-    ['databases', () => databases(kube, app)],
+    ...RESOURCES.flatMap(({ type, doctor: check }): [string, () => Check[]][] =>
+      check
+        ? [
+            [
+              check.label,
+              () => check.run({ kube, ns, app }, declared(app, type as ResourceType) as never[]),
+            ],
+          ]
+        : [],
+    ),
   ];
 
   const checks = sections.flatMap(([label, check]) => attempt(label, check));

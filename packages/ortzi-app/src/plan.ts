@@ -1,148 +1,51 @@
-import {
-  type App,
-  type Artifact,
-  type ArtifactSource,
-  appDatabases,
-  appMetrics,
-  appNamespace,
-  appOidc,
-  appRoutes,
-  appSecrets,
-  appTcpRoutes,
-  appWorkloads,
-  databaseHost,
-  databaseRole,
-  declared,
-  type GitSource,
-  imageValuesPath,
-  type ManifestsSource,
-  refsFor,
-  type Route,
-  type RouteDns,
-  type RouteLoadBalancer,
-  type RouteRatelimit,
-  storageClass,
-  supergraphApp,
-  type RouteAuth,
-  type SecretTemplate,
-  type Target,
-  type Versions,
-  type World,
-} from './render.ts';
-import { expandWorkload, SECRET_KINDS, type SecretKind } from './workload.ts';
+import type { App, Target, Versions, World } from './types.ts';
+import type {
+  Contribution,
+  Plan,
+  PlanContext,
+  PlanSource,
+  PlatformChart,
+  ResourceType,
+} from './providers/provider.ts';
+import { appNamespace, declared } from './app.ts';
+import { refsFor } from './refs.ts';
+import { workloads } from './providers/workload.ts';
+import { RESOURCES, sourceProvider } from './providers/index.ts';
+
+export type { Plan, PlanSource, PlatformChart } from './providers/provider.ts';
 
 export const CHART_REGISTRY = 'oci://registry.anurag.sh/charts';
 
-export interface PlatformChart {
-  type: 'chart';
-  chart: string;
-  registry: string;
-  version: string;
-  valueFiles?: string[];
-  values: Record<string, unknown>;
-  retain?: boolean;
-}
+// Charts render in this order; any chart not listed goes after them, in registry order.
+const CHART_ORDER = [
+  'k8s-workload',
+  'k8s-network',
+  'k8s-http-routes',
+  'k8s-oidc',
+  'k8s-postgres',
+  'k8s-secrets',
+  'k8s-storage',
+  'k8s-observability',
+];
 
-export interface ExternalChart {
-  type: 'helm';
-  chart: string;
-  repo: string;
-  version: string;
-  releaseName?: string;
-  valueFiles?: string[];
-  values?: Record<string, unknown>;
-}
-
-export type PlanSource =
-  PlatformChart | ExternalChart | GitSource | ManifestsSource | ArtifactSource;
-
-export interface Plan {
-  name: string;
-  namespace: string;
-  location: string;
-  directory: string;
-  namespaceLabels?: Record<string, string>;
-  ownsNamespace: boolean;
-  sources: PlanSource[];
-  artifact?: Artifact;
-}
-
-function dnsAnnotations(dns: RouteDns): Record<string, string> {
-  if (dns.provider === 'unifi') {
-    return { 'external-dns.kubernetes.io/managed-unifi': 'true' };
-  }
-  return {
-    'external-dns.kubernetes.io/managed': 'true',
-    'external-dns.kubernetes.io/cloudflare-proxied': String(dns.proxied),
-  };
-}
-
-function ratelimitRules({ requests, per, header }: RouteRatelimit) {
-  return {
-    rules: [
-      {
-        clientSelectors: [{ headers: [{ name: header, invert: false, type: 'Distinct' }] }],
-        limit: { requests, unit: per },
-      },
-    ],
-  };
-}
-
-const LOAD_BALANCERS = {
-  roundRobin: 'RoundRobin',
-  leastRequest: 'LeastRequest',
-  random: 'Random',
-  consistentHash: 'ConsistentHash',
-} as const;
-
-function loadBalancer({ type, headers }: RouteLoadBalancer) {
-  return {
-    type: LOAD_BALANCERS[type],
-    ...(headers
-      ? { consistentHash: { type: 'Headers', headers: headers.map((name) => ({ name })) } }
-      : {}),
-  };
-}
+const rank = (chart: string) => {
+  const index = CHART_ORDER.indexOf(chart);
+  return index === -1 ? CHART_ORDER.length : index;
+};
 
 export function planApp(app: App, versions: Versions, target: Target, world: World): Plan {
   const { name } = app;
   const namespace = appNamespace(app);
-  const annotations = {
-    'inf-k8s.net/app': name,
-    'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
-  };
-
-  const databaseSecret = (database: string) => appDatabases(app)[database].secretName;
   const directory = `${target.location}/${name}`;
+
   const readValues = (path: string) => {
     if (!world.readValues) {
       throw new Error(`${name}: artifact apps inline values, pass readValues`);
     }
     return world.readValues(path);
   };
-  const routes = Object.entries(appRoutes(app));
-  const tcpRoutes = Object.entries(appTcpRoutes(app));
-  const sources: PlanSource[] = [];
-  const serviceAccounts = [...declared(app, 'serviceAccount').map((account) => account.name)];
 
-  const loginPolicy = (client: string) => {
-    const route = routes.find(([, r]) => r.auth?.mode === 'oidc' && r.auth.client === client);
-    if (!route) {
-      return {};
-    }
-    const {
-      mode: _mode,
-      client: _client,
-      ...policy
-    } = route[1].auth as Extract<RouteAuth, { mode: 'oidc' }>;
-    return { securityPolicy: { httpRoute: route[0], ...policy } };
-  };
-
-  const chart = (
-    chartName: string,
-    values: Record<string, unknown>,
-    { valueFiles, retain }: { valueFiles?: string[]; retain?: boolean } = {},
-  ): PlatformChart => {
+  const chart: PlanContext['chart'] = (chartName, values, { valueFiles, retain } = {}) => {
     const version = app.charts?.[chartName] ?? versions[chartName];
     if (!version) {
       throw new Error(`${app.name}: no version for chart ${chartName}`);
@@ -163,258 +66,65 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     };
   };
 
-  const hasWorkloads = Object.keys(appWorkloads(app)).length > 0;
-  if (hasWorkloads) {
-    sources.push(
-      chart(
-        'k8s-workload',
-        {
-          namespace,
-          ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
-          ...(serviceAccounts.length ? { serviceAccounts } : {}),
-          workloads: Object.entries(appWorkloads(app)).map(([workload, spec]) => {
-            return { name: workload, ...expandWorkload(spec, refsFor(app, world)) };
-          }),
-        },
-        { valueFiles: [imageValuesPath(app, target)] },
-      ),
-    );
-  }
+  const ctx: PlanContext = {
+    app,
+    namespace,
+    directory,
+    target,
+    world,
+    annotations: {
+      'inf-k8s.net/app': name,
+      'inf-k8s.net/repository': app.repository ?? 'https://github.com/Accurate0/inf-k8s',
+    },
+    refs: refsFor(app, world),
+    chart,
+    readValues,
+  };
 
-  const ingress = [
-    ...(routes.length || tcpRoutes.length ? ['envoy-gateway-system'] : []),
-    ...(appMetrics(app).length ? ['monitoring'] : []),
-    ...app.network.ingress,
-    ...world.apps
-      .filter(
-        (other) =>
-          other.name !== name && other.resources?.some((r) => r.type === 'app' && r.app === name),
-      )
-      .map(appNamespace)
-      .sort(),
-    ...(declared(app, 'subgraph').length
-      ? [supergraphApp(world.apps)]
-          .filter((other): other is App => !!other && other.name !== name)
-          .map(appNamespace)
-      : []),
+  const contributions: Contribution[] = [
+    workloads.plan(ctx),
+    ...RESOURCES.map(
+      (provider) => provider.plan?.(ctx, declared(app, provider.type as ResourceType)) ?? {},
+    ),
   ];
+  const charts = contributions.flatMap((contribution) => contribution.charts ?? []);
+
   if (app.network.policy !== false) {
-    sources.push(chart('k8s-network', { namespace, ingress: [...new Set(ingress)] }));
+    const ingress = [
+      ...contributions.flatMap((contribution) => contribution.ingress ?? []),
+      ...app.network.ingress,
+      ...contributions.flatMap((contribution) => contribution.appIngress ?? []),
+    ];
+    charts.push(chart('k8s-network', { namespace, ingress: [...new Set(ingress)] }));
   }
 
-  if (routes.length || tcpRoutes.length) {
-    sources.push(
-      chart('k8s-http-routes', {
-        ...(tcpRoutes.length
-          ? {
-              tcpRoutes: tcpRoutes.map(([routeName, route]) => ({
-                name: routeName,
-                gateway: {
-                  name: route.gateway,
-                  namespace: 'envoy-gateway-system',
-                },
-                listener: route.listener,
-                backend: route.backend,
-              })),
-            }
-          : {}),
-        routes: routes.map(([routeName, route]) => {
-          return {
-            name: routeName,
-            ...(route.auth?.mode === 'jwt' ? { jwtClients: route.auth.clients } : {}),
-            gateway: {
-              name: route.gateway,
-              namespace: 'envoy-gateway-system',
-            },
-            ...(route.dns ? { annotations: dnsAnnotations(route.dns) } : {}),
-            hostnames: route.hosts,
-            ...(route.ratelimit ? { ratelimit: ratelimitRules(route.ratelimit) } : {}),
-            ...(route.loadBalancer ? { loadBalancer: loadBalancer(route.loadBalancer) } : {}),
-            rules: (
-              route.rules ?? [
-                {
-                  paths: route.paths as NonNullable<Route['paths']>,
-                  backend: route.backend as { name: string; port: number },
-                },
-              ]
-            ).map((rule) => ({
-              backendRefs: [{ group: '', kind: 'Service', ...rule.backend, weight: 1 }],
-              matches: rule.paths.map((match) => ({
-                path: typeof match === 'string' ? { type: 'PathPrefix', value: match } : match,
-              })),
-              ...(route.timeouts ? { timeouts: route.timeouts } : {}),
-            })),
-          };
-        }),
-      }),
-    );
-  }
-
-  if (Object.keys(appOidc(app)).length) {
-    sources.push(
-      chart(
-        'k8s-oidc',
-        {
-          clients: Object.entries(appOidc(app)).map(([client, spec]) => ({
-            name: client,
-            namespace,
-            ...spec,
-            ...loginPolicy(client),
-            secretName: spec.secretName,
-            secretNamespace: namespace,
-            annotations,
-          })),
-        },
-        { retain: true },
-      ),
-    );
-  }
-
-  if (Object.keys(appDatabases(app)).length) {
-    sources.push(
-      chart('k8s-postgres', {
-        databases: Object.entries(appDatabases(app)).map(([database, spec]) => ({
-          name: database,
-          namespace,
-          databaseName: databaseRole(database, spec),
-          secretName: databaseSecret(database),
-          host: databaseHost(app, spec, world.platform),
-          annotations,
-        })),
-      }),
-    );
-  }
-
-  const bucketSecrets = (app.resources ?? []).flatMap((resource) =>
-    resource.type === 'bucket'
-      ? [
-          {
-            name: `resource-${resource.name}`,
-            secretName: resource.secretName,
-            secretTemplate: resource.secretTemplate,
-          },
-        ]
-      : [],
-  );
-
-  const managedSecret = ({
-    secretName,
-    secretTemplate,
-  }: {
-    secretName: string;
-    secretTemplate?: SecretTemplate;
-  }) => ({
-    secretName,
-    ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
-    ...(secretTemplate
-      ? {
-          template: {
-            ...(secretTemplate.includeAllSecrets === undefined
-              ? {}
-              : { includeAllSecrets: secretTemplate.includeAllSecrets }),
-            data: secretTemplate.data,
-          },
-        }
-      : {}),
-  });
-
-  const synced = [...appSecrets(app).filter((s) => !s.generate), ...bucketSecrets];
-  const generated = appSecrets(app).flatMap(
-    ({ name: secret, secretName, secretTemplate, generate }) =>
-      generate
-        ? [
-            {
-              name: secret,
-              secretName,
-              ...(secretTemplate?.type ? { type: secretTemplate.type } : {}),
-              ...(secretTemplate ? { template: { data: secretTemplate.data } } : {}),
-              keys: Object.entries(generate).map(([key, spec]) => ({ name: key, ...spec })),
-            },
-          ]
-        : [],
-  );
-  const refs = refsFor(app, world);
-  const templates = declared(app, 'config').flatMap(({ configMap, files, secretName, values }) =>
-    values
-      ? [
-          {
-            secretName,
-            configMap,
-            files,
-            values: Object.entries(values).map(([variable, ref]) => {
-              const kind = SECRET_KINDS.find((k) => ref[k]) as SecretKind;
-              return { name: variable, secret: refs.secret(kind, ref[kind]), key: ref.key };
-            }),
-          },
-        ]
-      : [],
-  );
-
+  const secrets = contributions.flatMap((contribution) => contribution.secrets ?? []);
+  const synced = secrets.flatMap((s) => s.synced ?? []);
+  const generated = secrets.flatMap((s) => s.generated ?? []);
+  const templates = secrets.flatMap((s) => s.templates ?? []);
   if (synced.length || generated.length || templates.length) {
-    sources.push(
+    charts.push(
       chart('k8s-secrets', {
-        defaults: { namespace, provider: 'openbao', resyncInterval: 900, annotations },
-        secrets: synced.map((s) => ({
-          name: s.name,
-          managedSecrets: [managedSecret(s)],
-        })),
+        defaults: {
+          namespace,
+          provider: 'openbao',
+          resyncInterval: 900,
+          annotations: ctx.annotations,
+        },
+        secrets: synced,
         ...(generated.length ? { generated } : {}),
         ...(templates.length ? { templates } : {}),
       }),
     );
   }
 
-  const volumes = declared(app, 'volume');
-  if (volumes.length) {
-    sources.push(
-      chart(
-        'k8s-storage',
-        {
-          volumes: volumes.map((volume) => {
-            const { storageClass: className, labels } = storageClass(app, volume, world.platform);
-            return {
-              name: volume.claimName,
-              namespace,
-              storageClass: className,
-              size: volume.size,
-              access: volume.access,
-              ...(labels ? { labels } : {}),
-              annotations,
-            };
-          }),
-        },
-        { retain: true },
-      ),
-    );
-  }
-
-  for (const scrape of appMetrics(app)) {
-    const { workload, ...metrics } = scrape;
-    sources.push(chart('k8s-observability', { name: workload, namespace, ...metrics }));
-  }
-
-  for (const source of app.sources ?? []) {
-    if (source.type === 'helm') {
-      const { chart: helmChart, repo, version, values, releaseName } = source;
-      sources.push({
-        type: 'helm',
-        chart: helmChart,
-        repo,
-        version,
-        ...(releaseName ? { releaseName } : {}),
-        ...(app.artifact
-          ? { values: readValues(`${directory}/${values}`) }
-          : { valueFiles: [`${directory}/${values}`] }),
-      });
-    } else if (source.type === 'git' || source.type === 'artifact') {
-      sources.push(source);
-    } else {
-      sources.push({
-        type: 'manifests',
-        path: source.path === '.' ? directory : `${directory}/${source.path}`,
-      });
-    }
-  }
+  const sources: PlanSource[] = [
+    ...charts
+      .map((source, index) => ({ source, index }))
+      .sort((a, b) => rank(a.source.chart) - rank(b.source.chart) || a.index - b.index)
+      .map(({ source }) => source),
+    ...(app.sources ?? []).map((source) => sourceProvider(source.type).plan(ctx, source as never)),
+  ];
 
   return {
     name,
@@ -422,17 +132,10 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     location: target.location,
     directory,
     ...(app.namespace?.labels ? { namespaceLabels: app.namespace.labels } : {}),
-    ownsNamespace: hasWorkloads,
+    ownsNamespace: (app.workloads ?? []).length > 0,
     sources,
     ...(app.artifact ? { artifact: app.artifact } : {}),
   };
-}
-
-function externalChartLocation({ chart, repo, version }: ExternalChart): string[] {
-  if (!repo.startsWith('oci://')) {
-    return [chart, '--repo', repo, '--version', version];
-  }
-  return [repo.endsWith(`/${chart}`) ? repo : `${repo}/${chart}`, '--version', version];
 }
 
 const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
@@ -444,27 +147,28 @@ export const chartValues = (source: PlatformChart) => ({
 
 export function helmTemplates(plan: Plan): { args: string[]; values: string }[] {
   return plan.sources.flatMap((source) => {
-    if (source.type !== 'chart' && source.type !== 'helm') {
+    const template =
+      source.type === 'chart'
+        ? { release: plan.name, location: [`charts/${source.chart}`], values: chartValues(source) }
+        : sourceProvider(source.type).helmTemplate?.(plan, source as never);
+    if (!template) {
       return [];
     }
-    const release = source.type === 'helm' ? (source.releaseName ?? plan.name) : plan.name;
-    const location =
-      source.type === 'chart' ? [`charts/${source.chart}`] : externalChartLocation(source);
+
+    const valueFiles = 'valueFiles' in source ? (source.valueFiles ?? []) : [];
     return [
       {
         args: [
           'template',
-          release,
-          ...location,
+          template.release,
+          ...template.location,
           '--namespace',
           plan.namespace,
-          ...(source.valueFiles ?? []).flatMap((file) => ['-f', file]),
+          ...valueFiles.flatMap((file) => ['-f', file]),
           '-f',
           '-',
         ],
-        values: JSON.stringify(
-          source.type === 'chart' ? chartValues(source) : (source.values ?? {}),
-        ),
+        values: JSON.stringify(template.values),
       },
     ];
   });

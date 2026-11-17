@@ -1,7 +1,8 @@
-import schema from '../app.schema.json' with { type: 'json' };
-import type { App, Subgraph, SubgraphAuth } from './types.ts';
-import { appNamespace, appOidc, appWorkloads, declared } from './app.ts';
-import { exportPort, serviceUrl } from './refs.ts';
+import type { App } from './types.ts';
+import type { Subgraph, SubgraphAuth } from './providers/subgraph.ts';
+import { appNamespace, declared } from './app.ts';
+import { exportPort, serviceUrl } from './services.ts';
+import { appWorkloads } from './providers/workload.ts';
 
 export interface ResolvedSubgraph {
   name: string;
@@ -116,7 +117,9 @@ export function validateSubgraphs(apps: App[]) {
     throw new Error(`${reserved.app}: subgraph name node is reserved for the router's node plugin`);
   }
 
-  const clients = new Set(apps.flatMap((app) => Object.keys(appOidc(app))));
+  const clients = new Set(
+    apps.flatMap((app) => declared(app, 'oidc').map((client) => client.name)),
+  );
   for (const subgraph of subgraphs) {
     const missing = subgraph.auth?.clients.filter((client) => !clients.has(client)) ?? [];
     if (missing.length) {

@@ -1,5 +1,5 @@
-import type { App } from './render.ts';
-import { appDatabases, databaseRole, supergraphApp } from './render.ts';
+import type { App } from './types.ts';
+import { resourceProvider } from './providers/index.ts';
 
 interface Node {
   id: string;
@@ -25,53 +25,11 @@ export function buildGraph(apps: App[], only?: string): { nodes: Node[]; edges: 
     return id;
   };
 
+  const graph = { apps, node, edge: (edge: Edge) => edges.push(edge) };
   for (const app of apps) {
     node(app.name, app.name, 'app');
     for (const resource of app.resources ?? []) {
-      if (resource.type === 'app') {
-        edges.push({ from: app.name, to: resource.app, label: resource.export });
-      } else if (resource.type === 'subgraph') {
-        const supergraph = supergraphApp(apps);
-        if (supergraph) {
-          edges.push({ from: supergraph.name, to: app.name, label: 'subgraph' });
-        }
-      } else if (resource.type === 'supergraph') {
-        continue;
-      } else if (
-        [
-          'database',
-          'secret',
-          'route',
-          'oidc',
-          'metrics',
-          'config',
-          'dashboard',
-          'serviceAccount',
-        ].includes(resource.type)
-      ) {
-        continue;
-      } else if (resource.type === 'platform') {
-        edges.push({
-          from: app.name,
-          to: node(`platform/${resource.export}`, resource.export, 'platform'),
-        });
-      } else if (resource.type === 'cache') {
-        const instance = resource.instance ?? 'cache';
-        edges.push({
-          from: app.name,
-          to: node(`cache/${instance}`, `cache ${instance}`, 'platform'),
-        });
-      } else if (resource.type === 'bucket') {
-        const name = resource.bucket;
-        edges.push({
-          from: app.name,
-          to: node(`bucket/${name}`, `${name} (${resource.provider})`, 'database'),
-        });
-      }
-    }
-    for (const [database, spec] of Object.entries(appDatabases(app))) {
-      const name = databaseRole(database, spec);
-      edges.push({ from: app.name, to: node(`database/${name}`, name, 'database') });
+      resourceProvider(resource.type).graph?.(app, resource as never, graph);
     }
   }
 

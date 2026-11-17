@@ -5,7 +5,8 @@
   "type": "module",
   "scripts": {
     "check": "tsc --noEmit",
-    "test": "node --test src/render.test.ts src/images.test.ts src/commits.test.ts src/changed.test.ts src/rollout.test.ts src/fmt.test.ts"
+    "test": "node --test 'src/**/*.test.ts'",
+    "schema": "node src/schema.gen.ts"
   },
   "dependencies": {
     "@ortzi/host": "workspace:*",

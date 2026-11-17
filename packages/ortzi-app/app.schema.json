@@ -534,7 +534,11 @@
                   "description": "Copy these from the workload's main container. The sidecar's own env entries win over inherited ones.",
                   "uniqueItems": true,
                   "items": {
-                    "enum": ["env", "envFrom", "mounts"]
+                    "enum": [
+                      "env",
+                      "envFrom",
+                      "mounts"
+                    ]
                   }
                 },
                 "ports": {
@@ -584,8 +588,8 @@
             "required": [
               "name",
               "type",
-              "app",
-              "export"
+              "configMap",
+              "files"
             ],
             "properties": {
               "name": {
@@ -593,111 +597,93 @@
               },
               "type": {
                 "enum": [
-                  "app"
+                  "config"
                 ]
               },
-              "app": {
+              "configMap": {
                 "type": "string"
               },
-              "export": {
-                "type": "string"
-              },
-              "path": {
-                "type": "string",
-                "description": "Appended to the exported URL."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
-              "provider",
-              "secretName",
-              "bucket"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "bucket"
-                ]
-              },
-              "provider": {
-                "enum": [
-                  "r2",
-                  "s3",
-                  "garage"
-                ]
-              },
-              "bucket": {
-                "type": "string"
-              },
-              "user": {
-                "type": "string",
-                "description": "IAM user name, for s3. Defaults to the bucket name."
-              },
-              "secretName": {
-                "type": "string"
-              },
-              "secretTemplate": {
-                "type": "object",
-                "description": "Reshape the synced secret, for consumers that expect other keys.",
-                "additionalProperties": false,
-                "required": [
-                  "data"
-                ],
-                "properties": {
-                  "type": {
-                    "type": "string"
-                  },
-                  "data": {
-                    "type": "object",
-                    "additionalProperties": {
-                      "type": "string"
-                    }
-                  }
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
-              "secretName"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "database"
-                ]
-              },
-              "secretName": {
-                "type": "string"
-              },
-              "enableConnectionPooling": {
-                "type": "boolean",
-                "description": "Connect through the pooler. Defaults to true."
-              },
-              "role": {
-                "type": "string",
-                "description": "Postgres role and database name. Defaults to the name with hyphens as underscores."
-              },
-              "extensions": {
+              "files": {
                 "type": "array",
-                "description": "Postgres extensions to ensure are present.",
+                "description": "Relative to the app directory. Mounted at the same relative path; the key is the basename.",
                 "items": {
                   "type": "string"
+                }
+              },
+              "secretName": {
+                "type": "string",
+                "description": "Render the files as go templates into this secret, which is mounted instead of the configmap. Needs values."
+              },
+              "values": {
+                "type": "object",
+                "description": "Template variables, read as {{ .NAME }}, taken from a key of a secret, database, bucket or oidc resource.",
+                "additionalProperties": {
+                  "oneOf": [
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "secret",
+                        "key"
+                      ],
+                      "properties": {
+                        "secret": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "database",
+                        "key"
+                      ],
+                      "properties": {
+                        "database": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "bucket",
+                        "key"
+                      ],
+                      "properties": {
+                        "bucket": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "oidc",
+                        "key"
+                      ],
+                      "properties": {
+                        "oidc": {
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  ]
                 }
               }
             }
@@ -789,6 +775,43 @@
             "additionalProperties": false,
             "required": [
               "name",
+              "type",
+              "secretName"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "database"
+                ]
+              },
+              "secretName": {
+                "type": "string"
+              },
+              "enableConnectionPooling": {
+                "type": "boolean",
+                "description": "Connect through the pooler. Defaults to true."
+              },
+              "role": {
+                "type": "string",
+                "description": "Postgres role and database name. Defaults to the name with hyphens as underscores."
+              },
+              "extensions": {
+                "type": "array",
+                "description": "Postgres extensions to ensure are present.",
+                "items": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
               "type"
             ],
             "properties": {
@@ -803,6 +826,302 @@
               "instance": {
                 "type": "string",
                 "description": "A cache export in platform/exports. Defaults to cache."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "provider",
+              "secretName",
+              "bucket"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "bucket"
+                ]
+              },
+              "provider": {
+                "enum": [
+                  "r2",
+                  "s3",
+                  "garage"
+                ]
+              },
+              "bucket": {
+                "type": "string"
+              },
+              "user": {
+                "type": "string",
+                "description": "IAM user name, for s3. Defaults to the bucket name."
+              },
+              "secretName": {
+                "type": "string"
+              },
+              "secretTemplate": {
+                "type": "object",
+                "description": "Reshape the synced secret, for consumers that expect other keys.",
+                "additionalProperties": false,
+                "required": [
+                  "data"
+                ],
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "data": {
+                    "type": "object",
+                    "additionalProperties": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "claimName",
+              "class",
+              "size",
+              "access"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "volume"
+                ]
+              },
+              "claimName": {
+                "type": "string",
+                "description": "Name of the persistent volume claim."
+              },
+              "class": {
+                "type": "string",
+                "description": "A storage export from platform/exports."
+              },
+              "size": {
+                "type": "string"
+              },
+              "access": {
+                "enum": [
+                  "ReadWriteOnce",
+                  "ReadWriteMany",
+                  "ReadOnlyMany",
+                  "ReadWriteOncePod"
+                ]
+              },
+              "backup": {
+                "enum": [
+                  "daily"
+                ]
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "serviceAccount"
+                ]
+              },
+              "clusterRole": {
+                "type": "string"
+              },
+              "clusterRules": {
+                "type": "array",
+                "items": {
+                  "type": "object"
+                }
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "app",
+              "export"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "app"
+                ]
+              },
+              "app": {
+                "type": "string"
+              },
+              "export": {
+                "type": "string"
+              },
+              "path": {
+                "type": "string",
+                "description": "Appended to the exported URL."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "export"
+            ],
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "platform"
+                ]
+              },
+              "export": {
+                "type": "string",
+                "description": "An export in platform/exports."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "base"
+            ],
+            "description": "Marks this app as the federation router; `ortzi app supergraph` composes every subgraph into it.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "supergraph"
+                ]
+              },
+              "base": {
+                "type": "string",
+                "description": "Hand-written router config the generated router.yaml extends; router.yaml, supergraph.graphql, schema.graphql and subgraphs/ are written beside it."
+              }
+            }
+          },
+          {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "name",
+              "type",
+              "prefix",
+              "workload",
+              "port",
+              "path",
+              "schema"
+            ],
+            "description": "Registers this app's GraphQL API as a federation subgraph of the app declaring a supergraph.",
+            "properties": {
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "enum": [
+                  "subgraph"
+                ]
+              },
+              "prefix": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]*$",
+                "description": "Prefix every root field of this subgraph must start with, e.g. home -> homeEntities."
+              },
+              "workload": {
+                "type": "string",
+                "description": "Workload serving the GraphQL API."
+              },
+              "port": {
+                "type": [
+                  "string",
+                  "integer"
+                ],
+                "description": "Port name or service port on that workload."
+              },
+              "path": {
+                "type": "string",
+                "description": "HTTP GraphQL endpoint, e.g. /graphql."
+              },
+              "websocket": {
+                "type": "string",
+                "description": "Subscriptions endpoint, when the subgraph has subscriptions."
+              },
+              "auth": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "clients",
+                  "groups"
+                ],
+                "description": "Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups. The subgraph still authorizes on its own.",
+                "properties": {
+                  "clients": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": "Kanidm OIDC clients (oidc resource names, in any app) whose tokens the router accepts for this subgraph."
+                  },
+                  "groups": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "description": "Kanidm groups, short name or SPN; holding any one of them is enough."
+                  }
+                }
+              },
+              "repository": {
+                "type": "string",
+                "description": "https://<host>/<owner>/<repo> holding the federation SDL. Leave out with ref to read schema from the app directory."
+              },
+              "schema": {
+                "type": "string",
+                "description": "Path to the federation SDL in the repository, or relative to the app directory when repository is left out."
+              },
+              "ref": {
+                "type": "string",
+                "description": "Branch or tag to read the SDL from; required with repository."
               }
             }
           },
@@ -1209,135 +1528,6 @@
             "required": [
               "name",
               "type",
-              "export"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "platform"
-                ]
-              },
-              "export": {
-                "type": "string",
-                "description": "An export in platform/exports."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
-              "configMap",
-              "files"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "config"
-                ]
-              },
-              "configMap": {
-                "type": "string"
-              },
-              "files": {
-                "type": "array",
-                "description": "Relative to the app directory. Mounted at the same relative path; the key is the basename.",
-                "items": {
-                  "type": "string"
-                }
-              },
-              "secretName": {
-                "type": "string",
-                "description": "Render the files as go templates into this secret, which is mounted instead of the configmap. Needs values."
-              },
-              "values": {
-                "type": "object",
-                "description": "Template variables, read as {{ .NAME }}, taken from a key of a secret, database, bucket or oidc resource.",
-                "additionalProperties": {
-                  "oneOf": [
-                    {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "secret",
-                        "key"
-                      ],
-                      "properties": {
-                        "secret": {
-                          "type": "string"
-                        },
-                        "key": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "database",
-                        "key"
-                      ],
-                      "properties": {
-                        "database": {
-                          "type": "string"
-                        },
-                        "key": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "bucket",
-                        "key"
-                      ],
-                      "properties": {
-                        "bucket": {
-                          "type": "string"
-                        },
-                        "key": {
-                          "type": "string"
-                        }
-                      }
-                    },
-                    {
-                      "type": "object",
-                      "additionalProperties": false,
-                      "required": [
-                        "oidc",
-                        "key"
-                      ],
-                      "properties": {
-                        "oidc": {
-                          "type": "string"
-                        },
-                        "key": {
-                          "type": "string"
-                        }
-                      }
-                    }
-                  ]
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
               "configMap",
               "file"
             ],
@@ -1356,192 +1546,6 @@
               "file": {
                 "type": "string",
                 "description": "Grafana dashboard json, relative to the app directory."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "serviceAccount"
-                ]
-              },
-              "clusterRole": {
-                "type": "string"
-              },
-              "clusterRules": {
-                "type": "array",
-                "items": {
-                  "type": "object"
-                }
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
-              "claimName",
-              "class",
-              "size",
-              "access"
-            ],
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "volume"
-                ]
-              },
-              "claimName": {
-                "type": "string",
-                "description": "Name of the persistent volume claim."
-              },
-              "class": {
-                "type": "string",
-                "description": "A storage export from platform/exports."
-              },
-              "size": {
-                "type": "string"
-              },
-              "access": {
-                "enum": [
-                  "ReadWriteOnce",
-                  "ReadWriteMany",
-                  "ReadOnlyMany",
-                  "ReadWriteOncePod"
-                ]
-              },
-              "backup": {
-                "enum": [
-                  "daily"
-                ]
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
-              "prefix",
-              "workload",
-              "port",
-              "path",
-              "schema"
-            ],
-            "description": "Registers this app's GraphQL API as a federation subgraph of the app declaring a supergraph.",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "subgraph"
-                ]
-              },
-              "prefix": {
-                "type": "string",
-                "pattern": "^[a-z][a-zA-Z0-9]*$",
-                "description": "Prefix every root field of this subgraph must start with, e.g. home -> homeEntities."
-              },
-              "workload": {
-                "type": "string",
-                "description": "Workload serving the GraphQL API."
-              },
-              "port": {
-                "type": [
-                  "string",
-                  "integer"
-                ],
-                "description": "Port name or service port on that workload."
-              },
-              "path": {
-                "type": "string",
-                "description": "HTTP GraphQL endpoint, e.g. /graphql."
-              },
-              "websocket": {
-                "type": "string",
-                "description": "Subscriptions endpoint, when the subgraph has subscriptions."
-              },
-              "auth": {
-                "type": "object",
-                "additionalProperties": false,
-                "required": [
-                  "clients",
-                  "groups"
-                ],
-                "description": "Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups. The subgraph still authorizes on its own.",
-                "properties": {
-                  "clients": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "description": "Kanidm OIDC clients (oidc resource names, in any app) whose tokens the router accepts for this subgraph."
-                  },
-                  "groups": {
-                    "type": "array",
-                    "minItems": 1,
-                    "items": {
-                      "type": "string",
-                      "minLength": 1
-                    },
-                    "description": "Kanidm groups, short name or SPN; holding any one of them is enough."
-                  }
-                }
-              },
-              "repository": {
-                "type": "string",
-                "description": "https://<host>/<owner>/<repo> holding the federation SDL. Leave out with ref to read schema from the app directory."
-              },
-              "schema": {
-                "type": "string",
-                "description": "Path to the federation SDL in the repository, or relative to the app directory when repository is left out."
-              },
-              "ref": {
-                "type": "string",
-                "description": "Branch or tag to read the SDL from; required with repository."
-              }
-            }
-          },
-          {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "name",
-              "type",
-              "base"
-            ],
-            "description": "Marks this app as the federation router; `ortzi app supergraph` composes every subgraph into it.",
-            "properties": {
-              "name": {
-                "type": "string"
-              },
-              "type": {
-                "enum": [
-                  "supergraph"
-                ]
-              },
-              "base": {
-                "type": "string",
-                "description": "Hand-written router config the generated router.yaml extends; router.yaml, supergraph.graphql, schema.graphql and subgraphs/ are written beside it."
               }
             }
           }
@@ -1580,7 +1584,10 @@
       "description": "Deliver the app to Argo CD without git: charts come from their registries with values and image tags inline in the Application, and `ortzi app publish` pushes the kustomization's build to this repository. git and artifact sources stay live sources next to it.",
       "type": "object",
       "additionalProperties": false,
-      "required": ["repo", "tag"],
+      "required": [
+        "repo",
+        "tag"
+      ],
       "properties": {
         "repo": {
           "type": "string",
@@ -1834,7 +1841,9 @@
             "toolchain": {
               "type": "object",
               "additionalProperties": false,
-              "required": ["rust"],
+              "required": [
+                "rust"
+              ],
               "properties": {
                 "rust": {
                   "type": "string",

@@ -1,61 +1,28 @@
 import { stringify } from 'yaml';
 import { chartValues, type Plan, type PlanSource } from '../plan.ts';
-import { type ArgocdOverrides, HEADER } from '../render.ts';
+import type { ArgocdOverrides } from '../types.ts';
+import { HEADER } from '../generated.ts';
+import { sourceProvider } from '../providers/index.ts';
+import { CONFIG_REPO } from '../providers/sources/manifests.ts';
 
-const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
 const SCHEMA = 'https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json';
 
-const valueFiles = (files: string[]) => files.map((file) => `$values/${file}`);
-
 function applicationSource(plan: Plan, source: PlanSource): Record<string, unknown> {
-  switch (source.type) {
-    case 'chart':
-      return {
-        chart: source.chart,
-        repoURL: `${source.registry}/${source.chart}`,
-        targetRevision: source.version,
-        helm: {
-          ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}),
-          valuesObject: chartValues(source),
-        },
-      };
-    case 'helm':
-      return {
-        chart: source.chart,
-        repoURL: source.repo,
-        targetRevision: source.version,
-        helm: {
-          ...(source.releaseName ? { releaseName: source.releaseName } : {}),
-          ...(source.valueFiles ? { valueFiles: valueFiles(source.valueFiles) } : {}),
-          ...(source.values ? { valuesObject: source.values } : {}),
-        },
-      };
-    case 'git':
-      return {
-        repoURL: source.repo,
-        ...(source.name ? { name: source.name } : {}),
-        path: source.path,
-        ...(source.revision ? { targetRevision: source.revision } : {}),
-      };
-    case 'artifact':
-      return {
-        repoURL: source.repo,
-        ...(source.name ? { name: source.name } : {}),
-        path: source.path ?? '.',
-        targetRevision: source.tag,
-      };
-    case 'manifests':
-      if (plan.artifact) {
-        return {
-          repoURL: plan.artifact.repo,
-          name: 'application',
-          path: '.',
-          targetRevision: plan.artifact.tag,
-        };
-      }
-
-      return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
+  if (source.type !== 'chart') {
+    return sourceProvider(source.type).application(plan, source as never);
   }
+
+  return {
+    chart: source.chart,
+    repoURL: `${source.registry}/${source.chart}`,
+    targetRevision: source.version,
+    helm: {
+      ...(source.valueFiles
+        ? { valueFiles: source.valueFiles.map((file) => `$values/${file}`) }
+        : {}),
+      valuesObject: chartValues(source),
+    },
+  };
 }
 
 export function renderApplication(plan: Plan, overrides?: ArgocdOverrides): string {
