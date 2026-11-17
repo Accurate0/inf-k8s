@@ -45,6 +45,7 @@ const WORKLOAD = [
   'resources',
   'ports',
   'probes',
+  'inherit',
   'env',
   'envFrom',
   'mounts',
