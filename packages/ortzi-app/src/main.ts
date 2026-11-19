@@ -9,6 +9,7 @@ import { env } from './commands/env';
 import { fmt } from './commands/fmt';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
+import { buildApp } from './commands/build';
 import { promote } from './commands/promote';
 import { rollback } from './commands/rollback';
 import { status } from './commands/status';
@@ -100,6 +101,9 @@ cluster:
   env <app> [workload]     each env var, where it comes from, and whether its secret key exists
   doctor <app>             check workloads, secrets, volumes, routes, oidc and databases on the cluster
   history <app>            previous argo syncs and their image tags
+  build <app>              build the app's image from its build block for --platform (default
+                           linux/amd64), push it tagged with the commit sha (sha-dirty-<time>
+                           with uncommitted changes) and sign it; --promote also deploys it
   promote <app>            point released images at a signed build (--image IMAGE@DIGEST|IMAGE:SHA,
                            repeatable; or --sha SHA for every image with release: deploy) and
                            publish it; refuses builds older than the deployed one without --force
@@ -116,12 +120,14 @@ flags:
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
   --force          render: regenerate every file, even those already up to date;
-                   promote: allow a build older than the deployed one
+                   promote, build --promote: allow a build older than the deployed one
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
   --image IMAGE    promote: the image to promote (repeatable); rollback: only this image
   --sha SHA        promote: promote every released image of the app at this commit
+  --promote        build: promote the pushed image (needs release: deploy)
+  --platform P     build: target platform (default linux/amd64)
   --yes            apply; writes are a dry run without this
   --wait           rollback, autosync on: follow the change and fail if it doesn't finish
   --timeout MIN    with --wait: minutes to allow for each step (default 5)`;
@@ -499,6 +505,8 @@ export const run = cli({
     latest: { type: 'boolean' },
     image: { type: 'string', multiple: true },
     sha: { type: 'string' },
+    promote: { type: 'boolean' },
+    platform: { type: 'string', default: 'linux/amd64' },
     yes: { type: 'boolean' },
     wait: { type: 'boolean' },
     timeout: { type: 'string' },
@@ -575,6 +583,18 @@ export const run = cli({
       return doctor(ctx.kube(), app, world);
     },
     history: (ctx, _, [name]) => history(ctx.kube(), requireApp(name, 'history')),
+    build: (_ctx, values, [name]) => {
+      const app = requireApp(name, 'build');
+      const found = discover().find(({ app: candidate }) => candidate.name === app);
+      if (!found) {
+        throw new Error(`no app named ${app}`);
+      }
+      return buildApp(found.app, found.target, {
+        promote: values.promote,
+        force: values.force,
+        platform: values.platform as string,
+      });
+    },
     promote: (_ctx, values, [name]) => {
       const app = requireApp(name, 'promote');
       const found = values.image.length
@@ -615,6 +635,7 @@ export const run = cli({
     env: appNames,
     doctor: appNames,
     history: appNames,
+    build: appNames,
     promote: appNames,
     rollback: appNames,
     heal: appThenOnOff,

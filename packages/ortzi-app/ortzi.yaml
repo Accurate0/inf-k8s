@@ -1,7 +1,7 @@
 package:
   name: app
   description: define apps in app.yaml, render them to argo, promote and roll back what's deployed
-  version: 0.69.0
+  version: 0.70.0
   completions: cobra
 auth:
   client_id: graph
@@ -9,11 +9,11 @@ auth:
   lazy: true
   ci_account: ci_deployer
 permissions:
-  exec: [diff, git, helm, kustomize, kubeconform]
+  exec: [diff, docker, git, helm, kustomize, kubeconform]
   fs: [.]
   kube: [get, patch]
   http: [raw.githubusercontent.com, git.anurag.sh, k8s-schemas.anurag.sh, graph.ortzi.cloud]
-  registry: [manifests]
+  registry: [manifests, containers]
 build:
   kind: wasm
   wasm:
