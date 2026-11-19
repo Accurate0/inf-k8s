@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T12:07:55.374Z
+# generated at 2026-11-19T13:12:56.102Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -226,10 +226,10 @@ spec:
           clients:
             - name: registry
               namespace: registry
-              displayName: Registry
-              preferShortUsername: true
               secretName: kanidm-registry-oidc
               host: registry.anurag.sh
+              displayName: Registry
+              preferShortUsername: true
               public: true
               allowLocalhostRedirect: true
               groups:
@@ -249,11 +249,11 @@ spec:
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
             - name: harbor
               namespace: registry
-              displayName: Harbor
-              preferShortUsername: true
               secretName: kanidm-harbor-oidc
               host: registry.anurag.sh
+              displayName: Harbor
               callbackPath: /c/oidc/callback
+              preferShortUsername: true
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret
