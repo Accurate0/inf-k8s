@@ -220,23 +220,22 @@ pub async fn revoke(
     Ok(StatusCode::NO_CONTENT)
 }
 
-pub async fn exchanged_for(
-    state: &AppState,
-    account: &str,
-    jti: &str,
-) -> Result<Option<ForgejoClaims>> {
+// The jti identifies the exchange; kanidm signed it, so it can't be borrowed by another token.
+// Service account tokens carry only their uuid as sub, so the account comes from the record.
+pub async fn exchanged_for(state: &AppState, jti: &str) -> Result<Option<(String, ForgejoClaims)>> {
     let row = sqlx::query!(
-        r#"SELECT forgejo, expires_at AS "expires_at: DateTime<Utc>" FROM core_graph_exchanges
-           WHERE jti = $1 AND account = $2 AND revoked_at IS NULL"#,
-        jti,
-        account
+        r#"SELECT account, forgejo, expires_at AS "expires_at: DateTime<Utc>" FROM core_graph_exchanges
+           WHERE jti = $1 AND revoked_at IS NULL"#,
+        jti
     )
     .fetch_optional(&state.pool)
     .await?;
 
-    Ok(row
-        .filter(|row| row.expires_at > Utc::now())
-        .and_then(|row| serde_json::from_value(row.forgejo).ok()))
+    Ok(row.filter(|row| row.expires_at > Utc::now()).and_then(|row| {
+        serde_json::from_value(row.forgejo)
+            .ok()
+            .map(|forgejo| (row.account, forgejo))
+    }))
 }
 
 pub async fn collect_expired(state: &AppState) -> Result<u64> {

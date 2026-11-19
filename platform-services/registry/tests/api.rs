@@ -145,18 +145,15 @@ async fn read_request(socket: &mut tokio::net::TcpStream) -> String {
     String::from_utf8_lossy(&buffer).into_owned()
 }
 
-// The test kanidm maps each service account's api token to the account and its groups.
+// The test kanidm maps each service account's api token to its groups.
 fn exchange_response((key, kid, issuer): &(EncodingKey, String, String), request: &str) -> String {
-    let (account, groups) = if request.contains("subject_token=deployer-sa") {
-        (
-            "ci_deployer",
-            vec![
-                "registry_deployers@idm.example.test",
-                "registry_users@idm.example.test",
-            ],
-        )
+    let groups = if request.contains("subject_token=deployer-sa") {
+        vec![
+            "registry_deployers@idm.example.test",
+            "registry_users@idm.example.test",
+        ]
     } else if request.contains("subject_token=reader-sa") {
-        ("ci_reader", vec!["registry_users@idm.example.test"])
+        vec!["registry_users@idm.example.test"]
     } else {
         return json!({ "error": "invalid_grant" }).to_string();
     };
@@ -165,8 +162,8 @@ fn exchange_response((key, kid, issuer): &(EncodingKey, String, String), request
     let claims = json!({
         "iss": issuer,
         "aud": "graph",
-        "sub": format!("sub-{account}"),
-        "preferred_username": account,
+        // kanidm only sends preferred_username with the profile scope; service accounts get a uuid sub.
+        "sub": uuid::Uuid::new_v4().to_string(),
         "groups": groups,
         "jti": uuid::Uuid::new_v4().to_string(),
         "exp": chrono::Utc::now().timestamp() + 300,
