@@ -28,7 +28,7 @@
     },
     "clients": {
       "type": "array",
-      "description": "One KanidmOAuth2Client and its KanidmGroups per entry, plus an Envoy SecurityPolicy when securityPolicy is set.",
+      "description": "One KanidmOAuth2Client, its KanidmGroups and KanidmServiceAccounts per entry, plus an Envoy SecurityPolicy when securityPolicy is set.",
       "items": { "$ref": "#/definitions/client" }
     }
   },
@@ -153,6 +153,36 @@
             "configMap": { "type": "string" },
             "key": { "type": "string" },
             "namespace": { "type": "string" }
+          }
+        },
+        "serviceAccounts": {
+          "type": "array",
+          "description": "Kanidm service accounts whose API token, written to secretName, is exchanged at this client (RFC 8693) for its tokens. Grant access by listing the account in groups.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["name", "displayName", "entryManagedBy", "secretName"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$",
+                "description": "Kanidm account name; also names the KanidmServiceAccount, with _ as -."
+              },
+              "displayName": { "type": "string" },
+              "entryManagedBy": {
+                "type": "string",
+                "description": "Group or account allowed to manage the account in Kanidm."
+              },
+              "secretName": {
+                "type": "string",
+                "description": "Secret receiving token, tokenUrl, audience and scope."
+              },
+              "scopes": {
+                "type": "array",
+                "description": "Scopes requested in the exchange.",
+                "items": { "type": "string" }
+              }
+            }
           }
         },
         "securityPolicy": {
