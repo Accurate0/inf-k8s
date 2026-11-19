@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-17T14:18:36.852Z
+# generated at 2026-11-19T13:12:55.730Z
 name: app feature-flags
 on:
   push:
@@ -26,9 +26,7 @@ jobs:
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
       - name: Install ortzi
         if: github.ref == 'refs/heads/main'
-        run: |-
-          curl -fsSL https://registry.anurag.sh/install.sh | sh
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+        uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
       - name: Log in to harbor
         id: login
         if: github.ref == 'refs/heads/main'
