@@ -17,7 +17,7 @@ resources:
   - {name: graph, type: supergraph, base: supergraph/router.base.yaml}
   - name: graph
     type: route
-    auth: {mode: app, reason: "the router forwards credentials, each subgraph verifies kanidm jwts or api keys"}
+    auth: {mode: app, reason: "the router forwards credentials, each subgraph verifies kanidm jwts"}
     gateway: internal-gateway
     hosts: [graph.ortzi.cloud]
     dns: {provider: cloudflare, proxied: false}

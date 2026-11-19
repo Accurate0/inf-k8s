@@ -14,12 +14,12 @@ async fn queries_reach_the_subgraph_with_the_callers_token() {
 async fn queries_without_a_token_are_rejected_by_the_subgraph() {
     let stack = Stack::spawn().await;
 
-    let response = stack.post(None, "{ whoami }").await;
+    let response = stack.post_document(None, "whoami").await;
     assert_yaml_snapshot!(response.snapshot());
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn queries_with_a_forged_token_are_rejected_by_the_subgraph() {
+async fn queries_with_a_forged_token_are_rejected() {
     let stack = Stack::spawn().await;
 
     let response = stack.post(Some(&stack.forged()), "{ whoami }").await;

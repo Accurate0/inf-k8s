@@ -25,7 +25,33 @@ headers:
     request:
       - propagate:
           named: [Authorization]
+introspection:
+  expression: .request.jwt.authenticated == true
+demand_control:
+  enabled: true
+  operation_cost:
+    max: 10000
+    mode: measure
+  default_list_size:
+    all: 50
+  subgraphs_budget:
+    mode: measure
+persisted_documents:
+  enabled: true
+  require_id: true
+  storage:
+    type: file
+    path: ./persisted-documents.json
 plugins:
+  diagnostics:
+    enabled: true
+  ratelimit:
+    enabled: true
+    config:
+      authenticated: {requests: {requests}, per: 10s}
+      anonymous: {requests: {requests}, per: 10s}
+  anonymous:
+    enabled: true
   node:
     enabled: true
     config:

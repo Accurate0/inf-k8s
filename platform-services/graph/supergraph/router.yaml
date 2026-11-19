@@ -68,7 +68,6 @@ headers:
       - propagate:
           named:
             - Authorization
-            - X-Api-Key
             - X-Real-IP
 telemetry:
   resource:
@@ -86,7 +85,35 @@ telemetry:
         protocol: http
         endpoint:
           expression: env("OTEL_TRACING_URL")
+introspection:
+  expression: .request.jwt.authenticated == true
+demand_control:
+  enabled: true
+  operation_cost:
+    max: 10000
+    mode: measure
+    expose_headers:
+      max: false
+      estimated: false
+      actual: false
+  default_list_size:
+    all: 50
+  subgraphs_budget:
+    mode: measure
 plugins:
+  diagnostics:
+    enabled: true
+  ratelimit:
+    enabled: true
+    config:
+      authenticated:
+        requests: 20
+        per: 1s
+      anonymous:
+        requests: 5
+        per: 1s
+  anonymous:
+    enabled: true
   node:
     enabled: true
     config:

@@ -1,0 +1,6 @@
+{
+  "introspect": "{ __schema { queryType { name } } }",
+  "secret": "{ secret }",
+  "ticks": "subscription { ticks(count: 2, everyMs: 10) { n user } }",
+  "whoami": "{ whoami }"
+}

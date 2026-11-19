@@ -213,6 +213,8 @@ impl SubscriptionRoot {
 
 pub struct Response {
     pub status: u16,
+    pub request_id: Option<String>,
+    pub diagnostics: Option<Value>,
     pub body: Value,
 }
 
@@ -232,6 +234,10 @@ pub struct Stack {
 
 impl Stack {
     pub async fn spawn() -> Self {
+        Self::spawn_with_rate_limit(1000).await
+    }
+
+    pub async fn spawn_with_rate_limit(requests: u32) -> Self {
         let idp = Idp::spawn().await;
 
         let live = Live::default();
@@ -268,9 +274,15 @@ impl Stack {
             .replace("{subgraph}", &subgraph_url);
         let config = std::fs::read_to_string(format!("{fixtures}/router.yaml"))
             .unwrap()
-            .replace("{issuer}", &idp.issuer);
+            .replace("{issuer}", &idp.issuer)
+            .replace("{requests}", &requests.to_string());
         std::fs::write(dir.join("supergraph.graphql"), supergraph).unwrap();
         std::fs::write(dir.join("router.yaml"), config).unwrap();
+        std::fs::copy(
+            format!("{fixtures}/persisted-documents.json"),
+            dir.join("persisted-documents.json"),
+        )
+        .unwrap();
 
         let router = Command::new(env!("CARGO_BIN_EXE_graph-router"))
             .current_dir(&dir)
@@ -327,18 +339,57 @@ impl Stack {
     }
 
     pub async fn post(&self, token: Option<&str>, query: &str) -> Response {
+        self.post_with_request_id(token, query, None).await
+    }
+
+    pub async fn post_document(&self, token: Option<&str>, id: &str) -> Response {
+        self.send(token, json!({ "documentId": id }), None).await
+    }
+
+    pub async fn post_with_request_id(
+        &self,
+        token: Option<&str>,
+        query: &str,
+        request_id: Option<&str>,
+    ) -> Response {
+        self.send(token, json!({ "query": query }), request_id)
+            .await
+    }
+
+    async fn send(&self, token: Option<&str>, body: Value, request_id: Option<&str>) -> Response {
         let mut request = reqwest::Client::new()
             .post(format!("http://{}/v1/graphql", self.url))
-            .json(&json!({ "query": query }));
+            .json(&body);
 
         if let Some(token) = token {
             request = request.bearer_auth(token);
         }
+        if let Some(request_id) = request_id {
+            request = request.header("x-request-id", request_id);
+        }
 
         let response = request.send().await.unwrap();
+        let status = response.status().as_u16();
+        let request_id = response
+            .headers()
+            .get("x-request-id")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
+
+        let mut body: Value = response.json().await.unwrap();
+        let diagnostics = body
+            .get_mut("extensions")
+            .and_then(Value::as_object_mut)
+            .and_then(|extensions| extensions.remove("diagnostics"));
+        if body["extensions"].as_object().is_some_and(|e| e.is_empty()) {
+            body.as_object_mut().unwrap().remove("extensions");
+        }
+
         Response {
-            status: response.status().as_u16(),
-            body: response.json().await.unwrap(),
+            status,
+            request_id,
+            diagnostics,
+            body,
         }
     }
 

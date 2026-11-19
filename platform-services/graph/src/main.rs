@@ -1,7 +1,10 @@
 #![recursion_limit = "256"]
 
 mod access;
+mod anonymous;
+mod diagnostics;
 mod node;
+mod ratelimit;
 
 use hive_router::{
     PluginRegistry, RouterGlobalAllocator, configure_global_allocator, error::RouterInitError,
@@ -16,6 +19,9 @@ async fn main() -> Result<(), RouterInitError> {
 
     router_entrypoint(
         PluginRegistry::new()
+            .register::<diagnostics::DiagnosticsPlugin>()
+            .register::<ratelimit::RateLimitPlugin>()
+            .register::<anonymous::AnonymousPlugin>()
             .register::<access::AccessPlugin>()
             .register::<node::NodePlugin>(),
     )

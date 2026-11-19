@@ -5,6 +5,6 @@ expression: "socket.messages(\"1\").await"
 - id: "1"
   payload:
     - extensions:
-        code: SUBGRAPH_WEBSOCKET_HANDSHAKE_FAILURE
-      message: Internal server error
+        code: PERSISTED_DOCUMENT_ID_REQUIRED
+      message: Persisted document id is required
   type: error

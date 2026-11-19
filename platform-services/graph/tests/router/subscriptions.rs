@@ -144,7 +144,7 @@ async fn invalid_subscriptions_are_rejected() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn anonymous_subscriptions_are_rejected_by_the_subgraph() {
+async fn anonymous_subscriptions_need_a_persisted_document() {
     let stack = Stack::spawn().await;
     let mut socket = stack.connect_anonymous().await;
 

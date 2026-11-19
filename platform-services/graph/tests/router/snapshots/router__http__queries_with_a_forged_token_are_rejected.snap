@@ -1,0 +1,10 @@
+---
+source: tests/router/http.rs
+expression: response.snapshot()
+---
+body:
+  errors:
+    - extensions:
+        code: UNAUTHENTICATED
+      message: invalid or expired token
+status: 401
