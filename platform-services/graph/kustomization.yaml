@@ -7,5 +7,6 @@ configMapGenerator:
     files:
       - supergraph/router.yaml
       - supergraph/supergraph.graphql
+      - supergraph/persisted-documents.json
 generatorOptions:
   disableNameSuffixHash: true

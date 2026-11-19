@@ -20,6 +20,7 @@ resources:
     repository: https://github.com/Accurate0/spotify
     ref: main
     schema: subgraph.graphql
+    persistedDocuments: web/persisted-documents.json
     auth:
       clients: [spotify, graph]
       groups: [spotify_users]
