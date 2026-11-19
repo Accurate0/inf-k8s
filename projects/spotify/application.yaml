@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T12:07:55.287Z
+# generated at 2026-11-19T13:12:55.575Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -23,7 +23,7 @@ spec:
         valuesObject:
           images:
             registry.anurag.sh/containers/spotify: 46f35ec545f8d5767b4f763a08b1d4888711f027
-            registry.anurag.sh/containers/spotify-web: 76c1a7381b7e345bdb3f84b3a4d47851fa2851c1
+            registry.anurag.sh/containers/spotify-web: 63a49bdecf5cf9ce33b125d50256faeee5a405f3
           namespace: spotify
           namespaceLabels:
             internal-gateway-access: "true"
@@ -233,10 +233,10 @@ spec:
           clients:
             - name: spotify
               namespace: spotify
-              displayName: Spotify
-              preferShortUsername: true
               secretName: kanidm-spotify-oidc
               host: spotify.ortzi.cloud
+              displayName: Spotify
+              preferShortUsername: true
               callbackPath: /callback
               public: true
               allowLocalhostRedirect: true
