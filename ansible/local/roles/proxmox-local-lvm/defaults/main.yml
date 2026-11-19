@@ -1,0 +1,7 @@
+# SPDX-License-Identifier: MIT-0
+---
+proxmox_local_lvm_storage: local-lvm
+proxmox_local_lvm_vg: pve
+proxmox_local_lvm_thinpool: data
+proxmox_local_lvm_content: images,rootdir
+proxmox_local_lvm_nodes: "{{ ansible_play_hosts_all }}"

@@ -23,12 +23,25 @@
   roles:
     - proxmox-cluster
 
-- name: Proxmox node storage
-  hosts: proxmox:!pve
+- name: Proxmox SSD storage
+  hosts: pve-node-2
   gather_facts: false
 
   roles:
     - proxmox-ssd
+
+- name: Proxmox boot disk storage
+  hosts: pve-node-1
+  gather_facts: false
+
+  roles:
+    - proxmox-local-lvm
+
+- name: Proxmox binfmt handlers
+  hosts: proxmox:!pve
+  gather_facts: false
+
+  roles:
     - proxmox-binfmt
 
 - name: Storage on the Proxmox host

@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Read the free extents in the volume group
+  ansible.builtin.command: vgs --noheadings --options vg_free_count {{ proxmox_local_lvm_vg }}
+  register: proxmox_local_lvm_free
+  changed_when: false
+
+- name: Grow the thin pool into the free space
+  ansible.builtin.command: lvextend -l +100%FREE {{ proxmox_local_lvm_vg }}/{{ proxmox_local_lvm_thinpool }}
+  when: proxmox_local_lvm_free.stdout | trim | int > 0
+
+- name: Read the storage configuration
+  ansible.builtin.command: pvesh get /storage --output-format json
+  register: proxmox_local_lvm_storages
+  changed_when: false
+  run_once: true
+
+- name: Add the storage
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - add
+      - lvmthin
+      - "{{ proxmox_local_lvm_storage }}"
+      - --vgname
+      - "{{ proxmox_local_lvm_vg }}"
+      - --thinpool
+      - "{{ proxmox_local_lvm_thinpool }}"
+      - --content
+      - "{{ proxmox_local_lvm_content }}"
+      - --nodes
+      - "{{ proxmox_local_lvm_nodes | join(',') }}"
+  run_once: true
+  when: proxmox_local_lvm_storage not in (proxmox_local_lvm_storages.stdout | from_json | map(attribute='storage') | list)

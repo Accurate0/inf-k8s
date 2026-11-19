@@ -63,16 +63,18 @@ already covers every node through `/cluster/resources`. nginx, sysctl and
 node-exporter run on every node.
 
 When a node joins, its own `storage.cfg` is replaced by the cluster's copy.
-The new nodes boot from small drives, so their guests live on a 1TB SSD
-instead. `roles/proxmox-ssd` builds a single-disk `ssd` pool on
-`proxmox_ssd_disk` and registers one `ssd` zfspool storage limited to the
-non-founder nodes. It also limits `local-zfs` to `pve`. The role refuses to
+The new nodes boot from small drives. `pve-node-2` keeps its guests on a 1TB
+NVMe instead. `pve-node-1` has no second disk, so `roles/proxmox-local-lvm`
+registers its boot disk's `pve/data` thin pool as `local-lvm`, limited to that
+node.
+`roles/proxmox-ssd` builds a single-disk `ssd` pool on `proxmox_ssd_disk` and
+registers one `ssd` zfspool storage limited to the nodes in its play. It also limits `local-zfs` to `pve`. The role refuses to
 create a pool on a disk that still has partitions or signatures, so wipe a new
 disk by hand first (`wipefs -a`, `sgdisk --zap-all`).
 
 Each guest in `proxmox-guests.yaml` takes an optional `node` and `storage`
-(default `pve` and `local-zfs`). `homeassistant` lives on `pve-node-1` and
-`mirror` on `pve-node-2`, both on `ssd`. When a guest's declared node differs
+(default `pve` and `local-zfs`). `homeassistant`, `mirror` and `runner-2` live
+on `pve-node-2` on `ssd`; `runner-1` lives on `pve-node-1` on `local-lvm`. When a guest's declared node differs
 from where it runs, the play moves it with
 `pct migrate --restart --target-storage`, which means a short outage while its
 disk is copied. Nothing else ever moves a guest.
@@ -85,8 +87,7 @@ restores quorum. With three nodes, any single node can be down.
 ## Forgejo runners
 
 `runner-1` (vmid 211, `10.0.2.19`) on `pve-node-1` and `runner-2` (vmid 212,
-`10.0.2.20`) on `pve-node-2` are Forgejo Actions runners, one LXC per node on
-`ssd`. They run in guests rather than on the nodes so docker's iptables rules
+`10.0.2.20`) on `pve-node-2` are Forgejo Actions runners, one LXC per node. They run in guests rather than on the nodes so docker's iptables rules
 stay off the hypervisors. `roles/forgejo-runner` runs the runner in compose
 with the docker executor and mounts the guest's docker socket into jobs.
 
@@ -125,6 +126,10 @@ no QEMU layer in between. This replaced the earlier per-disk `scsiblock=1`
 passthrough, which was only necessary while the media drives shared the chipset
 SATA controller with the `rpool` boot SSD; the add-in HBAs are on their own
 IOMMU groups, so the host keeps its root disk.
+
+Drives that do sit on the chipset controller (`proxmox_unraid_disks`, the two
+1TB Crucial SSDs) still go through per-disk `scsiblock=1`. That hands Unraid the
+raw SCSI device, so it sees the real model and serial and can read SMART.
 
 `intel_iommu=on,sp_off` on the kernel command line is load-bearing: without
 `sp_off` this platform's IOMMU superpage support corrupts the mappings and the
