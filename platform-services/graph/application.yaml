@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T15:33:06.910Z
+# generated at 2026-11-19T15:52:51.601Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +22,7 @@ spec:
       helm:
         valuesObject:
           images:
-            registry.anurag.sh/containers/graph-router: f03156e1872a77a1db8651f7e2c500504d407dda
+            registry.anurag.sh/containers/graph-router: 01bc042fb9cc038e42037b712736e9b7a2674968
             curlimages/curl: 8.10.1
           namespace: graph
           namespaceLabels:
