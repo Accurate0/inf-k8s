@@ -97,6 +97,7 @@ jobs:
           RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
         run: |
           [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0
+          git commit --quiet --amend -m "$(git log -1 --format=%B) [skip ci]"
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
           .forgejo/scripts/retry.sh 5 15 bash -c 'if git pull --rebase origin main; then git push origin HEAD:main; else git rebase --abort; exit 1; fi'
       - name: Publish artifacts
