@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T13:12:55.641Z
+# generated at 2026-11-19T15:27:52.819Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +22,7 @@ spec:
       helm:
         valuesObject:
           images:
-            registry.anurag.sh/containers/ai-gateway: 0939fe7e93a333507f267928e481145347f09d9e
+            registry.anurag.sh/containers/ai-gateway: 01bc042fb9cc038e42037b712736e9b7a2674968
           namespace: ai-gateway
           namespaceLabels:
             internal-gateway-access: "true"
