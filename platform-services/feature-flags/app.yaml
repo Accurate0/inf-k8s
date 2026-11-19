@@ -15,6 +15,7 @@ resources:
   - name: feature-flags
     type: subgraph
     prefix: featureFlags
+    allowedRootFields: [featureFlags, featureFlag]
     workload: feature-flags
     port: graphql
     path: /v1/graphql
