@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T15:33:06.865Z
+# generated at 2026-11-19T15:50:20.451Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -21,9 +21,7 @@ spec:
       targetRevision: 0.6.0
       helm:
         valuesObject:
-          images:
-            registry.anurag.sh/containers/spotify: 46f35ec545f8d5767b4f763a08b1d4888711f027
-            registry.anurag.sh/containers/spotify-web: 63a49bdecf5cf9ce33b125d50256faeee5a405f3
+          images: {}
           namespace: spotify
           namespaceLabels:
             internal-gateway-access: "true"

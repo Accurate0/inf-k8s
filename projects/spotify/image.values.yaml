@@ -1,3 +1,1 @@
-images:
-  registry.anurag.sh/containers/spotify: 46f35ec545f8d5767b4f763a08b1d4888711f027
-  registry.anurag.sh/containers/spotify-web: 63a49bdecf5cf9ce33b125d50256faeee5a405f3
+images: {}
