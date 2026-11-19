@@ -41,6 +41,7 @@ async fn main() -> anyhow::Result<()> {
     let harbor = config.harbor.as_ref().and_then(Harbor::from_env);
     let mut state = AppState::new(config, pool, storage, signer);
     state.harbor = harbor;
+    state.dispatch_token = std::env::var("FORGEJO_DISPATCH_TOKEN").ok();
 
     state.auth.start().await;
     tokio::spawn(jobs::run(state.clone()));

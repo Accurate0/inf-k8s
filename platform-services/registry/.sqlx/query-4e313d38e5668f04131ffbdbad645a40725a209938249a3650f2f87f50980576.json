@@ -1,0 +1,41 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT forgejo, expires_at AS \"expires_at: DateTime<Utc>\" FROM core_graph_exchanges\n           WHERE jti = $1 AND account = $2 AND revoked_at IS NULL",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "forgejo",
+        "type_info": "Jsonb",
+        "origin": {
+          "Table": {
+            "table": "core_graph_exchanges",
+            "name": "forgejo"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "expires_at: DateTime<Utc>",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "core_graph_exchanges",
+            "name": "expires_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "4e313d38e5668f04131ffbdbad645a40725a209938249a3650f2f87f50980576"
+}

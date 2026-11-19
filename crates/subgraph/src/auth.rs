@@ -98,6 +98,8 @@ struct Issuer {
 pub struct Claims {
     pub sub: String,
     #[serde(default)]
+    pub jti: Option<String>,
+    #[serde(default)]
     pub preferred_username: Option<String>,
     #[serde(default)]
     pub groups: Option<Vec<String>>,

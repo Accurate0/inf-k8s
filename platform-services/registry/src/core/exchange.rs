@@ -28,7 +28,7 @@ use crate::{
     state::AppState,
 };
 
-fn configured(state: &AppState) -> Result<(&Harbor, &HarborConfig)> {
+pub(crate) fn configured(state: &AppState) -> Result<(&Harbor, &HarborConfig)> {
     match (state.harbor.as_ref(), state.config.harbor.as_ref()) {
         (Some(harbor), Some(config)) => Ok((harbor, config)),
         _ => Err(ApiError::Harbor(
@@ -260,11 +260,12 @@ fn sign_target(request: &HarborSignRequest) -> std::result::Result<&str, String>
         return Err(format!("{:?} is not a sha256 digest", request.digest));
     }
 
-    let Some((project, path)) = request.repository.split_once('/') else {
-        return Err(format!(
-            "{:?} is not <project>/<repository>",
-            request.repository
-        ));
+    image_project(&request.repository)
+}
+
+pub(crate) fn image_project(repository: &str) -> std::result::Result<&str, String> {
+    let Some((project, path)) = repository.split_once('/') else {
+        return Err(format!("{repository:?} is not <project>/<repository>"));
     };
     let path_valid = !path.is_empty()
         && path.split('/').all(|segment| {
@@ -274,13 +275,10 @@ fn sign_target(request: &HarborSignRequest) -> std::result::Result<&str, String>
                     .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b"._-".contains(&b))
         });
     if !valid_project(project) || !path_valid {
-        return Err(format!(
-            "{:?} is not a harbor repository",
-            request.repository
-        ));
+        return Err(format!("{repository:?} is not a harbor repository"));
     }
     if project.starts_with("ortzi-") {
-        return Err(format!("{project} is signed by ortzi releases"));
+        return Err(format!("{project} is managed by ortzi releases"));
     }
     Ok(project)
 }

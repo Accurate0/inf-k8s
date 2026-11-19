@@ -18,6 +18,30 @@ forgejo:
 graph:
   issuer: https://idm.anurag.sh/oauth2/openid/graph
   audience: graph
+  # CI trades its forgejo token for a kanidm service account's token at the graph client.
+  exchange:
+    token_url: https://idm.anurag.sh/oauth2/token
+    revoke_url: https://idm.anurag.sh/oauth2/token/revoke
+    accounts:
+      - {name: ci_deployer, token_env: GRAPH_CI_DEPLOYER_TOKEN, scopes: [openid, groups]}
+      - {name: ci_reader, token_env: GRAPH_CI_READER_TOKEN, scopes: [openid, groups]}
+    grants:
+      - forgejo: {repository: anurag/k8s, ref: refs/heads/main}
+        accounts: [ci_deployer, ci_reader]
+      - forgejo: {repository: anurag/spotify, ref: refs/heads/main}
+        accounts: [ci_deployer, ci_reader]
+      - forgejo: {repository: "*"}
+        accounts: [ci_reader]
+
+deploy:
+  tag: deploy
+  groups: [registry_deployers, registry_admins]
+  # FORGEJO_DISPATCH_TOKEN comes from the environment.
+  dispatch:
+    url: https://git.anurag.sh
+    repository: anurag/k8s
+    workflow: publish-apps.yaml
+    ref: main
 
 # Endpoint and credentials come from the environment:
 # S3_ENDPOINT, S3_ACCESS_KEY_ID, S3_SECRET_ACCESS_KEY.

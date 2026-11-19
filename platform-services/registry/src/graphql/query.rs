@@ -2,8 +2,8 @@ use async_graphql::{Context, ID, Object, Result};
 use uuid::Uuid;
 
 use super::objects::{
-    Artifact, AuditEntry, Package, PublishToken, SigningKey, TrustedPublisher, Version, WhoAmI,
-    split_version_key,
+    Artifact, AuditEntry, Package, Promotion, PublishToken, SigningKey, TrustedPublisher, Version,
+    WhoAmI, split_version_key,
 };
 use super::{Gql, IDS, principal};
 use crate::error::ApiError;
@@ -72,6 +72,21 @@ impl QueryRoot {
         SigningKey::list(ctx).await
     }
 
+    /// Promotions of each repository (`<project>/<name>`), newest first.
+    async fn registry_promotions(
+        &self,
+        ctx: &Context<'_>,
+        repositories: Vec<String>,
+        #[graphql(default = 20)] limit: i64,
+    ) -> Result<Vec<Promotion>> {
+        principal(ctx)?.require_reader().gql()?;
+        let promotions =
+            crate::core::promote::promotions(&super::state(ctx).pool, &repositories, limit)
+                .await
+                .gql()?;
+        Ok(promotions.into_iter().map(Into::into).collect())
+    }
+
     #[graphql(entity)]
     async fn find_package_by_id(&self, ctx: &Context<'_>, id: ID) -> Result<Package> {
         Package::load(ctx, &IDS.decode_as(&id, "package")?).await
@@ -120,6 +135,33 @@ impl QueryRoot {
         .gql()?
         .ok_or_else(|| async_graphql::Error::new(format!("audit entry {row_id} not found")))?;
         Ok(entry.into())
+    }
+
+    #[graphql(entity)]
+    async fn find_promotion_by_id(&self, ctx: &Context<'_>, id: ID) -> Result<Promotion> {
+        let row_id = IDS.decode_row_id(&id, "promotion")?;
+        principal(ctx)?.require_reader().gql()?;
+
+        let promotion = sqlx::query_as!(
+            registry_api::Promotion,
+            r#"SELECT id AS "id!", app AS "app!", repository AS "repository!", digest AS "digest!",
+                      sha, committed_at, promoted_at AS "promoted_at!", live_until AS "live_until?",
+                      actor AS "actor!", forced AS "forced!"
+               FROM (
+                   SELECT *, LEAD(promoted_at) OVER (PARTITION BY repository ORDER BY promoted_at, id)
+                       AS live_until
+                   FROM core_promotions
+                   WHERE repository = (SELECT repository FROM core_promotions WHERE id = $1)
+               ) p
+               WHERE id = $1"#,
+            row_id
+        )
+        .fetch_optional(&super::state(ctx).pool)
+        .await
+        .map_err(ApiError::from)
+        .gql()?
+        .ok_or_else(|| async_graphql::Error::new(format!("promotion {row_id} not found")))?;
+        Ok(promotion.into())
     }
 
     #[graphql(entity)]

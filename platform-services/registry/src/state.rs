@@ -39,6 +39,8 @@ pub struct AppState {
     pub auth: Auth,
     pub signer: Signer,
     pub harbor: Option<Harbor>,
+    pub http: reqwest::Client,
+    pub dispatch_token: Option<String>,
 }
 
 impl AppState {
@@ -50,6 +52,12 @@ impl AppState {
             storage,
             signer,
             harbor: None,
+            http: reqwest::Client::builder()
+                .timeout(std::time::Duration::from_secs(20))
+                .user_agent("registry")
+                .build()
+                .unwrap_or_default(),
+            dispatch_token: None,
         }
     }
 }

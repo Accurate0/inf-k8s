@@ -83,6 +83,9 @@ pub async fn authorize_publish(
             "token {} is not scoped to {package}",
             token.name
         ))),
+        Principal::Exchanged { account, .. } => Err(ApiError::Forbidden(format!(
+            "{account} may not publish {package}; publish with the forgejo token itself"
+        ))),
         Principal::Forgejo(claims) => {
             if claims
                 .event_name

@@ -204,18 +204,22 @@ impl Verifier {
 }
 
 pub fn unverified_issuer(token: &str) -> Option<String> {
-    use base64::Engine;
-
     #[derive(Deserialize)]
     struct Iss {
         iss: String,
     }
 
+    unverified_claims::<Iss>(token).map(|c| c.iss)
+}
+
+pub fn unverified_claims<T: serde::de::DeserializeOwned>(token: &str) -> Option<T> {
+    use base64::Engine;
+
     let payload = token.split('.').nth(1)?;
     let bytes = base64::engine::general_purpose::URL_SAFE_NO_PAD
         .decode(payload.trim_end_matches('='))
         .ok()?;
-    serde_json::from_slice::<Iss>(&bytes).ok().map(|c| c.iss)
+    serde_json::from_slice(&bytes).ok()
 }
 
 pub fn groups_match(held: &[String], allowed: &[String]) -> bool {

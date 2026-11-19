@@ -24,6 +24,10 @@ type Mutation {
 	registryCreatePublishToken(input: RegistryCreatePublishTokenInput!): RegistryCreatedPublishToken!
 	registryRevokePublishToken(id: ID!): RegistryPublishToken!
 	registryCreateTrustedPublisher(input: RegistryCreateTrustedPublisherInput!): RegistryTrustedPublisher!
+	"""
+	Point the repository's deploy tag at a signed build and publish the apps bundle.
+	"""
+	registryPromote(input: RegistryPromoteInput!): RegistryPromoted!
 	registryDeleteTrustedPublisher(id: ID!): ID!
 }
 
@@ -43,6 +47,10 @@ type Query {
 	registryTrustedPublishers(package: String): [RegistryTrustedPublisher!]!
 	registryAudit(package: String, limit: Int! = 100): [RegistryAuditEntry!]!
 	registrySigningKeys: [RegistrySigningKey!]!
+	"""
+	Promotions of each repository (`<project>/<name>`), newest first.
+	"""
+	registryPromotions(repositories: [String!]!, limit: Int! = 20): [RegistryPromotion!]!
 }
 
 type RegistryArtifact implements Node @key(fields: "id") {
@@ -122,6 +130,53 @@ type RegistryPackage implements Node @key(fields: "id") {
 	versions: [RegistryVersion!]!
 	version(version: String!): RegistryVersion!
 	trustedPublishers: [RegistryTrustedPublisher!]!
+}
+
+input RegistryPromoteInput {
+	"""
+	The app.yaml name the image deploys.
+	"""
+	app: String!
+	"""
+	`<project>/<name>` in harbor, e.g. `containers/spotify`.
+	"""
+	repository: String!
+	"""
+	A digest, or a tag such as the commit sha.
+	"""
+	reference: String!
+	"""
+	Allow promoting a build older than the deployed one, i.e. a rollback.
+	"""
+	force: Boolean! = false
+}
+
+type RegistryPromoted {
+	promotion: RegistryPromotion!
+	"""
+	The digest that was deployed before, if any.
+	"""
+	previous: String
+	"""
+	False when the digest was already deployed.
+	"""
+	changed: Boolean!
+}
+
+type RegistryPromotion implements Node @key(fields: "id") {
+	app: String!
+	repository: String!
+	digest: String!
+	sha: String
+	committedAt: DateTime
+	promotedAt: DateTime!
+	"""
+	When the next promotion of the repository replaced this one; null while it is live.
+	"""
+	liveUntil: DateTime
+	actor: String!
+	forced: Boolean!
+	id: ID!
 }
 
 type RegistryPublishToken implements Node @key(fields: "id") {

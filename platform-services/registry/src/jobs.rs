@@ -1,6 +1,11 @@
 use std::time::Duration;
 
-use crate::{cli::catalog, error::Result, state::AppState};
+use crate::{
+    cli::catalog,
+    core::{graph_exchange, promote},
+    error::Result,
+    state::AppState,
+};
 
 async fn retry_catalog(state: AppState) {
     let mut ticker = tokio::time::interval(CATALOG_INTERVAL);
@@ -12,12 +17,23 @@ async fn retry_catalog(state: AppState) {
     }
 }
 
+async fn retry_dispatch(state: AppState) {
+    let mut ticker = tokio::time::interval(CATALOG_INTERVAL);
+    loop {
+        ticker.tick().await;
+        if let Err(e) = promote::dispatch_pending(&state).await {
+            tracing::warn!("publish dispatch failed: {e}");
+        }
+    }
+}
+
 const INTERVAL: Duration = Duration::from_secs(3600);
 
 const CATALOG_INTERVAL: Duration = Duration::from_secs(60);
 
 pub async fn run(state: AppState) {
     tokio::spawn(retry_catalog(state.clone()));
+    tokio::spawn(retry_dispatch(state.clone()));
 
     let mut ticker = tokio::time::interval(INTERVAL);
     loop {
@@ -38,6 +54,11 @@ pub async fn run(state: AppState) {
                 Ok(signed) => tracing::info!(signed, "cosign-signed releases in harbor"),
                 Err(e) => tracing::warn!("cosign signing failed: {e}"),
             }
+        }
+        match graph_exchange::collect_expired(&state).await {
+            Ok(0) => {}
+            Ok(removed) => tracing::info!(removed, "deleted expired graph exchanges"),
+            Err(e) => tracing::warn!("graph exchange garbage collection failed: {e}"),
         }
         match collect_expired_robots(&state).await {
             Ok(0) => {}

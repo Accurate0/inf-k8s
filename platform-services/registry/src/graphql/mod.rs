@@ -66,6 +66,42 @@ fn principal(ctx: &Context<'_>) -> async_graphql::Result<Principal> {
     })
 }
 
+// Service account tokens only act for the forgejo run they were exchanged for.
+async fn deployer(ctx: &Context<'_>) -> async_graphql::Result<Principal> {
+    let principal = principal(ctx)?;
+    let claims = ctx.data::<Claims>()?;
+    let state = state(ctx);
+    let exchange_account = state
+        .config
+        .graph
+        .as_ref()
+        .and_then(|g| g.exchange.as_ref())
+        .and_then(|e| e.accounts.iter().find(|a| a.name == claims.identity()));
+    let Some(account) = exchange_account else {
+        return Ok(principal);
+    };
+
+    let forgejo = match &claims.jti {
+        Some(jti) => crate::core::graph_exchange::exchanged_for(state, &account.name, jti)
+            .await
+            .gql()?,
+        None => None,
+    };
+    let forgejo = forgejo.ok_or_else(|| {
+        Error::new(format!(
+            "{} tokens must come from the registry's graph token exchange",
+            account.name
+        ))
+        .extend_with(|_, ext| ext.set("code", "forbidden"))
+    })?;
+
+    Ok(Principal::Exchanged {
+        account: account.name.clone(),
+        groups: principal.groups().to_vec(),
+        forgejo,
+    })
+}
+
 trait Gql<T> {
     fn gql(self) -> async_graphql::Result<T>;
 }

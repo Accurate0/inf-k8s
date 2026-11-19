@@ -2,12 +2,15 @@ use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::Json;
 use axum::extract::{Path, State};
 use registry_api::{
-    CreatePackage, CreateToken, ECOSYSTEM_CLI, NewTrustedPublisher, UpdatePackage, Yank,
+    CreatePackage, CreateToken, ECOSYSTEM_CLI, NewTrustedPublisher, PromoteRequest, UpdatePackage,
+    Yank,
 };
 
-use super::objects::{Package, PublishToken, TrustedPublisher, Version, split_version_key};
+use super::objects::{
+    Package, Promoted, PublishToken, TrustedPublisher, Version, split_version_key,
+};
 use super::query::uuid;
-use super::{Gql, IDS, principal, state};
+use super::{Gql, IDS, deployer, principal, state};
 use crate::cli::{packages, versions};
 use crate::core::{publishers, tokens};
 
@@ -49,6 +52,20 @@ pub struct CreateTrustedPublisherInput {
     repository: String,
     ref_pattern: Option<String>,
     workflow: Option<String>,
+}
+
+#[derive(InputObject)]
+#[graphql(name = "RegistryPromoteInput")]
+pub struct PromoteInput {
+    /// The app.yaml name the image deploys.
+    app: String,
+    /// `<project>/<name>` in harbor, e.g. `containers/spotify`.
+    repository: String,
+    /// A digest, or a tag such as the commit sha.
+    reference: String,
+    /// Allow promoting a build older than the deployed one, i.e. a rollback.
+    #[graphql(default)]
+    force: bool,
 }
 
 #[derive(SimpleObject)]
@@ -221,6 +238,28 @@ impl MutationRoot {
         .await
         .gql()?;
         Ok(TrustedPublisher(publisher.0))
+    }
+
+    /// Point the repository's deploy tag at a signed build and publish the apps bundle.
+    async fn registry_promote(&self, ctx: &Context<'_>, input: PromoteInput) -> Result<Promoted> {
+        let principal = deployer(ctx).await?;
+        let promoted = crate::core::promote::promote(
+            state(ctx),
+            &principal,
+            PromoteRequest {
+                app: input.app,
+                repository: input.repository,
+                reference: input.reference,
+                force: input.force,
+            },
+        )
+        .await
+        .gql()?;
+        Ok(Promoted {
+            promotion: promoted.promotion.into(),
+            previous: promoted.previous,
+            changed: promoted.changed,
+        })
     }
 
     async fn registry_delete_trusted_publisher(&self, ctx: &Context<'_>, id: ID) -> Result<ID> {

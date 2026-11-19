@@ -976,4 +976,49 @@ pub struct HarborSignature {
     pub tag: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PromoteRequest {
+    pub app: String,
+    pub repository: String,
+    /// A digest, or a tag that resolves to one.
+    pub reference: String,
+    #[serde(default)]
+    pub force: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Promotion {
+    pub id: i64,
+    pub app: String,
+    pub repository: String,
+    pub digest: String,
+    pub sha: Option<String>,
+    pub committed_at: Option<DateTime<Utc>>,
+    pub promoted_at: DateTime<Utc>,
+    /// When the next promotion of the repository replaced this one; None while it is live.
+    pub live_until: Option<DateTime<Utc>>,
+    pub actor: String,
+    pub forced: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Promoted {
+    pub promotion: Promotion,
+    pub previous: Option<String>,
+    pub changed: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphTokenRequest {
+    pub account: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GraphToken {
+    pub id: String,
+    pub account: String,
+    pub access_token: String,
+    pub expires_at: DateTime<Utc>,
+}
+
 pub const DOCKER_CONFIG_MEDIA_TYPE: &str = "application/vnd.docker.config+json";

@@ -5,7 +5,7 @@ pub mod tokens;
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 use registry_api::TOKEN_PREFIX;
-use serde::{Deserialize, Deserializer};
+use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 
 use crate::{config::Config, error::ApiError, state::AppState};
@@ -32,7 +32,7 @@ impl UserClaims {
     }
 }
 
-#[derive(Debug, Clone, Default, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize, Serialize)]
 pub struct ForgejoClaims {
     pub repository: String,
     #[serde(default, deserialize_with = "stringish")]
@@ -71,6 +71,11 @@ pub enum Principal {
     },
     Token(TokenPrincipal),
     Forgejo(ForgejoClaims),
+    Exchanged {
+        account: String,
+        groups: Vec<String>,
+        forgejo: ForgejoClaims,
+    },
 }
 
 impl Principal {
@@ -78,7 +83,12 @@ impl Principal {
         match self {
             Principal::User { name, .. } => name.clone(),
             Principal::Token(token) => format!("token:{}", token.name),
-            Principal::Forgejo(claims) => format!("forgejo:{}", claims.repository),
+            Principal::Forgejo(claims)
+            | Principal::Exchanged {
+                forgejo: claims, ..
+            } => {
+                format!("forgejo:{}", claims.repository)
+            }
         }
     }
 
@@ -87,6 +97,14 @@ impl Principal {
             Principal::User { .. } => "user",
             Principal::Token(_) => "token",
             Principal::Forgejo(_) => "forgejo",
+            Principal::Exchanged { .. } => "exchanged",
+        }
+    }
+
+    pub fn groups(&self) -> &[String] {
+        match self {
+            Principal::User { groups, .. } | Principal::Exchanged { groups, .. } => groups,
+            _ => &[],
         }
     }
 

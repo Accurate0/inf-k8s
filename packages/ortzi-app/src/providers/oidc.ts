@@ -86,6 +86,11 @@ const schema: Schema = {
           displayName: { type: 'string' },
           entryManagedBy: { type: 'string' },
           secretName: { type: 'string' },
+          secretNamespace: {
+            type: 'string',
+            description:
+              "Namespace of the token secret, for an app that exchanges the token on the account's behalf. Defaults to this app's namespace.",
+          },
           scopes: { type: 'array', items: { type: 'string' } },
         },
         required: ['name', 'displayName', 'entryManagedBy', 'secretName'],
