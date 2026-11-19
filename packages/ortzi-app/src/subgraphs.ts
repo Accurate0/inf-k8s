@@ -8,6 +8,7 @@ export interface ResolvedSubgraph {
   name: string;
   app: string;
   prefix: string;
+  allowedRootFields?: string[];
   url: string;
   websocket?: string;
   auth?: SubgraphAuth;
@@ -107,6 +108,9 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         name: subgraph.name,
         app: app.name,
         prefix: subgraph.prefix,
+        ...(subgraph.allowedRootFields?.length
+          ? { allowedRootFields: subgraph.allowedRootFields }
+          : {}),
         url: serviceUrl(
           spec.service?.name ?? subgraph.workload,
           appNamespace(app),

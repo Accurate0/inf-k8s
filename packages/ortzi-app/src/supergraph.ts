@@ -34,7 +34,7 @@ export function compose(
 
   const unprefixed = subgraphs.flatMap((subgraph, i) => {
     const sdl = services[i].typeDefs;
-    const fields = unprefixedRootFields(sdl, subgraph.prefix);
+    const fields = unprefixedRootFields(sdl, subgraph.prefix, subgraph.allowedRootFields);
     const others = subgraphs.filter((other) => other !== subgraph).map((other) => other.prefix);
     const types = unprefixedTypes(sdl, subgraph.prefix, others);
     return [
@@ -188,7 +188,11 @@ function rootTypes(sdl: DocumentNode): Set<string> {
   return roots;
 }
 
-export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[] {
+export function unprefixedRootFields(
+  sdl: DocumentNode,
+  prefix: string,
+  allowed: string[] = [],
+): string[] {
   const roots = rootTypes(sdl);
   const prefixed = new RegExp(`^${prefix}[A-Z0-9]`);
   return sdl.definitions.flatMap((definition) =>
@@ -197,7 +201,9 @@ export function unprefixedRootFields(sdl: DocumentNode, prefix: string): string[
     roots.has(definition.name.value)
       ? (definition.fields ?? [])
           .map((field) => field.name.value)
-          .filter((name) => !name.startsWith('_') && !prefixed.test(name))
+          .filter(
+            (name) => !name.startsWith('_') && !prefixed.test(name) && !allowed.includes(name),
+          )
           .map((name) => `${definition.name.value}.${name}`)
       : [],
   );

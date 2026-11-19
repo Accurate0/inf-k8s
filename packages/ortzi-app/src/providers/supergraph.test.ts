@@ -120,6 +120,14 @@ test('every root field of a subgraph starts with its prefix', () => {
     ),
     ['Root.stats'],
   );
+  assert.deepEqual(
+    unprefixedRootFields(
+      sdl('type Query { featureFlags: Int featureFlag: Int flags: Int featureFlagsSegments: Int }'),
+      'featureFlags',
+      ['featureFlags', 'featureFlag'],
+    ),
+    ['Query.flags'],
+  );
 });
 
 test('every type of a subgraph starts with its prefix unless it references another subgraph entity', () => {

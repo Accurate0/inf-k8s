@@ -17,6 +17,7 @@ export interface Subgraph {
   path: string;
   websocket?: string;
   prefix: string;
+  allowedRootFields?: string[];
   auth?: SubgraphAuth;
   repository?: string;
   schema: string;
@@ -48,6 +49,13 @@ const schema: Schema = {
       pattern: '^[a-z][a-zA-Z0-9]*$',
       description:
         'Prefix every root field of this subgraph must start with, e.g. home -> homeEntities.',
+    },
+    allowedRootFields: {
+      type: 'array',
+      description: 'Root fields allowed without the prefix, e.g. featureFlag.',
+      items: {
+        type: 'string',
+      },
     },
     workload: {
       type: 'string',
