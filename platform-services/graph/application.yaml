@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T14:57:12.482Z
+# generated at 2026-11-19T15:33:06.910Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -163,7 +163,7 @@ spec:
                     request: 0s
     - chart: k8s-oidc
       repoURL: oci://registry.anurag.sh/charts/k8s-oidc
-      targetRevision: 0.7.0
+      targetRevision: 0.8.0
       helm:
         valuesObject:
           clients:
@@ -179,6 +179,23 @@ spec:
               groups:
                 graph_users:
                   - platform_admins
+              serviceAccounts:
+                - name: ci_deployer
+                  displayName: CI deployer
+                  entryManagedBy: idm_admins
+                  secretName: graph-ci-deployer-token
+                  secretNamespace: registry
+                  scopes:
+                    - openid
+                    - groups
+                - name: ci_reader
+                  displayName: CI reader
+                  entryManagedBy: idm_admins
+                  secretName: graph-ci-reader-token
+                  secretNamespace: registry
+                  scopes:
+                    - openid
+                    - groups
               scopeMaps:
                 graph_users:
                   - openid

@@ -35,6 +35,19 @@ resources:
     allowLocalhostRedirect: true
     groups:
       graph_users: [platform_admins]
+    serviceAccounts:
+      - name: ci_deployer
+        displayName: CI deployer
+        entryManagedBy: idm_admins
+        secretName: graph-ci-deployer-token
+        secretNamespace: registry
+        scopes: [openid, groups]
+      - name: ci_reader
+        displayName: CI reader
+        entryManagedBy: idm_admins
+        secretName: graph-ci-reader-token
+        secretNamespace: registry
+        scopes: [openid, groups]
     scopeMaps:
       graph_users: [openid, email, profile, groups]
       registry_users: [openid, email, profile, groups]

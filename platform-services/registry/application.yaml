@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T13:12:56.102Z
+# generated at 2026-11-19T15:33:06.954Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -69,6 +69,14 @@ spec:
                     name: registry-harbor-exchange-secrets
                 - secretRef:
                     name: registry-database-secret
+                - secretRef:
+                    name: graph-ci-deployer-token
+                    optional: true
+                  prefix: GRAPH_CI_DEPLOYER_
+                - secretRef:
+                    name: graph-ci-reader-token
+                    optional: true
+                  prefix: GRAPH_CI_READER_
               service:
                 name: api
                 ports:
@@ -220,7 +228,7 @@ spec:
                     backendRequest: 0s
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.7.0
+      targetRevision: 0.8.0
       helm:
         valuesObject:
           clients:
@@ -237,6 +245,10 @@ spec:
                   - platform_admins
                 registry_users:
                   - registry_admins
+                  - ci_deployer
+                  - ci_reader
+                registry_deployers:
+                  - ci_deployer
               scopeMaps:
                 registry_users:
                   - openid
