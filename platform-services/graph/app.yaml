@@ -70,6 +70,7 @@ workloads:
     command: [sh, -c]
     args:
       - |-
+        set -e
         for file in persisted-documents.json supergraph.graphql; do
           curl -fsS --retry 5 --retry-connrefused --retry-delay 2 \
             --aws-sigv4 "aws:amz:$S3_REGION:s3" \
