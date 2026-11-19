@@ -10,7 +10,7 @@ pub struct QueryRoot;
 
 #[Object(name = "Query")]
 impl QueryRoot {
-    async fn feature_flags_flags(
+    async fn feature_flags(
         &self,
         ctx: &Context<'_>,
         #[graphql(default)] include_archived: bool,
@@ -30,7 +30,7 @@ impl QueryRoot {
             .collect())
     }
 
-    async fn feature_flags_flag(&self, ctx: &Context<'_>, key: String) -> Result<Flag> {
+    async fn feature_flag(&self, ctx: &Context<'_>, key: String) -> Result<Flag> {
         Flag::load(ctx, &key).await
     }
 

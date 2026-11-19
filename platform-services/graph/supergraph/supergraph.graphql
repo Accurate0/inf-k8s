@@ -335,8 +335,8 @@ type Query @join__type(graph: AI_GATEWAY) @join__type(graph: BOM) @join__type(gr
   Seven days from WillyWeather; `location` is a WillyWeather id, Perth by default.
   """
   bomForecast(location: String): [BomForecastDay!]! @join__field(graph: BOM)
-  featureFlagsFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]! @join__field(graph: FEATURE_FLAGS)
-  featureFlagsFlag(key: String!): FeatureFlagsFlag! @join__field(graph: FEATURE_FLAGS)
+  featureFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]! @join__field(graph: FEATURE_FLAGS)
+  featureFlag(key: String!): FeatureFlagsFlag! @join__field(graph: FEATURE_FLAGS)
   featureFlagsSegments: [FeatureFlagsSegment!]! @join__field(graph: FEATURE_FLAGS)
   featureFlagsSegment(key: String!): FeatureFlagsSegment! @join__field(graph: FEATURE_FLAGS)
   """

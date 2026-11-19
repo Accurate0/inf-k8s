@@ -254,8 +254,8 @@ type Query {
   Seven days from WillyWeather; `location` is a WillyWeather id, Perth by default.
   """
   bomForecast(location: String): [BomForecastDay!]!
-  featureFlagsFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]!
-  featureFlagsFlag(key: String!): FeatureFlagsFlag!
+  featureFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]!
+  featureFlag(key: String!): FeatureFlagsFlag!
   featureFlagsSegments: [FeatureFlagsSegment!]!
   featureFlagsSegment(key: String!): FeatureFlagsSegment!
   """

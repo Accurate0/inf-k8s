@@ -242,8 +242,8 @@ interface Node {
 }
 
 type Query {
-	featureFlagsFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]!
-	featureFlagsFlag(key: String!): FeatureFlagsFlag!
+	featureFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]!
+	featureFlag(key: String!): FeatureFlagsFlag!
 	featureFlagsSegments: [FeatureFlagsSegment!]!
 	featureFlagsSegment(key: String!): FeatureFlagsSegment!
 	"""
