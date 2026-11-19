@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T05:09:25.007Z
+# generated at 2026-11-19T13:12:56.005Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +22,7 @@ spec:
       helm:
         valuesObject:
           images:
-            registry.anurag.sh/containers/kanidm-sync: 21da80e079d75c3e2e630c22d2d6d8e0170f366e
+            registry.anurag.sh/containers/kanidm-sync: caaa76f7086544d750442f2615af620b3e7dd21a
           namespace: kanidm-sync
           serviceAccounts:
             - kanidm-sync
