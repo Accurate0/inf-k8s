@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-15T08:53:12.840Z
+# generated at 2026-11-19T12:07:55.257Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +22,7 @@ spec:
       helm:
         valuesObject:
           images:
-            registry.anurag.sh/containers/home-gateway: 6005212af3f284bfc1849da505c86ecc02e2481e
+            registry.anurag.sh/containers/home-gateway: 7d19af3cf48a86ad1866612791eace065636862e
             registry.anurag.sh/containers/home-gateway-web: 6cb61a341b4ac52c999c88b21761d56fa86be30c
           namespace: home-gateway
           namespaceLabels:
@@ -322,7 +322,7 @@ spec:
                         value: /v1
     - chart: k8s-oidc
       repoURL: oci://registry.anurag.sh/charts/k8s-oidc
-      targetRevision: 0.6.0
+      targetRevision: 0.7.0
       helm:
         valuesObject:
           clients:

@@ -8,13 +8,15 @@ resources:
     clusterRole: kanidm-sync-access
     clusterRules:
       - apiGroups: [inf-k8s.net]
-        resources: [kanidmoauth2clients, kanidmgroups, kanidmusers]
+        resources: [kanidmoauth2clients, kanidmgroups, kanidmusers, kanidmserviceaccounts]
         verbs: [get, list, watch]
-      - {apiGroups: [inf-k8s.net], resources: [kanidmoauth2clients, kanidmgroups, kanidmusers], verbs: [update, patch]}
       - apiGroups: [inf-k8s.net]
-        resources: [kanidmoauth2clients/status, kanidmgroups/status, kanidmusers/status]
+        resources: [kanidmoauth2clients, kanidmgroups, kanidmusers, kanidmserviceaccounts]
+        verbs: [update, patch]
+      - apiGroups: [inf-k8s.net]
+        resources: [kanidmoauth2clients/status, kanidmgroups/status, kanidmusers/status, kanidmserviceaccounts/status]
         verbs: [get, update, patch]
-      - {apiGroups: [""], resources: [secrets], verbs: [get, list, create, update, patch]}
+      - {apiGroups: [""], resources: [secrets], verbs: [get, list, watch, create, update, patch]}
       - {apiGroups: [""], resources: [configmaps], verbs: [get, list, watch]}
 workloads:
   - name: kanidm-sync

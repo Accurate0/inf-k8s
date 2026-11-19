@@ -1,6 +1,7 @@
 use futures::StreamExt;
+use k8s_openapi::api::core::v1::Secret;
 use kanidm_client::{KanidmClient, KanidmClientBuilder};
-use kanidm_sync::{Condition, KanidmGroup, KanidmOAuth2Client, KanidmUser};
+use kanidm_sync::{Condition, KanidmGroup, KanidmOAuth2Client, KanidmServiceAccount, KanidmUser};
 use kube::{
     api::{Patch, PatchParams},
     core::NamespaceResourceScope,
@@ -15,6 +16,7 @@ use std::{fmt::Debug, sync::Arc, time::Duration};
 
 mod group;
 mod oauth2;
+mod service_account;
 mod user;
 
 #[derive(thiserror::Error, Debug)]
@@ -91,6 +93,7 @@ async fn main() -> Result<()> {
     let oauth2_clients = Api::<KanidmOAuth2Client>::all(client.clone());
     let groups = Api::<KanidmGroup>::all(client.clone());
     let users = Api::<KanidmUser>::all(client.clone());
+    let service_accounts = Api::<KanidmServiceAccount>::all(client.clone());
 
     let oauth2_controller = Controller::new(oauth2_clients, Default::default())
         .run(
@@ -112,7 +115,21 @@ async fn main() -> Result<()> {
         .run(reconcile_finalized::<KanidmUser>, error_policy, ctx.clone())
         .for_each(|_| futures::future::ready(()));
 
-    tokio::join!(oauth2_controller, group_controller, user_controller);
+    let service_account_controller = Controller::new(service_accounts, Default::default())
+        .owns(Api::<Secret>::all(client.clone()), Default::default())
+        .run(
+            reconcile_finalized::<KanidmServiceAccount>,
+            error_policy,
+            ctx.clone(),
+        )
+        .for_each(|_| futures::future::ready(()));
+
+    tokio::join!(
+        oauth2_controller,
+        group_controller,
+        user_controller,
+        service_account_controller
+    );
 
     Ok(())
 }

@@ -76,7 +76,10 @@ impl Reconcile for KanidmOAuth2Client {
         }
 
         if existing.is_none() || needs_recreate {
-            tracing::info!("creating oauth2 resource server {name} (public={})", spec.public);
+            tracing::info!(
+                "creating oauth2 resource server {name} (public={})",
+                spec.public
+            );
             if spec.public {
                 kanidm
                     .idm_oauth2_rs_public_create(name, &spec.display_name, &spec.origin)

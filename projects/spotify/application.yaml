@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-17T07:17:44.117Z
+# generated at 2026-11-19T12:07:55.287Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +22,7 @@ spec:
       helm:
         valuesObject:
           images:
-            registry.anurag.sh/containers/spotify: 263e9589d787253a2226f17235d54b4a5a15e5b7
+            registry.anurag.sh/containers/spotify: 46f35ec545f8d5767b4f763a08b1d4888711f027
             registry.anurag.sh/containers/spotify-web: 76c1a7381b7e345bdb3f84b3a4d47851fa2851c1
           namespace: spotify
           namespaceLabels:
@@ -227,7 +227,7 @@ spec:
                         value: /
     - chart: k8s-oidc
       repoURL: oci://registry.anurag.sh/charts/k8s-oidc
-      targetRevision: 0.6.0
+      targetRevision: 0.7.0
       helm:
         valuesObject:
           clients:

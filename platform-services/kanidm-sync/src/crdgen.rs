@@ -1,7 +1,7 @@
 use k8s_openapi::apiextensions_apiserver::pkg::apis::apiextensions::v1::{
     CustomResourceDefinition, ValidationRule,
 };
-use kanidm_sync::{KanidmGroup, KanidmOAuth2Client, KanidmUser};
+use kanidm_sync::{KanidmGroup, KanidmOAuth2Client, KanidmServiceAccount, KanidmUser};
 use kube::CustomResourceExt;
 
 fn main() {
@@ -36,7 +36,19 @@ fn main() {
         ],
     );
 
-    let docs: Vec<String> = [oauth2, group, user].into_iter().map(render).collect();
+    let mut service_account = KanidmServiceAccount::crd();
+    inject_spec_validations(
+        &mut service_account,
+        &[
+            ("self.name != \"\"", "spec.name must not be empty"),
+            ("self.name == oldSelf.name", "spec.name is immutable"),
+        ],
+    );
+
+    let docs: Vec<String> = [oauth2, group, user, service_account]
+        .into_iter()
+        .map(render)
+        .collect();
     print!("{}", docs.join("---\n"));
 }
 

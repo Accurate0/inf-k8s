@@ -256,3 +256,56 @@ pub struct KanidmUserStatus {
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub conditions: Vec<Condition>,
 }
+
+#[derive(CustomResource, Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+#[kube(
+    kind = "KanidmServiceAccount",
+    group = "inf-k8s.net",
+    version = "v1",
+    namespaced
+)]
+#[kube(status = "KanidmServiceAccountStatus")]
+#[kube(printcolumn = r#"{"name":"Account","type":"string","jsonPath":".spec.name"}"#)]
+#[kube(
+    printcolumn = r#"{"name":"Ready","type":"string","jsonPath":".status.conditions[?(@.type==\"Programmed\")].status"}"#
+)]
+#[kube(printcolumn = r#"{"name":"Age","type":"date","jsonPath":".metadata.creationTimestamp"}"#)]
+pub struct KanidmServiceAccountSpec {
+    /// The kanidm service account name (authoritative key). Grant access by
+    /// listing it as a member of a KanidmGroup.
+    pub name: String,
+    pub display_name: String,
+    /// Group or account allowed to manage this entry in kanidm.
+    pub entry_managed_by: String,
+    /// API token issued for this account and written to a Secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub api_token: Option<ApiTokenSpec>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema)]
+#[serde(rename_all = "camelCase")]
+pub struct ApiTokenSpec {
+    /// Secret to write (token/tokenUrl, plus audience/scope when set).
+    pub secret_name: String,
+    pub secret_namespace: String,
+    /// Allow the token to write to kanidm itself. Not needed for OAuth2 token exchange.
+    #[serde(default)]
+    pub read_write: bool,
+    /// OAuth2 client the token is exchanged at (RFC 8693 audience), e.g. "graph".
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub audience: Option<String>,
+    /// Scopes to request in the token exchange.
+    #[serde(default)]
+    pub scopes: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, Clone, Debug, JsonSchema, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct KanidmServiceAccountStatus {
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub conditions: Vec<Condition>,
+    /// Id of the kanidm API token currently held in the Secret.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub token_id: Option<String>,
+}

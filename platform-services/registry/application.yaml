@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-13T13:08:02.120Z
+# generated at 2026-11-19T12:07:55.374Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -220,7 +220,7 @@ spec:
                     backendRequest: 0s
     - chart: k8s-oidc
       repoURL: oci://ghcr.io/accurate0/charts/k8s-oidc
-      targetRevision: 0.6.0
+      targetRevision: 0.7.0
       helm:
         valuesObject:
           clients:
