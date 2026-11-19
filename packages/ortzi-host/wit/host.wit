@@ -131,6 +131,14 @@ interface registry {
   /// permissions.pull, and returns its path for programs such as helm (HELM_REGISTRY_CONFIG). The
   /// robot is revoked and the file removed when the package exits.
   pull-config: func(projects: list<string>) -> result<string, string>;
+
+  /// Logs docker in to the registry with a push robot for projects, each of which must be in
+  /// permissions.registry, so docker and buildx can push. The robot is revoked and docker logged
+  /// out when the package exits.
+  docker-login: func(projects: list<string>) -> result<_, string>;
+
+  /// Cosign-signs image@digest with the registry key; its project must be in permissions.registry.
+  sign: func(image: string) -> result<_, string>;
 }
 
 interface env {

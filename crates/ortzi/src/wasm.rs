@@ -174,6 +174,7 @@ struct State {
     tokens: Option<tokio::runtime::Runtime>,
     pulls: Vec<(PathBuf, registry_api::HarborToken)>,
     graph: Option<registry_api::GraphToken>,
+    docker_login: Option<String>,
 }
 
 const MAX_REQUEST_BYTES: usize = 1 << 20;
@@ -689,7 +690,34 @@ impl State {
         if let Some(token) = self.graph.take() {
             self.revoke_graph(token);
         }
+        if let Some(registry) = self.docker_login.take() {
+            let settings = self.sandbox.settings.clone();
+            if let Ok(runtime) = self.runtime() {
+                let logout = runtime.block_on(async {
+                    let api = settings.reader().await?;
+                    crate::commands::harbor::logout(&api, &registry).await
+                });
+                if let Err(e) = logout {
+                    eprintln!("warning: could not log docker out of {registry}: {e:#}");
+                }
+            }
+        }
         self.close_pulls();
+    }
+
+    fn pushable(&self, project: &str) -> Result<(), String> {
+        if self
+            .sandbox
+            .registry
+            .iter()
+            .any(|allowed| allowed == project)
+        {
+            Ok(())
+        } else {
+            Err(format!(
+                "registry: {project} is not in the package's permissions.registry"
+            ))
+        }
     }
 
     fn close_pulls(&mut self) {
@@ -783,6 +811,47 @@ impl registry::Host for State {
                 Err(format!("registry: writing the pull config: {e:#}"))
             }
         }
+    }
+
+    fn docker_login(&mut self, projects: Vec<String>) -> Result<(), String> {
+        if projects.is_empty() {
+            return Err("registry: pass at least one project".to_owned());
+        }
+        for project in &projects {
+            self.pushable(project)?;
+        }
+        if self.docker_login.is_some() {
+            return Err("registry: docker is already logged in for this run".to_owned());
+        }
+
+        let settings = self.sandbox.settings.clone();
+        let specs: Vec<String> = projects.iter().map(|p| format!("{p}:pull,push")).collect();
+        let registry = self
+            .runtime()?
+            .block_on(async {
+                let api = settings.reader().await?;
+                crate::commands::harbor::login(&api, &specs).await
+            })
+            .map_err(|e| format!("registry: {e:#}"))?;
+        self.docker_login = Some(registry);
+        Ok(())
+    }
+
+    fn sign(&mut self, image: String) -> Result<(), String> {
+        let project = image
+            .split('/')
+            .nth(1)
+            .filter(|_| image.contains('@'))
+            .ok_or_else(|| format!("registry: {image} is not <host>/<project>/<name>@<digest>"))?;
+        self.pushable(project)?;
+
+        let settings = self.sandbox.settings.clone();
+        self.runtime()?
+            .block_on(async {
+                let api = settings.reader().await?;
+                crate::commands::harbor::sign(&api, &image).await
+            })
+            .map_err(|e| format!("registry: {e:#}"))
     }
 
     fn push_dir(&mut self, request: registry::Push) -> Result<registry::Pushed, String> {
@@ -972,6 +1041,7 @@ pub fn run(wasm: &Path, sandbox: Sandbox) -> anyhow::Result<i32> {
             tokens: None,
             pulls: vec![],
             graph: None,
+            docker_login: None,
         },
     );
 

@@ -129,7 +129,7 @@ async fn current_robot(host: &str) -> anyhow::Result<Option<String>> {
         .map(str::to_owned))
 }
 
-pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<()> {
+pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<String> {
     let access = specs
         .iter()
         .map(|s| parse_spec(s))
@@ -176,7 +176,7 @@ pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<()> {
         token.username,
         token.expires_at.format("%Y-%m-%d %H:%M UTC")
     );
-    Ok(())
+    Ok(token.registry)
 }
 
 pub async fn logout(api: &Client, registry: &str) -> anyhow::Result<()> {

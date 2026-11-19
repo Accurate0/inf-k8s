@@ -164,7 +164,7 @@ pub async fn run(settings: &Settings, command: RegistryCommand) -> anyhow::Resul
         RegistryCommand::Token { action } => token(&client, action).await,
         RegistryCommand::Version { action } => version(&client, action).await,
         RegistryCommand::Audit { package, limit } => audit(&client, package, limit).await,
-        RegistryCommand::Login { specs } => harbor::login(&client, &specs).await,
+        RegistryCommand::Login { specs } => harbor::login(&client, &specs).await.map(|_| ()),
         RegistryCommand::Logout => harbor::logout(&client, &settings.registry).await,
         RegistryCommand::Sign { image } => harbor::sign(&client, &image).await,
         RegistryCommand::Push {
