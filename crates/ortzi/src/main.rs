@@ -238,6 +238,7 @@ async fn dev(
     let mut vars = Vec::new();
     let os_args: Vec<std::ffi::OsString> = args.iter().map(Into::into).collect();
     if let Some(auth) = &auth
+        && !auth.lazy
         && std::env::var_os(&auth.token_env).is_none()
         && !dispatch::wants_help(&os_args)
     {

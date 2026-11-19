@@ -35,6 +35,10 @@ pub struct AuthSection {
     pub issuer: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub scopes: Option<String>,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lazy: bool,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci_account: Option<String>,
 }
 
 impl AuthSection {
@@ -50,6 +54,8 @@ impl AuthSection {
                 .clone()
                 .unwrap_or_else(|| DEFAULT_SCOPES.to_owned()),
             token_env: self.token_env.clone(),
+            lazy: self.lazy,
+            ci_account: self.ci_account.clone(),
         }
     }
 }

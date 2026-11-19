@@ -474,6 +474,12 @@ pub struct PackageAuth {
     #[serde(default = "default_scopes")]
     pub scopes: String,
     pub token_env: String,
+    /// Fetch the token only when the package asks the host for one, not before it starts.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub lazy: bool,
+    /// The registry graph service account a forgejo actions run exchanges its token for.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ci_account: Option<String>,
 }
 
 pub const DEFAULT_SCOPES: &str = "openid email profile groups";
@@ -913,6 +919,8 @@ mod tests {
             client_id: "ff".to_owned(),
             scopes: DEFAULT_SCOPES.to_owned(),
             token_env: "FFCTL_TOKEN".to_owned(),
+            lazy: false,
+            ci_account: None,
         };
         assert!(auth.validate().is_ok());
         assert!(

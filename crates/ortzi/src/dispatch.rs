@@ -31,7 +31,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
             }
             let rest: Vec<OsString> = args.by_ref().collect();
             let mut token = None;
-            if let Some(auth) = &package.auth {
+            if let Some(auth) = package.auth.as_ref().filter(|auth| !auth.lazy) {
                 token = match std::env::var(&auth.token_env) {
                     Ok(value) => Some((auth.token_env.clone(), value)),
                     Err(_) if wants_help(&rest) => None,
