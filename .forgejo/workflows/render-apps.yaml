@@ -92,13 +92,13 @@ jobs:
           git config user.email "reconciler@noreply.git.anurag.sh"
           export START="$(git rev-parse HEAD)"
           .forgejo/scripts/retry.sh 3 30 bash -c 'ortzi app render --commit || { git reset --quiet --hard "$START"; git clean -fdq; exit 1; }'
-      - name: Push changes
+      - name: Publish and push
         env:
           RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
         run: |
-          [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ] && exit 0
-          git commit --quiet --amend -m "$(git log -1 --format=%B) [skip ci]"
+          if [ "$(git rev-parse HEAD)" = "$(git rev-parse origin/main)" ]; then
+            .forgejo/scripts/retry.sh 3 30 ortzi app publish
+            exit
+          fi
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
-          .forgejo/scripts/retry.sh 5 15 bash -c 'if git pull --rebase origin main; then git push origin HEAD:main; else git rebase --abort; exit 1; fi'
-      - name: Publish artifacts
-        run: .forgejo/scripts/retry.sh 3 30 ortzi app publish
+          .forgejo/scripts/retry.sh 5 15 bash -c 'git pull --rebase origin main || { git rebase --abort; exit 1; }; ortzi app publish && git push origin HEAD:main'
