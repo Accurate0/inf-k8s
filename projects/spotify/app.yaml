@@ -20,6 +20,9 @@ resources:
     repository: https://github.com/Accurate0/spotify
     ref: main
     schema: subgraph.graphql
+    auth:
+      clients: [spotify, graph]
+      groups: [spotify_users]
   - name: spotify
     type: route
     auth: {mode: app, reason: "spotify-api verifies Kanidm JWTs on /v1/graphql, the rest is a static spa"}
