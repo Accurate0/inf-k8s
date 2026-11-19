@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { planApp } from '../plan.ts';
+import { helmTemplates, planApp } from '../plan.ts';
 import {
   type App,
   appWorkloads,
@@ -547,4 +547,62 @@ test('warns about raw env lists, envFrom entries and configMap mounts', () => {
     'foo: workloads.web.envFrom has a raw entry; reference a secret, database, bucket or oidc resource',
     'foo: workloads.web.mounts.cfg mounts a raw configMap; declare a config resource',
   ]);
+});
+
+test('released images are promoted, so they stay out of git and validate with a stand-in tag', () => {
+  const app = (workloads: Record<string, unknown>[], extra: Record<string, unknown> = {}) => ({
+    name: 'foo',
+    network: { ingress: [] },
+    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+    workloads,
+    ...extra,
+  });
+  const image = 'registry.anurag.sh/containers/foo';
+  const released = validate(
+    app([
+      { name: 'api', image, release: 'deploy' },
+      { name: 'worker', image, release: 'deploy' },
+      { name: 'curl', image: 'curlimages/curl' },
+    ]),
+    'x',
+  );
+
+  const plan = planApp(released, versions, target, {
+    platform,
+    apps: [released],
+    readValues: () => ({ images: { 'curlimages/curl': '8.10.1', [image]: 'stale' } }),
+  });
+  assert.deepEqual(plan.releases, [image]);
+  const workload = plan.sources.find((s) => s.type === 'chart' && s.chart === 'k8s-workload');
+  assert.deepEqual(workload?.type === 'chart' && workload.values.images, {
+    'curlimages/curl': '8.10.1',
+  });
+  assert.equal(workload?.type === 'chart' && 'release' in workload.values.workloads[0], false);
+
+  const [template] = helmTemplates(plan);
+  assert.deepEqual(JSON.parse(template.values).images, {
+    'curlimages/curl': '8.10.1',
+    [image]: 'release',
+  });
+
+  assert.throws(
+    () =>
+      validate(
+        app([
+          { name: 'api', image, release: 'deploy' },
+          { name: 'worker', image },
+        ]),
+        'x',
+      ),
+    /released elsewhere; set release here too/,
+  );
+  assert.throws(
+    () => validate(app([{ name: 'api', image: 'ghcr.io/x/foo', release: 'deploy' }]), 'x'),
+    /only registry\.anurag\.sh\/ images are promoted/,
+  );
+  assert.throws(
+    () =>
+      validate({ ...app([{ name: 'api', image, release: 'deploy' }]), artifact: undefined }, 'x'),
+    /release needs an artifact app/,
+  );
 });

@@ -79,6 +79,8 @@ jobs:
   render:
     needs: publish
     runs-on: docker
+    env:
+      ORTZI_GRAPH_ACCOUNT: ci_reader
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:

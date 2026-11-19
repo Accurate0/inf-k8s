@@ -1,6 +1,7 @@
 import { stringify } from 'yaml';
 import type { App, Build, Target } from './types.ts';
 import { HEADER } from './generated.ts';
+import { releaseImages } from './providers/workload.ts';
 
 export const ciProvider = (app: App) => (app.build as Build).ci;
 
@@ -134,8 +135,10 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   const [, project] = build.image.split('/');
   const cacheRef = `type=registry,ref=${build.image}:buildcache`;
 
+  const released = releaseImages(app).includes(build.image);
   const buildJob = {
     'runs-on': 'docker',
+    ...(released ? { outputs: { digest: '${{ steps.build.outputs.digest }}' } } : {}),
     steps: [
       { uses: ACTIONS.checkout },
       {
@@ -231,11 +234,25 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   };
 
   const needs = test ? ['build', 'test'] : ['build'];
+  const deployIf = `\${{ ${ON_MAIN} && !cancelled() && needs.build.result == 'success'${
+    test ? " && needs.test.result == 'success'" : ''
+  } }}`;
+  const promoteJob = {
+    needs,
+    if: deployIf,
+    'runs-on': 'docker',
+    steps: [
+      { uses: SETUP_ORTZI, with: { packages: 'app' } },
+      {
+        name: 'Promote image',
+        env: { DIGEST: '${{ needs.build.outputs.digest }}' },
+        run: `ortzi app promote ${app.name} --image "${build.image}@$DIGEST"`,
+      },
+    ],
+  };
   const deployJob = {
     needs,
-    if: `\${{ ${ON_MAIN} && !cancelled() && needs.build.result == 'success'${
-      test ? " && needs.test.result == 'success'" : ''
-    } }}`,
+    if: deployIf,
     'runs-on': 'docker',
     steps: [
       { uses: ACTIONS.checkout },
@@ -277,7 +294,11 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
       workflow_dispatch: null,
     },
     'enable-openid-connect': true,
-    jobs: { build: buildJob, ...(testJob ? { test: testJob } : {}), deploy: deployJob },
+    jobs: {
+      build: buildJob,
+      ...(testJob ? { test: testJob } : {}),
+      deploy: released ? promoteJob : deployJob,
+    },
   };
 
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;

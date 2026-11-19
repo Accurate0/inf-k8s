@@ -34,6 +34,7 @@ export interface Plan {
   ownsNamespace: boolean;
   sources: PlanSource[];
   artifact?: { repo: string; tag: string };
+  releases?: string[];
 }
 
 export interface PlanContext {

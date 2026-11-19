@@ -64,6 +64,12 @@
           "image": {
             "type": "string"
           },
+          "release": {
+            "enum": [
+              "deploy"
+            ],
+            "description": "Run whatever build of the image is promoted to the registry's deploy tag (`ortzi app promote`) instead of a tag in image.values.yaml."
+          },
           "kind": {
             "enum": [
               "Deployment",

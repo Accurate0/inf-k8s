@@ -9,7 +9,7 @@ import type {
 } from './providers/provider.ts';
 import { appNamespace, declared } from './app.ts';
 import { refsFor } from './refs.ts';
-import { workloads } from './providers/workload.ts';
+import { releaseImages, workloads } from './providers/workload.ts';
 import { RESOURCES, sourceProvider } from './providers/index.ts';
 
 export type { Plan, PlanSource, PlatformChart } from './providers/provider.ts';
@@ -53,6 +53,14 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     if (app.artifact && valueFiles) {
       values = Object.assign({}, ...valueFiles.map(readValues), values);
       valueFiles = undefined;
+      if (values.images) {
+        const released = releaseImages(app);
+        values.images = Object.fromEntries(
+          Object.entries(values.images as Record<string, string>).filter(
+            ([image]) => !released.includes(image),
+          ),
+        );
+      }
     }
 
     return {
@@ -135,8 +143,27 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     ownsNamespace: (app.workloads ?? []).length > 0,
     sources,
     ...(app.artifact ? { artifact: app.artifact } : {}),
+    ...(releaseImages(app).length ? { releases: releaseImages(app) } : {}),
   };
 }
+
+// Released images get their tag at publish; templates are validated with a stand-in.
+export const RELEASE_PLACEHOLDER = 'release';
+
+const withReleases = (plan: Plan, source: PlatformChart): Record<string, unknown> => {
+  const values: Record<string, unknown> = chartValues(source);
+  if (source.chart !== 'k8s-workload' || !plan.releases) {
+    return values;
+  }
+  const images = values.images as Record<string, string> | undefined;
+  return {
+    ...values,
+    images: {
+      ...images,
+      ...Object.fromEntries(plan.releases.map((image) => [image, RELEASE_PLACEHOLDER])),
+    },
+  };
+};
 
 const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
 
@@ -149,7 +176,11 @@ export function helmTemplates(plan: Plan): { args: string[]; values: string }[] 
   return plan.sources.flatMap((source) => {
     const template =
       source.type === 'chart'
-        ? { release: plan.name, location: [`charts/${source.chart}`], values: chartValues(source) }
+        ? {
+            release: plan.name,
+            location: [`charts/${source.chart}`],
+            values: withReleases(plan, source),
+          }
         : sourceProvider(source.type).helmTemplate?.(plan, source as never);
     if (!template) {
       return [];

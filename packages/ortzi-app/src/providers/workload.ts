@@ -24,6 +24,11 @@ const schema: Schema = {
       image: {
         type: 'string',
       },
+      release: {
+        enum: ['deploy'],
+        description:
+          "Run whatever build of the image is promoted to the registry's deploy tag (`ortzi app promote`) instead of a tag in image.values.yaml.",
+      },
       kind: {
         enum: ['Deployment', 'DaemonSet', 'CronJob', 'Job'],
       },
@@ -509,6 +514,16 @@ export function appWorkloads(app: App): Record<string, Workload> {
   );
 }
 
+export const RELEASE_REGISTRY = 'registry.anurag.sh/';
+
+export const releaseImages = (app: App): string[] => [
+  ...new Set(
+    Object.values(appWorkloads(app))
+      .filter((w) => w.release)
+      .map((w) => w.image),
+  ),
+];
+
 export const workloadImages = (app: App) =>
   Object.values(appWorkloads(app)).flatMap((w) => [
     w.image,
@@ -548,7 +563,17 @@ function validate(app: App, fail: Fail) {
     }
   }
 
+  const released = releaseImages(app);
+  if (released.length && !app.artifact) {
+    fail('workloads: release needs an artifact app, whose images are injected at publish');
+  }
   for (const [name, workload] of Object.entries(appWorkloads(app))) {
+    if (workload.release && !workload.image.startsWith(RELEASE_REGISTRY)) {
+      fail(`workloads.${name}.release: only ${RELEASE_REGISTRY} images are promoted`);
+    }
+    if (!workload.release && released.includes(workload.image)) {
+      fail(`workloads.${name}: ${workload.image} is released elsewhere; set release here too`);
+    }
     if (workload.kind === 'Job' && !workload.phase) {
       fail(`workloads.${name}.phase is required for a Job`);
     }

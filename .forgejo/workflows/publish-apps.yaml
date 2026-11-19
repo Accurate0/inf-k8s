@@ -1,0 +1,20 @@
+name: Publish apps
+# dispatched by the registry after a promotion moves an image's deploy tag
+on:
+  workflow_dispatch:
+
+enable-openid-connect: true
+
+jobs:
+  publish:
+    runs-on: docker
+    env:
+      ORTZI_GRAPH_ACCOUNT: ci_reader
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+        with:
+          packages: app helm kustomize
+      - run: .forgejo/scripts/retry.sh 3 30 ortzi app publish

@@ -138,3 +138,38 @@ test('installs the rust toolchain and caches by the app lockfile', () => {
     /toolchain\.rust does not match pattern/,
   );
 });
+
+test('a released build image is promoted after build and test instead of raising a PR', () => {
+  const app: App = {
+    name: 'foo',
+    workloads: [{ name: 'foo', image: 'registry.anurag.sh/containers/foo', release: 'deploy' }],
+    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+    build: {
+      ci: 'forgejo',
+      image: 'registry.anurag.sh/containers/foo',
+      test: { run: 'cargo test' },
+    },
+    network: { ingress: [] },
+  };
+  const actions = {
+    'actions/checkout': 'v7@aaa',
+    'docker/setup-buildx-action': 'v4@bbb',
+    'docker/build-push-action': 'v7@ddd',
+    'actions/cache': 'v6@eee',
+  };
+  const workflow = parse(
+    renderWorkflow(app, { location: 'projects', hasManifests: false }, actions),
+  );
+
+  assert.equal(workflow.jobs.build.outputs.digest, '${{ steps.build.outputs.digest }}');
+  const deploy = workflow.jobs.deploy;
+  assert.deepEqual(deploy.needs, ['build', 'test']);
+  assert.match(deploy.if, /needs\.test\.result == 'success'/);
+  assert.deepEqual(deploy.steps[0].with, { packages: 'app' });
+  assert.equal(
+    deploy.steps[1].run,
+    'ortzi app promote foo --image "registry.anurag.sh/containers/foo@$DIGEST"',
+  );
+  assert.equal(deploy.steps[1].env.DIGEST, '${{ needs.build.outputs.digest }}');
+  assert.ok(!JSON.stringify(deploy).includes('CI_IMAGE_UPDATER_TOKEN'));
+});

@@ -240,7 +240,7 @@ export function expandContainer(spec: Values, refs: Refs): Values {
 }
 
 export function expandWorkload(spec: Values, refs: Refs): Values {
-  const { overrides, serviceAccount, ...rest } = spec;
+  const { overrides, serviceAccount, release: _release, ...rest } = spec;
   const out = expandContainer(rest, refs);
   if (serviceAccount) {
     out.serviceAccountName = serviceAccount;

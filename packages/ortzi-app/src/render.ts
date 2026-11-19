@@ -35,7 +35,12 @@ export type { HelmSource } from './providers/sources/helm.ts';
 export type { ManifestsSource } from './providers/sources/manifests.ts';
 export { HEADER, HEADER_TEXT, isCurrent, stamped } from './generated.ts';
 export { appNamespace, declared, sourcesOf } from './app.ts';
-export { appWorkloads, passthroughWarnings, workloadImages } from './providers/workload.ts';
+export {
+  appWorkloads,
+  passthroughWarnings,
+  releaseImages,
+  workloadImages,
+} from './providers/workload.ts';
 export { appDatabases, appRoles, databaseHost, databaseRole } from './providers/database.ts';
 export { appMetrics } from './providers/metrics.ts';
 export { appOidc } from './providers/oidc.ts';

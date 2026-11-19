@@ -11,6 +11,7 @@ export interface Sidecar {
 
 export interface Workload {
   image: string;
+  release?: 'deploy';
   kind?: 'Deployment' | 'DaemonSet' | 'CronJob' | 'Job';
   replicas?: number;
   autoscale?: { min: number; max: number; cpu: number };

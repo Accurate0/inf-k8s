@@ -9,6 +9,7 @@ import { env } from './commands/env';
 import { fmt } from './commands/fmt';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
+import { promote } from './commands/promote';
 import { rollback } from './commands/rollback';
 import { status } from './commands/status';
 import { supergraph } from './commands/supergraph';
@@ -38,11 +39,13 @@ import {
   validateGatewayAccess,
   validateIngress,
   validateResources,
+  releaseImages,
   workflowPath,
   workloadImages,
   type World,
 } from './render';
 import { publishArtifact, publishBundle } from './hydrate';
+import { promotions, releaseTag } from './registry';
 import { renderOutputs } from './outputs';
 import { planApp } from './plan';
 import { generatedFiles } from './files';
@@ -97,7 +100,12 @@ cluster:
   env <app> [workload]     each env var, where it comes from, and whether its secret key exists
   doctor <app>             check workloads, secrets, volumes, routes, oidc and databases on the cluster
   history <app>            previous argo syncs and their image tags
-  rollback <app> [tag]     edit images on the cluster, turning auto-sync off first
+  promote <app>            point released images at a signed build (--image IMAGE@DIGEST|IMAGE:SHA,
+                           repeatable; or --sha SHA for every image with release: deploy) and
+                           publish it; refuses builds older than the deployed one without --force
+  rollback <app> [sha]     released images: list promotions with how long each was live and
+                           promote the one picked (or every image at sha, with --yes);
+                           other images: edit them on the cluster, turning auto-sync off first
                            (default tag: the most recent different one in history)
   heal <app> on|off        set self-heal; auto-sync still applies new git commits
   autosync <app> on|off    turn argo auto-sync off, or restore it (returns the app to git)
@@ -107,11 +115,13 @@ flags:
   --check          render, supergraph, fmt: write nothing, exit 1 if invalid or out of date
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
-  --force          render: regenerate every file, even those already up to date
+  --force          render: regenerate every file, even those already up to date;
+                   promote: allow a build older than the deployed one
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
-  --image NAME     rollback: only this image (repeat by running again)
+  --image IMAGE    promote: the image to promote (repeatable); rollback: only this image
+  --sha SHA        promote: promote every released image of the app at this commit
   --yes            apply; writes are a dry run without this
   --wait           rollback, autosync on: follow the change and fail if it doesn't finish
   --timeout MIN    with --wait: minutes to allow for each step (default 5)`;
@@ -257,7 +267,11 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
       const values = imageValuesPath(app, target);
       const current = fs.exists(values) ? parse(fs.readText(values)) : {};
       const images = { ...current?.images };
-      for (const image of workloadImages(app)) {
+      const released = releaseImages(app);
+      for (const image of released) {
+        delete images[image];
+      }
+      for (const image of workloadImages(app).filter((i) => !released.includes(i))) {
         images[image] ??= 'latest';
       }
       const output = stringify({ images });
@@ -443,10 +457,17 @@ function publish(names: string[]): number {
             name: app.name,
             path: `${dir}/application.yaml`,
             revision: capture('git', ['log', '-1', '--format=%H', '--', dir]).trim(),
+            releases: releaseImages(app),
           };
         }),
     },
     revision,
+    (images) =>
+      new Map(
+        [...promotions(images, 1)].flatMap(([image, [current]]) =>
+          current ? [[image, releaseTag(current)]] : [],
+        ),
+      ),
   );
 
   return 0;
@@ -476,7 +497,8 @@ export const run = cli({
     context: { type: 'string' },
     all: { type: 'boolean' },
     latest: { type: 'boolean' },
-    image: { type: 'string' },
+    image: { type: 'string', multiple: true },
+    sha: { type: 'string' },
     yes: { type: 'boolean' },
     wait: { type: 'boolean' },
     timeout: { type: 'string' },
@@ -553,10 +575,24 @@ export const run = cli({
       return doctor(ctx.kube(), app, world);
     },
     history: (ctx, _, [name]) => history(ctx.kube(), requireApp(name, 'history')),
+    promote: (_ctx, values, [name]) => {
+      const app = requireApp(name, 'promote');
+      const found = values.image.length
+        ? undefined
+        : discover().find(({ app: candidate }) => candidate.name === app);
+      if (!values.image.length && !found) {
+        throw new Error(`no app named ${app}; pass --image outside the k8s repo`);
+      }
+      return promote(app, found ? releaseImages(found.app) : [], {
+        images: values.image,
+        sha: values.sha,
+        force: values.force,
+      });
+    },
     rollback: (ctx, values, [name, tag]) =>
       rollback(ctx.kube(), requireApp(name, 'rollback'), {
         tag,
-        image: values.image,
+        image: values.image[0],
         yes: values.yes,
         wait: values.wait,
         timeoutMinutes: parseMinutes(values.timeout, DEFAULT_TIMEOUT_MINUTES),
@@ -579,6 +615,7 @@ export const run = cli({
     env: appNames,
     doctor: appNames,
     history: appNames,
+    promote: appNames,
     rollback: appNames,
     heal: appThenOnOff,
     autosync: appThenOnOff,

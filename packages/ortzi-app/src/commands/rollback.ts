@@ -1,4 +1,13 @@
-import { applying, ghcrDigest, type Kube, parseImage, short } from '@ortzi/kit';
+import { prompt, stdinIsTerminal } from '@ortzi/host';
+import {
+  applying,
+  columns,
+  ghcrDigest,
+  type Kube,
+  minuteTimestamp,
+  parseImage,
+  short,
+} from '@ortzi/kit';
 import {
   type Application,
   assertChangeable,
@@ -8,6 +17,10 @@ import {
 } from '../argo';
 import { syncedTags, tagsAt } from '../git';
 import { previousTags } from '../images';
+import { RELEASE_REGISTRY } from '../providers/workload';
+import { type Row, releaseRows, rowsOf } from '../promotion';
+import { type Promotion, promote, promotions } from '../registry';
+import { describe } from './promote';
 import {
   type Workload,
   containersOf,
@@ -107,10 +120,85 @@ export interface RollbackOptions {
   timeoutMinutes: number;
 }
 
+function chooseRows(rows: Row[], sha: string | undefined): Row[] | undefined {
+  if (sha) {
+    const picked = new Map<string, Row>();
+    for (const row of rows) {
+      if (row.promotion.sha?.startsWith(sha) && !picked.has(row.image)) {
+        picked.set(row.image, row);
+      }
+    }
+    if (!picked.size) {
+      throw new Error(`no promotion of ${sha} in the history`);
+    }
+    return [...picked.values()];
+  }
+  if (!stdinIsTerminal()) {
+    return undefined;
+  }
+  const answer = prompt('roll back to #: ')?.trim();
+  if (!answer) {
+    return [];
+  }
+  const row = rows[Number(answer)];
+  if (!/^\d+$/.test(answer) || !row) {
+    throw new Error(`${answer} is not a row number`);
+  }
+  return [row];
+}
+
+function rollbackRelease(
+  name: string,
+  history: Map<string, Promotion[]>,
+  options: RollbackOptions,
+) {
+  const rows = rowsOf(history);
+  console.log(
+    columns(
+      ['#', 'IMAGE', 'SHA', 'PROMOTED (UTC)', 'LIVE FOR', 'BY'],
+      releaseRows(history, new Date().toISOString()),
+    ),
+  );
+
+  const chosen = chooseRows(rows, options.tag);
+  if (chosen === undefined) {
+    console.error(
+      `pass a sha to roll back non-interactively: ortzi app rollback ${name} <sha> --yes`,
+    );
+    return 2;
+  }
+  if (!chosen.length) {
+    return 0;
+  }
+  if (options.tag && !applying(options.yes)) {
+    for (const { image, promotion } of chosen) {
+      console.log(`would promote ${image} back to ${short(promotion.sha ?? promotion.digest)}`);
+    }
+    return 0;
+  }
+
+  for (const { image, promotion } of chosen) {
+    console.log(describe(image, promote(name, image, promotion.digest, true)));
+  }
+  console.log(`publish-apps rolls it out; follow with ortzi app status ${name}`);
+  return 0;
+}
+
 export function rollback(kube: Kube, name: string, options: RollbackOptions): number {
   const { tag, image, yes } = options;
   assertChangeable(name);
   const app = getApp(kube, name);
+
+  const owned = [...syncedTags(app).keys()].filter((i) => i.startsWith(RELEASE_REGISTRY));
+  const history = new Map(
+    [...promotions(owned, 20)].filter(
+      ([released, list]) => list.length && (!image || released.endsWith(`/${image}`)),
+    ),
+  );
+  if (history.size) {
+    return rollbackRelease(name, history, options);
+  }
+
   const workloads = workloadsFor(app, listWorkloads(kube));
 
   const chosen = chooseTargets(app, workloads, tag);

@@ -23,8 +23,8 @@ graph:
     token_url: https://idm.anurag.sh/oauth2/token
     revoke_url: https://idm.anurag.sh/oauth2/token/revoke
     accounts:
-      - {name: ci_deployer, token_env: GRAPH_CI_DEPLOYER_TOKEN, scopes: [openid, groups]}
-      - {name: ci_reader, token_env: GRAPH_CI_READER_TOKEN, scopes: [openid, groups]}
+      - {name: ci_deployer, token_env: GRAPH_CI_DEPLOYER_token, scopes: [openid, groups]}
+      - {name: ci_reader, token_env: GRAPH_CI_READER_token, scopes: [openid, groups]}
     grants:
       - forgejo: {repository: anurag/k8s, ref: refs/heads/main}
         accounts: [ci_deployer, ci_reader]
