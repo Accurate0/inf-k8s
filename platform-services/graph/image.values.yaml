@@ -1,3 +1,3 @@
 images:
-  registry.anurag.sh/containers/graph-router: 7b343f127f0a8563e8fb7ac2983e7f2e219230f9
+  registry.anurag.sh/containers/graph-router: f03156e1872a77a1db8651f7e2c500504d407dda
   curlimages/curl: 8.10.1
