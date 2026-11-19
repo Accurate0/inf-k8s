@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T12:07:55.389Z
+# generated at 2026-11-19T13:12:56.208Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -223,10 +223,10 @@ spec:
           clients:
             - name: waf-manager
               namespace: waf-manager
-              displayName: WAF Manager
-              preferShortUsername: true
               secretName: kanidm-waf-manager-oidc
               host: waf-manager.ortzi.cloud
+              displayName: WAF Manager
+              preferShortUsername: true
               allowInsecureClientDisablePkce: true
               groups:
                 waf_admins:
@@ -258,9 +258,9 @@ spec:
                 inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
             - name: waf-manager-cli
               namespace: waf-manager
+              secretName: kanidm-waf-manager-cli-oidc
               displayName: WAF Manager CLI
               preferShortUsername: true
-              secretName: kanidm-waf-manager-cli-oidc
               host: waf-manager.ortzi.cloud
               public: true
               allowLocalhostRedirect: true
