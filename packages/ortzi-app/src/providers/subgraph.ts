@@ -21,6 +21,7 @@ export interface Subgraph {
   repository?: string;
   schema: string;
   ref?: string;
+  persistedDocuments?: string;
 }
 
 declare module './provider.ts' {
@@ -105,6 +106,11 @@ const schema: Schema = {
     ref: {
       type: 'string',
       description: 'Branch or tag to read the SDL from; required with repository.',
+    },
+    persistedDocuments: {
+      type: 'string',
+      description:
+        "Path to a client's persisted document manifest ({id: document} JSON), read like schema; anonymous callers may only run these documents.",
     },
   },
 };

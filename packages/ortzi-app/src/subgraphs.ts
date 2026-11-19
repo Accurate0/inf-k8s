@@ -13,6 +13,8 @@ export interface ResolvedSubgraph {
   auth?: SubgraphAuth;
   schemaUrl?: string;
   schemaPath?: string;
+  documentsUrl?: string;
+  documentsPath?: string;
 }
 
 export function rawFileUrl(repository: string, ref: string, path: string): string {
@@ -30,19 +32,34 @@ export function rawFileUrl(repository: string, ref: string, path: string): strin
   return `${parsed.origin}/${owner}/${repo}/raw/branch/${ref}/${path}`;
 }
 
-function schemaSource(subgraph: Subgraph, where: string) {
+function fileSource(subgraph: Subgraph, key: 'schema' | 'persistedDocuments', where: string) {
+  const path = subgraph[key] as string;
   if (subgraph.repository === undefined && subgraph.ref === undefined) {
-    if (subgraph.schema.startsWith('/') || subgraph.schema.split('/').includes('..')) {
-      throw new Error(`${where}: schema ${subgraph.schema} must stay inside the app directory`);
+    if (path.startsWith('/') || path.split('/').includes('..')) {
+      throw new Error(`${where}: ${key} ${path} must stay inside the app directory`);
     }
 
-    return { schemaPath: subgraph.schema };
+    return { path };
   }
   if (subgraph.repository === undefined || subgraph.ref === undefined) {
     throw new Error(`${where}: repository and ref go together`);
   }
 
-  return { schemaUrl: rawFileUrl(subgraph.repository, subgraph.ref, subgraph.schema) };
+  return { url: rawFileUrl(subgraph.repository, subgraph.ref, path) };
+}
+
+function schemaSource(subgraph: Subgraph, where: string) {
+  const { path, url } = fileSource(subgraph, 'schema', where);
+  return path !== undefined ? { schemaPath: path } : { schemaUrl: url };
+}
+
+function documentsSource(subgraph: Subgraph, where: string) {
+  if (subgraph.persistedDocuments === undefined) {
+    return {};
+  }
+
+  const { path, url } = fileSource(subgraph, 'persistedDocuments', where);
+  return path !== undefined ? { documentsPath: path } : { documentsUrl: url };
 }
 
 export function supergraphApp(apps: App[]): App | undefined {
@@ -99,6 +116,7 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         ...(subgraph.websocket ? { websocket: subgraph.websocket } : {}),
         ...(subgraph.auth ? { auth: subgraph.auth } : {}),
         ...schemaSource(subgraph, where),
+        ...documentsSource(subgraph, where),
       };
     }),
   );

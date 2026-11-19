@@ -8,9 +8,14 @@ import {
   supergraphApp,
   type Target,
 } from '../render.ts';
-import { compose, NODE_SUBGRAPH, SUPERGRAPH_HEADER_TEXT } from '../supergraph.ts';
+import {
+  compose,
+  NODE_SUBGRAPH,
+  PERSISTED_DOCUMENTS,
+  SUPERGRAPH_HEADER_TEXT,
+} from '../supergraph.ts';
 
-function fetchSchema(url: string): string {
+function fetchText(url: string): string {
   const response = httpSend({ url, timeoutMs: 30_000 });
   if (response.status !== 200) {
     throw new Error(`${url}: ${response.status}`);
@@ -38,11 +43,26 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
       subgraph.name,
       subgraph.schemaPath
         ? fs.readText(`${locations.get(subgraph.app)}/${subgraph.app}/${subgraph.schemaPath}`)
-        : fetchSchema(subgraph.schemaUrl as string),
+        : fetchText(subgraph.schemaUrl as string),
     ]),
   );
 
-  const composed = compose(subgraphs, sdls, fs.readText(`${appDir}/${base}`));
+  const manifests = Object.fromEntries(
+    subgraphs.flatMap((subgraph) => {
+      if (subgraph.documentsPath) {
+        return [
+          [
+            subgraph.name,
+            fs.readText(`${locations.get(subgraph.app)}/${subgraph.app}/${subgraph.documentsPath}`),
+          ],
+        ];
+      }
+
+      return subgraph.documentsUrl ? [[subgraph.name, fetchText(subgraph.documentsUrl)]] : [];
+    }),
+  );
+
+  const composed = compose(subgraphs, sdls, fs.readText(`${appDir}/${base}`), manifests);
   const wanted = [
     ...subgraphs.map((subgraph) => [
       `${dir}/subgraphs/${subgraph.name}.graphql`,
@@ -52,6 +72,7 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
     [`${dir}/supergraph.graphql`, composed.supergraph],
     [`${dir}/schema.graphql`, composed.schema],
     [`${dir}/router.yaml`, composed.router],
+    ...(composed.documents ? [[`${dir}/${PERSISTED_DOCUMENTS}`, composed.documents]] : []),
   ] as [string, string][];
 
   const header = `# ${SUPERGRAPH_HEADER_TEXT}`;

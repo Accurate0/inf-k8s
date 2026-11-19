@@ -11,17 +11,20 @@ export interface Composed {
   schema: string;
   router: string;
   node?: string;
+  documents?: string;
 }
 
 export const NODE_SUBGRAPH = 'node';
 export const KANIDM_ISSUER_BASE = 'https://idm.anurag.sh/oauth2/openid';
 export const NODE_SUBGRAPH_URL = 'http://node-plugin.invalid/graphql';
+export const PERSISTED_DOCUMENTS = 'persisted-documents.json';
 const RELAY_TYPES = ['Node', 'PageInfo'];
 
 export function compose(
   subgraphs: ResolvedSubgraph[],
   sdls: Record<string, string>,
   base: string,
+  manifests: Record<string, string> = {},
 ): Composed {
   const services = subgraphs.map((subgraph) => ({
     name: subgraph.name,
@@ -66,12 +69,43 @@ export function compose(
     );
   }
 
+  const documents = Object.keys(manifests).length ? mergeDocuments(manifests) : undefined;
+
   return {
     supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.supergraphSdl.trimEnd()}\n`,
     schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.publicSdl.trimEnd()}\n`,
-    router: routerConfig(subgraphs, base, nodeTypes),
+    router: routerConfig(subgraphs, base, nodeTypes, documents !== undefined),
     ...(nodeSdl ? { node: `# ${SUPERGRAPH_HEADER_TEXT}\n${nodeSdl}` } : {}),
+    ...(documents !== undefined ? { documents } : {}),
   };
+}
+
+export function mergeDocuments(manifests: Record<string, string>): string {
+  const merged = new Map<string, [string, string]>();
+
+  for (const [subgraph, manifest] of Object.entries(manifests)) {
+    const documents: unknown = JSON.parse(manifest);
+    if (typeof documents !== 'object' || documents === null || Array.isArray(documents)) {
+      throw new Error(`${subgraph}: persisted documents must be a JSON object of id to document`);
+    }
+
+    for (const [id, document] of Object.entries(documents)) {
+      if (typeof document !== 'string') {
+        throw new Error(`${subgraph}: persisted document ${id} is not a string`);
+      }
+
+      const existing = merged.get(id);
+      if (existing && existing[1] !== document) {
+        throw new Error(`persisted document ${id} differs between ${existing[0]} and ${subgraph}`);
+      }
+      merged.set(id, [subgraph, document]);
+    }
+  }
+
+  const sorted = [...merged.entries()]
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([id, [, document]]) => [id, document]);
+  return `${JSON.stringify(Object.fromEntries(sorted), null, 2)}\n`;
 }
 
 function keyFields(
@@ -204,8 +238,29 @@ export function routerConfig(
   subgraphs: ResolvedSubgraph[],
   base: string,
   nodeTypes: string[],
+  persistedDocuments = false,
 ): string {
   const config = (parse(base) ?? {}) as Record<string, any>;
+
+  if (persistedDocuments) {
+    const storage = config.supergraph?.storage_id;
+    if (config.supergraph?.source !== 'storage' || !storage) {
+      throw new Error(
+        'persisted documents are stored beside the supergraph, which must load from storage',
+      );
+    }
+
+    config.persisted_documents = {
+      enabled: true,
+      require_id: true,
+      storage: {
+        type: 'storage',
+        storage_id: storage,
+        location: PERSISTED_DOCUMENTS,
+        poll_interval: config.supergraph.poll_interval,
+      },
+    };
+  }
 
   if (nodeTypes.length) {
     config.plugins = {

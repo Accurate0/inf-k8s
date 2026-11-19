@@ -2,7 +2,13 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { parse as parseGraphql } from 'graphql';
-import { compose, routerConfig, unprefixedRootFields, unprefixedTypes } from '../supergraph.ts';
+import {
+  compose,
+  mergeDocuments,
+  routerConfig,
+  unprefixedRootFields,
+  unprefixedTypes,
+} from '../supergraph.ts';
 import { resolveSubgraphs, validateResources } from '../render.ts';
 import { platform, subgraphApp, routerApp } from '../test-fixtures.ts';
 
@@ -235,5 +241,43 @@ test('the node plugin serves node for every Node type keyed by id, and only when
     () =>
       validateResources({ platform, apps: [routerApp, subgraphApp('spotify', { name: 'node' })] }),
     /subgraph name node is reserved/,
+  );
+});
+
+test('persisted documents merge sorted, and the same id must mean the same document', () => {
+  assert.equal(
+    mergeDocuments({
+      spotify: '{"b": "{ b }", "a": "{ a }"}',
+      home: '{"a": "{ a }"}',
+    }),
+    '{\n  "a": "{ a }",\n  "b": "{ b }"\n}\n',
+  );
+
+  assert.throws(
+    () => mergeDocuments({ spotify: '{"a": "{ a }"}', home: '{"a": "{ b }"}' }),
+    /persisted document a differs between spotify and home/,
+  );
+  assert.throws(() => mergeDocuments({ spotify: '["{ a }"]' }), /JSON object of id to document/);
+});
+
+test('router config loads persisted documents beside the supergraph', () => {
+  const base =
+    'supergraph:\n  source: storage\n  storage_id: supergraph\n  location: supergraph.graphql\n  poll_interval: 30s\n';
+  const config = parse(routerConfig([], base, [], true));
+
+  assert.deepEqual(config.persisted_documents, {
+    enabled: true,
+    require_id: true,
+    storage: {
+      type: 'storage',
+      storage_id: 'supergraph',
+      location: 'persisted-documents.json',
+      poll_interval: '30s',
+    },
+  });
+  assert.equal(parse(routerConfig([], base, [])).persisted_documents, undefined);
+  assert.throws(
+    () => routerConfig([], 'supergraph:\n  source: file\n  path: x\n', [], true),
+    /must load from storage/,
   );
 });

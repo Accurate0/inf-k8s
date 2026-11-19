@@ -135,3 +135,31 @@ test('subgraph auth clients must be oidc resources', () => {
     ]),
   );
 });
+
+test('persisted documents resolve beside the schema', () => {
+  const [spotify, registry] = resolveSubgraphs([
+    subgraphApp('spotify', { persistedDocuments: 'web/persisted-documents.json' }),
+    subgraphApp('registry', {
+      repository: undefined,
+      ref: undefined,
+      persistedDocuments: 'documents.json',
+    }),
+  ]);
+
+  assert.equal(
+    spotify?.documentsUrl,
+    'https://raw.githubusercontent.com/Accurate0/spotify/main/web/persisted-documents.json',
+  );
+  assert.equal(registry?.documentsPath, 'documents.json');
+  assert.throws(
+    () =>
+      resolveSubgraphs([
+        subgraphApp('registry', {
+          repository: undefined,
+          ref: undefined,
+          persistedDocuments: '/etc/documents.json',
+        }),
+      ]),
+    /persistedDocuments \/etc\/documents.json must stay inside the app directory/,
+  );
+});
