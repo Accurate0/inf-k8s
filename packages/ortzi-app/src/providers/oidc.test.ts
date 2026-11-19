@@ -171,3 +171,59 @@ test('the login policy on a route reaches its oidc client', () => {
     /used by another oidc route/,
   );
 });
+
+test('oidc service accounts pass through to the chart', () => {
+  const serviceAccounts = [
+    {
+      name: 'graph_bot',
+      displayName: 'Graph bot',
+      entryManagedBy: 'idm_admins',
+      secretName: 'graph-bot-token',
+      scopes: ['openid', 'groups'],
+    },
+  ];
+  const app = validate(
+    {
+      ...base,
+      resources: [
+        {
+          name: 'graph',
+          type: 'oidc',
+          displayName: 'Graph',
+          preferShortUsername: true,
+          host: 'a.sh',
+          secretName: 's',
+          groups: { graph_users: ['graph_bot'] },
+          serviceAccounts,
+        },
+      ],
+    },
+    'test',
+  );
+
+  assert.deepEqual(
+    source(render(app), 'k8s-oidc')?.helm.valuesObject.clients[0].serviceAccounts,
+    serviceAccounts,
+  );
+  assert.throws(
+    () =>
+      validate(
+        {
+          ...base,
+          resources: [
+            {
+              name: 'graph',
+              type: 'oidc',
+              displayName: 'Graph',
+              preferShortUsername: true,
+              host: 'a.sh',
+              secretName: 's',
+              serviceAccounts: [{ name: 'graph_bot', displayName: 'Graph bot', secretName: 't' }],
+            },
+          ],
+        },
+        'test',
+      ),
+    /resources/,
+  );
+});

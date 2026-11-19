@@ -74,6 +74,23 @@ const schema: Schema = {
     secretLabels: {
       type: 'object',
     },
+    serviceAccounts: {
+      type: 'array',
+      description:
+        'Kanidm service accounts for programmatic access. Each API token lands in secretName and is exchanged at this client (RFC 8693) for its tokens; list the account in groups to grant access.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        properties: {
+          name: { type: 'string', pattern: '^[a-z0-9]([a-z0-9_-]*[a-z0-9])?$' },
+          displayName: { type: 'string' },
+          entryManagedBy: { type: 'string' },
+          secretName: { type: 'string' },
+          scopes: { type: 'array', items: { type: 'string' } },
+        },
+        required: ['name', 'displayName', 'entryManagedBy', 'secretName'],
+      },
+    },
     public: {
       type: 'boolean',
     },
