@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T12:07:55.473Z
+# generated at 2026-11-19T13:12:56.721Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -182,14 +182,14 @@ spec:
           clients:
             - name: immich
               namespace: immich
-              displayName: Immich
-              preferShortUsername: true
               secretName: kanidm-immich-oidc
               host: photos.anurag.sh
+              displayName: Immich
               callbackPath: /auth/login
               extraRedirectUrls:
                 - https://photos.anurag.sh/user-settings
                 - https://photos.anurag.sh/api/oauth/mobile-redirect
+              preferShortUsername: true
               secretKeys:
                 clientId: client-id
                 clientSecret: client-secret
