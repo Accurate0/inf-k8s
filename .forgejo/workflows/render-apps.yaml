@@ -46,8 +46,6 @@ jobs:
           fi
           echo "changed=$changed" >> "$GITHUB_OUTPUT"
 
-  # forgejo skips a job whose needs were skipped, whatever its if says, so test and publish always
-  # run and gate their steps; otherwise render never runs for pushes that don't touch the packages
   test:
     needs: changes
     runs-on: docker
