@@ -11,3 +11,6 @@ spec:
     - apiVersion: source.toolkit.fluxcd.io/v1
       kind: OCIRepository
       name: flux-system
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: OCIRepository
+      name: apps

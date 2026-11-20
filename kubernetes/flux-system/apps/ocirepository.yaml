@@ -1,0 +1,19 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: apps
+spec:
+  interval: 10m
+  url: oci://registry.anurag.sh/manifests/apps
+  ref:
+    tag: main
+  layerSelector:
+    mediaType: application/vnd.oci.image.layer.v1.tar+gzip
+    operation: extract
+  secretRef:
+    name: harbor
+  verify:
+    provider: cosign
+    secretRef:
+      name: cosign

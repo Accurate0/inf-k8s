@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: selfhosted
+spec:
+  interval: 10m
+  sourceRef:
+    kind: OCIRepository
+    name: apps
+  path: ./flux/selfhosted
+  # like the argo roots: dropping an app from the bundle never uninstalls it
+  prune: false
