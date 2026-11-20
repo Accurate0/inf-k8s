@@ -137,6 +137,16 @@ spec:
             kustomize:
               patches:
                 - target:
+                    kind: Deployment
+                    name: (kustomize-controller|helm-controller)
+                  patch: |
+                    - op: add
+                      path: /spec/template/spec/containers/0/args/-
+                      value: --concurrent=10
+                    - op: add
+                      path: /spec/template/spec/containers/0/args/-
+                      value: --requeue-dependency=5s
+                - target:
                     kind: OCIRepository
                     name: flux-system
                   patch: |
@@ -162,9 +172,6 @@ spec:
                             group: kustomize.toolkit.fluxcd.io
                             kind: Kustomization
                           patch: |
-                            - op: add
-                              path: /spec/wait
-                              value: true
                             - op: add
                               path: /spec/patches
                               value:
