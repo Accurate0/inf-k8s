@@ -50,7 +50,7 @@ const schema: Schema = {
     },
     releaseName: {
       type: 'string',
-      description: 'Defaults to the app name. Required when a chart is listed twice.',
+      description: 'Defaults to the app name. Required on all but one helm source.',
     },
   },
 };
@@ -72,6 +72,9 @@ export const helm: SourceProvider<'helm'> = {
       if (releases.indexOf(release) !== releases.lastIndexOf(release)) {
         fail(`sources: duplicate helm release ${release}, set releaseName`);
       }
+    }
+    if (sources.filter((source) => !source.releaseName).length > 1) {
+      fail('sources: helm releases default to the app name; set releaseName on all but one');
     }
   },
 

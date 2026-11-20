@@ -35,6 +35,14 @@ test('a chart listed twice needs distinct release names', () => {
   validate(app([release, { ...release, releaseName: 'other' }]), 'x');
 });
 
+test('only one helm release may default to the app name', () => {
+  const app = (sources: App['sources']) => ({ name: 'foo', network: { ingress: [] }, sources });
+  const other = { ...release, chart: 'runner' };
+
+  assert.throws(() => validate(app([release, other]), 'x'), /set releaseName on all but one/);
+  validate(app([release, { ...other, releaseName: 'foo-runner' }]), 'x');
+});
+
 test('helm templates pull upstream charts', () => {
   const plan = planApp(
     {

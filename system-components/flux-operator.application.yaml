@@ -147,6 +147,13 @@ spec:
                       path: /spec/template/spec/containers/0/args/-
                       value: --requeue-dependency=5s
                 - target:
+                    kind: Deployment
+                    name: helm-controller
+                  patch: |
+                    - op: add
+                      path: /spec/template/spec/containers/0/args/-
+                      value: --feature-gates=DisableChartDigestTracking=true
+                - target:
                     kind: OCIRepository
                     name: flux-system
                   patch: |

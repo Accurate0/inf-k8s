@@ -80,6 +80,7 @@ sources:
     repo: https://firefly-iii.github.io/kubernetes/
     version: 1.6.1
     values: importer.values.yaml
+    releaseName: firefly-importer
 artifact:
   repo: oci://registry.anurag.sh/manifests/firefly
   tag: main

@@ -1692,7 +1692,7 @@
               },
               "releaseName": {
                 "type": "string",
-                "description": "Defaults to the app name. Required when a chart is listed twice."
+                "description": "Defaults to the app name. Required on all but one helm source."
               }
             }
           },
