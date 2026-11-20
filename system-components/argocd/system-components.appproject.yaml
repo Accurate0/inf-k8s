@@ -37,6 +37,8 @@ spec:
     - oci://ghcr.io/accurate0/charts/k8s-storage
     - oci://ghcr.io/external-secrets/charts/external-secrets
     - oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
+    - oci://ghcr.io/controlplaneio-fluxcd/charts/flux-operator
+    - oci://ghcr.io/controlplaneio-fluxcd/charts/flux-instance
   destinations:
     - namespace: "*"
       server: "*"

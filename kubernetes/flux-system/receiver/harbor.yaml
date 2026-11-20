@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/notification.toolkit.fluxcd.io/receiver_v1.json
+apiVersion: notification.toolkit.fluxcd.io/v1
+kind: Receiver
+metadata:
+  name: harbor
+spec:
+  type: harbor
+  secretRef:
+    name: harbor-receiver
+  resources:
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: OCIRepository
+      name: flux-system

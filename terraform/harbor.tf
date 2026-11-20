@@ -132,6 +132,64 @@ resource "vault_kv_secret_v2" "harbor-argocd" {
   data_json_wo_version = 1
 }
 
+ephemeral "random_password" "harbor-flux" {
+  length  = 32
+  special = false
+}
+
+resource "harbor_robot_account" "flux" {
+  name              = "flux"
+  level             = "system"
+  secret_wo         = ephemeral.random_password.harbor-flux.result
+  secret_wo_version = 1
+
+  dynamic "permissions" {
+    for_each = toset(["charts", "manifests"])
+
+    content {
+      kind      = "project"
+      namespace = harbor_project.own[permissions.value].name
+
+      access {
+        action   = "pull"
+        resource = "repository"
+      }
+    }
+  }
+}
+
+resource "vault_kv_secret_v2" "harbor-flux" {
+  mount = vault_mount.kv.path
+  name  = "flux-system/harbor"
+  data_json_wo = jsonencode({
+    USERNAME = harbor_robot_account.flux.full_name
+    PASSWORD = ephemeral.random_password.harbor-flux.result
+  })
+  data_json_wo_version = 1
+}
+
+resource "random_password" "flux-harbor-receiver" {
+  length  = 32
+  special = false
+}
+
+resource "vault_kv_secret_v2" "flux-harbor-receiver" {
+  mount = vault_mount.kv.path
+  name  = "flux-system/harbor-receiver"
+  data_json = jsonencode({
+    token = random_password.flux-harbor-receiver.result
+  })
+}
+
+resource "harbor_project_webhook" "flux" {
+  name         = "flux"
+  project_id   = harbor_project.own["manifests"].id
+  address      = "http://webhook-receiver.flux-system.svc.cluster.local/hook/${sha256("${random_password.flux-harbor-receiver.result}harborflux-system")}"
+  auth_header  = random_password.flux-harbor-receiver.result
+  notify_type  = "http"
+  events_types = ["PUSH_ARTIFACT"]
+}
+
 ephemeral "random_password" "harbor-janitor-bot" {
   length  = 32
   special = false
