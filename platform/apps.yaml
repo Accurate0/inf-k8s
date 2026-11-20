@@ -3,3 +3,5 @@ artifact:
   tag: main
 bootstrap:
   - registry
+flux:
+  - k8s-schemas
