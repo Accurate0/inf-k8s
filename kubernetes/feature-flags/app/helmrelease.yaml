@@ -1,0 +1,328 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.241Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: feature-flags-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: feature-flags
+spec:
+  interval: 1h
+  releaseName: feature-flags-k8s-workload
+  targetNamespace: feature-flags
+  storageNamespace: feature-flags
+  chartRef:
+    kind: OCIRepository
+    name: feature-flags-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      registry.anurag.sh/containers/feature-flags: 8ba1028d2120f3a3681e9e3c0c66d7142f3dc349
+    namespace: feature-flags
+    namespaceLabels:
+      internal-gateway-access: "true"
+    workloads:
+      - name: feature-flags
+        image: registry.anurag.sh/containers/feature-flags
+        kind: DaemonSet
+        resources:
+          requests:
+            memory: 32Mi
+        ports:
+          - name: grpc
+            containerPort: 50051
+          - name: graphql
+            containerPort: 3000
+        env:
+          - name: REDIS_URL
+            value: redis://cache.dragonfly.svc.cluster.local
+          - name: OIDC_ISSUER
+            value: https://idm.anurag.sh/oauth2/openid/feature-flags
+          - name: OIDC_AUDIENCE
+            value: feature-flags
+          - name: OIDC_PROVIDERS
+            value: https://idm.anurag.sh/oauth2/openid/graph=graph
+          - name: OIDC_GROUPS
+            value: feature_flags_admins
+          - name: OTEL_TRACING_URL
+            value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+        envFrom:
+          - secretRef:
+              name: feature-flags-managed-secrets
+          - secretRef:
+              name: feature-flags-db-credentials
+        service:
+          name: api
+          trafficDistribution: PreferSameNode
+          ports:
+            - name: grpc
+              port: 50051
+              targetPort: 50051
+              appProtocol: grpc
+              protocol: TCP
+            - name: graphql
+              port: 3000
+              targetPort: 3000
+              protocol: TCP
+        readinessProbe:
+          grpc:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 15
+        livenessProbe:
+          grpc:
+            port: 50051
+          initialDelaySeconds: 5
+          periodSeconds: 60
+        updateStrategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: feature-flags-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: feature-flags
+spec:
+  interval: 1h
+  releaseName: feature-flags-k8s-network
+  targetNamespace: feature-flags
+  storageNamespace: feature-flags
+  chartRef:
+    kind: OCIRepository
+    name: feature-flags-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: feature-flags
+    ingress:
+      - envoy-gateway-system
+      - ai-gateway
+      - home-gateway
+      - janitor-bot
+      - maccas-api
+      - graph
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: feature-flags-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: feature-flags
+spec:
+  interval: 1h
+  releaseName: feature-flags-k8s-http-routes
+  targetNamespace: feature-flags
+  storageNamespace: feature-flags
+  chartRef:
+    kind: OCIRepository
+    name: feature-flags-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: feature-flags-api
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - feature-flags.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: api
+                port: 50051
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /featureflag.v1.Admin/
+              - path:
+                  type: PathPrefix
+                  value: /featureflag.v1.Evaluation/
+            timeouts:
+              request: 0s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: feature-flags-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: feature-flags
+spec:
+  interval: 1h
+  releaseName: feature-flags-k8s-oidc
+  targetNamespace: feature-flags
+  storageNamespace: feature-flags
+  chartRef:
+    kind: OCIRepository
+    name: feature-flags-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: feature-flags
+        namespace: feature-flags
+        secretName: kanidm-feature-flags-oidc
+        host: feature-flags.ortzi.cloud
+        displayName: Feature Flags
+        preferShortUsername: true
+        public: true
+        allowLocalhostRedirect: true
+        groups:
+          feature_flags_admins:
+            - platform_admins
+        secretNamespace: feature-flags
+        annotations:
+          inf-k8s.net/app: feature-flags
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: feature-flags-k8s-postgres
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: feature-flags
+spec:
+  interval: 1h
+  releaseName: feature-flags-k8s-postgres
+  targetNamespace: feature-flags
+  storageNamespace: feature-flags
+  chartRef:
+    kind: OCIRepository
+    name: feature-flags-k8s-postgres
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    databases:
+      - name: feature-flags
+        namespace: feature-flags
+        databaseName: feature_flags
+        secretName: feature-flags-db-credentials
+        host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+        annotations:
+          inf-k8s.net/app: feature-flags
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: feature-flags-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: feature-flags
+spec:
+  interval: 1h
+  releaseName: feature-flags-k8s-secrets
+  targetNamespace: feature-flags
+  storageNamespace: feature-flags
+  chartRef:
+    kind: OCIRepository
+    name: feature-flags-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: feature-flags
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: feature-flags
+        inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    secrets:
+      - name: feature-flags
+        managedSecrets:
+          - secretName: feature-flags-managed-secrets

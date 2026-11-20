@@ -18,7 +18,7 @@ const world = {
 const flux = (app: App) => {
   const files = renderFlux(planApp(app, versions, target, world), app.overrides?.flux);
   return (path: string) => {
-    const content = files.get(`projects/${app.name}/flux/${path}`);
+    const content = files.get(`kubernetes/${app.name}/${path}`);
     assert.ok(content, `${path} not rendered`);
     return parseAllDocuments(content).map((document) => document.toJS());
   };
@@ -31,17 +31,18 @@ const workload: App = {
   artifact,
 };
 
-test('flux renders an app kustomization over its bundle path', () => {
+test('flux renders an app kustomization over the cluster artifact', () => {
   const [ks] = flux(workload)('ks.yaml');
 
   assert.equal(ks.metadata.name, 'foo');
   assert.equal(ks.metadata.namespace, 'flux-system');
+  assert.equal(ks.metadata.annotations['kustomize.toolkit.fluxcd.io/prune'], 'disabled');
   assert.deepEqual(ks.spec.sourceRef, {
     kind: 'OCIRepository',
-    name: 'apps',
+    name: 'flux-system',
     namespace: 'flux-system',
   });
-  assert.equal(ks.spec.path, './flux/projects/foo/app');
+  assert.equal(ks.spec.path, './foo/app');
   assert.equal(ks.spec.prune, true);
   assert.equal(ks.spec.wait, true);
 });
@@ -69,24 +70,23 @@ test('flux renders a helm release per platform chart into the app namespace', ()
   assert.deepEqual(repositories[0].spec.secretRef, { name: 'harbor' });
 });
 
-test('flux owns the namespace and keeps it on prune', () => {
-  const [namespace] = flux({ ...workload, namespace: { labels: { team: 'a' } } })(
-    'app/namespace.yaml',
-  );
+test('apps in a shared namespace render beneath it', () => {
+  const app = {
+    ...workload,
+    namespace: { name: 'shared' },
+    network: { ingress: [], policy: true },
+  };
+  const files = renderFlux(planApp(app, versions, target, world));
+  const [ks] = parseAllDocuments(files.get('kubernetes/shared/foo/ks.yaml')!).map((d) => d.toJS());
 
-  assert.equal(namespace.metadata.name, 'foo');
-  assert.deepEqual(namespace.metadata.labels, { team: 'a' });
-  assert.equal(namespace.metadata.annotations['kustomize.toolkit.fluxcd.io/prune'], 'disabled');
+  assert.equal(ks.spec.path, './shared/foo/app');
+  assert.ok(files.has('kubernetes/shared/foo/app/helmrelease.yaml'));
 });
 
 test('flux lists every rendered file in the app kustomization', () => {
   const [kustomization] = flux(workload)('app/kustomization.yaml');
 
-  assert.deepEqual(kustomization.resources, [
-    'helmrelease.yaml',
-    'namespace.yaml',
-    'ocirepository.yaml',
-  ]);
+  assert.deepEqual(kustomization.resources, ['helmrelease.yaml', 'ocirepository.yaml']);
 });
 
 test('flux keeps the release name of external charts', () => {

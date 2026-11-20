@@ -1,0 +1,560 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.484Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-k8s-network
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chartRef:
+    kind: OCIRepository
+    name: firefly-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: firefly
+    ingress:
+      - envoy-gateway-system
+      - firefly-up-sync
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-k8s-http-routes
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chartRef:
+    kind: OCIRepository
+    name: firefly-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: firefly
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - firefly.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: firefly
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            timeouts:
+              request: 0s
+      - name: firefly-importer
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - firefly-importer.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: firefly-importer
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            timeouts:
+              request: 0s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-k8s-oidc
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chartRef:
+    kind: OCIRepository
+    name: firefly-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: firefly
+        namespace: firefly
+        secretName: kanidm-firefly-oidc
+        host: firefly.ortzi.cloud
+        displayName: Firefly III
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        securityPolicy:
+          httpRoute: firefly
+          scopes:
+            - openid
+            - email
+            - profile
+          jwt:
+            cacheDuration: 3600s
+            idToken: true
+            claimToHeaders:
+              - claim: email
+                header: x-firefly-user-email
+        secretNamespace: firefly
+        annotations:
+          inf-k8s.net/app: firefly
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+      - name: firefly-importer
+        namespace: firefly
+        secretName: kanidm-firefly-importer-oidc
+        host: firefly-importer.ortzi.cloud
+        displayName: Firefly III Importer
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        securityPolicy:
+          httpRoute: firefly-importer
+          scopes:
+            - openid
+            - email
+            - profile
+        secretNamespace: firefly
+        annotations:
+          inf-k8s.net/app: firefly
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-k8s-postgres
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-k8s-postgres
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chartRef:
+    kind: OCIRepository
+    name: firefly-k8s-postgres
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    databases:
+      - name: firefly
+        namespace: firefly
+        databaseName: firefly
+        secretName: firefly-db-credentials
+        host: cloudnative-pg-cluster-rw.cnpg-system
+        annotations:
+          inf-k8s.net/app: firefly
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-k8s-secrets
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chartRef:
+    kind: OCIRepository
+    name: firefly-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: firefly
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: firefly
+        inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    secrets:
+      - name: firefly
+        managedSecrets:
+          - secretName: firefly-managed-secrets
+      - name: integrations
+        managedSecrets:
+          - secretName: firefly-importer-managed-secrets
+            template:
+              includeAllSecrets: false
+              data:
+                accessToken: "{{ .FIREFLY_ACCESS_TOKEN }}"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-k8s-storage
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-k8s-storage
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chartRef:
+    kind: OCIRepository
+    name: firefly-k8s-storage
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    volumes:
+      - name: firefly-upload
+        namespace: firefly
+        storageClass: longhorn-replicated
+        size: 5Gi
+        access: ReadWriteOnce
+        labels:
+          recurring-job.longhorn.io/source: enabled
+          recurring-job-group.longhorn.io/daily-backup: enabled
+        annotations:
+          inf-k8s.net/app: firefly
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-firefly-iii
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chart:
+    spec:
+      chart: firefly-iii
+      version: 1.10.2
+      sourceRef:
+        kind: HelmRepository
+        name: firefly-firefly-iii
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: firefly
+    image:
+      tag: version-6.5.9
+    replicaCount: 1
+    deploymentStrategyType: Recreate
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
+    affinity:
+      nodeAffinity:
+        preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            preference:
+              matchExpressions:
+                - key: inf-k8s.net/location
+                  operator: In
+                  values:
+                    - perth
+    persistence:
+      enabled: true
+      existingClaim: firefly-upload
+    config:
+      existingSecret: firefly-managed-secrets
+      env:
+        APP_URL: https://firefly.ortzi.cloud
+        DB_CONNECTION: pgsql
+        DB_PORT: "5432"
+        DEFAULT_LANGUAGE: en_US
+        DEFAULT_LOCALE: equal
+        TZ: Australia/Perth
+        TRUSTED_PROXIES: "**"
+        AUTHENTICATION_GUARD: remote_user_guard
+        AUTHENTICATION_GUARD_HEADER: HTTP_X_FIREFLY_USER_EMAIL
+        ALLOW_WEBHOOKS: "true"
+        SITE_OWNER: contact@anurag.sh
+      envValueFrom:
+        DB_HOST:
+          secretKeyRef:
+            name: firefly-db-credentials
+            key: PGHOST
+        DB_DATABASE:
+          secretKeyRef:
+            name: firefly-db-credentials
+            key: PGDATABASE
+        DB_USERNAME:
+          secretKeyRef:
+            name: firefly-db-credentials
+            key: PGUSER
+        DB_PASSWORD:
+          secretKeyRef:
+            name: firefly-db-credentials
+            key: PGPASSWORD
+    cronjob:
+      enabled: true
+      auth:
+        existingSecret: firefly-managed-secrets
+        secretKey: STATIC_CRON_TOKEN
+    httpRoute:
+      enabled: false
+    resources:
+      requests:
+        cpu: 50m
+        memory: 256Mi
+      limits:
+        memory: 1Gi
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-firefly-importer
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  releaseName: firefly-importer
+  targetNamespace: firefly
+  storageNamespace: firefly
+  chart:
+    spec:
+      chart: importer
+      version: 1.6.1
+      sourceRef:
+        kind: HelmRepository
+        name: firefly-firefly-importer
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    fullnameOverride: firefly-importer
+    image:
+      tag: version-2.2.3
+    replicaCount: 1
+    podAnnotations:
+      reloader.stakater.com/auto: "true"
+    fireflyiii:
+      url: http://firefly.firefly.svc.cluster.local
+      vanityUrl: https://firefly.ortzi.cloud
+      auth:
+        existingSecret: firefly-importer-managed-secrets
+    config:
+      env:
+        IGNORE_DUPLICATE_ERRORS: "true"
+        IMPORT_DIR_ALLOWLIST: /var/www/html/storage/configurations,/var/www/html/storage/uploads
+        TZ: Australia/Perth
+      files:
+        - mountPath: /var/www/html/storage/configurations
+          name: amex-au.json
+          content: |
+            {
+              "version": 3,
+              "source": "ff3-importer-2.2.3",
+              "created_at": "2026-10-07T23:50:00+08:00",
+              "date": "d/m/Y",
+              "default_account": 44,
+              "delimiter": "comma",
+              "headers": true,
+              "rules": true,
+              "webhooks": true,
+              "skip_form": false,
+              "add_import_tag": true,
+              "roles": [
+                "date_transaction",
+                "date_process",
+                "description",
+                "amount_negated",
+                "note",
+                "_ignore",
+                "_ignore",
+                "note",
+                "opposing-name",
+                "_ignore",
+                "_ignore",
+                "_ignore",
+                "_ignore",
+                "external-id"
+              ],
+              "do_mapping": [
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false,
+                false
+              ],
+              "mapping": [],
+              "duplicate_detection_method": "cell",
+              "ignore_duplicate_lines": true,
+              "ignore_duplicate_transactions": true,
+              "unique_column_index": 13,
+              "unique_column_type": "external-id",
+              "flow": "file",
+              "content_type": "csv",
+              "custom_tag": "",
+              "identifier": "0",
+              "connection": "0",
+              "ignore_spectre_categories": false,
+              "grouped_transaction_handling": "",
+              "use_entire_opposing_address": false,
+              "map_all_data": false,
+              "accounts": [],
+              "date_range": "",
+              "date_range_number": 30,
+              "date_range_unit": "d",
+              "date_not_before": "",
+              "date_not_after": "",
+              "conversion": false
+            }
+    httpRoute:
+      enabled: false
+    resources:
+      requests:
+        cpu: 20m
+        memory: 128Mi
+      limits:
+        memory: 512Mi

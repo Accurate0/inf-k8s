@@ -1,0 +1,436 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.173Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spotify-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: spotify
+spec:
+  interval: 1h
+  releaseName: spotify-k8s-workload
+  targetNamespace: spotify
+  storageNamespace: spotify
+  chartRef:
+    kind: OCIRepository
+    name: spotify-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images: {}
+    namespace: spotify
+    namespaceLabels:
+      internal-gateway-access: "true"
+    workloads:
+      - name: spotify-api
+        image: registry.anurag.sh/containers/spotify
+        resources:
+          requests:
+            cpu: 30m
+            memory: 64Mi
+          limits:
+            memory: 512Mi
+        ports:
+          - name: http
+            containerPort: 8000
+        env:
+          - name: OIDC_PROVIDERS
+            value: https://idm.anurag.sh/oauth2/openid/spotify=spotify,https://idm.anurag.sh/oauth2/openid/graph=graph
+          - name: OIDC_GROUPS
+            value: spotify_users
+          - name: SPOTIFY_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: spotify-managed-secrets
+                key: SPOTIFY_CLIENT_ID
+                optional: true
+          - name: SPOTIFY_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: spotify-managed-secrets
+                key: SPOTIFY_CLIENT_SECRET
+                optional: true
+          - name: OTEL_TRACING_URL
+            value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+        envFrom:
+          - secretRef:
+              name: spotify-database-secret
+          - secretRef:
+              name: artwork-bucket-secrets
+        service:
+          name: api
+          ports:
+            - name: http
+              port: 80
+              targetPort: 8000
+              protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 3
+          periodSeconds: 30
+        volumes:
+          - name: tmp
+            emptyDir: {}
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+      - name: spotify-web
+        image: registry.anurag.sh/containers/spotify-web
+        resources:
+          requests:
+            memory: 32Mi
+        ports:
+          - name: http
+            containerPort: 8080
+        service:
+          name: spotify-web
+          ports:
+            - name: http
+              port: 80
+              targetPort: 8080
+              protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /
+            port: 8080
+          initialDelaySeconds: 3
+          periodSeconds: 30
+        volumes:
+          - name: tmp
+            emptyDir: {}
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+      - name: spotify-enrich
+        image: registry.anurag.sh/containers/spotify
+        kind: CronJob
+        schedule: "*/15 * * * *"
+        backoffLimit: 0
+        command:
+          - spotify-server
+          - enrich
+        resources:
+          requests:
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        env:
+          - name: SPOTIFY_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: spotify-managed-secrets
+                key: SPOTIFY_CLIENT_ID
+          - name: SPOTIFY_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: spotify-managed-secrets
+                key: SPOTIFY_CLIENT_SECRET
+          - name: OTEL_TRACING_URL
+            value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+        envFrom:
+          - secretRef:
+              name: spotify-database-secret
+          - secretRef:
+              name: artwork-bucket-secrets
+      - name: spotify-recent
+        image: registry.anurag.sh/containers/spotify
+        kind: CronJob
+        schedule: "*/30 * * * *"
+        backoffLimit: 0
+        command:
+          - spotify-server
+          - recent
+        resources:
+          requests:
+            memory: 32Mi
+          limits:
+            memory: 128Mi
+        env:
+          - name: SPOTIFY_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: spotify-managed-secrets
+                key: SPOTIFY_CLIENT_ID
+          - name: SPOTIFY_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: spotify-managed-secrets
+                key: SPOTIFY_CLIENT_SECRET
+          - name: OTEL_TRACING_URL
+            value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+        envFrom:
+          - secretRef:
+              name: spotify-database-secret
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spotify-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: spotify
+spec:
+  interval: 1h
+  releaseName: spotify-k8s-network
+  targetNamespace: spotify
+  storageNamespace: spotify
+  chartRef:
+    kind: OCIRepository
+    name: spotify-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: spotify
+    ingress:
+      - envoy-gateway-system
+      - graph
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spotify-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: spotify
+spec:
+  interval: 1h
+  releaseName: spotify-k8s-http-routes
+  targetNamespace: spotify
+  storageNamespace: spotify
+  chartRef:
+    kind: OCIRepository
+    name: spotify-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: spotify
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        annotations:
+          external-dns.kubernetes.io/managed: "true"
+          external-dns.kubernetes.io/cloudflare-proxied: "false"
+        hostnames:
+          - spotify.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: api
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /v1/graphql
+              - path:
+                  type: PathPrefix
+                  value: /health
+              - path:
+                  type: PathPrefix
+                  value: /art
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: spotify-web
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spotify-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: spotify
+spec:
+  interval: 1h
+  releaseName: spotify-k8s-oidc
+  targetNamespace: spotify
+  storageNamespace: spotify
+  chartRef:
+    kind: OCIRepository
+    name: spotify-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: spotify
+        namespace: spotify
+        secretName: kanidm-spotify-oidc
+        host: spotify.ortzi.cloud
+        displayName: Spotify
+        preferShortUsername: true
+        callbackPath: /callback
+        public: true
+        allowLocalhostRedirect: true
+        groups:
+          spotify_users:
+            - platform_admins
+        scopeMaps:
+          spotify_users:
+            - openid
+            - email
+            - profile
+            - groups
+        secretNamespace: spotify
+        annotations:
+          inf-k8s.net/app: spotify
+          inf-k8s.net/repository: https://github.com/Accurate0/spotify
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spotify-k8s-postgres
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: spotify
+spec:
+  interval: 1h
+  releaseName: spotify-k8s-postgres
+  targetNamespace: spotify
+  storageNamespace: spotify
+  chartRef:
+    kind: OCIRepository
+    name: spotify-k8s-postgres
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    databases:
+      - name: spotify
+        namespace: spotify
+        databaseName: spotify
+        secretName: spotify-database-secret
+        host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+        annotations:
+          inf-k8s.net/app: spotify
+          inf-k8s.net/repository: https://github.com/Accurate0/spotify
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: spotify-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: spotify
+spec:
+  interval: 1h
+  releaseName: spotify-k8s-secrets
+  targetNamespace: spotify
+  storageNamespace: spotify
+  chartRef:
+    kind: OCIRepository
+    name: spotify-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: spotify
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: spotify
+        inf-k8s.net/repository: https://github.com/Accurate0/spotify
+    secrets:
+      - name: spotify
+        managedSecrets:
+          - secretName: spotify-managed-secrets
+      - name: resource-artwork
+        managedSecrets:
+          - secretName: artwork-bucket-secrets

@@ -1,0 +1,21 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.445Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: dawarich
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+    kustomize.toolkit.fluxcd.io/prune: disabled
+spec:
+  interval: 1h
+  sourceRef:
+    kind: OCIRepository
+    name: flux-system
+    namespace: flux-system
+  path: ./dawarich/app
+  prune: true
+  wait: true
+  timeout: 5m

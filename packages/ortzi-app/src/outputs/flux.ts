@@ -14,8 +14,12 @@ import {
 const SCHEMAS = 'https://k8s-schemas.anurag.sh';
 const KUSTOMIZE_SCHEMA = 'https://json.schemastore.org/kustomization';
 
-// The bundle source every per-app Kustomization reads, see kubernetes/flux-system/apps.
-export const BUNDLE_SOURCE = 'apps';
+export const CLUSTER_ROOT = 'kubernetes';
+
+// The cluster artifact FluxInstance syncs; every per-app Kustomization reads it too.
+const CLUSTER_SOURCE = 'flux-system';
+
+const PRUNE_DISABLED = { 'kustomize.toolkit.fluxcd.io/prune': 'disabled' };
 
 const FILES: Record<string, string> = {
   OCIRepository: 'ocirepository.yaml',
@@ -25,7 +29,12 @@ const FILES: Record<string, string> = {
   Kustomization: 'ks.yaml',
 };
 
-export const bundlePath = (plan: Plan) => `flux/${plan.location}/${plan.name}`;
+// kubernetes/<namespace>/<app>, collapsed to kubernetes/<app> when the app owns a namespace of its name
+export const appPath = (plan: Pick<Plan, 'name' | 'namespace'>) =>
+  plan.namespace === plan.name ? plan.name : `${plan.namespace}/${plan.name}`;
+
+export const fluxDir = (plan: Pick<Plan, 'name' | 'namespace'>) =>
+  `${CLUSTER_ROOT}/${appPath(plan)}`;
 
 function sourceObjects(plan: Plan, source: PlanSource): FluxObject[] {
   if (source.type !== 'chart') {
@@ -49,7 +58,7 @@ function sourceObjects(plan: Plan, source: PlanSource): FluxObject[] {
   ];
 }
 
-function document(objects: Record<string, unknown>[], schema?: string): string {
+export function document(objects: Record<string, unknown>[], schema?: string): string {
   const body = objects
     .map((object) => stringify(object, { lineWidth: 0, aliasDuplicateObjects: false }))
     .join('---\n');
@@ -61,6 +70,21 @@ function schemaFor({ apiVersion, kind }: Record<string, unknown>): string {
   return `${SCHEMAS}/${group}/${(kind as string).toLowerCase()}_${version}.json`;
 }
 
+export const namespaceDocument = (name: string, labels?: Record<string, string>) =>
+  document([
+    {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: { name, ...(labels ? { labels } : {}), annotations: PRUNE_DISABLED },
+    },
+  ]);
+
+export const kustomizationDocument = (resources: string[]) =>
+  document(
+    [{ apiVersion: 'kustomize.config.k8s.io/v1beta1', kind: 'Kustomization', resources }],
+    KUSTOMIZE_SCHEMA,
+  );
+
 export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<string, string> {
   const objects = plan.sources.flatMap((source) => sourceObjects(plan, source));
   const driftIgnore = overrides.helmRelease?.driftIgnore;
@@ -71,29 +95,13 @@ export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<strin
     }
   }
 
-  const namespace = {
-    apiVersion: 'v1',
-    kind: 'Namespace',
-    metadata: {
-      name: plan.namespace,
-      ...(plan.namespaceLabels ? { labels: plan.namespaceLabels } : {}),
-      annotations: { 'kustomize.toolkit.fluxcd.io/prune': 'disabled' },
-    },
-  };
-
-  const files = new Map<string, string>([['namespace.yaml', document([namespace])]]);
+  const files = new Map<string, string>();
   for (const [kind, file] of Object.entries(FILES)) {
     const ofKind = objects.filter((object) => object.kind === kind);
     if (ofKind.length) {
       files.set(file, document(ofKind, schemaFor(ofKind[0])));
     }
   }
-
-  const kustomize = {
-    apiVersion: 'kustomize.config.k8s.io/v1beta1',
-    kind: 'Kustomization',
-    resources: [...files.keys()].sort(),
-  };
 
   const { dependsOn, timeout } = overrides.kustomization ?? {};
   const app = {
@@ -102,12 +110,12 @@ export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<strin
     metadata: {
       name: plan.name,
       namespace: FLUX_NAMESPACE,
-      annotations: { [APP_ANNOTATION]: plan.name },
+      annotations: { [APP_ANNOTATION]: plan.name, ...PRUNE_DISABLED },
     },
     spec: {
       interval: '1h',
-      sourceRef: { kind: 'OCIRepository', name: BUNDLE_SOURCE, namespace: FLUX_NAMESPACE },
-      path: `./${bundlePath(plan)}/app`,
+      sourceRef: { kind: 'OCIRepository', name: CLUSTER_SOURCE, namespace: FLUX_NAMESPACE },
+      path: `./${appPath(plan)}/app`,
       prune: true,
       wait: true,
       timeout: timeout ?? '5m',
@@ -115,10 +123,10 @@ export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<strin
     },
   };
 
-  const dir = `${plan.directory}/flux`;
+  const dir = fluxDir(plan);
   return new Map([
     [`${dir}/ks.yaml`, document([app], schemaFor(app))],
-    [`${dir}/app/kustomization.yaml`, document([kustomize], KUSTOMIZE_SCHEMA)],
+    [`${dir}/app/kustomization.yaml`, kustomizationDocument([...files.keys()].sort())],
     ...[...files].map(([file, content]): [string, string] => [`${dir}/app/${file}`, content]),
   ]);
 }

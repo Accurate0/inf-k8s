@@ -1,9 +1,0 @@
-# generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T13:32:26.502Z
-# yaml-language-server: $schema=https://json.schemastore.org/kustomization
-apiVersion: kustomize.config.k8s.io/v1beta1
-kind: Kustomization
-resources:
-  - helmrelease.yaml
-  - namespace.yaml
-  - ocirepository.yaml

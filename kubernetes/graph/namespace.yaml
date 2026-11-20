@@ -1,0 +1,10 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.657Z
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: graph
+  labels:
+    internal-gateway-access: "true"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled

@@ -1,0 +1,146 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.039Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: anurag-sh-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: anurag-sh
+spec:
+  interval: 1h
+  releaseName: anurag-sh-k8s-workload
+  targetNamespace: anurag-sh
+  storageNamespace: anurag-sh
+  chartRef:
+    kind: OCIRepository
+    name: anurag-sh-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      registry.anurag.sh/containers/anurag-sh: 57aaa4616d90991cb0a1b072856bcf61d10b9dcb
+    namespace: anurag-sh
+    namespaceLabels:
+      gateway.inf-k8s.net/anurag-sh: "true"
+      gateway.inf-k8s.net/anurag-id-au: "true"
+    workloads:
+      - name: anurag-sh
+        image: registry.anurag.sh/containers/anurag-sh
+        resources:
+          requests:
+            memory: 16Mi
+        ports:
+          - name: http
+            containerPort: 3000
+        service:
+          name: anurag-sh
+          ports:
+            - name: http
+              port: 80
+              targetPort: 3000
+              protocol: TCP
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: anurag-sh-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: anurag-sh
+spec:
+  interval: 1h
+  releaseName: anurag-sh-k8s-network
+  targetNamespace: anurag-sh
+  storageNamespace: anurag-sh
+  chartRef:
+    kind: OCIRepository
+    name: anurag-sh-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: anurag-sh
+    ingress:
+      - envoy-gateway-system
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: anurag-sh-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: anurag-sh
+spec:
+  interval: 1h
+  releaseName: anurag-sh-k8s-http-routes
+  targetNamespace: anurag-sh
+  storageNamespace: anurag-sh
+  chartRef:
+    kind: OCIRepository
+    name: anurag-sh-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: anurag-sh-route
+        gateway:
+          name: public-gateway
+          namespace: envoy-gateway-system
+        annotations:
+          external-dns.kubernetes.io/managed: "true"
+          external-dns.kubernetes.io/cloudflare-proxied: "true"
+        hostnames:
+          - anurag.sh
+          - anurag.id.au
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: anurag-sh
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /

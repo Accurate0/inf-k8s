@@ -1,6 +1,12 @@
 name: Publish apps
-# dispatched by the registry after a promotion moves an image's deploy tag
+# dispatched by the registry after a promotion moves an image's deploy tag, and on kubernetes/ changes
 on:
+  push:
+    branches:
+      - main
+    paths:
+      - kubernetes/**
+      - .forgejo/workflows/publish-apps.yaml
   workflow_dispatch:
 
 enable-openid-connect: true

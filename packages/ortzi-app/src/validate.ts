@@ -8,7 +8,13 @@ export interface RenderedOutput {
 
 const SCHEMA_BASE = 'https://k8s-schemas.anurag.sh';
 const CACHE_ROOT = '.cache/kubeconform';
-const MANIFEST_ROOTS = ['system-components', 'platform-services', 'projects', 'selfhosted'];
+const MANIFEST_ROOTS = [
+  'system-components',
+  'platform-services',
+  'projects',
+  'selfhosted',
+  'kubernetes',
+];
 const SKIPPED_DIRS = new Set(['node_modules', 'target', 'dist', '.git']);
 
 function schemaVersion(): string | undefined {

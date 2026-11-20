@@ -1,0 +1,404 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.315Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: janitor-bot-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: janitor-bot
+spec:
+  interval: 1h
+  releaseName: janitor-bot-k8s-workload
+  targetNamespace: janitor-bot
+  storageNamespace: janitor-bot
+  chartRef:
+    kind: OCIRepository
+    name: janitor-bot-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      registry.anurag.sh/containers/janitor-bot: 08bcf3e9a1da3d181cf9e255cf2ec49ecbfe065c
+    namespace: janitor-bot
+    namespaceLabels:
+      internal-gateway-access: "true"
+      gateway.inf-k8s.net/anurag-sh: "true"
+    workloads:
+      - name: janitor-bot
+        image: registry.anurag.sh/containers/janitor-bot
+        resources:
+          requests:
+            memory: 32Mi
+        ports:
+          - name: http
+            containerPort: 3000
+        env:
+          - name: OIDC_ISSUER
+            value: https://idm.anurag.sh/oauth2/openid/janitor-bot
+          - name: OIDC_AUDIENCE
+            value: janitor-bot
+          - name: OIDC_GROUPS
+            value: janitor_bot_admins
+          - name: OIDC_PROVIDERS
+            value: https://idm.anurag.sh/oauth2/openid/graph=graph
+          - name: RULES_CONFIGMAP_PATH
+            value: /etc/janitor-bot/rules/config.yaml
+          - name: ARGOCD_SERVER
+            value: http://argocd-server.argocd.svc.cluster.local:80
+          - name: FORGEJO_INSTANCE_URL
+            value: http://forgejo-http.forgejo.svc.cluster.local:3000
+          - name: OTEL_TRACING_URL
+            value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+          - name: FEATURE_FLAGS_URL
+            value: http://api.feature-flags.svc.cluster.local:50051
+          - name: HARBOR_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: janitor-bot-harbor-secrets
+                key: USERNAME
+          - name: HARBOR_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: janitor-bot-harbor-secrets
+                key: PASSWORD
+        envFrom:
+          - secretRef:
+              name: janitor-bot-managed-secrets
+        service:
+          name: api
+          ports:
+            - name: http
+              port: 80
+              targetPort: 3000
+              protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 15
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 3000
+          initialDelaySeconds: 5
+          periodSeconds: 60
+        volumes:
+          - name: tmp
+            emptyDir: {}
+          - name: rules
+            configMap:
+              name: janitor-bot-rules
+              items:
+                - key: config.yaml
+                  path: config.yaml
+                - key: manage-ci-image-updater.yaml
+                  path: rules/manage-ci-image-updater.yaml
+                - key: manage-renovate-workflows.yaml
+                  path: rules/manage-renovate-workflows.yaml
+                - key: manage-renovate-dockerfiles.yaml
+                  path: rules/manage-renovate-dockerfiles.yaml
+                - key: automerge-renovate-terraform.yaml
+                  path: rules/automerge-renovate-terraform.yaml
+                - key: automerge-renovate-rust.yaml
+                  path: rules/automerge-renovate-rust.yaml
+                - key: retry-renovate-workflow.yaml
+                  path: rules/retry-renovate-workflow.yaml
+                - key: argocd-diff-renovate.yaml
+                  path: rules/argocd-diff-renovate.yaml
+                - key: mirror-commit-status.yaml
+                  path: rules/mirror-commit-status.yaml
+                - key: argocd-sync-status.yaml
+                  path: rules/argocd-sync-status.yaml
+                - key: forward-push-to-argocd.yaml
+                  path: rules/forward-push-to-argocd.yaml
+                - key: cleanup-on-merge.yaml
+                  path: rules/cleanup-on-merge.yaml
+                - key: merge-on-label.yaml
+                  path: rules/merge-on-label.yaml
+                - key: clear-queued-on-unmergeable.yaml
+                  path: rules/clear-queued-on-unmergeable.yaml
+                - key: label-eink-firmware-update.yaml
+                  path: rules/label-eink-firmware-update.yaml
+        volumeMounts:
+          - name: tmp
+            mountPath: /tmp
+          - name: rules
+            mountPath: /etc/janitor-bot/rules
+            readOnly: true
+        strategy:
+          type: RollingUpdate
+          rollingUpdate:
+            maxUnavailable: 0
+            maxSurge: 1
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: janitor-bot-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: janitor-bot
+spec:
+  interval: 1h
+  releaseName: janitor-bot-k8s-network
+  targetNamespace: janitor-bot
+  storageNamespace: janitor-bot
+  chartRef:
+    kind: OCIRepository
+    name: janitor-bot-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: janitor-bot
+    ingress:
+      - envoy-gateway-system
+      - monitoring
+      - argocd
+      - forgejo
+      - graph
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: janitor-bot-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: janitor-bot
+spec:
+  interval: 1h
+  releaseName: janitor-bot-k8s-http-routes
+  targetNamespace: janitor-bot
+  storageNamespace: janitor-bot
+  chartRef:
+    kind: OCIRepository
+    name: janitor-bot-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: janitor-bot-route
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - janitor-bot.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: api
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+      - name: janitor-bot-public-route
+        gateway:
+          name: public-gateway
+          namespace: envoy-gateway-system
+        annotations:
+          external-dns.kubernetes.io/managed: "true"
+          external-dns.kubernetes.io/cloudflare-proxied: "true"
+        hostnames:
+          - janitor-bot.anurag.sh
+        ratelimit:
+          rules:
+            - clientSelectors:
+                - headers:
+                    - name: x-real-ip
+                      invert: false
+                      type: Distinct
+              limit:
+                requests: 5
+                unit: Second
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: api
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: Exact
+                  value: /github/webhook
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: janitor-bot-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: janitor-bot
+spec:
+  interval: 1h
+  releaseName: janitor-bot-k8s-oidc
+  targetNamespace: janitor-bot
+  storageNamespace: janitor-bot
+  chartRef:
+    kind: OCIRepository
+    name: janitor-bot-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: janitor-bot
+        namespace: janitor-bot
+        secretName: kanidm-janitor-bot-oidc
+        displayName: Janitor Bot
+        preferShortUsername: true
+        host: janitor-bot.ortzi.cloud
+        public: true
+        allowLocalhostRedirect: true
+        scopes:
+          - openid
+          - email
+          - profile
+          - groups
+        secretNamespace: janitor-bot
+        annotations:
+          inf-k8s.net/app: janitor-bot
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: janitor-bot-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: janitor-bot
+spec:
+  interval: 1h
+  releaseName: janitor-bot-k8s-secrets
+  targetNamespace: janitor-bot
+  storageNamespace: janitor-bot
+  chartRef:
+    kind: OCIRepository
+    name: janitor-bot-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: janitor-bot
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: janitor-bot
+        inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    secrets:
+      - name: janitor-bot
+        managedSecrets:
+          - secretName: janitor-bot-managed-secrets
+      - name: harbor
+        managedSecrets:
+          - secretName: janitor-bot-harbor-secrets
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: janitor-bot-k8s-observability
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: janitor-bot
+spec:
+  interval: 1h
+  releaseName: janitor-bot-k8s-observability
+  targetNamespace: janitor-bot
+  storageNamespace: janitor-bot
+  chartRef:
+    kind: OCIRepository
+    name: janitor-bot-k8s-observability
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    name: janitor-bot
+    namespace: janitor-bot
+    path: /admin/metrics
+    port: http
+    interval: 30s

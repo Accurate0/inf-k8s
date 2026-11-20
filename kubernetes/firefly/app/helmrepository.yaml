@@ -1,0 +1,24 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T14:48:21.484Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/helmrepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: firefly-firefly-iii
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  url: https://firefly-iii.github.io/kubernetes/
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: firefly-firefly-importer
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly
+spec:
+  interval: 1h
+  url: https://firefly-iii.github.io/kubernetes/

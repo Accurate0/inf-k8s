@@ -46,9 +46,11 @@ import {
   workloadImages,
   type World,
 } from './render';
-import { publishArtifact, publishBundle } from './hydrate';
+import { publishArtifact, publishCluster } from './hydrate';
 import { promotions, releaseTag } from './registry';
 import { renderOutputs } from './outputs';
+import { type ClusterTree, renderFluxIndex } from './outputs/flux-index';
+import { appPath, CLUSTER_ROOT } from './outputs/flux';
 import { planApp } from './plan';
 import { generatedFiles } from './files';
 import { appTerraformPath, renderAppTerraform, TERRAFORM_APPS } from './terraform';
@@ -90,9 +92,9 @@ definition (run from the root of the k8s repo):
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
   publish [app...]         push the kustomize build of each app with an artifact and manifests to its oci
-                           repo (default: all of them), then push every app's application.yaml,
-                           bootstrap apps aside, to the platform/apps.yaml bundle; unchanged pushes
-                           are skipped
+                           repo (default: all of them), then push kubernetes/ with promoted images
+                           stamped into each app as the platform/apps.yaml cluster artifact;
+                           unchanged pushes are skipped
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
 
@@ -303,7 +305,38 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
     }
   }
 
+  const plans = apps.map(({ app, target }) => planApp(app, versions, target, world));
+  for (const [path, wanted] of renderFluxIndex(
+    plans.filter((plan) => plan.artifact),
+    clusterTree(),
+  )) {
+    if (force || !fs.exists(path) || !isCurrent(fs.readText(path), wanted)) {
+      stale.push({ path, wanted: stamped(wanted, new Date()) });
+    }
+  }
+
   return stale;
+}
+
+function clusterTree(): ClusterTree {
+  const dirs = (path: string) =>
+    fs.exists(path)
+      ? fs
+          .readDir(path)
+          .filter((entry) => entry.dir)
+          .map((entry) => entry.name)
+      : [];
+
+  const namespaces = dirs(CLUSTER_ROOT);
+  const components = namespaces.flatMap((namespace) =>
+    dirs(`${CLUSTER_ROOT}/${namespace}`)
+      .map((name) => `${namespace}/${name}/ks.yaml`)
+      .filter((path) => {
+        const file = `${CLUSTER_ROOT}/${path}`;
+        return fs.exists(file) && !fs.readText(file).startsWith(HEADER);
+      }),
+  );
+  return { namespaces, components };
 }
 
 function staleWorkflows(apps: App[]): string[] {
@@ -434,7 +467,11 @@ function publish(names: string[]): number {
     throw new UsageError(`no app with an artifact named ${unknown.join(', ')}`);
   }
 
-  const dirs = [...apps.map(({ app, target }) => `${target.location}/${app.name}`), APPS_BUNDLE];
+  const dirs = [
+    ...apps.map(({ app, target }) => `${target.location}/${app.name}`),
+    APPS_BUNDLE,
+    CLUSTER_ROOT,
+  ];
   if (capture('git', ['status', '--porcelain', '--', ...dirs]).trim()) {
     console.error(`uncommitted changes in ${dirs.join(', ')}; commit before publishing`);
     return 1;
@@ -447,37 +484,34 @@ function publish(names: string[]): number {
     }
   }
 
-  const {
-    artifact,
-    bootstrap,
-    flux = [],
-  } = parse(fs.readText(APPS_BUNDLE)) as {
+  const { artifact, bootstrap } = parse(fs.readText(APPS_BUNDLE)) as {
     artifact: { repo: string; tag: string };
     bootstrap: string[];
-    flux?: string[];
   };
   const missing = bootstrap.filter((name) => !apps.some(({ app }) => app.name === name));
   if (missing.length) {
     throw new Error(`${APPS_BUNDLE}: bootstrap names unknown apps ${missing.join(', ')}`);
   }
-  const notFlux = flux.filter((name) => !apps.some(({ app }) => app.name === name && app.artifact));
-  if (notFlux.length) {
-    throw new Error(`${APPS_BUNDLE}: flux names apps without an artifact ${notFlux.join(', ')}`);
-  }
 
-  publishBundle(
+  publishCluster(
     {
       ...artifact,
-      applications: apps
-        .filter(({ app }) => !bootstrap.includes(app.name))
+      root: CLUSTER_ROOT,
+      apps: apps
+        .filter(({ app }) => app.artifact && !bootstrap.includes(app.name))
         .map(({ app, target }) => {
-          const dir = `${target.location}/${app.name}`;
+          const plan = planApp(app, versions, target, world);
           return {
-            location: target.location,
             name: app.name,
-            path: `${dir}/application.yaml`,
-            ...(flux.includes(app.name) ? { flux: `${dir}/flux` } : {}),
-            revision: capture('git', ['log', '-1', '--format=%H', '--', dir]).trim(),
+            path: appPath(plan),
+            revision: capture('git', [
+              'log',
+              '-1',
+              '--format=%H',
+              '--',
+              plan.directory,
+              `${CLUSTER_ROOT}/${appPath(plan)}`,
+            ]).trim(),
             releases: releaseImages(app),
           };
         }),

@@ -1,8 +1,0 @@
-# generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T13:32:26.502Z
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: firefly-up-sync
-  annotations:
-    kustomize.toolkit.fluxcd.io/prune: disabled

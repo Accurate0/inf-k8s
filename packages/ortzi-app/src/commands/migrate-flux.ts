@@ -80,7 +80,7 @@ export function migrateFlux(kube: Kube, name: string, yes: boolean, minutes: num
   if (app && !ks) {
     detach(kube, app, yes);
     console.log(
-      `next: add ${name} to flux in platform/apps.yaml and push; once publish-apps has run, rerun this`,
+      `next: render ${name} into kubernetes/ and publish; once flux has its kustomization, rerun this`,
     );
     return 0;
   }
