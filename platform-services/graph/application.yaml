@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-19T15:52:51.601Z
+# generated at 2026-11-20T13:25:04.653Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -18,7 +18,7 @@ spec:
   sources:
     - chart: k8s-workload
       repoURL: oci://registry.anurag.sh/charts/k8s-workload
-      targetRevision: 0.6.0
+      targetRevision: 0.7.0
       helm:
         valuesObject:
           images:
