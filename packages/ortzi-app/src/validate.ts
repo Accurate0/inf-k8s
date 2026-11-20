@@ -82,11 +82,14 @@ export function validateManifests(
   };
 
   const apps = [...generated].filter(([path]) => selected(path));
+  const templated = new Set<Plan>();
   console.error(`validating ${apps.length} apps`);
   for (const [path, { content, plan }] of apps) {
     const before = failures.length;
     const documents = [content];
-    for (const { args, values } of helmTemplates(plan)) {
+    const templates = templated.has(plan) ? [] : helmTemplates(plan);
+    templated.add(plan);
+    for (const { args, values } of templates) {
       const output = run('helm', args, {
         stdin: values,
         stdout: 'piped',

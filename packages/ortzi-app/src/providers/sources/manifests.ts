@@ -1,5 +1,6 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { SourceProvider } from '../provider.ts';
+import { kustomization, manifestsRepository } from '../../flux-objects.ts';
 
 export interface ManifestsSource {
   type: 'manifests';
@@ -62,5 +63,17 @@ export const manifests: SourceProvider<'manifests'> = {
     }
 
     return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
+  },
+
+  flux(plan) {
+    if (!plan.artifact) {
+      throw new Error(`${plan.name}: flux reads manifests from the artifact; set artifact`);
+    }
+
+    const name = `${plan.name}-manifests`;
+    return [
+      manifestsRepository(plan, name, plan.artifact.repo, plan.artifact.tag),
+      kustomization(plan, name, { kind: 'OCIRepository', name }, './'),
+    ];
   },
 };

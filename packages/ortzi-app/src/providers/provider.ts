@@ -3,6 +3,7 @@ import type { Schema } from 'jsonschema/lib/index.js';
 import type { App, Target, World } from '../types.ts';
 import type { Check } from '../checks.ts';
 import type { Refs } from '../workload.ts';
+import type { FluxObject } from '../flux-objects.ts';
 
 // Each provider file adds itself here with `declare module './provider.ts'`.
 export interface ResourceTypes {}
@@ -141,6 +142,7 @@ export interface SourceProvider<T extends SourceType = SourceType> {
   files?(app: App, source: SourceTypes[T]['source']): string[];
   plan(ctx: PlanContext, source: SourceTypes[T]['source']): SourceTypes[T]['plan'];
   application(plan: Plan, source: SourceTypes[T]['plan']): Record<string, unknown>;
+  flux(plan: Plan, source: SourceTypes[T]['plan']): FluxObject[];
   helmTemplate?(
     plan: Plan,
     source: SourceTypes[T]['plan'],

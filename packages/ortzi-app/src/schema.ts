@@ -139,6 +139,44 @@ export const APP_SCHEMA: Schema = {
             },
           },
         },
+        flux: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            kustomization: {
+              description: 'Change the rendered per-app Flux Kustomization.',
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                dependsOn: {
+                  type: 'array',
+                  description: 'Apps whose Kustomization must be ready before this one applies.',
+                  items: {
+                    type: 'string',
+                  },
+                },
+                timeout: {
+                  type: 'string',
+                  description: 'How long to wait for the app to become ready. Defaults to 5m.',
+                },
+              },
+            },
+            helmRelease: {
+              description: 'Change every rendered HelmRelease.',
+              type: 'object',
+              additionalProperties: false,
+              properties: {
+                driftIgnore: {
+                  type: 'array',
+                  description: 'driftDetection.ignore rules: JSON pointers Flux does not correct.',
+                  items: {
+                    type: 'object',
+                  },
+                },
+              },
+            },
+          },
+        },
       },
     },
     build: {

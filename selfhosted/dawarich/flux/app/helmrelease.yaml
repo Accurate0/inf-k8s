@@ -1,0 +1,628 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T13:35:01.340Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-workload
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      freikin/dawarich: 1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
+      rtuszik/photon-docker: 2.3.0@sha256:827cedf9fa3337e657611d62ada669def75dff61c56b51ae55056155d1a9b236
+    namespace: dawarich
+    namespaceLabels:
+      gateway.inf-k8s.net/anurag-sh: "true"
+    workloads:
+      - name: dawarich
+        image: freikin/dawarich
+        replicas: 1
+        command:
+          - web-entrypoint.sh
+        args:
+          - bin/rails
+          - server
+          - -p
+          - "3000"
+          - -b
+          - "::"
+        resources:
+          requests:
+            cpu: 100m
+            memory: 512Mi
+          limits:
+            memory: 2Gi
+        ports:
+          - name: http
+            containerPort: 3000
+        env:
+          - name: RAILS_ENV
+            value: production
+          - name: RAILS_LOG_TO_STDOUT
+            value: "true"
+          - name: SELF_HOSTED
+            value: "true"
+          - name: STORE_GEODATA
+            value: "true"
+          - name: APPLICATION_HOSTS
+            value: timeline.anurag.sh
+          - name: APPLICATION_PROTOCOL
+            value: http
+          - name: TIME_ZONE
+            value: Australia/Perth
+          - name: REDIS_URL
+            value: redis://cache.dragonfly.svc.cluster.local
+          - name: RAILS_JOB_QUEUE_DB
+            value: "1"
+          - name: OIDC_ISSUER
+            value: https://idm.anurag.sh/oauth2/openid/dawarich
+          - name: OIDC_REDIRECT_URI
+            value: https://timeline.anurag.sh/users/auth/openid_connect/callback
+          - name: OIDC_PROVIDER_NAME
+            value: Kanidm
+          - name: OIDC_AUTO_REGISTER
+            value: "true"
+          - name: OIDC_PKCE_ENABLED
+            value: "true"
+          - name: PHOTON_API_USE_HTTPS
+            value: "false"
+          - name: PHOTON_API_HOST
+            value: photon:2322
+          - name: ALLOW_EMAIL_PASSWORD_REGISTRATION
+            value: "false"
+          - name: ALLOW_EMAIL_PASSWORD_LOGIN
+            value: "false"
+          - name: BACKGROUND_PROCESSING_CONCURRENCY
+            value: "5"
+          - name: DATABASE_HOST
+            valueFrom:
+              secretKeyRef:
+                name: dawarich-db-credentials
+                key: PGHOST
+          - name: DATABASE_PORT
+            valueFrom:
+              secretKeyRef:
+                name: dawarich-db-credentials
+                key: PGPORT
+          - name: DATABASE_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: dawarich-db-credentials
+                key: PGUSER
+          - name: DATABASE_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: dawarich-db-credentials
+                key: PGPASSWORD
+          - name: DATABASE_NAME
+            valueFrom:
+              secretKeyRef:
+                name: dawarich-db-credentials
+                key: PGDATABASE
+          - name: SECRET_KEY_BASE
+            valueFrom:
+              secretKeyRef:
+                name: dawarich-managed-secrets
+                key: SECRET_KEY_BASE
+          - name: OIDC_CLIENT_ID
+            valueFrom:
+              secretKeyRef:
+                name: kanidm-dawarich-oidc
+                key: client-id
+          - name: OIDC_CLIENT_SECRET
+            valueFrom:
+              secretKeyRef:
+                name: kanidm-dawarich-oidc
+                key: client-secret
+        sidecars:
+          - name: sidekiq
+            image: freikin/dawarich
+            command:
+              - sidekiq-entrypoint.sh
+            args:
+              - sidekiq
+            resources:
+              requests:
+                cpu: 100m
+                memory: 512Mi
+              limits:
+                memory: 2Gi
+            env:
+              - name: RAILS_ENV
+                value: production
+              - name: RAILS_LOG_TO_STDOUT
+                value: "true"
+              - name: SELF_HOSTED
+                value: "true"
+              - name: STORE_GEODATA
+                value: "true"
+              - name: APPLICATION_HOSTS
+                value: timeline.anurag.sh
+              - name: APPLICATION_PROTOCOL
+                value: http
+              - name: TIME_ZONE
+                value: Australia/Perth
+              - name: REDIS_URL
+                value: redis://cache.dragonfly.svc.cluster.local
+              - name: RAILS_JOB_QUEUE_DB
+                value: "1"
+              - name: OIDC_ISSUER
+                value: https://idm.anurag.sh/oauth2/openid/dawarich
+              - name: OIDC_REDIRECT_URI
+                value: https://timeline.anurag.sh/users/auth/openid_connect/callback
+              - name: OIDC_PROVIDER_NAME
+                value: Kanidm
+              - name: OIDC_AUTO_REGISTER
+                value: "true"
+              - name: OIDC_PKCE_ENABLED
+                value: "true"
+              - name: PHOTON_API_USE_HTTPS
+                value: "false"
+              - name: PHOTON_API_HOST
+                value: photon:2322
+              - name: ALLOW_EMAIL_PASSWORD_REGISTRATION
+                value: "false"
+              - name: ALLOW_EMAIL_PASSWORD_LOGIN
+                value: "false"
+              - name: BACKGROUND_PROCESSING_CONCURRENCY
+                value: "5"
+              - name: DATABASE_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-credentials
+                    key: PGHOST
+              - name: DATABASE_PORT
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-credentials
+                    key: PGPORT
+              - name: DATABASE_USERNAME
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-credentials
+                    key: PGUSER
+              - name: DATABASE_PASSWORD
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-credentials
+                    key: PGPASSWORD
+              - name: DATABASE_NAME
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-db-credentials
+                    key: PGDATABASE
+              - name: SECRET_KEY_BASE
+                valueFrom:
+                  secretKeyRef:
+                    name: dawarich-managed-secrets
+                    key: SECRET_KEY_BASE
+              - name: OIDC_CLIENT_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: kanidm-dawarich-oidc
+                    key: client-id
+              - name: OIDC_CLIENT_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: kanidm-dawarich-oidc
+                    key: client-secret
+            livenessProbe:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - pgrep -f sidekiq
+              initialDelaySeconds: 60
+              periodSeconds: 60
+            volumeMounts:
+              - name: storage
+                mountPath: /var/app/storage
+              - name: public
+                mountPath: /var/app/public
+              - name: watched
+                mountPath: /var/app/tmp/imports/watched
+        runAsNonRoot: false
+        service:
+          name: dawarich
+          ports:
+            - name: http
+              port: 80
+              targetPort: 3000
+              protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 20
+          periodSeconds: 30
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /api/v1/health
+            port: http
+          initialDelaySeconds: 60
+          periodSeconds: 60
+          timeoutSeconds: 5
+        volumes:
+          - name: storage
+            persistentVolumeClaim:
+              claimName: dawarich-storage
+          - name: public
+            emptyDir: {}
+          - name: watched
+            emptyDir: {}
+        volumeMounts:
+          - name: storage
+            mountPath: /var/app/storage
+          - name: public
+            mountPath: /var/app/public
+          - name: watched
+            mountPath: /var/app/tmp/imports/watched
+        strategy:
+          type: Recreate
+      - name: photon
+        image: rtuszik/photon-docker
+        replicas: 1
+        resources:
+          requests:
+            cpu: 250m
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+        ports:
+          - name: http
+            containerPort: 2322
+        env:
+          - name: UPDATE_STRATEGY
+            value: DISABLED
+        runAsNonRoot: false
+        service:
+          name: photon
+          ports:
+            - name: http
+              port: 2322
+              targetPort: 2322
+              protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /status
+            port: http
+          periodSeconds: 60
+          timeoutSeconds: 5
+          failureThreshold: 1440
+        readinessProbe:
+          httpGet:
+            path: /status
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /status
+            port: http
+          periodSeconds: 60
+          timeoutSeconds: 5
+        volumes:
+          - name: photon-data
+            persistentVolumeClaim:
+              claimName: dawarich-photon-data
+        volumeMounts:
+          - name: photon-data
+            mountPath: /photon/data
+        strategy:
+          type: Recreate
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: kubernetes.io/hostname
+                      operator: In
+                      values:
+                        - k8s-optiplex-4
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-network
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: dawarich
+    ingress:
+      - envoy-gateway-system
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-http-routes
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: dawarich
+        gateway:
+          name: public-gateway
+          namespace: envoy-gateway-system
+        annotations:
+          external-dns.kubernetes.io/managed: "true"
+          external-dns.kubernetes.io/cloudflare-proxied: "false"
+        hostnames:
+          - timeline.anurag.sh
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: dawarich
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            timeouts:
+              request: 90s
+              backendRequest: 90s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-oidc
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: dawarich
+        namespace: dawarich
+        secretName: kanidm-dawarich-oidc
+        host: timeline.anurag.sh
+        displayName: Dawarich
+        callbackPath: /users/auth/openid_connect/callback
+        preferShortUsername: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        secretNamespace: dawarich
+        annotations:
+          inf-k8s.net/app: dawarich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-postgres
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-postgres
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-postgres
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    databases:
+      - name: dawarich
+        namespace: dawarich
+        databaseName: dawarich_2
+        secretName: dawarich-db-credentials
+        host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+        annotations:
+          inf-k8s.net/app: dawarich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-secrets
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: dawarich
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: dawarich
+        inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    secrets:
+      - name: dawarich
+        managedSecrets:
+          - secretName: dawarich-managed-secrets
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: dawarich-k8s-storage
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dawarich
+spec:
+  interval: 1h
+  releaseName: dawarich-k8s-storage
+  targetNamespace: dawarich
+  storageNamespace: dawarich
+  chartRef:
+    kind: OCIRepository
+    name: dawarich-k8s-storage
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    volumes:
+      - name: dawarich-storage
+        namespace: dawarich
+        storageClass: longhorn-replicated
+        size: 20Gi
+        access: ReadWriteOnce
+        labels:
+          recurring-job.longhorn.io/source: enabled
+          recurring-job-group.longhorn.io/daily-backup: enabled
+        annotations:
+          inf-k8s.net/app: dawarich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+      - name: dawarich-photon-data
+        namespace: dawarich
+        storageClass: longhorn-local
+        size: 400Gi
+        access: ReadWriteOnce
+        annotations:
+          inf-k8s.net/app: dawarich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep

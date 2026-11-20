@@ -1,0 +1,438 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T13:35:01.475Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-workload
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      ghcr.io/immich-app/immich-server: v3.3.5@sha256:485d546a2e31d6a8b4db8423fcba5c109de8c218d93410af115fd1ccfc4352a6
+    namespace: immich
+    workloads:
+      - name: immich-server
+        image: ghcr.io/immich-app/immich-server
+        replicas: 1
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            memory: 4Gi
+        ports:
+          - name: http
+            containerPort: 2283
+        env:
+          - name: TZ
+            value: Australia/Perth
+          - name: IMMICH_CONFIG_FILE
+            value: /config/immich.json
+          - name: IMMICH_TRUSTED_PROXIES
+            value: 10.42.0.0/16
+          - name: IMMICH_ALLOW_SETUP
+            value: "false"
+          - name: DB_VECTOR_EXTENSION
+            value: vectorchord
+          - name: REDIS_HOSTNAME
+            value: cache.dragonfly.svc.cluster.local
+          - name: DB_HOSTNAME
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: PGHOST
+          - name: DB_PORT
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: PGPORT
+          - name: DB_USERNAME
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: PGUSER
+          - name: DB_PASSWORD
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: PGPASSWORD
+          - name: DB_DATABASE_NAME
+            valueFrom:
+              secretKeyRef:
+                name: immich-db-credentials
+                key: PGDATABASE
+        runAsNonRoot: false
+        service:
+          name: immich-server
+          ports:
+            - name: http
+              port: 80
+              targetPort: 2283
+              protocol: TCP
+        startupProbe:
+          httpGet:
+            path: /api/server/ping
+            port: http
+          periodSeconds: 10
+          failureThreshold: 60
+        readinessProbe:
+          httpGet:
+            path: /api/server/ping
+            port: http
+          periodSeconds: 30
+          timeoutSeconds: 5
+        livenessProbe:
+          httpGet:
+            path: /api/server/ping
+            port: http
+          periodSeconds: 60
+          timeoutSeconds: 5
+        volumes:
+          - name: library
+            persistentVolumeClaim:
+              claimName: immich-library
+          - name: config
+            secret:
+              secretName: immich-config-rendered
+              items:
+                - key: immich.json
+                  path: immich.json
+        volumeMounts:
+          - name: library
+            mountPath: /data
+          - name: config
+            mountPath: /config
+            readOnly: true
+        strategy:
+          type: Recreate
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: inf-k8s.net/location
+                      operator: In
+                      values:
+                        - perth
+          podAntiAffinity:
+            preferredDuringSchedulingIgnoredDuringExecution:
+              - weight: 100
+                podAffinityTerm:
+                  topologyKey: kubernetes.io/hostname
+                  labelSelector:
+                    matchLabels:
+                      app: immich-server
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-network
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: immich
+    ingress:
+      - envoy-gateway-system
+      - home-gateway
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-http-routes
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: immich
+        gateway:
+          name: public-gateway
+          namespace: envoy-gateway-system
+        annotations:
+          external-dns.kubernetes.io/managed: "true"
+          external-dns.kubernetes.io/cloudflare-proxied: "false"
+        hostnames:
+          - photos.anurag.sh
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: immich-server
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /
+            timeouts:
+              request: 3600s
+              backendRequest: 3600s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-oidc
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: immich
+        namespace: immich
+        secretName: kanidm-immich-oidc
+        host: photos.anurag.sh
+        displayName: Immich
+        callbackPath: /auth/login
+        extraRedirectUrls:
+          - https://photos.anurag.sh/user-settings
+          - https://photos.anurag.sh/api/oauth/mobile-redirect
+        preferShortUsername: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        claimMaps:
+          immich_role:
+            join: ssv
+            valuesByGroup:
+              immich_admins:
+                - admin
+        secretNamespace: immich
+        annotations:
+          inf-k8s.net/app: immich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-postgres
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-postgres
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-postgres
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    databases:
+      - name: immich
+        namespace: immich
+        databaseName: immich
+        secretName: immich-db-credentials
+        host: cloudnative-pg-cluster-rw.cnpg-system
+        annotations:
+          inf-k8s.net/app: immich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-secrets
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: immich
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: immich
+        inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    secrets: []
+    templates:
+      - secretName: immich-config-rendered
+        configMap: immich-config
+        files:
+          - immich.json
+        values:
+          - name: OIDC_CLIENT_ID
+            secret: kanidm-immich-oidc
+            key: client-id
+          - name: OIDC_CLIENT_SECRET
+            secret: kanidm-immich-oidc
+            key: client-secret
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: immich-k8s-storage
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: immich
+spec:
+  interval: 1h
+  releaseName: immich-k8s-storage
+  targetNamespace: immich
+  storageNamespace: immich
+  chartRef:
+    kind: OCIRepository
+    name: immich-k8s-storage
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    volumes:
+      - name: immich-library
+        namespace: immich
+        storageClass: nfs-k8s-perth
+        size: 1Ti
+        access: ReadWriteMany
+        annotations:
+          inf-k8s.net/app: immich
+          inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    retainAnnotations:
+      argocd.argoproj.io/sync-options: Prune=false,Delete=false
+      helm.sh/resource-policy: keep

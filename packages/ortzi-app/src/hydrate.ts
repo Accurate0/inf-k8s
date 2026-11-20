@@ -1,6 +1,7 @@
 import { capture, fs, pushDir } from '@ortzi/host';
+import { stringify } from 'yaml';
 import type { Plan } from './plan';
-import { stampRevision } from './stamp';
+import { stampFlux, stampRevision } from './stamp';
 
 export { stampRevision } from './stamp';
 
@@ -13,9 +14,19 @@ export interface Bundle {
     location: string;
     name: string;
     path: string;
+    flux?: string;
     revision: string;
     releases: string[];
   }[];
+}
+
+// Every file under dir, relative to it.
+function files(dir: string, prefix = ''): string[] {
+  return fs
+    .readDir(`${dir}${prefix}`)
+    .flatMap((entry) =>
+      entry.dir ? files(dir, `${prefix}/${entry.name}`) : [`${prefix}/${entry.name}`.slice(1)],
+    );
 }
 
 function freshDir(dir: string) {
@@ -49,7 +60,9 @@ export function publishBundle(
   freshDir(dir);
 
   const tags = resolve([...new Set(bundle.applications.flatMap((a) => a.releases))]);
-  for (const { location, name, path, revision: appRevision, releases } of bundle.applications) {
+  const fluxApps = new Map<string, string[]>();
+  for (const application of bundle.applications) {
+    const { location, name, path, flux, revision: appRevision, releases } = application;
     const images = Object.fromEntries(
       releases.map((image) => {
         const tag = tags.get(image);
@@ -59,10 +72,34 @@ export function publishBundle(
         return [image, tag];
       }),
     );
+
+    if (flux) {
+      const rendered = new Map(files(flux).map((file) => [file, fs.readText(`${flux}/${file}`)]));
+      for (const [file, content] of stampFlux(rendered, appRevision, images)) {
+        const target = `${dir}/flux/${location}/${name}/${file}`;
+        fs.mkdir(target.slice(0, target.lastIndexOf('/')));
+        fs.write(target, content);
+      }
+      fluxApps.set(location, [...(fluxApps.get(location) ?? []), name]);
+      continue;
+    }
+
     fs.mkdir(`${dir}/${location}`);
     fs.write(
       `${dir}/${location}/${name}.yaml`,
       stampRevision(fs.readText(path), appRevision, images),
+    );
+  }
+
+  for (const location of new Set(bundle.applications.map((a) => a.location))) {
+    fs.mkdir(`${dir}/flux/${location}`);
+    fs.write(
+      `${dir}/flux/${location}/kustomization.yaml`,
+      stringify({
+        apiVersion: 'kustomize.config.k8s.io/v1beta1',
+        kind: 'Kustomization',
+        resources: (fluxApps.get(location) ?? []).sort().map((name) => `${name}/ks.yaml`),
+      }),
     );
   }
 

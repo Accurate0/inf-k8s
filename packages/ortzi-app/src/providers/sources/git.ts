@@ -1,5 +1,6 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { SourceProvider } from '../provider.ts';
+import { gitRepository, kustomization } from '../../flux-objects.ts';
 
 export interface GitSource {
   type: 'git';
@@ -50,4 +51,12 @@ export const git: SourceProvider<'git'> = {
     path: source.path,
     ...(source.revision ? { targetRevision: source.revision } : {}),
   }),
+
+  flux(plan, source) {
+    const name = `${plan.name}-${source.name ?? 'git'}`;
+    return [
+      gitRepository(plan, name, source.repo, source.revision),
+      kustomization(plan, name, { kind: 'GitRepository', name }, `./${source.path}`),
+    ];
+  },
 };

@@ -1,0 +1,133 @@
+import type { Plan } from './providers/provider.ts';
+
+export type FluxObject = Record<string, unknown> & { kind: string };
+
+export const FLUX_NAMESPACE = 'flux-system';
+export const APP_ANNOTATION = 'event.toolkit.fluxcd.io/app';
+export const REVISION_ANNOTATION = 'event.toolkit.fluxcd.io/revision';
+
+const HARBOR = 'oci://registry.anurag.sh/';
+const HELM_LAYER = 'application/vnd.cncf.helm.chart.content.v1.tar+gzip';
+const MANIFESTS_LAYER = 'application/vnd.oci.image.layer.v1.tar+gzip';
+
+const metadata = (plan: Plan, name: string) => ({
+  name,
+  namespace: FLUX_NAMESPACE,
+  annotations: { [APP_ANNOTATION]: plan.name },
+});
+
+const ref = (kind: string, name: string) => ({ kind, name, namespace: FLUX_NAMESPACE });
+
+const harbor = (url: string, verify: boolean) =>
+  url.startsWith(HARBOR)
+    ? {
+        secretRef: { name: 'harbor' },
+        ...(verify ? { verify: { provider: 'cosign', secretRef: { name: 'cosign' } } } : {}),
+      }
+    : {};
+
+export const chartRepository = (plan: Plan, name: string, url: string, tag: string) => ({
+  apiVersion: 'source.toolkit.fluxcd.io/v1',
+  kind: 'OCIRepository',
+  metadata: metadata(plan, name),
+  spec: {
+    interval: '1h',
+    url,
+    ref: { tag },
+    layerSelector: { mediaType: HELM_LAYER, operation: 'copy' },
+    ...harbor(url, false),
+  },
+});
+
+export const manifestsRepository = (plan: Plan, name: string, url: string, tag: string) => ({
+  apiVersion: 'source.toolkit.fluxcd.io/v1',
+  kind: 'OCIRepository',
+  metadata: metadata(plan, name),
+  spec: {
+    interval: '1h',
+    url,
+    ref: { tag },
+    layerSelector: { mediaType: MANIFESTS_LAYER, operation: 'extract' },
+    ...harbor(url, true),
+  },
+});
+
+export const helmRepository = (plan: Plan, name: string, url: string) => ({
+  apiVersion: 'source.toolkit.fluxcd.io/v1',
+  kind: 'HelmRepository',
+  metadata: metadata(plan, name),
+  spec: { interval: '1h', url },
+});
+
+export const gitRepository = (plan: Plan, name: string, url: string, revision?: string) => ({
+  apiVersion: 'source.toolkit.fluxcd.io/v1',
+  kind: 'GitRepository',
+  metadata: metadata(plan, name),
+  spec: {
+    interval: '1h',
+    url,
+    ref:
+      revision && /^[0-9a-f]{40}$/.test(revision)
+        ? { commit: revision }
+        : { branch: revision ?? 'main' },
+  },
+});
+
+export const helmRelease = (
+  plan: Plan,
+  name: string,
+  release: string,
+  chart: { ociRepository: string } | { helmRepository: string; chart: string; version: string },
+  values: Record<string, unknown>,
+) => ({
+  apiVersion: 'helm.toolkit.fluxcd.io/v2',
+  kind: 'HelmRelease',
+  metadata: metadata(plan, name),
+  spec: {
+    interval: '1h',
+    releaseName: release,
+    targetNamespace: plan.namespace,
+    storageNamespace: plan.namespace,
+    ...('ociRepository' in chart
+      ? { chartRef: ref('OCIRepository', chart.ociRepository) }
+      : {
+          chart: {
+            spec: {
+              chart: chart.chart,
+              version: chart.version,
+              sourceRef: ref('HelmRepository', chart.helmRepository),
+            },
+          },
+        }),
+    maxHistory: 3,
+    install: { strategy: { name: 'RetryOnFailure' } },
+    upgrade: {
+      cleanupOnFail: true,
+      strategy: { name: 'RemediateOnFailure' },
+      remediation: { retries: 2 },
+    },
+    rollback: { cleanupOnFail: true },
+    driftDetection: { mode: 'enabled' },
+    values,
+  },
+});
+
+export const kustomization = (
+  plan: Plan,
+  name: string,
+  source: { kind: string; name: string },
+  path: string,
+) => ({
+  apiVersion: 'kustomize.toolkit.fluxcd.io/v1',
+  kind: 'Kustomization',
+  metadata: metadata(plan, name),
+  spec: {
+    interval: '1h',
+    sourceRef: ref(source.kind, source.name),
+    path,
+    prune: true,
+    wait: true,
+    timeout: '5m',
+    targetNamespace: plan.namespace,
+  },
+});

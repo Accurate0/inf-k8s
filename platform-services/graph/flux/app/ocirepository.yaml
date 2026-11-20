@@ -1,0 +1,114 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T13:32:26.530Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: graph-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: graph
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/charts/k8s-workload
+  ref:
+    tag: 0.7.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  secretRef:
+    name: harbor
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: graph-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: graph
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/charts/k8s-network
+  ref:
+    tag: 0.2.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  secretRef:
+    name: harbor
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: graph-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: graph
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/charts/k8s-http-routes
+  ref:
+    tag: 2.6.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  secretRef:
+    name: harbor
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: graph-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: graph
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/charts/k8s-oidc
+  ref:
+    tag: 0.8.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  secretRef:
+    name: harbor
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: graph-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: graph
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/charts/k8s-secrets
+  ref:
+    tag: 0.7.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  secretRef:
+    name: harbor
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: graph-manifests
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: graph
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/manifests/graph
+  ref:
+    tag: main
+  layerSelector:
+    mediaType: application/vnd.oci.image.layer.v1.tar+gzip
+    operation: extract
+  secretRef:
+    name: harbor
+  verify:
+    provider: cosign
+    secretRef:
+      name: cosign

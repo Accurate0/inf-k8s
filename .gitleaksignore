@@ -2,3 +2,5 @@ selfhosted/forgejo/forgejo.values.yaml:generic-api-key:46
 terraform/openbao-database.tf:hashicorp-tf-password:23
 projects/maccas-api/application.yaml:generic-api-key:26
 selfhosted/forgejo/application.yaml:generic-api-key:235
+projects/maccas-api/flux/app/helmrelease.yaml:generic-api-key:37
+selfhosted/forgejo/flux/app/helmrelease.yaml:generic-api-key:378

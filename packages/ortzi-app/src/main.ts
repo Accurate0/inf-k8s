@@ -395,6 +395,7 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   for (const { path, wanted } of stale) {
     console.log(`${check ? 'stale' : 'wrote'} ${path}`);
     if (!check) {
+      fs.mkdir(path.slice(0, path.lastIndexOf('/')));
       fs.write(path, wanted);
     }
   }
@@ -442,13 +443,22 @@ function publish(names: string[]): number {
     }
   }
 
-  const { artifact, bootstrap } = parse(fs.readText(APPS_BUNDLE)) as {
+  const {
+    artifact,
+    bootstrap,
+    flux = [],
+  } = parse(fs.readText(APPS_BUNDLE)) as {
     artifact: { repo: string; tag: string };
     bootstrap: string[];
+    flux?: string[];
   };
   const missing = bootstrap.filter((name) => !apps.some(({ app }) => app.name === name));
   if (missing.length) {
     throw new Error(`${APPS_BUNDLE}: bootstrap names unknown apps ${missing.join(', ')}`);
+  }
+  const notFlux = flux.filter((name) => !apps.some(({ app }) => app.name === name && app.artifact));
+  if (notFlux.length) {
+    throw new Error(`${APPS_BUNDLE}: flux names apps without an artifact ${notFlux.join(', ')}`);
   }
 
   publishBundle(
@@ -462,6 +472,7 @@ function publish(names: string[]): number {
             location: target.location,
             name: app.name,
             path: `${dir}/application.yaml`,
+            ...(flux.includes(app.name) ? { flux: `${dir}/flux` } : {}),
             revision: capture('git', ['log', '-1', '--format=%H', '--', dir]).trim(),
             releases: releaseImages(app),
           };

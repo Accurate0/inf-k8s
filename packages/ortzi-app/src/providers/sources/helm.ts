@@ -1,5 +1,6 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { SourceProvider } from '../provider.ts';
+import { chartRepository, helmRelease, helmRepository } from '../../flux-objects.ts';
 
 export interface HelmSource {
   type: 'helm';
@@ -99,6 +100,34 @@ export const helm: SourceProvider<'helm'> = {
       ...(source.values ? { valuesObject: source.values } : {}),
     },
   }),
+
+  flux(plan, source) {
+    if (source.valueFiles) {
+      throw new Error(`${plan.name}: flux needs inlined values; set artifact`);
+    }
+
+    const release = source.releaseName ?? plan.name;
+    const name = `${plan.name}-${source.releaseName ?? source.chart}`;
+    const values = source.values ?? {};
+    if (source.repo.startsWith('oci://')) {
+      const [url, , version] = chartLocation(source);
+      return [
+        chartRepository(plan, name, url, version),
+        helmRelease(plan, name, release, { ociRepository: name }, values),
+      ];
+    }
+
+    return [
+      helmRepository(plan, name, source.repo),
+      helmRelease(
+        plan,
+        name,
+        release,
+        { helmRepository: name, chart: source.chart, version: source.version },
+        values,
+      ),
+    ];
+  },
 
   helmTemplate: (plan, source) => ({
     release: source.releaseName ?? plan.name,

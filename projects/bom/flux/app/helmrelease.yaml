@@ -1,0 +1,298 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T13:35:00.950Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bom-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: bom
+spec:
+  interval: 1h
+  releaseName: bom-k8s-workload
+  targetNamespace: bom
+  storageNamespace: bom
+  chartRef:
+    kind: OCIRepository
+    name: bom-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      registry.anurag.sh/containers/bom: 10af352a28e573cd9a71601e5f0d7c5915081acc
+    namespace: bom
+    namespaceLabels:
+      gateway.inf-k8s.net/anurag-sh: "true"
+    workloads:
+      - name: bom
+        image: registry.anurag.sh/containers/bom
+        resources:
+          requests:
+            cpu: 30m
+            memory: 56Mi
+          limits:
+            memory: 512Mi
+        ports:
+          - name: api
+            containerPort: 8000
+        env:
+          - name: BUCKET_NAME
+            valueFrom:
+              secretKeyRef:
+                name: images-bucket-secrets
+                key: S3_BUCKET
+          - name: BUCKET_ENDPOINT
+            valueFrom:
+              secretKeyRef:
+                name: images-bucket-secrets
+                key: S3_ENDPOINT
+          - name: BUCKET_REGION
+            valueFrom:
+              secretKeyRef:
+                name: images-bucket-secrets
+                key: S3_REGION
+          - name: BUCKET_ACCESS_KEY_ID
+            valueFrom:
+              secretKeyRef:
+                name: images-bucket-secrets
+                key: S3_ACCESS_KEY_ID
+          - name: BUCKET_ACCESS_SECRET_KEY
+            valueFrom:
+              secretKeyRef:
+                name: images-bucket-secrets
+                key: S3_SECRET_ACCESS_KEY
+          - name: PUBLIC_URL
+            value: https://bom.anurag.sh
+          - name: OTEL_TRACING_URL
+            value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+          - name: OIDC_PROVIDERS
+            value: https://idm.anurag.sh/oauth2/openid/graph=graph
+          - name: OIDC_GROUPS
+            value: bom_users
+        envFrom:
+          - secretRef:
+              name: bom-managed-secrets
+          - secretRef:
+              name: bom-database-secret
+        service:
+          name: bom-api
+          ports:
+            - name: api
+              port: 8000
+              targetPort: 8000
+              protocol: TCP
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 3
+          periodSeconds: 30
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bom-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: bom
+spec:
+  interval: 1h
+  releaseName: bom-k8s-network
+  targetNamespace: bom
+  storageNamespace: bom
+  chartRef:
+    kind: OCIRepository
+    name: bom-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: bom
+    ingress:
+      - envoy-gateway-system
+      - graph
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bom-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: bom
+spec:
+  interval: 1h
+  releaseName: bom-k8s-http-routes
+  targetNamespace: bom
+  storageNamespace: bom
+  chartRef:
+    kind: OCIRepository
+    name: bom-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: images
+        gateway:
+          name: public-gateway
+          namespace: envoy-gateway-system
+        annotations:
+          external-dns.kubernetes.io/managed: "true"
+          external-dns.kubernetes.io/cloudflare-proxied: "true"
+        hostnames:
+          - bom.anurag.sh
+        ratelimit:
+          rules:
+            - clientSelectors:
+                - headers:
+                    - name: x-real-ip
+                      invert: false
+                      type: Distinct
+              limit:
+                requests: 20
+                unit: Second
+        rules:
+          - backendRefs:
+              - group: ""
+                kind: Service
+                name: bom-api
+                port: 8000
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: /radar/
+              - path:
+                  type: PathPrefix
+                  value: /satellite/
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bom-k8s-postgres
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: bom
+spec:
+  interval: 1h
+  releaseName: bom-k8s-postgres
+  targetNamespace: bom
+  storageNamespace: bom
+  chartRef:
+    kind: OCIRepository
+    name: bom-k8s-postgres
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    databases:
+      - name: bom
+        namespace: bom
+        databaseName: bom
+        secretName: bom-database-secret
+        host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+        annotations:
+          inf-k8s.net/app: bom
+          inf-k8s.net/repository: https://github.com/Accurate0/bom
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: bom-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: bom
+spec:
+  interval: 1h
+  releaseName: bom-k8s-secrets
+  targetNamespace: bom
+  storageNamespace: bom
+  chartRef:
+    kind: OCIRepository
+    name: bom-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: bom
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: bom
+        inf-k8s.net/repository: https://github.com/Accurate0/bom
+    secrets:
+      - name: bom
+        managedSecrets:
+          - secretName: bom-managed-secrets
+      - name: resource-images
+        managedSecrets:
+          - secretName: images-bucket-secrets

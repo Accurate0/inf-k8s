@@ -560,7 +560,19 @@ test('overrides replace the default application policy', () => {
 
 test('overrides reject unknown outputs and fields', () => {
   assert.throws(
-    () => validate({ name: 'foo', network: { ingress: [] }, overrides: { flux: {} } }, 'x'),
+    () => validate({ name: 'foo', network: { ingress: [] }, overrides: { helm: {} } }, 'x'),
+    /overrides/,
+  );
+  assert.throws(
+    () =>
+      validate(
+        {
+          name: 'foo',
+          network: { ingress: [] },
+          overrides: { flux: { kustomization: { nope: 1 } } },
+        },
+        'x',
+      ),
     /overrides/,
   );
   assert.throws(

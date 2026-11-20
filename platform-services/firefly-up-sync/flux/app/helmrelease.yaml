@@ -1,0 +1,149 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-20T13:35:01.147Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-up-sync-k8s-workload
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly-up-sync
+spec:
+  interval: 1h
+  releaseName: firefly-up-sync-k8s-workload
+  targetNamespace: firefly-up-sync
+  storageNamespace: firefly-up-sync
+  chartRef:
+    kind: OCIRepository
+    name: firefly-up-sync-k8s-workload
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    images:
+      registry.anurag.sh/containers/firefly-up-sync: 7b343f127f0a8563e8fb7ac2983e7f2e219230f9
+    namespace: firefly-up-sync
+    workloads:
+      - name: firefly-up-sync
+        image: registry.anurag.sh/containers/firefly-up-sync
+        kind: CronJob
+        schedule: 15,45 * * * *
+        backoffLimit: 1
+        resources:
+          requests:
+            memory: 64Mi
+          limits:
+            memory: 256Mi
+        env:
+          - name: FIREFLY_URL
+            value: http://firefly.firefly.svc.cluster.local
+          - name: LOOKBACK_DAYS
+            value: "14"
+          - name: PAYOFF_PIGGY_BANK
+            value: Home loan payoff
+          - name: LINKED_ACCOUNTS
+            value: |
+              [
+                {"name": "Amex", "matches": ["American Express"]},
+                {"name": "ING", "matches": ["ING Savings", "ING Transactional"]},
+                {"name": "Ubank", "matches": ["ubank Savings", "ubank Transactional"]},
+                {"name": "Property", "matches": ["Drawdown"], "ids": ["f9f70732-6a96-494d-9b62-3b9b366fb3e7"]},
+                {"name": "Vanguard", "matches": ["Vanguard"]},
+                {"name": "Rent", "matches": ["Forward to Rent", "Transfer from Rent"]},
+                {"name": "Spendings", "matches": ["Spendings"]}
+              ]
+        envFrom:
+          - secretRef:
+              name: firefly-up-sync-managed-secrets
+        restartPolicy: Never
+        automountServiceAccountToken: false
+    createNamespace: false
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-up-sync-k8s-network
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly-up-sync
+spec:
+  interval: 1h
+  releaseName: firefly-up-sync-k8s-network
+  targetNamespace: firefly-up-sync
+  storageNamespace: firefly-up-sync
+  chartRef:
+    kind: OCIRepository
+    name: firefly-up-sync-k8s-network
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    namespace: firefly-up-sync
+    ingress: []
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: firefly-up-sync-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly-up-sync
+spec:
+  interval: 1h
+  releaseName: firefly-up-sync-k8s-secrets
+  targetNamespace: firefly-up-sync
+  storageNamespace: firefly-up-sync
+  chartRef:
+    kind: OCIRepository
+    name: firefly-up-sync-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: firefly-up-sync
+      provider: openbao
+      resyncInterval: 900
+      annotations:
+        inf-k8s.net/app: firefly-up-sync
+        inf-k8s.net/repository: https://github.com/Accurate0/inf-k8s
+    secrets:
+      - name: firefly-up-sync
+        managedSecrets:
+          - secretName: firefly-up-sync-managed-secrets

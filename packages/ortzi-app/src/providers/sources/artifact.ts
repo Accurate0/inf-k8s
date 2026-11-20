@@ -1,5 +1,6 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { SourceProvider } from '../provider.ts';
+import { kustomization, manifestsRepository } from '../../flux-objects.ts';
 
 export interface ArtifactSource {
   type: 'artifact';
@@ -64,4 +65,12 @@ export const artifact: SourceProvider<'artifact'> = {
     path: source.path ?? '.',
     targetRevision: source.tag,
   }),
+
+  flux(plan, source) {
+    const name = `${plan.name}-${source.name ?? 'artifact'}`;
+    return [
+      manifestsRepository(plan, name, source.repo, source.tag),
+      kustomization(plan, name, { kind: 'OCIRepository', name }, `./${source.path ?? ''}`),
+    ];
+  },
 };
