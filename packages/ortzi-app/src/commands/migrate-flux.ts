@@ -1,5 +1,5 @@
 import { applying, type Kube } from '@ortzi/kit';
-import { type Application, assertChangeable, getApp, turnAutosyncOff } from '../argo';
+import { type Application, assertChangeable, getApp, listApps, turnAutosyncOff } from '../argo';
 import { APP_ANNOTATION, FLUX_NAMESPACE } from '../flux-objects';
 
 interface Ready {
@@ -86,6 +86,20 @@ export function migrateFlux(kube: Kube, name: string, yes: boolean, minutes: num
   }
 
   if (app) {
+    const root = listApps(kube).find(
+      (candidate) =>
+        candidate.metadata.name.endsWith('-apps') &&
+        candidate.status?.resources?.some(
+          (r) => r.kind === 'Application' && r.name === name && !r.requiresPruning,
+        ),
+    );
+    if (root) {
+      console.error(
+        `${root.metadata.name} still lists ${name} and would recreate it; wait for it to sync the published bundle, then rerun`,
+      );
+      return 1;
+    }
+
     detach(kube, app, yes);
     console.log(`${yes ? 'deleting' : 'would delete'} argo application ${name}; flux owns it now`);
     if (yes) {

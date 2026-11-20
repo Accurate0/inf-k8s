@@ -34,7 +34,7 @@ export interface Application {
   status?: {
     sync?: Revisions & { status?: string };
     health?: { status?: string };
-    resources?: { kind: string; name: string; namespace?: string }[];
+    resources?: { kind: string; name: string; namespace?: string; requiresPruning?: boolean }[];
     history?: HistoryEntry[];
   };
 }
