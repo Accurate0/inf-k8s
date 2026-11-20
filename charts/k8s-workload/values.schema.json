@@ -218,6 +218,10 @@
     "namespace": {
       "type": "string"
     },
+    "createNamespace": {
+      "type": "boolean",
+      "description": "Render the Namespace. Off when the deployer owns it."
+    },
     "namespaceLabels": {
       "type": "object",
       "additionalProperties": {

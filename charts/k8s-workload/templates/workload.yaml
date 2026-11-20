@@ -1,4 +1,5 @@
 {{- $namespace := .Values.namespace }}
+{{- if .Values.createNamespace }}
 apiVersion: v1
 kind: Namespace
 metadata:
@@ -7,6 +8,7 @@ metadata:
   labels:
     {{- toYaml . | nindent 4 }}
   {{- end }}
+{{- end }}
 {{- range .Values.serviceAccounts }}
 ---
 apiVersion: v1
@@ -40,15 +42,15 @@ spec:
       template:
         {{- include "k8s-workload.pod" $ctx | nindent 8 }}
 {{- else if eq $w.kind "Job" }}
-{{- $phases := dict "preSync" "PreSync" "postSync" "PostSync" }}
+{{- $phases := dict "preSync" "pre-install,pre-upgrade" "postSync" "post-install,post-upgrade" }}
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: {{ $w.name }}
   namespace: {{ $namespace }}
   annotations:
-    argocd.argoproj.io/hook: {{ get $phases (required "phase is required for a Job" $w.phase) }}
-    argocd.argoproj.io/hook-delete-policy: BeforeHookCreation
+    helm.sh/hook: {{ get $phases (required "phase is required for a Job" $w.phase) }}
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   {{- with $w.backoffLimit }}
   backoffLimit: {{ . }}

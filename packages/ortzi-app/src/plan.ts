@@ -165,7 +165,10 @@ const withReleases = (plan: Plan, source: PlatformChart): Record<string, unknown
   };
 };
 
-const RETAIN = { 'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false' };
+const RETAIN = {
+  'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
+  'helm.sh/resource-policy': 'keep',
+};
 
 export const chartValues = (source: PlatformChart) => ({
   ...source.values,

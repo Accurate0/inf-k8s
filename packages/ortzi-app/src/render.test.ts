@@ -577,7 +577,7 @@ test('overrides reject unknown outputs and fields', () => {
   );
 });
 
-test('only the argocd output adds retention annotations', () => {
+test('only rendered outputs add retention annotations', () => {
   const app = validate(
     {
       name: 'foo',
@@ -609,6 +609,7 @@ test('only the argocd output adds retention annotations', () => {
 
   assert.deepEqual(source.helm.valuesObject.retainAnnotations, {
     'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
+    'helm.sh/resource-policy': 'keep',
   });
 });
 

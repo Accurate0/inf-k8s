@@ -63,7 +63,7 @@ const schema: Schema = {
       phase: {
         enum: ['preSync', 'postSync'],
         description:
-          'Run the Job as an Argo hook in this sync phase: preSync before anything else applies, postSync once everything is applied and healthy. Required with kind Job.',
+          'Run the Job as a Helm hook: preSync before anything else applies, postSync once everything is applied and healthy. Required with kind Job.',
       },
       service: {
         type: 'object',

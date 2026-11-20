@@ -1,5 +1,6 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/charts/k8s-workload.json
 namespace: example
+createNamespace: true
 images:
   ghcr.io/accurate0/example: latest
 defaults:
