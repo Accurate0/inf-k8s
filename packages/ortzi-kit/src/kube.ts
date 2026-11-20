@@ -140,6 +140,10 @@ export class Kube {
     return this.request<T>('PATCH', this.path(this.resource(resource), name), patch, contentType);
   }
 
+  delete(resource: string, name: string): void {
+    this.request('DELETE', this.path(this.resource(resource), name));
+  }
+
   // blocks on short server-side watches instead of sleeping, the host has no sleep
   waitFor<T extends Watched>(
     resource: string,
