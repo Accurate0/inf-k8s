@@ -4,4 +4,19 @@ artifact:
 bootstrap:
   - registry
 flux:
+  - ai-gateway
+  - anurag-sh
+  - bom
+  - etcd-backup
+  - feature-flags
+  - firefly-up-sync
+  - graph
+  - home-gateway
+  - janitor-bot
   - k8s-schemas
+  - kanidm-sync
+  - maccas-api
+  - ozbargain
+  - spotify
+  - tldr-bot
+  - waf-manager
