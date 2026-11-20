@@ -7,11 +7,15 @@ flux:
   - ai-gateway
   - anurag-sh
   - bom
+  - dawarich
   - etcd-backup
   - feature-flags
+  - firefly
   - firefly-up-sync
+  - forgejo
   - graph
   - home-gateway
+  - immich
   - janitor-bot
   - k8s-schemas
   - kanidm-sync
