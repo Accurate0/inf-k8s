@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T13:35:01.208Z
+# generated at 2026-11-20T13:57:37.535Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -33,7 +33,7 @@ spec:
     mode: enabled
   values:
     images:
-      registry.anurag.sh/containers/janitor-bot: 192da79e9790494c8aba43a2f9b1f9d3a81b6ffe
+      registry.anurag.sh/containers/janitor-bot: 8ba1028d2120f3a3681e9e3c0c66d7142f3dc349
     namespace: janitor-bot
     namespaceLabels:
       internal-gateway-access: "true"
