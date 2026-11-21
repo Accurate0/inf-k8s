@@ -1,4 +1,4 @@
-name: Publish and render apps
+name: Deploy cluster (render app.yaml, publish the cluster artifact)
 on:
   push:
     branches:
@@ -18,7 +18,7 @@ on:
       - packages/ortzi-host/**
       - packages/ortzi-kit/**
       - packages/pnpm-lock.yaml
-      - .forgejo/workflows/render-apps.yaml
+      - .forgejo/workflows/deploy-cluster.yaml
       - .forgejo/scripts/retry.sh
   workflow_dispatch:
 
