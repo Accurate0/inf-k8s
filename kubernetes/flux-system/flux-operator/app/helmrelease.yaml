@@ -282,6 +282,11 @@ spec:
                   provider: cosign
                   secretRef:
                     name: cosign
+              # replaces flux's default exclusions, which drop images like longhorn.png
+              - op: add
+                path: /spec/ignore
+                value: |
+                  .git/
           - target:
               kind: Kustomization
               name: flux-system

@@ -1,6 +1,6 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/core/service_v1.json
 #
-# Partial manifest, applied server-side so that only spec.trafficDistribution is
+# Partial manifest, merged server-side so that only spec.trafficDistribution is
 # owned here — clusterIP, ports and selector stay owned by the k3s addon.
 #
 # Without this the kube-dns Service round-robins across every CoreDNS endpoint,
@@ -14,8 +14,8 @@ metadata:
   name: kube-dns
   namespace: kube-system
   annotations:
-    # This is the k3s addon's Service, not ours — we only contribute one field.
-    # Without this, pruning the app would delete cluster DNS outright.
-    argocd.argoproj.io/sync-options: Prune=false
+    # k3s owns this object; flux only merges in its fields and never prunes it
+    kustomize.toolkit.fluxcd.io/ssa: Merge
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   trafficDistribution: PreferSameZone

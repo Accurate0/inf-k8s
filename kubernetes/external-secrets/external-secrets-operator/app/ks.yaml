@@ -16,3 +16,4 @@ spec:
   prune: true
   wait: true
   timeout: 10m
+  targetNamespace: external-secrets

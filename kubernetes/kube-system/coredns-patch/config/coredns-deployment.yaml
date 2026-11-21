@@ -5,7 +5,9 @@ metadata:
   name: coredns
   namespace: kube-system
   annotations:
-    argocd.argoproj.io/sync-options: Prune=false
+    # k3s owns this object; flux only merges in its fields and never prunes it
+    kustomize.toolkit.fluxcd.io/ssa: Merge
+    kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   replicas: 2
   template:

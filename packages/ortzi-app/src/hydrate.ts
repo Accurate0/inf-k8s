@@ -51,8 +51,8 @@ export function publishCluster(
   const dir = `${ARTIFACT_ROOT}/cluster`;
   freshDir(dir);
 
-  const tree = new Map(
-    files(cluster.root).map((file) => [file, fs.readText(`${cluster.root}/${file}`)]),
+  const tree = new Map<string, string | Uint8Array>(
+    files(cluster.root).map((file) => [file, fs.read(`${cluster.root}/${file}`)]),
   );
 
   const tags = resolve([...new Set(cluster.apps.flatMap((app) => app.releases))]);
@@ -68,7 +68,11 @@ export function publishCluster(
     );
 
     const prefix = `${path}/`;
-    const own = new Map([...tree].filter(([file]) => file.startsWith(prefix)));
+    const own = new Map(
+      [...tree.keys()]
+        .filter((file) => file.startsWith(prefix) && /\.ya?ml$/.test(file))
+        .map((file) => [file, fs.readText(`${cluster.root}/${file}`)]),
+    );
     if (!own.size) {
       throw new Error(
         `${name}: nothing rendered under ${cluster.root}/${path}; run ortzi app render`,
