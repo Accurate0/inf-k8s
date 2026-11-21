@@ -27,7 +27,7 @@ when:
         - "**/Dockerfile*"
     - type: changed_files_none_match
       patterns:
-        - "system-components/postgres-cluster/container/Dockerfile"
+        - "kubernetes/cnpg-system/cloudnative-pg-cluster/config/container/Dockerfile"
     - not:
         type: has_label
         value: renovate/major

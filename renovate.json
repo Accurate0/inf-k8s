@@ -1,6 +1,11 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["local>anurag/k8s//platform-services/renovate/presets/default"],
+  "flux": {
+    "managerFilePatterns": [
+      "/^kubernetes/(cert-manager|cnpg-system/cloudnative-pg|cnpg-system/cloudnative-pg-cluster|csi-driver-nfs|default/network-policies|dragonfly-system/dragonfly|envoy-gateway-system/envoy-gateway|external-dns|external-secrets/external-secrets-operator|flux-system/flux-operator|garage|kanidm|longhorn-system/longhorn|monitoring|openbao|reloader)/app/.+\\.yaml$/"
+    ]
+  },
   "argocd": {
     "managerFilePatterns": [
       "/system-components/.*\\.application\\.yaml$/",
@@ -124,7 +129,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/system-components/barman-cloud-plugin/kustomization\\.yaml$/"
+        "/kubernetes/cnpg-system/cloudnative-pg/config/kustomization\\.yaml$/"
       ],
       "matchStrings": [
         "plugin-barman-cloud/releases/download/(?<currentValue>v[^/]+)/manifest\\.yaml"
@@ -135,7 +140,7 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/system-components/postgres-cluster/postgres\\.yaml$/"
+        "/kubernetes/cnpg-system/cloudnative-pg-cluster/config/postgres\\.yaml$/"
       ],
       "matchStrings": [
         "imageName:\\s*(?<depName>[^\\s:]+):(?<currentValue>[^\\s]+)"
@@ -189,7 +194,12 @@
       "enabled": false
     },
     {
-      "matchFileNames": ["system-components/kanidm/coordinator/Dockerfile"],
+      "matchManagers": ["flux"],
+      "matchPackageNames": ["/\\/charts\\/k8s-/"],
+      "enabled": false
+    },
+    {
+      "matchFileNames": ["kubernetes/kanidm/config/coordinator/Dockerfile"],
       "matchDatasources": ["docker"],
       "matchPackageNames": ["docker.io/kanidm/server"],
       "enabled": false

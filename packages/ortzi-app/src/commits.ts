@@ -1,13 +1,8 @@
 import { type App, appDatabases } from './render.ts';
-import { databasePath } from './providers/database.ts';
+import { databasePath, POSTGRES_DIR } from './providers/database.ts';
 import { TERRAFORM_APPS } from './terraform.ts';
 
-const CI_PATHS = [
-  '.github/workflows/',
-  '.forgejo/workflows/',
-  'terraform/',
-  'system-components/postgres-cluster/',
-];
+const CI_PATHS = ['.github/workflows/', '.forgejo/workflows/', 'terraform/', `${POSTGRES_DIR}/`];
 const INDEX = `${TERRAFORM_APPS}/_index.tf.json`;
 
 export interface PlannedCommit {

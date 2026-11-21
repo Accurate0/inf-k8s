@@ -12,7 +12,7 @@ test('groups each path under its app', () => {
     'platform-services/registry/manifests/rbac.generated.yaml',
     '.github/workflows/app-bom.yaml',
     'terraform/apps/registry.tf.json',
-    'system-components/postgres-cluster/databases/registry-db.yaml',
+    'kubernetes/cnpg-system/cloudnative-pg-cluster/config/databases/registry-db.yaml',
   ];
 
   assert.deepEqual(planCommits(paths, [app('bom'), app('registry', 'registry-db')]), [
@@ -25,7 +25,7 @@ test('groups each path under its app', () => {
       paths: [
         'platform-services/registry/manifests/rbac.generated.yaml',
         'terraform/apps/registry.tf.json',
-        'system-components/postgres-cluster/databases/registry-db.yaml',
+        'kubernetes/cnpg-system/cloudnative-pg-cluster/config/databases/registry-db.yaml',
       ],
     },
   ]);
@@ -40,7 +40,7 @@ test('attributes removed terraform to the app named by the file', () => {
 test('sorts apps and puts shared files last', () => {
   const commits = planCommits(
     [
-      'system-components/postgres-cluster/postgres.yaml',
+      'kubernetes/cnpg-system/cloudnative-pg-cluster/config/postgres.yaml',
       'terraform/apps/_index.tf.json',
       'projects/zeta/application.yaml',
       'projects/alpha/application.yaml',
@@ -57,7 +57,7 @@ test('sorts apps and puts shared files last', () => {
     ],
   );
   assert.deepEqual(commits[2].paths, [
-    'system-components/postgres-cluster/postgres.yaml',
+    'kubernetes/cnpg-system/cloudnative-pg-cluster/config/postgres.yaml',
     'terraform/apps/_index.tf.json',
   ]);
 });
@@ -74,7 +74,7 @@ test('skips ci on every commit when only app directories changed', () => {
 for (const path of [
   '.github/workflows/app-b.yaml',
   'terraform/apps/b.tf.json',
-  'system-components/postgres-cluster/postgres.yaml',
+  'kubernetes/cnpg-system/cloudnative-pg-cluster/config/postgres.yaml',
 ]) {
   test(`keeps ci on every commit when ${path} changed`, () => {
     const commits = planCommits(['projects/a/application.yaml', path], []);

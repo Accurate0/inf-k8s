@@ -60,7 +60,7 @@ const LOCATIONS = ['projects', 'platform-services', 'selfhosted', 'system-compon
 const VERSIONS = 'platform/versions.yaml';
 const APPS_BUNDLE = 'platform/apps.yaml';
 const PLATFORM_EXPORTS = 'platform/exports';
-const GATEWAYS = 'system-components/envoy';
+const GATEWAYS = 'kubernetes/envoy-gateway-system/envoy-gateway/config';
 
 const platformExports = (): PlatformExport[] =>
   fs
@@ -330,6 +330,7 @@ function clusterTree(): ClusterTree {
   const namespaces = dirs(CLUSTER_ROOT);
   const components = namespaces.flatMap((namespace) =>
     dirs(`${CLUSTER_ROOT}/${namespace}`)
+      .filter((name) => name !== 'app' && name !== 'config')
       .map((name) => `${namespace}/${name}/ks.yaml`)
       .filter((path) => {
         const file = `${CLUSTER_ROOT}/${path}`;

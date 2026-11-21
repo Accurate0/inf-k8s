@@ -52,7 +52,9 @@ const schema: Schema = {
   },
 };
 
-const POSTGRES_CLUSTER = 'system-components/postgres-cluster/postgres.yaml';
+export const POSTGRES_DIR = 'kubernetes/cnpg-system/cloudnative-pg-cluster/config';
+const POSTGRES_CLUSTER = `${POSTGRES_DIR}/postgres.yaml`;
+const DATABASES = `${POSTGRES_DIR}/databases`;
 
 export const appDatabases = (app: App): Record<string, DatabaseSpec> =>
   Object.fromEntries(specs(declared(app, 'database')));
@@ -74,8 +76,7 @@ export function databaseHost(app: App, spec: DatabaseSpec, platform: PlatformExp
   return found.host;
 }
 
-export const databasePath = (database: string) =>
-  `system-components/postgres-cluster/databases/${database}.yaml`;
+export const databasePath = (database: string) => `${DATABASES}/${database}.yaml`;
 
 export function renderDatabase(
   database: string,
@@ -198,6 +199,18 @@ export const database: ResourceProvider<'database'> = {
 
   generateWorld: (world, read) => [
     { path: POSTGRES_CLUSTER, content: addRoles(read(POSTGRES_CLUSTER), appRoles(world.apps)) },
+    {
+      path: `${DATABASES}/kustomization.yaml`,
+      content: `${HEADER}\n${stringify({
+        apiVersion: 'kustomize.config.k8s.io/v1beta1',
+        kind: 'Kustomization',
+        resources: world.apps
+          .flatMap((app) => Object.keys(appDatabases(app)))
+          .sort()
+          .map((database) => `${database}.yaml`),
+      })}`,
+      stamp: true,
+    },
   ],
 
   terraform: (app, databases) =>
