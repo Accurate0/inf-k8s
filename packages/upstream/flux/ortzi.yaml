@@ -1,0 +1,17 @@
+package:
+  name: flux
+  description: Flux CLI (upstream fluxcd/flux2)
+  # renovate: datasource=github-releases depName=fluxcd/flux2 extractVersion=^v(?<version>.+)$
+  version: 2.10.0
+  completions: cobra
+build:
+  kind: prebuilt
+  prebuilt:
+    darwin-arm64:
+      url: https://github.com/fluxcd/flux2/releases/download/v${version}/flux_${version}_darwin_arm64.tar.gz
+      sha256: 339c5dba218e2b0a04a0841d1dace6c00d65736dc3286038463fa86754ff6c53
+      extract: flux
+    linux-amd64:
+      url: https://github.com/fluxcd/flux2/releases/download/v${version}/flux_${version}_linux_amd64.tar.gz
+      sha256: 208dd7012c04fedeed5b2d0b6e63df3b15b1c34a381527811685c098bc9f8659
+      extract: flux

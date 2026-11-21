@@ -16,7 +16,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [argocd, bao, cnpg, egctl, helm, kubeconform, kustomize]
+        package: [argocd, bao, cnpg, egctl, flux, helm, kubeconform, kustomize]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
