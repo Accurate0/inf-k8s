@@ -1,3 +1,3 @@
 images:
-  registry.anurag.sh/containers/spotify: 4cd0d1c0421694747735d36115fef00bf48be516@sha256:cc0346a9697f66432b0b7b00fa713f95cb5e0b6aa0d91a5443511dd04b600a28 # {"$imagepolicy": "flux-system:spotify-spotify:tag"}
-  registry.anurag.sh/containers/spotify-web: d1409266cfa452a7548836ba5d9106ce6a1cd720@sha256:37d6de63a4033c325dedfdbe2681a23d0a5e763b0abe636eb238b6da7a6863f1 # {"$imagepolicy": "flux-system:spotify-spotify-web:tag"}
+  registry.anurag.sh/containers/spotify: main-1795248125-9e38c5a448cd858fcd9152b5e657d87465ae766e # {"$imagepolicy": "flux-system:spotify-spotify:tag"}
+  registry.anurag.sh/containers/spotify-web: main-1795248125-9e38c5a448cd858fcd9152b5e657d87465ae766e # {"$imagepolicy": "flux-system:spotify-spotify-web:tag"}

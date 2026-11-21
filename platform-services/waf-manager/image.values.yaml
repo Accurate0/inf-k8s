@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/waf-manager: 50bddb427d44f1129e77328d6f31d8983fa3824e # {"$imagepolicy": "flux-system:waf-manager-waf-manager:tag"}
+  registry.anurag.sh/containers/waf-manager: main-1795230121-50bddb427d44f1129e77328d6f31d8983fa3824e # {"$imagepolicy": "flux-system:waf-manager-waf-manager:tag"}
