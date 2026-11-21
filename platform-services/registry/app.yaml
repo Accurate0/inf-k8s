@@ -181,3 +181,6 @@ sources:
     values: harbor.values.yaml
   - type: manifests
     path: .
+artifact:
+  repo: oci://registry.anurag.sh/manifests/registry
+  tag: main

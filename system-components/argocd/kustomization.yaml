@@ -9,7 +9,6 @@ resources:
   - ./projects.appproject.yaml
   - ./selfhosted.appproject.yaml
   - ./system-components.appproject.yaml
-  - ./bootstrap-apps.application.yaml
   - ./platform-services-apps.application.yaml
   - ./projects-apps.application.yaml
   - ./selfhosted-apps.application.yaml

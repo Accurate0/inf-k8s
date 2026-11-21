@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T13:57:37.584Z
+# generated at 2026-11-21T02:21:24.413Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -16,15 +16,13 @@ spec:
       selfHeal: true
   project: platform-services
   sources:
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
-      ref: values
     - chart: k8s-workload
       repoURL: oci://ghcr.io/accurate0/charts/k8s-workload
       targetRevision: 0.7.0
       helm:
-        valueFiles:
-          - $values/platform-services/registry/image.values.yaml
         valuesObject:
+          images:
+            registry.anurag.sh/containers/registry: 71ea5dc0410ca85c532a2f1724f70b1c18a6a467
           namespace: registry
           namespaceLabels:
             internal-gateway-access: "true"
@@ -401,11 +399,94 @@ spec:
       repoURL: https://helm.goharbor.io
       targetRevision: 1.19.4
       helm:
-        valueFiles:
-          - $values/platform-services/registry/harbor.values.yaml
-    - repoURL: https://github.com/Accurate0/inf-k8s.git
+        valuesObject:
+          expose:
+            type: clusterIP
+            tls:
+              enabled: false
+            clusterIP:
+              name: harbor
+              ports:
+                httpPort: 80
+          externalURL: https://registry.anurag.sh
+          existingSecretAdminPassword: harbor-generated-secrets
+          existingSecretAdminPasswordKey: HARBOR_ADMIN_PASSWORD
+          existingSecretSecretKey: harbor-generated-secrets
+          persistence:
+            enabled: false
+            imageChartStorage:
+              disableredirect: true
+              type: s3
+              s3:
+                region: garage
+                bucket: harbor
+                regionendpoint: http://garage.garage.svc.cluster.local:3900
+                existingSecret: harbor-storage-bucket-secrets
+                v4auth: true
+          database:
+            type: external
+            external:
+              host: cloudnative-pg-cluster-pooler-rw.cnpg-system
+              port: "5432"
+              username: harbor
+              coreDatabase: harbor
+              existingSecret: harbor-database-password
+              sslmode: disable
+          redis:
+            type: external
+            external:
+              addr: cache.dragonfly.svc.cluster.local:6379
+              coreDatabaseIndex: "0"
+              jobserviceDatabaseIndex: "0"
+              registryDatabaseIndex: "0"
+              trivyAdapterIndex: "0"
+              harborDatabaseIndex: "0"
+              cacheLayerDatabaseIndex: "0"
+          core:
+            existingSecret: harbor-generated-secrets
+            existingXsrfSecret: harbor-generated-secrets
+            existingXsrfSecretKey: CSRF_KEY
+            secretName: harbor-token-secrets
+            extraEnvVars:
+              - name: OIDC_CLIENT_SECRET
+                valueFrom:
+                  secretKeyRef:
+                    name: kanidm-harbor-oidc
+                    key: client-secret
+              - name: OIDC_CLIENT_ID
+                valueFrom:
+                  secretKeyRef:
+                    name: kanidm-harbor-oidc
+                    key: client-id
+              - name: CONFIG_OVERWRITE_JSON
+                value: '{"auth_mode":"oidc_auth", "oidc_name":"Kanidm", "oidc_endpoint":"https://idm.anurag.sh/oauth2/openid/harbor", "oidc_client_id":"$(OIDC_CLIENT_ID)", "oidc_client_secret":"$(OIDC_CLIENT_SECRET)", "oidc_scope":"openid,email,profile,groups", "oidc_user_claim":"preferred_username", "oidc_groups_claim":"harbor_groups", "oidc_admin_group":"admin", "oidc_verify_cert":true, "oidc_auto_onboard":true, "primary_auth_mode":true, "self_registration":false}'
+          jobservice:
+            existingSecret: harbor-generated-secrets
+            existingSecretKey: JOBSERVICE_SECRET
+            jobLoggers:
+              - database
+          registry:
+            registry:
+              extraEnvVars:
+                - name: REGISTRY_STORAGE_S3_FORCEPATHSTYLE
+                  value: "true"
+            existingSecret: harbor-generated-secrets
+            existingSecretKey: REGISTRY_HTTP_SECRET
+            credentials:
+              username: harbor_registry_user
+              existingSecret: harbor-registry-credentials
+          trivy:
+            enabled: true
+          metrics:
+            enabled: true
+            serviceMonitor:
+              enabled: true
+              metricRelabelings: []
+              relabelings: []
+    - repoURL: oci://registry.anurag.sh/manifests/registry
       name: application
-      path: platform-services/registry
+      path: .
+      targetRevision: main
   destination:
     server: https://kubernetes.default.svc
     namespace: registry
