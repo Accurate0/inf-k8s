@@ -1,12 +1,11 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T02:21:24.416Z
+# generated at 2026-11-21T02:58:29.520Z
 name: app registry
 on:
   push:
     paths:
       - platform-services/registry/**
       - "!platform-services/registry/manifests/**"
-      - "!platform-services/registry/application.yaml"
       - "!platform-services/registry/app.yaml"
       - "!platform-services/registry/image.values.yaml"
       - crates/subgraph/**

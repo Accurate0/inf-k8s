@@ -2,7 +2,16 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { planApp } from '../plan.ts';
 import { type App, validate, validateGatewayAccess, validateResources } from '../render.ts';
-import { versions, target, platform, render, source, base, checkRefs } from '../test-fixtures.ts';
+import {
+  versions,
+  target,
+  platform,
+  render,
+  base,
+  checkRefs,
+  releaseValues,
+  readValues,
+} from '../test-fixtures.ts';
 
 test('routes to an explicit backend without a workload', () => {
   const rendered = render({
@@ -46,22 +55,24 @@ test('routes to an explicit backend without a workload', () => {
     sources: [{ type: 'git', repo: 'r', name: 'config', path: 'config' }],
     network: { ingress: [] },
   });
-  const route = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0];
+  const route = releaseValues(rendered, 'k8s-http-routes').routes[0];
 
   assert.equal(route.name, 'foo-route');
   assert.deepEqual(route.hostnames, ['a.sh', 'b.sh']);
   assert.equal(route.rules[0].matches[0].path.value, '/v1');
   assert.deepEqual(route.rules[0].matches[1].path, { type: 'Exact', value: '/hook' });
-  assert.equal(source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[1].name, 'foo-api');
-  const client = source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[0];
+  assert.equal(releaseValues(rendered, 'k8s-http-routes').routes[1].name, 'foo-api');
+  const client = releaseValues(rendered, 'k8s-oidc').clients[0];
 
   assert.equal(client.host, 'c.sh');
   assert.deepEqual(client.groups, { admins: ['x'] });
-  const cli = source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[1];
+  const cli = releaseValues(rendered, 'k8s-oidc').clients[1];
 
   assert.equal(cli.secretName, 'kanidm-foo-cli-oidc');
   assert.equal(cli.host, 'a.sh');
-  assert.equal(rendered.spec.sources.at(-1).name, 'config');
+  assert.ok(
+    rendered.objects.some((o) => o.kind === 'GitRepository' && o.metadata.name === 'foo-config'),
+  );
 });
 
 test('jwt routes pass their clients to the chart', () => {
@@ -105,7 +116,7 @@ test('jwt routes pass their clients to the chart', () => {
     ],
     network: { ingress: [] },
   });
-  const [api, web] = source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes;
+  const [api, web] = releaseValues(rendered, 'k8s-http-routes').routes;
 
   assert.deepEqual(api.jwtClients, ['foo', 'foo-cli']);
   assert.equal('jwtClients' in web, false);
@@ -306,7 +317,7 @@ test('route rules send paths to different backends', () => {
     'test',
   );
   validateResources({ platform, apps: [app] });
-  const { rules, gateway } = source(render(app), 'k8s-http-routes')?.helm.valuesObject.routes[0];
+  const { rules, gateway } = releaseValues(render(app), 'k8s-http-routes').routes[0];
 
   assert.equal(gateway.name, 'lan-gateway');
   assert.deepEqual(
@@ -331,7 +342,7 @@ test('route dns becomes external-dns annotations', () => {
   });
   const annotations = (dns: unknown) => {
     const app = validate({ name: 'foo', network: { ingress: [] }, resources: [route(dns)] }, 'x');
-    const source = planApp(app, versions, target, { platform, apps: [] }).sources.find(
+    const source = planApp(app, versions, target, { platform, apps: [], readValues }).sources.find(
       (s) => s.type === 'chart' && s.chart === 'k8s-http-routes',
     );
     return (source as { values: { routes: { annotations: unknown }[] } }).values.routes[0]
@@ -368,7 +379,7 @@ test('ratelimit renders a distinct header rule', () => {
     },
     'x',
   );
-  const source = planApp(app, versions, target, { platform, apps: [] }).sources.find(
+  const source = planApp(app, versions, target, { platform, apps: [], readValues }).sources.find(
     (s) => s.type === 'chart' && s.chart === 'k8s-http-routes',
   );
 
@@ -403,17 +414,19 @@ test('route loadBalancer renders to envoy and checks headers', () => {
     network: { ingress: [] },
   });
 
-  const [route] = source(
+  const [route] = releaseValues(
     render(validate(app({ type: 'consistentHash', headers: ['Cookie', 'User-Agent'] }), 'x')),
     'k8s-http-routes',
-  )?.helm.valuesObject.routes;
+  ).routes;
   assert.deepEqual(route.loadBalancer, {
     type: 'ConsistentHash',
     consistentHash: { type: 'Headers', headers: [{ name: 'Cookie' }, { name: 'User-Agent' }] },
   });
 
-  const [plain] = source(render(validate(app({ type: 'leastRequest' }), 'x')), 'k8s-http-routes')
-    ?.helm.valuesObject.routes;
+  const [plain] = releaseValues(
+    render(validate(app({ type: 'leastRequest' }), 'x')),
+    'k8s-http-routes',
+  ).routes;
   assert.deepEqual(plain.loadBalancer, { type: 'LeastRequest' });
 
   assert.throws(() => validate(app({ type: 'consistentHash' }), 'x'), /headers is required/);
@@ -455,7 +468,7 @@ test('a tcp route attaches to a gateway listener', () => {
   validateResources({ platform, apps: [app] });
   const rendered = render(app);
 
-  assert.deepEqual(source(rendered, 'k8s-http-routes')?.helm.valuesObject, {
+  assert.deepEqual(releaseValues(rendered, 'k8s-http-routes'), {
     tcpRoutes: [
       {
         name: 'ssh',
@@ -466,9 +479,7 @@ test('a tcp route attaches to a gateway listener', () => {
     ],
     routes: [],
   });
-  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
-    'envoy-gateway-system',
-  ]);
+  assert.deepEqual(releaseValues(rendered, 'k8s-network').ingress, ['envoy-gateway-system']);
 
   assert.throws(() => tcp({ listener: undefined }), /listener is required for protocol tcp/);
   assert.throws(() => tcp({ hosts: ['a.sh'] }), /hosts is only for protocol http/);

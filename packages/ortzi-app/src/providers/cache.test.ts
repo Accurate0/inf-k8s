@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { buildGraph } from '../graph.ts';
 import { type App, containerEnv, validate, validateResources } from '../render.ts';
-import { target, platform, render, source, base } from '../test-fixtures.ts';
+import { target, platform, render, base, releaseValues, readValues } from '../test-fixtures.ts';
 
 test('a cache resource picks its instance', () => {
   const cached = (instance: string) =>
@@ -15,10 +15,9 @@ test('a cache resource picks its instance', () => {
       'test',
     );
 
-  assert.deepEqual(
-    source(render(cached('perth')), 'k8s-workload')?.helm.valuesObject.workloads[0].env,
-    [{ name: 'REDIS_URL', value: 'redis://perth' }],
-  );
+  assert.deepEqual(releaseValues(render(cached('perth')), 'k8s-workload').workloads[0].env, [
+    { name: 'REDIS_URL', value: 'redis://perth' },
+  ]);
   assert.throws(
     () => validateResources({ platform, apps: [cached('nope')] }),
     /platform cache export named nope/,
@@ -36,7 +35,7 @@ test('a cache resource defaults to the cache instance', () => {
     'test',
   );
 
-  assert.deepEqual(source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+  assert.deepEqual(releaseValues(render(app), 'k8s-workload').workloads[0].env, [
     { name: 'REDIS_URL', value: 'redis://cache' },
   ]);
   assert.deepEqual(buildGraph([app]).edges, [{ from: 'foo', to: 'cache/cache' }]);
@@ -83,8 +82,7 @@ test('a resource env can take the host or port of its url', () => {
   );
 
   assert.deepEqual(
-    source(render(app, target, [app, provider]), 'k8s-workload')?.helm.valuesObject.workloads[0]
-      .env,
+    releaseValues(render(app, target, [app, provider]), 'k8s-workload').workloads[0].env,
     [
       { name: 'REDIS_HOST', value: 'cache' },
       { name: 'REDIS_PORT', value: '6379' },

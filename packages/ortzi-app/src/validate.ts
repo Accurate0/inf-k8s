@@ -8,13 +8,7 @@ export interface RenderedOutput {
 
 const SCHEMA_BASE = 'https://k8s-schemas.anurag.sh';
 const CACHE_ROOT = '.cache/kubeconform';
-const MANIFEST_ROOTS = [
-  'system-components',
-  'platform-services',
-  'projects',
-  'selfhosted',
-  'kubernetes',
-];
+const MANIFEST_ROOTS = ['platform-services', 'projects', 'selfhosted', 'kubernetes'];
 const SKIPPED_DIRS = new Set(['node_modules', 'target', 'dist', '.git']);
 
 function schemaVersion(): string | undefined {
@@ -114,7 +108,6 @@ export function validateManifests(
   }
 
   const kustomizations: string[] = [];
-  const applications: string[] = [];
   for (const root of MANIFEST_ROOTS) {
     walk(root, (dir, file) => {
       if (!selected(dir)) {
@@ -123,21 +116,7 @@ export function validateManifests(
       if (file === 'kustomization.yaml' || file === 'kustomization.yml') {
         kustomizations.push(dir);
       }
-      const path = `${dir}/${file}`;
-      if (
-        !generated.has(path) &&
-        (file === 'application.yaml' || file.endsWith('.application.yaml'))
-      ) {
-        applications.push(path);
-      }
     });
-  }
-
-  if (applications.length) {
-    console.error(`validating ${applications.length} other applications`);
-    const before = failures.length;
-    kubeconform('applications', applications);
-    report('applications', before);
   }
 
   console.error(`validating ${kustomizations.length} kustomizations`);

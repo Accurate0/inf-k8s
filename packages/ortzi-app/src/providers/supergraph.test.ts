@@ -10,7 +10,7 @@ import {
   unprefixedTypes,
 } from '../supergraph.ts';
 import { resolveSubgraphs, validateResources } from '../render.ts';
-import { platform, subgraphApp, routerApp } from '../test-fixtures.ts';
+import { platform, subgraphApp, routerApp, readValues } from '../test-fixtures.ts';
 
 test('router config adds websocket paths for subgraphs with subscriptions', () => {
   const config = parse(

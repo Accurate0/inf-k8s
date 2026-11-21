@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { renderKustomization, validate, validateResources } from '../render.ts';
-import { target, platform, render, source, base } from '../test-fixtures.ts';
+import { target, platform, render, base, releaseValues, readValues } from '../test-fixtures.ts';
 
 test('a config resource generates its configmap and mount', () => {
   const app = validate(
@@ -22,7 +22,7 @@ test('a config resource generates its configmap and mount', () => {
     },
     'test',
   );
-  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  const workload = releaseValues(render(app), 'k8s-workload').workloads[0];
 
   assert.deepEqual(workload.volumes, [
     {
@@ -98,8 +98,8 @@ test('a config with values renders through a secret template', () => {
   validateResources({ platform, apps: [app] });
   const rendered = render(app);
 
-  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets, []);
-  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.templates, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-secrets').secrets, []);
+  assert.deepEqual(releaseValues(rendered, 'k8s-secrets').templates, [
     {
       secretName: 'foo-settings-rendered',
       configMap: 'foo-settings',
@@ -110,7 +110,7 @@ test('a config with values renders through a secret template', () => {
       ],
     },
   ]);
-  const workload = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0];
+  const workload = releaseValues(rendered, 'k8s-workload').workloads[0];
   assert.deepEqual(workload.volumes, [
     {
       name: 'settings',

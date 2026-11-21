@@ -5,13 +5,6 @@ namespace:
     gateway.inf-k8s.net/anurag-sh: "true"
 network:
   ingress: [janitor-bot, monitoring]
-overrides:
-  argocd:
-    application:
-      options:
-        - ApplyOutOfSyncOnly=true
-        - CreateNamespace=true
-        - ServerSideApply=true
 resources:
   - name: ssh-signing
     type: secret

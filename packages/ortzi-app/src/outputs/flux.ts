@@ -1,5 +1,5 @@
 import { stringify } from 'yaml';
-import { chartValues, type Plan, type PlanSource } from '../plan.ts';
+import { chartValues, type Plan, type PlanSource, type PlatformChart } from '../plan.ts';
 import type { FluxOverrides } from '../types.ts';
 import { HEADER } from '../generated.ts';
 import { sourceProvider } from '../providers/index.ts';
@@ -36,15 +36,23 @@ export const appPath = (plan: Pick<Plan, 'name' | 'namespace'>) =>
 export const fluxDir = (plan: Pick<Plan, 'name' | 'namespace'>) =>
   `${CLUSTER_ROOT}/${appPath(plan)}`;
 
-function sourceObjects(plan: Plan, source: PlanSource): FluxObject[] {
+// A chart an app uses more than once gets one release each, told apart by its values' name.
+function chartName(plan: Plan, source: PlatformChart, index: number): string {
+  const name = `${plan.name}-${source.chart}`;
+  const twins = plan.sources.filter((s) => s.type === 'chart' && s.chart === source.chart);
+  if (twins.length === 1) {
+    return name;
+  }
+  const label = source.values.name;
+  return `${name}-${typeof label === 'string' ? label : twins.indexOf(source) + 1 || index}`;
+}
+
+function sourceObjects(plan: Plan, source: PlanSource, index: number): FluxObject[] {
   if (source.type !== 'chart') {
     return sourceProvider(source.type).flux(plan, source as never);
   }
-  if (source.valueFiles) {
-    throw new Error(`${plan.name}: flux needs inlined values; set artifact`);
-  }
 
-  const name = `${plan.name}-${source.chart}`;
+  const name = chartName(plan, source, index);
   const values = chartValues(source);
   return [
     chartRepository(plan, name, `${source.registry}/${source.chart}`, source.version),
@@ -86,7 +94,7 @@ export const kustomizationDocument = (resources: string[]) =>
   );
 
 export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<string, string> {
-  const objects = plan.sources.flatMap((source) => sourceObjects(plan, source));
+  const objects = plan.sources.flatMap((source, index) => sourceObjects(plan, source, index));
   const driftIgnore = overrides.helmRelease?.driftIgnore;
   for (const object of objects) {
     if (object.kind === 'HelmRelease' && driftIgnore) {

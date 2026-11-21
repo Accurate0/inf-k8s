@@ -4,7 +4,7 @@ import { parse } from 'yaml';
 import { renderAppTerraform, renderTerraformIndex } from '../terraform.ts';
 import { addRoles, renderDatabase } from '../providers/database.ts';
 import { type App, appRoles, validate, validateResources } from '../render.ts';
-import { platform, render, source, base } from '../test-fixtures.ts';
+import { platform, render, base, releaseValues, readValues } from '../test-fixtures.ts';
 
 test('database hosts come from platform exports', () => {
   const rendered = render({
@@ -20,7 +20,7 @@ test('database hosts come from platform exports', () => {
     ],
     network: { ingress: [] },
   });
-  const [pooled, direct] = source(rendered, 'k8s-postgres')?.helm.valuesObject.databases;
+  const [pooled, direct] = releaseValues(rendered, 'k8s-postgres').databases;
 
   assert.equal(pooled.host, 'pooler.db');
   assert.equal(direct.host, 'direct.db');
@@ -132,8 +132,8 @@ test('a secret can share a name with a database', () => {
     'test',
   );
 
-  assert.equal(source(render(app), 'k8s-secrets')?.helm.valuesObject.secrets[0].name, 'foo');
-  assert.equal(source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].name, 'foo');
+  assert.equal(releaseValues(render(app), 'k8s-secrets').secrets[0].name, 'foo');
+  assert.equal(releaseValues(render(app), 'k8s-postgres').databases[0].name, 'foo');
 });
 
 test('rejects references to missing database and bucket resources', () => {
@@ -163,10 +163,7 @@ test('database role and extensions flow through every output', () => {
   };
 
   assert.deepEqual(appRoles([app]), ['foo_2']);
-  assert.equal(
-    source(render(app), 'k8s-postgres')?.helm.valuesObject.databases[0].databaseName,
-    'foo_2',
-  );
+  assert.equal(releaseValues(render(app), 'k8s-postgres').databases[0].databaseName, 'foo_2');
   const database = parse(renderDatabase('foo', { role: 'foo_2', extensions: ['vector'] }));
 
   assert.equal(database.metadata.name, 'foo');

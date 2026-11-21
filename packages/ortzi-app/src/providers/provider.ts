@@ -19,7 +19,6 @@ export interface PlatformChart {
   chart: string;
   registry: string;
   version: string;
-  valueFiles?: string[];
   values: Record<string, unknown>;
   retain?: boolean;
 }
@@ -141,7 +140,6 @@ export interface SourceProvider<T extends SourceType = SourceType> {
   validate?(ctx: ValidateSourceContext, sources: SourceTypes[T]['source'][]): void;
   files?(app: App, source: SourceTypes[T]['source']): string[];
   plan(ctx: PlanContext, source: SourceTypes[T]['source']): SourceTypes[T]['plan'];
-  application(plan: Plan, source: SourceTypes[T]['plan']): Record<string, unknown>;
   flux(plan: Plan, source: SourceTypes[T]['plan']): FluxObject[];
   helmTemplate?(
     plan: Plan,

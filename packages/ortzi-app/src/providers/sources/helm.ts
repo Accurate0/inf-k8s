@@ -17,8 +17,7 @@ export interface ExternalChart {
   repo: string;
   version: string;
   releaseName?: string;
-  valueFiles?: string[];
-  values?: Record<string, unknown>;
+  values: Record<string, unknown>;
 }
 
 declare module '../provider.ts' {
@@ -80,35 +79,16 @@ export const helm: SourceProvider<'helm'> = {
 
   files: (_app, source) => [source.values],
 
-  plan: ({ app, directory, readValues }, { chart, repo, version, values, releaseName }) => ({
+  plan: ({ directory, readValues }, { chart, repo, version, values, releaseName }) => ({
     type: 'helm',
     chart,
     repo,
     version,
     ...(releaseName ? { releaseName } : {}),
-    ...(app.artifact
-      ? { values: readValues(`${directory}/${values}`) }
-      : { valueFiles: [`${directory}/${values}`] }),
-  }),
-
-  application: (_plan, source) => ({
-    chart: source.chart,
-    repoURL: source.repo,
-    targetRevision: source.version,
-    helm: {
-      ...(source.releaseName ? { releaseName: source.releaseName } : {}),
-      ...(source.valueFiles
-        ? { valueFiles: source.valueFiles.map((file) => `$values/${file}`) }
-        : {}),
-      ...(source.values ? { valuesObject: source.values } : {}),
-    },
+    values: readValues(`${directory}/${values}`),
   }),
 
   flux(plan, source) {
-    if (source.valueFiles) {
-      throw new Error(`${plan.name}: flux needs inlined values; set artifact`);
-    }
-
     const release = source.releaseName ?? plan.name;
     const name = `${plan.name}-${source.releaseName ?? source.chart}`;
     const values = source.values ?? {};

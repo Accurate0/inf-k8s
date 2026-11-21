@@ -104,5 +104,5 @@ export const run = main(() => {
 `kube` verbs map to HTTP methods (`get` GET, `create` POST, `update` PUT, `patch` PATCH,
 `delete` DELETE). ortzi reads the kubeconfig and holds the credentials; the package only sends
 paths and bodies. `Kube` in `@ortzi/kit` resolves resource names through API discovery, so
-`kube.namespace('argocd').get('application', name)` works as with kubectl.
+`kube.namespace('flux-system').get('kustomization', name)` works as with kubectl.
 Programs it runs are ordinary host processes; the sandbox decides which ones it may start.

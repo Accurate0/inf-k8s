@@ -9,7 +9,16 @@ import {
   validate,
   validateResources,
 } from '../render.ts';
-import { versions, target, platform, render, source, base, checkRefs } from '../test-fixtures.ts';
+import {
+  versions,
+  target,
+  platform,
+  render,
+  base,
+  checkRefs,
+  releaseValues,
+  readValues,
+} from '../test-fixtures.ts';
 
 const short = (workload: Record<string, unknown>, extra: Record<string, unknown> = {}) => {
   const app = validate(
@@ -21,7 +30,7 @@ const short = (workload: Record<string, unknown>, extra: Record<string, unknown>
     },
     'test',
   );
-  return source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  return releaseValues(render(app), 'k8s-workload').workloads[0];
 };
 
 test('renders several workloads and routes to the named one', () => {
@@ -56,17 +65,16 @@ test('renders several workloads and routes to the named one', () => {
     ],
     network: { ingress: [] },
   });
-  const values = source(rendered, 'k8s-workload')?.helm.valuesObject;
+  const values = releaseValues(rendered, 'k8s-workload');
 
   assert.deepEqual(
     values.workloads.map((w: { name: string }) => w.name),
     ['api', 'web', 'sync'],
   );
   assert.equal(values.workloads[2].envFrom, undefined);
-  assert.deepEqual(
-    source(rendered, 'k8s-http-routes')?.helm.valuesObject.routes[0].rules[0].backendRefs,
-    [{ group: '', kind: 'Service', name: 'web', port: 8080, weight: 1 }],
-  );
+  assert.deepEqual(releaseValues(rendered, 'k8s-http-routes').routes[0].rules[0].backendRefs, [
+    { group: '', kind: 'Service', name: 'web', port: 8080, weight: 1 },
+  ]);
 });
 
 test('a Job runs as a hook in its phase', () => {
@@ -76,7 +84,7 @@ test('a Job runs as a hook in its phase', () => {
     network: { ingress: [] },
   });
 
-  const [job] = source(rendered, 'k8s-workload')?.helm.valuesObject.workloads;
+  const [job] = releaseValues(rendered, 'k8s-workload').workloads;
   assert.equal(job.kind, 'Job');
   assert.equal(job.phase, 'preSync');
 });
@@ -337,7 +345,7 @@ test('one ports list fills the container and the service', () => {
     },
     'test',
   );
-  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  const workload = releaseValues(render(app), 'k8s-workload').workloads[0];
 
   assert.deepEqual(workload.ports, [
     { name: 'grpc', containerPort: 50051 },
@@ -400,7 +408,8 @@ test("service env resolves against the app's own services", () => {
     );
   const value = (env: Record<string, unknown>) => {
     const built = app({ URL: env });
-    const source = planApp(built, versions, target, { platform, apps: [built] }).sources[0] as {
+    const source = planApp(built, versions, target, { platform, apps: [built], readValues })
+      .sources[0] as {
       values: { workloads: { env: { value: string }[] }[] };
     };
     return source.values.workloads[0].env[0].value;

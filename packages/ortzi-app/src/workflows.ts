@@ -25,7 +25,6 @@ export function renderWorkflow(app: App, target: Target, actions: ActionVersions
         paths: [
           `${dir}/**`,
           `!${dir}/manifests/**`,
-          `!${dir}/application.yaml`,
           `!${dir}/app.yaml`,
           `!${dir}/image.values.yaml`,
           ...(build.paths ?? []),
@@ -284,7 +283,6 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
         paths: [
           `${dir}/**`,
           `!${dir}/manifests/**`,
-          `!${dir}/application.yaml`,
           `!${dir}/app.yaml`,
           `!${dir}/image.values.yaml`,
           ...(build.paths ?? []),

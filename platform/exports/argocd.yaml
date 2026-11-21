@@ -1,4 +1,0 @@
-exports:
-  - name: argocd
-    type: platform
-    url: http://argocd-server.argocd.svc.cluster.local:80

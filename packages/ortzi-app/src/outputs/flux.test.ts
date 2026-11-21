@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parseAllDocuments } from 'yaml';
-import { renderOutputs } from './index.ts';
 import { renderFlux } from './flux.ts';
 import { planApp } from '../plan.ts';
 import type { App } from '../render.ts';
@@ -164,11 +163,4 @@ test('flux overrides add dependencies, timeout and drift ignores', () => {
   for (const release of files('app/helmrelease.yaml')) {
     assert.deepEqual(release.spec.driftDetection, { mode: 'enabled', ignore });
   }
-});
-
-test('apps without an artifact render no flux output', () => {
-  const app = { ...workload, artifact: undefined };
-  const paths = renderOutputs(planApp(app, versions, target, world), app).map(([path]) => path);
-
-  assert.deepEqual(paths, ['projects/foo/application.yaml']);
 });

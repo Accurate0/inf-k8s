@@ -5,20 +5,6 @@ namespace:
     internal-gateway-access: "true"
 network:
   ingress: [firefly-up-sync]
-overrides:
-  argocd:
-    application:
-      options:
-        - ApplyOutOfSyncOnly=true
-        - CreateNamespace=true
-        - RespectIgnoreDifferences=true
-        - ServerSideApply=true
-      ignoreDifferences:
-        - group: ""
-          kind: Secret
-          name: firefly-app-key
-          jsonPointers:
-            - /data
 resources:
   - {name: firefly, type: secret, secretName: firefly-managed-secrets}
   - name: integrations

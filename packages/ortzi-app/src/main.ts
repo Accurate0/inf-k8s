@@ -55,7 +55,7 @@ import { generatedFiles } from './files';
 import { appTerraformPath, renderAppTerraform, TERRAFORM_APPS } from './terraform';
 import { type RenderedOutput, validateManifests } from './validate';
 
-const LOCATIONS = ['projects', 'platform-services', 'selfhosted', 'system-components'];
+const LOCATIONS = ['projects', 'platform-services', 'selfhosted'];
 const VERSIONS = 'platform/versions.yaml';
 const APPS_BUNDLE = 'platform/apps.yaml';
 const PLATFORM_EXPORTS = 'platform/exports';
@@ -85,7 +85,7 @@ const gatewayListeners = (): Listener[] =>
 const USAGE = `usage: ortzi app <command> [flags]
 
 definition (run from the root of the k8s repo):
-  render                   validate manifests, then write application.yaml for every app.yaml
+  render                   validate manifests, then write each app's flux manifests under kubernetes/
   diff [app]               show what render would change, exit 1 if anything would
   fmt [file...]            put every app.yaml (or the given files) in canonical key order and style
   list                     list apps and what they declare

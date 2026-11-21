@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { planApp } from '../plan.ts';
 import { type App, validate, validateResources } from '../render.ts';
-import { versions, target } from '../test-fixtures.ts';
+import { versions, target, readValues } from '../test-fixtures.ts';
 
 const volumes = (
   overrides: Partial<Extract<NonNullable<App['resources']>[number], { type: 'volume' }>> = {},
@@ -45,7 +45,7 @@ test('volumes render a claim through the storage class export', () => {
     },
     'x',
   );
-  const world = { platform: storage, apps: [app] };
+  const world = { platform: storage, apps: [app], readValues };
   validateResources(world);
   const sources = planApp(app, withStorage, target, world).sources as {
     chart: string;

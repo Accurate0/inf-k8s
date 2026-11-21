@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { helmTemplates, planApp } from '../../plan.ts';
 import { type App, validate } from '../../render.ts';
-import { versions, target, platform, render, source } from '../../test-fixtures.ts';
+import { versions, target, platform, render, readValues } from '../../test-fixtures.ts';
 
 const release = {
   type: 'helm' as const,
@@ -12,19 +12,34 @@ const release = {
   values: 'forgejo.values.yaml',
 };
 
-test('helm releases read values from a file beside app.yaml', () => {
-  const rendered = render(
+test('helm releases inline values from a file beside app.yaml', () => {
+  const read: string[] = [];
+  const plan = planApp(
     { name: 'foo', network: { ingress: [] }, sources: [release] },
+    versions,
     { location: 'selfhosted', hasManifests: false },
+    {
+      platform,
+      apps: [],
+      readValues: (path) => {
+        read.push(path);
+        return { replicas: 2 };
+      },
+    },
   );
+  const forgejo = render({
+    name: 'foo',
+    network: { ingress: [] },
+    sources: [release],
+  }).releases.find((r) => r.metadata.name === 'foo-forgejo');
 
-  assert.equal(rendered.spec.project, 'selfhosted');
-  assert.equal(rendered.spec.sources[0].ref, 'values');
-  assert.deepEqual(source(rendered, 'forgejo'), {
-    chart: 'forgejo',
-    repoURL: release.repo,
-    targetRevision: '1.0.0',
-    helm: { valueFiles: ['$values/selfhosted/foo/forgejo.values.yaml'] },
+  assert.deepEqual(read, ['selfhosted/foo/forgejo.values.yaml']);
+  assert.deepEqual(plan.sources.at(-1), { ...release, values: { replicas: 2 } });
+  assert.equal(forgejo.spec.releaseName, 'foo');
+  assert.deepEqual(forgejo.spec.chartRef, {
+    kind: 'OCIRepository',
+    name: 'foo-forgejo',
+    namespace: 'flux-system',
   });
 });
 
@@ -62,7 +77,7 @@ test('helm templates pull upstream charts', () => {
     },
     versions,
     target,
-    { platform, apps: [] },
+    { platform, apps: [], readValues },
   );
   const [, oci, https] = helmTemplates(plan).map(({ args }) => args);
 
@@ -75,5 +90,4 @@ test('helm templates pull upstream charts', () => {
     '--version',
     '2.0.0',
   ]);
-  assert.ok(oci.includes('projects/foo/forgejo.values.yaml'));
 });

@@ -79,7 +79,6 @@ type Mutation {
 	Dispatches a comment command as if it had been posted on the PR or issue.
 	"""
 	janitorCommand(input: JanitorCommandInput!): JSON!
-	janitorArgocdResync(app: String!): Boolean!
 }
 
 interface Node {
@@ -93,7 +92,7 @@ type Query {
 	"""
 	janitorEvaluations: [JanitorEvaluation!]!
 	"""
-	Reachability of forgejo, github and argocd.
+	Reachability of forgejo and github.
 	"""
 	janitorHealth: [JanitorServiceHealth!]!
 	"""

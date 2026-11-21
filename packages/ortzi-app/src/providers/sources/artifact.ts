@@ -28,7 +28,7 @@ const schema: Schema = {
       type: 'string',
       pattern: '^oci://[^/]+/[^/]+/[^/]+$',
       description:
-        'OCI artifact another pipeline publishes, synced by Argo CD as is, e.g. oci://registry.anurag.sh/manifests/<repo>.',
+        'OCI artifact another pipeline publishes, applied by flux as is, e.g. oci://registry.anurag.sh/manifests/<repo>.',
     },
     tag: {
       type: 'string',
@@ -40,7 +40,7 @@ const schema: Schema = {
     },
     name: {
       type: 'string',
-      description: 'Argo CD source name.',
+      description: 'Names the flux source and kustomization, <app>-<name>.',
     },
   },
 };
@@ -58,13 +58,6 @@ export const artifact: SourceProvider<'artifact'> = {
   },
 
   plan: (_ctx, source) => source,
-
-  application: (_plan, source) => ({
-    repoURL: source.repo,
-    ...(source.name ? { name: source.name } : {}),
-    path: source.path ?? '.',
-    targetRevision: source.tag,
-  }),
 
   flux(plan, source) {
     const name = `${plan.name}-${source.name ?? 'artifact'}`;

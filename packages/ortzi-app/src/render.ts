@@ -1,6 +1,5 @@
 export {
   type App,
-  type ArgocdOverrides,
   type Artifact,
   type Build,
   type Export,

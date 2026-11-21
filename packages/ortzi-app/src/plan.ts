@@ -40,7 +40,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
 
   const readValues = (path: string) => {
     if (!world.readValues) {
-      throw new Error(`${name}: artifact apps inline values, pass readValues`);
+      throw new Error(`${name}: values are inlined, pass readValues`);
     }
     return world.readValues(path);
   };
@@ -50,9 +50,8 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     if (!version) {
       throw new Error(`${app.name}: no version for chart ${chartName}`);
     }
-    if (app.artifact && valueFiles) {
+    if (valueFiles) {
       values = Object.assign({}, ...valueFiles.map(readValues), values);
-      valueFiles = undefined;
       if (values.images) {
         const released = releaseImages(app);
         values.images = Object.fromEntries(
@@ -68,7 +67,6 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
       chart: chartName,
       registry: app.chartRegistry ?? CHART_REGISTRY,
       version,
-      ...(valueFiles ? { valueFiles } : {}),
       values,
       ...(retain ? { retain } : {}),
     };
@@ -165,10 +163,7 @@ const withReleases = (plan: Plan, source: PlatformChart): Record<string, unknown
   };
 };
 
-const RETAIN = {
-  'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
-  'helm.sh/resource-policy': 'keep',
-};
+const RETAIN = { 'helm.sh/resource-policy': 'keep' };
 
 export const chartValues = (source: PlatformChart) => ({
   ...source.values,
@@ -189,7 +184,6 @@ export function helmTemplates(plan: Plan): { args: string[]; values: string }[] 
       return [];
     }
 
-    const valueFiles = 'valueFiles' in source ? (source.valueFiles ?? []) : [];
     return [
       {
         args: [
@@ -198,7 +192,6 @@ export function helmTemplates(plan: Plan): { args: string[]; values: string }[] 
           ...template.location,
           '--namespace',
           plan.namespace,
-          ...valueFiles.flatMap((file) => ['-f', file]),
           '-f',
           '-',
         ],

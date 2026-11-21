@@ -6,36 +6,10 @@
       "/^kubernetes/(cert-manager|cnpg-system/cloudnative-pg|cnpg-system/cloudnative-pg-cluster|csi-driver-nfs|default/network-policies|dragonfly-system/dragonfly|envoy-gateway-system/envoy-gateway|external-dns|external-secrets/external-secrets-operator|flux-system/flux-operator|garage|kanidm|longhorn-system/longhorn|monitoring|openbao|reloader)/app/.+\\.yaml$/"
     ]
   },
-  "argocd": {
-    "managerFilePatterns": [
-      "/system-components/.*\\.application\\.yaml$/",
-      "/selfhosted/.*\\.application\\.yaml$/",
-      "/projects/.*/application\\.yaml$/",
-      "/platform-services/.*/application\\.yaml$/"
-    ]
-  },
-  "ignorePaths": [
-    "projects/anurag-sh/application.yaml",
-    "projects/bom/application.yaml",
-    "projects/home-gateway/application.yaml",
-    "projects/maccas-api/application.yaml",
-    "projects/ozbargain/application.yaml",
-    "projects/spotify/application.yaml",
-    "projects/tldr-bot/application.yaml",
-    "platform-services/ai-gateway/application.yaml",
-    "platform-services/etcd-backup/application.yaml",
-    "platform-services/feature-flags/application.yaml",
-    "platform-services/firefly-up-sync/application.yaml",
-    "platform-services/janitor-bot/application.yaml",
-    "platform-services/k8s-schemas/application.yaml",
-    "platform-services/kanidm-sync/application.yaml",
-    "platform-services/registry/application.yaml",
-    "platform-services/waf-manager/application.yaml"
-  ],
   "customManagers": [
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^(selfhosted|system-components)/[^/]+/app\\.yaml$/"],
+      "managerFilePatterns": ["/^(projects|platform-services|selfhosted)/[^/]+/app\\.yaml$/"],
       "matchStrings": [
         "chart:\\s*(?<depName>\\S+)\\s*\\n\\s*repo:\\s*(?<registryUrl>https://\\S+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
       ],
@@ -43,7 +17,7 @@
     },
     {
       "customType": "regex",
-      "managerFilePatterns": ["/^(selfhosted|system-components)/[^/]+/app\\.yaml$/"],
+      "managerFilePatterns": ["/^(projects|platform-services|selfhosted)/[^/]+/app\\.yaml$/"],
       "matchStrings": [
         "repo:\\s*oci://(?<depName>\\S+)\\s*\\n\\s*version:\\s*(?<currentValue>\\S+)"
       ],
@@ -64,20 +38,6 @@
       "matchStrings": ["toolchain:\\s*\\{?\\s*rust:\\s*\"?(?<currentValue>\\d+\\.\\d+\\.\\d+)\"?"],
       "depNameTemplate": "rust-lang/rust",
       "datasourceTemplate": "github-releases"
-    },
-    {
-      "customType": "regex",
-      "managerFilePatterns": [
-        "/system-components/.*\\.application\\.yaml$/",
-        "/selfhosted/.*\\.application\\.yaml$/",
-        "/projects/.*/application\\.yaml$/",
-        "/platform-services/.*/application\\.yaml$/"
-      ],
-      "matchStrings": [
-        "repoURL:\\s*oci://(?<depName>[^\\s]+)\\s*\\n\\s*targetRevision:\\s*(?<currentValue>[^\\s]+)"
-      ],
-      "datasourceTemplate": "docker",
-      "versioningTemplate": "semver"
     },
     {
       "customType": "regex",
@@ -176,22 +136,6 @@
       "matchFileNames": ["platform/versions.yaml"],
       "matchDatasources": ["github-tags"],
       "groupName": "github-actions"
-    },
-    {
-      "matchManagers": ["argocd"],
-      "matchDatasources": ["docker"],
-      "matchPackageNames": [
-        "ghcr.io/accurate0/charts/k8s-http-routes/k8s-http-routes",
-        "ghcr.io/accurate0/charts/k8s-secrets/k8s-secrets",
-        "ghcr.io/accurate0/charts/k8s-oidc/k8s-oidc",
-        "ghcr.io/accurate0/charts/k8s-postgres/k8s-postgres",
-        "ghcr.io/external-secrets/charts/external-secrets/external-secrets",
-        "ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator/dragonfly-operator",
-        "ghcr.io/bjw-s-labs/helm/app-template/app-template",
-        "code.forgejo.org/forgejo-helm/forgejo/forgejo",
-        "git.erwanleboucher.dev/eleboucher/charts/forgejo-runner/forgejo-runner"
-      ],
-      "enabled": false
     },
     {
       "matchManagers": ["flux"],

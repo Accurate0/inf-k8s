@@ -1,13 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type App, rawFileUrl, resolveSubgraphs, validateResources } from '../render.ts';
-import { target, platform, render, source, subgraphApp, routerApp } from '../test-fixtures.ts';
+import {
+  target,
+  platform,
+  render,
+  subgraphApp,
+  routerApp,
+  releaseValues,
+  readValues,
+} from '../test-fixtures.ts';
 
 test('a subgraph lets the supergraph app in', () => {
   const spotify = subgraphApp('spotify');
   const rendered = render(spotify, target, [spotify, routerApp]);
 
-  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, ['graph']);
+  assert.deepEqual(releaseValues(rendered, 'k8s-network').ingress, ['graph']);
 });
 
 test('subgraphs resolve to their in-cluster url and raw schema', () => {
@@ -64,7 +72,7 @@ test('raw file urls need an https owner/repo url', () => {
 });
 
 test('subgraph validation', () => {
-  const world = (apps: App[]) => ({ platform, apps });
+  const world = (apps: App[]) => ({ platform, apps, readValues });
 
   assert.throws(
     () => validateResources(world([subgraphApp('spotify')])),
@@ -108,7 +116,7 @@ test('subgraph validation', () => {
 });
 
 test('subgraph auth clients must be oidc resources', () => {
-  const world = (apps: App[]) => ({ platform, apps });
+  const world = (apps: App[]) => ({ platform, apps, readValues });
   const spotify = subgraphApp('spotify', { auth: { clients: ['spotify'], groups: ['g'] } });
 
   assert.throws(

@@ -1,12 +1,11 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T02:47:32.168Z
+# generated at 2026-11-21T02:58:29.457Z
 name: app janitor-bot
 on:
   push:
     paths:
       - platform-services/janitor-bot/**
       - "!platform-services/janitor-bot/manifests/**"
-      - "!platform-services/janitor-bot/application.yaml"
       - "!platform-services/janitor-bot/app.yaml"
       - "!platform-services/janitor-bot/image.values.yaml"
       - crates/subgraph/**

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { validate, validateResources } from '../render.ts';
-import { platform, render, source, base, checkRefs } from '../test-fixtures.ts';
+import { platform, render, base, checkRefs, releaseValues } from '../test-fixtures.ts';
 
 test('a workload only gets the secrets it lists', () => {
   const rendered = render({
@@ -20,17 +20,11 @@ test('a workload only gets the secrets it lists', () => {
     network: { ingress: [] },
   });
 
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].envFrom, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-workload').workloads[0].envFrom, [
     { secretRef: { name: 'foo-bar-managed-secrets' } },
     { secretRef: { name: 'foo-bar-database-secret' } },
   ]);
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valueFiles, [
-    '$values/projects/foo-bar/image.values.yaml',
-  ]);
-  assert.equal(
-    source(rendered, 'k8s-postgres')?.helm.valuesObject.databases[0].databaseName,
-    'foo_bar',
-  );
+  assert.equal(releaseValues(rendered, 'k8s-postgres').databases[0].databaseName, 'foo_bar');
 });
 
 test('rejects duplicate secrets and a secret used in env', () => {
@@ -67,7 +61,7 @@ test('secret resources default their kubernetes secret name', () => {
   );
 
   assert.deepEqual(
-    source(render(app), 'k8s-secrets')?.helm.valuesObject.secrets.map(
+    releaseValues(render(app), 'k8s-secrets').secrets.map(
       (s: { managedSecrets: unknown }) => s.managedSecrets,
     ),
     [[{ secretName: 'foo-managed-secrets' }], [{ secretName: 'custom' }]],
@@ -111,7 +105,7 @@ test('workloads reference secrets by resource name', () => {
     },
     'test',
   );
-  const workload = source(render(app), 'k8s-workload')?.helm.valuesObject.workloads[0];
+  const workload = releaseValues(render(app), 'k8s-workload').workloads[0];
 
   assert.deepEqual(workload.envFrom, [
     { secretRef: { name: 'foo-secret', optional: true } },
@@ -122,10 +116,9 @@ test('workloads reference secrets by resource name', () => {
     { name: 'A', valueFrom: { secretKeyRef: { name: 'foo-secret', key: 'K' } } },
     { name: 'B', valueFrom: { secretKeyRef: { name: 'images-secret', key: 'S3_ENDPOINT' } } },
   ]);
-  assert.deepEqual(
-    source(render(app), 'k8s-secrets')?.helm.valuesObject.secrets[1].managedSecrets,
-    [{ secretName: 'images-secret' }],
-  );
+  assert.deepEqual(releaseValues(render(app), 'k8s-secrets').secrets[1].managedSecrets, [
+    { secretName: 'images-secret' },
+  ]);
 });
 
 test('rejects resources without a secret name and unknown references', () => {
@@ -203,7 +196,7 @@ test('secret templates can exclude other keys', () => {
     ],
   });
 
-  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets[0].managedSecrets, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-secrets').secrets[0].managedSecrets, [
     { secretName: 's', template: { includeAllSecrets: false, data: { a: 'b' } } },
   ]);
   validate(
@@ -243,7 +236,7 @@ test('a generated secret pushes each key to openbao and syncs it back', () => {
     },
     'test',
   );
-  const values = source(render(app), 'k8s-secrets')?.helm.valuesObject;
+  const values = releaseValues(render(app), 'k8s-secrets');
 
   assert.deepEqual(values.secrets, [
     { name: 'foo', managedSecrets: [{ secretName: 'foo-secrets' }] },

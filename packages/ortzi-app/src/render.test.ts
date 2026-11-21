@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { renderAppTerraform } from './terraform.ts';
-import { renderApplication as renderArgo } from './outputs/argocd.ts';
 import { renderOutputs } from './outputs/index.ts';
+import { renderFluxIndex } from './outputs/flux-index.ts';
 import { helmTemplates, planApp } from './plan.ts';
 import {
   type App,
@@ -17,22 +17,24 @@ import {
 import {
   versions,
   target,
-  renderApplication,
   platform,
   render,
-  source,
   base,
   overridden,
+  releaseValues,
+  readValues,
 } from './test-fixtures.ts';
+
+const repository = (rendered: ReturnType<typeof render>, name: string) =>
+  rendered.objects.find((o) => o.kind === 'OCIRepository' && o.metadata.name === name);
 
 test('only enables charts for declared blocks', () => {
   const rendered = render({ name: 'foo', network: { ingress: [] } });
 
   assert.deepEqual(
-    rendered.spec.sources.map((s: { chart: string }) => s.chart),
-    ['k8s-network'],
+    rendered.releases.map((r) => r.metadata.name),
+    ['foo-k8s-network'],
   );
-  assert.equal(rendered.spec.project, 'projects');
 });
 
 test('route and metrics open the network to their callers', () => {
@@ -69,7 +71,7 @@ test('route and metrics open the network to their callers', () => {
     network: { ingress: ['ai-gateway', 'monitoring'] },
   });
 
-  assert.deepEqual(source(rendered, 'k8s-network')?.helm.valuesObject.ingress, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-network').ingress, [
     'envoy-gateway-system',
     'monitoring',
     'ai-gateway',
@@ -90,25 +92,20 @@ test('an app can pin a chart version', () => {
     network: { ingress: [] },
   });
 
-  assert.equal(source(rendered, 'k8s-network')?.targetRevision, '0.0.9');
+  assert.deepEqual(repository(rendered, 'foo-k8s-network').spec.ref, { tag: '0.0.9' });
 });
 
 test('does not emit yaml anchors', () => {
-  const output = renderApplication(
-    {
-      name: 'foo',
-      resources: [
-        { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' },
-        { name: 'foo', type: 'database', secretName: 'foo-database-secret' },
-      ],
-      network: { ingress: [] },
-    },
-    versions,
-    target,
-    { platform, apps: [] },
-  );
+  const { files } = render({
+    name: 'foo',
+    resources: [
+      { name: 'foo', type: 'secret', secretName: 'foo-managed-secrets' },
+      { name: 'foo', type: 'database', secretName: 'foo-database-secret' },
+    ],
+    network: { ingress: [] },
+  });
 
-  assert.doesNotMatch(output, /[&*]a1/);
+  assert.doesNotMatch([...files.values()].join('\n'), /[&*]a1/);
 });
 
 test('the generated time only matters when content changes', () => {
@@ -122,13 +119,10 @@ test('the generated time only matters when content changes', () => {
 });
 
 test('platform charts come from registry.anurag.sh unless the app overrides the registry', () => {
-  const sources = (app: App) =>
-    parse(renderApplication(app, versions, target, { platform, apps: [] })).spec.sources;
-  const network = (app: App) =>
-    sources(app).find((source: { chart?: string }) => source.chart === 'k8s-network');
+  const network = (app: App) => repository(render(app), 'foo-k8s-network').spec;
 
   assert.equal(
-    network({ name: 'foo', network: { ingress: [] } }).repoURL,
+    network({ name: 'foo', network: { ingress: [] } }).url,
     'oci://registry.anurag.sh/charts/k8s-network',
   );
   assert.equal(
@@ -137,7 +131,7 @@ test('platform charts come from registry.anurag.sh unless the app overrides the 
         { name: 'foo', chartRegistry: 'oci://ghcr.io/accurate0/charts', network: { ingress: [] } },
         'test',
       ),
-    ).repoURL,
+    ).url,
     'oci://ghcr.io/accurate0/charts/k8s-network',
   );
 });
@@ -145,10 +139,7 @@ test('platform charts come from registry.anurag.sh unless the app overrides the 
 test('output is stable', () => {
   const app: App = { name: 'foo', network: { ingress: [] } };
 
-  assert.equal(
-    renderApplication(app, versions, target, { platform, apps: [] }),
-    renderApplication(app, versions, target, { platform, apps: [] }),
-  );
+  assert.deepEqual([...render(app).files], [...render(app).files]);
 });
 
 test('rejects invalid apps', () => {
@@ -197,7 +188,7 @@ test('templates generated charts from the local charts directory', () => {
     { name: 'foo', workloads: [{ name: 'foo', image: 'i' }], network: { ingress: [] } },
     versions,
     { location: 'projects', hasManifests: false },
-    { platform, apps: [] },
+    { platform, apps: [], readValues },
   );
   const templates = helmTemplates(plan);
 
@@ -207,8 +198,6 @@ test('templates generated charts from the local charts directory', () => {
     'charts/k8s-workload',
     '--namespace',
     'foo',
-    '-f',
-    'projects/foo/image.values.yaml',
     '-f',
     '-',
   ]);
@@ -358,19 +347,19 @@ test('rejects the removed shorthands', () => {
 test('a namespace override reaches the destination, charts and terraform path', () => {
   const rendered = render(overridden);
 
-  assert.equal(rendered.metadata.name, 'foo');
-  assert.equal(rendered.spec.destination.namespace, 'kube-system');
-  assert.equal(
-    source(rendered, 'k8s-secrets')?.helm.valuesObject.defaults.namespace,
-    'kube-system',
+  const app = rendered.objects.find(
+    (o) => o.kind === 'Kustomization' && o.metadata?.name === 'foo',
   );
+  assert.equal(app.spec.path, './kube-system/foo/app');
+  assert.ok(rendered.releases.every((r) => r.spec.targetNamespace === 'kube-system'));
+  assert.equal(releaseValues(rendered, 'k8s-secrets').defaults.namespace, 'kube-system');
   const { resource } = JSON.parse(renderAppTerraform(overridden) as string);
 
   assert.equal(resource.vault_kv_secret_v2['foo-images'].name, 'kube-system/resource-images');
 });
 
 test('network.policy false skips the network chart', () => {
-  assert.equal(source(render(overridden), 'k8s-network'), undefined);
+  assert.equal(releaseValues(render(overridden), 'k8s-network'), undefined);
 });
 
 test('a namespace override must state its network policy', () => {
@@ -398,44 +387,22 @@ test('a namespace override must state its network policy', () => {
   );
 });
 
-test('argocd overrides replace the default policy', () => {
-  const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
-  const rendered = render({
-    name: 'foo',
-    network: { ingress: [] },
-    overrides: {
-      argocd: {
-        application: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences },
-      },
-    },
-  });
-
-  assert.deepEqual(rendered.spec.syncPolicy, { syncOptions: ['ServerSideApply=true'] });
-  assert.deepEqual(rendered.spec.ignoreDifferences, ignoreDifferences);
-  validate(
-    {
-      name: 'foo',
-      network: { ingress: [] },
-      overrides: { argocd: { application: { automated: false } } },
-    },
-    'x',
-  );
-});
-
-test('namespace labels use managed metadata without workloads', () => {
+test('namespace labels reach the namespace and the workload chart', () => {
   const labels = { 'internal-gateway-access': 'true' };
-  const bare = render({ name: 'foo', network: { ingress: [] }, namespace: { labels } });
-
-  assert.deepEqual(bare.spec.syncPolicy.managedNamespaceMetadata, { labels });
-  const workload = render({
+  const app = (extra: Partial<App>): App => ({
     name: 'foo',
     network: { ingress: [] },
     namespace: { labels },
-    workloads: [{ name: 'foo', image: 'a' }],
+    ...extra,
   });
+  const plan = planApp(app({}), versions, target, { platform, apps: [], readValues });
+  const index = renderFluxIndex([plan], { namespaces: [], components: [] });
 
-  assert.equal(workload.spec.syncPolicy.managedNamespaceMetadata, undefined);
-  assert.deepEqual(source(workload, 'k8s-workload')?.helm.valuesObject.namespaceLabels, labels);
+  assert.deepEqual(parse(index.get('kubernetes/foo/namespace.yaml')!).metadata.labels, labels);
+  const workload = render(app({ workloads: [{ name: 'foo', image: 'a' }] }));
+
+  assert.deepEqual(releaseValues(workload, 'k8s-workload').namespaceLabels, labels);
+  assert.equal(releaseValues(workload, 'k8s-workload').createNamespace, false);
 });
 
 test('namespace.name needs an explicit network policy', () => {
@@ -449,7 +416,7 @@ test('namespace.name needs an explicit network policy', () => {
   validate(app({ ingress: [], policy: false }), 'x');
   const rendered = render(app({ ingress: ['a'], policy: true }));
 
-  assert.equal(source(rendered, 'k8s-network')?.helm.valuesObject.namespace, 'bar');
+  assert.equal(releaseValues(rendered, 'k8s-network').namespace, 'bar');
 });
 
 test('consumers outside workloads relax only the checks they can satisfy', () => {
@@ -495,6 +462,7 @@ test('typed sources render in the order listed', () => {
   const rendered = render({
     name: 'foo',
     network: { ingress: [] },
+    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
     sources: [
       { type: 'manifests', path: '.' },
       {
@@ -506,23 +474,22 @@ test('typed sources render in the order listed', () => {
       },
     ] as App['sources'],
   });
+  const sources = rendered.objects.filter(
+    (o) =>
+      ['OCIRepository', 'GitRepository'].includes(o.kind) && !o.metadata.name.includes('-k8s-'),
+  );
 
-  assert.deepEqual(rendered.spec.sources.slice(1), [
-    {
-      repoURL: 'https://github.com/Accurate0/inf-k8s.git',
-      name: 'application',
-      path: 'projects/foo',
-    },
-    {
-      repoURL: 'https://example.com/r.git',
-      name: 'config',
-      path: 'config',
-      targetRevision: 'main',
-    },
-  ]);
+  assert.deepEqual(
+    sources.map((o) => [o.kind, o.metadata.name, o.spec.url]),
+    [
+      ['OCIRepository', 'foo-manifests', 'oci://registry.anurag.sh/manifests/foo'],
+      ['GitRepository', 'foo-config', 'https://example.com/r.git'],
+    ],
+  );
+  assert.deepEqual(sources[1].spec.ref, { branch: 'main' });
 });
 
-test('raw argo sources are rejected', () => {
+test('raw sources are rejected', () => {
   assert.throws(() =>
     validate(
       { name: 'foo', network: { ingress: [] }, sources: [{ repoURL: 'r', path: 'p' }] },
@@ -536,26 +503,6 @@ test('the old sync block is rejected', () => {
     () => validate({ name: 'foo', network: { ingress: [] }, sync: { automated: false } }, 'x'),
     /unknown block "sync"/,
   );
-});
-
-test('overrides replace the default application policy', () => {
-  const ignoreDifferences = [{ group: '', kind: 'Secret', jsonPointers: ['/data'] }];
-  const app = validate(
-    {
-      name: 'foo',
-      network: { ingress: [] },
-      overrides: {
-        argocd: {
-          application: { options: ['ServerSideApply=true'], automated: false, ignoreDifferences },
-        },
-      },
-    },
-    'x',
-  );
-  const [[, rendered]] = renderOutputs(planApp(app, versions, target, { platform, apps: [] }), app);
-
-  assert.deepEqual(parse(rendered).spec.syncPolicy, { syncOptions: ['ServerSideApply=true'] });
-  assert.deepEqual(parse(rendered).spec.ignoreDifferences, ignoreDifferences);
 });
 
 test('overrides reject unknown outputs and fields', () => {
@@ -581,7 +528,7 @@ test('overrides reject unknown outputs and fields', () => {
         {
           name: 'foo',
           network: { ingress: [] },
-          overrides: { argocd: { application: { nope: true } } },
+          overrides: { argocd: { application: {} } },
         },
         'x',
       ),
@@ -589,7 +536,7 @@ test('overrides reject unknown outputs and fields', () => {
   );
 });
 
-test('only rendered outputs add retention annotations', () => {
+test('retained resources are kept when their release goes', () => {
   const app = validate(
     {
       name: 'foo',
@@ -607,7 +554,7 @@ test('only rendered outputs add retention annotations', () => {
     },
     'x',
   );
-  const plan = planApp(app, versions, target, { platform, apps: [] });
+  const plan = planApp(app, versions, target, { platform, apps: [], readValues });
   const oidc = plan.sources.find((s) => s.type === 'chart' && s.chart === 'k8s-oidc') as {
     values: Record<string, unknown>;
     retain?: boolean;
@@ -615,12 +562,7 @@ test('only rendered outputs add retention annotations', () => {
 
   assert.equal(oidc.retain, true);
   assert.equal('retainAnnotations' in oidc.values, false);
-  const source = parse(renderArgo(plan)).spec.sources.find(
-    (s: { chart?: string }) => s.chart === 'k8s-oidc',
-  );
-
-  assert.deepEqual(source.helm.valuesObject.retainAnnotations, {
-    'argocd.argoproj.io/sync-options': 'Prune=false,Delete=false',
+  assert.deepEqual(releaseValues(render(app), 'k8s-oidc').retainAnnotations, {
     'helm.sh/resource-policy': 'keep',
   });
 });

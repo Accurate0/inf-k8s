@@ -58,12 +58,6 @@ export interface Artifact {
   tag: string;
 }
 
-export interface ArgocdOverrides {
-  options?: string[];
-  automated?: boolean;
-  ignoreDifferences?: Record<string, unknown>[];
-}
-
 export interface FluxOverrides {
   kustomization?: { dependsOn?: string[]; timeout?: string };
   helmRelease?: { driftIgnore?: Record<string, unknown>[] };
@@ -79,7 +73,7 @@ export interface App {
   exports?: Export[];
   sources?: Source[];
   artifact?: Artifact;
-  overrides?: { argocd?: { application?: ArgocdOverrides }; flux?: FluxOverrides };
+  overrides?: { flux?: FluxOverrides };
   build?: Build;
   network: { ingress: string[]; policy?: boolean };
   namespace?: { name?: string; labels?: Record<string, string> };

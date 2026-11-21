@@ -1,5 +1,5 @@
-import { parse } from 'yaml';
-import { renderApplication as renderArgo } from './outputs/argocd.ts';
+import { parseAllDocuments } from 'yaml';
+import { renderFlux } from './outputs/flux.ts';
 import { planApp } from './plan.ts';
 import { type App, validate, validateResources } from './render.ts';
 
@@ -15,28 +15,40 @@ export const versions = {
 
 export const target = { location: 'projects', hasManifests: false };
 
-export const renderApplication = (
-  app: App,
-  chartVersions: typeof versions,
-  on: typeof target,
-  world: Parameters<typeof planApp>[3],
-) => renderArgo(planApp(app, chartVersions, on, world), app.overrides?.argocd?.application);
-
 export const platform = [
   { name: 'pooled', type: 'database', host: 'pooler.db' },
   { name: 'direct', type: 'database', host: 'direct.db' },
   { name: 'tracing', type: 'platform', url: 'http://tempo/traces' },
-  { name: 'argocd', type: 'platform', url: 'http://argocd' },
   { name: 'replicated', type: 'cache', url: 'redis://replicated' },
   { name: 'perth', type: 'cache', url: 'redis://perth' },
   { name: 'cache', type: 'cache', url: 'redis://cache' },
 ];
 
-export const render = (app: App, t = target, apps: App[] = []) =>
-  parse(renderApplication(app, versions, t, { platform, apps }));
+// values files are inlined from disk at render; tests start from empty ones
+export const readValues = () => ({});
 
-export const source = (rendered: { spec: { sources: Record<string, any>[] } }, chart: string) =>
-  rendered.spec.sources.find((s) => s.chart === chart);
+export interface Rendered {
+  files: Map<string, string>;
+  objects: Record<string, any>[];
+  releases: Record<string, any>[];
+}
+
+export function render(app: App, t = target, apps: App[] = []): Rendered {
+  const files = renderFlux(
+    planApp(app, versions, t, { platform, apps, readValues }),
+    app.overrides?.flux,
+  );
+  const objects = [...files.values()].flatMap((content) =>
+    parseAllDocuments(content).map((document) => document.toJS()),
+  );
+  return { files, objects, releases: objects.filter((o) => o.kind === 'HelmRelease') };
+}
+
+export const release = (rendered: Rendered, chart: string) =>
+  rendered.releases.find((r) => r.metadata.name.endsWith(`-${chart}`));
+
+export const releaseValues = (rendered: Rendered, chart: string) =>
+  release(rendered, chart)?.spec.values;
 
 export const provider = (port: unknown = 'http', extra: Record<string, unknown> = {}) =>
   validate(

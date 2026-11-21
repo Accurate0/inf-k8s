@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { validate } from '../render.ts';
-import { render, source, base } from '../test-fixtures.ts';
+import { render, base, releaseValues } from '../test-fixtures.ts';
 
 test('an oidc client secret can be referenced by resource name', () => {
   const app = validate(
@@ -29,13 +29,13 @@ test('an oidc client secret can be referenced by resource name', () => {
   );
   const rendered = render(app);
 
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-workload').workloads[0].env, [
     {
       name: 'AUD',
       valueFrom: { secretKeyRef: { name: 'foo-oidc', key: 'client-id', optional: true } },
     },
   ]);
-  assert.equal(source(rendered, 'k8s-oidc')?.helm.valuesObject.clients[0].secretName, 'foo-oidc');
+  assert.equal(releaseValues(rendered, 'k8s-oidc').clients[0].secretName, 'foo-oidc');
 });
 
 test('rejects unknown oidc fields and envFrom keys', () => {
@@ -96,7 +96,7 @@ test('the login policy on a route reaches its oidc client', () => {
     },
     'test',
   );
-  const client = source(render(app), 'k8s-oidc')?.helm.valuesObject.clients[0];
+  const client = releaseValues(render(app), 'k8s-oidc').clients[0];
 
   assert.deepEqual(client.securityPolicy, {
     httpRoute: 'web',
@@ -129,7 +129,7 @@ test('the login policy on a route reaches its oidc client', () => {
     'test',
   );
 
-  assert.deepEqual(source(render(bare), 'k8s-oidc')?.helm.valuesObject.clients[0].securityPolicy, {
+  assert.deepEqual(releaseValues(render(bare), 'k8s-oidc').clients[0].securityPolicy, {
     httpRoute: 'web',
   });
   assert.throws(
@@ -202,7 +202,7 @@ test('oidc service accounts pass through to the chart', () => {
   );
 
   assert.deepEqual(
-    source(render(app), 'k8s-oidc')?.helm.valuesObject.clients[0].serviceAccounts,
+    releaseValues(render(app), 'k8s-oidc').clients[0].serviceAccounts,
     serviceAccounts,
   );
   assert.throws(

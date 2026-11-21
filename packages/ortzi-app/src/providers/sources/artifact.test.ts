@@ -1,23 +1,21 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { parse } from 'yaml';
+import { parseAllDocuments } from 'yaml';
+import { renderFlux } from '../../outputs/flux.ts';
+import { planApp } from '../../plan.ts';
 import { type App, validate } from '../../render.ts';
-import {
-  versions,
-  target,
-  renderApplication,
-  platform,
-  render,
-  source,
-} from '../../test-fixtures.ts';
+import { versions, target, platform, render, releaseValues } from '../../test-fixtures.ts';
 
-test('artifact apps sync charts with inline values and only the kustomization from the registry', () => {
+const ofKind = (rendered: ReturnType<typeof render>, kind: string) =>
+  rendered.objects.filter((o) => o.kind === kind);
+
+test('artifact apps inline chart values and apply only the kustomization from the registry', () => {
   const files: Record<string, Record<string, unknown>> = {
     'projects/foo/image.values.yaml': { images: { i: 'abc123' } },
     'projects/foo/r.yaml': { replicas: 2 },
   };
-  const rendered = parse(
-    renderApplication(
+  const rendered = renderFlux(
+    planApp(
       {
         name: 'foo',
         network: { ingress: [] },
@@ -40,24 +38,20 @@ test('artifact apps sync charts with inline values and only the kustomization fr
       { platform, apps: [], readValues: (path) => files[path] ?? {} },
     ),
   );
+  const objects = [...rendered.values()].flatMap((c) => parseAllDocuments(c).map((d) => d.toJS()));
+  const releases = objects.filter((o) => o.kind === 'HelmRelease');
+  const named = (name: string) => objects.find((o) => o.metadata?.name === name);
 
-  const sources = rendered.spec.sources as Record<string, any>[];
-  assert.ok(sources.every((s) => !s.ref && !String(s.repoURL).includes('github.com')));
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.images, { i: 'abc123' });
-  assert.equal(source(rendered, 'k8s-workload')?.helm.valueFiles, undefined);
-  assert.deepEqual(source(rendered, 'reloader')?.helm, {
-    releaseName: 'rel',
-    valuesObject: { replicas: 2 },
-  });
   assert.deepEqual(
-    sources.find((s) => s.name === 'application'),
-    {
-      repoURL: 'oci://registry.anurag.sh/manifests/foo',
-      name: 'application',
-      path: '.',
-      targetRevision: 'main',
-    },
+    releases.find((r) => r.metadata.name === 'foo-k8s-workload').spec.values.images,
+    { i: 'abc123' },
   );
+  const reloader = releases.find((r) => r.metadata.name === 'foo-rel');
+  assert.equal(reloader.spec.releaseName, 'rel');
+  assert.deepEqual(reloader.spec.values, { replicas: 2 });
+  assert.equal(named('foo-manifests').kind, 'OCIRepository');
+  assert.equal(named('foo-manifests').spec.url, 'oci://registry.anurag.sh/manifests/foo');
+  assert.deepEqual(named('foo-manifests').spec.ref, { tag: 'main' });
 
   const chartsOnly = render({
     name: 'foo',
@@ -65,8 +59,8 @@ test('artifact apps sync charts with inline values and only the kustomization fr
     artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
   });
   assert.deepEqual(
-    chartsOnly.spec.sources.map((s: { chart?: string; name?: string }) => s.chart ?? s.name),
-    ['k8s-network'],
+    chartsOnly.releases.map((r) => r.metadata.name),
+    ['foo-k8s-network'],
   );
 
   const app = (extra: Record<string, unknown>) => ({
@@ -86,12 +80,13 @@ test('artifact apps sync charts with inline values and only the kustomization fr
         app({
           artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
           sources: [
-            { type: 'git', repo: 'https://example.com/r.git', path: 'x', name: 'application' },
+            { type: 'manifests', path: '.' },
+            { type: 'git', repo: 'https://example.com/r.git', path: 'x', name: 'manifests' },
           ],
         }),
         'x',
       ),
-    /duplicate source name application/,
+    /duplicate source name manifests/,
   );
   assert.throws(
     () =>
@@ -131,21 +126,25 @@ test('artifact apps keep git and artifact sources live next to the kustomization
     ] as App['sources'],
   });
 
-  assert.deepEqual(rendered.spec.sources.slice(1), [
-    {
-      repoURL: 'oci://registry.anurag.sh/manifests/foo',
-      name: 'application',
-      path: '.',
-      targetRevision: 'main',
-    },
-    { repoURL: 'https://git.anurag.sh/anurag/foo.git', name: 'config', path: 'config' },
-    {
-      repoURL: 'oci://registry.anurag.sh/manifests/foo-extra',
-      name: 'extra',
-      path: '.',
-      targetRevision: 'v1',
-    },
-  ]);
+  assert.deepEqual(
+    ofKind(rendered, 'Kustomization')
+      .filter((ks) => ks.apiVersion.startsWith('kustomize.toolkit'))
+      .map((ks) => [ks.metadata.name, ks.spec.sourceRef.kind, ks.spec.path]),
+    [
+      ['foo', 'OCIRepository', './foo/app'],
+      ['foo-manifests', 'OCIRepository', './'],
+      ['foo-config', 'GitRepository', './config'],
+      ['foo-extra', 'OCIRepository', './'],
+    ],
+  );
+  assert.equal(
+    ofKind(rendered, 'GitRepository')[0].spec.url,
+    'https://git.anurag.sh/anurag/foo.git',
+  );
+  assert.equal(
+    ofKind(rendered, 'OCIRepository').find((r) => r.metadata.name === 'foo-extra').spec.url,
+    'oci://registry.anurag.sh/manifests/foo-extra',
+  );
 });
 
 test('artifact sources render without a hydrated artifact', () => {
@@ -162,9 +161,11 @@ test('artifact sources render without a hydrated artifact', () => {
     ] as App['sources'],
   });
 
-  assert.deepEqual(rendered.spec.sources.at(-1), {
-    repoURL: 'oci://registry.anurag.sh/manifests/foo-extra',
-    path: 'deploy',
-    targetRevision: 'main',
-  });
+  const ks = ofKind(rendered, 'Kustomization').find((k) => k.metadata?.name === 'foo-artifact');
+  assert.equal(ks.spec.path, './deploy');
+  assert.deepEqual(
+    ofKind(rendered, 'OCIRepository').find((r) => r.metadata.name === 'foo-artifact').spec.ref,
+    { tag: 'main' },
+  );
+  assert.ok(releaseValues(rendered, 'k8s-network'));
 });

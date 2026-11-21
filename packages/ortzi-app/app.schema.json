@@ -1637,7 +1637,7 @@
       }
     },
     "artifact": {
-      "description": "Deliver the app to Argo CD without git: charts come from their registries with values and image tags inline in the Application, and `ortzi app publish` pushes the kustomization's build to this repository. git and artifact sources stay live sources next to it.",
+      "description": "Repository `ortzi app publish` pushes the app's kustomization build to, signed, for flux to apply. Required with a manifests source; git and artifact sources stay live sources next to it.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1652,7 +1652,7 @@
         },
         "tag": {
           "type": "string",
-          "description": "Tag publish moves and Argo CD syncs."
+          "description": "Tag publish moves and flux follows."
         }
       }
     },
@@ -1741,7 +1741,7 @@
               "repo": {
                 "type": "string",
                 "pattern": "^oci://[^/]+/[^/]+/[^/]+$",
-                "description": "OCI artifact another pipeline publishes, synced by Argo CD as is, e.g. oci://registry.anurag.sh/manifests/<repo>."
+                "description": "OCI artifact another pipeline publishes, applied by flux as is, e.g. oci://registry.anurag.sh/manifests/<repo>."
               },
               "tag": {
                 "type": "string",
@@ -1753,7 +1753,7 @@
               },
               "name": {
                 "type": "string",
-                "description": "Argo CD source name."
+                "description": "Names the flux source and kustomization, <app>-<name>."
               }
             }
           },
@@ -1780,40 +1780,10 @@
       }
     },
     "overrides": {
-      "description": "Change what one output generates. Keyed by output, then generated object. Every block is validated, even for outputs that are not active.",
+      "description": "Change what one output generates. Keyed by output, then generated object.",
       "type": "object",
       "additionalProperties": false,
       "properties": {
-        "argocd": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "application": {
-              "description": "Change the rendered Argo Application.",
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "options": {
-                  "type": "array",
-                  "description": "Replaces the default syncOptions.",
-                  "items": {
-                    "type": "string"
-                  }
-                },
-                "automated": {
-                  "type": "boolean",
-                  "description": "Sync automatically with prune and self-heal. Defaults to true."
-                },
-                "ignoreDifferences": {
-                  "type": "array",
-                  "items": {
-                    "type": "object"
-                  }
-                }
-              }
-            }
-          }
-        },
         "flux": {
           "type": "object",
           "additionalProperties": false,

@@ -102,7 +102,7 @@ export function validate(raw: unknown, where: string): App {
   }
 
   const names = [
-    ...(app.artifact || sourcesOf(app, 'manifests').length ? ['application'] : []),
+    ...(sourcesOf(app, 'manifests').length ? ['manifests'] : []),
     ...[...sourcesOf(app, 'git'), ...sourcesOf(app, 'artifact')].flatMap((source) =>
       source.name ? [source.name] : [],
     ),
@@ -132,7 +132,6 @@ export function validate(raw: unknown, where: string): App {
 }
 
 const SYSTEM_NAMESPACES = new Set([
-  'argocd',
   'dragonfly',
   'envoy-gateway-system',
   'flux-system',

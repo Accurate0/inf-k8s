@@ -40,7 +40,7 @@ pub enum RegistryCommand {
     },
     /// Revoke the Harbor robot in the docker config and remove it
     Logout,
-    /// Push a directory as a single-layer OCI artifact, e.g. rendered manifests for Argo CD
+    /// Push a directory as a single-layer OCI artifact, e.g. rendered manifests for Flux
     Push {
         dir: PathBuf,
         #[arg(value_name = "oci://HOST/PROJECT/NAME")]

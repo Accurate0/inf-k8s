@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { validate } from '../render.ts';
-import { render, source, base, checkRefs } from '../test-fixtures.ts';
+import { render, base, checkRefs, releaseValues } from '../test-fixtures.ts';
 
 test('an app can scrape several workloads', () => {
   const app = validate(
@@ -28,18 +28,22 @@ test('an app can scrape several workloads', () => {
     },
     'test',
   );
-  const scrapes = render(app).spec.sources.filter(
-    (s: { chart: string }) => s.chart === 'k8s-observability',
+  const scrapes = render(app).releases.filter((r) =>
+    r.metadata.name.startsWith('foo-k8s-observability'),
   );
 
   assert.deepEqual(
-    scrapes.map((s: any) => s.helm.valuesObject),
+    scrapes.map((r) => r.metadata.name),
+    ['foo-k8s-observability-api', 'foo-k8s-observability-web'],
+  );
+  assert.deepEqual(
+    scrapes.map((r) => r.spec.values),
     [
       { name: 'api', namespace: 'foo', port: 'http', path: '/metrics' },
       { name: 'web', namespace: 'foo', port: 'http', interval: '10s' },
     ],
   );
-  assert.deepEqual(source(render(app), 'k8s-network')?.helm.valuesObject.ingress, ['monitoring']);
+  assert.deepEqual(releaseValues(render(app), 'k8s-network').ingress, ['monitoring']);
 });
 
 test('rejects metrics on a port the service does not have', () => {

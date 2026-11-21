@@ -45,13 +45,6 @@ export const git: SourceProvider<'git'> = {
 
   plan: (_ctx, source) => source,
 
-  application: (_plan, source) => ({
-    repoURL: source.repo,
-    ...(source.name ? { name: source.name } : {}),
-    path: source.path,
-    ...(source.revision ? { targetRevision: source.revision } : {}),
-  }),
-
   flux(plan, source) {
     const name = `${plan.name}-${source.name ?? 'git'}`;
     return [

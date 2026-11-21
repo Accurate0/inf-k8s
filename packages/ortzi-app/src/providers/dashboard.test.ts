@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { renderKustomization, validate, validateResources } from '../render.ts';
-import { target, platform, base } from '../test-fixtures.ts';
+import { target, platform, base, readValues } from '../test-fixtures.ts';
 
 test('a dashboard resource generates a labelled configmap', () => {
   const app = validate(

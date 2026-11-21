@@ -2,7 +2,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { renderAppTerraform, renderTerraformIndex } from '../terraform.ts';
 import { type App, validate, validateResources } from '../render.ts';
-import { platform, render, source, base, checkRefs, overridden } from '../test-fixtures.ts';
+import {
+  platform,
+  render,
+  base,
+  checkRefs,
+  overridden,
+  releaseValues,
+  readValues,
+} from '../test-fixtures.ts';
 
 test('terraform covers an r2 bucket with a token for that bucket only', () => {
   const { resource } = JSON.parse(
@@ -116,13 +124,13 @@ test('a bucket resource wires its name and managed secret', () => {
   );
   const rendered = render(app);
 
-  assert.deepEqual(source(rendered, 'k8s-workload')?.helm.valuesObject.workloads[0].env, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-workload').workloads[0].env, [
     {
       name: 'BUCKET',
       valueFrom: { secretKeyRef: { name: 'images-bucket-secrets', key: 'S3_BUCKET' } },
     },
   ]);
-  assert.deepEqual(source(rendered, 'k8s-secrets')?.helm.valuesObject.secrets, [
+  assert.deepEqual(releaseValues(rendered, 'k8s-secrets').secrets, [
     { name: 'resource-images', managedSecrets: [{ secretName: 'images-bucket-secrets' }] },
   ]);
 });
@@ -173,7 +181,7 @@ test('rejects a bucket key terraform does not write', () => {
 });
 
 test('a bucket secret template sets the secret type and data', () => {
-  assert.deepEqual(source(render(overridden), 'k8s-secrets')?.helm.valuesObject.secrets, [
+  assert.deepEqual(releaseValues(render(overridden), 'k8s-secrets').secrets, [
     {
       name: 'resource-images',
       managedSecrets: [

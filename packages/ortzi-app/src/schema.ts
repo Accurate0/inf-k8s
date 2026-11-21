@@ -79,7 +79,7 @@ export const APP_SCHEMA: Schema = {
     },
     artifact: {
       description:
-        "Deliver the app to Argo CD without git: charts come from their registries with values and image tags inline in the Application, and `ortzi app publish` pushes the kustomization's build to this repository. git and artifact sources stay live sources next to it.",
+        "Repository `ortzi app publish` pushes the app's kustomization build to, signed, for flux to apply. Required with a manifests source; git and artifact sources stay live sources next to it.",
       type: 'object',
       additionalProperties: false,
       required: ['repo', 'tag'],
@@ -92,7 +92,7 @@ export const APP_SCHEMA: Schema = {
         },
         tag: {
           type: 'string',
-          description: 'Tag publish moves and Argo CD syncs.',
+          description: 'Tag publish moves and flux follows.',
         },
       },
     },
@@ -104,41 +104,10 @@ export const APP_SCHEMA: Schema = {
       },
     },
     overrides: {
-      description:
-        'Change what one output generates. Keyed by output, then generated object. Every block is validated, even for outputs that are not active.',
+      description: 'Change what one output generates. Keyed by output, then generated object.',
       type: 'object',
       additionalProperties: false,
       properties: {
-        argocd: {
-          type: 'object',
-          additionalProperties: false,
-          properties: {
-            application: {
-              description: 'Change the rendered Argo Application.',
-              type: 'object',
-              additionalProperties: false,
-              properties: {
-                options: {
-                  type: 'array',
-                  description: 'Replaces the default syncOptions.',
-                  items: {
-                    type: 'string',
-                  },
-                },
-                automated: {
-                  type: 'boolean',
-                  description: 'Sync automatically with prune and self-heal. Defaults to true.',
-                },
-                ignoreDifferences: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                  },
-                },
-              },
-            },
-          },
-        },
         flux: {
           type: 'object',
           additionalProperties: false,

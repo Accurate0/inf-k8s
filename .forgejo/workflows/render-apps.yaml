@@ -5,13 +5,10 @@ on:
       - main
     paths:
       - "**/app.yaml"
-      - "**/application.yaml"
-      - "**/*.application.yaml"
       - "**/manifests/**"
       - "**/kustomization.yaml"
       - "**/image.values.yaml"
       - selfhosted/*/*.values.yaml
-      - system-components/*/*.values.yaml
       - charts/**
       - platform/versions.yaml
       - platform/apps.yaml

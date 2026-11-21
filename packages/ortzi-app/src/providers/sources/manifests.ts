@@ -29,13 +29,14 @@ const schema: Schema = {
   },
 };
 
-export const CONFIG_REPO = 'https://github.com/Accurate0/inf-k8s.git';
-
 export const manifests: SourceProvider<'manifests'> = {
   type: 'manifests',
   schema,
 
-  validate({ kustomized, fail }, sources) {
+  validate({ app, kustomized, fail }, sources) {
+    if (sources[0] && !app.artifact) {
+      fail('sources: a manifests source needs artifact; flux applies it from there');
+    }
     if (sources.length > 1) {
       fail('sources: only one manifests source is allowed');
     }
@@ -51,19 +52,6 @@ export const manifests: SourceProvider<'manifests'> = {
     type: 'manifests',
     path: source.path === '.' ? directory : `${directory}/${source.path}`,
   }),
-
-  application(plan, source) {
-    if (plan.artifact) {
-      return {
-        repoURL: plan.artifact.repo,
-        name: 'application',
-        path: '.',
-        targetRevision: plan.artifact.tag,
-      };
-    }
-
-    return { repoURL: CONFIG_REPO, name: 'application', path: source.path };
-  },
 
   flux(plan) {
     if (!plan.artifact) {

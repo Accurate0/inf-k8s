@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { renderKustomization, renderRbac, validate } from '../render.ts';
-import { target, render, source, base, checkRefs } from '../test-fixtures.ts';
+import { target, render, base, checkRefs, releaseValues } from '../test-fixtures.ts';
 
 test('a serviceAccount resource generates its account and cluster role', () => {
   const rules = [{ apiGroups: [''], resources: ['secrets'], verbs: ['get'] }];
@@ -16,7 +16,7 @@ test('a serviceAccount resource generates its account and cluster role', () => {
     },
     'test',
   );
-  const values = source(render(app), 'k8s-workload')?.helm.valuesObject;
+  const values = releaseValues(render(app), 'k8s-workload');
 
   assert.deepEqual(values.serviceAccounts, ['sa']);
   assert.equal(values.workloads[0].serviceAccountName, 'sa');

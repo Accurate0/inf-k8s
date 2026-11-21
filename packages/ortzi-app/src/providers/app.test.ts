@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { type App, validate, validateResources } from '../render.ts';
-import { target, platform, render, source, provider } from '../test-fixtures.ts';
+import { target, platform, render, provider, releaseValues, readValues } from '../test-fixtures.ts';
 
 const consumer = (resource: Record<string, unknown> = {}) =>
   validate(
@@ -15,8 +15,7 @@ const consumer = (resource: Record<string, unknown> = {}) =>
   );
 
 const url = (gw: App, caller: App) =>
-  source(render(caller, target, [gw, caller]), 'k8s-workload')?.helm.valuesObject.workloads[0]
-    .env[0];
+  releaseValues(render(caller, target, [gw, caller]), 'k8s-workload').workloads[0].env[0];
 
 test('an exported workload renders to its service url', () => {
   assert.deepEqual(url(provider(), consumer()), {
@@ -34,18 +33,17 @@ test('using an export opens the provider to the caller', () => {
   const gw = provider('http', { network: { ingress: ['monitoring', 'caller'] } });
   const caller = consumer();
 
-  assert.deepEqual(
-    source(render(gw, target, [gw, caller]), 'k8s-network')?.helm.valuesObject.ingress,
-    ['monitoring', 'caller'],
-  );
+  assert.deepEqual(releaseValues(render(gw, target, [gw, caller]), 'k8s-network').ingress, [
+    'monitoring',
+    'caller',
+  ]);
   const open = provider();
 
+  assert.deepEqual(releaseValues(render(open, target, [open, caller]), 'k8s-network').ingress, [
+    'caller',
+  ]);
   assert.deepEqual(
-    source(render(open, target, [open, caller]), 'k8s-network')?.helm.valuesObject.ingress,
-    ['caller'],
-  );
-  assert.deepEqual(
-    source(render(caller, target, [open, caller]), 'k8s-network')?.helm.valuesObject.ingress,
+    releaseValues(render(caller, target, [open, caller]), 'k8s-network').ingress,
     [],
   );
 });
