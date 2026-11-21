@@ -1,0 +1,104 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-21T07:57:50.881Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/image.toolkit.fluxcd.io/imagepolicy_v1.json
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: maccas-api-maccas-migration
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: maccas-api
+spec:
+  imageRepositoryRef:
+    name: maccas-api-maccas-migration
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: maccas-api-maccas-api
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: maccas-api
+spec:
+  imageRepositoryRef:
+    name: maccas-api-maccas-api
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: maccas-api-maccas-web
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: maccas-api
+spec:
+  imageRepositoryRef:
+    name: maccas-api-maccas-web
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: maccas-api-maccas-scheduler
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: maccas-api
+spec:
+  imageRepositoryRef:
+    name: maccas-api-maccas-scheduler
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: maccas-api-maccas-recommendations
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: maccas-api
+spec:
+  imageRepositoryRef:
+    name: maccas-api-maccas-recommendations
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: maccas-api-maccas-clustering
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: maccas-api
+spec:
+  imageRepositoryRef:
+    name: maccas-api-maccas-clustering
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc

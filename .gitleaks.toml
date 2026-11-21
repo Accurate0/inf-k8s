@@ -1,0 +1,6 @@
+[extend]
+useDefault = true
+
+# image tags are commit shas, which look like keys next to names such as maccas-api
+[[allowlists]]
+paths = ['''(^|/)image\.values\.yaml$''']

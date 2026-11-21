@@ -148,6 +148,7 @@ workloads:
           labelSelector:
             matchLabels:
               app: waf-manager
+    release: latest
 build:
   image: registry.anurag.sh/containers/waf-manager
   ci: forgejo

@@ -100,6 +100,7 @@ workloads:
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
+    release: latest
 build:
   image: registry.anurag.sh/containers/janitor-bot
   ci: forgejo

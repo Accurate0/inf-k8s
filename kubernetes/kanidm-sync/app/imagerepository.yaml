@@ -1,0 +1,15 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-21T07:57:51.053Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/image.toolkit.fluxcd.io/imagerepository_v1.json
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: kanidm-sync-kanidm-sync
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: kanidm-sync
+spec:
+  interval: 10m
+  image: registry.anurag.sh/containers/kanidm-sync
+  secretRef:
+    name: harbor

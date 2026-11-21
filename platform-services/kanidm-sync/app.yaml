@@ -27,6 +27,7 @@ workloads:
     envFrom:
       - {secretRef: {name: kanidm-sync-managed-secrets}}
     serviceAccount: kanidm-sync
+    release: latest
 build:
   image: registry.anurag.sh/containers/kanidm-sync
   ci: forgejo

@@ -1,4 +1,4 @@
 images:
-  registry.anurag.sh/containers/ozb-discord-bot: 4908502ba3d5979349e1cc6a418a6758acb2504c
-  registry.anurag.sh/containers/ozb-finder: 4908502ba3d5979349e1cc6a418a6758acb2504c
-  registry.anurag.sh/containers/ozb-trigger: 4908502ba3d5979349e1cc6a418a6758acb2504c
+  registry.anurag.sh/containers/ozb-discord-bot: 4908502ba3d5979349e1cc6a418a6758acb2504c # {"$imagepolicy": "flux-system:ozbargain-ozb-discord-bot:tag"}
+  registry.anurag.sh/containers/ozb-finder: 4908502ba3d5979349e1cc6a418a6758acb2504c # {"$imagepolicy": "flux-system:ozbargain-ozb-finder:tag"}
+  registry.anurag.sh/containers/ozb-trigger: 4908502ba3d5979349e1cc6a418a6758acb2504c # {"$imagepolicy": "flux-system:ozbargain-ozb-trigger:tag"}

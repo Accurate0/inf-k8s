@@ -159,6 +159,7 @@ workloads:
           labelSelector:
             matchLabels:
               app: registry
+    release: latest
 build:
   image: registry.anurag.sh/containers/registry
   ci: forgejo

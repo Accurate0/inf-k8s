@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/bom: 10af352a28e573cd9a71601e5f0d7c5915081acc
+  registry.anurag.sh/containers/bom: 10af352a28e573cd9a71601e5f0d7c5915081acc # {"$imagepolicy": "flux-system:bom-bom:tag"}

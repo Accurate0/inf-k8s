@@ -76,6 +76,7 @@ workloads:
     mounts:
       config: {path: /etc/graph, config: config}
     service: {name: router}
+    release: latest
   - name: supergraph-upload
     image: curlimages/curl
     kind: Job

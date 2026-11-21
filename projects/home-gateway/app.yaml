@@ -138,6 +138,7 @@ workloads:
         - ip: 10.0.2.15
           hostnames:
             - home-assistant.internal
+    release: latest
   - name: home-web
     image: registry.anurag.sh/containers/home-gateway-web
     resources: {memory: 32Mi}
@@ -158,6 +159,7 @@ workloads:
                     operator: In
                     values:
                       - perth
+    release: latest
 sources:
   - type: git
     repo: https://github.com/Accurate0/home-gateway.git

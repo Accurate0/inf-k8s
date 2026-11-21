@@ -1,0 +1,19 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-21T07:57:50.982Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/image.toolkit.fluxcd.io/imagepolicy_v1.json
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: firefly-up-sync-firefly-up-sync
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: firefly-up-sync
+spec:
+  imageRepositoryRef:
+    name: firefly-up-sync-firefly-up-sync
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc

@@ -31,6 +31,7 @@ workloads:
     overrides:
       restartPolicy: Never
       automountServiceAccountToken: false
+    release: latest
 build:
   image: registry.anurag.sh/containers/firefly-up-sync
   ci: forgejo

@@ -23,6 +23,7 @@ workloads:
     ports:
       - {name: http, container: 3000, service: 80}
     service: {name: anurag-sh}
+    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/anurag-sh
   tag: main

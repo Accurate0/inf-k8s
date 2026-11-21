@@ -1,0 +1,53 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-21T07:57:50.893Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/image.toolkit.fluxcd.io/imagepolicy_v1.json
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: ozbargain-ozb-discord-bot
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: ozbargain
+spec:
+  imageRepositoryRef:
+    name: ozbargain-ozb-discord-bot
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: ozbargain-ozb-finder
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: ozbargain
+spec:
+  imageRepositoryRef:
+    name: ozbargain-ozb-finder
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc
+---
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImagePolicy
+metadata:
+  name: ozbargain-ozb-trigger
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: ozbargain
+spec:
+  imageRepositoryRef:
+    name: ozbargain-ozb-trigger
+  filterTags:
+    pattern: ^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$
+    extract: $ts
+  policy:
+    numerical:
+      order: asc

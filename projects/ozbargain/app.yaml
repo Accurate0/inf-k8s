@@ -11,16 +11,19 @@ workloads:
     resources: {memory: 16Mi}
     envFrom:
       - {secret: ozbargain}
+    release: latest
   - name: ozb-finder
     image: registry.anurag.sh/containers/ozb-finder
     resources: {memory: 16Mi}
     envFrom:
       - {secret: ozbargain}
+    release: latest
   - name: ozb-trigger
     image: registry.anurag.sh/containers/ozb-trigger
     resources: {memory: 16Mi}
     envFrom:
       - {secret: ozbargain}
+    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/ozbargain
   tag: main

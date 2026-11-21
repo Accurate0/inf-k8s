@@ -1,7 +1,7 @@
 images:
-  registry.anurag.sh/containers/maccas-web: 581e13706b10ec426a76ff1706fcb23c41574df3
-  registry.anurag.sh/containers/maccas-api: 581e13706b10ec426a76ff1706fcb23c41574df3
-  registry.anurag.sh/containers/maccas-scheduler: 581e13706b10ec426a76ff1706fcb23c41574df3
-  registry.anurag.sh/containers/maccas-recommendations: 581e13706b10ec426a76ff1706fcb23c41574df3
-  registry.anurag.sh/containers/maccas-migration: 581e13706b10ec426a76ff1706fcb23c41574df3
-  registry.anurag.sh/containers/maccas-clustering: 581e13706b10ec426a76ff1706fcb23c41574df3
+  registry.anurag.sh/containers/maccas-web: 581e13706b10ec426a76ff1706fcb23c41574df3 # {"$imagepolicy": "flux-system:maccas-api-maccas-web:tag"}
+  registry.anurag.sh/containers/maccas-api: 581e13706b10ec426a76ff1706fcb23c41574df3 # {"$imagepolicy": "flux-system:maccas-api-maccas-api:tag"}
+  registry.anurag.sh/containers/maccas-scheduler: 581e13706b10ec426a76ff1706fcb23c41574df3 # {"$imagepolicy": "flux-system:maccas-api-maccas-scheduler:tag"}
+  registry.anurag.sh/containers/maccas-recommendations: 581e13706b10ec426a76ff1706fcb23c41574df3 # {"$imagepolicy": "flux-system:maccas-api-maccas-recommendations:tag"}
+  registry.anurag.sh/containers/maccas-migration: 581e13706b10ec426a76ff1706fcb23c41574df3 # {"$imagepolicy": "flux-system:maccas-api-maccas-migration:tag"}
+  registry.anurag.sh/containers/maccas-clustering: 581e13706b10ec426a76ff1706fcb23c41574df3 # {"$imagepolicy": "flux-system:maccas-api-maccas-clustering:tag"}

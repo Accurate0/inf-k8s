@@ -1,0 +1,15 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-21T07:57:50.827Z
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/image.toolkit.fluxcd.io/imagerepository_v1.json
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageRepository
+metadata:
+  name: bom-bom
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: bom
+spec:
+  interval: 10m
+  image: registry.anurag.sh/containers/bom
+  secretRef:
+    name: harbor

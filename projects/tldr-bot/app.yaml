@@ -14,6 +14,7 @@ workloads:
       OPENAI_API_BASE: {resource: llm}
     envFrom:
       - {secret: tldr-bot}
+    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/tldr-bot
   tag: main

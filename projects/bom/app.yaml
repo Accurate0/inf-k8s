@@ -57,6 +57,7 @@ workloads:
       - {secret: bom}
       - {database: bom}
     service: {name: bom-api}
+    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/bom
   tag: main
