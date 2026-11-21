@@ -429,14 +429,6 @@ impl Registry {
         }
 
         let harbor = MockHarbor::spawn().await;
-        config
-            .deploy
-            .as_mut()
-            .unwrap()
-            .dispatch
-            .as_mut()
-            .unwrap()
-            .url = harbor.url.clone();
         let signer = Signer::new(signing::generate());
         let mut state = AppState::new(config, pool, Storage::memory(), signer.clone());
         state.harbor = Some(Harbor::new(
@@ -444,7 +436,6 @@ impl Registry {
             "admin".to_owned(),
             "password".to_owned(),
         ));
-        state.dispatch_token = Some("dispatch-token".to_owned());
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let url = format!("http://{}", listener.local_addr().unwrap());
         let app = server::router(state);
@@ -1902,263 +1893,8 @@ fn assert_cosign_signed(registry: &Registry, repository: &str, digest: &str) {
         .expect("cosign signature verifies with the registry key");
 }
 
-fn push_image(
-    registry: &Registry,
-    repository: &str,
-    sha: &str,
-    committed_at: i64,
-    indexed: bool,
-) -> String {
-    let calls = &registry.harbor.calls;
-    let config = json!({
-        "architecture": "amd64",
-        "os": "linux",
-        "config": { "Labels": {
-            "net.inf-k8s.commit-sha": sha,
-            "net.inf-k8s.committed-at": committed_at.to_string(),
-        } },
-    })
-    .to_string()
-    .into_bytes();
-    let config_digest = oci_digest(&config);
-    let manifest = json!({
-        "schemaVersion": 2,
-        "mediaType": "application/vnd.oci.image.manifest.v1+json",
-        "config": {
-            "mediaType": "application/vnd.oci.image.config.v1+json",
-            "digest": config_digest,
-            "size": config.len(),
-        },
-        "layers": [],
-    })
-    .to_string()
-    .into_bytes();
-    let manifest_digest = oci_digest(&manifest);
-    calls.blobs.lock().unwrap().insert(config_digest, config);
-
-    let mut manifests = calls.manifests.lock().unwrap();
-    let image_type = "application/vnd.oci.image.manifest.v1+json".to_owned();
-    manifests.insert(
-        format!("{repository}@{manifest_digest}"),
-        (image_type.clone(), manifest.clone()),
-    );
-    let (media_type, top) = if indexed {
-        let index = json!({
-            "schemaVersion": 2,
-            "mediaType": "application/vnd.oci.image.index.v1+json",
-            "manifests": [
-                {
-                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
-                    "digest": format!("sha256:{}", "ee".repeat(32)),
-                    "size": 1,
-                    "platform": { "architecture": "unknown", "os": "unknown" },
-                },
-                {
-                    "mediaType": "application/vnd.oci.image.manifest.v1+json",
-                    "digest": manifest_digest,
-                    "size": manifest.len(),
-                    "platform": { "architecture": "amd64", "os": "linux" },
-                },
-            ],
-        })
-        .to_string()
-        .into_bytes();
-        ("application/vnd.oci.image.index.v1+json".to_owned(), index)
-    } else {
-        (image_type, manifest)
-    };
-    let digest = oci_digest(&top);
-    for reference in [digest.as_str(), sha] {
-        manifests.insert(
-            format!("{repository}@{reference}"),
-            (media_type.clone(), top.clone()),
-        );
-    }
-    digest
-}
-
-async fn sign_image(registry: &Registry, token: &str, repository: &str, digest: &str) {
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/sign",
-            Some(token),
-            Some(json!({ "repository": repository, "digest": digest })),
-        )
-        .await;
-    assert_eq!(status, 200, "{body}");
-}
-
-fn deployed(registry: &Registry, repository: &str) -> Option<String> {
-    let manifests = registry.harbor.calls.manifests.lock().unwrap();
-    manifests
-        .get(&format!("{repository}@deploy"))
-        .map(|(_, body)| oci_digest(body))
-}
-
-async fn graphql(registry: &Registry, token: &str, query: &str, variables: Value) -> Value {
-    let response = registry
-        .http
-        .post(format!("{}/v1/graphql", registry.url))
-        .bearer_auth(token)
-        .json(&json!({ "query": query, "variables": variables }))
-        .send()
-        .await
-        .unwrap();
-    response.json().await.unwrap()
-}
-
 #[sqlx::test(migrations = "./migrations")]
-async fn promotions_move_the_deploy_tag_and_roll_back(pool: PgPool) {
-    let registry = Registry::spawn(pool).await;
-    let k8s_main = registry.forgejo.forgejo(json!({
-        "repository": "anurag/k8s",
-        "workflow_ref": "anurag/k8s/.forgejo/workflows/app-x.yaml@refs/heads/main",
-    }));
-    let promote = |reference: &str, force: bool| json!({ "app": "app", "repository": "containers/app", "reference": reference, "force": force });
-
-    let first = push_image(&registry, "containers/app", "aaa", 1000, false);
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&k8s_main),
-            Some(promote(&first, false)),
-        )
-        .await;
-    assert_eq!(status, 422, "unsigned builds are refused: {body}");
-
-    sign_image(&registry, &k8s_main, "containers/app", &first).await;
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&k8s_main),
-            Some(promote(&first, false)),
-        )
-        .await;
-    assert_eq!(status, 200, "{body}");
-    assert_eq!(body["changed"], true);
-    assert_eq!(body["previous"], Value::Null);
-    assert_eq!(body["promotion"]["sha"], "aaa");
-    assert_eq!(body["promotion"]["actor"], "forgejo:anurag/k8s");
-    assert_eq!(deployed(&registry, "containers/app"), Some(first.clone()));
-    assert_eq!(
-        *registry.harbor.calls.dispatches.lock().unwrap(),
-        vec![(
-            "anurag/k8s/actions/workflows/publish-apps.yaml/dispatches".to_owned(),
-            json!({ "ref": "main" })
-        )]
-    );
-
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&k8s_main),
-            Some(promote(&first, false)),
-        )
-        .await;
-    assert_eq!(status, 200);
-    assert_eq!(body["changed"], false);
-    assert_eq!(registry.harbor.calls.dispatches.lock().unwrap().len(), 1);
-
-    let second = push_image(&registry, "containers/app", "bbb", 2000, true);
-    sign_image(&registry, &k8s_main, "containers/app", &second).await;
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&k8s_main),
-            Some(promote("bbb", false)),
-        )
-        .await;
-    assert_eq!(status, 200, "{body}");
-    assert_eq!(body["previous"], first);
-    assert_eq!(body["promotion"]["digest"], second);
-    assert_eq!(
-        body["promotion"]["sha"], "bbb",
-        "labels are read through the index"
-    );
-    assert_eq!(deployed(&registry, "containers/app"), Some(second.clone()));
-
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&k8s_main),
-            Some(promote(&first, false)),
-        )
-        .await;
-    assert_eq!(status, 409, "older builds need force: {body}");
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&k8s_main),
-            Some(promote("aaa", true)),
-        )
-        .await;
-    assert_eq!(status, 200, "{body}");
-    assert_eq!(body["promotion"]["forced"], true);
-    assert_eq!(deployed(&registry, "containers/app"), Some(first.clone()));
-    assert_eq!(registry.harbor.calls.dispatches.lock().unwrap().len(), 3);
-
-    let (status, history) = registry
-        .call(
-            "GET",
-            "/api/v1/harbor/promotions?repository=containers/app",
-            Some(&k8s_main),
-            None,
-        )
-        .await;
-    assert_eq!(status, 200, "{history}");
-    let history = history.as_array().unwrap();
-    assert_eq!(history.len(), 3);
-    assert_eq!(history[0]["digest"], first);
-    assert_eq!(history[0]["live_until"], Value::Null);
-    assert_eq!(history[1]["digest"], second);
-    assert_eq!(history[1]["live_until"], history[0]["promoted_at"]);
-    assert_eq!(history[2]["live_until"], history[1]["promoted_at"]);
-
-    let tools = registry.forgejo.forgejo(json!({}));
-    let (status, _) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&tools),
-            Some(promote("bbb", false)),
-        )
-        .await;
-    assert_eq!(status, 403);
-
-    let reader = registry
-        .kanidm
-        .user("reader", &["registry_users@idm.example.test"]);
-    let (status, _) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&reader),
-            Some(promote("bbb", false)),
-        )
-        .await;
-    assert_eq!(status, 403);
-
-    let (status, body) = registry
-        .call(
-            "POST",
-            "/api/v1/harbor/promote",
-            Some(&registry.admin),
-            Some(promote("bbb", false)),
-        )
-        .await;
-    assert_eq!(status, 200, "admins promote by hand: {body}");
-    assert_eq!(body["promotion"]["actor"], "anurag");
-}
-
-#[sqlx::test(migrations = "./migrations")]
-async fn ci_promotes_through_the_graph_with_an_exchanged_service_account(pool: PgPool) {
+async fn ci_exchanges_its_forgejo_token_for_a_service_account(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
     let k8s_main = registry.forgejo.forgejo(json!({
         "repository": "anurag/k8s",
@@ -2189,63 +1925,11 @@ async fn ci_promotes_through_the_graph_with_an_exchanged_service_account(pool: P
     assert_eq!(status, 403, "branches never get the deployer");
     let (status, reader) = exchange(&branch, "ci_reader").await;
     assert_eq!(status, 200, "{reader}");
-    let reader = reader["access_token"].as_str().unwrap().to_owned();
 
     let (status, _) = exchange(&k8s_main, "ci_admin").await;
     assert_eq!(status, 404);
     let (status, _) = exchange(&registry.admin, "ci_deployer").await;
     assert_eq!(status, 403, "only forgejo tokens are exchanged");
-
-    let digest = push_image(&registry, "containers/app", "aaa", 1000, false);
-    sign_image(&registry, &k8s_main, "containers/app", &digest).await;
-    let mutation = "mutation($input: RegistryPromoteInput!) {
-        registryPromote(input: $input) { changed promotion { sha actor app } }
-    }";
-    let input =
-        json!({ "input": { "app": "app", "repository": "containers/app", "reference": "aaa" } });
-
-    let response = graphql(&registry, &reader, mutation, input.clone()).await;
-    assert_eq!(
-        response["errors"][0]["extensions"]["code"], "forbidden",
-        "{response}"
-    );
-
-    let forged = registry.kanidm.sign(json!({
-        "aud": "graph",
-        "sub": "sub-ci_deployer",
-        "preferred_username": "ci_deployer",
-        "groups": ["registry_deployers@idm.example.test", "registry_users@idm.example.test"],
-        "jti": "not-exchanged",
-    }));
-    let response = graphql(&registry, &forged, mutation, input.clone()).await;
-    assert_eq!(
-        response["errors"][0]["extensions"]["code"], "forbidden",
-        "{response}"
-    );
-
-    let response = graphql(&registry, &deployer, mutation, input.clone()).await;
-    assert_eq!(
-        response["data"]["registryPromote"]["changed"], true,
-        "{response}"
-    );
-    assert_eq!(
-        response["data"]["registryPromote"]["promotion"]["actor"],
-        "forgejo:anurag/k8s"
-    );
-    assert_eq!(deployed(&registry, "containers/app"), Some(digest));
-
-    let response = graphql(
-        &registry,
-        &reader,
-        "{ registryPromotions(repositories: [\"containers/app\"]) { sha liveUntil } }",
-        json!({}),
-    )
-    .await;
-    assert_eq!(
-        response["data"]["registryPromotions"],
-        json!([{ "sha": "aaa", "liveUntil": null }]),
-        "{response}"
-    );
 
     let tools = registry.forgejo.forgejo(json!({}));
     let revoke = json!({ "token": deployer });
@@ -2277,9 +1961,4 @@ async fn ci_promotes_through_the_graph_with_an_exchanged_service_account(pool: P
         .await;
     assert_eq!(status, 404);
 
-    let response = graphql(&registry, &deployer, mutation, input).await;
-    assert_eq!(
-        response["errors"][0]["extensions"]["code"], "forbidden",
-        "revoked exchanges stop acting for the run: {response}"
-    );
 }

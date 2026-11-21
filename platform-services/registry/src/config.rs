@@ -22,8 +22,6 @@ pub struct Config {
     pub graph: Option<GraphConfig>,
     #[serde(default)]
     pub harbor: Option<HarborConfig>,
-    #[serde(default)]
-    pub deploy: Option<DeployConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -69,25 +67,6 @@ pub struct GraphAccount {
 pub struct AccountGrant {
     pub forgejo: ForgejoSubject,
     pub accounts: Vec<String>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DeployConfig {
-    pub tag: String,
-    pub groups: Vec<String>,
-    #[serde(default)]
-    pub dispatch: Option<DispatchConfig>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct DispatchConfig {
-    pub url: String,
-    pub repository: String,
-    pub workflow: String,
-    #[serde(rename = "ref")]
-    pub git_ref: String,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -230,7 +209,6 @@ mod tests {
         assert_eq!(config.storage.bucket, "registry");
         assert!(config.forgejo.is_some());
         assert!(config.graph.unwrap().exchange.is_some());
-        assert!(config.deploy.is_some());
         assert!(!config.harbor.unwrap().grants.is_empty());
     }
 }

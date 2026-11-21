@@ -1,7 +1,6 @@
 pub mod audit;
 pub mod exchange;
 pub mod graph_exchange;
-pub mod promote;
 pub mod publishers;
 pub mod signing;
 pub mod tokens;
@@ -35,8 +34,6 @@ pub fn router() -> Router<AppState> {
         .route("/harbor/token", post(exchange::create))
         .route("/harbor/token/{username}", delete(exchange::revoke))
         .route("/harbor/sign", post(exchange::sign))
-        .route("/harbor/promote", post(promote::create))
-        .route("/harbor/promotions", get(promote::list))
         .route("/graph/token", post(graph_exchange::create))
         .route("/graph/token/revoke", post(graph_exchange::revoke))
 }

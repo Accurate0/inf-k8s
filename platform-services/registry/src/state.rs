@@ -40,7 +40,6 @@ pub struct AppState {
     pub signer: Signer,
     pub harbor: Option<Harbor>,
     pub http: reqwest::Client,
-    pub dispatch_token: Option<String>,
 }
 
 impl AppState {
@@ -57,7 +56,6 @@ impl AppState {
                 .user_agent("registry")
                 .build()
                 .unwrap_or_default(),
-            dispatch_token: None,
         }
     }
 }

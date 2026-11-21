@@ -66,45 +66,6 @@ fn principal(ctx: &Context<'_>) -> async_graphql::Result<Principal> {
     })
 }
 
-// Service account tokens only act for the forgejo run they were exchanged for.
-// Kanidm omits preferred_username without the profile scope, so exchanges are found by jti
-// rather than by the token's identity.
-async fn deployer(ctx: &Context<'_>) -> async_graphql::Result<Principal> {
-    let principal = principal(ctx)?;
-    let claims = ctx.data::<Claims>()?;
-    let state = state(ctx);
-
-    let exchanged = match &claims.jti {
-        Some(jti) => crate::core::graph_exchange::exchanged_for(state, jti)
-            .await
-            .gql()?,
-        None => None,
-    };
-    if let Some((account, forgejo)) = exchanged {
-        return Ok(Principal::Exchanged {
-            account,
-            groups: principal.groups().to_vec(),
-            forgejo,
-        });
-    }
-
-    let exchange_account = state
-        .config
-        .graph
-        .as_ref()
-        .and_then(|g| g.exchange.as_ref())
-        .and_then(|e| e.accounts.iter().find(|a| a.name == claims.identity()));
-    if let Some(account) = exchange_account {
-        return Err(Error::new(format!(
-            "{} tokens must come from the registry's graph token exchange",
-            account.name
-        ))
-        .extend_with(|_, ext| ext.set("code", "forbidden")));
-    }
-
-    Ok(principal)
-}
-
 trait Gql<T> {
     fn gql(self) -> async_graphql::Result<T>;
 }

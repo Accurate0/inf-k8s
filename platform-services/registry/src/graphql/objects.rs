@@ -21,7 +21,6 @@ pub enum Node {
     TrustedPublisher(TrustedPublisher),
     AuditEntry(AuditEntry),
     SigningKey(SigningKey),
-    Promotion(Promotion),
 }
 
 #[derive(Enum, Clone, Copy, PartialEq, Eq)]
@@ -586,55 +585,4 @@ pub struct WhoAmI {
     pub subject: String,
     pub admin: bool,
     pub groups: Vec<String>,
-}
-
-#[derive(SimpleObject)]
-#[graphql(name = "RegistryPromotion", complex)]
-pub struct Promotion {
-    #[graphql(skip)]
-    pub row_id: i64,
-    pub app: String,
-    pub repository: String,
-    pub digest: String,
-    pub sha: Option<String>,
-    pub committed_at: Option<DateTime<Utc>>,
-    pub promoted_at: DateTime<Utc>,
-    /// When the next promotion of the repository replaced this one; null while it is live.
-    pub live_until: Option<DateTime<Utc>>,
-    pub actor: String,
-    pub forced: bool,
-}
-
-#[ComplexObject]
-impl Promotion {
-    async fn id(&self) -> ID {
-        IDS.encode("promotion", self.row_id)
-    }
-}
-
-impl From<registry_api::Promotion> for Promotion {
-    fn from(p: registry_api::Promotion) -> Self {
-        Self {
-            row_id: p.id,
-            app: p.app,
-            repository: p.repository,
-            digest: p.digest,
-            sha: p.sha,
-            committed_at: p.committed_at,
-            promoted_at: p.promoted_at,
-            live_until: p.live_until,
-            actor: p.actor,
-            forced: p.forced,
-        }
-    }
-}
-
-#[derive(SimpleObject)]
-#[graphql(name = "RegistryPromoted")]
-pub struct Promoted {
-    pub promotion: Promotion,
-    /// The digest that was deployed before, if any.
-    pub previous: Option<String>,
-    /// False when the digest was already deployed.
-    pub changed: bool,
 }
