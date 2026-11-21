@@ -8,6 +8,7 @@ on:
       - "**/manifests/**"
       - "**/kustomization.yaml"
       - "**/image.values.yaml"
+      - kubernetes/**
       - selfhosted/*/*.values.yaml
       - charts/**
       - platform/versions.yaml
