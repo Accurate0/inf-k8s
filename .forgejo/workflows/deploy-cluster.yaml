@@ -1,4 +1,4 @@
-name: Deploy cluster (render app.yaml, publish the cluster artifact)
+name: Deploy cluster
 on:
   push:
     branches:
