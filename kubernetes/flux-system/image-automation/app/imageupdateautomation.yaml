@@ -1,0 +1,32 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/image.toolkit.fluxcd.io/imageupdateautomation_v1.json
+apiVersion: image.toolkit.fluxcd.io/v1
+kind: ImageUpdateAutomation
+metadata:
+  name: k8s
+spec:
+  interval: 1h
+  # lets every image of one build (maccas, ozbargain) land in a single commit
+  policyChangeDelay: 1m
+  sourceRef:
+    kind: GitRepository
+    name: k8s
+  git:
+    checkout:
+      ref:
+        branch: main
+    commit:
+      author:
+        name: flux[bot]
+        email: flux@noreply.git.anurag.sh
+      messageTemplate: |
+        deploy {{ range $file, $_ := .Changed.FileChanges }}{{ $file | dir | base }} {{ end }}
+
+        {{ range $_, $change := .Changed.Changes -}}
+        {{ $change.OldValue }} -> {{ $change.NewValue }}
+        {{ end -}}
+    push:
+      branch: main
+  # setters live in each app's image.values.yaml; render-apps renders and publishes the commit
+  update:
+    path: ./
+    strategy: Setters

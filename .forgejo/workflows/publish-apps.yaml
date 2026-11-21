@@ -1,5 +1,5 @@
 name: Publish apps
-# dispatched by the registry after a promotion moves an image's deploy tag, and on kubernetes/ changes
+# hand-written changes under kubernetes/; app changes publish from render-apps
 on:
   push:
     branches:

@@ -1,0 +1,12 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/gitrepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: GitRepository
+metadata:
+  name: k8s
+spec:
+  interval: 1h
+  url: https://git.anurag.sh/anurag/k8s.git
+  ref:
+    branch: main
+  secretRef:
+    name: image-automation-git

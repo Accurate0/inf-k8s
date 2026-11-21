@@ -51,6 +51,13 @@ spec:
       - name: janitor-webhook
         managedSecrets:
           - secretName: janitor-webhook
+      - name: image-automation
+        managedSecrets:
+          - secretName: image-automation-git
+            template:
+              data:
+                username: "{{ .USERNAME }}"
+                password: "{{ .PASSWORD }}"
     templates:
       - secretName: flux-web-config
         configMap: flux-web-config-template
@@ -241,6 +248,8 @@ spec:
         - kustomize-controller
         - helm-controller
         - notification-controller
+        - image-reflector-controller
+        - image-automation-controller
       cluster:
         type: kubernetes
         networkPolicy: true

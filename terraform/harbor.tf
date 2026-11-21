@@ -108,7 +108,7 @@ resource "harbor_robot_account" "flux" {
   secret_wo_version = 1
 
   dynamic "permissions" {
-    for_each = toset(["charts", "manifests"])
+    for_each = toset(["charts", "containers", "manifests"])
 
     content {
       kind      = "project"
@@ -149,6 +149,15 @@ resource "harbor_project_webhook" "flux" {
   name         = "flux"
   project_id   = harbor_project.own["manifests"].id
   address      = "http://webhook-receiver.flux-system.svc.cluster.local/hook/${sha256("${random_password.flux-harbor-receiver.result}harborflux-system")}"
+  auth_header  = random_password.flux-harbor-receiver.result
+  notify_type  = "http"
+  events_types = ["PUSH_ARTIFACT"]
+}
+
+resource "harbor_project_webhook" "flux-containers" {
+  name         = "flux"
+  project_id   = harbor_project.own["containers"].id
+  address      = "http://webhook-receiver.flux-system.svc.cluster.local/hook/${sha256("${random_password.flux-harbor-receiver.result}harbor-containersflux-system")}"
   auth_header  = random_password.flux-harbor-receiver.result
   notify_type  = "http"
   events_types = ["PUSH_ARTIFACT"]
