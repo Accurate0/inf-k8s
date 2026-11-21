@@ -96,42 +96,6 @@ resource "harbor_project" "own" {
   public = false
 }
 
-ephemeral "random_password" "harbor-argocd" {
-  length  = 32
-  special = false
-}
-
-resource "harbor_robot_account" "argocd" {
-  name              = "argocd"
-  level             = "system"
-  secret_wo         = ephemeral.random_password.harbor-argocd.result
-  secret_wo_version = 1
-
-  dynamic "permissions" {
-    for_each = toset(["charts", "manifests"])
-
-    content {
-      kind      = "project"
-      namespace = harbor_project.own[permissions.value].name
-
-      access {
-        action   = "pull"
-        resource = "repository"
-      }
-    }
-  }
-}
-
-resource "vault_kv_secret_v2" "harbor-argocd" {
-  mount = vault_mount.kv.path
-  name  = "argocd/harbor-repo-creds"
-  data_json_wo = jsonencode({
-    USERNAME = harbor_robot_account.argocd.full_name
-    PASSWORD = ephemeral.random_password.harbor-argocd.result
-  })
-  data_json_wo_version = 1
-}
-
 ephemeral "random_password" "harbor-flux" {
   length  = 32
   special = false
