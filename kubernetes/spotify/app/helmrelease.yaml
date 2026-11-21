@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T07:37:47.624Z
+# generated at 2026-11-21T08:28:28.798Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -33,8 +33,8 @@ spec:
     mode: enabled
   values:
     images:
-      registry.anurag.sh/containers/spotify: 4cd0d1c0421694747735d36115fef00bf48be516@sha256:cc0346a9697f66432b0b7b00fa713f95cb5e0b6aa0d91a5443511dd04b600a28
-      registry.anurag.sh/containers/spotify-web: d1409266cfa452a7548836ba5d9106ce6a1cd720@sha256:37d6de63a4033c325dedfdbe2681a23d0a5e763b0abe636eb238b6da7a6863f1
+      registry.anurag.sh/containers/spotify: main-1795248125-9e38c5a448cd858fcd9152b5e657d87465ae766e
+      registry.anurag.sh/containers/spotify-web: main-1795248125-9e38c5a448cd858fcd9152b5e657d87465ae766e
     namespace: spotify
     namespaceLabels:
       internal-gateway-access: "true"

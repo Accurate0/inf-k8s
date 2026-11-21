@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T02:58:29.299Z
+# generated at 2026-11-21T08:28:28.460Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -33,8 +33,8 @@ spec:
     mode: enabled
   values:
     images:
-      registry.anurag.sh/containers/home-gateway: 8a5ae3214481e37e70c4efa8e84a7a7f2b833646
-      registry.anurag.sh/containers/home-gateway-web: 6cb61a341b4ac52c999c88b21761d56fa86be30c
+      registry.anurag.sh/containers/home-gateway: main-1795179601-8a5ae3214481e37e70c4efa8e84a7a7f2b833646
+      registry.anurag.sh/containers/home-gateway-web: main-1794713486-6cb61a341b4ac52c999c88b21761d56fa86be30c
     namespace: home-gateway
     namespaceLabels:
       gateway.inf-k8s.net/anurag-sh: "true"
