@@ -197,8 +197,6 @@ pub enum ActionDef {
     /// PR is closed or merged.
     #[serde(rename = "delete_branch")]
     DeleteBranch,
-    #[serde(rename = "argocd_diff")]
-    ArgoCdDiff,
     #[serde(rename = "retry_workflow")]
     RetryWorkflow {
         target: RetryWorkflowTargetDef,
@@ -221,8 +219,6 @@ pub enum ActionDef {
         #[serde(default = "default_sync_timeout_secs")]
         timeout_secs: u64,
     },
-    #[serde(rename = "proxy_pass")]
-    ProxyPass { service: ProxyServiceDef },
     /// Close the current PR (optionally commenting and deleting its head branch).
     #[serde(rename = "close")]
     Close {
@@ -276,22 +272,6 @@ fn default_sync_timeout_secs() -> u64 {
 #[serde(rename_all = "snake_case")]
 pub enum RetryWorkflowTargetDef {
     Github,
-}
-
-/// Target service for the `proxy_pass` action. The original inbound request
-/// (body + headers) is forwarded verbatim to the service's webhook endpoint.
-#[derive(Debug, Deserialize, JsonSchema, Clone, Copy)]
-#[serde(rename_all = "snake_case")]
-pub enum ProxyServiceDef {
-    Argocd,
-}
-
-impl From<ProxyServiceDef> for crate::rules::actions::ProxyService {
-    fn from(def: ProxyServiceDef) -> Self {
-        match def {
-            ProxyServiceDef::Argocd => Self::Argocd,
-        }
-    }
 }
 
 impl From<&RetryWorkflowTargetDef> for RetryWorkflowTarget {
@@ -372,7 +352,6 @@ impl ActionDef {
                 comment: comment.clone(),
             },
             ActionDef::DeleteBranch => Action::DeleteBranch,
-            ActionDef::ArgoCdDiff => Action::ArgoCdDiff,
             ActionDef::RetryWorkflow {
                 target,
                 repository,
@@ -407,9 +386,6 @@ impl ActionDef {
                 target_repo: target.repo.clone(),
                 sha: sha.clone(),
                 timeout_secs: *timeout_secs,
-            },
-            ActionDef::ProxyPass { service } => Action::ProxyPass {
-                service: (*service).into(),
             },
             ActionDef::Close {
                 comment,

@@ -29,7 +29,7 @@ fn event_kind_and_source(ev: &BotEvent<'_>) -> (EventKind, EventSource) {
         BotEvent::GitHubCheckRun(_) => (EventKind::CheckRun, EventSource::Github),
         BotEvent::GitHubPush(_) => (EventKind::Push, EventSource::Github),
         BotEvent::ForgejoPush(_) => (EventKind::Push, EventSource::Forgejo),
-        BotEvent::ArgoSync(_) => (EventKind::Sync, EventSource::Argocd),
+        BotEvent::Sync(_) => (EventKind::Sync, EventSource::Flux),
     }
 }
 
@@ -201,11 +201,8 @@ fn eval_leaf<'a>(
             }
 
             LeafMatcher::AppChangedInCommit { owner, repo } => match ev {
-                BotEvent::ArgoSync(sync) => {
-                    clients
-                        .argocd
-                        .check_app_changed_in_commit(&clients.forgejo, owner, repo, sync)
-                        .await
+                BotEvent::Sync(sync) => {
+                    crate::flux::app_changed_in_commit(&clients.forgejo, owner, repo, sync).await
                 }
                 _ => false,
             },
@@ -228,7 +225,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubPush(push) | BotEvent::ForgejoPush(push) => {
                     mode.matches(&push.branch, value)
                 }
-                BotEvent::ArgoSync(sync) => mode.matches(&sync.app_name, value),
+                BotEvent::Sync(sync) => mode.matches(&sync.app_name, value),
             },
             LeafMatcher::HasLabel { value } => match ev {
                 BotEvent::ForgejoPr(pr) => pr.labels.iter().any(|l| l.name == *value),
@@ -350,7 +347,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubPush(push) | BotEvent::ForgejoPush(push) => push.branch == *value,
                 BotEvent::GitHubCommitStatus(_) => false,
                 BotEvent::GitHubCheckRun(_) => false,
-                BotEvent::ArgoSync(_) => false,
+                BotEvent::Sync(_) => false,
             },
             LeafMatcher::Repository { value } => match ev {
                 BotEvent::ForgejoPr(pr) => format!("{}/{}", pr.owner, pr.repo) == *value,
@@ -360,7 +357,7 @@ fn eval_leaf<'a>(
                 BotEvent::GitHubPush(push) | BotEvent::ForgejoPush(push) => {
                     push.repository == *value
                 }
-                BotEvent::ArgoSync(_) => false,
+                BotEvent::Sync(_) => false,
             },
 
             LeafMatcher::WorkflowRunAttempt => matches!(ev, BotEvent::GitHubWorkflow(_)),
@@ -483,7 +480,7 @@ mod tests {
                 assert_eq!(kind, EventKind::Workflow);
                 assert!(source.matches(EventSource::Forgejo));
                 assert!(source.matches(EventSource::Github));
-                assert!(!source.matches(EventSource::Argocd));
+                assert!(!source.matches(EventSource::Flux));
             }
             _ => panic!("expected Event"),
         }
@@ -696,13 +693,13 @@ patterns:
     }
 
     #[test]
-    fn deserialize_event_sync_source_argocd() {
-        let yaml = "type: event\nkind: sync\nsource: argocd";
+    fn deserialize_event_sync_source_flux() {
+        let yaml = "type: event\nkind: sync\nsource: flux";
         let m: Matcher = yaml_serde::from_str(yaml).unwrap();
         match m {
             Matcher::Leaf(LeafMatcher::Event { kind, source }) => {
                 assert_eq!(kind, EventKind::Sync);
-                assert!(source.matches(EventSource::Argocd));
+                assert!(source.matches(EventSource::Flux));
             }
             _ => panic!("expected Event"),
         }

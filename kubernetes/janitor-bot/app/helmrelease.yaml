@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T01:49:44.333Z
+# generated at 2026-11-21T02:47:32.165Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -58,8 +58,6 @@ spec:
             value: https://idm.anurag.sh/oauth2/openid/graph=graph
           - name: RULES_CONFIGMAP_PATH
             value: /etc/janitor-bot/rules/config.yaml
-          - name: ARGOCD_SERVER
-            value: http://argocd-server.argocd.svc.cluster.local:80
           - name: FORGEJO_INSTANCE_URL
             value: http://forgejo-http.forgejo.svc.cluster.local:3000
           - name: OTEL_TRACING_URL
@@ -119,14 +117,10 @@ spec:
                   path: rules/automerge-renovate-rust.yaml
                 - key: retry-renovate-workflow.yaml
                   path: rules/retry-renovate-workflow.yaml
-                - key: argocd-diff-renovate.yaml
-                  path: rules/argocd-diff-renovate.yaml
                 - key: mirror-commit-status.yaml
                   path: rules/mirror-commit-status.yaml
-                - key: argocd-sync-status.yaml
-                  path: rules/argocd-sync-status.yaml
-                - key: forward-push-to-argocd.yaml
-                  path: rules/forward-push-to-argocd.yaml
+                - key: flux-sync-status.yaml
+                  path: rules/flux-sync-status.yaml
                 - key: cleanup-on-merge.yaml
                   path: rules/cleanup-on-merge.yaml
                 - key: merge-on-label.yaml
@@ -183,7 +177,7 @@ spec:
     ingress:
       - envoy-gateway-system
       - monitoring
-      - argocd
+      - flux-system
       - forgejo
       - graph
 ---

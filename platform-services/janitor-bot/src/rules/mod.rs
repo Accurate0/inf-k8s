@@ -5,7 +5,7 @@ pub mod schema;
 
 use crate::clients::Clients;
 use crate::event::{
-    ArgoSyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, PushEvent, RawRequest,
+    SyncEvent, BotEvent, CheckRunEvent, CommitStatusEvent, PrEvent, PushEvent, RawRequest,
     WorkflowEvent,
 };
 use crate::metrics;
@@ -393,17 +393,17 @@ impl RulesOrchestrator {
         self.run_rules(clients, &bot_event, None).await;
     }
 
-    pub async fn explain_argocd_sync(
+    pub async fn explain_sync(
         &self,
         clients: &Clients,
-        event: &ArgoSyncEvent,
+        event: &SyncEvent,
     ) -> Vec<MatchedRule> {
-        let bot_event = BotEvent::ArgoSync(event);
+        let bot_event = BotEvent::Sync(event);
         self.explain_rules(&bot_event, clients).await
     }
 
-    pub async fn evaluate_argocd_sync(&self, clients: &Clients, event: &ArgoSyncEvent) {
-        let bot_event = BotEvent::ArgoSync(event);
+    pub async fn evaluate_sync(&self, clients: &Clients, event: &SyncEvent) {
+        let bot_event = BotEvent::Sync(event);
         self.run_rules(clients, &bot_event, None).await;
     }
 

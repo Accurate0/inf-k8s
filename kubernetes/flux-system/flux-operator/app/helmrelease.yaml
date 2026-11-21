@@ -48,6 +48,9 @@ spec:
       - name: harbor-receiver
         managedSecrets:
           - secretName: harbor-receiver
+      - name: janitor-webhook
+        managedSecrets:
+          - secretName: janitor-webhook
     templates:
       - secretName: flux-web-config
         configMap: flux-web-config-template

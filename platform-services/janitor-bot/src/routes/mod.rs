@@ -1,12 +1,12 @@
 mod admin;
-mod argocd;
 mod dashboard;
+mod flux;
 mod forgejo;
 mod github;
 
 pub use admin::*;
-pub use argocd::*;
 pub use dashboard::*;
+pub use flux::*;
 pub use forgejo::*;
 pub use github::*;
 

@@ -6,17 +6,13 @@ use crate::command::ACK_LABEL;
 use crate::event::{BotEvent, RawRequest};
 use crate::forgejo::CommitStatusParams;
 use crate::rules::matchers::ResourceCache;
-use crate::rules::matchers::cache::{get_changed_files_cached, pr_image_committed_at};
+use crate::rules::matchers::cache::pr_image_committed_at;
 use crate::rules::matchers::{metadata_order_key, parse_pr_metadata};
 use crate::rules::schema::{CloseOtherPrsCriteria, LabelSpec, TemplateString};
 use forgejo_api::structs::MergePullRequestOptionDo;
 
 pub enum RetryWorkflowTarget {
     GitHub,
-}
-
-pub enum ProxyService {
-    Argocd,
 }
 
 #[allow(dead_code)]
@@ -56,7 +52,6 @@ pub enum Action {
         comment: Option<TemplateString>,
     },
     DeleteBranch,
-    ArgoCdDiff,
     RetryWorkflow {
         target: RetryWorkflowTarget,
         repository: TemplateString,
@@ -76,9 +71,6 @@ pub enum Action {
         target_repo: String,
         sha: TemplateString,
         timeout_secs: u64,
-    },
-    ProxyPass {
-        service: ProxyService,
     },
     Close {
         comment: Option<TemplateString>,
@@ -107,11 +99,9 @@ impl Action {
             Action::CreateIssue { .. } => "create_issue",
             Action::CloseIssue { .. } => "close_issue",
             Action::DeleteBranch => "delete_branch",
-            Action::ArgoCdDiff => "argocd_diff",
             Action::RetryWorkflow { .. } => "retry_workflow",
             Action::SetCommitStatus { .. } => "set_commit_status",
             Action::WaitForGithubSync { .. } => "wait_for_github_sync",
-            Action::ProxyPass { .. } => "proxy_pass",
             Action::Close { .. } => "close",
             Action::CloseOtherPrs { .. } => "close_other_prs",
         }
@@ -122,7 +112,7 @@ impl Action {
         clients: &Clients,
         event: &BotEvent<'_>,
         cache: &ResourceCache,
-        raw: Option<&RawRequest>,
+        _raw: Option<&RawRequest>,
         extra_vars: &HashMap<&'static str, String>,
     ) {
         let client = &clients.forgejo;
@@ -429,27 +419,6 @@ impl Action {
                 }
                 return;
             }
-            Action::ProxyPass { service } => {
-                let Some(raw) = raw else {
-                    tracing::warn!("proxy_pass action has no raw request to forward; skipping");
-                    return;
-                };
-
-                let result = match service {
-                    ProxyService::Argocd => {
-                        clients
-                            .argocd
-                            .forward_webhook(&raw.body, &raw.headers)
-                            .await
-                    }
-                };
-
-                if let Err(e) = result {
-                    tracing::error!("proxy_pass to argocd failed: {e}");
-                }
-
-                return;
-            }
             Action::Close {
                 comment,
                 delete_branch,
@@ -705,22 +674,6 @@ impl Action {
                         pr = pr.pr_number,
                         "failed to delete branch: {e}"
                     );
-                }
-
-                return;
-            }
-            Action::ArgoCdDiff => {
-                let BotEvent::ForgejoPr(pr) = event else {
-                    return;
-                };
-
-                let files = get_changed_files_cached(clients, cache, pr).await;
-                if let Err(e) = clients
-                    .argocd
-                    .run_diff_and_comment(client, pr, &files)
-                    .await
-                {
-                    tracing::error!("argocd_diff action failed: {e}");
                 }
 
                 return;

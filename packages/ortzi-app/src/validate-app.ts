@@ -131,7 +131,13 @@ export function validate(raw: unknown, where: string): App {
   return app;
 }
 
-const SYSTEM_NAMESPACES = new Set(['argocd', 'dragonfly', 'envoy-gateway-system', 'monitoring']);
+const SYSTEM_NAMESPACES = new Set([
+  'argocd',
+  'dragonfly',
+  'envoy-gateway-system',
+  'flux-system',
+  'monitoring',
+]);
 
 export function validateIngress(apps: App[]) {
   const known = new Set(apps.map(appNamespace));

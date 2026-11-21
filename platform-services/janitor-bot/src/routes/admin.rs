@@ -294,20 +294,6 @@ pub async fn handle_admin_command(
     }
 }
 
-pub async fn handle_admin_argocd_resync(
-    State(state): State<Arc<AppState>>,
-    Path(app): Path<String>,
-) -> (StatusCode, Json<serde_json::Value>) {
-    tracing::info!(app, "admin: triggering argocd resync");
-    match state.clients.argocd.sync_application(&app).await {
-        Ok(()) => (StatusCode::OK, Json(serde_json::json!({"synced": app}))),
-        Err(e) => (
-            StatusCode::BAD_GATEWAY,
-            Json(serde_json::json!({"error": e.to_string()})),
-        ),
-    }
-}
-
 pub async fn handle_admin_metrics() -> (
     StatusCode,
     [(axum::http::header::HeaderName, &'static str); 1],
@@ -375,20 +361,7 @@ pub async fn handle_admin_health_deep(
         },
     };
 
-    let argocd = match state.clients.argocd.health_check().await {
-        Ok(()) => ServiceHealth {
-            service: "argocd",
-            healthy: true,
-            error: None,
-        },
-        Err(e) => ServiceHealth {
-            service: "argocd",
-            healthy: false,
-            error: Some(e.to_string()),
-        },
-    };
-
-    let services = [&forgejo, &github, &argocd];
+    let services = [&forgejo, &github];
     let all_healthy = services.iter().all(|s| s.healthy);
 
     let status = if all_healthy {
@@ -401,7 +374,7 @@ pub async fn handle_admin_health_deep(
         status,
         Json(serde_json::json!({
             "healthy": all_healthy,
-            "services": [forgejo, github, argocd],
+            "services": [forgejo, github],
         })),
     )
 }

@@ -1,0 +1,10 @@
+type: flux_event
+payload:
+  involvedObject: {kind: HelmRelease, name: janitor-bot-k8s-workload, namespace: flux-system}
+  severity: info
+  reason: UpgradeSucceeded
+  message: "Helm upgrade succeeded"
+  metadata:
+    app: janitor-bot
+    commit: abc1234567890def
+mocks: []

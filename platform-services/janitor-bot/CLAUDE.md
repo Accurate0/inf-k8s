@@ -6,8 +6,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 `janitor-bot` is a Rust (edition 2024) webhook service that automates PR/repo housekeeping
 on a self-hosted Forgejo instance, mirrored to GitHub. It listens for Forgejo, GitHub, and
-ArgoCD webhooks, evaluates a declarative ruleset, and takes actions (label, comment, merge,
-approve, set commit status, create issues, run `argocd diff`). It also polls open PRs on a
+Flux notification webhooks, evaluates a declarative ruleset, and takes actions (label, comment,
+merge, approve, set commit status, create issues). It also polls open PRs on a
 cron schedule every 10 minutes. Watched repo is hardcoded: `anurag/k8s` (`WATCH_REPOS` /
 `FORGEJO_OWNER` in `src/main.rs`).
 
@@ -23,7 +23,7 @@ cargo run --bin gen-schema     # regenerate rule.schema.json + rules.schema.json
 ```
 
 Required env vars to run: `FORGEJO_INSTANCE_URL`, `FORGEJO_ACCESS_KEY`, `GITHUB_TOKEN`,
-`FORGEJO_INCOMING_WEBHOOK_AUTH`, `GITHUB_WEBHOOK_SECRET`. Optional: `ARGOCD_WEBHOOK_SECRET`,
+`FORGEJO_INCOMING_WEBHOOK_AUTH`, `GITHUB_WEBHOOK_SECRET`. Optional: `FLUX_WEBHOOK_SECRET`,
 `FEATURE_FLAGS_URL` (feature flags; falls back to a NoOp provider when unset). `OIDC_ISSUER`,
 `OIDC_AUDIENCE`, `OIDC_GROUPS` (comma-separated) protect every `/admin/*` route except
 `/admin/metrics` (Prometheus scrapes it) with Kanidm bearer tokens via `src/auth.rs`; a
@@ -46,13 +46,14 @@ inference and signing helpers live in `webhook/`):
 ```
 ortzi janitor --url http://localhost:3000 replay github  payloads/status.json
 ortzi janitor --url http://localhost:3000 replay forgejo payloads/pr-comment.json
-ortzi janitor --url http://localhost:3000 replay argocd  payloads/sync.json
+ortzi janitor --url http://localhost:3000 replay flux    payloads/event.json
 ```
 
 The CLI infers the `X-GitHub-Event` / `X-Forgejo-Event(-Type)` header from the payload shape
 (override with `--event` / `--event-type`) and signs/authorizes the request using the same
 secret env vars the bot reads (`GITHUB_WEBHOOK_SECRET` → HMAC `X-Hub-Signature-256`,
-`FORGEJO_INCOMING_WEBHOOK_AUTH` / `ARGOCD_WEBHOOK_SECRET` → `Authorization`), so it passes the
+`FLUX_WEBHOOK_SECRET` → HMAC `X-Signature`, `FORGEJO_INCOMING_WEBHOOK_AUTH` → `Authorization`),
+so it passes the
 exact signature check in `routes.rs`. Handlers return `200` immediately and process in a
 background task — watch the bot's logs for the result.
 
@@ -103,10 +104,10 @@ serialize concurrent evaluations of the same PR; workflow events share one globa
 **Rule enable states:** a rule's `enabled` field supports active / dry-run / disabled —
 dry-run logs `[dry-run] would execute` instead of calling the action.
 
-**Clients** (`clients.rs`): `ForgejoClient`, `GitHubClient`, `ArgocdClient`,
-`FeatureFlagClient`, `HarborClient`, each constructed `from_env()`. `HarborClient` maps an
-ArgoCD sync of a hydrated OCI artifact (a `sha256:` revision plus the payload's `artifact`
-repo) back to the commit in the manifest's `org.opencontainers.image.revision` annotation. `git.rs` uses `git2` for local clone
+**Clients** (`clients.rs`): `ForgejoClient`, `GitHubClient`, `FeatureFlagClient`,
+`RegistryClient`, `HarborClient`, each constructed `from_env()`. Flux events (`flux.rs`) carry
+the app's stamped commit; when only the cluster artifact digest is known, `HarborClient` maps it
+back to the commit in the manifest's `org.opencontainers.image.revision` annotation. `git.rs` uses `git2` for local clone
 operations (conflict detection / revert).
 
 ## Testing approach
@@ -119,6 +120,5 @@ external requests. Add a new behavior by adding a fixture + accepting its snapsh
 
 ## Deployment
 
-`Dockerfile` is parameterized by `ARG BINARY_NAME` (multi-binary repo build). The final
-image also bundles the `argocd` CLI (used by the `argocd_diff` action). Image updates land
+`Dockerfile` is parameterized by `ARG BINARY_NAME` (multi-binary repo build). Image updates land
 via automated `[skip ci]` commits to the parent `inf-k8s` repo.

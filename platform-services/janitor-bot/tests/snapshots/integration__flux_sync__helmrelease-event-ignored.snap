@@ -1,0 +1,7 @@
+---
+source: tests/integration.rs
+expression: snapshot
+---
+response:
+  skipped: not an app kustomization event
+external_requests: []

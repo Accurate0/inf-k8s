@@ -46,10 +46,8 @@ rules:
   - !include rules/automerge-renovate-terraform.yaml
   - !include rules/automerge-renovate-rust.yaml
   - !include rules/retry-renovate-workflow.yaml
-  - !include rules/argocd-diff-renovate.yaml
   - !include rules/mirror-commit-status.yaml
-  - !include rules/argocd-sync-status.yaml
-  - !include rules/forward-push-to-argocd.yaml
+  - !include rules/flux-sync-status.yaml
   - !include rules/cleanup-on-merge.yaml
   - !include rules/merge-on-label.yaml
   - !include rules/clear-queued-on-unmergeable.yaml

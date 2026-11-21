@@ -1,10 +1,10 @@
 # yaml-language-server: $schema=./rule.schema.json
-name: argocd-sync-status
+name: flux-sync-status
 when:
   all:
     - type: event
       kind: sync
-      source: argocd
+      source: flux
     - type: app_changed_in_commit
       owner: anurag
       repo: k8s
@@ -16,6 +16,6 @@ actions:
           repo: k8s
         sha: "{sha}"
         state: "{state}"
-        context: "ArgoCD / sync / {argocd_sync.app_name}"
+        context: "Flux / {sync.app_name}"
         description: "{description}"
-        target_url: "https://argocd.ortzi.cloud/applications/argocd/{argocd_sync.app_name}"
+        target_url: "https://flux.ortzi.cloud"

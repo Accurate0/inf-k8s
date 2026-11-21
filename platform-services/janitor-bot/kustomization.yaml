@@ -12,10 +12,8 @@ configMapGenerator:
       - rules/automerge-renovate-terraform.yaml
       - rules/automerge-renovate-rust.yaml
       - rules/retry-renovate-workflow.yaml
-      - rules/argocd-diff-renovate.yaml
       - rules/mirror-commit-status.yaml
-      - rules/argocd-sync-status.yaml
-      - rules/forward-push-to-argocd.yaml
+      - rules/flux-sync-status.yaml
       - rules/cleanup-on-merge.yaml
       - rules/merge-on-label.yaml
       - rules/clear-queued-on-unmergeable.yaml

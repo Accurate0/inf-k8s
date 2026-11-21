@@ -52,7 +52,7 @@ impl BotEvent<'_> {
             BotEvent::GitHubCommitStatus(_) => "commit_status",
             BotEvent::GitHubCheckRun(_) => "check_run",
             BotEvent::GitHubPush(_) | BotEvent::ForgejoPush(_) => "push",
-            BotEvent::ArgoSync(_) => "argocd_sync",
+            BotEvent::Sync(_) => "flux_sync",
         }
     }
 
@@ -71,7 +71,7 @@ impl BotEvent<'_> {
             BotEvent::GitHubPush(p) | BotEvent::ForgejoPush(p) => {
                 format!("{} ({})", p.repository, p.branch)
             }
-            BotEvent::ArgoSync(s) => format!("{} ({})", s.app_name, s.phase),
+            BotEvent::Sync(s) => format!("{} ({})", s.app_name, s.phase),
         }
     }
 
@@ -131,13 +131,13 @@ impl BotEvent<'_> {
                 vars.insert("short_sha", short_sha.to_string());
             }
 
-            BotEvent::ArgoSync(sync) => {
-                vars.insert("argocd_sync.app_name", sync.app_name.clone());
+            BotEvent::Sync(sync) => {
+                vars.insert("sync.app_name", sync.app_name.clone());
                 vars.insert("sha", sync.sha.clone());
-                vars.insert("argocd_sync.sync_status", sync.sync_status.clone());
-                vars.insert("argocd_sync.health_status", sync.health_status.clone());
-                vars.insert("argocd_sync.phase", sync.phase.clone());
-                vars.insert("argocd_sync.message", sync.message.clone());
+                vars.insert("sync.sync_status", sync.sync_status.clone());
+                vars.insert("sync.health_status", sync.health_status.clone());
+                vars.insert("sync.phase", sync.phase.clone());
+                vars.insert("sync.message", sync.message.clone());
 
                 let state = match sync.phase.as_str() {
                     "Succeeded" => match sync.health_status.as_str() {
@@ -150,7 +150,7 @@ impl BotEvent<'_> {
                     _ => "pending",
                 };
                 vars.insert("state", state.to_string());
-                vars.insert("context", format!("ArgoCD / sync / {}", sync.app_name));
+                vars.insert("context", format!("Flux / {}", sync.app_name));
                 vars.insert(
                     "description",
                     format!("{} - {}", sync.phase, sync.health_status),

@@ -1,5 +1,5 @@
 import type { Kube } from '@ortzi/kit';
-import { APP_ANNOTATION, FLUX_NAMESPACE, REVISION_ANNOTATION } from './flux-objects';
+import { APP_ANNOTATION, FLUX_NAMESPACE, COMMIT_ANNOTATION } from './flux-objects';
 
 const MANUAL_SYNC = 'cli.ortzi.cloud/manual-sync';
 
@@ -105,7 +105,7 @@ export const driftCorrected = (app: App) =>
   app.releases.every((release) => release.spec.driftDetection?.mode !== 'warn');
 
 export const revision = (app: App) =>
-  app.kustomization.metadata.annotations?.[REVISION_ANNOTATION] ??
+  app.kustomization.metadata.annotations?.[COMMIT_ANNOTATION] ??
   app.kustomization.status?.lastAppliedRevision;
 
 export const workloadRelease = (app: App) =>

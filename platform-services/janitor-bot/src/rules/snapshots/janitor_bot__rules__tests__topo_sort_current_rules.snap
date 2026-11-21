@@ -2,7 +2,6 @@
 source: src/rules/mod.rs
 expression: names
 ---
-- argocd-diff-renovate
 - manage-ci-image-updater
 - manage-renovate-workflows
 - manage-renovate-dockerfiles
@@ -10,8 +9,7 @@ expression: names
 - automerge-renovate-rust
 - retry-renovate-workflow
 - mirror-commit-status
-- argocd-sync-status
-- forward-push-to-argocd
+- flux-sync-status
 - cleanup-on-merge
 - merge-on-label
 - clear-queued-on-unmergeable

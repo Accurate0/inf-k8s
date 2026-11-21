@@ -5,4 +5,5 @@ namespace: flux-system
 resources:
   - namespace.yaml
   - flux-operator/ks.yaml
+  - notifications
   - receiver

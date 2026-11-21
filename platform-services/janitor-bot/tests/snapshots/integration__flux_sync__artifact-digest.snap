@@ -7,7 +7,7 @@ response:
       - action: set_commit_status
         ran: true
     dry_run: false
-    name: argocd-sync-status
+    name: flux-sync-status
 external_requests:
   - method: GET
     path: /api/v1/repos/anurag/k8s/git/commits/abc1234567890def?stat=false&verification=false&files=true
@@ -18,8 +18,8 @@ external_requests:
   - method: POST
     path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def
     body:
-      context: ArgoCD / sync / janitor-bot
+      context: Flux / janitor-bot
       description: Succeeded - Healthy
       state: success
-      target_url: "https://argocd.ortzi.cloud/applications/argocd/janitor-bot"
+      target_url: "https://flux.ortzi.cloud/"
     service: forgejo

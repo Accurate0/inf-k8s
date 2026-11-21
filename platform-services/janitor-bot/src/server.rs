@@ -248,10 +248,10 @@ async fn handle_evaluate(
                 Json(serde_json::to_value(&matched).unwrap()),
             )
         }
-        "argocd_sync" => {
-            use crate::argocd::types::ArgoSyncPayload;
-            let payload: ArgoSyncPayload = match serde_json::from_value(request.payload) {
-                Ok(p) => p,
+        "flux_event" => {
+            use crate::flux::{CLUSTER_ARTIFACT, FluxEvent};
+            let flux_event: FluxEvent = match serde_json::from_value(request.payload) {
+                Ok(e) => e,
                 Err(e) => {
                     return (
                         StatusCode::BAD_REQUEST,
@@ -259,10 +259,16 @@ async fn handle_evaluate(
                     );
                 }
             };
+            let (Some(app), Some(commit)) = (flux_event.app(), flux_event.commit()) else {
+                return (
+                    StatusCode::OK,
+                    Json(serde_json::json!({"skipped": "not an app kustomization event"})),
+                );
+            };
             let sha = match state
                 .clients
                 .harbor
-                .sync_commit(&payload.sha, &payload.artifact)
+                .sync_commit(commit, CLUSTER_ARTIFACT)
                 .await
             {
                 Ok(sha) => sha,
@@ -274,21 +280,9 @@ async fn handle_evaluate(
                 }
             };
 
-            let sync_event = event::ArgoSyncEvent {
-                app_name: payload.app_name,
-                sha,
-                sync_status: payload.sync_status,
-                health_status: payload.health_status,
-                phase: payload.phase,
-                message: payload.message,
-            };
-
-            let matched = orchestrator
-                .explain_argocd_sync(&state.clients, &sync_event)
-                .await;
-            orchestrator
-                .evaluate_argocd_sync(&state.clients, &sync_event)
-                .await;
+            let sync_event = flux_event.to_sync(app, sha);
+            let matched = orchestrator.explain_sync(&state.clients, &sync_event).await;
+            orchestrator.evaluate_sync(&state.clients, &sync_event).await;
 
             (
                 StatusCode::OK,

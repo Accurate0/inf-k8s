@@ -11,7 +11,7 @@ use axum_tracing_opentelemetry::middleware::{OtelAxumLayer, OtelInResponseLayer}
 use chrono_tz::Australia;
 use janitor_bot::auth::{self, Authenticator, OAuthConfig};
 use janitor_bot::{
-    argocd::ArgocdClient, cache::CacheAccessor, clients::Clients, github::GitHubClient,
+    cache::CacheAccessor, clients::Clients, github::GitHubClient,
     harbor::HarborClient, metrics, registry::RegistryClient,
 };
 use janitor_bot::{event, rules, tracing_setup};
@@ -29,7 +29,7 @@ struct AppState {
     clients: Clients,
     forgejo_webhook_secret: String,
     github_webhook_secret: String,
-    argocd_webhook_secret: String,
+    flux_webhook_secret: String,
     orchestrator: RulesOrchestrator,
     cache: CacheAccessor,
 }
@@ -109,14 +109,13 @@ async fn main() -> anyhow::Result<()> {
         clients: Clients::new(
             ForgejoClient::from_env()?,
             GitHubClient::from_env()?,
-            ArgocdClient::from_env()?,
             FeatureFlagClient::from_env().await,
             RegistryClient::from_env()?,
             HarborClient::from_env(),
         ),
         forgejo_webhook_secret: std::env::var("FORGEJO_INCOMING_WEBHOOK_AUTH")?,
         github_webhook_secret: std::env::var("GITHUB_WEBHOOK_SECRET")?,
-        argocd_webhook_secret: std::env::var("ARGOCD_WEBHOOK_SECRET").unwrap_or_default(),
+        flux_webhook_secret: std::env::var("FLUX_WEBHOOK_SECRET").unwrap_or_default(),
         orchestrator: RulesOrchestrator::new(),
         cache: CacheAccessor::new(),
     });
@@ -188,10 +187,6 @@ async fn main() -> anyhow::Result<()> {
         )
         .route("/admin/command", post(routes::handle_admin_command))
         .route(
-            "/admin/argocd-resync/{app}",
-            post(routes::handle_admin_argocd_resync),
-        )
-        .route(
             "/admin/evaluate/{owner}/{repo}/{pr_number}",
             post(routes::handle_admin_evaluate_pr),
         )
@@ -221,7 +216,7 @@ async fn main() -> anyhow::Result<()> {
         .nest_service("/static", ServeDir::new("static"))
         .route("/forgejo/webhook", post(routes::handle_forgejo_webhook))
         .route("/github/webhook", post(routes::handle_github_webhook))
-        .route("/argocd/webhook", post(routes::handle_argocd_webhook))
+        .route("/flux/webhook", post(routes::handle_flux_webhook))
         .route("/admin/metrics", get(routes::handle_admin_metrics))
         .merge(admin)
         .with_state(state)
@@ -229,7 +224,7 @@ async fn main() -> anyhow::Result<()> {
         .layer(OtelInResponseLayer)
         .layer(
             OtelAxumLayer::default()
-                .filter(|path| !matches!(path, "/health" | "/admin/metrics" | "/argocd/webhook")),
+                .filter(|path| !matches!(path, "/health" | "/admin/metrics" | "/flux/webhook")),
         );
 
     let port = std::env::var("PORT").unwrap_or_else(|_| "3000".to_string());

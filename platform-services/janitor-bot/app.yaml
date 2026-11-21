@@ -5,7 +5,7 @@ namespace:
     internal-gateway-access: "true"
     gateway.inf-k8s.net/anurag-sh: "true"
 network:
-  ingress: [argocd, forgejo]
+  ingress: [flux-system, forgejo]
 resources:
   - name: rules
     type: config
@@ -18,10 +18,8 @@ resources:
       - rules/automerge-renovate-terraform.yaml
       - rules/automerge-renovate-rust.yaml
       - rules/retry-renovate-workflow.yaml
-      - rules/argocd-diff-renovate.yaml
       - rules/mirror-commit-status.yaml
-      - rules/argocd-sync-status.yaml
-      - rules/forward-push-to-argocd.yaml
+      - rules/flux-sync-status.yaml
       - rules/cleanup-on-merge.yaml
       - rules/merge-on-label.yaml
       - rules/clear-queued-on-unmergeable.yaml
@@ -29,7 +27,6 @@ resources:
   - {name: janitor-bot, type: secret, secretName: janitor-bot-managed-secrets}
   - {name: harbor, type: secret, secretName: janitor-bot-harbor-secrets}
   - {name: flags, type: app, app: feature-flags, export: api}
-  - {name: argocd, type: platform, export: argocd}
   - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: traces, type: platform, export: tracing}
   - name: janitor
@@ -86,7 +83,6 @@ workloads:
       OIDC_GROUPS: janitor_bot_admins
       OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
       RULES_CONFIGMAP_PATH: /etc/janitor-bot/rules/config.yaml
-      ARGOCD_SERVER: {resource: argocd}
       FORGEJO_INSTANCE_URL: {resource: forgejo}
       OTEL_TRACING_URL: {resource: traces}
       FEATURE_FLAGS_URL: {resource: flags}
@@ -115,10 +111,6 @@ build:
     run: cargo test
     packages: [build-essential, pkg-config, protobuf-compiler, libprotobuf-dev]
     toolchain: {rust: 1.99.1}
-    setup: |
-      curl -sSL -o /usr/local/bin/argocd https://github.com/argoproj/argo-cd/releases/download/v3.5.6/argocd-linux-amd64
-      echo "db9d17b70593d3f86a4dcf08d9ebbb85a42e995426ac5f928b737260656102d3  /usr/local/bin/argocd" | sha256sum -c -
-      chmod +x /usr/local/bin/argocd
 sources:
   - type: manifests
     path: .

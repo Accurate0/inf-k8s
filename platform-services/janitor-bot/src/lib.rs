@@ -1,4 +1,3 @@
-pub mod argocd;
 pub mod auth;
 pub mod cache;
 pub mod clients;
@@ -6,6 +5,7 @@ pub mod command;
 pub mod dashboard;
 pub mod event;
 pub mod feature_flag;
+pub mod flux;
 pub mod forgejo;
 pub mod git;
 pub mod github;

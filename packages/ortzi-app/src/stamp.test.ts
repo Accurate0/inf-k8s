@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import { parse, parseAllDocuments } from 'yaml';
 import { stampFlux } from './stamp.ts';
 
-const FLUX_REVISION = 'event.toolkit.fluxcd.io/revision';
+const FLUX_COMMIT = 'event.toolkit.fluxcd.io/commit';
 
 const releases = `# generated from app.yaml by \`ortzi app render\`; edit app.yaml instead
 apiVersion: helm.toolkit.fluxcd.io/v2
@@ -50,9 +50,9 @@ test('flux publish stamps the revision and injects released images into the work
   );
 
   assert.match(stamped.get('app/helmrelease.yaml')!, /^# generated from app.yaml/);
-  assert.equal(parse(stamped.get('ks.yaml')!).metadata.annotations[FLUX_REVISION], 'abc');
-  assert.equal(workload.metadata.annotations[FLUX_REVISION], 'abc');
-  assert.equal(network.metadata.annotations[FLUX_REVISION], 'abc');
+  assert.equal(parse(stamped.get('ks.yaml')!).metadata.annotations[FLUX_COMMIT], 'abc');
+  assert.equal(workload.metadata.annotations[FLUX_COMMIT], 'abc');
+  assert.equal(network.metadata.annotations[FLUX_COMMIT], 'abc');
   assert.deepEqual(workload.spec.values.images, {
     'curlimages/curl': '8.10.1',
     'registry.anurag.sh/containers/foo': 'f00@sha256:1234',

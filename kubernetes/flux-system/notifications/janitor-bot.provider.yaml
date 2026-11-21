@@ -1,0 +1,10 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/notification.toolkit.fluxcd.io/provider_v1beta3.json
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Provider
+metadata:
+  name: janitor-bot
+spec:
+  type: generic-hmac
+  address: http://api.janitor-bot.svc.cluster.local/flux/webhook
+  secretRef:
+    name: janitor-webhook

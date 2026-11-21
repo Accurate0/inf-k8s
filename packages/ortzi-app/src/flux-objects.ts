@@ -4,7 +4,7 @@ export type FluxObject = Record<string, unknown> & { kind: string };
 
 export const FLUX_NAMESPACE = 'flux-system';
 export const APP_ANNOTATION = 'event.toolkit.fluxcd.io/app';
-export const REVISION_ANNOTATION = 'event.toolkit.fluxcd.io/revision';
+export const COMMIT_ANNOTATION = 'event.toolkit.fluxcd.io/commit';
 
 const HARBOR = 'oci://registry.anurag.sh/';
 const HELM_LAYER = 'application/vnd.cncf.helm.chart.content.v1.tar+gzip';

@@ -1,0 +1,13 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/notification.toolkit.fluxcd.io/alert_v1beta3.json
+apiVersion: notification.toolkit.fluxcd.io/v1beta3
+kind: Alert
+metadata:
+  name: janitor-bot
+spec:
+  providerRef:
+    name: janitor-bot
+  eventSeverity: info
+  # janitor-bot keeps only events for an app's own kustomization and sets its commit status
+  eventSources:
+    - kind: Kustomization
+      name: "*"

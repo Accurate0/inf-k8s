@@ -235,18 +235,6 @@
         {
           "type": "object",
           "properties": {
-            "type": {
-              "type": "string",
-              "const": "argocd_diff"
-            }
-          },
-          "required": [
-            "type"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
             "id": {
               "type": "string"
             },
@@ -328,22 +316,6 @@
             "type",
             "target",
             "sha"
-          ]
-        },
-        {
-          "type": "object",
-          "properties": {
-            "service": {
-              "$ref": "#/$defs/ProxyServiceDef"
-            },
-            "type": {
-              "type": "string",
-              "const": "proxy_pass"
-            }
-          },
-          "required": [
-            "type",
-            "service"
           ]
         },
         {
@@ -533,7 +505,7 @@
       "enum": [
         "forgejo",
         "github",
-        "argocd"
+        "flux"
       ]
     },
     "EventSourceSpec": {
@@ -1546,13 +1518,6 @@
         "merge",
         "squash",
         "rebase"
-      ]
-    },
-    "ProxyServiceDef": {
-      "description": "Target service for the `proxy_pass` action. The original inbound request\n(body + headers) is forwarded verbatim to the service's webhook endpoint.",
-      "type": "string",
-      "enum": [
-        "argocd"
       ]
     },
     "RepoConfig": {

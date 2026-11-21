@@ -114,7 +114,7 @@ pub struct CommitStatusEvent {
 }
 
 #[allow(dead_code)]
-pub struct ArgoSyncEvent {
+pub struct SyncEvent {
     pub app_name: String,
     pub sha: String,
     pub sync_status: String,
@@ -200,5 +200,5 @@ pub enum BotEvent<'a> {
     GitHubCheckRun(&'a CheckRunEvent),
     GitHubPush(&'a PushEvent),
     ForgejoPush(&'a PushEvent),
-    ArgoSync(&'a ArgoSyncEvent),
+    Sync(&'a SyncEvent),
 }

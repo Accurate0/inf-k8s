@@ -5,7 +5,6 @@ use std::sync::Arc;
 
 use insta::assert_snapshot;
 use insta::assert_yaml_snapshot;
-use insta::internals::Content;
 use janitor_bot::feature_flag::FeatureFlagClient;
 use rstest::rstest;
 use serde::{Deserialize, Serialize};
@@ -13,7 +12,6 @@ use serde_json::{Value, json};
 use wiremock::matchers::{method, path, query_param};
 use wiremock::{Mock, MockServer, Request, ResponseTemplate};
 
-use janitor_bot::argocd::ArgocdClient;
 use janitor_bot::clients::Clients;
 use janitor_bot::dashboard;
 use janitor_bot::forgejo::ForgejoClient;
@@ -108,14 +106,6 @@ fn capture_requests(requests: &[Request], service: &str) -> Vec<CapturedRequest>
             } else {
                 format!("{path}?{query}")
             };
-            // argocd gRPC paths (`/<package>.<Service>/<Method>`) vary across
-            // argocd versions, so only the fact that the service was called
-            // matters. The REST webhook (`/api/...`) is stable, so keep it.
-            let path_with_query = if service == "argocd" && !path_with_query.starts_with("/api/") {
-                "[redacted]".to_string()
-            } else {
-                path_with_query
-            };
             CapturedRequest {
                 method: r.method.to_string(),
                 path: path_with_query,
@@ -135,7 +125,6 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
 
     let forgejo_server = MockServer::start().await;
     let github_server = MockServer::start().await;
-    let argocd_server = MockServer::start().await;
     let registry_server = MockServer::start().await;
     let harbor_server = MockServer::start().await;
 
@@ -147,7 +136,6 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
     for mock_def in &fixture.mocks {
         match mock_def.service.as_str() {
             "github" => setup_mocks(&github_server, slice::from_ref(mock_def)).await,
-            "argocd" => setup_mocks(&argocd_server, slice::from_ref(mock_def)).await,
             "forgejo" => setup_mocks(&forgejo_server, slice::from_ref(mock_def)).await,
             "registry" => setup_mocks(&registry_server, slice::from_ref(mock_def)).await,
             "harbor" => setup_mocks(&harbor_server, slice::from_ref(mock_def)).await,
@@ -159,7 +147,6 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         clients: Clients::new(
             ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
             GitHubClient::new(github_server.uri(), "test-token".into()),
-            ArgocdClient::new(argocd_server.uri(), "test-token".into()),
             FeatureFlagClient::new(None).await,
             RegistryClient::new(registry_server.uri(), None),
             HarborClient::new(Some(harbor_server.uri()), None),
@@ -193,17 +180,14 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
 
     forgejo_server.verify().await;
     github_server.verify().await;
-    argocd_server.verify().await;
     registry_server.verify().await;
     harbor_server.verify().await;
 
     let forgejo_requests = forgejo_server.received_requests().await.unwrap_or_default();
     let github_requests = github_server.received_requests().await.unwrap_or_default();
-    let argocd_requests = argocd_server.received_requests().await.unwrap_or_default();
 
     let mut external_requests = capture_requests(&forgejo_requests, "forgejo");
     external_requests.extend(capture_requests(&github_requests, "github"));
-    external_requests.extend(capture_requests(&argocd_requests, "argocd"));
 
     let snapshot = Snapshot {
         response,
@@ -222,29 +206,7 @@ async fn evaluate_fixture(#[files("tests/fixtures/**/*.yaml")] fixture_path: Pat
         .to_string();
     let snapshot_name = format!("{parent_dir}__{file_stem}");
 
-    let argocd_host = argocd_server
-        .uri()
-        .strip_prefix("http://")
-        .unwrap_or(&argocd_server.uri())
-        .to_string();
-
-    let mut settings = insta::Settings::clone_current();
-    settings.add_dynamic_redaction(".external_requests[].body.body", move |value, _path| {
-        if let Some(s) = value.as_str() {
-            let replaced = s.replace(&argocd_host, "ARGOCD_SERVER");
-            // Redact argocd error messages which vary depending on environment
-            let replaced = regex::Regex::new(r"(?s)```diff\nError running argocd diff.*?```")
-                .unwrap()
-                .replace_all(&replaced, "```diff\n[argocd diff error redacted]\n```")
-                .into_owned();
-            Content::from(replaced)
-        } else {
-            value.clone()
-        }
-    });
-    settings.bind(|| {
-        assert_yaml_snapshot!(snapshot_name, snapshot);
-    });
+    assert_yaml_snapshot!(snapshot_name, snapshot);
 }
 
 fn renovate_pr(number: i64, author: &str, sha: &str, html_url: &str) -> Value {
@@ -353,7 +315,6 @@ async fn renovate_dashboard_snapshot() {
     let clients = Clients::new(
         ForgejoClient::new(forgejo_server.uri(), "test-token".into()).unwrap(),
         GitHubClient::new(unused_server.uri(), "test-token".into()),
-        ArgocdClient::new(unused_server.uri(), "test-token".into()),
         FeatureFlagClient::new(None).await,
         RegistryClient::new(unused_server.uri(), None),
         HarborClient::new(Some(unused_server.uri()), None),

@@ -19,7 +19,7 @@ pub enum EventKind {
 pub enum EventSource {
     Forgejo,
     Github,
-    Argocd,
+    Flux,
 }
 
 #[derive(Debug, Deserialize, JsonSchema, Clone, PartialEq, Eq, Hash)]

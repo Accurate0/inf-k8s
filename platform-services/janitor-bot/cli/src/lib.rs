@@ -95,12 +95,6 @@ enum Command {
         body: String,
     },
 
-    /// Trigger an ArgoCD application resync
-    ArgocdResync {
-        /// ArgoCD application name
-        app: String,
-    },
-
     /// Dump prometheus metrics
     Metrics,
 
@@ -110,14 +104,14 @@ enum Command {
     /// Show the compiled rule summary
     Rules,
 
-    /// Deep health check (forgejo + github + argocd)
+    /// Deep health check (forgejo + github)
     Health,
 
     /// Replay a saved webhook payload against a (local) janitor-bot through the
     /// real, signature-verified webhook endpoint. The event header(s) are
     /// inferred from the payload. Reads the same secret env vars the bot does
     /// (FORGEJO_INCOMING_WEBHOOK_AUTH / GITHUB_WEBHOOK_SECRET /
-    /// ARGOCD_WEBHOOK_SECRET). Returns 200 immediately; output is in the bot's logs.
+    /// FLUX_WEBHOOK_SECRET). Returns 200 immediately; output is in the bot's logs.
     Replay {
         /// Which webhook endpoint to hit
         #[arg(value_enum)]
@@ -143,7 +137,7 @@ enum CommandKind {
 enum Source {
     Forgejo,
     Github,
-    Argocd,
+    Flux,
 }
 
 /// Runs janitor, published as the `janitor` ortzi package.
@@ -220,9 +214,6 @@ pub async fn run(cli: Cli) -> Result<()> {
                     "body": body,
                 })),
             )
-        }
-        Command::ArgocdResync { app } => {
-            (Method::POST, format!("/admin/argocd-resync/{app}"), None)
         }
         Command::Metrics => (Method::GET, "/admin/metrics".into(), None),
         Command::Logs => (Method::GET, "/admin/logs".into(), None),
@@ -323,9 +314,11 @@ async fn run_replay(
             }
             ("/forgejo/webhook", headers)
         }
-        Source::Argocd => {
-            let auth = require_env("ARGOCD_WEBHOOK_SECRET")?;
-            ("/argocd/webhook", vec![("Authorization".into(), auth)])
+        Source::Flux => {
+            // notification-controller's generic-hmac provider signs like github does
+            let secret = require_env("FLUX_WEBHOOK_SECRET")?;
+            let signature = janitor_webhook::github::sign_payload(&secret, &body);
+            ("/flux/webhook", vec![("X-Signature".into(), signature)])
         }
     };
 

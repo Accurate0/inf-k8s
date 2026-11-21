@@ -1,12 +1,12 @@
-type: argocd_sync
+type: flux_event
 payload:
-  app_name: janitor-bot
-  sha: "sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713"
-  artifact: oci://registry.anurag.sh/manifests/janitor-bot
-  sync_status: "Synced"
-  health_status: "Healthy"
-  phase: "Succeeded"
-  message: "successfully synced"
+  involvedObject: {kind: Kustomization, name: janitor-bot, namespace: flux-system}
+  severity: info
+  reason: ReconciliationSucceeded
+  message: "Applied revision"
+  metadata:
+    app: janitor-bot
+    revision: main@sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713
 mocks:
   - service: harbor
     method: GET
@@ -14,7 +14,7 @@ mocks:
     status: 200
   - service: harbor
     method: GET
-    path: /v2/manifests/janitor-bot/manifests/sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713
+    path: /v2/manifests/cluster/manifests/sha256:67363b49587bfc186725ba67a2256a7eb33d3d32ff0b50fee0cf8e255be94713
     status: 200
     body_text: '{"schemaVersion":2,"mediaType":"application/vnd.oci.image.manifest.v1+json","annotations":{"org.opencontainers.image.revision":"abc1234567890def"}}'
   - service: forgejo
@@ -27,7 +27,7 @@ mocks:
       html_url: ""
       url: ""
       files:
-        - filename: "platform-services/janitor-bot/application.yaml"
+        - filename: "platform-services/janitor-bot/app.yaml"
   - service: forgejo
     method: POST
     path: /api/v1/repos/anurag/k8s/statuses/abc1234567890def

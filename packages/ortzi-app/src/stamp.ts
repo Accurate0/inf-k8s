@@ -1,6 +1,6 @@
 import { parseAllDocuments } from 'yaml';
 
-const FLUX_REVISION = 'event.toolkit.fluxcd.io/revision';
+const FLUX_COMMIT = 'event.toolkit.fluxcd.io/commit';
 const WORKLOAD_RELEASE = /-k8s-workload$/;
 
 export function stampFlux(
@@ -20,7 +20,7 @@ export function stampFlux(
         if (!document.getIn(['apiVersion'])?.toString().includes('toolkit.fluxcd.io')) {
           continue;
         }
-        document.setIn(['metadata', 'annotations', FLUX_REVISION], revision);
+        document.setIn(['metadata', 'annotations', FLUX_COMMIT], revision);
         if (
           kind === 'HelmRelease' &&
           WORKLOAD_RELEASE.test(String(document.getIn(['metadata', 'name'])))

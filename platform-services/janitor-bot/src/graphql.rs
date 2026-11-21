@@ -172,7 +172,7 @@ impl QueryRoot {
         evaluations(ctx).await
     }
 
-    /// Reachability of forgejo, github and argocd.
+    /// Reachability of forgejo and github.
     async fn janitor_health(&self, ctx: &Context<'_>) -> Result<Vec<ServiceHealth>> {
         let (_, body) = routes::handle_admin_health_deep(State(state(ctx))).await;
         let services = body
@@ -292,11 +292,6 @@ impl MutationRoot {
             body: input.body,
         };
         outcome(routes::handle_admin_command(State(state(ctx)), axum::Json(request)).await)
-    }
-
-    async fn janitor_argocd_resync(&self, ctx: &Context<'_>, app: String) -> Result<bool> {
-        outcome(routes::handle_admin_argocd_resync(State(state(ctx)), Path(app)).await)
-            .map(|_| true)
     }
 }
 
