@@ -5,8 +5,8 @@ metadata:
   name: coredns
   namespace: kube-system
   annotations:
-    # k3s owns this object; flux only merges in its fields and never prunes it
-    kustomize.toolkit.fluxcd.io/ssa: Merge
+    # k3s owns this object; flux creates it only if missing and never prunes it
+    kustomize.toolkit.fluxcd.io/ssa: IfNotPresent
     kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   replicas: 2
