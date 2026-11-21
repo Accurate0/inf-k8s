@@ -1,5 +1,5 @@
 import { type Kube, parseImage } from '@ortzi/kit';
-import type { Application } from './argo';
+import type { App } from './flux';
 import { type RolloutStatus, ROLLED_OUT, rolledOut } from './rollout.ts';
 
 const KINDS = 'deployments,statefulsets,daemonsets,cronjobs,jobs';
@@ -16,7 +16,14 @@ interface PodSpec {
 
 export interface Workload {
   kind: string;
-  metadata: { name: string; namespace: string; generation?: number; resourceVersion?: string };
+  metadata: {
+    name: string;
+    namespace: string;
+    generation?: number;
+    resourceVersion?: string;
+    labels?: Record<string, string>;
+    annotations?: Record<string, string>;
+  };
   spec: {
     replicas?: number;
     template?: { spec?: PodSpec };
@@ -27,11 +34,22 @@ export interface Workload {
 
 export const listWorkloads = (kube: Kube) => kube.list<Workload>(KINDS);
 
-export function workloadsFor(app: Application, workloads: Workload[]): Workload[] {
-  const owned = new Set(
-    (app.status?.resources ?? []).map((r) => `${r.kind}/${r.namespace}/${r.name}`),
+// Helm stamps its release on what it installs; flux labels what its kustomizations apply.
+export function workloadsFor(app: App, workloads: Workload[]): Workload[] {
+  const releases = new Set(
+    app.releases.map((r) => `${r.spec.targetNamespace}/${r.spec.releaseName ?? r.metadata.name}`),
   );
-  return workloads.filter((w) => owned.has(`${w.kind}/${w.metadata.namespace}/${w.metadata.name}`));
+  const kustomizations = new Set(
+    [app.kustomization, ...app.kustomizations].map((ks) => ks.metadata.name),
+  );
+  return workloads.filter(({ metadata }) => {
+    const release = metadata.annotations?.['meta.helm.sh/release-name'];
+    const releaseNamespace = metadata.annotations?.['meta.helm.sh/release-namespace'];
+    const ks = metadata.labels?.['kustomize.toolkit.fluxcd.io/name'];
+    return (
+      (release && releases.has(`${releaseNamespace}/${release}`)) || (ks && kustomizations.has(ks))
+    );
+  });
 }
 
 export function containersOf(workload: Workload): Container[] {

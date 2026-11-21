@@ -1,5 +1,5 @@
 import type { Kube } from '@ortzi/kit';
-import { getApp } from '../argo';
+import { getApp, objectsOf, ready, readyMessage, suspended } from '../flux';
 import {
   type App,
   appNamespace,
@@ -30,15 +30,16 @@ function attempt(label: string, check: () => Check[]): Check[] {
   }
 }
 
-function argo(kube: Kube, app: App): Check[] {
-  const status = getApp(kube, app.name).status;
-  const sync = status?.sync?.status ?? 'Unknown';
-  const health = status?.health?.status ?? 'Unknown';
-  const text = `argo ${sync}, ${health}`;
-  if (health === 'Degraded' || health === 'Missing') {
-    return [fail(text)];
-  }
-  return [sync === 'Synced' && health === 'Healthy' ? ok(text) : warn(text)];
+function flux(kube: Kube, app: App): Check[] {
+  const live = getApp(kube, app.name);
+  const checks = objectsOf(live).map((object) =>
+    ready(object)
+      ? ok(`${object.metadata.name} ready`)
+      : fail(`${object.metadata.name}: ${readyMessage(object)}`),
+  );
+  return suspended(live)
+    ? [...checks, warn('suspended; resume with ortzi app autosync on')]
+    : checks;
 }
 
 function workloads(app: App, ns: Kube): Check[] {
@@ -125,7 +126,7 @@ function env(kube: Kube, app: App, world: World): Check[] {
 export function doctor(kube: Kube, app: App, world: World): number {
   const ns = kube.namespace(appNamespace(app));
   const sections: [string, () => Check[]][] = [
-    ['argo', () => argo(kube, app)],
+    ['flux', () => flux(kube, app)],
     ['workloads', () => workloads(app, ns)],
     ['secrets', () => externalSecrets(ns)],
     ['env', () => env(kube, app, world)],

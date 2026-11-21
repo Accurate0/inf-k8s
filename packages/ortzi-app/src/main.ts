@@ -1,6 +1,6 @@
 import { capture, fs, run as exec } from '@ortzi/host';
 import { cli, columns, Kube, parseMinutes, UsageError } from '@ortzi/kit';
-import { listApps } from './argo';
+import { listApps } from './flux';
 import { changedScope, parseStatus } from './changed';
 import { planCommits } from './commits';
 import { buildGraph, toDot, toMermaid } from './graph';
@@ -8,7 +8,6 @@ import { doctor } from './commands/doctor';
 import { env } from './commands/env';
 import { fmt } from './commands/fmt';
 import { history } from './commands/history';
-import { migrateFlux } from './commands/migrate-flux';
 import { autosync, heal } from './commands/policy';
 import { buildApp } from './commands/build';
 import { promote } from './commands/promote';
@@ -103,7 +102,7 @@ cluster:
   status <app>             one app's state and images
   env <app> [workload]     each env var, where it comes from, and whether its secret key exists
   doctor <app>             check workloads, secrets, volumes, routes, oidc and databases on the cluster
-  history <app>            previous argo syncs and their image tags
+  history <app>            helm release history and image promotions
   build <app>              build the app's image from its build block for --platform (default
                            linux/amd64), push it tagged with the commit sha (sha-dirty-<time>
                            with uncommitted changes) and sign it; --promote also deploys it
@@ -112,13 +111,10 @@ cluster:
                            publish it; refuses builds older than the deployed one without --force
   rollback <app> [sha]     released images: list promotions with how long each was live and
                            promote the one picked (or every image at sha, with --yes);
-                           other images: edit them on the cluster, turning auto-sync off first
-                           (default tag: the most recent different one in history)
-  heal <app> on|off        set self-heal; auto-sync still applies new git commits
-  autosync <app> on|off    turn argo auto-sync off, or restore it (returns the app to git)
-  migrate-flux <app>       hand an app from argo to flux: first detach the argo application, then,
-                           once the app is in platform/apps.yaml flux and published, delete it
-                           and wait for flux to report it ready
+                           other images: edit them to the given tag on the cluster, suspending
+                           the app first
+  heal <app> on|off        set flux drift correction; off also holds new git commits
+  autosync <app> on|off    suspend the app in flux, or resume it (returns the app to git)
 
 flags:
   --format FMT     graph: mermaid or dot (default mermaid)
@@ -136,7 +132,7 @@ flags:
   --platform P     build: target platform (default linux/amd64)
   --yes            apply; writes are a dry run without this
   --wait           rollback, autosync on: follow the change and fail if it doesn't finish
-  --timeout MIN    with --wait, migrate-flux: minutes to allow for each step (default 5)`;
+  --timeout MIN    with --wait: minutes to allow for each step (default 5)`;
 
 interface Ctx {
   kube: () => Kube;
@@ -145,7 +141,7 @@ interface Ctx {
 const DEFAULT_TIMEOUT_MINUTES = 5;
 
 const appNames = (ctx: Ctx, position: number) =>
-  position === 0 ? listApps(ctx.kube()).map((app) => app.metadata.name) : [];
+  position === 0 ? listApps(ctx.kube()).map((app) => app.name) : [];
 
 const appThenOnOff = (ctx: Ctx, position: number) =>
   position === 1 ? ['on', 'off'] : appNames(ctx, position);
@@ -667,13 +663,6 @@ export const run = cli({
         wait: values.wait,
         timeoutMinutes: parseMinutes(values.timeout, DEFAULT_TIMEOUT_MINUTES),
       }),
-    'migrate-flux': (ctx, values, [name]) =>
-      migrateFlux(
-        ctx.kube(),
-        requireApp(name, 'migrate-flux'),
-        values.yes,
-        parseMinutes(values.timeout, DEFAULT_TIMEOUT_MINUTES),
-      ),
     heal: (ctx, values, [app, value]) => {
       const { name, state } = requireOnOff('heal', app, value);
       return heal(ctx.kube(), name, state, values.yes);
@@ -695,7 +684,6 @@ export const run = cli({
     build: appNames,
     promote: appNames,
     rollback: appNames,
-    'migrate-flux': appNames,
     heal: appThenOnOff,
     autosync: appThenOnOff,
   },

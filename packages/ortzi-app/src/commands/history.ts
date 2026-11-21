@@ -1,34 +1,34 @@
 import { columns, type Kube, minuteTimestamp, short } from '@ortzi/kit';
-import { getApp, historyNewestFirst } from '../argo';
-import { gitRevision, tagsAt } from '../git';
-
-function describeTags(tags: Map<string, string>): string {
-  if (tags.size === 0) {
-    return '-';
-  }
-  const entries = [...tags];
-  if (new Set(tags.values()).size === 1) {
-    return short(entries[0][1]);
-  }
-  return entries.map(([image, tag]) => `${image.split('/').pop()}=${short(tag)}`).join(' ');
-}
+import { getApp } from '../flux';
+import { promotions } from '../registry';
+import { RELEASE_REGISTRY } from '../providers/workload';
+import { releaseRows } from '../promotion';
+import { desiredTags } from '../flux';
 
 export function history(kube: Kube, name: string): number {
   const app = getApp(kube, name);
-  const entries = historyNewestFirst(app);
-  if (entries.length === 0) {
-    console.log(`${name} has no sync history`);
-    return 0;
+  const rows = app.releases.flatMap((release) =>
+    (release.status?.history ?? []).map((entry) => [
+      minuteTimestamp(entry.lastDeployed ?? '-'),
+      release.metadata.name,
+      `v${entry.version ?? '?'}`,
+      entry.status ?? '-',
+      short(entry.chartVersion ?? '-'),
+    ]),
+  );
+  rows.sort((a, b) => b[0].localeCompare(a[0]));
+  if (!rows.length) {
+    console.log(`${name} has no release history`);
+  } else {
+    console.log(columns(['DEPLOYED (UTC)', 'RELEASE', 'REVISION', 'STATUS', 'CHART'], rows));
   }
 
-  const rows = entries.map((entry) => {
-    return [
-      minuteTimestamp(entry.deployedAt ?? '-'),
-      short(gitRevision(app, entry) ?? '-'),
-      describeTags(tagsAt(app, entry)),
-    ];
-  });
-
-  console.log(columns(['DEPLOYED (UTC)', 'REVISION', 'IMAGES'], rows));
+  const released = [...desiredTags(app).keys()].filter((i) => i.startsWith(RELEASE_REGISTRY));
+  const promoted = new Map([...promotions(released, 10)].filter(([, list]) => list.length));
+  if (promoted.size) {
+    console.log(
+      `\n${columns(['#', 'IMAGE', 'SHA', 'PROMOTED (UTC)', 'LIVE FOR', 'BY'], releaseRows(promoted, new Date().toISOString()))}`,
+    );
+  }
   return 0;
 }

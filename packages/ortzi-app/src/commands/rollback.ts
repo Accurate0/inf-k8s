@@ -8,15 +8,7 @@ import {
   parseImage,
   short,
 } from '@ortzi/kit';
-import {
-  type Application,
-  assertChangeable,
-  getApp,
-  historyNewestFirst,
-  turnAutosyncOff,
-} from '../argo';
-import { syncedTags, tagsAt } from '../git';
-import { previousTags } from '../images';
+import { type App, assertChangeable, desiredTags, getApp, setSuspended } from '../flux';
 import { RELEASE_REGISTRY } from '../providers/workload';
 import { type Row, releaseRows, rowsOf } from '../promotion';
 import { type Promotion, promote, promotions } from '../registry';
@@ -39,22 +31,11 @@ interface Edit {
   to: string;
 }
 
-function chooseTargets(
-  app: Application,
-  workloads: Workload[],
-  tag: string | undefined,
-): Map<string, string> {
-  if (tag) {
-    return new Map([...syncedTags(app).keys()].map((image) => [image, tag]));
+function chooseTargets(app: App, tag: string | undefined): Map<string, string> {
+  if (!tag) {
+    throw new Error(`${app.name} has no released images; pass the tag to roll back to`);
   }
-  const previous = previousTags(
-    runningTags(workloads),
-    historyNewestFirst(app).map((entry) => tagsAt(app, entry)),
-  );
-  if (!previous) {
-    throw new Error(`no different tags in ${app.metadata.name}'s history; pass a tag`);
-  }
-  return previous;
+  return new Map([...desiredTags(app).keys()].map((image) => [image, tag]));
 }
 
 function onlyImage(targets: Map<string, string>, app: string, image: string): Map<string, string> {
@@ -189,7 +170,7 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
   assertChangeable(name);
   const app = getApp(kube, name);
 
-  const owned = [...syncedTags(app).keys()].filter((i) => i.startsWith(RELEASE_REGISTRY));
+  const owned = [...desiredTags(app).keys()].filter((i) => i.startsWith(RELEASE_REGISTRY));
   const history = new Map(
     [...promotions(owned, 20)].filter(
       ([released, list]) => list.length && (!image || released.endsWith(`/${image}`)),
@@ -201,7 +182,7 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
 
   const workloads = workloadsFor(app, listWorkloads(kube));
 
-  const chosen = chooseTargets(app, workloads, tag);
+  const chosen = chooseTargets(app, tag);
   const targets = image ? onlyImage(chosen, name, image) : chosen;
   assertTagsExist(targets);
 
@@ -216,13 +197,13 @@ export function rollback(kube: Kube, name: string, options: RollbackOptions): nu
     console.log(`  ${workloadRef(workload)} ${container}: ${short(from)} -> ${short(to)}`);
   }
   if (!yes) {
-    console.log('auto-sync would be turned off');
+    console.log(`${name} would be suspended so flux does not undo it`);
   }
   if (!applying(yes)) {
     return 0;
   }
 
-  turnAutosyncOff(kube, app);
+  setSuspended(kube, app, true);
   for (const edit of edits) {
     applyEdit(kube, edit);
   }

@@ -1,10 +1,19 @@
 import { age, columns, type Kube, short } from '@ortzi/kit';
-import { type Application, getApp, listApps } from '../argo';
+import {
+  type App,
+  appReady,
+  driftCorrected,
+  getApp,
+  lastDeployed as deployedAt,
+  listApps,
+  revision,
+  suspended,
+} from '../flux';
 import { type Report, buildReport, displayImage, symbol } from '../report';
 import { listWorkloads } from '../workloads';
 
-function lastDeployed(app: Application): string {
-  const at = app.status?.history?.at(-1)?.deployedAt;
+function lastDeployed(app: App): string {
+  const at = deployedAt(app);
   return at ? age(at, Date.now()) : '-';
 }
 
@@ -19,7 +28,7 @@ function printSummary(reports: Report[]): void {
   console.log(`${worst} ${bad.length} of ${reports.length} apps need attention\n`);
 
   for (const { app, problems } of bad) {
-    console.log(`${symbol(problems)} ${app.metadata.name}`);
+    console.log(`${symbol(problems)} ${app.name}`);
     for (const problem of problems) {
       console.log(`    ${problem.text}`);
     }
@@ -29,23 +38,14 @@ function printSummary(reports: Report[]): void {
 }
 
 function printAll(reports: Report[], latest: boolean): void {
-  const header = [
-    'NAME',
-    'READY',
-    'SYNC',
-    'HEALTH',
-    'AUTOSYNC',
-    ...(latest ? ['LATEST'] : []),
-    'AGE',
-  ];
+  const header = ['NAME', 'IMAGES', 'READY', 'AUTOSYNC', ...(latest ? ['LATEST'] : []), 'AGE'];
   const rows = reports.map(({ app, images }) => [
-    app.metadata.name,
+    app.name,
     images.length > 0
       ? `${images.filter((i) => i.running === i.git).length}/${images.length}`
       : '-',
-    app.status?.sync?.status ?? '-',
-    app.status?.health?.status ?? '-',
-    app.spec.syncPolicy?.automated ? 'on' : 'OFF',
+    appReady(app) ? 'yes' : 'NO',
+    suspended(app) ? 'OFF' : 'on',
     ...(latest ? [`${images.filter((i) => i.latest === 'behind').length} behind`] : []),
     lastDeployed(app),
   ]);
@@ -53,12 +53,11 @@ function printAll(reports: Report[], latest: boolean): void {
 }
 
 function printApp({ app, images, problems }: Report): void {
-  const automated = app.spec.syncPolicy?.automated;
-  console.log(`${symbol(problems)} ${app.metadata.name}`);
-  console.log(`  sync       ${app.status?.sync?.status ?? '-'}`);
-  console.log(`  health     ${app.status?.health?.status ?? '-'}`);
-  console.log(`  auto-sync  ${automated ? 'on' : 'off'}`);
-  console.log(`  self-heal  ${automated?.selfHeal ? 'on' : 'off'}`);
+  console.log(`${symbol(problems)} ${app.name}`);
+  console.log(`  ready      ${appReady(app) ? 'yes' : 'no'}`);
+  console.log(`  auto-sync  ${suspended(app) ? 'off' : 'on'}`);
+  console.log(`  self-heal  ${driftCorrected(app) ? 'on' : 'off'}`);
+  console.log(`  revision   ${short(revision(app) ?? '-')}`);
   console.log(`  deployed   ${lastDeployed(app)} ago`);
 
   if (problems.length > 0) {

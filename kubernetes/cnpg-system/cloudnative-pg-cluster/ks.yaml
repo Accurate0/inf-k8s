@@ -6,6 +6,7 @@ metadata:
   namespace: flux-system
   annotations:
     event.toolkit.fluxcd.io/app: cloudnative-pg-cluster
+    cli.ortzi.cloud/manual-sync: safety
     kustomize.toolkit.fluxcd.io/prune: disabled
 spec:
   suspend: true

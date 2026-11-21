@@ -1,6 +1,13 @@
 import { ghcrDigest, short } from '@ortzi/kit';
-import { type Application, isEmergency, isManualSync } from './argo';
-import { syncedTags } from './git';
+import {
+  type App,
+  desiredTags,
+  isManualSync,
+  objectsOf,
+  ready,
+  readyMessage,
+  suspended,
+} from './flux';
 import { type Workload, runningTags, workloadsFor } from './workloads';
 
 export interface Problem {
@@ -16,7 +23,7 @@ export interface ImageState {
 }
 
 export interface Report {
-  app: Application;
+  app: App;
   images: ImageState[];
   problems: Problem[];
 }
@@ -52,41 +59,37 @@ function imageProblems({ image, running, git, latest }: ImageState, emergency: b
   return problems;
 }
 
-function appProblems(app: Application): Problem[] {
+function appProblems(app: App): Problem[] {
   const problems: Problem[] = [];
-  const automated = app.spec.syncPolicy?.automated;
-  if (isEmergency(app)) {
+  if (isManualSync(app)) {
+    return problems;
+  }
+  if (suspended(app)) {
     problems.push({
       severe: true,
-      text: `auto-sync turned off; undo: ortzi app autosync ${app.metadata.name} on --yes`,
+      text: `auto-sync turned off; undo: ortzi app autosync ${app.name} on --yes`,
     });
-  } else if (!automated && !isManualSync(app)) {
-    problems.push({ severe: false, text: 'auto-sync is off' });
-  } else if (automated && !automated.selfHeal) {
-    problems.push({ severe: false, text: 'self-heal is off' });
   }
 
-  const sync = app.status?.sync?.status ?? 'Unknown';
-  if (sync !== 'Synced') {
-    problems.push({ severe: false, text: `sync is ${sync}` });
+  for (const object of objectsOf(app).filter((o) => !ready(o))) {
+    problems.push({
+      severe: !suspended(app),
+      text: `${object.metadata.name}: ${readyMessage(object)}`,
+    });
   }
-
-  const health = app.status?.health?.status ?? 'Unknown';
-  if (health !== 'Healthy') {
-    problems.push({ severe: health !== 'Progressing', text: `health is ${health}` });
-  }
-
   return problems;
 }
 
-export function buildReport(app: Application, workloads: Workload[], latest: boolean): Report {
+export function buildReport(app: App, workloads: Workload[], latest: boolean): Report {
   const running = runningTags(workloadsFor(app, workloads));
-  const images = [...syncedTags(app)].map(([image, git]): ImageState => {
+  const images = [...desiredTags(app)].map(([image, wanted]): ImageState => {
+    // promoted images are stamped as sha@digest; containers report the sha as their tag
+    const git = wanted.split('@')[0];
     const now = running.get(image);
     return { image, running: now, git, latest: latest ? latestState(image, now) : undefined };
   });
 
-  const emergency = isEmergency(app);
+  const emergency = suspended(app) && !isManualSync(app);
   return {
     app,
     images,
