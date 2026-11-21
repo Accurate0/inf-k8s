@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T08:28:28.678Z
+# generated at 2026-11-21T08:31:45.215Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -33,9 +33,9 @@ spec:
     mode: enabled
   values:
     images:
-      registry.anurag.sh/containers/ozb-discord-bot: main-1794617061-4908502ba3d5979349e1cc6a418a6758acb2504c
-      registry.anurag.sh/containers/ozb-finder: main-1794617061-4908502ba3d5979349e1cc6a418a6758acb2504c
-      registry.anurag.sh/containers/ozb-trigger: main-1794617061-4908502ba3d5979349e1cc6a418a6758acb2504c
+      registry.anurag.sh/containers/ozb-discord-bot: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780
+      registry.anurag.sh/containers/ozb-finder: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780
+      registry.anurag.sh/containers/ozb-trigger: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780
     namespace: ozbargain
     workloads:
       - name: ozb-discord-bot
