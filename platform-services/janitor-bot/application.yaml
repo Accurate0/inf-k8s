@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T15:40:49.957Z
+# generated at 2026-11-21T01:49:44.332Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/argoproj.io/application_v1alpha1.json
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -22,7 +22,7 @@ spec:
       helm:
         valuesObject:
           images:
-            registry.anurag.sh/containers/janitor-bot: 71ea5dc0410ca85c532a2f1724f70b1c18a6a467
+            registry.anurag.sh/containers/janitor-bot: 471025e29f9f0b550a2de43b2cf7a4cd3a7732fa
           namespace: janitor-bot
           namespaceLabels:
             internal-gateway-access: "true"
