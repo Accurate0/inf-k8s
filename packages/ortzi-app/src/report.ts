@@ -83,7 +83,7 @@ function appProblems(app: App): Problem[] {
 export function buildReport(app: App, workloads: Workload[], latest: boolean): Report {
   const running = runningTags(workloadsFor(app, workloads));
   const images = [...desiredTags(app)].map(([image, wanted]): ImageState => {
-    // promoted images are stamped as sha@digest; containers report the sha as their tag
+    // pinned tags read tag@digest; containers report the tag alone
     const git = wanted.split('@')[0];
     const now = running.get(image);
     return { image, running: now, git, latest: latest ? latestState(image, now) : undefined };

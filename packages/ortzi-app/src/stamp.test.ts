@@ -35,7 +35,7 @@ metadata:
   name: foo
 `;
 
-test('flux publish stamps the revision and injects released images into the workload release', () => {
+test('flux publish stamps the revision on every flux object', () => {
   const stamped = stampFlux(
     new Map([
       ['ks.yaml', ks],
@@ -43,7 +43,6 @@ test('flux publish stamps the revision and injects released images into the work
       ['app/namespace.yaml', namespace],
     ]),
     'abc',
-    { 'registry.anurag.sh/containers/foo': 'f00@sha256:1234' },
   );
   const [workload, network] = parseAllDocuments(stamped.get('app/helmrelease.yaml')!).map((d) =>
     d.toJS(),
@@ -53,22 +52,7 @@ test('flux publish stamps the revision and injects released images into the work
   assert.equal(parse(stamped.get('ks.yaml')!).metadata.annotations[FLUX_COMMIT], 'abc');
   assert.equal(workload.metadata.annotations[FLUX_COMMIT], 'abc');
   assert.equal(network.metadata.annotations[FLUX_COMMIT], 'abc');
-  assert.deepEqual(workload.spec.values.images, {
-    'curlimages/curl': '8.10.1',
-    'registry.anurag.sh/containers/foo': 'f00@sha256:1234',
-  });
+  assert.deepEqual(workload.spec.values.images, { 'curlimages/curl': '8.10.1' });
   assert.deepEqual(network.spec.values, {});
   assert.equal(stamped.get('app/namespace.yaml'), namespace);
-});
-
-test('a flux released image needs a workload release to land in', () => {
-  const without = new Map([
-    ['app/helmrelease.yaml', releases.replace('foo-k8s-workload', 'foo-k8s-other')],
-  ]);
-
-  assert.throws(
-    () => stampFlux(without, 'abc', { 'registry.anurag.sh/containers/foo': 't' }),
-    /has no k8s-workload release/,
-  );
-  assert.doesNotThrow(() => stampFlux(without, 'abc'));
 });

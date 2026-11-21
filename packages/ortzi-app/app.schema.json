@@ -66,9 +66,9 @@
           },
           "release": {
             "enum": [
-              "deploy"
+              "latest"
             ],
-            "description": "Run whatever build of the image is promoted to the registry's deploy tag (`ortzi app promote`) instead of a tag in image.values.yaml."
+            "description": "Run the newest main build of the image: flux's ImagePolicy picks it from the registry and commits its tag to image.values.yaml."
           },
           "kind": {
             "enum": [
@@ -527,7 +527,15 @@
           "initContainers": {
             "type": "array",
             "items": {
-              "type": "object"
+              "type": "object",
+              "properties": {
+                "release": {
+                  "enum": [
+                    "latest"
+                  ],
+                  "description": "Like the workload release: run the newest main build of the image."
+                }
+              }
             }
           },
           "sidecars": {
@@ -535,6 +543,12 @@
             "items": {
               "type": "object",
               "properties": {
+                "release": {
+                  "enum": [
+                    "latest"
+                  ],
+                  "description": "Like the workload release: run the newest main build of the image."
+                },
                 "inherit": {
                   "type": "array",
                   "description": "Copy these from the workload's main container. The sidecar's own env entries win over inherited ones.",

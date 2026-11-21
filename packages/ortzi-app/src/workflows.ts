@@ -1,7 +1,6 @@
 import { stringify } from 'yaml';
 import type { App, Build, Target } from './types.ts';
 import { HEADER } from './generated.ts';
-import { releaseImages } from './providers/workload.ts';
 
 export const ciProvider = (app: App) => (app.build as Build).ci;
 
@@ -87,38 +86,6 @@ const SETUP_ORTZI = 'https://git.anurag.sh/anurag/workflows/setup-ortzi@main';
 
 const ON_MAIN = "github.ref == 'refs/heads/main'";
 
-const deployScript = (
-  skipCi: boolean,
-) => String.raw`COMMITTED_AT=$(git show -s --format=%ct "$COMMIT_SHA")
-git config --global user.name ci-image-updater
-git config --global user.email ci-image-updater@git.anurag.sh
-git clone "https://x-access-token:$FORGEJO_TOKEN@git.anurag.sh/anurag/k8s.git" config-repo
-cd config-repo
-PR_BRANCH="ci/update-$SERVICE_NAME-app-$SERVICE_NAME-$TAG"
-TITLE="chore(deploy): update $SERVICE_NAME images to $TAG${skipCi ? ' [skip ci]' : ''}"
-git checkout -b "$PR_BRANCH"
-IMAGE="$IMAGE" yq -I2 -P -i '.images[strenv(IMAGE)] = strenv(TAG)' "$VALUES_FILE"
-git add "$MANIFESTS_PATH"
-git commit -m "$TITLE" || { echo "No changes to commit"; exit 0; }
-git push -f origin "$PR_BRANCH"
-METADATA=$(jq -cn --arg service "$SERVICE_NAME" --arg tag "$TAG" --arg images "$IMAGE" \
-  --arg path "$MANIFESTS_PATH" --arg repo "$REPOSITORY" --arg ref "$REF_NAME" --arg run "$RUN_NUMBER" \
-  --arg sha "$COMMIT_SHA" --arg committed_at "$COMMITTED_AT" \
-  '{service: $service, tag: $tag, images: $images, path: $path, branch: "main", repo: $repo, ref: $ref, run: $run, sha: $sha, committed_at: $committed_at}')
-BODY=$(printf '## Image Update\n\n| Field | Value |\n|-------|-------|\n| **Service** | \x60%s\x60 |\n| **Tag** | \x60%s\x60 |\n| **Manifests Path** | \x60%s\x60 |\n| **Target Branch** | \x60main\x60 |\n\n**Triggered by:** [%s@%s](%s)\n\n<!-- metadata:%s -->\n' \
-  "$SERVICE_NAME" "$TAG" "$MANIFESTS_PATH" "$REPOSITORY" "$REF_NAME" "$RUN_URL" "$METADATA")
-PAYLOAD=$(jq -n --arg title "$TITLE" --arg head "$PR_BRANCH" --arg body "$BODY" \
-  '{title: $title, head: $head, base: "main", body: $body}')
-CODE=$(curl -s -o response.json -w '%{http_code}' -X POST \
-  -H "Authorization: token $FORGEJO_TOKEN" -H 'Content-Type: application/json' \
-  -d "$PAYLOAD" https://git.anurag.sh/api/v1/repos/anurag/k8s/pulls)
-case "$CODE" in
-  2*) jq -r .html_url response.json ;;
-  409) echo "PR already exists for $PR_BRANCH" ;;
-  *) echo "failed to create PR (HTTP $CODE)"; cat response.json; exit 1 ;;
-esac
-`;
-
 function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions): string {
   const build = app.build as Build;
   const ACTIONS = {
@@ -134,10 +101,12 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   const [, project] = build.image.split('/');
   const cacheRef = `type=registry,ref=${build.image}:buildcache`;
 
-  const released = releaseImages(app).includes(build.image);
   const buildJob = {
     'runs-on': 'docker',
-    ...(released ? { outputs: { digest: '${{ steps.build.outputs.digest }}' } } : {}),
+    outputs: {
+      digest: '${{ steps.build.outputs.digest }}',
+      'committed-at': '${{ steps.commit-meta.outputs.committed-at }}',
+    },
     steps: [
       { uses: ACTIONS.checkout },
       {
@@ -232,46 +201,30 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
     ],
   };
 
+  // flux's ImagePolicy deploys the newest main-<time>-<sha> tag, so it lands only once tests pass
   const needs = test ? ['build', 'test'] : ['build'];
-  const deployIf = `\${{ ${ON_MAIN} && !cancelled() && needs.build.result == 'success'${
-    test ? " && needs.test.result == 'success'" : ''
-  } }}`;
-  const promoteJob = {
+  const releaseJob = {
     needs,
-    if: deployIf,
+    if: `\${{ ${ON_MAIN} && !cancelled() && needs.build.result == 'success'${
+      test ? " && needs.test.result == 'success'" : ''
+    } }}`,
     'runs-on': 'docker',
     steps: [
-      { uses: SETUP_ORTZI, with: { packages: 'app' } },
+      { uses: ACTIONS.buildx },
+      { uses: SETUP_ORTZI },
+      { name: 'Log in to harbor', id: 'login', run: `ortzi registry login ${project}:push` },
       {
-        name: 'Promote image',
-        env: { DIGEST: '${{ needs.build.outputs.digest }}' },
-        run: `ortzi app promote ${app.name} --image "${build.image}@$DIGEST"`,
-      },
-    ],
-  };
-  const deployJob = {
-    needs,
-    if: deployIf,
-    'runs-on': 'docker',
-    steps: [
-      { uses: ACTIONS.checkout },
-      {
-        name: 'Raise image update PR',
+        name: 'Tag release',
         env: {
-          FORGEJO_TOKEN: '${{ secrets.CI_IMAGE_UPDATER_TOKEN }}',
-          SERVICE_NAME: app.name,
-          IMAGE: build.image,
-          TAG: '${{ github.sha }}',
-          COMMIT_SHA: '${{ github.sha }}',
-          MANIFESTS_PATH: dir,
-          VALUES_FILE: `${dir}/image.values.yaml`,
-          REPOSITORY: '${{ github.repository }}',
-          REF_NAME: '${{ github.ref_name }}',
-          RUN_NUMBER: '${{ github.run_number }}',
-          RUN_URL:
-            '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_number }}',
+          DIGEST: '${{ needs.build.outputs.digest }}',
+          TAG: 'main-${{ needs.build.outputs.committed-at }}-${{ github.sha }}',
         },
-        run: deployScript(!app.artifact),
+        run: `docker buildx imagetools create --tag "${build.image}:$TAG" "${build.image}@$DIGEST"`,
+      },
+      {
+        name: 'Log out of harbor',
+        if: `\${{ always() && steps.login.outcome == 'success' }}`,
+        run: 'ortzi registry logout',
       },
     ],
   };
@@ -295,7 +248,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
     jobs: {
       build: buildJob,
       ...(testJob ? { test: testJob } : {}),
-      deploy: released ? promoteJob : deployJob,
+      release: releaseJob,
     },
   };
 

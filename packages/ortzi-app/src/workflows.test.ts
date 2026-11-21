@@ -89,13 +89,7 @@ test('generates a forgejo workflow that pushes to the build image registry', () 
     workflow.jobs.test.steps.at(-1)['working-directory'],
     '${{ github.workspace }}/projects/foo',
   );
-  assert.deepEqual(workflow.jobs.deploy.needs, ['build', 'test']);
-  assert.match(workflow.jobs.deploy.steps[1].run, /yq .*image.values|strenv\(IMAGE\)/);
-  assert.equal(workflow.jobs.deploy.steps[1].env.VALUES_FILE, 'projects/foo/image.values.yaml');
-  assert.equal(
-    workflow.jobs.deploy.steps[1].env.FORGEJO_TOKEN,
-    '${{ secrets.CI_IMAGE_UPDATER_TOKEN }}',
-  );
+  assert.equal(workflow.jobs.deploy, undefined);
 });
 
 test('installs the rust toolchain and caches by the app lockfile', () => {
@@ -139,11 +133,10 @@ test('installs the rust toolchain and caches by the app lockfile', () => {
   );
 });
 
-test('a released build image is promoted after build and test instead of raising a PR', () => {
+test('the release tag flux deploys is added only after build and test pass', () => {
   const app: App = {
     name: 'foo',
-    workloads: [{ name: 'foo', image: 'registry.anurag.sh/containers/foo', release: 'deploy' }],
-    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
+    workloads: [{ name: 'foo', image: 'registry.anurag.sh/containers/foo', release: 'latest' }],
     build: {
       ci: 'forgejo',
       image: 'registry.anurag.sh/containers/foo',
@@ -162,14 +155,17 @@ test('a released build image is promoted after build and test instead of raising
   );
 
   assert.equal(workflow.jobs.build.outputs.digest, '${{ steps.build.outputs.digest }}');
-  const deploy = workflow.jobs.deploy;
-  assert.deepEqual(deploy.needs, ['build', 'test']);
-  assert.match(deploy.if, /needs\.test\.result == 'success'/);
-  assert.deepEqual(deploy.steps[0].with, { packages: 'app' });
+  const build = workflow.jobs.build.steps.find((step: { id?: string }) => step.id === 'build');
+  assert.doesNotMatch(build.with.tags, /main-/);
+
+  const release = workflow.jobs.release;
+  assert.deepEqual(release.needs, ['build', 'test']);
+  assert.match(release.if, /needs\.test\.result == 'success'/);
+
+  const tag = release.steps.find((step: { name?: string }) => step.name === 'Tag release');
+  assert.equal(tag.env.TAG, 'main-${{ needs.build.outputs.committed-at }}-${{ github.sha }}');
   assert.equal(
-    deploy.steps[1].run,
-    'ortzi app promote foo --image "registry.anurag.sh/containers/foo@$DIGEST"',
+    tag.run,
+    'docker buildx imagetools create --tag "registry.anurag.sh/containers/foo:$TAG" "registry.anurag.sh/containers/foo@$DIGEST"',
   );
-  assert.equal(deploy.steps[1].env.DIGEST, '${{ needs.build.outputs.digest }}');
-  assert.ok(!JSON.stringify(deploy).includes('CI_IMAGE_UPDATER_TOKEN'));
 });

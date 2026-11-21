@@ -1,11 +1,14 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { helmTemplates, planApp } from '../plan.ts';
+import { renderFlux } from '../outputs/flux.ts';
+import { parse, parseAllDocuments } from 'yaml';
 import {
   type App,
   appWorkloads,
   passthroughWarnings,
   containerEnv,
+  renderImageValues,
   validate,
   validateResources,
 } from '../render.ts';
@@ -558,19 +561,23 @@ test('warns about raw env lists, envFrom entries and configMap mounts', () => {
   ]);
 });
 
-test('released images are promoted, so they stay out of git and validate with a stand-in tag', () => {
-  const app = (workloads: Record<string, unknown>[], extra: Record<string, unknown> = {}) => ({
+test('released images follow their newest main build through a flux image policy', () => {
+  const app = (workloads: Record<string, unknown>[]) => ({
     name: 'foo',
     network: { ingress: [] },
-    artifact: { repo: 'oci://registry.anurag.sh/manifests/foo', tag: 'main' },
     workloads,
-    ...extra,
   });
   const image = 'registry.anurag.sh/containers/foo';
+  const sidecar = 'registry.anurag.sh/containers/foo-sidecar';
   const released = validate(
     app([
-      { name: 'api', image, release: 'deploy' },
-      { name: 'worker', image, release: 'deploy' },
+      {
+        name: 'api',
+        image,
+        release: 'latest',
+        sidecars: [{ name: 'side', image: sidecar, release: 'latest' }],
+      },
+      { name: 'worker', image, release: 'latest' },
       { name: 'curl', image: 'curlimages/curl' },
     ]),
     'x',
@@ -579,26 +586,53 @@ test('released images are promoted, so they stay out of git and validate with a 
   const plan = planApp(released, versions, target, {
     platform,
     apps: [released],
-    readValues: () => ({ images: { 'curlimages/curl': '8.10.1', [image]: 'stale' } }),
+    readValues: () => ({ images: { 'curlimages/curl': '8.10.1', [image]: 'main-1-abc' } }),
   });
-  assert.deepEqual(plan.releases, [image]);
+  assert.deepEqual(plan.releases, [image, sidecar]);
   const workload = plan.sources.find((s) => s.type === 'chart' && s.chart === 'k8s-workload');
-  assert.deepEqual(workload?.type === 'chart' && workload.values.images, {
-    'curlimages/curl': '8.10.1',
-  });
-  assert.equal(workload?.type === 'chart' && 'release' in workload.values.workloads[0], false);
+  const values = workload?.type === 'chart' ? workload.values : {};
+  assert.deepEqual(values.images, { 'curlimages/curl': '8.10.1', [image]: 'main-1-abc' });
+  assert.equal('release' in values.workloads[0], false);
+  assert.equal('release' in values.workloads[0].sidecars[0], false);
+  assert.deepEqual(JSON.parse(helmTemplates(plan)[0].values).images, values.images);
 
-  const [template] = helmTemplates(plan);
-  assert.deepEqual(JSON.parse(template.values).images, {
-    'curlimages/curl': '8.10.1',
-    [image]: 'release',
-  });
+  const flux = renderFlux(plan);
+  const [repository] = parseAllDocuments(flux.get('kubernetes/foo/app/imagerepository.yaml')!).map(
+    (d) => d.toJS(),
+  );
+  assert.equal(repository.metadata.name, 'foo-foo');
+  assert.equal(repository.spec.image, image);
+  const [policy, sidecarPolicy] = parseAllDocuments(
+    flux.get('kubernetes/foo/app/imagepolicy.yaml')!,
+  ).map((d) => d.toJS());
+  assert.equal(policy.spec.imageRepositoryRef.name, 'foo-foo');
+  assert.equal(policy.spec.filterTags.extract, '$ts');
+  assert.deepEqual(policy.spec.policy, { numerical: { order: 'asc' } });
+  assert.equal(sidecarPolicy.metadata.name, 'foo-foo-sidecar');
+  assert.match(flux.get('kubernetes/foo/app/kustomization.yaml')!, /- imagepolicy.yaml/);
+
+  const values_ = renderImageValues(
+    released,
+    'images:\n  registry.anurag.sh/containers/foo: main-1-abc\n',
+  );
+  assert.equal(
+    values_,
+    [
+      'images:',
+      '  registry.anurag.sh/containers/foo: main-1-abc # {"$imagepolicy": "flux-system:foo-foo:tag"}',
+      '  registry.anurag.sh/containers/foo-sidecar: latest # {"$imagepolicy": "flux-system:foo-foo-sidecar:tag"}',
+      '  curlimages/curl: latest',
+      '',
+    ].join('\n'),
+  );
+  assert.equal(renderImageValues(released, values_), values_);
+  assert.equal(parse(values_).images[image], 'main-1-abc');
 
   assert.throws(
     () =>
       validate(
         app([
-          { name: 'api', image, release: 'deploy' },
+          { name: 'api', image, release: 'latest' },
           { name: 'worker', image },
         ]),
         'x',
@@ -606,12 +640,7 @@ test('released images are promoted, so they stay out of git and validate with a 
     /released elsewhere; set release here too/,
   );
   assert.throws(
-    () => validate(app([{ name: 'api', image: 'ghcr.io/x/foo', release: 'deploy' }]), 'x'),
-    /only registry\.anurag\.sh\/ images are promoted/,
-  );
-  assert.throws(
-    () =>
-      validate({ ...app([{ name: 'api', image, release: 'deploy' }]), artifact: undefined }, 'x'),
-    /release needs an artifact app/,
+    () => validate(app([{ name: 'api', image: 'ghcr.io/x/foo', release: 'latest' }]), 'x'),
+    /only registry\.anurag\.sh\/ images follow their builds/,
   );
 });

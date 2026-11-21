@@ -131,3 +131,34 @@ export const kustomization = (
     targetNamespace: plan.namespace,
   },
 });
+
+// CI tags every main build main-<commit time>-<sha>, so the newest commit sorts last.
+export const RELEASE_TAG = '^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$';
+
+export const imagePolicyName = (plan: Pick<Plan, 'name'>, image: string) =>
+  `${plan.name}-${image.split('/').pop()}`;
+
+export const imageSetter = (plan: Pick<Plan, 'name'>, image: string) =>
+  `{"$imagepolicy": "${FLUX_NAMESPACE}:${imagePolicyName(plan, image)}:tag"}`;
+
+export const imageRepository = (plan: Plan, image: string) => ({
+  apiVersion: 'image.toolkit.fluxcd.io/v1',
+  kind: 'ImageRepository',
+  metadata: metadata(plan, imagePolicyName(plan, image)),
+  spec: {
+    interval: '10m',
+    image,
+    secretRef: { name: 'harbor' },
+  },
+});
+
+export const imagePolicy = (plan: Plan, image: string) => ({
+  apiVersion: 'image.toolkit.fluxcd.io/v1',
+  kind: 'ImagePolicy',
+  metadata: metadata(plan, imagePolicyName(plan, image)),
+  spec: {
+    imageRepositoryRef: { name: imagePolicyName(plan, image) },
+    filterTags: { pattern: RELEASE_TAG, extract: '$ts' },
+    policy: { numerical: { order: 'asc' } },
+  },
+});

@@ -9,6 +9,8 @@ import {
   FLUX_NAMESPACE,
   type FluxObject,
   helmRelease,
+  imagePolicy,
+  imageRepository,
 } from '../flux-objects.ts';
 
 const SCHEMAS = 'https://k8s-schemas.anurag.sh';
@@ -27,6 +29,8 @@ const FILES: Record<string, string> = {
   GitRepository: 'gitrepository.yaml',
   HelmRelease: 'helmrelease.yaml',
   Kustomization: 'ks.yaml',
+  ImageRepository: 'imagerepository.yaml',
+  ImagePolicy: 'imagepolicy.yaml',
 };
 
 // kubernetes/<namespace>/<app>, collapsed to kubernetes/<app> when the app owns a namespace of its name
@@ -94,7 +98,13 @@ export const kustomizationDocument = (resources: string[]) =>
   );
 
 export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<string, string> {
-  const objects = plan.sources.flatMap((source, index) => sourceObjects(plan, source, index));
+  const objects = [
+    ...plan.sources.flatMap((source, index) => sourceObjects(plan, source, index)),
+    ...(plan.releases ?? []).flatMap((image) => [
+      imageRepository(plan, image),
+      imagePolicy(plan, image),
+    ]),
+  ];
   const driftIgnore = overrides.helmRelease?.driftIgnore;
   for (const object of objects) {
     if (object.kind === 'HelmRelease' && driftIgnore) {

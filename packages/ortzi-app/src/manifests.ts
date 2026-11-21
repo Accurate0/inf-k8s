@@ -1,5 +1,7 @@
-import { stringify } from 'yaml';
+import { Document, isScalar, parse, stringify } from 'yaml';
 import type { App, Target } from './types.ts';
+import { imageSetter } from './flux-objects.ts';
+import { releaseImages, workloadImages } from './providers/workload.ts';
 import type { Kustomize, ResourceType } from './providers/provider.ts';
 import { HEADER } from './generated.ts';
 import { declared, sourcesOf } from './app.ts';
@@ -7,6 +9,24 @@ import { RESOURCES, sourceProvider } from './providers/index.ts';
 
 export const imageValuesPath = (app: App, target: Target) =>
   `${target.location}/${app.name}/image.values.yaml`;
+
+// Tags live here; released images carry the setter flux's ImageUpdateAutomation rewrites.
+export function renderImageValues(app: App, current: string | undefined): string {
+  const existing: Record<string, string> = (current ? parse(current) : {})?.images ?? {};
+  const images = { ...existing };
+  for (const image of workloadImages(app)) {
+    images[image] ??= 'latest';
+  }
+
+  const document = new Document({ images });
+  for (const image of releaseImages(app)) {
+    const node = document.getIn(['images', image], true);
+    if (isScalar(node)) {
+      node.comment = ` ${imageSetter(app, image)}`;
+    }
+  }
+  return document.toString({ lineWidth: 0 });
+}
 
 const kustomizations = (app: App): Kustomize[] =>
   RESOURCES.flatMap((provider) =>

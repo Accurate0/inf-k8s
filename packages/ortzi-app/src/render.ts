@@ -70,6 +70,7 @@ export {
   appFiles,
   imageValuesPath,
   kustomizationPath,
+  renderImageValues,
   needsKustomization,
   renderKustomization,
 } from './manifests.ts';

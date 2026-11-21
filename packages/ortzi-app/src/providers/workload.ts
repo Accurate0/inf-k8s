@@ -25,9 +25,9 @@ const schema: Schema = {
         type: 'string',
       },
       release: {
-        enum: ['deploy'],
+        enum: ['latest'],
         description:
-          "Run whatever build of the image is promoted to the registry's deploy tag (`ortzi app promote`) instead of a tag in image.values.yaml.",
+          "Run the newest main build of the image: flux's ImagePolicy picks it from the registry and commits its tag to image.values.yaml.",
       },
       kind: {
         enum: ['Deployment', 'DaemonSet', 'CronJob', 'Job'],
@@ -431,6 +431,12 @@ const schema: Schema = {
         type: 'array',
         items: {
           type: 'object',
+          properties: {
+            release: {
+              enum: ['latest'],
+              description: 'Like the workload release: run the newest main build of the image.',
+            },
+          },
         },
       },
       sidecars: {
@@ -438,6 +444,10 @@ const schema: Schema = {
         items: {
           type: 'object',
           properties: {
+            release: {
+              enum: ['latest'],
+              description: 'Like the workload release: run the newest main build of the image.',
+            },
             inherit: {
               type: 'array',
               description:
@@ -516,26 +526,23 @@ export function appWorkloads(app: App): Record<string, Workload> {
 
 export const RELEASE_REGISTRY = 'registry.anurag.sh/';
 
-export const releaseImages = (app: App): string[] => [
-  ...new Set(
-    Object.values(appWorkloads(app))
-      .filter((w) => w.release)
-      .map((w) => w.image),
-  ),
-];
-
-export const workloadImages = (app: App) =>
-  Object.values(appWorkloads(app)).flatMap((w) => [
-    w.image,
-    ...(w.initContainers ?? []).map((c) => c.image),
-    ...(w.sidecars ?? []).map((c) => c.image),
-  ]);
-
 const containersOf = (spec: Workload) => [
   spec,
   ...((spec.initContainers ?? []) as Workload[]),
   ...((spec.sidecars ?? []) as Workload[]),
 ];
+
+const allContainers = (app: App) => Object.values(appWorkloads(app)).flatMap(containersOf);
+
+export const releaseImages = (app: App): string[] => [
+  ...new Set(
+    allContainers(app)
+      .filter((c) => c.release)
+      .map((c) => c.image),
+  ),
+];
+
+export const workloadImages = (app: App) => allContainers(app).map((c) => c.image);
 
 export const workloadRefs = (app: App): Record<string, unknown>[] =>
   Object.values(appWorkloads(app))
@@ -564,15 +571,14 @@ function validate(app: App, fail: Fail) {
   }
 
   const released = releaseImages(app);
-  if (released.length && !app.artifact) {
-    fail('workloads: release needs an artifact app, whose images are injected at publish');
-  }
   for (const [name, workload] of Object.entries(appWorkloads(app))) {
-    if (workload.release && !workload.image.startsWith(RELEASE_REGISTRY)) {
-      fail(`workloads.${name}.release: only ${RELEASE_REGISTRY} images are promoted`);
-    }
-    if (!workload.release && released.includes(workload.image)) {
-      fail(`workloads.${name}: ${workload.image} is released elsewhere; set release here too`);
+    for (const container of containersOf(workload)) {
+      if (container.release && !container.image.startsWith(RELEASE_REGISTRY)) {
+        fail(`workloads.${name}.release: only ${RELEASE_REGISTRY} images follow their builds`);
+      }
+      if (!container.release && released.includes(container.image)) {
+        fail(`workloads.${name}: ${container.image} is released elsewhere; set release here too`);
+      }
     }
     if (workload.kind === 'Job' && !workload.phase) {
       fail(`workloads.${name}.phase is required for a Job`);

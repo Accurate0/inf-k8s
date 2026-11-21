@@ -1,1 +1,2 @@
-images: {}
+images:
+  registry.anurag.sh/containers/ai-gateway: 50bddb427d44f1129e77328d6f31d8983fa3824e@sha256:8aaf794277531938d536dc917bc0dcffa0318012a3477564c8bc239d673aef2a

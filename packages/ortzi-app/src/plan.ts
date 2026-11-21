@@ -52,14 +52,6 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     }
     if (valueFiles) {
       values = Object.assign({}, ...valueFiles.map(readValues), values);
-      if (values.images) {
-        const released = releaseImages(app);
-        values.images = Object.fromEntries(
-          Object.entries(values.images as Record<string, string>).filter(
-            ([image]) => !released.includes(image),
-          ),
-        );
-      }
     }
 
     return {
@@ -145,24 +137,6 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   };
 }
 
-// Released images get their tag at publish; templates are validated with a stand-in.
-export const RELEASE_PLACEHOLDER = 'release';
-
-const withReleases = (plan: Plan, source: PlatformChart): Record<string, unknown> => {
-  const values: Record<string, unknown> = chartValues(source);
-  if (source.chart !== 'k8s-workload' || !plan.releases) {
-    return values;
-  }
-  const images = values.images as Record<string, string> | undefined;
-  return {
-    ...values,
-    images: {
-      ...images,
-      ...Object.fromEntries(plan.releases.map((image) => [image, RELEASE_PLACEHOLDER])),
-    },
-  };
-};
-
 const RETAIN = { 'helm.sh/resource-policy': 'keep' };
 
 export const chartValues = (source: PlatformChart) => ({
@@ -177,7 +151,7 @@ export function helmTemplates(plan: Plan): { args: string[]; values: string }[] 
         ? {
             release: plan.name,
             location: [`charts/${source.chart}`],
-            values: withReleases(plan, source),
+            values: chartValues(source),
           }
         : sourceProvider(source.type).helmTemplate?.(plan, source as never);
     if (!template) {

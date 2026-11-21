@@ -9,7 +9,7 @@ export interface Cluster {
   tag: string;
   root: string;
   // path is the app's directory under root
-  apps: { name: string; path: string; revision: string; releases: string[] }[];
+  apps: { name: string; path: string; revision: string }[];
 }
 
 // Every file under dir, relative to it.
@@ -43,11 +43,7 @@ export function publishArtifact(plan: Plan, revision: string) {
   console.log(`${pushed.changed ? 'pushed' : 'unchanged'} ${repo}:${tag} ${pushed.digest}`);
 }
 
-export function publishCluster(
-  cluster: Cluster,
-  revision: string,
-  resolve: (images: string[]) => Map<string, string>,
-) {
+export function publishCluster(cluster: Cluster, revision: string) {
   const dir = `${ARTIFACT_ROOT}/cluster`;
   freshDir(dir);
 
@@ -55,18 +51,7 @@ export function publishCluster(
     files(cluster.root).map((file) => [file, fs.read(`${cluster.root}/${file}`)]),
   );
 
-  const tags = resolve([...new Set(cluster.apps.flatMap((app) => app.releases))]);
-  for (const { name, path, revision: appRevision, releases } of cluster.apps) {
-    const images = Object.fromEntries(
-      releases.map((image) => {
-        const tag = tags.get(image);
-        if (!tag) {
-          throw new Error(`${name}: ${image} has never been promoted; run ortzi app promote`);
-        }
-        return [image, tag];
-      }),
-    );
-
+  for (const { name, path, revision: appRevision } of cluster.apps) {
     const prefix = `${path}/`;
     const own = new Map(
       [...tree.keys()]
@@ -78,7 +63,7 @@ export function publishCluster(
         `${name}: nothing rendered under ${cluster.root}/${path}; run ortzi app render`,
       );
     }
-    for (const [file, content] of stampFlux(own, appRevision, images)) {
+    for (const [file, content] of stampFlux(own, appRevision)) {
       tree.set(file, content);
     }
   }

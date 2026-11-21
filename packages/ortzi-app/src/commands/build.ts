@@ -1,13 +1,8 @@
 import { capture, dockerLogin, fs, run, signImage } from '@ortzi/host';
 import type { App, Target } from '../types';
-import { promote } from '../registry';
-import { releaseImages } from '../providers/workload';
-import { describe } from './promote';
 import { buildArgs, localTag, METADATA } from '../docker';
 
 export interface BuildOptions {
-  promote: boolean;
-  force: boolean;
   platform: string;
 }
 
@@ -39,14 +34,5 @@ export function buildApp(app: App, target: Target, options: BuildOptions): numbe
   }
   signImage(`${build.image}@${digest}`);
   console.log(`pushed ${build.image}:${tag} (${digest})`);
-
-  if (!options.promote) {
-    return 0;
-  }
-  if (!releaseImages(app).includes(build.image)) {
-    console.log(`${app.name} doesn't run ${build.image} with release: deploy; nothing promoted`);
-    return 0;
-  }
-  console.log(describe(build.image, promote(app.name, build.image, digest, options.force)));
   return 0;
 }

@@ -10,7 +10,6 @@ import { fmt } from './commands/fmt';
 import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { buildApp } from './commands/build';
-import { promote } from './commands/promote';
 import { rollback } from './commands/rollback';
 import { status } from './commands/status';
 import { supergraph } from './commands/supergraph';
@@ -24,6 +23,7 @@ import {
   appRoutes,
   appSecrets,
   imageValuesPath,
+  renderImageValues,
   isCurrent,
   appWorkloads,
   HEADER,
@@ -40,13 +40,10 @@ import {
   validateGatewayAccess,
   validateIngress,
   validateResources,
-  releaseImages,
   workflowPath,
-  workloadImages,
   type World,
 } from './render';
 import { publishArtifact, publishCluster } from './hydrate';
-import { promotions, releaseTag } from './registry';
 import { renderOutputs } from './outputs';
 import { type ClusterTree, renderFluxIndex } from './outputs/flux-index';
 import { appPath, CLUSTER_ROOT } from './outputs/flux';
@@ -91,9 +88,8 @@ definition (run from the root of the k8s repo):
   list                     list apps and what they declare
   graph [app]              print how apps depend on each other, as mermaid (--format dot for graphviz)
   publish [app...]         push the kustomize build of each app with an artifact and manifests to its oci
-                           repo (default: all of them), then push kubernetes/ with promoted images
-                           stamped into each app as the platform/apps.yaml cluster artifact;
-                           unchanged pushes are skipped
+                           repo (default: all of them), then push kubernetes/ as the
+                           platform/apps.yaml cluster artifact; unchanged pushes are skipped
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
 
@@ -102,16 +98,11 @@ cluster:
   status <app>             one app's state and images
   env <app> [workload]     each env var, where it comes from, and whether its secret key exists
   doctor <app>             check workloads, secrets, volumes, routes, oidc and databases on the cluster
-  history <app>            helm release history and image promotions
+  history <app>            helm release history
   build <app>              build the app's image from its build block for --platform (default
                            linux/amd64), push it tagged with the commit sha (sha-dirty-<time>
-                           with uncommitted changes) and sign it; --promote also deploys it
-  promote <app>            point released images at a signed build (--image IMAGE@DIGEST|IMAGE:SHA,
-                           repeatable; or --sha SHA for every image with release: deploy) and
-                           publish it; refuses builds older than the deployed one without --force
-  rollback <app> [sha]     released images: list promotions with how long each was live and
-                           promote the one picked (or every image at sha, with --yes);
-                           other images: edit them to the given tag on the cluster, suspending
+                           with uncommitted changes) and sign it
+  rollback <app> <tag>     edit the app's images to the given tag on the cluster, suspending
                            the app first
   heal <app> on|off        set flux drift correction; off also holds new git commits
   autosync <app> on|off    suspend the app in flux, or resume it (returns the app to git)
@@ -121,14 +112,11 @@ flags:
   --check          render, supergraph, fmt: write nothing, exit 1 if invalid or out of date
   --commit         render: commit what changed, one commit per app
   --changed        render: only validate what the working tree touches
-  --force          render: regenerate every file, even those already up to date;
-                   promote, build --promote: allow a build older than the deployed one
+  --force          render: regenerate every file, even those already up to date
   --context CTX    kube context (default: current)
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
-  --image IMAGE    promote: the image to promote (repeatable); rollback: only this image
-  --sha SHA        promote: promote every released image of the app at this commit
-  --promote        build: promote the pushed image (needs release: deploy)
+  --image IMAGE    rollback: only this image
   --platform P     build: target platform (default linux/amd64)
   --yes            apply; writes are a dry run without this
   --wait           rollback, autosync on: follow the change and fail if it doesn't finish
@@ -273,17 +261,9 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
 
     if (app.workloads) {
       const values = imageValuesPath(app, target);
-      const current = fs.exists(values) ? parse(fs.readText(values)) : {};
-      const images = { ...current?.images };
-      const released = releaseImages(app);
-      for (const image of released) {
-        delete images[image];
-      }
-      for (const image of workloadImages(app).filter((i) => !released.includes(i))) {
-        images[image] ??= 'latest';
-      }
-      const output = stringify({ images });
-      if (force || !fs.exists(values) || stringify({ images: current?.images ?? {} }) !== output) {
+      const current = fs.exists(values) ? fs.readText(values) : undefined;
+      const output = renderImageValues(app, current);
+      if (force || current !== output) {
         stale.push({ path: values, wanted: output });
       }
     }
@@ -509,17 +489,10 @@ function publish(names: string[]): number {
               plan.directory,
               `${CLUSTER_ROOT}/${appPath(plan)}`,
             ]).trim(),
-            releases: releaseImages(app),
           };
         }),
     },
     revision,
-    (images) =>
-      new Map(
-        [...promotions(images, 1)].flatMap(([image, [current]]) =>
-          current ? [[image, releaseTag(current)]] : [],
-        ),
-      ),
   );
 
   return 0;
@@ -550,8 +523,6 @@ export const run = cli({
     all: { type: 'boolean' },
     latest: { type: 'boolean' },
     image: { type: 'string', multiple: true },
-    sha: { type: 'string' },
-    promote: { type: 'boolean' },
     platform: { type: 'string', default: 'linux/amd64' },
     yes: { type: 'boolean' },
     wait: { type: 'boolean' },
@@ -635,25 +606,7 @@ export const run = cli({
       if (!found) {
         throw new Error(`no app named ${app}`);
       }
-      return buildApp(found.app, found.target, {
-        promote: values.promote,
-        force: values.force,
-        platform: values.platform as string,
-      });
-    },
-    promote: (_ctx, values, [name]) => {
-      const app = requireApp(name, 'promote');
-      const found = values.image.length
-        ? undefined
-        : discover().find(({ app: candidate }) => candidate.name === app);
-      if (!values.image.length && !found) {
-        throw new Error(`no app named ${app}; pass --image outside the k8s repo`);
-      }
-      return promote(app, found ? releaseImages(found.app) : [], {
-        images: values.image,
-        sha: values.sha,
-        force: values.force,
-      });
+      return buildApp(found.app, found.target, { platform: values.platform as string });
     },
     rollback: (ctx, values, [name, tag]) =>
       rollback(ctx.kube(), requireApp(name, 'rollback'), {
@@ -682,7 +635,6 @@ export const run = cli({
     doctor: appNames,
     history: appNames,
     build: appNames,
-    promote: appNames,
     rollback: appNames,
     heal: appThenOnOff,
     autosync: appThenOnOff,

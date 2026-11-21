@@ -214,7 +214,7 @@ function expandEnvFrom(from: unknown, refs: Refs) {
 }
 
 export function expandContainer(spec: Values, refs: Refs): Values {
-  const { probes, mounts, ...out } = spec;
+  const { probes, mounts, release: _release, ...out } = spec;
 
   if (out.env && !Array.isArray(out.env)) {
     out.env = expandEnv(out.env, refs);
@@ -240,7 +240,7 @@ export function expandContainer(spec: Values, refs: Refs): Values {
 }
 
 export function expandWorkload(spec: Values, refs: Refs): Values {
-  const { overrides, serviceAccount, release: _release, ...rest } = spec;
+  const { overrides, serviceAccount, ...rest } = spec;
   const out = expandContainer(rest, refs);
   if (serviceAccount) {
     out.serviceAccountName = serviceAccount;
