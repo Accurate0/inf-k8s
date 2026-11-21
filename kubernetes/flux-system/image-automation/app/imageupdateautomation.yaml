@@ -16,8 +16,8 @@ spec:
         branch: main
     commit:
       author:
-        name: flux[bot]
-        email: flux@noreply.git.anurag.sh
+        name: reconciler[bot]
+        email: reconciler@noreply.git.anurag.sh
       messageTemplate: |
         deploy {{ range $file, $_ := .Changed.FileChanges }}{{ $file | dir | base }} {{ end }}
 
