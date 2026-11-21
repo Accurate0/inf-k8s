@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - system-components/kanidm/coordinator/Dockerfile
+      - kubernetes/kanidm/config/coordinator/Dockerfile
       - .github/workflows/build-publish-kanidm-repl-coordinator.yaml
   workflow_dispatch:
 
@@ -42,7 +42,7 @@ jobs:
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
-          context: system-components/kanidm/coordinator
+          context: kubernetes/kanidm/config/coordinator
           push: true
           tags: |
             ghcr.io/accurate0/kanidm-repl-coordinator:1.11.1-1

@@ -1,0 +1,256 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openbao-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: openbao
+spec:
+  interval: 1h
+  releaseName: openbao-k8s-http-routes
+  targetNamespace: openbao
+  storageNamespace: openbao
+  chartRef:
+    kind: OCIRepository
+    name: openbao-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: openbao
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - vault.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ''
+                kind: Service
+                name: openbao-active
+                port: 8200
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: "/"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openbao-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: openbao
+spec:
+  interval: 1h
+  releaseName: openbao-k8s-oidc
+  targetNamespace: openbao
+  storageNamespace: openbao
+  chartRef:
+    kind: OCIRepository
+    name: openbao-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: openbao
+        namespace: openbao
+        displayName: OpenBao
+        host: vault.ortzi.cloud
+        callbackPath: "/ui/vault/auth/oidc/oidc/callback"
+        extraRedirectUrls:
+          - http://localhost:8250/oidc/callback
+        allowLocalhostRedirect: true
+        preferShortUsername: true
+        scopes:
+          - openid
+          - email
+          - profile
+          - groups
+        secretName: kanidm-openbao-oidc
+        secretNamespace: openbao
+        icon:
+          configMap: openbao-kanidm-icon
+          key: OpenBao.svg
+      - name: openbao-cli
+        namespace: openbao
+        displayName: OpenBao CLI
+        host: vault.ortzi.cloud
+        public: true
+        allowLocalhostRedirect: true
+        preferShortUsername: true
+        secretName: kanidm-openbao-cli-oidc
+        secretNamespace: openbao
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openbao-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: openbao
+spec:
+  interval: 1h
+  releaseName: openbao-k8s-secrets
+  targetNamespace: openbao
+  storageNamespace: openbao
+  chartRef:
+    kind: OCIRepository
+    name: openbao-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: openbao
+      provider: azurekv
+      resyncInterval: 900
+    secrets:
+      - name: openbao-database
+        managedSecrets:
+          - secretName: openbao-db-credentials
+            template:
+              data:
+                DATABASE_URL: postgresql://{{ .username }}:{{ .password }}@cloudnative-pg-cluster-rw.cnpg-system:5432/openbao
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: openbao-openbao
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: openbao
+spec:
+  interval: 1h
+  releaseName: openbao
+  targetNamespace: openbao
+  storageNamespace: openbao
+  chart:
+    spec:
+      chart: openbao
+      version: 0.30.7
+      sourceRef:
+        kind: HelmRepository
+        name: openbao-openbao
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    injector:
+      enabled: false
+    csi:
+      enabled: false
+    ui:
+      enabled: true
+    server:
+      dataStorage:
+        enabled: false
+      extraSecretEnvironmentVars:
+        - envName: BAO_PG_CONNECTION_URL
+          secretName: openbao-db-credentials
+          secretKey: DATABASE_URL
+      extraArgs: "-config=/openbao/userconfig/azure-unseal/seal.hcl"
+      volumes:
+        - name: plugins
+          emptyDir: {}
+        - name: azure-unseal
+          secret:
+            secretName: openbao-azure-unseal
+      volumeMounts:
+        - name: plugins
+          mountPath: "/openbao/plugins"
+        - name: azure-unseal
+          mountPath: "/openbao/userconfig/azure-unseal"
+          readOnly: true
+      topologySpreadConstraints:
+        - topologyKey: inf-k8s.net/location
+          maxSkew: 1
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app.kubernetes.io/name: openbao
+              app.kubernetes.io/instance: openbao
+              component: server
+      ha:
+        enabled: true
+        replicas: 2
+        raft:
+          enabled: false
+        config: |
+          ui = true
+
+          listener "tcp" {
+            tls_disable     = 1
+            address         = "[::]:8200"
+            cluster_address = "[::]:8201"
+          }
+
+          storage "postgresql" {
+            ha_enabled = "true"
+          }
+
+          plugin_directory     = "/openbao/plugins"
+          plugin_auto_download = true
+
+          plugin "kms" "azurekeyvault" {
+            image       = "ghcr.io/openbao/openbao-plugin-kms-azure"
+            version     = "v0.1.0"
+            binary_name = "openbao-plugin-kms-azure"
+            sha256sum   = "e46a6d13ab427b594c89e58b002db6bbb6d61557f5de8a599557c76827deef0d"
+          }
+
+          service_registration "kubernetes" {}

@@ -1,0 +1,16 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: dragonfly-dragonfly-operator
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: dragonfly
+spec:
+  interval: 1h
+  url: oci://ghcr.io/dragonflydb/dragonfly-operator/helm/dragonfly-operator
+  ref:
+    tag: v1.7.1
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy

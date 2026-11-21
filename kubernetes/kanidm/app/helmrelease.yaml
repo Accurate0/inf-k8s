@@ -1,0 +1,83 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: kanidm-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: kanidm
+spec:
+  interval: 1h
+  releaseName: kanidm-k8s-oidc
+  targetNamespace: kanidm
+  storageNamespace: kanidm
+  chartRef:
+    kind: OCIRepository
+    name: kanidm-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: kanidm
+    clients:
+      - name: pve
+        displayName: Proxmox VE
+        host: pve.internal
+        callbackPath: "/"
+        extraRedirectUrls:
+          - https://pve.internal:8006/
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        claimMaps:
+          pve_groups:
+            join: array
+            valuesByGroup:
+              pve_admins:
+                - admins
+        secretName: kanidm-pve-oidc
+        secretNamespace: kanidm
+        icon:
+          configMap: proxmox-kanidm-icon
+          key: Proxmox.svg
+      - name: pbs
+        displayName: Proxmox Backup Server
+        host: pbs.internal
+        callbackPath: "/"
+        extraRedirectUrls:
+          - https://pbs.internal:8007/
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        secretName: kanidm-pbs-oidc
+        secretNamespace: kanidm
+        icon:
+          configMap: proxmox-kanidm-icon
+          key: Proxmox.svg
+      - name: unraid
+        displayName: Unraid
+        host: unraid.internal
+        callbackPath: "/graphql/api/auth/oidc/callback"
+        extraRedirectUrls:
+          - https://nas.internal/graphql/api/auth/oidc/callback
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        claimMaps:
+          unraid_groups:
+            join: array
+            valuesByGroup:
+              unraid_admins:
+                - admins
+        secretName: kanidm-unraid-oidc
+        secretNamespace: kanidm

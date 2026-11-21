@@ -4,7 +4,7 @@ on:
     branches:
       - main
     paths:
-      - system-components/postgres-cluster/container/Dockerfile
+      - kubernetes/cnpg-system/cloudnative-pg-cluster/config/container/Dockerfile
       - .github/workflows/build-publish-postgres-container-image.yaml
   workflow_dispatch:
 
@@ -42,7 +42,7 @@ jobs:
         env:
           DOCKER_BUILD_RECORD_UPLOAD: false
         with:
-          context: system-components/postgres-cluster/container
+          context: kubernetes/cnpg-system/cloudnative-pg-cluster/config/container
           push: true
           tags: |
             ghcr.io/accurate0/cnpg-postgresql:18.6.1-trixie

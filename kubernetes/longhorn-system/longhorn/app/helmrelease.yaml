@@ -1,0 +1,208 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: longhorn
+spec:
+  interval: 1h
+  releaseName: longhorn-k8s-secrets
+  targetNamespace: longhorn-system
+  storageNamespace: longhorn-system
+  chartRef:
+    kind: OCIRepository
+    name: longhorn-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: longhorn-system
+      provider: openbao
+      resyncInterval: 900
+    secrets:
+      - name: longhorn-system
+        managedSecrets:
+          - secretName: longhorn-backup-credentials
+            template:
+              includeAllSecrets: false
+              data:
+                AWS_ACCESS_KEY_ID: "{{ .AWS_ACCESS_KEY_ID }}"
+                AWS_SECRET_ACCESS_KEY: "{{ .AWS_SECRET_ACCESS_KEY }}"
+                AWS_ENDPOINTS: "{{ .AWS_ENDPOINTS }}"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: longhorn
+spec:
+  interval: 1h
+  releaseName: longhorn-k8s-oidc
+  targetNamespace: longhorn-system
+  storageNamespace: longhorn-system
+  chartRef:
+    kind: OCIRepository
+    name: longhorn-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: longhorn
+        namespace: longhorn-system
+        displayName: Longhorn
+        host: longhorn.ortzi.cloud
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        secretName: kanidm-longhorn-oidc
+        secretNamespace: longhorn-system
+        icon:
+          configMap: longhorn-kanidm-icon
+          key: longhorn.png
+        securityPolicy:
+          httpRoute: longhorn
+          scopes:
+            - openid
+            - email
+            - profile
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: longhorn
+spec:
+  interval: 1h
+  releaseName: longhorn-k8s-http-routes
+  targetNamespace: longhorn-system
+  storageNamespace: longhorn-system
+  chartRef:
+    kind: OCIRepository
+    name: longhorn-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: longhorn
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - longhorn.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ''
+                kind: Service
+                name: longhorn-frontend
+                port: 80
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: "/"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: longhorn-longhorn
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: longhorn
+spec:
+  interval: 1h
+  releaseName: longhorn
+  targetNamespace: longhorn-system
+  storageNamespace: longhorn-system
+  chart:
+    spec:
+      chart: longhorn
+      version: 1.13.0
+      sourceRef:
+        kind: HelmRepository
+        name: longhorn-longhorn
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    global:
+      tolerations:
+        - key: inf-k8s.net/architecture
+          operator: Equal
+          value: arm64
+          effect: NoSchedule
+    preUpgradeChecker:
+      jobEnabled: false
+      upgradeVersionCheck: false
+    longhornUI:
+      replicas: 1
+    defaultBackupStore:
+      backupTarget: s3://longhorn-backup@us-east-1/
+      backupTargetCredentialSecret: longhorn-backup-credentials
+    persistence:
+      defaultClassReplicaCount: 2
+    defaultSettings:
+      taintToleration: inf-k8s.net/architecture=arm64:NoSchedule
+      defaultReplicaCount: '{"v1":"2","v2":"2"}'
+    ingress:
+      enabled: false

@@ -1,0 +1,144 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/postgresql.cnpg.io/cluster_v1.json
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cloudnative-pg-cluster
+  namespace: cnpg-system
+spec:
+  affinity:
+    enablePodAntiAffinity: true
+    podAntiAffinityType: required
+    topologyKey: kubernetes.io/hostname
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+          - matchExpressions:
+              - key: inf-k8s.net/postgres
+                operator: In
+                # currently, optiplex-4 and optiplex-5
+                values:
+                  - "true"
+  topologySpreadConstraints:
+    - topologyKey: inf-k8s.net/location
+      whenUnsatisfiable: ScheduleAnyway
+      maxSkew: 1
+      nodeTaintsPolicy: Honor
+      labelSelector:
+        matchLabels:
+          cnpg.io/cluster: cloudnative-pg-cluster
+
+  plugins:
+    - name: barman-cloud.cloudnative-pg.io
+      enabled: true
+      isWALArchiver: true
+      parameters:
+        serverName: "cloudnative-pg-cluster-v7"
+        barmanObjectName: r2-store
+  enablePDB: true
+  enableSuperuserAccess: true
+  imageName: ghcr.io/accurate0/cnpg-postgresql:18.6.1-trixie
+  imagePullPolicy: IfNotPresent
+  instances: 2
+  logLevel: info
+  managed:
+    roles:
+      - name: openbao_db_admin
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+        superuser: true
+        passwordSecret:
+          name: openbao-db-admin
+      - name: bom
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: home_gateway
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: waf_manager
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: feature_flags
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: ai_gateway
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: dawarich_2
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: forgejo
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: firefly
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: immich
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: registry
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: openbao
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+        passwordSecret:
+          name: openbao-database
+      - name: spotify
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+      - name: harbor
+        ensure: present
+        connectionLimit: -1
+        inherit: true
+        login: true
+  monitoring:
+    disableDefaultQueries: false
+    enablePodMonitor: true
+  postgresGID: 26
+  postgresUID: 26
+  postgresql:
+    shared_preload_libraries:
+      - "timescaledb.so"
+      - "vchord.so"
+    parameters:
+      max_connections: "150"
+      pg_stat_statements.max: "10000"
+      pg_stat_statements.track: all
+  primaryUpdateMethod: switchover
+  primaryUpdateStrategy: unsupervised
+  storage:
+    size: 50Gi
+    pvcTemplate:
+      accessModes:
+        - ReadWriteOnce
+      resources:
+        requests:
+          storage: 50Gi
+      storageClassName: longhorn-local-wait
+      volumeMode: Filesystem

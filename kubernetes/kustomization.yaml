@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T14:48:21.657Z
+# generated at 2026-11-21T01:15:36.653Z
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
@@ -7,21 +7,36 @@ resources:
   - ai-gateway
   - anurag-sh
   - bom
+  - cert-manager
+  - cnpg-system
+  - csi-driver-nfs
   - dawarich
+  - default
+  - dragonfly
+  - dragonfly-system
+  - envoy-gateway-system
+  - external-dns
+  - external-secrets
   - feature-flags
   - firefly
   - firefly-up-sync
   - flux-system
   - forgejo
+  - garage
   - graph
   - home-gateway
   - immich
   - janitor-bot
   - k8s-schemas
+  - kanidm
   - kanidm-sync
   - kube-system
+  - longhorn-system
   - maccas-api
+  - monitoring
+  - openbao
   - ozbargain
+  - reloader
   - spotify
   - tldr-bot
   - waf-manager

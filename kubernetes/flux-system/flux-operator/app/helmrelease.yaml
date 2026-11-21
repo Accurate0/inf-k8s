@@ -1,0 +1,319 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: flux-operator
+spec:
+  interval: 1h
+  releaseName: flux-operator-k8s-secrets
+  targetNamespace: flux-system
+  storageNamespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: flux-system
+      provider: openbao
+      resyncInterval: 900
+    secrets:
+      - name: harbor
+        managedSecrets:
+          - secretName: harbor
+            type: kubernetes.io/dockerconfigjson
+            template:
+              data:
+                ".dockerconfigjson": '{"auths":{"registry.anurag.sh":{"username":"{{ .USERNAME }}","password":"{{ .PASSWORD }}"}}}'
+      - name: cosign
+        managedSecrets:
+          - secretName: cosign
+      - name: harbor-receiver
+        managedSecrets:
+          - secretName: harbor-receiver
+    templates:
+      - secretName: flux-web-config
+        configMap: flux-web-config-template
+        files:
+          - config.yaml
+        values:
+          - name: CLIENT_ID
+            secret: kanidm-flux-oidc
+            key: client-id
+          - name: CLIENT_SECRET
+            secret: kanidm-flux-oidc
+            key: client-secret
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: flux-operator
+spec:
+  interval: 1h
+  releaseName: flux-operator-k8s-oidc
+  targetNamespace: flux-system
+  storageNamespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: flux
+        namespace: flux-system
+        displayName: Flux
+        host: flux.ortzi.cloud
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        secretName: kanidm-flux-oidc
+        secretNamespace: flux-system
+        scopes:
+          - openid
+          - email
+          - profile
+          - groups
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: flux-operator
+spec:
+  interval: 1h
+  releaseName: flux-operator-k8s-http-routes
+  targetNamespace: flux-system
+  storageNamespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: flux
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - flux.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ''
+                kind: Service
+                name: flux-operator
+                port: 9080
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: "/"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator-flux-operator
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: flux-operator
+spec:
+  interval: 1h
+  releaseName: flux-operator
+  targetNamespace: flux-system
+  storageNamespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator-flux-operator
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    web:
+      configSecretName: flux-web-config
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: flux-operator-flux-instance
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: flux-operator
+spec:
+  interval: 1h
+  releaseName: flux-instance
+  targetNamespace: flux-system
+  storageNamespace: flux-system
+  chartRef:
+    kind: OCIRepository
+    name: flux-operator-flux-instance
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    instance:
+      distribution:
+        version: 2.x
+        registry: ghcr.io/fluxcd
+      components:
+        - source-controller
+        - kustomize-controller
+        - helm-controller
+        - notification-controller
+      cluster:
+        type: kubernetes
+        networkPolicy: true
+      sync:
+        interval: 10m
+        kind: OCIRepository
+        url: oci://registry.anurag.sh/manifests/cluster
+        ref: main
+        path: "./"
+        pullSecret: harbor
+      kustomize:
+        patches:
+          - target:
+              kind: Deployment
+              name: "(kustomize-controller|helm-controller)"
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --concurrent=10
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --requeue-dependency=5s
+          - target:
+              kind: Deployment
+              name: helm-controller
+            patch: |
+              - op: add
+                path: /spec/template/spec/containers/0/args/-
+                value: --feature-gates=DisableChartDigestTracking=true
+          - target:
+              kind: OCIRepository
+              name: flux-system
+            patch: |
+              - op: add
+                path: /spec/layerSelector
+                value:
+                  mediaType: application/vnd.oci.image.layer.v1.tar+gzip
+                  operation: extract
+              - op: add
+                path: /spec/verify
+                value:
+                  provider: cosign
+                  secretRef:
+                    name: cosign
+          - target:
+              kind: Kustomization
+              name: flux-system
+            patch: |
+              - op: add
+                path: /spec/patches
+                value:
+                  - target:
+                      group: kustomize.toolkit.fluxcd.io
+                      kind: Kustomization
+                    patch: |
+                      - op: add
+                        path: /spec/patches
+                        value:
+                          - target:
+                              group: helm.toolkit.fluxcd.io
+                              kind: HelmRelease
+                            patch: |
+                              apiVersion: helm.toolkit.fluxcd.io/v2
+                              kind: HelmRelease
+                              metadata:
+                                name: _
+                              spec:
+                                maxHistory: 3
+                                install:
+                                  strategy:
+                                    name: RetryOnFailure
+                                rollback:
+                                  cleanupOnFail: true
+                                upgrade:
+                                  cleanupOnFail: true
+                                  strategy:
+                                    name: RemediateOnFailure
+                                  remediation:
+                                    retries: 2

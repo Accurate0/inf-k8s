@@ -3,8 +3,8 @@ extends: default
 ignore: |
   target/
   charts/*/templates/
-  system-components/network-policies/templates/
-  system-components/barman-cloud-plugin/manifest.yaml
+  charts/network-policies/templates/
+  kubernetes/cnpg-system/cloudnative-pg/config/manifest.yaml
   platform-services/kanidm-sync/manifests/crd.yaml
   platform-services/waf-manager/manifests/crd.yaml
   platform-services/feature-flags/config/*

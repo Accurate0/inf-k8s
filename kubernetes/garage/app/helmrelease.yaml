@@ -1,0 +1,181 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: garage-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: garage
+spec:
+  interval: 1h
+  releaseName: garage-k8s-secrets
+  targetNamespace: garage
+  storageNamespace: garage
+  chartRef:
+    kind: OCIRepository
+    name: garage-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: garage
+      provider: openbao
+      resyncInterval: 900
+    secrets:
+      - name: garage
+        managedSecrets:
+          - secretName: garage-secrets
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: garage-k8s-oidc
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: garage
+spec:
+  interval: 1h
+  releaseName: garage-k8s-oidc
+  targetNamespace: garage
+  storageNamespace: garage
+  chartRef:
+    kind: OCIRepository
+    name: garage-k8s-oidc
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    clients:
+      - name: garage-ui
+        namespace: garage
+        displayName: Garage
+        host: garage.ortzi.cloud
+        callbackPath: "/auth/oidc/callback"
+        preferShortUsername: true
+        allowInsecureClientDisablePkce: true
+        secretKeys:
+          clientId: client-id
+          clientSecret: client-secret
+        claimMaps:
+          garage_ui_role:
+            join: ssv
+            valuesByGroup:
+              garage_ui_admins:
+                - admin
+        secretName: kanidm-garage-ui-oidc
+        secretNamespace: garage
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: garage-k8s-http-routes
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: garage
+spec:
+  interval: 1h
+  releaseName: garage-k8s-http-routes
+  targetNamespace: garage
+  storageNamespace: garage
+  chartRef:
+    kind: OCIRepository
+    name: garage-k8s-http-routes
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    routes:
+      - name: garage-s3
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - s3.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ''
+                kind: Service
+                name: garage
+                port: 3900
+                weight: 1
+            timeouts:
+              request: 3600s
+              backendRequest: 3600s
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: "/"
+      - name: garage-admin
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - garage-admin.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ''
+                kind: Service
+                name: garage
+                port: 3903
+                weight: 1
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: "/"
+      - name: garage-ui
+        gateway:
+          name: internal-gateway
+          namespace: envoy-gateway-system
+        hostnames:
+          - garage.ortzi.cloud
+        rules:
+          - backendRefs:
+              - group: ''
+                kind: Service
+                name: garage-ui
+                port: 8080
+                weight: 1
+            timeouts:
+              request: 3600s
+              backendRequest: 3600s
+            matches:
+              - path:
+                  type: PathPrefix
+                  value: "/"

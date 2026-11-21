@@ -257,8 +257,8 @@ exporter is a plain Debian package.
 Both bind to the host's LAN address, not `0.0.0.0`. Prometheus runs on
 `k8s-pve-1`, an LXC on this same host and subnet, so the scrape is a plain LAN
 hop — no Tailscale, unlike the haproxy job. The two jobs live in
-`additionalScrapeConfigs` in `system-components/monitoring.application.yaml`, and
-`system-components/monitoring/proxmox-dashboard.configmap.yaml` provisions the
+`additionalScrapeConfigs` in `kubernetes/monitoring/app/helmrelease.yaml`, and
+`kubernetes/monitoring/config/proxmox-dashboard.configmap.yaml` provisions the
 Grafana dashboard.
 
 `proxmox-pve-exporter` issues its own read-only API token (`prometheus@pve`,

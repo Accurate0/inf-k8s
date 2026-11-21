@@ -1,0 +1,202 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: external-dns
+spec:
+  interval: 1h
+  releaseName: external-dns-k8s-secrets
+  targetNamespace: external-dns
+  storageNamespace: external-dns
+  chartRef:
+    kind: OCIRepository
+    name: external-dns-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: external-dns
+      provider: openbao
+      resyncInterval: 900
+    secrets:
+      - name: external-dns
+        managedSecrets:
+          - secretName: external-dns-secrets
+            template:
+              includeAllSecrets: false
+              data:
+                CF_API_TOKEN: "{{ .CF_API_TOKEN }}"
+                TXT_ENCRYPT_AES_KEY: "{{ .TXT_ENCRYPT_AES_KEY }}"
+                UNIFI_API_TOKEN: "{{ .UNIFI_API_TOKEN }}"
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns-external-dns
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: external-dns
+spec:
+  interval: 1h
+  releaseName: external-dns
+  targetNamespace: external-dns
+  storageNamespace: external-dns
+  chart:
+    spec:
+      chart: external-dns
+      version: 1.23.0
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns-external-dns
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    provider:
+      name: cloudflare
+    env:
+      - name: CF_API_TOKEN
+        valueFrom:
+          secretKeyRef:
+            name: external-dns-secrets
+            key: CF_API_TOKEN
+      - name: EXTERNAL_DNS_TXT_ENCRYPT_AES_KEY
+        valueFrom:
+          secretKeyRef:
+            name: external-dns-secrets
+            key: TXT_ENCRYPT_AES_KEY
+    extraArgs:
+      - "--txt-encrypt-enabled"
+      - "--cloudflare-record-comment=Provisioned by external-dns"
+    policy: sync
+    interval: 15m
+    triggerLoopOnEvent: true
+    sources:
+      - gateway-httproute
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: monitoring
+    txtOwnerId: inf-k8s
+    annotationFilter: external-dns.kubernetes.io/managed=true
+    domainFilters:
+      - anurag.sh
+      - anurag.id.au
+      - ortzi.cloud
+      - maccas.one
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-dns-external-dns-unifi
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: external-dns
+spec:
+  interval: 1h
+  releaseName: external-dns-unifi
+  targetNamespace: external-dns
+  storageNamespace: external-dns
+  chart:
+    spec:
+      chart: external-dns
+      version: 1.23.0
+      sourceRef:
+        kind: HelmRepository
+        name: external-dns-external-dns-unifi
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    fullnameOverride: external-dns-unifi
+    provider:
+      name: webhook
+      webhook:
+        image:
+          repository: ghcr.io/home-operations/external-dns-unifi-webhook
+          tag: 0.10.14
+        env:
+          - name: UNIFI_HOST
+            value: https://unifi.internal
+          - name: UNIFI_SITE
+            value: default
+          - name: UNIFI_SKIP_TLS_VERIFY
+            value: 'true'
+          - name: UNIFI_API_KEY
+            valueFrom:
+              secretKeyRef:
+                name: external-dns-secrets
+                key: UNIFI_API_TOKEN
+        livenessProbe:
+          httpGet:
+            path: "/healthz"
+            port: http-webhook
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+        readinessProbe:
+          httpGet:
+            path: "/readyz"
+            port: http-webhook
+          initialDelaySeconds: 10
+          timeoutSeconds: 5
+    nodeSelector:
+      inf-k8s.net/location: perth
+    policy: sync
+    interval: 15m
+    triggerLoopOnEvent: true
+    sources:
+      - gateway-httproute
+    serviceMonitor:
+      enabled: true
+      additionalLabels:
+        release: monitoring
+    txtOwnerId: inf-k8s-unifi
+    txtPrefix: k8s.%{record_type}-
+    annotationFilter: external-dns.kubernetes.io/managed-unifi=true
+    domainFilters:
+      - internal
+      - registry.anurag.sh

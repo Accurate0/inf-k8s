@@ -1,0 +1,8 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kanidm
+  labels:
+    gateway.inf-k8s.net/anurag-sh: "true"
+  annotations:
+    kustomize.toolkit.fluxcd.io/prune: disabled

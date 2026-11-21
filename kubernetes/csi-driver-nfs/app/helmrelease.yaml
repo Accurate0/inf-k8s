@@ -1,0 +1,52 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: csi-driver-nfs-csi-driver-nfs
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: csi-driver-nfs
+spec:
+  interval: 1h
+  releaseName: csi-driver-nfs
+  targetNamespace: csi-driver-nfs
+  storageNamespace: csi-driver-nfs
+  chart:
+    spec:
+      chart: csi-driver-nfs
+      version: 4.13.6
+      sourceRef:
+        kind: HelmRepository
+        name: csi-driver-nfs-csi-driver-nfs
+        namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    feature:
+      enableFSGroupPolicy: true
+      fsGroupPolicy: None
+    controller:
+      replicas: 1
+      enableSnapshotter: false
+      dnsPolicy: Default
+      defaultOnDeletePolicy: retain
+      nodeSelector:
+        inf-k8s.net/location: perth
+    node:
+      dnsPolicy: Default
+      nodeSelector:
+        inf-k8s.net/location: perth

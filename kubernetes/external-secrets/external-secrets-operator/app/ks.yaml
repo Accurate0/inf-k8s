@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/kustomize.toolkit.fluxcd.io/kustomization_v1.json
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: external-secrets-operator-config
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: external-secrets-operator
+spec:
+  interval: 1h
+  sourceRef:
+    kind: OCIRepository
+    name: flux-system
+    namespace: flux-system
+  path: "./external-secrets/external-secrets-operator/config"
+  prune: true
+  wait: true
+  timeout: 10m

@@ -1,0 +1,44 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/helmrepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: monitoring-tempo
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: monitoring
+spec:
+  interval: 1h
+  url: https://grafana-community.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: monitoring-loki
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: monitoring
+spec:
+  interval: 1h
+  url: https://grafana.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: monitoring-alloy
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: monitoring
+spec:
+  interval: 1h
+  url: https://grafana.github.io/helm-charts
+---
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: HelmRepository
+metadata:
+  name: monitoring-kube-prometheus-stack
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: monitoring
+spec:
+  interval: 1h
+  url: https://prometheus-community.github.io/helm-charts

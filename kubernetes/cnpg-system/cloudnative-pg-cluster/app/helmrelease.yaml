@@ -1,0 +1,48 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: cloudnative-pg-cluster-k8s-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: cloudnative-pg-cluster
+spec:
+  interval: 1h
+  releaseName: cloudnative-pg-cluster-k8s-secrets
+  targetNamespace: cnpg-system
+  storageNamespace: cnpg-system
+  chartRef:
+    kind: OCIRepository
+    name: cloudnative-pg-cluster-k8s-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: enabled
+  values:
+    defaults:
+      namespace: cnpg-system
+      provider: azurekv
+      resyncInterval: 900
+    secrets:
+      - name: cnpg-cluster-backup
+        managedSecrets:
+          - secretName: cloudnative-pg-cluster-backup-s3-creds
+      - name: openbao-db-admin
+        managedSecrets:
+          - secretName: openbao-db-admin
+            type: kubernetes.io/basic-auth
+      - name: openbao-database
+        managedSecrets:
+          - secretName: openbao-database
+            type: kubernetes.io/basic-auth

@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: external-secrets-operator-external-secrets
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: external-secrets-operator
+spec:
+  interval: 1h
+  releaseName: external-secrets-operator
+  targetNamespace: external-secrets
+  storageNamespace: external-secrets
+  chartRef:
+    kind: OCIRepository
+    name: external-secrets-operator-external-secrets
+    namespace: flux-system
+  maxHistory: 3
+  install:
+    crds: CreateReplace
+    strategy:
+      name: RetryOnFailure
+  upgrade:
+    crds: CreateReplace
+    cleanupOnFail: true
+    strategy:
+      name: RemediateOnFailure
+    remediation:
+      retries: 2
+  rollback:
+    cleanupOnFail: true
+  driftDetection:
+    mode: warn
+  values:
+    installCRDs: true

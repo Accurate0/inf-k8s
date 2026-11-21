@@ -1,0 +1,18 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/ocirepository_v1.json
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: network-policies
+  namespace: flux-system
+  annotations:
+    event.toolkit.fluxcd.io/app: network-policies
+spec:
+  interval: 1h
+  url: oci://registry.anurag.sh/charts/network-policies
+  ref:
+    tag: 0.1.0
+  layerSelector:
+    mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
+    operation: copy
+  secretRef:
+    name: harbor
