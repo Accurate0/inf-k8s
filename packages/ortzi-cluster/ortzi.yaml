@@ -1,0 +1,11 @@
+package:
+  name: cluster
+  description: refetch flux artifacts and see what the cluster is running
+  version: 0.1.0
+  completions: cobra
+permissions:
+  kube: [get, patch]
+build:
+  kind: wasm
+  wasm:
+    entry: src/main.ts

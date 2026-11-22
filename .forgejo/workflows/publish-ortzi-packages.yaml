@@ -9,6 +9,7 @@ on:
       - packages/ortzi-obs/**
       - packages/ortzi-graph/**
       - packages/ortzi-s3/**
+      - packages/ortzi-cluster/**
       - packages/ortzi-host/**
       - packages/ortzi-kit/**
       - packages/pnpm-lock.yaml
@@ -23,7 +24,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        package: [ortzi-schemas, ortzi-secrets, ortzi-obs, ortzi-s3, ortzi-graph]
+        package: [ortzi-schemas, ortzi-secrets, ortzi-obs, ortzi-s3, ortzi-graph, ortzi-cluster]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6

@@ -8,6 +8,7 @@ packages:
   - ortzi-obs
   - ortzi-graph
   - ortzi-s3
+  - ortzi-cluster
 
 allowBuilds:
   grpc-tools: true
