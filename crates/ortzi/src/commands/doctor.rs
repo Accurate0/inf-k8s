@@ -371,6 +371,8 @@ mod tests {
             permissions: None,
             completions: None,
             env: Default::default(),
+            dependencies: Default::default(),
+            requested: true,
             pinned: false,
             previous: None,
         }

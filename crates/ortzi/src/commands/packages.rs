@@ -3,12 +3,13 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
-    LatestRequest, Permissions, Target, Version, validate_binary_name, validate_package_name,
-    version_key,
+    LatestRequest, Permissions, Target, Version, VersionSummary, validate_binary_name,
+    validate_package_name, version_key,
 };
 
 use reqwest::{Method, StatusCode};
 
+use super::resolve::{self, Catalog, Root};
 use crate::{
     client::{self, Client},
     remote::Remote,
@@ -86,6 +87,73 @@ pub async fn latest_versions(
     Ok(latest)
 }
 
+struct RemoteCatalog<'a> {
+    remote: &'a Remote,
+    target: Target,
+}
+
+impl Catalog for RemoteCatalog<'_> {
+    type Release = Version;
+
+    async fn versions(&self, name: &str) -> anyhow::Result<Vec<VersionSummary>> {
+        Ok(self.remote.detail(name).await?.versions)
+    }
+
+    async fn release(
+        &self,
+        name: &str,
+        version: &str,
+    ) -> anyhow::Result<(Version, BTreeMap<String, String>)> {
+        let release = self
+            .remote
+            .resolve(name, Some(version), self.target)
+            .await?;
+        let dependencies = trust::verified_statement(name, &release)?.dependencies;
+        Ok((release, dependencies))
+    }
+}
+
+async fn install_plan(
+    remote: &Remote,
+    store: &Store,
+    target: Target,
+    roots: &[Root<'_>],
+    force: bool,
+) -> anyhow::Result<()> {
+    let catalog = RemoteCatalog { remote, target };
+    let plan = resolve::resolve(&catalog, &store.load()?, target, roots, force).await?;
+    for held in &plan.held {
+        println!("{held}");
+    }
+
+    for step in plan
+        .steps
+        .iter()
+        .filter(|s| s.root && !s.dependencies.is_empty())
+    {
+        let needs: Vec<String> = step
+            .dependencies
+            .iter()
+            .map(|(name, req)| format!("{name} {req}"))
+            .collect();
+        println!("{}@{} needs {}", step.name, step.version, needs.join(", "));
+    }
+
+    for step in &plan.steps {
+        install_version(
+            remote,
+            store,
+            &step.name,
+            &step.release,
+            target,
+            force && step.root,
+            step.requested,
+        )
+        .await?;
+    }
+    Ok(())
+}
+
 async fn install_version(
     remote: &Remote,
     store: &Store,
@@ -93,6 +161,7 @@ async fn install_version(
     version: &Version,
     target: Target,
     force: bool,
+    requested: bool,
 ) -> anyhow::Result<()> {
     validate_package_name(name).map_err(anyhow::Error::msg)?;
     let trust::Verified {
@@ -100,6 +169,7 @@ async fn install_version(
         permissions,
         completions,
         env,
+        dependencies,
     } = trust::verified_artifact(name, version, target)?;
     let target = artifact.target;
     validate_binary_name(&version.binary_name).map_err(anyhow::Error::msg)?;
@@ -121,6 +191,12 @@ async fn install_version(
         && current.sha256 == artifact.sha256
         && store.current_binary(name, current).exists()
     {
+        if requested && !current.requested {
+            if let Some(current) = installed.packages.get_mut(name) {
+                current.requested = true;
+            }
+            store.save(&installed)?;
+        }
         println!("{name}@{} is already installed", version.version);
         return Ok(());
     }
@@ -168,6 +244,8 @@ async fn install_version(
         permissions: permissions.clone(),
         completions,
         env,
+        dependencies,
+        requested,
         pinned: false,
         previous: None,
     };
@@ -304,9 +382,10 @@ async fn install_all(
     specs: &[String],
     force: bool,
 ) -> anyhow::Result<()> {
+    let installed = store.load()?;
+    let mut roots = Vec::new();
     for spec in specs {
         let (name, version) = split_spec(spec);
-        let installed = store.load()?;
         if name == SELF {
             if installed.self_pinned && version.is_none() && !force {
                 bail!("ortzi is pinned; run `ortzi unpin ortzi` or name a version");
@@ -314,6 +393,7 @@ async fn install_all(
             self_update_with(remote, target, version, true).await?;
             continue;
         }
+        validate_package_name(name).map_err(anyhow::Error::msg)?;
         if let Some(current) = installed.packages.get(name)
             && current.pinned
             && version.is_none()
@@ -324,28 +404,66 @@ async fn install_all(
                 current.version
             );
         }
-        let version = remote.resolve(name, version, target).await?;
-        install_version(remote, store, name, &version, target, force).await?;
+        roots.push(Root {
+            name,
+            version,
+            requested: true,
+        });
+    }
+
+    if !roots.is_empty() {
+        install_plan(remote, store, target, &roots, force).await?;
+    }
+    Ok(())
+}
+
+pub fn uninstall(names: &[String], force: bool) -> anyhow::Result<()> {
+    let store = Store::open()?;
+    let mut installed = store.load()?;
+
+    for name in names {
+        if !installed.packages.contains_key(name) {
+            bail!("{name} is not installed");
+        }
+        let blocking: Vec<&str> = installed
+            .dependents(name)
+            .into_iter()
+            .map(|(dependent, _)| dependent)
+            .filter(|dependent| !names.iter().any(|n| n == dependent))
+            .collect();
+        if !blocking.is_empty() && !force {
+            bail!(
+                "{} depends on {name}; uninstall it first or pass --force",
+                blocking.join(", ")
+            );
+        }
+    }
+
+    for name in names {
+        remove_package(&store, &mut installed, name)?;
+        println!("uninstalled {name}");
+    }
+    loop {
+        let orphans = installed.orphans();
+        if orphans.is_empty() {
+            break;
+        }
+        for name in orphans {
+            remove_package(&store, &mut installed, &name)?;
+            println!("uninstalled {name} (no longer needed)");
+        }
     }
 
     Ok(())
 }
 
-pub fn uninstall(names: &[String]) -> anyhow::Result<()> {
-    let store = Store::open()?;
-    let mut installed = store.load()?;
-
-    for name in names {
-        let Some(package) = installed.packages.remove(name) else {
-            bail!("{name} is not installed");
-        };
-        let _ = std::fs::remove_file(store.bin_dir().join(&package.binary));
-        std::fs::remove_dir_all(store.package_dir(name))?;
-        store.save(&installed)?;
-        println!("uninstalled {name}");
-    }
-
-    Ok(())
+fn remove_package(store: &Store, installed: &mut Installed, name: &str) -> anyhow::Result<()> {
+    let Some(package) = installed.packages.remove(name) else {
+        return Ok(());
+    };
+    let _ = std::fs::remove_file(store.bin_dir().join(&package.binary));
+    std::fs::remove_dir_all(store.package_dir(name))?;
+    store.save(installed)
 }
 
 pub fn rollback(name: &str) -> anyhow::Result<()> {
@@ -383,6 +501,9 @@ pub fn rollback(name: &str) -> anyhow::Result<()> {
     store.save(&installed)?;
 
     println!("rolled back {name} {} -> {version}", current.version);
+    for unmet in installed.unmet() {
+        eprintln!("warning: {unmet}");
+    }
     if hint {
         println!("`ortzi update` will move it forward again; run `ortzi pin {name}` to stop that");
     }
@@ -611,12 +732,43 @@ async fn update_one(
 ) -> anyhow::Result<bool> {
     let latest =
         latest.with_context(|| format!("no published {name} for {target}; see `ortzi search`"))?;
-    let newer = is_newer(latest, &current.version);
-    if newer {
-        let release = remote.resolve(name, Some(latest), target).await?;
-        install_version(remote, store, name, &release, target, false).await?;
+    if !is_newer(latest, &current.version) {
+        return Ok(false);
     }
-    Ok(newer)
+
+    let catalog = RemoteCatalog { remote, target };
+    let roots = [Root {
+        name,
+        version: None,
+        requested: false,
+    }];
+    let plan = resolve::resolve(&catalog, &store.load()?, target, &roots, false).await?;
+    for held in &plan.held {
+        println!("{held}");
+    }
+    let installed = store.load()?;
+    let mut updated = false;
+    for step in &plan.steps {
+        if installed
+            .packages
+            .get(&step.name)
+            .is_some_and(|p| p.version == step.version)
+        {
+            continue;
+        }
+        install_version(
+            remote,
+            store,
+            &step.name,
+            &step.release,
+            target,
+            false,
+            step.requested,
+        )
+        .await?;
+        updated |= step.name == name;
+    }
+    Ok(updated)
 }
 
 pub fn list() -> anyhow::Result<()> {
@@ -629,9 +781,24 @@ pub fn list() -> anyhow::Result<()> {
 
     let mut table = Table::new();
     table.load_preset(UTF8_BORDERS_ONLY).set_header([
-        "package", "version", "previous", "pinned", "binary", "aliases",
+        "package",
+        "version",
+        "previous",
+        "pinned",
+        "binary",
+        "aliases",
+        "dependency of",
     ]);
     for (name, package) in &installed.packages {
+        let dependents: Vec<&str> = if package.requested {
+            Vec::new()
+        } else {
+            installed
+                .dependents(name)
+                .into_iter()
+                .map(|(d, _)| d)
+                .collect()
+        };
         table.add_row([
             name.as_str(),
             &package.version,
@@ -642,6 +809,7 @@ pub fn list() -> anyhow::Result<()> {
             if package.pinned { "yes" } else { "" },
             &package.binary,
             &package.aliases.join(", "),
+            &dependents.join(", "),
         ]);
     }
     println!("{table}");
@@ -708,6 +876,14 @@ async fn show_info(remote: &Remote, name: &str) -> anyhow::Result<()> {
     {
         match trust::verified_statement(name, &version) {
             Ok(statement) => {
+                if !statement.dependencies.is_empty() {
+                    let deps: Vec<String> = statement
+                        .dependencies
+                        .iter()
+                        .map(|(name, req)| format!("{name} {req}"))
+                        .collect();
+                    println!("deps     {}", deps.join(", "));
+                }
                 if let Some(permissions) = &statement.permissions {
                     println!("sandbox  wasm");
                     print_permissions(permissions);

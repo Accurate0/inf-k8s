@@ -3,7 +3,7 @@ use std::path::Path;
 use anyhow::bail;
 use registry_api::{
     Artifact, BINARY_ARTIFACT, CreateVersion, ECOSYSTEM_CLI, HarborAction, HarborToken,
-    PACKAGES_PROJECT, RegisterArtifact, Target, Version,
+    PACKAGES_PROJECT, PackageDetail, RegisterArtifact, Target, Version,
     oci::{self, Manifest},
     package_repository,
     signing::{self, CertificateRequest, Envelope, PublishRequest, Statement},
@@ -114,6 +114,22 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
         }
         println!("{name}@{version} is already published; nothing to do");
         return Ok(());
+    }
+
+    for (dependency, req) in &loaded.manifest.dependencies {
+        let range = registry_api::requirement(req).map_err(anyhow::Error::msg)?;
+        let detail: Option<PackageDetail> = client
+            .find(&format!("/cli/v1/packages/{dependency}"))
+            .await?;
+        let published = detail.is_some_and(|detail| {
+            detail
+                .versions
+                .iter()
+                .any(|v| !v.yanked && registry_api::satisfies(&range, &v.version))
+        });
+        if !published {
+            bail!("{name} depends on {dependency} {req}, which has no matching published version");
+        }
     }
 
     let mut built = Vec::new();
@@ -248,7 +264,7 @@ async fn finish(
             permissions: loaded.manifest.permissions.clone(),
             completions: loaded.manifest.package.completions,
             env: loaded.manifest.package.env.clone(),
-            dependencies: Default::default(),
+            dependencies: loaded.manifest.dependencies.clone(),
         },
     );
 

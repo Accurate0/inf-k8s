@@ -32,15 +32,28 @@ pub struct InstalledPackage {
     pub completions: Option<Completions>,
     #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
     pub env: BTreeMap<String, String>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub dependencies: BTreeMap<String, String>,
+    #[serde(default = "requested", skip_serializing_if = "is_true")]
+    pub requested: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub pinned: bool,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub previous: Option<Box<InstalledPackage>>,
 }
 
+fn requested() -> bool {
+    true
+}
+
+fn is_true(value: &bool) -> bool {
+    *value
+}
+
 impl InstalledPackage {
     pub fn replacing(mut self, existing: &InstalledPackage) -> Self {
         self.pinned = existing.pinned;
+        self.requested |= existing.requested;
         self.previous = if existing.version == self.version {
             existing.previous.clone()
         } else {
@@ -55,6 +68,7 @@ impl InstalledPackage {
     pub fn rolled_back(&self) -> Option<Self> {
         let mut target = (**self.previous.as_ref()?).clone();
         target.pinned = self.pinned;
+        target.requested = self.requested;
         target.previous = Some(Box::new(InstalledPackage {
             previous: None,
             ..self.clone()
@@ -79,6 +93,43 @@ pub fn file_name(binary: &str, target: Target) -> String {
 }
 
 impl Installed {
+    pub fn dependents(&self, name: &str) -> Vec<(&str, &str)> {
+        self.packages
+            .iter()
+            .filter_map(|(other, package)| {
+                Some((other.as_str(), package.dependencies.get(name)?.as_str()))
+            })
+            .collect()
+    }
+
+    pub fn orphans(&self) -> Vec<String> {
+        self.packages
+            .iter()
+            .filter(|(name, package)| !package.requested && self.dependents(name).is_empty())
+            .map(|(name, _)| name.clone())
+            .collect()
+    }
+
+    pub fn unmet(&self) -> Vec<String> {
+        let mut unmet = Vec::new();
+        for (name, package) in &self.packages {
+            for (dependency, req) in &package.dependencies {
+                let fits = self.packages.get(dependency).is_some_and(|installed| {
+                    registry_api::requirement(req)
+                        .is_ok_and(|req| registry_api::satisfies(&req, &installed.version))
+                });
+                if !fits {
+                    let have = self
+                        .packages
+                        .get(dependency)
+                        .map_or("not installed".to_owned(), |p| p.version.clone());
+                    unmet.push(format!("{name} needs {dependency} {req} (have {have})"));
+                }
+            }
+        }
+        unmet
+    }
+
     pub fn resolve(&self, command: &str) -> Option<(&String, &InstalledPackage)> {
         self.packages.get_key_value(command).or_else(|| {
             self.packages
@@ -170,9 +221,57 @@ mod tests {
             permissions: None,
             completions: None,
             env: BTreeMap::new(),
+            dependencies: BTreeMap::new(),
+            requested: true,
             pinned: false,
             previous: None,
         }
+    }
+
+    #[test]
+    fn existing_installs_count_as_requested() {
+        let package: InstalledPackage = serde_json::from_str(
+            r#"{"version":"1.0.0","target":"linux-amd64","sha256":"","binary":"helm"}"#,
+        )
+        .unwrap();
+        assert!(package.requested);
+        assert!(
+            !serde_json::to_string(&package)
+                .unwrap()
+                .contains("requested")
+        );
+    }
+
+    #[test]
+    fn orphans_and_unmet_dependencies() {
+        let mut installed = Installed::default();
+        let mut app = package("1.0.0");
+        app.dependencies
+            .insert("helm".to_owned(), "^4.3".to_owned());
+        let mut helm = package("4.3.1-2");
+        helm.requested = false;
+        let mut kustomize = package("5.7.1");
+        kustomize.requested = false;
+        installed.packages.insert("app".to_owned(), app);
+        installed.packages.insert("helm".to_owned(), helm);
+        installed.packages.insert("kustomize".to_owned(), kustomize);
+
+        assert_eq!(installed.dependents("helm"), [("app", "^4.3")]);
+        assert_eq!(installed.orphans(), ["kustomize"]);
+        assert!(installed.unmet().is_empty());
+
+        installed.packages.get_mut("helm").unwrap().version = "5.0.0".to_owned();
+        assert_eq!(installed.unmet(), ["app needs helm ^4.3 (have 5.0.0)"]);
+    }
+
+    #[test]
+    fn explicit_install_marks_a_dependency_requested() {
+        let mut dependency = package("1.0.0");
+        dependency.requested = false;
+        let mut again = package("1.1.0");
+        again.requested = false;
+        assert!(!again.clone().replacing(&dependency).requested);
+        assert!(package("1.1.0").replacing(&dependency).requested);
     }
 
     #[test]

@@ -77,6 +77,7 @@ pub fn init(options: Options<'_>) -> anyhow::Result<()> {
         },
         auth: None,
         permissions: (kind == Kind::Wasm).then(registry_api::Permissions::default),
+        dependencies: Default::default(),
         build,
     };
     std::fs::write(&manifest_path, serde_yaml::to_string(&manifest)?)?;

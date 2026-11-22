@@ -7,7 +7,7 @@ use std::{
 use anyhow::{Context, bail};
 use registry_api::{
     Completions, DEFAULT_SCOPES, PackageAuth, Permissions, Target, upstream_version,
-    validate_package_name,
+    validate_dependencies, validate_package_name,
 };
 use serde::{Deserialize, Serialize};
 
@@ -22,6 +22,8 @@ pub struct Manifest {
     pub auth: Option<AuthSection>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub permissions: Option<Permissions>,
+    #[serde(default, skip_serializing_if = "BTreeMap::is_empty")]
+    pub dependencies: BTreeMap<String, String>,
     #[serde(default)]
     pub build: Build,
 }
@@ -192,6 +194,8 @@ impl Loaded {
         if let Some(permissions) = &manifest.permissions {
             permissions.validate().map_err(anyhow::Error::msg)?;
         }
+        validate_dependencies(&manifest.package.name, &manifest.dependencies)
+            .map_err(anyhow::Error::msg)?;
         if manifest.build.kind == Kind::Wasm {
             if manifest.build.targets != Target::NATIVE && manifest.build.targets != [Target::Wasm]
             {

@@ -51,6 +51,8 @@ enum Command {
     Uninstall {
         #[arg(required = true)]
         packages: Vec<String>,
+        #[arg(long, help = "Remove even if other packages depend on it")]
+        force: bool,
     },
     /// Update ortzi and installed packages to their latest versions
     Update { packages: Vec<String> },
@@ -150,7 +152,7 @@ async fn main() -> anyhow::Result<()> {
         Command::Install { packages, force } => {
             packages::install(&settings, &packages, force).await
         }
-        Command::Uninstall { packages } => packages::uninstall(&packages),
+        Command::Uninstall { packages, force } => packages::uninstall(&packages, force),
         Command::Update { packages } => packages::update(&settings, &packages).await,
         Command::Rollback { package } => packages::rollback(&package),
         Command::Pin { package } => packages::set_pinned(&package, true),
@@ -246,7 +248,7 @@ async fn dev(
         vars.push((auth.token_env.clone(), token));
     }
 
-    let sandbox = wasm::Sandbox::new(
+    let mut sandbox = wasm::Sandbox::new(
         loaded.name(),
         invoked.as_deref().unwrap_or(loaded.name()),
         &loaded.manifest.permissions.clone().unwrap_or_default(),
@@ -255,6 +257,8 @@ async fn dev(
         vars,
         settings.clone(),
     )?;
+    let store = Store::open()?;
+    sandbox.provided = dispatch::provided(&store, &store.load()?, &loaded.manifest.dependencies);
     let code = std::thread::spawn(move || wasm::run(&wasm, sandbox))
         .join()
         .map_err(|_| anyhow::anyhow!("package crashed"))??;

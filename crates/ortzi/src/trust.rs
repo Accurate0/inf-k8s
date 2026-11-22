@@ -20,6 +20,7 @@ pub struct Verified {
     pub permissions: Option<Permissions>,
     pub completions: Option<Completions>,
     pub env: BTreeMap<String, String>,
+    pub dependencies: BTreeMap<String, String>,
 }
 
 pub fn verified_artifact(name: &str, version: &Version, host: Target) -> anyhow::Result<Verified> {
@@ -35,6 +36,7 @@ pub fn verified_artifact(name: &str, version: &Version, host: Target) -> anyhow:
         permissions: statement.permissions,
         completions: statement.completions,
         env: statement.env,
+        dependencies: statement.dependencies,
     })
 }
 

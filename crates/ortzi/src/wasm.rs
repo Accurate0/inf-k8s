@@ -1,5 +1,5 @@
 use std::{
-    collections::HashMap,
+    collections::{BTreeMap, HashMap},
     io::{IsTerminal, Write},
     path::{Component as PathPart, Path, PathBuf},
     process::Stdio as ProcessStdio,
@@ -31,6 +31,7 @@ pub struct Sandbox {
     pub vars: Vec<(String, String)>,
     pub cwd: PathBuf,
     pub exec: Vec<String>,
+    pub provided: BTreeMap<String, PathBuf>,
     pub roots: Vec<PathBuf>,
     pub kube: Vec<KubeVerb>,
     pub http: Vec<String>,
@@ -85,6 +86,7 @@ impl Sandbox {
             vars,
             cwd,
             exec: permissions.exec.clone(),
+            provided: BTreeMap::new(),
             roots,
             kube: permissions.kube.clone(),
             http: permissions.http.clone(),
@@ -118,6 +120,9 @@ impl Sandbox {
             return Err(format!(
                 "{program} is not in the package's permissions.exec"
             ));
+        }
+        if let Some(path) = self.provided.get(program) {
+            return Ok(path.clone());
         }
         crate::dispatch::which(program).ok_or_else(|| format!("{program}: command not found"))
     }
@@ -1069,6 +1074,7 @@ mod tests {
             vars: vec![],
             cwd: root.to_owned(),
             exec: vec!["echo".to_owned()],
+            provided: BTreeMap::new(),
             roots: vec![root.canonicalize().unwrap()],
             kube: vec![],
             http: vec!["grafana.ortzi.cloud".to_owned(), "localhost".to_owned()],
@@ -1119,6 +1125,18 @@ mod tests {
     fn exec_is_allowlisted() {
         let sandbox = sandbox(&std::env::temp_dir());
         assert!(sandbox.program("echo").is_ok());
+        assert!(sandbox.program("sh").is_err());
+    }
+
+    #[test]
+    fn dependencies_run_ahead_of_path() {
+        let mut sandbox = sandbox(&std::env::temp_dir());
+        let pinned = PathBuf::from("/opt/ortzi/packages/echo/current/echo");
+        sandbox.provided.insert("echo".to_owned(), pinned.clone());
+        sandbox
+            .provided
+            .insert("sh".to_owned(), PathBuf::from("/bin/sh"));
+        assert_eq!(sandbox.program("echo").unwrap(), pinned);
         assert!(sandbox.program("sh").is_err());
     }
 

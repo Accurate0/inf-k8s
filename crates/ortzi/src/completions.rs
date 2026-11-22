@@ -221,6 +221,8 @@ mod tests {
             permissions: None,
             completions: Some(Completions::Clap),
             env: Default::default(),
+            dependencies: Default::default(),
+            requested: true,
             pinned: false,
             previous: None,
         }

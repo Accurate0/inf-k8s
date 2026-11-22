@@ -1,8 +1,16 @@
-use std::{collections::BTreeMap, ffi::OsString, os::unix::process::CommandExt, process::Command};
+use std::{
+    collections::BTreeMap, ffi::OsString, os::unix::process::CommandExt, path::PathBuf,
+    process::Command,
+};
 
 use anyhow::{Context, bail};
 
-use crate::{package_auth, session::Settings, store::Store, wasm};
+use crate::{
+    package_auth,
+    session::Settings,
+    store::{Installed, Store},
+    wasm,
+};
 
 fn unset_env(env: &BTreeMap<String, String>) -> impl Iterator<Item = (&String, &String)> {
     env.iter()
@@ -51,7 +59,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                 let mut vars = vec![("ORTZI_REGISTRY_URL".to_owned(), settings.registry.clone())];
                 vars.extend(token);
                 vars.extend(unset_env(&package.env).map(|(k, v)| (k.clone(), v.clone())));
-                let sandbox = wasm::Sandbox::new(
+                let mut sandbox = wasm::Sandbox::new(
                     name,
                     &command,
                     &package.permissions.clone().unwrap_or_default(),
@@ -60,6 +68,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                     vars,
                     settings.clone(),
                 )?;
+                sandbox.provided = provided(&store, &installed, &package.dependencies);
                 let name = name.clone();
                 let code = std::thread::spawn(move || wasm::run(&binary, sandbox))
                     .join()
@@ -92,6 +101,20 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
         .env("ORTZI_REGISTRY_URL", &settings.registry)
         .exec();
     Err(error).with_context(|| format!("running {command}"))
+}
+
+pub fn provided(
+    store: &Store,
+    installed: &Installed,
+    dependencies: &BTreeMap<String, String>,
+) -> BTreeMap<String, PathBuf> {
+    dependencies
+        .keys()
+        .filter_map(|name| {
+            let package = installed.packages.get(name).filter(|p| !p.is_wasm())?;
+            Some((package.binary.clone(), store.current_binary(name, package)))
+        })
+        .collect()
 }
 
 pub fn wants_help(args: &[OsString]) -> bool {
