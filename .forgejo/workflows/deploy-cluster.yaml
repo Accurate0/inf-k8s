@@ -22,6 +22,10 @@ on:
       - .forgejo/scripts/retry.sh
   workflow_dispatch:
 
+concurrency:
+  group: deploy-cluster
+  cancel-in-progress: false
+
 enable-openid-connect: true
 
 jobs:
