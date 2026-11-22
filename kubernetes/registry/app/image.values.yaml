@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/registry: main-1795345229-0ad5fcba8d084d43793ad95e776e1827f061ecf6 # {"$imagepolicy": "flux-system:registry-registry:tag"}
+  registry.anurag.sh/containers/registry: main-1795364401-a4795933f7d5f01826c69677e059bad078d9a959 # {"$imagepolicy": "flux-system:registry-registry:tag"}
