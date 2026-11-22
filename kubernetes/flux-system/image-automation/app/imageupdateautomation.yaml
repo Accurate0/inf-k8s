@@ -18,12 +18,24 @@ spec:
       author:
         name: reconciler[bot]
         email: reconciler@noreply.git.anurag.sh
+      # deploy <app>, or deploy N apps; the body tables each image's short sha change
       messageTemplate: |
-        deploy {{ range $file, $_ := .Changed.FileChanges }}{{ $file | dir | base }} {{ end }}
+        {{- $apps := len .Changed.FileChanges -}}
+        deploy {{ if eq $apps 1 }}{{ range $file, $_ := .Changed.FileChanges }}{{ $file | dir | base }}{{ end }}{{ else }}{{ $apps }} apps{{ end }}
 
-        {{ range $_, $change := .Changed.Changes -}}
-        {{ $change.OldValue }} -> {{ $change.NewValue }}
+        | {{ printf "%-16s" "app" }} | {{ printf "%-24s" "image" }} | {{ printf "%-8s" "from" }} | {{ printf "%-8s" "to" }} |
+        |{{ repeat 18 "-" }}|{{ repeat 26 "-" }}|{{ repeat 10 "-" }}|{{ repeat 10 "-" }}|
+        {{ range $file, $objects := .Changed.FileChanges -}}
+        {{- $app := $file | dir | base -}}
+        {{- range $_, $changes := $objects -}}
+        {{- range $change := $changes -}}
+        {{- $image := index (splitList ":" $change.Setter) 1 | trimPrefix (printf "%s-" $app) -}}
+        {{- $from := splitList "@" $change.OldValue | first | splitList "-" | last | trunc 8 -}}
+        {{- $to := splitList "-" $change.NewValue | last | trunc 8 -}}
+        | {{ printf "%-16s" $app }} | {{ printf "%-24s" $image }} | {{ printf "%-8s" $from }} | {{ printf "%-8s" $to }} |
         {{ end -}}
+        {{- end -}}
+        {{- end -}}
     push:
       branch: main
   # setters live in each app's image.values.yaml; deploy-cluster renders and publishes the commit
