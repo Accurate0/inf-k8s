@@ -24,6 +24,7 @@ interface process {
   }
 
   run: func(command: command) -> result<output, string>;
+  run-all: func(commands: list<command>) -> list<result<output, string>>;
 }
 
 interface fs {

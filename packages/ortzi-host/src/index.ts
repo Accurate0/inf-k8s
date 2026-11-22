@@ -50,20 +50,25 @@ function unwrap<T>(call: () => T): T {
   }
 }
 
-export function run(program: string, args: string[] = [], options: RunOptions = {}): Output {
-  const stdin = typeof options.stdin === 'string' ? encoder.encode(options.stdin) : options.stdin;
-  const raw = unwrap(() =>
-    process.run({
-      program,
-      args,
-      env: Object.entries(options.env ?? {}),
-      cwd: options.cwd,
-      stdin,
-      stdout: options.stdout ?? 'inherit',
-      stderr: options.stderr ?? 'inherit',
-    }),
-  );
+export interface Run {
+  program: string;
+  args?: string[];
+  options?: RunOptions;
+}
 
+function command(program: string, args: string[], options: RunOptions): process.Command {
+  return {
+    program,
+    args,
+    env: Object.entries(options.env ?? {}),
+    cwd: options.cwd,
+    stdin: typeof options.stdin === 'string' ? encoder.encode(options.stdin) : options.stdin,
+    stdout: options.stdout ?? 'inherit',
+    stderr: options.stderr ?? 'inherit',
+  };
+}
+
+function decode(program: string, raw: process.Output, options: RunOptions): Output {
   const output = {
     code: raw.code,
     stdout: decoder.decode(raw.stdout),
@@ -75,6 +80,29 @@ export function run(program: string, args: string[] = [], options: RunOptions = 
     throw new CommandError(program, output);
   }
   return output;
+}
+
+export function run(program: string, args: string[] = [], options: RunOptions = {}): Output {
+  const raw = unwrap(() => process.run(command(program, args, options)));
+  return decode(program, raw, options);
+}
+
+export function runAll(runs: Run[]): Output[] {
+  if (!runs.length) {
+    return [];
+  }
+
+  const results = process.runAll(
+    runs.map(({ program, args = [], options = {} }) => command(program, args, options)),
+  );
+
+  return results.map((result, i) => {
+    const { program, options = {} } = runs[i]!;
+    if (result.tag === 'err') {
+      throw new Error(result.val);
+    }
+    return decode(program, result.val, options);
+  });
 }
 
 export function capture(program: string, args: string[] = [], options: RunOptions = {}): string {

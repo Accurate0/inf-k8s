@@ -468,46 +468,112 @@ fn stdio(mode: process::Stdio) -> ProcessStdio {
     }
 }
 
+fn jobs() -> usize {
+    std::env::var("ORTZI_JOBS")
+        .ok()
+        .and_then(|jobs| jobs.parse().ok())
+        .filter(|&jobs| jobs > 0)
+        .unwrap_or_else(|| std::thread::available_parallelism().map_or(4, |n| n.get()))
+}
+
+impl Sandbox {
+    fn prepare(&self, command: &process::Command) -> Result<(PathBuf, PathBuf), String> {
+        let program = self.program(&command.program)?;
+        let cwd = match &command.cwd {
+            Some(dir) => self.cwd.join(dir),
+            None => self.cwd.clone(),
+        };
+        Ok((program, cwd))
+    }
+}
+
 impl process::Host for State {
     fn run(&mut self, command: process::Command) -> Result<process::Output, String> {
-        let program = self.sandbox.program(&command.program)?;
-        let cwd = match &command.cwd {
-            Some(dir) => self.sandbox.cwd.join(dir),
-            None => self.sandbox.cwd.clone(),
-        };
-
-        let mut child = std::process::Command::new(&program)
-            .args(&command.args)
-            .envs(command.env.iter().map(|(k, v)| (k, v)))
-            .env_remove("ORTZI_TOKEN")
-            .current_dir(&cwd)
-            .stdin(if command.stdin.is_some() {
-                ProcessStdio::piped()
-            } else {
-                ProcessStdio::inherit()
-            })
-            .stdout(stdio(command.stdout))
-            .stderr(stdio(command.stderr))
-            .spawn()
-            .map_err(|e| format!("{}: {e}", command.program))?;
-
-        if let Some(input) = command.stdin
-            && let Some(mut pipe) = child.stdin.take()
-        {
-            std::thread::spawn(move || {
-                let _ = pipe.write_all(&input);
-            });
-        }
-
-        let output = child
-            .wait_with_output()
-            .map_err(|e| format!("{}: {e}", command.program))?;
-        Ok(process::Output {
-            code: output.status.code(),
-            stdout: output.stdout,
-            stderr: output.stderr,
-        })
+        let (program, cwd) = self.sandbox.prepare(&command)?;
+        spawn(&program, &cwd, command)
     }
+
+    fn run_all(&mut self, commands: Vec<process::Command>) -> Vec<Result<process::Output, String>> {
+        run_parallel(&self.sandbox, commands, jobs())
+    }
+}
+
+fn run_parallel(
+    sandbox: &Sandbox,
+    commands: Vec<process::Command>,
+    jobs: usize,
+) -> Vec<Result<process::Output, String>> {
+    let workers = jobs.min(commands.len());
+    let queue = std::sync::Mutex::new(
+        commands
+            .into_iter()
+            .map(|command| (sandbox.prepare(&command), command))
+            .enumerate()
+            .collect::<Vec<_>>()
+            .into_iter(),
+    );
+
+    let mut results: Vec<_> = std::thread::scope(|scope| {
+        let handles: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut done = Vec::new();
+                    loop {
+                        let Some((index, (resolved, command))) = queue.lock().unwrap().next()
+                        else {
+                            return done;
+                        };
+
+                        let result =
+                            resolved.and_then(|(program, cwd)| spawn(&program, &cwd, command));
+                        done.push((index, result));
+                    }
+                })
+            })
+            .collect();
+
+        handles
+            .into_iter()
+            .flat_map(|handle| handle.join().unwrap())
+            .collect()
+    });
+
+    results.sort_by_key(|(index, _)| *index);
+    results.into_iter().map(|(_, result)| result).collect()
+}
+
+fn spawn(program: &Path, cwd: &Path, command: process::Command) -> Result<process::Output, String> {
+    let mut child = std::process::Command::new(program)
+        .args(&command.args)
+        .envs(command.env.iter().map(|(k, v)| (k, v)))
+        .env_remove("ORTZI_TOKEN")
+        .current_dir(cwd)
+        .stdin(if command.stdin.is_some() {
+            ProcessStdio::piped()
+        } else {
+            ProcessStdio::inherit()
+        })
+        .stdout(stdio(command.stdout))
+        .stderr(stdio(command.stderr))
+        .spawn()
+        .map_err(|e| format!("{}: {e}", command.program))?;
+
+    if let Some(input) = command.stdin
+        && let Some(mut pipe) = child.stdin.take()
+    {
+        std::thread::spawn(move || {
+            let _ = pipe.write_all(&input);
+        });
+    }
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("{}: {e}", command.program))?;
+    Ok(process::Output {
+        code: output.status.code(),
+        stdout: output.stdout,
+        stderr: output.stderr,
+    })
 }
 
 impl kube::Host for State {
@@ -1119,6 +1185,35 @@ mod tests {
         assert!(sandbox.resolve("cache/pkg/key.json").is_ok());
         assert!(sandbox.resolve("cache/other").is_err());
         std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn run_parallel_keeps_order_and_per_command_errors() {
+        let sandbox = sandbox(&std::env::temp_dir());
+        let command = |program: &str, arg: &str| process::Command {
+            program: program.to_owned(),
+            args: vec![arg.to_owned()],
+            env: vec![],
+            cwd: None,
+            stdin: None,
+            stdout: process::Stdio::Piped,
+            stderr: process::Stdio::Piped,
+        };
+
+        let commands = (0..8)
+            .map(|i| command("echo", &i.to_string()))
+            .chain([command("sh", "-c")])
+            .collect();
+        let results = run_parallel(&sandbox, commands, 3);
+
+        assert_eq!(results.len(), 9);
+        for (i, result) in results[..8].iter().enumerate() {
+            assert_eq!(
+                result.as_ref().unwrap().stdout,
+                format!("{i}\n").into_bytes()
+            );
+        }
+        assert!(results[8].is_err());
     }
 
     #[test]

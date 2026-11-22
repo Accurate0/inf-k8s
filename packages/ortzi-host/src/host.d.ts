@@ -86,6 +86,8 @@ declare module 'ortzi:host/registry@0.1.0' {
 }
 declare module 'ortzi:host/process@0.1.0' {
   export function run(command: Command): Output;
+  export function runAll(commands: Array<Command>): Array<Result<Output, string>>;
+  export type Result<T, E> = { tag: 'ok'; val: T } | { tag: 'err'; val: E };
   /**
    * # Variants
    *
