@@ -1,4 +1,4 @@
-import { fs, httpSend, run } from '@ortzi/host';
+import { fs, httpSend, type Run, runAll } from '@ortzi/host';
 import { helmTemplates, type Plan } from './plan';
 
 export interface RenderedOutput {
@@ -53,33 +53,7 @@ export function validateManifests(
   generated: Map<string, RenderedOutput>,
   selected: (path: string) => boolean = () => true,
 ): string[] {
-  const failures: string[] = [];
-  const report = (where: string, before: number) =>
-    console.error(`  ${failures.length > before ? '✗' : '✓'} ${where}`);
-
-  let cache: string | undefined;
-  const kubeconform = (where: string, paths: string[], stdin?: string, flags: string[] = []) => {
-    cache ??= schemaCache();
-    const output = run(
-      'kubeconform',
-      [
-        '-strict',
-        '-ignore-missing-schemas',
-        '-cache',
-        cache,
-        '-schema-location',
-        `${SCHEMA_BASE}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json`,
-        '-schema-location',
-        'default',
-        ...flags,
-        ...(stdin === undefined ? paths : ['-']),
-      ],
-      { stdin, stdout: 'piped', stderr: 'piped', check: false },
-    );
-    if (!output.ok) {
-      failures.push(`${where}\n${output.stdout}${output.stderr}`);
-    }
-  };
+  const piped = { stdout: 'piped', stderr: 'piped', check: false } as const;
 
   const apps = new Map<Plan, string[]>();
   const wanted = new Set<Plan>();
@@ -90,29 +64,9 @@ export function validateManifests(
     }
   }
 
-  const selectedApps = [...apps].filter(([plan]) => wanted.has(plan));
-
-  console.error(`validating ${selectedApps.length} apps`);
-  for (const [plan, contents] of selectedApps) {
-    const before = failures.length;
-    const documents = [...contents];
-    for (const { args, values } of helmTemplates(plan)) {
-      const output = run('helm', args, {
-        stdin: values,
-        stdout: 'piped',
-        stderr: 'piped',
-        check: false,
-      });
-      if (output.ok) {
-        documents.push(output.stdout);
-      } else {
-        failures.push(`${plan.name}: helm ${args[2]}\n${output.stderr}`);
-      }
-    }
-
-    kubeconform(plan.name, [], documents.join('\n---\n'));
-    report(plan.name, before);
-  }
+  const selectedApps = [...apps]
+    .filter(([plan]) => wanted.has(plan))
+    .map(([plan, contents]) => ({ plan, contents, templates: helmTemplates(plan) }));
 
   const kustomizations: string[] = [];
   for (const root of MANIFEST_ROOTS) {
@@ -126,24 +80,97 @@ export function validateManifests(
     });
   }
 
-  console.error(`validating ${kustomizations.length} kustomizations`);
-  for (const dir of kustomizations) {
-    const before = failures.length;
-    const output = run('kustomize', ['build', dir], {
-      stdout: 'piped',
-      stderr: 'piped',
-      check: false,
-    });
+  const builds = runAll([
+    ...selectedApps.flatMap(({ templates }) =>
+      templates.map(({ args, values }) => ({
+        program: 'helm',
+        args,
+        options: { ...piped, stdin: values },
+      })),
+    ),
+    ...kustomizations.map((dir) => ({
+      program: 'kustomize',
+      args: ['build', dir],
+      options: piped,
+    })),
+  ]);
+
+  const cache = selectedApps.length || kustomizations.length ? schemaCache() : '';
+  const kubeconform = (stdin: string, flags: string[] = []): Run => ({
+    program: 'kubeconform',
+    args: [
+      '-strict',
+      '-ignore-missing-schemas',
+      '-cache',
+      cache,
+      '-schema-location',
+      `${SCHEMA_BASE}/{{.Group}}/{{.ResourceKind}}_{{.ResourceAPIVersion}}.json`,
+      '-schema-location',
+      'default',
+      ...flags,
+      '-',
+    ],
+    options: { ...piped, stdin },
+  });
+
+  interface Check {
+    where: string;
+    failures: string[];
+    validate?: Run;
+  }
+
+  let next = 0;
+  const appChecks = selectedApps.map(({ plan, contents, templates }): Check => {
+    const failures: string[] = [];
+    const documents = [...contents];
+    for (const { args } of templates) {
+      const output = builds[next++]!;
+      if (output.ok) {
+        documents.push(output.stdout);
+      } else {
+        failures.push(`${plan.name}: helm ${args[2]}\n${output.stderr}`);
+      }
+    }
+    return { where: plan.name, failures, validate: kubeconform(documents.join('\n---\n')) };
+  });
+
+  const kustomizeChecks = kustomizations.map((dir): Check => {
+    const output = builds[next++]!;
     if (!output.ok) {
-      failures.push(`${dir}: kustomize\n${output.stderr}`);
-      report(dir, before);
-      continue;
+      return { where: dir, failures: [`${dir}: kustomize\n${output.stderr}`] };
     }
 
     const flagsPath = `${dir}/.kubeconform-flags`;
     const flags = fs.exists(flagsPath) ? fs.readText(flagsPath).split(/\s+/).filter(Boolean) : [];
-    kubeconform(dir, [], output.stdout, flags);
-    report(dir, before);
+    return { where: dir, failures: [], validate: kubeconform(output.stdout, flags) };
+  });
+
+  const checks = [...appChecks, ...kustomizeChecks];
+  const validations = checks.flatMap(({ validate }) => (validate ? [validate] : []));
+  if (cache && !fs.readDir(cache).length) {
+    const all = validations.map(({ options }) => options?.stdin).join('\n---\n');
+    runAll([kubeconform(all)]);
   }
-  return failures;
+  const results = runAll(validations);
+  let result = 0;
+  for (const check of checks) {
+    if (!check.validate) {
+      continue;
+    }
+    const output = results[result++]!;
+    if (!output.ok) {
+      check.failures.push(`${check.where}\n${output.stdout}${output.stderr}`);
+    }
+  }
+
+  const report = (heading: string, group: Check[]) => {
+    console.error(heading);
+    for (const { where, failures } of group) {
+      console.error(`  ${failures.length ? '✗' : '✓'} ${where}`);
+    }
+  };
+  report(`validating ${appChecks.length} apps`, appChecks);
+  report(`validating ${kustomizeChecks.length} kustomizations`, kustomizeChecks);
+
+  return checks.flatMap(({ failures }) => failures);
 }
