@@ -248,6 +248,7 @@ async fn finish(
             permissions: loaded.manifest.permissions.clone(),
             completions: loaded.manifest.package.completions,
             env: loaded.manifest.package.env.clone(),
+            dependencies: Default::default(),
         },
     );
 

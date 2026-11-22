@@ -121,6 +121,38 @@ pub async fn create(
     Ok((status, Json(row.into_api(&name, &artifacts))))
 }
 
+async fn check_dependencies(state: &AppState, name: &str, statement: &Statement) -> Result<()> {
+    registry_api::validate_dependencies(name, &statement.dependencies)
+        .map_err(ApiError::BadRequest)?;
+
+    for (dependency, req) in &statement.dependencies {
+        let missing = || {
+            ApiError::BadRequest(format!(
+                "{name} depends on {dependency} {req}, which has no matching published version"
+            ))
+        };
+        let range = registry_api::requirement(req).map_err(ApiError::BadRequest)?;
+        let package = match db::find_package(&state.pool, dependency).await {
+            Ok(package) => package,
+            Err(ApiError::NotFound(_)) => return Err(missing()),
+            Err(e) => return Err(e),
+        };
+
+        let matched = db::versions(&state.pool, package.id)
+            .await?
+            .iter()
+            .any(|v| {
+                v.is_published()
+                    && v.yanked_at.is_none()
+                    && registry_api::satisfies(&range, &v.version)
+            });
+        if !matched {
+            return Err(missing());
+        }
+    }
+    Ok(())
+}
+
 pub async fn publish(
     State(state): State<AppState>,
     principal: Principal,
@@ -173,6 +205,7 @@ pub async fn publish(
     if let Some(permissions) = &statement.permissions {
         permissions.validate().map_err(ApiError::BadRequest)?;
     }
+    check_dependencies(&state, &name, &statement).await?;
     let mut uploaded: Vec<Artifact> = artifacts
         .iter()
         .filter_map(|a| {

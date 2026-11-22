@@ -10,7 +10,7 @@ use registry::{
     storage::Storage,
 };
 use registry_api::{
-    Artifact, Target,
+    Artifact, Target, Version,
     signing::{self, Statement},
 };
 use serde_json::{Value, json};
@@ -532,6 +532,18 @@ impl Registry {
         version: &str,
         description: Option<&str>,
     ) -> u16 {
+        self.publish_with(token, name, version, description, &[])
+            .await
+    }
+
+    async fn publish_with(
+        &self,
+        token: &str,
+        name: &str,
+        version: &str,
+        description: Option<&str>,
+        dependencies: &[(&str, &str)],
+    ) -> u16 {
         let base = format!("/cli/v1/packages/{name}/versions");
         let (status, body) = self
             .call(
@@ -579,7 +591,7 @@ impl Registry {
                 }
             })
             .collect();
-        self.sign_and_publish(token, name, version, artifacts)
+        self.sign_and_publish_with(token, name, version, artifacts, dependencies)
             .await
             .0
     }
@@ -590,6 +602,18 @@ impl Registry {
         name: &str,
         version: &str,
         artifacts: Vec<Artifact>,
+    ) -> (u16, Value) {
+        self.sign_and_publish_with(token, name, version, artifacts, &[])
+            .await
+    }
+
+    async fn sign_and_publish_with(
+        &self,
+        token: &str,
+        name: &str,
+        version: &str,
+        artifacts: Vec<Artifact>,
+        dependencies: &[(&str, &str)],
     ) -> (u16, Value) {
         let key = signing::generate();
         let (status, certificate) = self
@@ -617,6 +641,10 @@ impl Registry {
                 permissions: None,
                 completions: None,
                 env: Default::default(),
+                dependencies: dependencies
+                    .iter()
+                    .map(|(n, r)| ((*n).to_owned(), (*r).to_owned()))
+                    .collect(),
             },
         );
         self.call(
@@ -992,6 +1020,65 @@ async fn yanked_versions_drop_out_of_latest(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn dependencies_must_be_published(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("helm").await;
+    registry.create_package("app").await;
+    let admin = registry.admin.clone();
+    registry.publish(&admin, "helm", "4.3.1-2").await;
+    registry.publish(&admin, "helm", "5.0.0").await;
+    let yank = "/cli/v1/packages/helm/versions/5.0.0/yank";
+    let (status, _) = registry
+        .call(
+            "POST",
+            yank,
+            Some(&admin),
+            Some(json!({ "reason": "broken" })),
+        )
+        .await;
+    assert_eq!(status, 200);
+
+    let publish = |version: &'static str, deps: &'static [(&'static str, &'static str)]| {
+        registry.publish_with(&admin, "app", version, None, deps)
+    };
+    assert_eq!(
+        publish("1.0.0", &[("helm", "^5")]).await,
+        400,
+        "yanked only"
+    );
+    assert_eq!(
+        publish("1.0.0", &[("kustomize", "*")]).await,
+        400,
+        "unknown"
+    );
+    assert_eq!(
+        publish("1.0.0", &[("helm", "four")]).await,
+        400,
+        "bad range"
+    );
+    assert_eq!(publish("1.0.0", &[("app", "*")]).await, 400, "self");
+    assert_eq!(publish("1.0.0", &[("helm", "^4.3")]).await, 200);
+
+    let (_, version) = registry
+        .call(
+            "GET",
+            "/cli/v1/packages/app/versions/1.0.0",
+            Some(&admin),
+            None,
+        )
+        .await;
+    let version: Version = serde_json::from_value(version).unwrap();
+    let manifest = signing::verify_release(
+        &registry.root_keys().await,
+        "app",
+        "1.0.0",
+        version.signatures.as_ref().unwrap(),
+    )
+    .unwrap();
+    assert_eq!(manifest.statement.dependencies["helm"], "^4.3");
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn people_need_registry_groups(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
 
@@ -1298,6 +1385,7 @@ async fn releases_are_signed_end_to_end(pool: PgPool) {
             permissions: None,
             completions: None,
             env: Default::default(),
+            dependencies: Default::default(),
         },
     );
     let (status, _) = registry
@@ -1960,5 +2048,4 @@ async fn ci_exchanges_its_forgejo_token_for_a_service_account(pool: PgPool) {
         )
         .await;
     assert_eq!(status, 404);
-
 }

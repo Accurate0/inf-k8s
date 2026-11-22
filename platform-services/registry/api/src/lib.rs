@@ -87,6 +87,28 @@ pub fn validate_package_name(name: &str) -> Result<(), String> {
     Ok(())
 }
 
+pub fn requirement(req: &str) -> Result<semver::VersionReq, String> {
+    semver::VersionReq::parse(req).map_err(|e| format!("invalid version range {req:?}: {e}"))
+}
+
+pub fn satisfies(req: &semver::VersionReq, version: &str) -> bool {
+    semver::Version::parse(upstream_version(version)).is_ok_and(|version| req.matches(&version))
+}
+
+pub fn validate_dependencies(
+    package: &str,
+    dependencies: &std::collections::BTreeMap<String, String>,
+) -> Result<(), String> {
+    for (name, req) in dependencies {
+        validate_package_name(name)?;
+        if name == package || name == "ortzi" {
+            return Err(format!("{package} cannot depend on {name}"));
+        }
+        requirement(req).map_err(|e| format!("dependency {name}: {e}"))?;
+    }
+    Ok(())
+}
+
 pub fn validate_binary_name(binary: &str) -> Result<(), String> {
     let valid = !binary.is_empty()
         && binary.len() <= 64
@@ -815,6 +837,31 @@ mod version_tests {
         assert_eq!(upstream_version("2.7.2-2"), "2.7.2");
         assert_eq!(upstream_version("2.7.2"), "2.7.2");
         assert_eq!(upstream_version("2.7.2-rc.1"), "2.7.2-rc.1");
+    }
+
+    #[test]
+    fn ranges_match_revisions_as_their_release() {
+        let req = requirement("^2.7").unwrap();
+        assert!(satisfies(&req, "2.7.2"));
+        assert!(satisfies(&req, "2.7.2-2"));
+        assert!(!satisfies(&req, "2.8.0-rc.1"));
+        assert!(!satisfies(&req, "3.0.0"));
+        assert!(satisfies(&requirement("*").unwrap(), "0.1.0-4"));
+    }
+
+    #[test]
+    fn dependencies_are_validated() {
+        let deps = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(n, r)| ((*n).to_owned(), (*r).to_owned()))
+                .collect::<std::collections::BTreeMap<_, _>>()
+        };
+        assert!(validate_dependencies("app", &deps(&[("helm", "^4.3")])).is_ok());
+        assert!(validate_dependencies("app", &deps(&[("helm", "four")])).is_err());
+        assert!(validate_dependencies("app", &deps(&[("app", "*")])).is_err());
+        assert!(validate_dependencies("app", &deps(&[("ortzi", "*")])).is_err());
+        assert!(validate_dependencies("app", &deps(&[("Helm", "*")])).is_err());
     }
 }
 
