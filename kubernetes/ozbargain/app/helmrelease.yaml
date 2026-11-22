@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T08:31:45.215Z
+# generated at 2026-11-22T11:51:11.315Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -31,11 +31,11 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  valuesFrom:
+    - kind: ConfigMap
+      name: ozbargain-image-values
+      valuesKey: values.yaml
   values:
-    images:
-      registry.anurag.sh/containers/ozb-discord-bot: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780
-      registry.anurag.sh/containers/ozb-finder: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780
-      registry.anurag.sh/containers/ozb-trigger: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780
     namespace: ozbargain
     workloads:
       - name: ozb-discord-bot

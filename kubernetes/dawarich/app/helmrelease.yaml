@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T02:58:29.574Z
+# generated at 2026-11-22T11:51:12.564Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -31,10 +31,11 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  valuesFrom:
+    - kind: ConfigMap
+      name: dawarich-image-values
+      valuesKey: values.yaml
   values:
-    images:
-      freikin/dawarich: 1.9.1@sha256:8cf6ed2414df9aad8a104b04de9070921e63190cdb96b76e39ebd3e94317dcc0
-      rtuszik/photon-docker: 2.3.0@sha256:827cedf9fa3337e657611d62ada669def75dff61c56b51ae55056155d1a9b236
     namespace: dawarich
     namespaceLabels:
       gateway.inf-k8s.net/anurag-sh: "true"

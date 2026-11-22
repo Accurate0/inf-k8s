@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-22T11:21:54.282Z
+# generated at 2026-11-22T11:51:11.972Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -31,9 +31,11 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  valuesFrom:
+    - kind: ConfigMap
+      name: janitor-bot-image-values
+      valuesKey: values.yaml
   values:
-    images:
-      registry.anurag.sh/containers/janitor-bot: main-1795345229-0ad5fcba8d084d43793ad95e776e1827f061ecf6
     namespace: janitor-bot
     namespaceLabels:
       internal-gateway-access: "true"

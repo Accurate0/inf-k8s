@@ -1,0 +1,7 @@
+images:
+  registry.anurag.sh/containers/maccas-web: main-1795246700-2283ddcd3a2acf9845598527d3b33ce348e29bf9 # {"$imagepolicy": "flux-system:maccas-api-maccas-web:tag"}
+  registry.anurag.sh/containers/maccas-api: main-1795246700-2283ddcd3a2acf9845598527d3b33ce348e29bf9 # {"$imagepolicy": "flux-system:maccas-api-maccas-api:tag"}
+  registry.anurag.sh/containers/maccas-scheduler: main-1795246700-2283ddcd3a2acf9845598527d3b33ce348e29bf9 # {"$imagepolicy": "flux-system:maccas-api-maccas-scheduler:tag"}
+  registry.anurag.sh/containers/maccas-recommendations: main-1795246700-2283ddcd3a2acf9845598527d3b33ce348e29bf9 # {"$imagepolicy": "flux-system:maccas-api-maccas-recommendations:tag"}
+  registry.anurag.sh/containers/maccas-migration: main-1795246700-2283ddcd3a2acf9845598527d3b33ce348e29bf9 # {"$imagepolicy": "flux-system:maccas-api-maccas-migration:tag"}
+  registry.anurag.sh/containers/maccas-clustering: main-1795246700-2283ddcd3a2acf9845598527d3b33ce348e29bf9 # {"$imagepolicy": "flux-system:maccas-api-maccas-clustering:tag"}

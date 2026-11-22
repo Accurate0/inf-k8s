@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T08:41:20.737Z
+# generated at 2026-11-22T11:51:11.141Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -31,10 +31,11 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  valuesFrom:
+    - kind: ConfigMap
+      name: home-gateway-image-values
+      valuesKey: values.yaml
   values:
-    images:
-      registry.anurag.sh/containers/home-gateway: main-1795246700-eab8bf5e1708c2ff2cb38ab1e1c3cb15ca9f5a48
-      registry.anurag.sh/containers/home-gateway-web: main-1795246700-eab8bf5e1708c2ff2cb38ab1e1c3cb15ca9f5a48
     namespace: home-gateway
     namespaceLabels:
       gateway.inf-k8s.net/anurag-sh: "true"

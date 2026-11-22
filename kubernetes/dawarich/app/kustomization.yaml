@@ -1,8 +1,17 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T14:48:21.445Z
+# generated at 2026-11-22T11:51:12.564Z
 # yaml-language-server: $schema=https://json.schemastore.org/kustomization
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - helmrelease.yaml
   - ocirepository.yaml
+configMapGenerator:
+  - name: dawarich-image-values
+    namespace: flux-system
+    files:
+      - values.yaml=image.values.yaml
+    options:
+      disableNameSuffixHash: true
+      labels:
+        reconcile.fluxcd.io/watch: Enabled

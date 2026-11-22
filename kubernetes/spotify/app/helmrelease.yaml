@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-22T02:51:58.226Z
+# generated at 2026-11-22T11:51:11.419Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -31,10 +31,11 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  valuesFrom:
+    - kind: ConfigMap
+      name: spotify-image-values
+      valuesKey: values.yaml
   values:
-    images:
-      registry.anurag.sh/containers/spotify: main-1795315225-38300d8ee1ebefadf639109d2d34ac4f1441c84f
-      registry.anurag.sh/containers/spotify-web: main-1795248125-9e38c5a448cd858fcd9152b5e657d87465ae766e
     namespace: spotify
     namespaceLabels:
       internal-gateway-access: "true"

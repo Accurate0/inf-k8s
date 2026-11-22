@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T08:41:21.963Z
+# generated at 2026-11-22T11:51:12.425Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -31,9 +31,11 @@ spec:
     cleanupOnFail: true
   driftDetection:
     mode: enabled
+  valuesFrom:
+    - kind: ConfigMap
+      name: waf-manager-image-values
+      valuesKey: values.yaml
   values:
-    images:
-      registry.anurag.sh/containers/waf-manager: main-1795248080-faab85135c93f5b4179083c3ac86b1a2444c9269
     namespace: waf-manager
     namespaceLabels:
       internal-gateway-access: "true"
