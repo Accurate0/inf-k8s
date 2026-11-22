@@ -86,6 +86,15 @@ jobs:
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
         with:
           packages: app helm kustomize kubeconform
+      - id: schemas
+        run: |
+          version="$(curl -sf --max-time 5 https://k8s-schemas.anurag.sh/version.json | grep -oE '[0-9a-f]{64}' || echo unversioned)"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: .cache/kubeconform
+          key: kubeconform-schemas-${{ steps.schemas.outputs.version }}
+          restore-keys: kubeconform-schemas-
       - name: Render and commit
         run: |
           git config user.name "reconciler[bot]"

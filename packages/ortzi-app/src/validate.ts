@@ -81,15 +81,22 @@ export function validateManifests(
     }
   };
 
-  const apps = [...generated].filter(([path]) => selected(path));
-  const templated = new Set<Plan>();
-  console.error(`validating ${apps.length} apps`);
-  for (const [path, { content, plan }] of apps) {
+  const apps = new Map<Plan, string[]>();
+  const wanted = new Set<Plan>();
+  for (const [path, { content, plan }] of generated) {
+    apps.set(plan, [...(apps.get(plan) ?? []), content]);
+    if (selected(path)) {
+      wanted.add(plan);
+    }
+  }
+
+  const selectedApps = [...apps].filter(([plan]) => wanted.has(plan));
+
+  console.error(`validating ${selectedApps.length} apps`);
+  for (const [plan, contents] of selectedApps) {
     const before = failures.length;
-    const documents = [content];
-    const templates = templated.has(plan) ? [] : helmTemplates(plan);
-    templated.add(plan);
-    for (const { args, values } of templates) {
+    const documents = [...contents];
+    for (const { args, values } of helmTemplates(plan)) {
       const output = run('helm', args, {
         stdin: values,
         stdout: 'piped',
@@ -99,12 +106,12 @@ export function validateManifests(
       if (output.ok) {
         documents.push(output.stdout);
       } else {
-        failures.push(`${path}: helm ${args[2]}\n${output.stderr}`);
+        failures.push(`${plan.name}: helm ${args[2]}\n${output.stderr}`);
       }
     }
 
-    kubeconform(path, [], documents.join('\n---\n'));
-    report(path, before);
+    kubeconform(plan.name, [], documents.join('\n---\n'));
+    report(plan.name, before);
   }
 
   const kustomizations: string[] = [];
