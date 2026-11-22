@@ -85,7 +85,7 @@ jobs:
           persist-credentials: false
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
         with:
-          packages: app helm kustomize kubeconform
+          packages: app
       - id: schemas
         run: |
           version="$(curl -sf --max-time 5 https://k8s-schemas.anurag.sh/version.json | grep -oE '[0-9a-f]{64}' || echo unversioned)"

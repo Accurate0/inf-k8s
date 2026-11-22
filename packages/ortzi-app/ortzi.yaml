@@ -1,7 +1,7 @@
 package:
   name: app
   description: define apps in app.yaml, render them to flux, roll back what's deployed
-  version: 0.79.0
+  version: 0.80.0
   completions: cobra
 auth:
   client_id: graph
@@ -14,6 +14,10 @@ permissions:
   kube: [get, patch]
   http: [raw.githubusercontent.com, git.anurag.sh, k8s-schemas.anurag.sh, graph.ortzi.cloud]
   registry: [manifests, containers]
+dependencies:
+  helm: ^4.3
+  kustomize: ^5.7
+  kubeconform: ^0.7
 build:
   kind: wasm
   wasm:
