@@ -9,9 +9,9 @@ import { versions, target, platform, render, releaseValues } from '../../test-fi
 const ofKind = (rendered: ReturnType<typeof render>, kind: string) =>
   rendered.objects.filter((o) => o.kind === kind);
 
-test('artifact apps inline chart values and apply only the kustomization from the registry', () => {
+test('artifact apps inline chart values but read image tags from a ConfigMap, and apply only the kustomization from the registry', () => {
   const files: Record<string, Record<string, unknown>> = {
-    'projects/foo/image.values.yaml': { images: { i: 'abc123' } },
+    'kubernetes/foo/app/image.values.yaml': { images: { i: 'abc123' } },
     'projects/foo/r.yaml': { replicas: 2 },
   };
   const rendered = renderFlux(
@@ -42,10 +42,9 @@ test('artifact apps inline chart values and apply only the kustomization from th
   const releases = objects.filter((o) => o.kind === 'HelmRelease');
   const named = (name: string) => objects.find((o) => o.metadata?.name === name);
 
-  assert.deepEqual(
-    releases.find((r) => r.metadata.name === 'foo-k8s-workload').spec.values.images,
-    { i: 'abc123' },
-  );
+  assert.deepEqual(releases.find((r) => r.metadata.name === 'foo-k8s-workload').spec.valuesFrom, [
+    { kind: 'ConfigMap', name: 'foo-image-values', valuesKey: 'values.yaml' },
+  ]);
   const reloader = releases.find((r) => r.metadata.name === 'foo-rel');
   assert.equal(reloader.spec.releaseName, 'rel');
   assert.deepEqual(reloader.spec.values, { replicas: 2 });

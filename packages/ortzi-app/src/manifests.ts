@@ -1,14 +1,21 @@
 import { Document, isScalar, parse, stringify } from 'yaml';
 import type { App, Target } from './types.ts';
-import { imageSetter } from './flux-objects.ts';
+import {
+  IMAGE_VALUES,
+  imageSetter,
+  imageValuesPath as clusterImageValuesPath,
+} from './flux-objects.ts';
 import { releaseImages, workloadImages } from './providers/workload.ts';
 import type { Kustomize, ResourceType } from './providers/provider.ts';
 import { HEADER } from './generated.ts';
-import { declared, sourcesOf } from './app.ts';
+import { appNamespace, declared, sourcesOf } from './app.ts';
 import { RESOURCES, sourceProvider } from './providers/index.ts';
 
-export const imageValuesPath = (app: App, target: Target) =>
-  `${target.location}/${app.name}/image.values.yaml`;
+export const imageValuesPath = (app: App) =>
+  clusterImageValuesPath({ name: app.name, namespace: appNamespace(app) });
+
+export const legacyImageValuesPath = (app: App, target: Target) =>
+  `${target.location}/${app.name}/${IMAGE_VALUES}`;
 
 // Tags live here; released images carry the setter flux's ImageUpdateAutomation rewrites.
 export function renderImageValues(app: App, current: string | undefined): string {

@@ -45,7 +45,11 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
     return world.readValues(path);
   };
 
-  const chart: PlanContext['chart'] = (chartName, values, { valueFiles, retain } = {}) => {
+  const chart: PlanContext['chart'] = (
+    chartName,
+    values,
+    { valueFiles, valuesFrom, retain } = {},
+  ) => {
     const version = app.charts?.[chartName] ?? versions[chartName];
     if (!version) {
       throw new Error(`${app.name}: no version for chart ${chartName}`);
@@ -61,6 +65,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
       version,
       values,
       ...(retain ? { retain } : {}),
+      ...(valuesFrom
+        ? { valuesFrom: { configMap: valuesFrom.configMap, values: readValues(valuesFrom.path) } }
+        : {}),
     };
   };
 
@@ -151,7 +158,7 @@ export function helmTemplates(plan: Plan): { args: string[]; values: string }[] 
         ? {
             release: plan.name,
             location: [`charts/${source.chart}`],
-            values: chartValues(source),
+            values: { ...source.valuesFrom?.values, ...chartValues(source) },
           }
         : sourceProvider(source.type).helmTemplate?.(plan, source as never);
     if (!template) {

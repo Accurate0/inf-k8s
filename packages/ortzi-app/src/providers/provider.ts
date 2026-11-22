@@ -21,6 +21,8 @@ export interface PlatformChart {
   version: string;
   values: Record<string, unknown>;
   retain?: boolean;
+  // values flux reads from a ConfigMap at deploy time; kept here so validation sees them
+  valuesFrom?: { configMap: string; values: Record<string, unknown> };
 }
 
 export type PlanSource = PlatformChart | { [K in SourceType]: SourceTypes[K]['plan'] }[SourceType];
@@ -48,7 +50,11 @@ export interface PlanContext {
   chart(
     name: string,
     values: Record<string, unknown>,
-    options?: { valueFiles?: string[]; retain?: boolean },
+    options?: {
+      valueFiles?: string[];
+      valuesFrom?: { configMap: string; path: string };
+      retain?: boolean;
+    },
   ): PlatformChart;
   readValues(path: string): Record<string, unknown>;
 }

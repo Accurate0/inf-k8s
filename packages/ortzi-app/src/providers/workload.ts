@@ -1,6 +1,7 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { App, NamedWorkload, Sidecar, Workload } from '../types.ts';
 import { declared } from '../app.ts';
+import { imageValuesConfigMap, imageValuesPath } from '../flux-objects.ts';
 import {
   declaredPorts,
   expandWorkload,
@@ -636,7 +637,7 @@ function check(app: App, refs: Refs) {
   }
 }
 
-function plan({ app, namespace, directory, chart, refs }: PlanContext): Contribution {
+function plan({ app, namespace, chart, refs }: PlanContext): Contribution {
   const workloads = Object.entries(appWorkloads(app));
   if (!workloads.length) {
     return {};
@@ -655,7 +656,12 @@ function plan({ app, namespace, directory, chart, refs }: PlanContext): Contribu
             return { name: workload, ...expandWorkload(spec, refs) };
           }),
         },
-        { valueFiles: [`${directory}/image.values.yaml`] },
+        {
+          valuesFrom: {
+            configMap: imageValuesConfigMap(app.name),
+            path: imageValuesPath({ name: app.name, namespace }),
+          },
+        },
       ),
     ],
   };

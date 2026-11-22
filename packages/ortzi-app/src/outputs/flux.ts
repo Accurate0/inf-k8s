@@ -5,18 +5,19 @@ import { HEADER } from '../generated.ts';
 import { sourceProvider } from '../providers/index.ts';
 import {
   APP_ANNOTATION,
+  appPath,
   chartRepository,
   FLUX_NAMESPACE,
+  fluxDir,
   type FluxObject,
   helmRelease,
+  IMAGE_VALUES,
   imagePolicy,
   imageRepository,
 } from '../flux-objects.ts';
 
 const SCHEMAS = 'https://k8s-schemas.anurag.sh';
 const KUSTOMIZE_SCHEMA = 'https://json.schemastore.org/kustomization';
-
-export const CLUSTER_ROOT = 'kubernetes';
 
 // The cluster artifact FluxInstance syncs; every per-app Kustomization reads it too.
 const CLUSTER_SOURCE = 'flux-system';
@@ -32,13 +33,6 @@ const FILES: Record<string, string> = {
   ImageRepository: 'imagerepository.yaml',
   ImagePolicy: 'imagepolicy.yaml',
 };
-
-// kubernetes/<namespace>/<app>, collapsed to kubernetes/<app> when the app owns a namespace of its name
-export const appPath = (plan: Pick<Plan, 'name' | 'namespace'>) =>
-  plan.namespace === plan.name ? plan.name : `${plan.namespace}/${plan.name}`;
-
-export const fluxDir = (plan: Pick<Plan, 'name' | 'namespace'>) =>
-  `${CLUSTER_ROOT}/${appPath(plan)}`;
 
 // A chart an app uses more than once gets one release each, told apart by its values' name.
 function chartName(plan: Plan, source: PlatformChart, index: number): string {
@@ -66,6 +60,7 @@ function sourceObjects(plan: Plan, source: PlanSource, index: number): FluxObjec
       name,
       { ociRepository: name },
       source.chart === 'k8s-workload' ? { ...values, createNamespace: false } : values,
+      source.valuesFrom?.configMap,
     ),
   ];
 }
@@ -91,9 +86,28 @@ export const namespaceDocument = (name: string, labels?: Record<string, string>)
     },
   ]);
 
-export const kustomizationDocument = (resources: string[]) =>
+export const kustomizationDocument = (resources: string[], configMaps: string[] = []) =>
   document(
-    [{ apiVersion: 'kustomize.config.k8s.io/v1beta1', kind: 'Kustomization', resources }],
+    [
+      {
+        apiVersion: 'kustomize.config.k8s.io/v1beta1',
+        kind: 'Kustomization',
+        resources,
+        ...(configMaps.length
+          ? {
+              configMapGenerator: configMaps.map((name) => ({
+                name,
+                namespace: FLUX_NAMESPACE,
+                files: [`values.yaml=${IMAGE_VALUES}`],
+                options: {
+                  disableNameSuffixHash: true,
+                  labels: { 'reconcile.fluxcd.io/watch': 'Enabled' },
+                },
+              })),
+            }
+          : {}),
+      },
+    ],
     KUSTOMIZE_SCHEMA,
   );
 
@@ -141,10 +155,14 @@ export function renderFlux(plan: Plan, overrides: FluxOverrides = {}): Map<strin
     },
   };
 
+  const configMaps = plan.sources.flatMap((source) =>
+    source.type === 'chart' && source.valuesFrom ? [source.valuesFrom.configMap] : [],
+  );
+
   const dir = fluxDir(plan);
   return new Map([
     [`${dir}/ks.yaml`, document([app], schemaFor(app))],
-    [`${dir}/app/kustomization.yaml`, kustomizationDocument([...files.keys()].sort())],
+    [`${dir}/app/kustomization.yaml`, kustomizationDocument([...files.keys()].sort(), configMaps)],
     ...[...files].map(([file, content]): [string, string] => [`${dir}/app/${file}`, content]),
   ]);
 }

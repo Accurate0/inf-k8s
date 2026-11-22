@@ -6,6 +6,22 @@ export const FLUX_NAMESPACE = 'flux-system';
 export const APP_ANNOTATION = 'event.toolkit.fluxcd.io/app';
 export const COMMIT_ANNOTATION = 'event.toolkit.fluxcd.io/commit';
 
+export const CLUSTER_ROOT = 'kubernetes';
+export const IMAGE_VALUES = 'image.values.yaml';
+
+// kubernetes/<namespace>/<app>, collapsed to kubernetes/<app> when the app owns a namespace of its name
+export const appPath = (plan: Pick<Plan, 'name' | 'namespace'>) =>
+  plan.namespace === plan.name ? plan.name : `${plan.namespace}/${plan.name}`;
+
+export const fluxDir = (plan: Pick<Plan, 'name' | 'namespace'>) =>
+  `${CLUSTER_ROOT}/${appPath(plan)}`;
+
+// Tags live beside the app's flux objects so an image bump is the whole deploy.
+export const imageValuesPath = (plan: Pick<Plan, 'name' | 'namespace'>) =>
+  `${fluxDir(plan)}/app/${IMAGE_VALUES}`;
+
+export const imageValuesConfigMap = (name: string) => `${name}-image-values`;
+
 const HARBOR = 'oci://registry.anurag.sh/';
 const HELM_LAYER = 'application/vnd.cncf.helm.chart.content.v1.tar+gzip';
 const MANIFESTS_LAYER = 'application/vnd.oci.image.layer.v1.tar+gzip';
@@ -79,6 +95,7 @@ export const helmRelease = (
   release: string,
   chart: { ociRepository: string } | { helmRepository: string; chart: string; version: string },
   values: Record<string, unknown>,
+  valuesFrom?: string,
 ) => ({
   apiVersion: 'helm.toolkit.fluxcd.io/v2',
   kind: 'HelmRelease',
@@ -108,6 +125,9 @@ export const helmRelease = (
     },
     rollback: { cleanupOnFail: true },
     driftDetection: { mode: 'enabled' },
+    ...(valuesFrom
+      ? { valuesFrom: [{ kind: 'ConfigMap', name: valuesFrom, valuesKey: 'values.yaml' }] }
+      : {}),
     values,
   },
 });

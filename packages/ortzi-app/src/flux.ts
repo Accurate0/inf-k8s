@@ -1,5 +1,11 @@
 import type { Kube } from '@ortzi/kit';
-import { APP_ANNOTATION, FLUX_NAMESPACE, COMMIT_ANNOTATION } from './flux-objects';
+import { parse } from 'yaml';
+import {
+  APP_ANNOTATION,
+  FLUX_NAMESPACE,
+  COMMIT_ANNOTATION,
+  imageValuesConfigMap,
+} from './flux-objects';
 
 const MANUAL_SYNC = 'cli.ortzi.cloud/manual-sync';
 
@@ -45,6 +51,12 @@ export interface App {
   // the app's own nested kustomizations, e.g. <app>-manifests
   kustomizations: FluxObject[];
   releases: FluxObject[];
+  images?: Record<string, string>;
+}
+
+interface ConfigMap {
+  metadata: { name: string };
+  data?: Record<string, string>;
 }
 
 const flux = (kube: Kube) => kube.namespace(FLUX_NAMESPACE);
@@ -52,7 +64,19 @@ const flux = (kube: Kube) => kube.namespace(FLUX_NAMESPACE);
 const belongs = (name: string) => (object: FluxObject) =>
   object.metadata.annotations?.[APP_ANNOTATION] === name;
 
-function assemble(name: string, kustomizations: FluxObject[], releases: FluxObject[]): App {
+function imagesOf(name: string, configMaps: ConfigMap[]): Record<string, string> | undefined {
+  const values = configMaps.find((cm) => cm.metadata.name === imageValuesConfigMap(name))?.data?.[
+    'values.yaml'
+  ];
+  return values === undefined ? undefined : (parse(values)?.images ?? {});
+}
+
+function assemble(
+  name: string,
+  kustomizations: FluxObject[],
+  releases: FluxObject[],
+  configMaps: ConfigMap[],
+): App {
   const own = kustomizations.filter(belongs(name));
   const kustomization = own.find((ks) => ks.metadata.name === name);
   if (!kustomization) {
@@ -63,6 +87,7 @@ function assemble(name: string, kustomizations: FluxObject[], releases: FluxObje
     kustomization,
     kustomizations: own.filter((ks) => ks !== kustomization),
     releases: releases.filter(belongs(name)),
+    images: imagesOf(name, configMaps),
   };
 }
 
@@ -71,15 +96,17 @@ export function getApp(kube: Kube, name: string): App {
     name,
     flux(kube).list<FluxObject>('kustomizations'),
     flux(kube).list<FluxObject>('helmreleases'),
+    flux(kube).list<ConfigMap>('configmaps'),
   );
 }
 
 export function listApps(kube: Kube): App[] {
   const kustomizations = flux(kube).list<FluxObject>('kustomizations');
   const releases = flux(kube).list<FluxObject>('helmreleases');
+  const configMaps = flux(kube).list<ConfigMap>('configmaps');
   return kustomizations
     .filter((ks) => ks.metadata.annotations?.[APP_ANNOTATION] === ks.metadata.name)
-    .map((ks) => assemble(ks.metadata.name, kustomizations, releases));
+    .map((ks) => assemble(ks.metadata.name, kustomizations, releases, configMaps));
 }
 
 export const objectsOf = (app: App) => [app.kustomization, ...app.kustomizations, ...app.releases];
@@ -111,9 +138,9 @@ export const revision = (app: App) =>
 export const workloadRelease = (app: App) =>
   app.releases.find((release) => release.metadata.name.endsWith('-k8s-workload'));
 
-// What the rendered HelmRelease asks k8s-workload to run.
+// What the app's image values ConfigMap asks k8s-workload to run; releases rendered before it inline them.
 export const desiredTags = (app: App) =>
-  new Map(Object.entries(workloadRelease(app)?.spec.values?.images ?? {}));
+  new Map(Object.entries(app.images ?? workloadRelease(app)?.spec.values?.images ?? {}));
 
 export function lastDeployed(app: App): string | undefined {
   return app.releases

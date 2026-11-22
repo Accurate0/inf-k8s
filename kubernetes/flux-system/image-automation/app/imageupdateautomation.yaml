@@ -21,12 +21,12 @@ spec:
       # deploy <app>, or deploy N apps; the body tables each image's short sha change
       messageTemplate: |
         {{- $apps := len .Changed.FileChanges -}}
-        deploy {{ if eq $apps 1 }}{{ range $file, $_ := .Changed.FileChanges }}{{ $file | dir | base }}{{ end }}{{ else }}{{ $apps }} apps{{ end }}
+        deploy {{ if eq $apps 1 }}{{ range $file, $_ := .Changed.FileChanges }}{{ $file | dir | dir | base }}{{ end }}{{ else }}{{ $apps }} apps{{ end }}
 
         | {{ printf "%-16s" "app" }} | {{ printf "%-24s" "image" }} | {{ printf "%-8s" "from" }} | {{ printf "%-8s" "to" }} |
         |{{ repeat 18 "-" }}|{{ repeat 26 "-" }}|{{ repeat 10 "-" }}|{{ repeat 10 "-" }}|
         {{ range $file, $objects := .Changed.FileChanges -}}
-        {{- $app := $file | dir | base -}}
+        {{- $app := $file | dir | dir | base -}}
         {{- range $_, $changes := $objects -}}
         {{- range $change := $changes -}}
         {{- $image := index (splitList ":" $change.Setter) 1 | trimPrefix (printf "%s-" $app) -}}
@@ -38,7 +38,8 @@ spec:
         {{- end -}}
     push:
       branch: main
-  # setters live in each app's image.values.yaml; deploy-cluster renders and publishes the commit
+  # setters live in kubernetes/<app>/app/image.values.yaml, which HelmReleases read through a ConfigMap,
+  # so this commit is the whole deploy; deploy-cluster only publishes it
   update:
     path: ./
     strategy: Setters

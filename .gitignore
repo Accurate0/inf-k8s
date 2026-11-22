@@ -7,3 +7,4 @@ cluster/inventory.yaml
 .mcp.json
 .cache
 .DS_Store
+.claude/

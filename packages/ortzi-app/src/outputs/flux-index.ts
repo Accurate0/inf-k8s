@@ -1,5 +1,6 @@
 import type { Plan } from '../plan.ts';
-import { CLUSTER_ROOT, kustomizationDocument, namespaceDocument } from './flux.ts';
+import { CLUSTER_ROOT } from '../flux-objects.ts';
+import { kustomizationDocument, namespaceDocument } from './flux.ts';
 
 export interface ClusterTree {
   namespaces: string[];

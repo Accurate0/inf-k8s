@@ -591,10 +591,15 @@ test('released images follow their newest main build through a flux image policy
   assert.deepEqual(plan.releases, [image, sidecar]);
   const workload = plan.sources.find((s) => s.type === 'chart' && s.chart === 'k8s-workload');
   const values = workload?.type === 'chart' ? workload.values : {};
-  assert.deepEqual(values.images, { 'curlimages/curl': '8.10.1', [image]: 'main-1-abc' });
+  const images = { 'curlimages/curl': '8.10.1', [image]: 'main-1-abc' };
+  assert.equal('images' in values, false);
+  assert.deepEqual(workload?.type === 'chart' && workload.valuesFrom, {
+    configMap: 'foo-image-values',
+    values: { images },
+  });
   assert.equal('release' in values.workloads[0], false);
   assert.equal('release' in values.workloads[0].sidecars[0], false);
-  assert.deepEqual(JSON.parse(helmTemplates(plan)[0].values).images, values.images);
+  assert.deepEqual(JSON.parse(helmTemplates(plan)[0].values).images, images);
 
   const flux = renderFlux(plan);
   const [repository] = parseAllDocuments(flux.get('kubernetes/foo/app/imagerepository.yaml')!).map(
@@ -609,7 +614,28 @@ test('released images follow their newest main build through a flux image policy
   assert.equal(policy.spec.filterTags.extract, '$ts');
   assert.deepEqual(policy.spec.policy, { numerical: { order: 'asc' } });
   assert.equal(sidecarPolicy.metadata.name, 'foo-foo-sidecar');
-  assert.match(flux.get('kubernetes/foo/app/kustomization.yaml')!, /- imagepolicy.yaml/);
+  const [kustomization] = parseAllDocuments(flux.get('kubernetes/foo/app/kustomization.yaml')!).map(
+    (d) => d.toJS(),
+  );
+  assert.ok(kustomization.resources.includes('imagepolicy.yaml'));
+  assert.deepEqual(kustomization.configMapGenerator, [
+    {
+      name: 'foo-image-values',
+      namespace: 'flux-system',
+      files: ['values.yaml=image.values.yaml'],
+      options: {
+        disableNameSuffixHash: true,
+        labels: { 'reconcile.fluxcd.io/watch': 'Enabled' },
+      },
+    },
+  ]);
+  const [release] = parseAllDocuments(flux.get('kubernetes/foo/app/helmrelease.yaml')!).map((d) =>
+    d.toJS(),
+  );
+  assert.deepEqual(release.spec.valuesFrom, [
+    { kind: 'ConfigMap', name: 'foo-image-values', valuesKey: 'values.yaml' },
+  ]);
+  assert.equal('images' in release.spec.values, false);
 
   const values_ = renderImageValues(
     released,

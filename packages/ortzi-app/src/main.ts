@@ -23,6 +23,7 @@ import {
   appRoutes,
   appSecrets,
   imageValuesPath,
+  legacyImageValuesPath,
   renderImageValues,
   isCurrent,
   appWorkloads,
@@ -46,7 +47,7 @@ import {
 import { publishArtifact, publishCluster } from './hydrate';
 import { renderOutputs } from './outputs';
 import { type ClusterTree, renderFluxIndex } from './outputs/flux-index';
-import { appPath, CLUSTER_ROOT } from './outputs/flux';
+import { appPath, CLUSTER_ROOT } from './flux-objects';
 import { planApp } from './plan';
 import { generatedFiles } from './files';
 import { appTerraformPath, renderAppTerraform, TERRAFORM_APPS } from './terraform';
@@ -260,7 +261,7 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
     }
 
     if (app.workloads) {
-      const values = imageValuesPath(app, target);
+      const values = imageValuesPath(app);
       const current = fs.exists(values) ? fs.readText(values) : undefined;
       const output = renderImageValues(app, current);
       if (force || current !== output) {
@@ -363,6 +364,27 @@ function changedPaths(generated: Map<string, RenderedOutput>): string[] {
   return [...parseStatus(status.stdout), ...rerendered];
 }
 
+// image.values.yaml moved from the app dir to kubernetes/; carry the live tags across once
+function migrateImageValues(check: boolean): string[] {
+  return discover().flatMap(({ app, target }) => {
+    const legacy = legacyImageValuesPath(app, target);
+    if (!fs.exists(legacy)) {
+      return [];
+    }
+
+    const moved = imageValuesPath(app);
+    console.log(`${check ? 'stale' : 'moved'} ${legacy} -> ${moved}`);
+    if (!check) {
+      if (!fs.exists(moved)) {
+        fs.mkdir(moved.slice(0, moved.lastIndexOf('/')));
+        fs.write(moved, fs.readText(legacy));
+      }
+      fs.remove(legacy);
+    }
+    return [legacy, moved];
+  });
+}
+
 function render(check: boolean, commit: boolean, changed: boolean, force: boolean): number {
   if (check && commit) {
     throw new UsageError('--check and --commit cannot be used together');
@@ -373,6 +395,8 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
   if (force && changed) {
     throw new UsageError('--force and --changed cannot be used together');
   }
+
+  const migrated = migrateImageValues(check);
 
   const versions = parse(fs.readText(VERSIONS)).charts;
   const apps = discover();
@@ -422,14 +446,14 @@ function render(check: boolean, commit: boolean, changed: boolean, force: boolea
     }
   }
 
-  if (!stale.length && !removed.length) {
+  if (!stale.length && !removed.length && !migrated.length) {
     console.log('everything is up to date');
   }
   if (commit) {
-    commitAll([...stale.map(({ path }) => path), ...removed], world.apps);
+    commitAll([...migrated, ...stale.map(({ path }) => path), ...removed], world.apps);
   }
 
-  return check && stale.length + removed.length > 0 ? 1 : 0;
+  return check && stale.length + removed.length + migrated.length > 0 ? 1 : 0;
 }
 
 function publish(names: string[]): number {

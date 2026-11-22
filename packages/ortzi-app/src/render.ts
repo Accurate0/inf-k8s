@@ -70,6 +70,7 @@ export {
   appFiles,
   imageValuesPath,
   kustomizationPath,
+  legacyImageValuesPath,
   renderImageValues,
   needsKustomization,
   renderKustomization,
