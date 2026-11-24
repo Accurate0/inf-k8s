@@ -36,27 +36,55 @@ use hive_router::{
 };
 use moka::future::Cache;
 use serde::Deserialize;
+use subgraph::ClaimPattern;
 
 #[derive(Deserialize)]
 pub struct AccessConfig {
     subgraphs: HashMap<String, Gate>,
+    /// External issuer names to their `iss`, e.g. `forgejo` to the forgejo actions issuer.
+    #[serde(default)]
+    external_issuers: HashMap<String, String>,
 }
 
 #[derive(Deserialize)]
 struct Gate {
     issuers: Vec<String>,
     groups: Vec<String>,
+    /// External identities admitted by claims instead of groups; the subgraph checks them again.
+    #[serde(default)]
+    external: Vec<ClaimPattern>,
+}
+
+enum Caller<'a> {
+    Anonymous,
+    User {
+        issuer: &'a str,
+        groups: Arc<Vec<String>>,
+    },
+    External {
+        name: &'a str,
+        claims: serde_json::Value,
+    },
 }
 
 impl Gate {
-    fn admits(&self, issuer: Option<&str>, held: &[String]) -> bool {
-        issuer.is_some_and(|iss| self.issuers.iter().any(|i| i == iss))
-            && groups_match(held, &self.groups)
+    fn admits(&self, caller: &Caller<'_>) -> bool {
+        match caller {
+            Caller::Anonymous => false,
+            Caller::User { issuer, groups } => {
+                self.issuers.iter().any(|i| i == issuer) && groups_match(groups, &self.groups)
+            }
+            Caller::External { name, claims } => {
+                subgraph::external::any_matches(&self.external, name, claims)
+            }
+        }
     }
 }
 
 pub struct AccessPlugin {
     subgraphs: HashMap<String, Gate>,
+    /// `iss` to external issuer name.
+    external_issuers: HashMap<String, String>,
     ownership: ArcSwap<Ownership>,
     groups: Cache<String, Arc<Vec<String>>>,
     client: reqwest::Client,
@@ -84,6 +112,11 @@ impl RouterPlugin for AccessPlugin {
         let config = payload.config()?;
         payload.initialize_plugin(Self {
             subgraphs: config.subgraphs,
+            external_issuers: config
+                .external_issuers
+                .into_iter()
+                .map(|(name, issuer)| (issuer, name))
+                .collect(),
             ownership: ArcSwap::default(),
             groups: Cache::builder()
                 .max_capacity(10_000)
@@ -115,18 +148,32 @@ impl RouterPlugin for AccessPlugin {
             return OnGraphqlAnalysisHookResult::Proceed;
         }
 
-        let (issuer, held) = match payload.client_request_details.jwt.as_ref() {
-            JwtRequestDetails::Authenticated { token, claims, .. } => (
-                claims.get("iss").and_then(|iss| iss.as_str()),
-                self.held_groups(token, claims).await,
-            ),
-            JwtRequestDetails::Unauthenticated => (None, Arc::default()),
+        let caller = match payload.client_request_details.jwt.as_ref() {
+            JwtRequestDetails::Authenticated { token, claims, .. } => {
+                match claims.get("iss").and_then(|iss| iss.as_str()) {
+                    None => Caller::Anonymous,
+                    Some(issuer) => match self.external_issuers.get(issuer) {
+                        Some(name) => Caller::External {
+                            name,
+                            claims: hive_router::sonic_rs::to_string(claims)
+                                .ok()
+                                .and_then(|json| serde_json::from_str(&json).ok())
+                                .unwrap_or_default(),
+                        },
+                        None => Caller::User {
+                            issuer,
+                            groups: self.held_groups(token, claims).await,
+                        },
+                    },
+                }
+            }
+            JwtRequestDetails::Unauthenticated => Caller::Anonymous,
         };
 
         let denied = self
             .subgraphs
             .iter()
-            .filter(|(_, gate)| !gate.admits(issuer, &held))
+            .filter(|(_, gate)| !gate.admits(&caller))
             .map(|(name, _)| name.clone())
             .collect();
         payload.context.insert(Denied(Arc::new(denied)));
@@ -678,21 +725,71 @@ mod tests {
         assert!(!groups_match(&[], &["spotify_users".to_owned()]));
     }
 
+    fn user<'a>(issuer: &'a str, groups: &[&str]) -> Caller<'a> {
+        Caller::User {
+            issuer,
+            groups: Arc::new(groups.iter().map(|g| (*g).to_owned()).collect()),
+        }
+    }
+
     #[test]
     fn gates_need_one_of_their_issuers() {
         let gate = Gate {
             issuers: vec!["https://idm.example.test/oauth2/openid/spotify".to_owned()],
             groups: vec!["spotify_users".to_owned()],
+            external: Vec::new(),
         };
-        let held = vec!["spotify_users@idm.example.test".to_owned()];
-        assert!(gate.admits(
-            Some("https://idm.example.test/oauth2/openid/spotify"),
+        let held = ["spotify_users@idm.example.test"];
+        assert!(gate.admits(&user(
+            "https://idm.example.test/oauth2/openid/spotify",
             &held
-        ));
-        assert!(!gate.admits(
-            Some("https://idm.example.test/oauth2/openid/home-gateway"),
+        )));
+        assert!(!gate.admits(&user(
+            "https://idm.example.test/oauth2/openid/home-gateway",
             &held
-        ));
-        assert!(!gate.admits(None, &held));
+        )));
+        assert!(!gate.admits(&Caller::Anonymous));
+    }
+
+    #[test]
+    fn external_callers_need_a_matching_claim_pattern() {
+        let gate = Gate {
+            issuers: vec!["https://idm.example.test/oauth2/openid/graph".to_owned()],
+            groups: vec!["registry_users".to_owned()],
+            external: vec![
+                serde_json::from_value(serde_json::json!({
+                    "issuer": "forgejo",
+                    "claims": { "repository": "anurag/*", "ref": "refs/heads/main" },
+                }))
+                .unwrap(),
+            ],
+        };
+        let forgejo = |claims| Caller::External {
+            name: "forgejo",
+            claims,
+        };
+
+        assert!(gate.admits(&forgejo(serde_json::json!({
+            "repository": "anurag/k8s",
+            "ref": "refs/heads/main",
+        }))));
+        assert!(!gate.admits(&forgejo(serde_json::json!({
+            "repository": "anurag/k8s",
+            "ref": "refs/heads/feature",
+        }))));
+        assert!(!gate.admits(&Caller::External {
+            name: "github",
+            claims: serde_json::json!({ "repository": "anurag/k8s", "ref": "refs/heads/main" }),
+        }));
+
+        let ungated = Gate {
+            issuers: gate.issuers.clone(),
+            groups: gate.groups.clone(),
+            external: Vec::new(),
+        };
+        assert!(!ungated.admits(&forgejo(serde_json::json!({
+            "repository": "anurag/k8s",
+            "ref": "refs/heads/main",
+        }))));
     }
 }

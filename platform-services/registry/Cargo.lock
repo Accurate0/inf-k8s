@@ -3707,6 +3707,7 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+ "wildmatch",
 ]
 
 [[package]]

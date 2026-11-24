@@ -4,9 +4,15 @@ import { appNamespace } from '../app.ts';
 import { supergraphApp, validateSubgraphs } from '../subgraphs.ts';
 import type { ResourceProvider } from './provider.ts';
 
+export interface ClaimPattern {
+  issuer: string;
+  claims: Record<string, string | string[]>;
+}
+
 export interface SubgraphAuth {
   clients: string[];
   groups: string[];
+  external?: ClaimPattern[];
 }
 
 export interface Subgraph {
@@ -98,6 +104,34 @@ const schema: Schema = {
             minLength: 1,
           },
           description: 'Kanidm groups, short name or SPN; holding any one of them is enough.',
+        },
+        external: {
+          type: 'array',
+          description:
+            "Identities from the supergraph's externalIssuers admitted without groups. A token passes when every listed claim matches one of its globs; the subgraph checks them again and authorizes the operation itself.",
+          items: {
+            type: 'object',
+            additionalProperties: false,
+            required: ['issuer', 'claims'],
+            properties: {
+              issuer: {
+                type: 'string',
+                description: 'Name of one of the externalIssuers, e.g. forgejo.',
+              },
+              claims: {
+                type: 'object',
+                minProperties: 1,
+                description:
+                  'Claim name to a glob or list of globs, matched case-insensitively, e.g. {repository: "anurag/*", ref: refs/heads/main}.',
+                additionalProperties: {
+                  oneOf: [
+                    { type: 'string', minLength: 1 },
+                    { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+                  ],
+                },
+              },
+            },
+          },
         },
       },
     },

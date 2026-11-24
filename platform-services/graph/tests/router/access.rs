@@ -31,6 +31,30 @@ async fn http_queries_to_a_gated_subgraph_need_its_group() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn external_tokens_reach_a_gated_subgraph_by_its_claim_patterns() {
+    let stack = Stack::spawn().await;
+
+    let main = stack.forgejo("anurag/k8s", "refs/heads/main");
+    let allowed = stack.post(Some(&main), "{ secret }").await;
+    assert_eq!(allowed.status, 200, "{}", allowed.body);
+    assert_eq!(allowed.body["data"]["secret"], "hunter2");
+
+    for token in [
+        stack.forgejo("anurag/k8s", "refs/heads/feature"),
+        stack.forgejo("someone/else", "refs/heads/main"),
+    ] {
+        let denied = stack.post(Some(&token), "{ secret }").await;
+        assert_eq!(
+            denied.body["data"]["secret"],
+            Value::Null,
+            "{}",
+            denied.body
+        );
+        assert_eq!(denied.body["errors"][0]["extensions"]["code"], "FORBIDDEN");
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn ungated_fields_survive_a_denied_sibling() {
     let stack = Stack::spawn().await;
 

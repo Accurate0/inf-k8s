@@ -1,6 +1,5 @@
 pub mod audit;
 pub mod exchange;
-pub mod graph_exchange;
 pub mod images;
 pub mod publishers;
 pub mod signing;
@@ -35,8 +34,6 @@ pub fn router() -> Router<AppState> {
         .route("/harbor/token", post(exchange::create))
         .route("/harbor/token/{username}", delete(exchange::revoke))
         .route("/harbor/sign", post(exchange::sign))
-        .route("/graph/token", post(graph_exchange::create))
-        .route("/graph/token/revoke", post(graph_exchange::revoke))
         .route("/images", get(images::list))
         .route("/images/repository", get(images::repository))
         .route("/images/digest", get(images::digest))
@@ -44,9 +41,7 @@ pub fn router() -> Router<AppState> {
 
 async fn whoami(principal: Principal) -> Json<WhoAmI> {
     let (groups, scopes) = match &principal {
-        Principal::User { groups, .. } | Principal::Exchanged { groups, .. } => {
-            (groups.clone(), Vec::new())
-        }
+        Principal::User { groups, .. } => (groups.clone(), Vec::new()),
         Principal::Token(token) => (Vec::new(), token.scopes.clone()),
         Principal::Forgejo(_) => (Vec::new(), Vec::new()),
     };

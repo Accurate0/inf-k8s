@@ -72,10 +72,7 @@ impl Grant {
                 .kanidm
                 .as_ref()
                 .is_some_and(|k| groups_match(groups, &k.groups)),
-            Principal::Forgejo(claims)
-            | Principal::Exchanged {
-                forgejo: claims, ..
-            } => self.forgejo.as_ref().is_some_and(|f| f.matches(claims)),
+            Principal::Forgejo(claims) => self.forgejo.as_ref().is_some_and(|f| f.matches(claims)),
             Principal::Token(_) => self.token.is_some(),
         }
     }

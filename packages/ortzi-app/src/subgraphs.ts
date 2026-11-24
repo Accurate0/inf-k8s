@@ -139,6 +139,28 @@ export function validateSubgraphs(apps: App[]) {
     throw new Error(`${reserved.app}: subgraph name node is reserved for the router's node plugin`);
   }
 
+  const issuers = supergraph
+    ? declared(supergraph, 'supergraph').flatMap((resource) => resource.externalIssuers ?? [])
+    : [];
+  const issuerNames = new Set<string>();
+  for (const issuer of issuers) {
+    if (issuerNames.has(issuer.name)) {
+      throw new Error(`${supergraph?.name}: external issuer ${issuer.name} is declared twice`);
+    }
+    issuerNames.add(issuer.name);
+  }
+
+  for (const subgraph of subgraphs) {
+    const unknown = (subgraph.auth?.external ?? [])
+      .map((pattern) => pattern.issuer)
+      .filter((issuer) => !issuerNames.has(issuer));
+    if (unknown.length) {
+      throw new Error(
+        `${subgraph.app}: resources.${subgraph.name}: auth.external names no external issuer ${unknown.join(', ')}; declare it in the supergraph's externalIssuers`,
+      );
+    }
+  }
+
   const clients = new Set(
     apps.flatMap((app) => declared(app, 'oidc').map((client) => client.name)),
   );

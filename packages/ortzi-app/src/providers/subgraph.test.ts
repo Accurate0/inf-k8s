@@ -74,6 +74,47 @@ test('raw file urls need an https owner/repo url', () => {
 test('subgraph validation', () => {
   const world = (apps: App[]) => ({ platform, apps, readValues });
 
+  const forgejo = {
+    name: 'forgejo',
+    issuer: 'https://git.anurag.sh/api/actions',
+    jwks: 'https://git.anurag.sh/api/actions/.well-known/keys',
+    audience: 'graph.ortzi.cloud',
+  };
+  const trusting: App = {
+    ...routerApp,
+    resources: [{ ...routerApp.resources![0], externalIssuers: [forgejo] } as never],
+  };
+  const external = (issuer: string) =>
+    subgraphApp('spotify', {
+      auth: {
+        clients: ['spotify'],
+        groups: ['spotify_users'],
+        external: [{ issuer, claims: { repository: 'anurag/*' } }],
+      },
+    });
+  assert.throws(
+    () => validateResources(world([routerApp, external('forgejo')])),
+    /auth.external names no external issuer forgejo; declare it in the supergraph's externalIssuers/,
+  );
+  assert.throws(
+    () => validateResources(world([trusting, external('github')])),
+    /auth.external names no external issuer github/,
+  );
+  assert.throws(
+    () =>
+      validateResources(
+        world([
+          {
+            ...routerApp,
+            resources: [
+              { ...routerApp.resources![0], externalIssuers: [forgejo, forgejo] } as never,
+            ],
+          },
+        ]),
+      ),
+    /external issuer forgejo is declared twice/,
+  );
+
   assert.throws(
     () => validateResources(world([subgraphApp('spotify')])),
     /spotify: subgraphs need an app declaring a supergraph/,

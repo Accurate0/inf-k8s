@@ -22,6 +22,7 @@ use tokio::task::JoinHandle;
 
 const KANIDM_AUDIENCE: &str = "registry";
 const FORGEJO_AUDIENCE: &str = "registry.anurag.sh";
+const GRAPH_FORGEJO_AUDIENCE: &str = "graph.ortzi.cloud";
 
 struct Idp {
     issuer: String,
@@ -45,7 +46,6 @@ impl Idp {
 
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let issuer = format!("http://{}", listener.local_addr().unwrap());
-        let minted = (key.clone(), kid.clone(), issuer.clone());
 
         let handle = tokio::spawn(async move {
             loop {
@@ -53,14 +53,8 @@ impl Idp {
                     return;
                 };
                 let request = read_request(&mut socket).await;
-                let exchanged;
                 let body = if request.starts_with("GET /userinfo") {
                     &userinfo
-                } else if request.starts_with("POST /oauth2/token/revoke") {
-                    "{}"
-                } else if request.starts_with("POST /oauth2/token") {
-                    exchanged = exchange_response(&minted, &request);
-                    &exchanged
                 } else {
                     &jwks
                 };
@@ -143,37 +137,6 @@ async fn read_request(socket: &mut tokio::net::TcpStream) -> String {
         }
     }
     String::from_utf8_lossy(&buffer).into_owned()
-}
-
-// The test kanidm maps each service account's api token to its groups.
-fn exchange_response((key, kid, issuer): &(EncodingKey, String, String), request: &str) -> String {
-    let groups = if request.contains("subject_token=deployer-sa") {
-        vec![
-            "registry_deployers@idm.example.test",
-            "registry_users@idm.example.test",
-        ]
-    } else if request.contains("subject_token=reader-sa") {
-        vec!["registry_users@idm.example.test"]
-    } else {
-        return json!({ "error": "invalid_grant" }).to_string();
-    };
-    let mut header = Header::new(Algorithm::ES256);
-    header.kid = Some(kid.clone());
-    let claims = json!({
-        "iss": issuer,
-        "aud": "graph",
-        // kanidm only sends preferred_username with the profile scope; service accounts get a uuid sub.
-        "sub": uuid::Uuid::new_v4().to_string(),
-        "groups": groups,
-        "jti": uuid::Uuid::new_v4().to_string(),
-        "exp": chrono::Utc::now().timestamp() + 300,
-    });
-    json!({
-        "access_token": encode(&header, &claims, key).unwrap(),
-        "token_type": "Bearer",
-        "expires_in": 300,
-    })
-    .to_string()
 }
 
 impl Drop for Idp {
@@ -416,17 +379,7 @@ impl Registry {
 
         let graph = config.graph.as_mut().unwrap();
         graph.issuer = kanidm.issuer.clone();
-        let exchange = graph.exchange.as_mut().unwrap();
-        exchange.token_url = format!("{}/oauth2/token", kanidm.issuer);
-        exchange.revoke_url = format!("{}/oauth2/token/revoke", kanidm.issuer);
-        for account in &mut exchange.accounts {
-            account.token_env = format!("REGISTRY_TEST_{}", account.name.to_uppercase());
-        }
-        // SAFETY: every test sets the same values, and nothing else reads them.
-        unsafe {
-            std::env::set_var("REGISTRY_TEST_CI_DEPLOYER", "deployer-sa");
-            std::env::set_var("REGISTRY_TEST_CI_READER", "reader-sa");
-        }
+        graph.forgejo_audience = Some(GRAPH_FORGEJO_AUDIENCE.to_owned());
 
         let harbor = MockHarbor::spawn().await;
         let signer = Signer::new(signing::generate());
@@ -2142,70 +2095,26 @@ fn assert_attested(registry: &Registry, repository: &str, digest: &str) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
-async fn ci_exchanges_its_forgejo_token_for_a_service_account(pool: PgPool) {
+async fn forgejo_tokens_reach_the_graph_with_the_graph_audience(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
-    let k8s_main = registry.forgejo.forgejo(json!({
-        "repository": "anurag/k8s",
-        "workflow_ref": "anurag/k8s/.forgejo/workflows/app-x.yaml@refs/heads/main",
-    }));
-    let exchange = |token: &str, account: &str| {
-        let token = token.to_owned();
-        let body = json!({ "account": account });
-        let registry = &registry;
-        async move {
-            registry
-                .call("POST", "/api/v1/graph/token", Some(&token), Some(body))
-                .await
-        }
-    };
+    let whoami = json!({ "query": "{ registryWhoami { subject admin } }" });
 
-    let (status, deployer) = exchange(&k8s_main, "ci_deployer").await;
-    assert_eq!(status, 200, "{deployer}");
-    assert_eq!(deployer["account"], "ci_deployer");
-    let deployer = deployer["access_token"].as_str().unwrap().to_owned();
-
-    let branch = registry.forgejo.forgejo(json!({
-        "repository": "anurag/k8s",
-        "ref": "refs/heads/feature",
-        "workflow_ref": "anurag/k8s/.forgejo/workflows/app-x.yaml@refs/heads/feature",
-    }));
-    let (status, _) = exchange(&branch, "ci_deployer").await;
-    assert_eq!(status, 403, "branches never get the deployer");
-    let (status, reader) = exchange(&branch, "ci_reader").await;
-    assert_eq!(status, 200, "{reader}");
-
-    let (status, _) = exchange(&k8s_main, "ci_admin").await;
-    assert_eq!(status, 404);
-    let (status, _) = exchange(&registry.admin, "ci_deployer").await;
-    assert_eq!(status, 403, "only forgejo tokens are exchanged");
-
-    let tools = registry.forgejo.forgejo(json!({}));
-    let revoke = json!({ "token": deployer });
-    let (status, _) = registry
-        .call(
-            "POST",
-            "/api/v1/graph/token/revoke",
-            Some(&tools),
-            Some(revoke.clone()),
-        )
+    let token = registry
+        .forgejo
+        .forgejo(json!({ "aud": GRAPH_FORGEJO_AUDIENCE }));
+    let (status, body) = registry
+        .call("POST", "/v1/graphql", Some(&token), Some(whoami.clone()))
         .await;
-    assert_eq!(status, 403);
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        body["data"]["registryWhoami"]["subject"],
+        "forgejo:anurag/tools"
+    );
+    assert_eq!(body["data"]["registryWhoami"]["admin"], false);
+
+    let rest_audience = registry.forgejo.forgejo(json!({}));
     let (status, _) = registry
-        .call(
-            "POST",
-            "/api/v1/graph/token/revoke",
-            Some(&k8s_main),
-            Some(revoke.clone()),
-        )
+        .call("POST", "/v1/graphql", Some(&rest_audience), Some(whoami))
         .await;
-    assert_eq!(status, 204);
-    let (status, _) = registry
-        .call(
-            "POST",
-            "/api/v1/graph/token/revoke",
-            Some(&k8s_main),
-            Some(revoke),
-        )
-        .await;
-    assert_eq!(status, 404);
+    assert_eq!(status, 401, "registry REST tokens don't work on the graph");
 }

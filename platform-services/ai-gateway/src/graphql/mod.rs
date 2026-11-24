@@ -40,6 +40,7 @@ pub fn router(state: AppState) -> Option<axum::Router> {
             audience: graph.audience.clone(),
         }],
         groups,
+        external: Vec::new(),
     });
     tokio::spawn(auth.clone().run());
 

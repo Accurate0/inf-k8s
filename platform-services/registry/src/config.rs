@@ -1,6 +1,6 @@
 use serde::Deserialize;
 
-use crate::auth::grants::{ForgejoSubject, Grant};
+use crate::auth::grants::Grant;
 
 const CONFIG_YAML: &str = include_str!("../config.yaml");
 
@@ -39,34 +39,9 @@ pub struct HarborConfig {
 pub struct GraphConfig {
     pub issuer: String,
     pub audience: String,
+    /// Audience of forgejo actions tokens sent through the graph; unset keeps CI out of it.
     #[serde(default)]
-    pub exchange: Option<GraphExchangeConfig>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GraphExchangeConfig {
-    pub token_url: String,
-    pub revoke_url: String,
-    pub accounts: Vec<GraphAccount>,
-    #[serde(default)]
-    pub grants: Vec<AccountGrant>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct GraphAccount {
-    pub name: String,
-    pub token_env: String,
-    #[serde(default)]
-    pub scopes: Vec<String>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-#[serde(deny_unknown_fields)]
-pub struct AccountGrant {
-    pub forgejo: ForgejoSubject,
-    pub accounts: Vec<String>,
+    pub forgejo_audience: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -170,18 +145,6 @@ impl Config {
     }
 
     fn validate(&self) -> anyhow::Result<()> {
-        if let Some(exchange) = self.graph.as_ref().and_then(|g| g.exchange.as_ref()) {
-            for (i, grant) in exchange.grants.iter().enumerate() {
-                if let Some(unknown) = grant
-                    .accounts
-                    .iter()
-                    .find(|a| !exchange.accounts.iter().any(|known| &known.name == *a))
-                {
-                    anyhow::bail!("graph.exchange.grants[{i}]: unknown account {unknown}");
-                }
-            }
-        }
-
         let Some(harbor) = &self.harbor else {
             return Ok(());
         };
@@ -208,7 +171,7 @@ mod tests {
         assert_eq!(config.version, CONFIG_SCHEMA_VERSION);
         assert_eq!(config.storage.bucket, "registry");
         assert!(config.forgejo.is_some());
-        assert!(config.graph.unwrap().exchange.is_some());
+        assert!(config.graph.unwrap().forgejo_audience.is_some());
         assert!(!config.harbor.unwrap().grants.is_empty());
     }
 }

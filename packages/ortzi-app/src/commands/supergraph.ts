@@ -33,7 +33,7 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
 
   const target = found.find(({ app }) => app === router)?.target as Target;
   const appDir = `${target.location}/${router.name}`;
-  const [{ base }] = declared(router, 'supergraph');
+  const [{ base, externalIssuers }] = declared(router, 'supergraph');
   const dir = `${appDir}/${base}`.replace(/\/[^/]*$/, '');
   const subgraphs = resolveSubgraphs(apps);
 
@@ -62,7 +62,13 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
     }),
   );
 
-  const composed = compose(subgraphs, sdls, fs.readText(`${appDir}/${base}`), manifests);
+  const composed = compose(
+    subgraphs,
+    sdls,
+    fs.readText(`${appDir}/${base}`),
+    manifests,
+    externalIssuers,
+  );
   const wanted = [
     ...subgraphs.map((subgraph) => [
       `${dir}/subgraphs/${subgraph.name}.graphql`,

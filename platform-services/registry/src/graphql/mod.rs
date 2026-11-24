@@ -4,11 +4,15 @@ mod query;
 mod subscription;
 
 use async_graphql::{Context, Error, ErrorExtensions, Schema, SchemaBuilder};
+use subgraph::external::OneOrMany;
 use subgraph::node::Ids;
-use subgraph::{AuthConfig, Authenticator, Claims, Provider};
+use subgraph::{
+    AuthConfig, Authenticator, ClaimPattern, Claims, External, ExternalAuth, ExternalIssuer,
+    Provider,
+};
 
-use crate::auth::Principal;
 use crate::auth::oidc::groups_match;
+use crate::auth::{ForgejoClaims, Principal};
 use crate::error::ApiError;
 use crate::state::AppState;
 
@@ -19,6 +23,8 @@ pub use subscription::SubscriptionRoot;
 pub type RegistrySchema = Schema<QueryRoot, MutationRoot, SubscriptionRoot>;
 
 pub const IDS: Ids = Ids::new("registry");
+
+const FORGEJO: &str = "forgejo";
 
 pub fn builder() -> SchemaBuilder<QueryRoot, MutationRoot, SubscriptionRoot> {
     Schema::build(QueryRoot, MutationRoot, SubscriptionRoot)
@@ -42,6 +48,7 @@ pub fn router(state: AppState) -> Option<axum::Router> {
             .chain(&oauth.admin_groups)
             .cloned()
             .collect(),
+        external: forgejo(&state, graph).into_iter().collect(),
     });
     tokio::spawn(auth.clone().run());
 
@@ -49,11 +56,45 @@ pub fn router(state: AppState) -> Option<axum::Router> {
     Some(subgraph::router(schema, auth))
 }
 
+/// CI reaches the registry through the graph with its forgejo actions token; trusted
+/// publishers and grants decide what each repository may do.
+fn forgejo(state: &AppState, graph: &crate::config::GraphConfig) -> Option<ExternalAuth> {
+    let forgejo = state.config.forgejo.as_ref()?;
+    let audience = graph.forgejo_audience.clone()?;
+    let base = forgejo.issuer.trim_end_matches('/');
+
+    Some(ExternalAuth {
+        issuer: ExternalIssuer {
+            name: FORGEJO.to_owned(),
+            issuer: forgejo.issuer.clone(),
+            jwks: forgejo
+                .jwks_uri
+                .clone()
+                .unwrap_or_else(|| format!("{base}/.well-known/keys")),
+            audience,
+        },
+        patterns: vec![ClaimPattern {
+            issuer: FORGEJO.to_owned(),
+            claims: [("repository".to_owned(), OneOrMany::One("*".to_owned()))].into(),
+        }],
+    })
+}
+
 fn state<'a>(ctx: &Context<'a>) -> &'a AppState {
     ctx.data_unchecked::<AppState>()
 }
 
 fn principal(ctx: &Context<'_>) -> async_graphql::Result<Principal> {
+    if let Some(external) = ctx.data_opt::<External>() {
+        if external.issuer != FORGEJO {
+            return Err(Error::new(format!(
+                "{} tokens are not accepted",
+                external.issuer
+            )));
+        }
+        return Ok(Principal::Forgejo(external.claims_as::<ForgejoClaims>()?));
+    }
+
     let claims = ctx.data::<Claims>()?;
     let groups = claims.groups.clone().unwrap_or_default();
     let oauth = &state(ctx).config.oauth;

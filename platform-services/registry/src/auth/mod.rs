@@ -71,11 +71,6 @@ pub enum Principal {
     },
     Token(TokenPrincipal),
     Forgejo(ForgejoClaims),
-    Exchanged {
-        account: String,
-        groups: Vec<String>,
-        forgejo: ForgejoClaims,
-    },
 }
 
 impl Principal {
@@ -83,12 +78,7 @@ impl Principal {
         match self {
             Principal::User { name, .. } => name.clone(),
             Principal::Token(token) => format!("token:{}", token.name),
-            Principal::Forgejo(claims)
-            | Principal::Exchanged {
-                forgejo: claims, ..
-            } => {
-                format!("forgejo:{}", claims.repository)
-            }
+            Principal::Forgejo(claims) => format!("forgejo:{}", claims.repository),
         }
     }
 
@@ -97,13 +87,12 @@ impl Principal {
             Principal::User { .. } => "user",
             Principal::Token(_) => "token",
             Principal::Forgejo(_) => "forgejo",
-            Principal::Exchanged { .. } => "exchanged",
         }
     }
 
     pub fn groups(&self) -> &[String] {
         match self {
-            Principal::User { groups, .. } | Principal::Exchanged { groups, .. } => groups,
+            Principal::User { groups, .. } => groups,
             _ => &[],
         }
     }

@@ -1,13 +1,16 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use axum::http::{HeaderMap, StatusCode, header};
 use axum::response::{IntoResponse, Response};
 use jsonwebtoken::jwk::{AlgorithmParameters, JwkSet};
 use jsonwebtoken::{Algorithm, DecodingKey, Validation, decode, decode_header};
 use serde::Deserialize;
-use tokio::sync::RwLock;
+use serde::de::DeserializeOwned;
+use tokio::sync::{Mutex, RwLock};
+
+use crate::external::{ClaimPattern, External, ExternalIssuer, any_matches};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AuthError {
@@ -62,7 +65,18 @@ impl AuthConfig {
         if providers.is_empty() || groups.is_empty() {
             return Err("OIDC_PROVIDERS and OIDC_GROUPS must not be empty".to_owned());
         }
-        Ok(Self { providers, groups })
+
+        let external = match std::env::var("EXTERNAL_ISSUERS") {
+            Ok(json) => serde_json::from_str(&json)
+                .map_err(|e| format!("EXTERNAL_ISSUERS is not a valid list: {e}"))?,
+            Err(_) => Vec::new(),
+        };
+
+        Ok(Self {
+            providers,
+            groups,
+            external,
+        })
     }
 }
 
@@ -87,6 +101,21 @@ pub struct AuthConfig {
     pub providers: Vec<Provider>,
     /// The caller must hold one of these groups (short name or SPN).
     pub groups: Vec<String>,
+    /// External issuers (e.g. forgejo actions) admitted by claim patterns instead of groups.
+    pub external: Vec<ExternalAuth>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct ExternalAuth {
+    #[serde(flatten)]
+    pub issuer: ExternalIssuer,
+    pub patterns: Vec<ClaimPattern>,
+}
+
+#[derive(Debug, Clone)]
+pub enum Principal {
+    User(Claims),
+    External(External),
 }
 
 #[derive(Deserialize)]
@@ -149,30 +178,56 @@ struct Inner {
     issuers: Vec<IssuerKeys>,
 }
 
+enum IssuerKind {
+    User,
+    External {
+        name: String,
+        patterns: Vec<ClaimPattern>,
+    },
+}
+
 struct IssuerKeys {
-    provider: Provider,
+    issuer: String,
+    audience: String,
+    kind: IssuerKind,
     jwks_uri: String,
     userinfo_endpoint: String,
     keys: RwLock<BTreeMap<String, VerifyingKey>>,
+    last_refresh: Mutex<Option<Instant>>,
 }
 
 impl Authenticator {
     const REFRESH_INTERVAL: Duration = Duration::from_secs(3600);
+    const UNKNOWN_KID_COOLDOWN: Duration = Duration::from_secs(30);
 
     pub fn new(config: AuthConfig) -> Self {
-        let issuers = config
-            .providers
-            .into_iter()
-            .map(|provider| {
-                let base = provider.issuer.trim_end_matches('/').to_owned();
-                IssuerKeys {
-                    jwks_uri: format!("{base}/public_key.jwk"),
-                    userinfo_endpoint: format!("{base}/userinfo"),
-                    provider,
-                    keys: RwLock::new(BTreeMap::new()),
-                }
-            })
-            .collect();
+        let users = config.providers.into_iter().map(|provider| {
+            let base = provider.issuer.trim_end_matches('/').to_owned();
+            IssuerKeys {
+                jwks_uri: format!("{base}/public_key.jwk"),
+                userinfo_endpoint: format!("{base}/userinfo"),
+                issuer: provider.issuer,
+                audience: provider.audience,
+                kind: IssuerKind::User,
+                keys: RwLock::new(BTreeMap::new()),
+                last_refresh: Mutex::new(None),
+            }
+        });
+
+        let external = config.external.into_iter().map(|external| IssuerKeys {
+            jwks_uri: external.issuer.jwks,
+            userinfo_endpoint: String::new(),
+            issuer: external.issuer.issuer,
+            audience: external.issuer.audience,
+            kind: IssuerKind::External {
+                name: external.issuer.name,
+                patterns: external.patterns,
+            },
+            keys: RwLock::new(BTreeMap::new()),
+            last_refresh: Mutex::new(None),
+        });
+
+        let issuers = users.chain(external).collect();
         Self {
             inner: Arc::new(Inner {
                 client: reqwest::Client::builder()
@@ -192,14 +247,47 @@ impl Authenticator {
         self.inner
             .issuers
             .iter()
-            .find(|i| i.provider.issuer == iss)
+            .find(|i| i.issuer == iss)
             .ok_or_else(|| AuthError::Unauthorized(format!("untrusted issuer {iss}")))
     }
 
-    /// Verifies the token and its groups; the returned claims always carry the groups.
+    /// Verifies a user token and its groups, or an external token against its claim patterns.
+    pub async fn authenticate(&self, token: &str) -> Result<Principal, AuthError> {
+        let issuer = self.issuer_for(token)?;
+        let IssuerKind::External { name, patterns } = &issuer.kind else {
+            return self
+                .authorize_user(issuer, token)
+                .await
+                .map(Principal::User);
+        };
+
+        let claims: serde_json::Value = self.verify(issuer, token).await?;
+        if !any_matches(patterns, name, &claims) {
+            return Err(AuthError::Forbidden(format!(
+                "this {name} identity is not allowed here"
+            )));
+        }
+
+        Ok(Principal::External(External {
+            issuer: name.clone(),
+            claims,
+        }))
+    }
+
+    /// Verifies a user token and its groups; the returned claims always carry the groups.
     pub async fn authorize(&self, token: &str) -> Result<Claims, AuthError> {
         let issuer = self.issuer_for(token)?;
-        let mut claims = self.verify(issuer, token).await?;
+        if let IssuerKind::External { name, .. } = &issuer.kind {
+            return Err(AuthError::Forbidden(format!(
+                "{name} tokens can't act as a user"
+            )));
+        }
+
+        self.authorize_user(issuer, token).await
+    }
+
+    async fn authorize_user(&self, issuer: &IssuerKeys, token: &str) -> Result<Claims, AuthError> {
+        let mut claims: Claims = self.verify(issuer, token).await?;
         if claims.groups.is_none() {
             claims.groups = Some(self.userinfo_groups(issuer, token).await?);
         }
@@ -214,13 +302,13 @@ impl Authenticator {
         Ok(claims)
     }
 
-    pub async fn authorize_headers(&self, headers: &HeaderMap) -> Result<Claims, AuthError> {
+    pub async fn authenticate_headers(&self, headers: &HeaderMap) -> Result<Principal, AuthError> {
         let token = headers
             .get(header::AUTHORIZATION)
             .and_then(|v| v.to_str().ok())
             .and_then(bearer)
             .ok_or_else(|| AuthError::Unauthorized("missing bearer token".to_owned()))?;
-        self.authorize(token).await
+        self.authenticate(token).await
     }
 
     async fn userinfo_groups(
@@ -250,7 +338,7 @@ impl Authenticator {
             match self.refresh_issuer(issuer).await {
                 Ok(count) => total += count,
                 Err(e) => {
-                    tracing::warn!(issuer = issuer.provider.issuer, "jwks refresh failed: {e}");
+                    tracing::warn!(issuer = issuer.issuer, "jwks refresh failed: {e}");
                     failure = Some(e);
                 }
             }
@@ -262,6 +350,8 @@ impl Authenticator {
     }
 
     async fn refresh_issuer(&self, issuer: &IssuerKeys) -> Result<usize, AuthError> {
+        *issuer.last_refresh.lock().await = Some(Instant::now());
+
         let set: JwkSet = self
             .inner
             .client
@@ -308,11 +398,7 @@ impl Authenticator {
 
         let count = keys.len();
         *issuer.keys.write().await = keys;
-        tracing::info!(
-            issuer = issuer.provider.issuer,
-            keys = count,
-            "refreshed jwks"
-        );
+        tracing::info!(issuer = issuer.issuer, keys = count, "refreshed jwks");
         Ok(count)
     }
 
@@ -328,7 +414,11 @@ impl Authenticator {
         }
     }
 
-    async fn verify(&self, issuer: &IssuerKeys, token: &str) -> Result<Claims, AuthError> {
+    async fn verify<T: DeserializeOwned>(
+        &self,
+        issuer: &IssuerKeys,
+        token: &str,
+    ) -> Result<T, AuthError> {
         let header = decode_header(token)
             .map_err(|e| AuthError::Unauthorized(format!("unreadable token header: {e}")))?;
         let kid = header
@@ -336,7 +426,7 @@ impl Authenticator {
             .ok_or_else(|| AuthError::Unauthorized("token has no kid".to_owned()))?;
 
         let mut key = issuer.keys.read().await.get(&kid).cloned();
-        if key.is_none() {
+        if key.is_none() && self.may_refresh(issuer).await {
             tracing::info!("unknown kid {kid}, refreshing jwks");
             self.refresh_issuer(issuer).await?;
             key = issuer.keys.read().await.get(&kid).cloned();
@@ -344,12 +434,22 @@ impl Authenticator {
         let key = key.ok_or_else(|| AuthError::Unauthorized(format!("no key for kid {kid}")))?;
 
         let mut validation = Validation::new(key.alg.unwrap_or(header.alg));
-        validation.set_issuer(&[&issuer.provider.issuer]);
-        validation.set_audience(&[&issuer.provider.audience]);
+        validation.set_issuer(&[&issuer.issuer]);
+        validation.set_audience(&[&issuer.audience]);
 
-        decode::<Claims>(token, &key.key, &validation)
+        decode::<T>(token, &key.key, &validation)
             .map(|data| data.claims)
             .map_err(|e| AuthError::Unauthorized(format!("token rejected: {e}")))
+    }
+}
+
+impl Authenticator {
+    async fn may_refresh(&self, issuer: &IssuerKeys) -> bool {
+        issuer
+            .last_refresh
+            .lock()
+            .await
+            .is_none_or(|at| at.elapsed() >= Self::UNKNOWN_KID_COOLDOWN)
     }
 }
 
@@ -388,6 +488,16 @@ mod tests {
                     .unwrap(),
             ],
             groups: vec!["spotify_users".to_owned()],
+            external: vec![
+                serde_json::from_value(serde_json::json!({
+                    "name": "forgejo",
+                    "issuer": "https://git.example.test/api/actions",
+                    "jwks": "https://git.example.test/api/actions/.well-known/keys",
+                    "audience": "graph.example.test",
+                    "patterns": [{ "issuer": "forgejo", "claims": { "repository": "*" } }],
+                }))
+                .unwrap(),
+            ],
         })
     }
 
@@ -401,6 +511,52 @@ mod tests {
             encode(serde_json::json!({ "alg": "ES256", "kid": "k" })),
             encode(serde_json::json!({ "iss": iss, "sub": "u" }))
         )
+    }
+
+    #[test]
+    fn external_issuers_use_their_declared_jwks_and_audience() {
+        let auth = authenticator();
+        let forgejo = auth
+            .issuer_for(&token("https://git.example.test/api/actions"))
+            .unwrap();
+        assert!(matches!(&forgejo.kind, IssuerKind::External { name, .. } if name == "forgejo"));
+        assert_eq!(forgejo.audience, "graph.example.test");
+        assert_eq!(
+            forgejo.jwks_uri,
+            "https://git.example.test/api/actions/.well-known/keys"
+        );
+    }
+
+    #[test]
+    fn external_issuers_parse_from_env_json() {
+        let parsed: Vec<ExternalAuth> = serde_json::from_str(
+            r#"[{"name":"forgejo","issuer":"https://git.example.test/api/actions",
+                "jwks":"https://git.example.test/api/actions/.well-known/keys",
+                "audience":"graph.example.test",
+                "patterns":[{"issuer":"forgejo","claims":{"ref":["refs/heads/main"]}}]}]"#,
+        )
+        .unwrap();
+        assert_eq!(parsed[0].issuer.name, "forgejo");
+        assert_eq!(parsed[0].patterns.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn external_tokens_cannot_act_as_users() {
+        let auth = authenticator();
+        assert!(matches!(
+            auth.authorize(&token("https://git.example.test/api/actions"))
+                .await,
+            Err(AuthError::Forbidden(_))
+        ));
+    }
+
+    #[tokio::test]
+    async fn unknown_kids_refresh_at_most_once_per_cooldown() {
+        let auth = authenticator();
+        let issuer = &auth.inner.issuers[0];
+        assert!(auth.may_refresh(issuer).await);
+        *issuer.last_refresh.lock().await = Some(Instant::now());
+        assert!(!auth.may_refresh(issuer).await);
     }
 
     #[test]
@@ -454,7 +610,7 @@ mod tests {
         let graph = auth
             .issuer_for(&token("https://idm.example.test/oauth2/openid/graph"))
             .unwrap();
-        assert_eq!(graph.provider.audience, "graph");
+        assert_eq!(graph.audience, "graph");
         assert!(matches!(
             auth.issuer_for(&token("https://elsewhere.test")),
             Err(AuthError::Unauthorized(_))

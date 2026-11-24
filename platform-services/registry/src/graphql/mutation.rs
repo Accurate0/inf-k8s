@@ -2,13 +2,10 @@ use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::Json;
 use axum::extract::{Path, State};
 use registry_api::{
-    CreatePackage, CreateToken, ECOSYSTEM_CLI, NewTrustedPublisher, UpdatePackage,
-    Yank,
+    CreatePackage, CreateToken, ECOSYSTEM_CLI, NewTrustedPublisher, UpdatePackage, Yank,
 };
 
-use super::objects::{
-    Package, PublishToken, TrustedPublisher, Version, split_version_key,
-};
+use super::objects::{Package, PublishToken, TrustedPublisher, Version, split_version_key};
 use super::query::uuid;
 use super::{Gql, IDS, principal, state};
 use crate::cli::{packages, versions};

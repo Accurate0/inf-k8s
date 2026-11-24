@@ -21,25 +21,28 @@ use tokio_tungstenite::{MaybeTlsStream, WebSocketStream};
 
 const KID: &str = "test-key";
 const AUDIENCE: &str = "graph";
+const FORGEJO_KID: &str = "forgejo-key";
+const FORGEJO_AUDIENCE: &str = "graph.ortzi.test";
 const TIMEOUT: Duration = Duration::from_secs(10);
 
 struct Idp {
     issuer: String,
+    kid: &'static str,
     key: EncodingKey,
     forger: EncodingKey,
     handle: JoinHandle<()>,
 }
 
 impl Idp {
-    async fn spawn() -> Self {
-        let secret = p256::SecretKey::from_slice(&[7u8; 32]).unwrap();
+    async fn spawn(seed: u8, kid: &'static str) -> Self {
+        let secret = p256::SecretKey::from_slice(&[seed; 32]).unwrap();
         let key = EncodingKey::from_ec_der(secret.to_pkcs8_der().unwrap().as_bytes());
 
         let forged = p256::SecretKey::from_slice(&[9u8; 32]).unwrap();
         let forger = EncodingKey::from_ec_der(forged.to_pkcs8_der().unwrap().as_bytes());
 
         let mut jwk: Value = serde_json::from_str(&secret.public_key().to_jwk_string()).unwrap();
-        jwk["kid"] = json!(KID);
+        jwk["kid"] = json!(kid);
         jwk["alg"] = json!("ES256");
         jwk["use"] = json!("sig");
         let jwks = json!({ "keys": [jwk] }).to_string();
@@ -66,6 +69,7 @@ impl Idp {
 
         Self {
             issuer,
+            kid,
             key,
             forger,
             handle,
@@ -73,21 +77,27 @@ impl Idp {
     }
 
     fn sign(&self, key: &EncodingKey, groups: &[&str]) -> String {
+        self.sign_claims(
+            key,
+            json!({
+                "aud": AUDIENCE,
+                "sub": "00000000-0000-0000-0000-000000000001",
+                "preferred_username": "tester",
+                "groups": groups,
+            }),
+        )
+    }
+
+    fn sign_claims(&self, key: &EncodingKey, mut claims: Value) -> String {
         let mut header = Header::new(Algorithm::ES256);
-        header.kid = Some(KID.to_owned());
+        header.kid = Some(self.kid.to_owned());
 
         let now = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs();
-        let claims = json!({
-            "iss": self.issuer,
-            "aud": AUDIENCE,
-            "sub": "00000000-0000-0000-0000-000000000001",
-            "preferred_username": "tester",
-            "groups": groups,
-            "exp": now + 300,
-        });
+        claims["iss"] = json!(self.issuer);
+        claims["exp"] = json!(now + 300);
 
         encode(&header, &claims, key).unwrap()
     }
@@ -226,6 +236,7 @@ impl Response {
 
 pub struct Stack {
     idp: Idp,
+    forgejo: Idp,
     pub live: Live,
     router: Child,
     url: String,
@@ -238,7 +249,8 @@ impl Stack {
     }
 
     pub async fn spawn_with_rate_limit(requests: u32) -> Self {
-        let idp = Idp::spawn().await;
+        let idp = Idp::spawn(7, KID).await;
+        let forgejo = Idp::spawn(11, FORGEJO_KID).await;
 
         let live = Live::default();
         let schema = Schema::build(Query, EmptyMutation, SubscriptionRoot)
@@ -250,6 +262,16 @@ impl Stack {
                 audience: AUDIENCE.to_owned(),
             }],
             groups: vec!["graph_users".to_owned()],
+            external: vec![
+                serde_json::from_value(json!({
+                    "name": "forgejo",
+                    "issuer": forgejo.issuer,
+                    "jwks": format!("{}/.well-known/keys", forgejo.issuer),
+                    "audience": FORGEJO_AUDIENCE,
+                    "patterns": [{ "issuer": "forgejo", "claims": { "repository": "anurag/*" } }],
+                }))
+                .unwrap(),
+            ],
         });
 
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -275,6 +297,7 @@ impl Stack {
         let config = std::fs::read_to_string(format!("{fixtures}/router.yaml"))
             .unwrap()
             .replace("{issuer}", &idp.issuer)
+            .replace("{forgejo}", &forgejo.issuer)
             .replace("{requests}", &requests.to_string());
         std::fs::write(dir.join("supergraph.graphql"), supergraph).unwrap();
         std::fs::write(dir.join("router.yaml"), config).unwrap();
@@ -295,6 +318,7 @@ impl Stack {
 
         let stack = Self {
             idp,
+            forgejo,
             live,
             router,
             url: format!("127.0.0.1:{port}"),
@@ -331,6 +355,20 @@ impl Stack {
     pub fn tester(&self) -> String {
         self.idp
             .sign(&self.idp.key, &["graph_users", "graph_testers"])
+    }
+
+    /// A forgejo actions token for `repository` on `git_ref`.
+    pub fn forgejo(&self, repository: &str, git_ref: &str) -> String {
+        self.forgejo.sign_claims(
+            &self.forgejo.key,
+            json!({
+                "aud": FORGEJO_AUDIENCE,
+                "sub": format!("repo:{repository}:ref:{git_ref}"),
+                "repository": repository,
+                "ref": git_ref,
+                "event_name": "push",
+            }),
+        )
     }
 
     pub fn forged(&self) -> String {

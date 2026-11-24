@@ -60,10 +60,15 @@ plugins:
   access:
     enabled: true
     config:
+      external_issuers:
+        forgejo: "{forgejo}"
       subgraphs:
         gated:
           issuers: ["{issuer}"]
           groups: [graph_testers]
+          external:
+            - issuer: forgejo
+              claims: {repository: "anurag/*", ref: refs/heads/main}
 jwt:
   enabled: true
   require_authentication: false
@@ -72,6 +77,10 @@ jwt:
       url: "{issuer}/public_key.jwk"
       prefetch: true
       refresh_on_unknown_kid: 30s
-  issuers: ["{issuer}"]
+    - source: remote
+      url: "{forgejo}/.well-known/keys"
+      prefetch: true
+      refresh_on_unknown_kid: 30s
+  issuers: ["{issuer}", "{forgejo}"]
 laboratory:
   enabled: false

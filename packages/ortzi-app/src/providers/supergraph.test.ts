@@ -101,6 +101,47 @@ test('router config gates subgraphs that declare auth', () => {
   );
 });
 
+test('router config trusts external issuers only where a subgraph admits them', () => {
+  const forgejo = {
+    name: 'forgejo',
+    issuer: 'https://git.anurag.sh/api/actions',
+    jwks: 'https://git.anurag.sh/api/actions/.well-known/keys',
+    audience: 'graph.ortzi.cloud',
+  };
+  const github = { ...forgejo, name: 'github', issuer: 'https://token.actions.example' };
+  const patterns = [{ issuer: 'forgejo', claims: { repository: '*' } }];
+  const config = parse(
+    routerConfig(
+      resolveSubgraphs([
+        subgraphApp('registry', {
+          auth: { clients: ['graph'], groups: ['registry_users'], external: patterns },
+        }),
+        subgraphApp('spotify', { auth: { clients: ['spotify'], groups: ['spotify_users'] } }),
+      ]),
+      '{}',
+      [],
+      false,
+      [forgejo, github],
+    ),
+  );
+
+  const kanidm = (client: string) => `https://idm.anurag.sh/oauth2/openid/${client}`;
+  assert.deepEqual(config.jwt.issuers, [kanidm('graph'), kanidm('spotify'), forgejo.issuer]);
+  assert.deepEqual(config.jwt.audiences, ['graph', 'spotify', 'graph.ortzi.cloud']);
+  assert.deepEqual(config.jwt.jwks_providers.at(-1), {
+    source: 'remote',
+    url: forgejo.jwks,
+    refresh_on_unknown_kid: '30s',
+  });
+  assert.deepEqual(config.plugins.access.config, {
+    external_issuers: { forgejo: forgejo.issuer },
+    subgraphs: {
+      registry: { issuers: [kanidm('graph')], groups: ['registry_users'], external: patterns },
+      spotify: { issuers: [kanidm('spotify')], groups: ['spotify_users'] },
+    },
+  });
+});
+
 test('every root field of a subgraph starts with its prefix', () => {
   const sdl = (s: string) => parseGraphql(s);
 

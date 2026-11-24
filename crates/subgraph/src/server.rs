@@ -8,7 +8,7 @@ use axum::response::{IntoResponse, Response};
 use axum::routing::{get, post};
 use serde_json::Value;
 
-use crate::auth::{AuthError, Authenticator, bearer};
+use crate::auth::{AuthError, Authenticator, Principal, bearer};
 
 pub const GRAPHQL_PATH: &str = "/v1/graphql";
 pub const WEBSOCKET_PATH: &str = "/v1/graphql/ws";
@@ -28,7 +28,8 @@ impl<Q, M, S> Clone for Subgraph<Q, M, S> {
 }
 
 /// Serves the subgraph on GRAPHQL_PATH and WEBSOCKET_PATH. Every operation needs a Kanidm token
-/// in an allowed group; resolvers read the verified `Claims` from the context.
+/// in an allowed group, or an external token matching a claim pattern; resolvers read the
+/// verified `Claims` (users) or `External` (machines) from the context.
 pub fn router<Q, M, S>(schema: Schema<Q, M, S>, auth: Authenticator) -> Router
 where
     Q: ObjectType + 'static,
@@ -51,14 +52,20 @@ where
     M: ObjectType + 'static,
     S: SubscriptionType + 'static,
 {
-    let claims = subgraph.auth.authorize_headers(&headers).await?;
-    tracing::debug!(user = claims.identity(), "authorized");
+    let principal = subgraph.auth.authenticate_headers(&headers).await?;
+    let request = request.into_inner();
+    let request = match principal {
+        Principal::User(claims) => {
+            tracing::debug!(user = claims.identity(), "authorized");
+            request.data(claims)
+        }
+        Principal::External(external) => {
+            tracing::debug!(issuer = external.issuer, "authorized external identity");
+            request.data(external)
+        }
+    };
 
-    Ok(subgraph
-        .schema
-        .execute(request.into_inner().data(claims))
-        .await
-        .into())
+    Ok(subgraph.schema.execute(request).await.into())
 }
 
 async fn subscribe<Q, M, S>(
@@ -79,13 +86,16 @@ where
                 .on_connection_init(move |payload| async move {
                     let token = token_from_payload(&payload)
                         .ok_or_else(|| async_graphql::Error::new("missing bearer token"))?;
-                    let claims = auth
-                        .authorize(&token)
+                    let principal = auth
+                        .authenticate(&token)
                         .await
                         .map_err(|e| async_graphql::Error::new(e.to_string()))?;
 
                     let mut data = Data::default();
-                    data.insert(claims);
+                    match principal {
+                        Principal::User(claims) => data.insert(claims),
+                        Principal::External(external) => data.insert(external),
+                    }
                     Ok(data)
                 })
                 .serve()
@@ -139,6 +149,7 @@ mod tests {
                     .unwrap(),
             ],
             groups: vec!["registry_users".to_owned()],
+            external: Vec::new(),
         });
         let app = router(Schema::new(Query, EmptyMutation, EmptySubscription), auth);
         let response = app

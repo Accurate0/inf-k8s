@@ -1,11 +1,6 @@
 use std::time::Duration;
 
-use crate::{
-    cli::catalog,
-    core::graph_exchange,
-    error::Result,
-    state::AppState,
-};
+use crate::{cli::catalog, error::Result, state::AppState};
 
 async fn retry_catalog(state: AppState) {
     let mut ticker = tokio::time::interval(CATALOG_INTERVAL);
@@ -43,11 +38,6 @@ pub async fn run(state: AppState) {
                 Ok(signed) => tracing::info!(signed, "cosign-signed releases in harbor"),
                 Err(e) => tracing::warn!("cosign signing failed: {e}"),
             }
-        }
-        match graph_exchange::collect_expired(&state).await {
-            Ok(0) => {}
-            Ok(removed) => tracing::info!(removed, "deleted expired graph exchanges"),
-            Err(e) => tracing::warn!("graph exchange garbage collection failed: {e}"),
         }
         match collect_expired_robots(&state).await {
             Ok(0) => {}
