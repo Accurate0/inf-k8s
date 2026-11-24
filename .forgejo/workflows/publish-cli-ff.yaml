@@ -6,6 +6,8 @@ on:
     paths:
       - crates/feature-flag/ffctl/**
       - crates/cli-auth/**
+      - crates/graph-client/**
+      - platform-services/graph/supergraph/schema.graphql
       - crates/feature-flag/feature-flag-proto/**
       - crates/feature-flag/Cargo.lock
       - .forgejo/workflows/publish-cli-ff.yaml

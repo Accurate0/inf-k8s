@@ -92,7 +92,7 @@ build:
   context: .
   args:
     BINARY_NAME: ai-gateway
-  paths: [crates/cli-auth/**, crates/subgraph/**]
+  paths: [crates/subgraph/**]
   test:
     run: cargo test
     db:

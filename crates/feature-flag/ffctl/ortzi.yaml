@@ -1,11 +1,13 @@
 package:
   name: ff
-  version: 0.1.2
+  version: 0.2.0
   completions: clap
-  description: feature-flags admin CLI and TUI
+  description: feature-flags admin CLI and TUI, through the graph
   binary: ffctl
   aliases: [ffctl]
 auth:
-  client_id: feature-flags
-  token_env: FFCTL_TOKEN
-  scopes: openid email profile
+  client_id: graph
+  token_env: GRAPH_TOKEN
+  scopes: openid email profile groups
+  # the TUI runs for a while; it refreshes its own graph session instead of one injected token
+  lazy: true

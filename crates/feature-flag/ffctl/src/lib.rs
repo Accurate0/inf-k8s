@@ -4,6 +4,7 @@ mod commands;
 mod convert;
 mod editor;
 mod flag_config;
+mod graphql;
 mod output;
 mod plan;
 mod tui;
@@ -11,9 +12,10 @@ mod watch;
 
 use clap::CommandFactory;
 use cli::{Command, ConfigAction};
-use cli_auth::{App, OAuthClient, TokenSource};
-use client::{Api, Identity};
+use cli_auth::App;
+use client::Api;
 use commands::{Commands, ConfigDir};
+use graph_client::GraphClient;
 use output::Output;
 use std::io::IsTerminal;
 use tui::Tui;
@@ -21,52 +23,19 @@ use tui::Tui;
 pub use cli::Cli;
 
 const APP: App = App {
-    name: "ffctl",
-    scopes: "openid email profile",
+    name: "ortzi/ff",
+    scopes: "openid email profile groups",
     login_hint: "run `ortzi login ff`",
 };
 
-struct Session {
-    url: String,
-    oauth: OAuthClient,
-    token: Option<String>,
-    no_auth: bool,
-    actor: Option<String>,
-}
-
-impl Session {
-    fn new(cli: &Cli) -> Self {
-        Self {
-            url: cli.url.clone(),
-            oauth: OAuthClient::new(APP, &cli.issuer, &cli.client_id),
-            token: cli.token.clone().filter(|token| !token.is_empty()),
-            no_auth: cli.no_auth,
-            actor: cli.actor.clone(),
-        }
-    }
-
-    async fn identity(&self) -> anyhow::Result<Identity> {
-        if self.no_auth {
-            return Ok(Identity::local_actor(self.actor.clone()));
-        }
-
-        if let Some(token) = &self.token {
-            return Ok(Identity::Token(token.clone()));
-        }
-
-        Ok(Identity::Session(
-            TokenSource::acquire(self.oauth.clone()).await?,
-        ))
-    }
-
-    async fn api(&self) -> anyhow::Result<Api> {
-        Api::connect(&self.url, self.identity().await?).await
-    }
+async fn api() -> anyhow::Result<Api> {
+    let graph = GraphClient::connect(APP).await?;
+    let user = graph.user();
+    Ok(Api::new(graph, user))
 }
 
 /// Runs ffctl, published as the `ff` ortzi package.
 pub async fn run(cli: Cli) -> anyhow::Result<()> {
-    let session = Session::new(&cli);
     let output = Output::new(cli.output);
 
     let command = match cli.command {
@@ -79,17 +48,10 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     };
 
     match command {
-        Command::Login => cli_auth::commands::login(&session.oauth).await,
-        Command::Logout => cli_auth::commands::logout(&session.oauth),
-        Command::Whoami => cli_auth::commands::whoami(&session.oauth, &session.url),
         Command::Config {
             action: ConfigAction::Schema { dir },
         } => ConfigDir::new(&dir).write_schema(),
-        Command::Tui => Tui::run(session.api().await?).await,
-        command => {
-            Commands::new(session.api().await?, output)
-                .run(command)
-                .await
-        }
+        Command::Tui => Tui::run(api().await?).await,
+        command => Commands::new(api().await?, output).run(command).await,
     }
 }

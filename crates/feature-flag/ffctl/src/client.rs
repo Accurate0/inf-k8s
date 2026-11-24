@@ -1,98 +1,12 @@
 use crate::convert::Convert;
+use crate::graphql as gql;
 use anyhow::{Context as _, bail};
-use cli_auth::TokenSource;
+use cynic::{MutationBuilder, QueryBuilder, SubscriptionBuilder};
 use feature_flag_proto as pb;
-use pb::admin_client::AdminClient;
-use pb::evaluation_client::EvaluationClient;
+use futures::{Stream, StreamExt};
+use graph_client::GraphClient;
 use serde_json::{Map, Value as Json};
-use std::time::Duration;
-use tonic::metadata::{Ascii, MetadataValue};
-use tonic::service::Interceptor;
-use tonic::service::interceptor::InterceptedService;
-use tonic::transport::{Channel, ClientTlsConfig, Endpoint};
-use tonic::{Request, Response, Status, Streaming};
-
-#[derive(Clone)]
-pub enum Identity {
-    Session(TokenSource),
-    Token(String),
-    Actor(String),
-}
-
-impl Identity {
-    pub fn local_actor(explicit: Option<String>) -> Self {
-        if let Some(actor) = explicit.filter(|actor| !actor.is_empty()) {
-            return Self::Actor(actor);
-        }
-
-        let actor = std::process::Command::new("git")
-            .args(["config", "user.email"])
-            .output()
-            .ok()
-            .filter(|output| output.status.success())
-            .and_then(|output| String::from_utf8(output.stdout).ok())
-            .map(|email| email.trim().to_owned())
-            .filter(|email| !email.is_empty())
-            .unwrap_or_else(|| "ffctl".to_owned());
-
-        Self::Actor(actor)
-    }
-
-    pub fn display_name(&self) -> String {
-        match self {
-            Self::Session(tokens) => tokens.username(),
-            Self::Token(_) => "token".to_owned(),
-            Self::Actor(actor) => format!("{actor} (no auth)"),
-        }
-    }
-
-    async fn ensure_fresh(&self) -> anyhow::Result<()> {
-        let Self::Session(tokens) = self else {
-            return Ok(());
-        };
-
-        tokens.ensure_fresh().await
-    }
-}
-
-#[derive(Clone)]
-pub struct AuthInterceptor {
-    identity: Identity,
-}
-
-impl AuthInterceptor {
-    const CLIENT_ID: &'static str = "ffctl";
-
-    fn header(value: &str) -> Result<MetadataValue<Ascii>, Status> {
-        value
-            .parse()
-            .map_err(|_| Status::invalid_argument("identity is not a valid header value"))
-    }
-}
-
-impl Interceptor for AuthInterceptor {
-    fn call(&mut self, mut request: Request<()>) -> Result<Request<()>, Status> {
-        let metadata = request.metadata_mut();
-        metadata.insert("client-id", MetadataValue::from_static(Self::CLIENT_ID));
-
-        match &self.identity {
-            Identity::Session(tokens) => {
-                let bearer = format!("Bearer {}", tokens.access_token());
-                metadata.insert("authorization", Self::header(&bearer)?);
-            }
-            Identity::Token(token) => {
-                metadata.insert("authorization", Self::header(&format!("Bearer {token}"))?);
-            }
-            Identity::Actor(actor) => {
-                metadata.insert("actor", Self::header(actor)?);
-            }
-        }
-
-        Ok(request)
-    }
-}
-
-type Authed = InterceptedService<Channel, AuthInterceptor>;
+use std::pin::Pin;
 
 #[derive(Debug, Clone, Default)]
 pub struct EvalInput {
@@ -101,109 +15,85 @@ pub struct EvalInput {
 }
 
 impl EvalInput {
-    fn context(&self) -> pb::EvaluationContext {
-        pb::EvaluationContext {
+    fn context(&self) -> gql::ContextInput {
+        gql::ContextInput {
             targeting_key: self.targeting_key.clone(),
-            attributes: Some(Convert::json_to_struct(&self.attributes)),
+            attributes: Some(Json::Object(self.attributes.clone())),
         }
     }
 }
 
+pub type Snapshots = Pin<Box<dyn Stream<Item = anyhow::Result<pb::SnapshotResponse>> + Send>>;
+
+/// The feature-flags admin and evaluation API, through the graph; it speaks the gRPC wire types
+/// so the commands and TUI don't care which transport carries them.
 #[derive(Clone)]
 pub struct Api {
-    url: String,
-    identity: Identity,
-    admin: AdminClient<Authed>,
-    evaluation: EvaluationClient<Authed>,
+    graph: GraphClient,
+    user: String,
 }
 
 impl Api {
-    pub async fn connect(url: &str, identity: Identity) -> anyhow::Result<Self> {
-        let mut endpoint = Endpoint::from_shared(url.to_owned())
-            .with_context(|| format!("invalid url {url}"))?
-            .connect_timeout(Duration::from_secs(10))
-            .http2_keep_alive_interval(Duration::from_secs(20))
-            .keep_alive_timeout(Duration::from_secs(10))
-            .keep_alive_while_idle(true);
-
-        if url.starts_with("https://") {
-            endpoint = endpoint
-                .tls_config(ClientTlsConfig::new().with_native_roots())
-                .context("configuring tls")?;
-        }
-
-        let channel = endpoint
-            .connect()
-            .await
-            .with_context(|| format!("connecting to {url}"))?;
-
-        let interceptor = AuthInterceptor {
-            identity: identity.clone(),
-        };
-
-        Ok(Self {
-            url: url.to_owned(),
-            identity,
-            admin: AdminClient::with_interceptor(channel.clone(), interceptor.clone()),
-            evaluation: EvaluationClient::with_interceptor(channel, interceptor),
-        })
+    pub fn new(graph: GraphClient, user: String) -> Self {
+        Self { graph, user }
     }
 
     pub fn url(&self) -> &str {
-        &self.url
+        self.graph.url()
     }
 
     pub fn user(&self) -> String {
-        self.identity.display_name()
+        self.user.clone()
     }
 
+    /// The graph client refreshes its session before every request.
     pub async fn keep_fresh(&self) -> anyhow::Result<()> {
-        self.identity.ensure_fresh().await
-    }
-
-    async fn admin(&self) -> anyhow::Result<AdminClient<Authed>> {
-        self.identity.ensure_fresh().await?;
-
-        Ok(self.admin.clone())
-    }
-
-    async fn evaluation(&self) -> anyhow::Result<EvaluationClient<Authed>> {
-        self.identity.ensure_fresh().await?;
-
-        Ok(self.evaluation.clone())
-    }
-
-    fn unwrap<T>(result: Result<Response<T>, Status>) -> anyhow::Result<T> {
-        match result {
-            Ok(response) => Ok(response.into_inner()),
-            Err(status) if status.code() == tonic::Code::Unauthenticated => {
-                bail!(
-                    "unauthenticated: {} (run `ortzi login ff`)",
-                    status.message()
-                )
-            }
-            Err(status) => bail!("{:?}: {}", status.code(), status.message()),
-        }
+        Ok(())
     }
 
     pub async fn list_flags(&self, include_archived: bool) -> anyhow::Result<Vec<pb::Flag>> {
-        let request = pb::ListFlagsRequest { include_archived };
-        let mut flags = Self::unwrap(self.admin().await?.list_flags(request).await)?.flags;
+        let mut flags: Vec<pb::Flag> = self
+            .graph
+            .run(gql::FlagsQuery::build(gql::FlagsVariables {
+                include_archived,
+            }))
+            .await?
+            .feature_flags
+            .into_iter()
+            .map(flag)
+            .collect();
         flags.sort_by(|a, b| a.key.cmp(&b.key));
 
         Ok(flags)
     }
 
     pub async fn get_flag(&self, key: &str) -> anyhow::Result<pb::Flag> {
-        let request = pb::GetFlagRequest {
-            key: key.to_owned(),
-        };
+        let found = self
+            .graph
+            .run(gql::FlagQuery::build(gql::KeyVariables {
+                key: key.to_owned(),
+            }))
+            .await?
+            .feature_flag;
 
-        Self::unwrap(self.admin().await?.get_flag(request).await)
+        Ok(flag(found))
     }
 
     pub async fn create_flag(&self, request: pb::CreateFlagRequest) -> anyhow::Result<pb::Flag> {
-        Self::unwrap(self.admin().await?.create_flag(request).await)
+        let input = gql::CreateFlagInput {
+            key: request.key,
+            value_type: value_type_in(request.value_type)?,
+            enabled: request.enabled,
+            default_variant_key: request.default_variant_key,
+            variants: request.variants.iter().map(variant_in).collect(),
+        };
+        let created = self
+            .graph
+            .run(gql::CreateFlag::build(gql::CreateFlagVariables { input }))
+            .await?
+            .feature_flags_create_flag;
+
+        Ok(flag(created))
     }
 
     pub async fn update_flag(
@@ -212,31 +102,43 @@ impl Api {
         enabled: bool,
         default_variant_key: &str,
     ) -> anyhow::Result<pb::Flag> {
-        let request = pb::UpdateFlagRequest {
-            key: key.to_owned(),
-            enabled,
-            default_variant_key: default_variant_key.to_owned(),
-        };
+        let updated = self
+            .graph
+            .run(gql::UpdateFlag::build(gql::UpdateFlagVariables {
+                key: key.to_owned(),
+                enabled,
+                default_variant_key: default_variant_key.to_owned(),
+            }))
+            .await?
+            .feature_flags_update_flag;
 
-        Self::unwrap(self.admin().await?.update_flag(request).await)
+        Ok(flag(updated))
     }
 
     pub async fn archive_flag(&self, key: &str, archived: bool) -> anyhow::Result<pb::Flag> {
-        let request = pb::ArchiveFlagRequest {
-            key: key.to_owned(),
-            archived,
-        };
+        let archived = self
+            .graph
+            .run(gql::ArchiveFlag::build(gql::ArchiveFlagVariables {
+                key: key.to_owned(),
+                archived,
+            }))
+            .await?
+            .feature_flags_archive_flag;
 
-        Self::unwrap(self.admin().await?.archive_flag(request).await)
+        Ok(flag(archived))
     }
 
-    pub async fn delete_flag(&self, key: &str) -> anyhow::Result<()> {
-        let request = pb::DeleteFlagRequest {
-            key: key.to_owned(),
-        };
-        Self::unwrap(self.admin().await?.delete_flag(request).await)?;
+    /// Returns the graph id of what was deleted.
+    pub async fn delete_flag(&self, key: &str) -> anyhow::Result<String> {
+        let deleted = self
+            .graph
+            .run(gql::DeleteFlag::build(gql::KeyVariables {
+                key: key.to_owned(),
+            }))
+            .await?
+            .feature_flags_delete_flag;
 
-        Ok(())
+        Ok(deleted.into_inner())
     }
 
     pub async fn upsert_variant(
@@ -244,12 +146,16 @@ impl Api {
         flag_key: &str,
         variant: pb::Variant,
     ) -> anyhow::Result<pb::Flag> {
-        let request = pb::UpsertVariantRequest {
-            flag_key: flag_key.to_owned(),
-            variant: Some(variant),
-        };
+        let updated = self
+            .graph
+            .run(gql::UpsertVariant::build(gql::UpsertVariantVariables {
+                flag_key: flag_key.to_owned(),
+                variant: variant_in(&variant),
+            }))
+            .await?
+            .feature_flags_upsert_variant;
 
-        Self::unwrap(self.admin().await?.upsert_variant(request).await)
+        Ok(flag(updated))
     }
 
     pub async fn delete_variant(
@@ -257,12 +163,16 @@ impl Api {
         flag_key: &str,
         variant_key: &str,
     ) -> anyhow::Result<pb::Flag> {
-        let request = pb::DeleteVariantRequest {
-            flag_key: flag_key.to_owned(),
-            variant_key: variant_key.to_owned(),
-        };
+        let updated = self
+            .graph
+            .run(gql::DeleteVariant::build(gql::DeleteVariantVariables {
+                flag_key: flag_key.to_owned(),
+                variant_key: variant_key.to_owned(),
+            }))
+            .await?
+            .feature_flags_delete_variant;
 
-        Self::unwrap(self.admin().await?.delete_variant(request).await)
+        Ok(flag(updated))
     }
 
     pub async fn set_flag_rules(
@@ -270,52 +180,109 @@ impl Api {
         flag_key: &str,
         rules: Vec<pb::Rule>,
     ) -> anyhow::Result<pb::Flag> {
-        let request = pb::SetFlagRulesRequest {
-            flag_key: flag_key.to_owned(),
-            rules,
-        };
+        let updated = self
+            .graph
+            .run(gql::SetFlagRules::build(gql::SetRulesVariables {
+                flag_key: flag_key.to_owned(),
+                rules: rules.iter().map(rule_in).collect::<anyhow::Result<_>>()?,
+            }))
+            .await?
+            .feature_flags_set_flag_rules;
 
-        Self::unwrap(self.admin().await?.set_flag_rules(request).await)
+        Ok(flag(updated))
     }
 
     pub async fn list_segments(&self) -> anyhow::Result<Vec<pb::Segment>> {
-        let request = pb::ListSegmentsRequest {};
-        let mut segments = Self::unwrap(self.admin().await?.list_segments(request).await)?.segments;
+        let mut segments: Vec<pb::Segment> = self
+            .graph
+            .run(gql::SegmentsQuery::build(()))
+            .await?
+            .feature_flags_segments
+            .into_iter()
+            .map(segment)
+            .collect();
         segments.sort_by(|a, b| a.key.cmp(&b.key));
 
         Ok(segments)
     }
 
     pub async fn get_segment(&self, key: &str) -> anyhow::Result<pb::Segment> {
-        let request = pb::GetSegmentRequest {
-            key: key.to_owned(),
-        };
+        let found = self
+            .graph
+            .run(gql::SegmentQuery::build(gql::KeyVariables {
+                key: key.to_owned(),
+            }))
+            .await?
+            .feature_flags_segment;
 
-        Self::unwrap(self.admin().await?.get_segment(request).await)
+        Ok(segment(found))
     }
 
-    pub async fn upsert_segment(&self, segment: pb::Segment) -> anyhow::Result<pb::Segment> {
-        let request = pb::UpdateSegmentRequest {
-            segment: Some(segment),
-        };
+    pub async fn upsert_segment(&self, upserted: pb::Segment) -> anyhow::Result<pb::Segment> {
+        let updated = self
+            .graph
+            .run(gql::UpdateSegment::build(gql::SegmentVariables {
+                input: segment_in(&upserted)?,
+            }))
+            .await?
+            .feature_flags_update_segment;
 
-        Self::unwrap(self.admin().await?.update_segment(request).await)
+        Ok(segment(updated))
     }
 
-    pub async fn delete_segment(&self, key: &str) -> anyhow::Result<()> {
-        let request = pb::DeleteSegmentRequest {
-            key: key.to_owned(),
-        };
-        Self::unwrap(self.admin().await?.delete_segment(request).await)?;
+    /// Returns the graph id of what was deleted.
+    pub async fn delete_segment(&self, key: &str) -> anyhow::Result<String> {
+        let deleted = self
+            .graph
+            .run(gql::DeleteSegment::build(gql::KeyVariables {
+                key: key.to_owned(),
+            }))
+            .await?
+            .feature_flags_delete_segment;
 
-        Ok(())
+        Ok(deleted.into_inner())
     }
 
     pub async fn apply_config(
         &self,
         request: pb::ApplyConfigRequest,
     ) -> anyhow::Result<pb::ApplyConfigResponse> {
-        Self::unwrap(self.admin().await?.apply_config(request).await)
+        let flags = request
+            .flags
+            .iter()
+            .map(flag_in)
+            .collect::<anyhow::Result<_>>()?;
+        let segments = request
+            .segments
+            .iter()
+            .map(segment_in)
+            .collect::<anyhow::Result<_>>()?;
+        let result = self
+            .graph
+            .run(gql::ApplyConfig::build(gql::ApplyConfigVariables {
+                flags,
+                segments,
+                dry_run: request.dry_run,
+                expected_version: i32::try_from(request.expected_version)?,
+            }))
+            .await?
+            .feature_flags_apply_config;
+
+        Ok(pb::ApplyConfigResponse {
+            changes: result
+                .changes
+                .into_iter()
+                .map(|change| pb::ConfigChange {
+                    target_kind: change.target_kind,
+                    target_key: change.target_key,
+                    op: change.op as i32,
+                    detail: detail(change.detail),
+                })
+                .collect(),
+            from_version: result.from_version.into(),
+            to_version: result.to_version.into(),
+            applied: result.applied,
+        })
     }
 
     pub async fn list_changes(
@@ -324,13 +291,30 @@ impl Api {
         target_key: &str,
         limit: u32,
     ) -> anyhow::Result<Vec<pb::FlagChange>> {
-        let request = pb::ListChangesRequest {
-            target_kind: target_kind.to_owned(),
-            target_key: target_key.to_owned(),
-            limit,
-        };
+        let given = |value: &str| (!value.is_empty()).then(|| value.to_owned());
+        let changes = self
+            .graph
+            .run(gql::HistoryQuery::build(gql::HistoryVariables {
+                target_kind: given(target_kind),
+                target_key: given(target_key),
+                limit: i32::try_from(limit)?,
+            }))
+            .await?
+            .feature_flags_history;
 
-        Ok(Self::unwrap(self.admin().await?.list_changes(request).await)?.changes)
+        Ok(changes
+            .into_iter()
+            .map(|change| pb::FlagChange {
+                id: change.id.into_inner(),
+                version: change.version.into(),
+                actor: change.actor,
+                action: change.action,
+                target_kind: change.target_kind,
+                target_key: change.target_key,
+                detail: detail(change.detail),
+                created_at: change.created_at.to_rfc3339(),
+            })
+            .collect())
     }
 
     pub async fn apply_flag(
@@ -413,10 +397,16 @@ impl Api {
     }
 
     pub async fn resolve_all(&self, input: &EvalInput) -> anyhow::Result<Vec<pb::EvaluatedFlag>> {
-        let request = pb::ResolveAllRequest {
-            context: Some(input.context()),
-        };
-        let mut flags = Self::unwrap(self.evaluation().await?.resolve_all(request).await)?.flags;
+        let mut flags: Vec<pb::EvaluatedFlag> = self
+            .graph
+            .run(gql::EvaluateAllQuery::build(gql::EvaluateAllVariables {
+                context: input.context(),
+            }))
+            .await?
+            .feature_flags_evaluate_all
+            .into_iter()
+            .map(evaluated)
+            .collect();
         flags.sort_by(|a, b| a.flag_key.cmp(&b.flag_key));
 
         Ok(flags)
@@ -427,60 +417,264 @@ impl Api {
         flag_key: &str,
         input: &EvalInput,
     ) -> anyhow::Result<pb::EvaluatedFlag> {
-        use prost_types::value::Kind;
+        let evaluation = self
+            .graph
+            .run(gql::EvaluateQuery::build(gql::EvaluateVariables {
+                flag_key: flag_key.to_owned(),
+                context: input.context(),
+            }))
+            .await?
+            .feature_flags_evaluate;
 
-        let mut evaluation = self.evaluation().await?;
+        Ok(evaluated(evaluation))
+    }
 
-        let snapshot = Self::unwrap(evaluation.get_snapshot(pb::GetSnapshotRequest {}).await)?;
-        let flag = snapshot
-            .flags
-            .into_iter()
-            .find(|flag| flag.key == flag_key)
-            .with_context(|| format!("flag {flag_key} not found"))?;
+    async fn snapshot(&self) -> anyhow::Result<pb::SnapshotResponse> {
+        let snapshot = self.graph.run(gql::SnapshotQuery::build(())).await?;
 
-        let request = pb::ResolveRequest {
-            flag_key: flag_key.to_owned(),
-            context: Some(input.context()),
-        };
-
-        let (kind, meta) = match flag.value_type() {
-            pb::ValueType::Boolean => {
-                let resolved = Self::unwrap(evaluation.resolve_boolean(request).await)?;
-                (Kind::BoolValue(resolved.value), resolved.meta)
-            }
-            pb::ValueType::String => {
-                let resolved = Self::unwrap(evaluation.resolve_string(request).await)?;
-                (Kind::StringValue(resolved.value), resolved.meta)
-            }
-            pb::ValueType::Integer => {
-                let resolved = Self::unwrap(evaluation.resolve_integer(request).await)?;
-                (Kind::NumberValue(resolved.value as f64), resolved.meta)
-            }
-            pb::ValueType::Float => {
-                let resolved = Self::unwrap(evaluation.resolve_float(request).await)?;
-                (Kind::NumberValue(resolved.value), resolved.meta)
-            }
-            pb::ValueType::Object => {
-                let resolved = Self::unwrap(evaluation.resolve_object(request).await)?;
-                (
-                    Kind::StructValue(resolved.value.unwrap_or_default()),
-                    resolved.meta,
-                )
-            }
-            pb::ValueType::Unspecified => bail!("flag {flag_key} has no type"),
-        };
-
-        Ok(pb::EvaluatedFlag {
-            flag_key: flag_key.to_owned(),
-            value_type: flag.value_type,
-            value: Some(prost_types::Value { kind: Some(kind) }),
-            meta,
+        Ok(pb::SnapshotResponse {
+            version: snapshot.feature_flags_config_version.into(),
+            flags: snapshot.feature_flags.into_iter().map(flag).collect(),
+            segments: snapshot
+                .feature_flags_segments
+                .into_iter()
+                .map(segment)
+                .collect(),
         })
     }
 
-    pub async fn stream_snapshot(&self) -> anyhow::Result<Streaming<pb::SnapshotResponse>> {
-        let request = pb::GetSnapshotRequest {};
+    /// A snapshot when the stream is ready, then a fresh one whenever the config version moves
+    /// or the server says events were dropped.
+    pub async fn stream_snapshot(&self) -> anyhow::Result<Snapshots> {
+        let events = self
+            .graph
+            .subscribe(gql::ChangesSubscription::build(()))
+            .await
+            .context("subscribing to feature flag changes")?;
+        let api = self.clone();
 
-        Self::unwrap(self.evaluation().await?.stream_snapshot(request).await)
+        let snapshots = futures::stream::unfold(
+            (events, api, None::<i32>),
+            |(mut events, api, mut seen)| async move {
+                loop {
+                    let event = match events.next().await? {
+                        Ok(event) => event.feature_flags_changes,
+                        Err(e) => return Some((Err(e), (events, api, seen))),
+                    };
+
+                    let forced = matches!(
+                        event.event_type,
+                        gql::EventType::Ready | gql::EventType::Resync
+                    );
+                    if !forced && seen == Some(event.config_version) {
+                        continue;
+                    }
+
+                    seen = Some(event.config_version);
+                    let snapshot = api.snapshot().await;
+                    return Some((snapshot, (events, api, seen)));
+                }
+            },
+        );
+
+        Ok(Box::pin(snapshots))
     }
+}
+
+fn detail(detail: Json) -> String {
+    match detail {
+        Json::String(text) => text,
+        other => other.to_string(),
+    }
+}
+
+fn value(json: Json) -> Option<prost_types::Value> {
+    Some(Convert::json_to_value(&json))
+}
+
+fn json(value: Option<&prost_types::Value>) -> Json {
+    value.map(Convert::value_to_json).unwrap_or(Json::Null)
+}
+
+fn flag(flag: gql::Flag) -> pb::Flag {
+    pb::Flag {
+        key: flag.key,
+        value_type: flag.value_type as i32,
+        enabled: flag.enabled,
+        default_variant_key: flag.default_variant_key,
+        archived: flag.archived,
+        variants: flag
+            .variants
+            .into_iter()
+            .map(|variant| pb::Variant {
+                key: variant.key,
+                value: value(variant.value),
+            })
+            .collect(),
+        rules: flag.rules.into_iter().map(rule).collect(),
+    }
+}
+
+fn rule(rule: gql::Rule) -> pb::Rule {
+    pb::Rule {
+        rank: u32::try_from(rule.rank).unwrap_or_default(),
+        segment_key: rule.segment_key.unwrap_or_default(),
+        variant_key: rule.variant_key.unwrap_or_default(),
+        distributions: rule
+            .distributions
+            .into_iter()
+            .map(|d| pb::Distribution {
+                variant_key: d.variant_key,
+                weight: u32::try_from(d.weight).unwrap_or_default(),
+            })
+            .collect(),
+        constraint_groups: rule
+            .constraint_groups
+            .into_iter()
+            .map(|group| pb::ConstraintGroup {
+                constraints: group.into_iter().map(constraint).collect(),
+            })
+            .collect(),
+        bucket_salt: rule.bucket_salt,
+    }
+}
+
+fn constraint(constraint: gql::Constraint) -> pb::Constraint {
+    pb::Constraint {
+        attribute: constraint.attribute,
+        operator: constraint.operator as i32,
+        values: constraint
+            .values
+            .into_iter()
+            .map(|v| Convert::json_to_value(&v))
+            .collect(),
+    }
+}
+
+fn segment(segment: gql::Segment) -> pb::Segment {
+    pb::Segment {
+        key: segment.key,
+        name: segment.name,
+        constraints: segment.constraints.into_iter().map(constraint).collect(),
+    }
+}
+
+fn evaluated(evaluation: gql::Evaluation) -> pb::EvaluatedFlag {
+    pb::EvaluatedFlag {
+        flag_key: evaluation.flag_key,
+        value_type: evaluation.value_type as i32,
+        value: value(evaluation.value),
+        meta: Some(pb::ResolutionMeta {
+            variant: evaluation.variant.unwrap_or_default(),
+            reason: evaluation.reason as i32,
+            error_code: evaluation.error_code.unwrap_or_default(),
+            error_message: evaluation.error_message.unwrap_or_default(),
+        }),
+    }
+}
+
+fn value_type_in(value_type: i32) -> anyhow::Result<gql::ValueType> {
+    Ok(match pb::ValueType::try_from(value_type)? {
+        pb::ValueType::Unspecified => gql::ValueType::Unspecified,
+        pb::ValueType::Boolean => gql::ValueType::Boolean,
+        pb::ValueType::String => gql::ValueType::String,
+        pb::ValueType::Integer => gql::ValueType::Integer,
+        pb::ValueType::Float => gql::ValueType::Float,
+        pb::ValueType::Object => gql::ValueType::Object,
+    })
+}
+
+fn operator_in(operator: i32) -> anyhow::Result<gql::Operator> {
+    use pb::ConstraintOperator as Op;
+
+    Ok(match Op::try_from(operator)? {
+        Op::Unspecified => gql::Operator::Unspecified,
+        Op::Eq => gql::Operator::Eq,
+        Op::Neq => gql::Operator::Neq,
+        Op::In => gql::Operator::In,
+        Op::NotIn => gql::Operator::NotIn,
+        Op::Contains => gql::Operator::Contains,
+        Op::StartsWith => gql::Operator::StartsWith,
+        Op::EndsWith => gql::Operator::EndsWith,
+        Op::Gt => gql::Operator::Gt,
+        Op::Gte => gql::Operator::Gte,
+        Op::Lt => gql::Operator::Lt,
+        Op::Lte => gql::Operator::Lte,
+        Op::Exists => gql::Operator::Exists,
+        Op::Regex => gql::Operator::Regex,
+        Op::FlagMatches => gql::Operator::FlagMatches,
+    })
+}
+
+fn variant_in(variant: &pb::Variant) -> gql::VariantInput {
+    gql::VariantInput {
+        key: variant.key.clone(),
+        value: json(variant.value.as_ref()),
+    }
+}
+
+fn constraint_in(constraint: &pb::Constraint) -> anyhow::Result<gql::ConstraintInput> {
+    Ok(gql::ConstraintInput {
+        attribute: constraint.attribute.clone(),
+        operator: operator_in(constraint.operator)?,
+        values: constraint
+            .values
+            .iter()
+            .map(Convert::value_to_json)
+            .collect(),
+    })
+}
+
+fn rule_in(rule: &pb::Rule) -> anyhow::Result<gql::RuleInput> {
+    let given = |value: &str| (!value.is_empty()).then(|| value.to_owned());
+
+    Ok(gql::RuleInput {
+        rank: i32::try_from(rule.rank)?,
+        segment_key: given(&rule.segment_key),
+        variant_key: given(&rule.variant_key),
+        distributions: rule
+            .distributions
+            .iter()
+            .map(|d| {
+                Ok(gql::DistributionInput {
+                    variant_key: d.variant_key.clone(),
+                    weight: i32::try_from(d.weight)?,
+                })
+            })
+            .collect::<anyhow::Result<_>>()?,
+        constraint_groups: rule
+            .constraint_groups
+            .iter()
+            .map(|group| group.constraints.iter().map(constraint_in).collect())
+            .collect::<anyhow::Result<_>>()?,
+        bucket_salt: rule.bucket_salt.clone(),
+    })
+}
+
+fn flag_in(flag: &pb::Flag) -> anyhow::Result<gql::FlagInput> {
+    Ok(gql::FlagInput {
+        key: flag.key.clone(),
+        value_type: value_type_in(flag.value_type)?,
+        enabled: flag.enabled,
+        default_variant_key: flag.default_variant_key.clone(),
+        archived: flag.archived,
+        variants: flag.variants.iter().map(variant_in).collect(),
+        rules: flag
+            .rules
+            .iter()
+            .map(rule_in)
+            .collect::<anyhow::Result<_>>()?,
+    })
+}
+
+fn segment_in(segment: &pb::Segment) -> anyhow::Result<gql::SegmentInput> {
+    Ok(gql::SegmentInput {
+        key: segment.key.clone(),
+        name: segment.name.clone(),
+        constraints: segment
+            .constraints
+            .iter()
+            .map(constraint_in)
+            .collect::<anyhow::Result<_>>()?,
+    })
 }

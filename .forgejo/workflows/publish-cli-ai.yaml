@@ -6,8 +6,9 @@ on:
     paths:
       - platform-services/ai-gateway/cli/**
       - crates/cli-auth/**
+      - crates/graph-client/**
+      - platform-services/graph/supergraph/schema.graphql
       - platform-services/ai-gateway/api/**
-      - platform-services/ai-gateway/Cargo.lock
       - .forgejo/workflows/publish-cli-ai.yaml
   workflow_dispatch:
 

@@ -1,107 +1,31 @@
+mod graphql;
 mod usage;
 
 use ai_gateway_api::{UsageRow, Window};
 use clap::{Parser, Subcommand};
-use cli_auth::{App, OAuthClient, TokenSource};
-use serde_json::json;
+use cli_auth::App;
+use cynic::{MutationBuilder, QueryBuilder};
+use graph_client::GraphClient;
+use serde::Serialize;
 use usage::UsageTable;
 
+use graphql::*;
+
 const APP: App = App {
-    name: "aig",
+    name: "ortzi/ai",
     scopes: "openid email profile groups",
-    login_hint: "run `ortzi login ai` or set AIG_ADMIN_TOKEN",
+    login_hint: "run `ortzi login ai`",
 };
 
 #[derive(Parser)]
-#[command(name = "aig", about = "ai-gateway admin CLI")]
+#[command(name = "aig", about = "ai-gateway admin CLI, through the graph")]
 pub struct Cli {
-    #[arg(
-        long,
-        global = true,
-        env = "AIG_URL",
-        default_value = "https://ai-gateway.ortzi.cloud"
-    )]
-    url: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "AIG_OIDC_ISSUER",
-        default_value = "https://idm.anurag.sh/oauth2/openid/ai-gateway",
-        help = "OIDC issuer used to log in"
-    )]
-    issuer: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "AIG_OIDC_CLIENT_ID",
-        default_value = "ai-gateway",
-        help = "OAuth client id"
-    )]
-    client_id: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "AIG_ADMIN_TOKEN",
-        hide_env_values = true,
-        help = "Use this admin token instead of the stored login"
-    )]
-    token: Option<String>,
-
     #[command(subcommand)]
     command: Command,
 }
 
-struct Session {
-    url: String,
-    oauth: OAuthClient,
-    token: Option<String>,
-}
-
-impl Session {
-    fn new(cli: &Cli) -> Self {
-        Self {
-            url: cli.url.trim_end_matches('/').to_owned(),
-            oauth: OAuthClient::new(APP, &cli.issuer, &cli.client_id),
-            token: cli.token.clone().filter(|token| !token.is_empty()),
-        }
-    }
-
-    async fn bearer(&self) -> anyhow::Result<String> {
-        if let Some(token) = &self.token {
-            return Ok(token.clone());
-        }
-
-        Ok(TokenSource::acquire(self.oauth.clone())
-            .await?
-            .access_token())
-    }
-
-    fn usage_request(&self, http: &reqwest::Client, since: Window) -> reqwest::RequestBuilder {
-        http.get(format!("{}/admin/usage?since={since}", self.url))
-    }
-
-    async fn usage(&self, http: &reqwest::Client, since: Window) -> anyhow::Result<()> {
-        let request = self.usage_request(http, since);
-        let (_, body) = fetch(request.bearer_auth(self.bearer().await?)).await?;
-        let rows: Vec<UsageRow> = serde_json::from_str(&body)?;
-
-        print!("{}", UsageTable::new(since, rows));
-
-        Ok(())
-    }
-}
-
 #[derive(Subcommand)]
 enum Command {
-    /// Log in through the browser and store the session
-    Login,
-    /// Forget the stored session
-    Logout,
-    /// Show the logged in user
-    Whoami,
     /// Manage virtual keys
     Keys {
         #[command(subcommand)]
@@ -119,7 +43,7 @@ enum Command {
         #[arg(long, help = "Print the raw JSON instead of a table")]
         json: bool,
     },
-    /// List routable providers
+    /// List routable models and their prices
     Models,
     /// Manage model pricing
     Prices {
@@ -130,25 +54,8 @@ enum Command {
 
 #[derive(Subcommand)]
 enum PriceAction {
-    /// Fetch current prices from llm-prices.com and upsert them into the gateway
-    Sync {
-        #[arg(long, default_value = "https://www.llm-prices.com/current-v1.json")]
-        source: String,
-    },
-}
-
-/// One entry from llm-prices.com `current-v1.json`. Rates are USD per million tokens.
-#[derive(serde::Deserialize)]
-struct UpstreamPrice {
-    id: String,
-    input: Option<f64>,
-    output: Option<f64>,
-    input_cached: Option<f64>,
-}
-
-#[derive(serde::Deserialize)]
-struct UpstreamPrices {
-    prices: Vec<UpstreamPrice>,
+    /// Fetch current prices from llm-prices.com now; the gateway also syncs daily
+    Sync,
 }
 
 #[derive(Subcommand)]
@@ -162,7 +69,7 @@ enum KeyAction {
         models: Vec<String>,
         /// Optional monthly token budget.
         #[arg(long)]
-        budget: Option<i64>,
+        budget: Option<i32>,
     },
     /// List existing keys
     List,
@@ -175,7 +82,7 @@ enum KeyAction {
         #[arg(long = "model")]
         models: Option<Vec<String>>,
         #[arg(long)]
-        budget: Option<i64>,
+        budget: Option<i32>,
         /// Revoke (`true`) or restore (`false`) the key.
         #[arg(long)]
         revoked: Option<bool>,
@@ -186,29 +93,45 @@ enum KeyAction {
     Regenerate { id: String },
 }
 
-/// Runs aig, published as the `ai` ortzi package and also shipped in the ai-gateway
-/// image, where the pricing CronJob runs `aig prices sync`.
-pub async fn run(cli: Cli) -> anyhow::Result<()> {
-    let session = Session::new(&cli);
-    let http = reqwest::Client::new();
-    let base = session.url.as_str();
+/// Keys print with their graph id; a bare uuid from older output still works.
+fn key_id(id: String) -> cynic::Id {
+    if id.contains(':') {
+        cynic::Id::new(id)
+    } else {
+        cynic::Id::new(format!("aiGateway:key:{id}"))
+    }
+}
 
-    let request = match &cli.command {
-        Command::Login => return cli_auth::commands::login(&session.oauth).await,
-        Command::Logout => return cli_auth::commands::logout(&session.oauth),
-        Command::Whoami => return cli_auth::commands::whoami(&session.oauth, &session.url),
-        Command::Models => return send(http.get(format!("{base}/v1/models"))).await,
+fn print(value: &impl Serialize) -> anyhow::Result<()> {
+    println!("{}", serde_json::to_string_pretty(value)?);
+    Ok(())
+}
+
+/// Runs aig, published as the `ai` ortzi package.
+pub async fn run(cli: Cli) -> anyhow::Result<()> {
+    let graph = GraphClient::connect(APP).await?;
+
+    match cli.command {
+        Command::Models => print(&graph.run(ModelsQuery::build(())).await?.ai_gateway_models),
         Command::Keys { action } => match action {
             KeyAction::Create {
                 name,
                 models,
                 budget,
-            } => http.post(format!("{base}/admin/keys")).json(&json!({
-                "name": name,
-                "allowed_models": models,
-                "monthly_token_budget": budget,
-            })),
-            KeyAction::List => http.get(format!("{base}/admin/keys")),
+            } => {
+                let input = CreateKeyInput {
+                    name,
+                    allowed_models: models,
+                    monthly_token_budget: budget,
+                };
+                print(
+                    &graph
+                        .run(CreateKey::build(CreateKeyVariables { input }))
+                        .await?
+                        .ai_gateway_create_key,
+                )
+            }
+            KeyAction::List => print(&graph.run(KeysQuery::build(())).await?.ai_gateway_keys),
             KeyAction::Update {
                 id,
                 name,
@@ -216,73 +139,70 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                 budget,
                 revoked,
             } => {
-                let mut body = serde_json::Map::new();
-                if let Some(name) = name {
-                    body.insert("name".into(), json!(name));
-                }
-                if let Some(models) = models {
-                    body.insert("allowed_models".into(), json!(models));
-                }
-                if let Some(budget) = budget {
-                    body.insert("monthly_token_budget".into(), json!(budget));
-                }
-                if let Some(revoked) = revoked {
-                    body.insert("revoked".into(), json!(revoked));
-                }
-                http.patch(format!("{base}/admin/keys/{id}")).json(&body)
+                let input = UpdateKeyInput {
+                    name,
+                    allowed_models: models,
+                    monthly_token_budget: budget,
+                    revoked,
+                };
+                print(
+                    &graph
+                        .run(UpdateKey::build(UpdateKeyVariables {
+                            id: key_id(id),
+                            input,
+                        }))
+                        .await?
+                        .ai_gateway_update_key,
+                )
             }
-            KeyAction::Revoke { id } => http.delete(format!("{base}/admin/keys/{id}")),
-            KeyAction::Regenerate { id } => http.post(format!("{base}/admin/keys/{id}/regenerate")),
+            KeyAction::Revoke { id } => print(
+                &graph
+                    .run(RevokeKey::build(KeyIdVariables { id: key_id(id) }))
+                    .await?
+                    .ai_gateway_revoke_key,
+            ),
+            KeyAction::Regenerate { id } => print(
+                &graph
+                    .run(RegenerateKey::build(KeyIdVariables { id: key_id(id) }))
+                    .await?
+                    .ai_gateway_regenerate_key,
+            ),
         },
-        Command::Usage { since, json: false } => return session.usage(&http, *since).await,
-        Command::Usage { since, .. } => session.usage_request(&http, *since),
-        Command::Prices { action } => match action {
-            PriceAction::Sync { source } => {
-                let upstream: UpstreamPrices = http.get(source).send().await?.json().await?;
-                let prices: Vec<_> = upstream
-                    .prices
-                    .into_iter()
-                    .filter_map(|p| match (p.input, p.output) {
-                        (Some(input), Some(output)) => Some(json!({
-                            "id": p.id,
-                            "input_usd_per_mtok": input,
-                            "output_usd_per_mtok": output,
-                            "cached_usd_per_mtok": p.input_cached,
-                        })),
-                        _ => None,
-                    })
-                    .collect();
-                eprintln!("fetched {} priced models from {source}", prices.len());
-                http.post(format!("{base}/admin/prices")).json(&prices)
+        Command::Usage { since, json } => {
+            let rows = graph
+                .run(UsageQuery::build(UsageVariables {
+                    since: since.to_string(),
+                }))
+                .await?
+                .ai_gateway_usage;
+            if json {
+                return print(&rows);
             }
-        },
-    };
 
-    send(request.bearer_auth(session.bearer().await?)).await
-}
-
-async fn fetch(request: reqwest::RequestBuilder) -> anyhow::Result<(reqwest::StatusCode, String)> {
-    let response = request.send().await?;
-    let status = response.status();
-    let body = response.text().await?;
-
-    if !status.is_success() {
-        anyhow::bail!("request failed ({status}): {body}");
+            let rows = rows
+                .into_iter()
+                .map(|row| UsageRow {
+                    key_name: row.key_name,
+                    model: row.model,
+                    requests: row.requests.into(),
+                    cache_hits: row.cache_hits.into(),
+                    input_tokens: row.input_tokens.into(),
+                    output_tokens: row.output_tokens.into(),
+                    cost_usd: row.cost_usd,
+                })
+                .collect();
+            print!("{}", UsageTable::new(since, rows));
+            Ok(())
+        }
+        Command::Prices {
+            action: PriceAction::Sync,
+        } => {
+            let written = graph
+                .run(SyncPrices::build(()))
+                .await?
+                .ai_gateway_sync_prices;
+            println!("synced {written} model prices");
+            Ok(())
+        }
     }
-
-    Ok((status, body))
-}
-
-async fn send(request: reqwest::RequestBuilder) -> anyhow::Result<()> {
-    let (status, body) = fetch(request).await?;
-
-    if body.is_empty() {
-        println!("ok ({status})");
-    } else if let Ok(value) = serde_json::from_str::<serde_json::Value>(&body) {
-        println!("{}", serde_json::to_string_pretty(&value)?);
-    } else {
-        println!("{body}");
-    }
-
-    Ok(())
 }

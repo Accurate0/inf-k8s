@@ -5,11 +5,10 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler libprotobuf-dev
 
-# Build context is the repository root: workspace members depend on crates/ via path
-# dependencies, so those trees must be present even though only the server is built.
+# Build context is the repository root: the server depends on crates/subgraph via a path
+# dependency, so that tree must be present.
 WORKDIR /app
 
-COPY crates/cli-auth ./crates/cli-auth
 COPY crates/subgraph ./crates/subgraph
 COPY platform-services/ai-gateway ./platform-services/ai-gateway
 

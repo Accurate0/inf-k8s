@@ -2,7 +2,7 @@
 name = "janitor-cli"
 version = "0.1.0"
 edition = "2024"
-description = "CLI for the janitor-bot admin API"
+description = "janitor-bot admin CLI, through the graph"
 
 [[bin]]
 name = "janitor"
@@ -10,10 +10,15 @@ path = "src/main.rs"
 
 [dependencies]
 cli-auth = { path = "../../../crates/cli-auth" }
-janitor-webhook = { path = "../webhook" }
+graph-client = { path = "../../../crates/graph-client" }
+cynic = "3.14.0"
 anyhow = "1"
+chrono = { version = "0.4", features = ["serde"] }
+serde = { version = "1", features = ["derive"] }
 clap = { version = "4", features = ["derive", "env"] }
 clap_complete = { version = "4", features = ["unstable-dynamic"] }
-reqwest = { version = "0.13", features = ["json"] }
 serde_json = "1"
 tokio = { version = "1", features = ["full"] }
+
+[build-dependencies]
+cynic-codegen = "3.14.0"

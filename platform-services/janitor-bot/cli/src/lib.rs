@@ -1,68 +1,30 @@
+mod graphql;
+
 use anyhow::{Context, Result, bail};
 use clap::{Parser, Subcommand, ValueEnum};
-use cli_auth::{App, OAuthClient, TokenSource};
-use reqwest::Method;
-use serde_json::Value;
+use cli_auth::App;
+use cynic::{MutationBuilder, QueryBuilder};
+use graph_client::GraphClient;
+use serde::Serialize;
 use std::path::PathBuf;
 
+use graphql::*;
+
 const APP: App = App {
-    name: "janitor",
+    name: "ortzi/janitor",
     scopes: "openid email profile groups",
-    login_hint: "run `ortzi login janitor` or set JANITOR_TOKEN",
+    login_hint: "run `ortzi login janitor`",
 };
 
 #[derive(Parser)]
-#[command(name = "janitor", about = "CLI for the janitor-bot admin API")]
+#[command(name = "janitor", about = "janitor-bot admin CLI, through the graph")]
 pub struct Cli {
-    /// Base URL of janitor-bot (e.g. http://localhost:3000)
-    #[arg(
-        long,
-        global = true,
-        env = "JANITOR_URL",
-        default_value = "https://janitor-bot.ortzi.cloud"
-    )]
-    url: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "JANITOR_OIDC_ISSUER",
-        default_value = "https://idm.anurag.sh/oauth2/openid/janitor-bot",
-        help = "OIDC issuer used to log in"
-    )]
-    issuer: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "JANITOR_OIDC_CLIENT_ID",
-        default_value = "janitor-bot",
-        help = "OAuth client id"
-    )]
-    client_id: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "JANITOR_TOKEN",
-        hide_env_values = true,
-        help = "Use this bearer token instead of the stored login"
-    )]
-    token: Option<String>,
-
     #[command(subcommand)]
     cmd: Command,
 }
 
 #[derive(Subcommand)]
 enum Command {
-    /// Log in through the browser and store the session
-    Login,
-    /// Forget the stored session
-    Logout,
-    /// Show the logged in user
-    Whoami,
-
     /// Trigger the open-PR cron evaluation now
     Cron,
 
@@ -70,14 +32,14 @@ enum Command {
     Evaluate {
         owner: String,
         repo: String,
-        pr_number: i64,
+        pr_number: i32,
     },
 
     /// Explain what rules would match for a PR without executing actions
     DryRun {
         owner: String,
         repo: String,
-        pr_number: i64,
+        pr_number: i32,
     },
 
     /// Merge all PRs currently labeled janitor/queued
@@ -90,12 +52,12 @@ enum Command {
         kind: CommandKind,
         owner: String,
         repo: String,
-        number: i64,
+        number: i32,
         /// Command body, e.g. "@janitor merge squash"
         body: String,
     },
 
-    /// Dump prometheus metrics
+    /// Show this replica's prometheus counters and histograms
     Metrics,
 
     /// Show the orchestrator evaluation log
@@ -107,18 +69,15 @@ enum Command {
     /// Deep health check (forgejo + github)
     Health,
 
-    /// Replay a saved webhook payload against a (local) janitor-bot through the
-    /// real, signature-verified webhook endpoint. The event header(s) are
-    /// inferred from the payload. Reads the same secret env vars the bot does
-    /// (FORGEJO_INCOMING_WEBHOOK_AUTH / GITHUB_WEBHOOK_SECRET /
-    /// FLUX_WEBHOOK_SECRET). Returns 200 immediately; output is in the bot's logs.
+    /// Replay a saved webhook payload through its handler, as if the source had sent it.
+    /// The bot signs it itself; the event is inferred from the payload unless given. Prints
+    /// the handler's HTTP status; what it did is in the bot's logs.
     Replay {
-        /// Which webhook endpoint to hit
         #[arg(value_enum)]
         source: Source,
         /// Path to a file containing the raw JSON webhook body
         file: PathBuf,
-        /// Override the inferred event header (X-GitHub-Event / X-Forgejo-Event)
+        /// Override the inferred event (X-GitHub-Event / X-Forgejo-Event)
         #[arg(long)]
         event: Option<String>,
         /// Override the inferred X-Forgejo-Event-Type (forgejo only)
@@ -140,58 +99,48 @@ enum Source {
     Flux,
 }
 
+fn print(value: &impl Serialize) -> Result<()> {
+    println!("{}", serde_json::to_string_pretty(value)?);
+    Ok(())
+}
+
 /// Runs janitor, published as the `janitor` ortzi package.
 pub async fn run(cli: Cli) -> Result<()> {
-    let client = reqwest::Client::new();
-    let base = cli.url.trim_end_matches('/');
-    let oauth = OAuthClient::new(APP, &cli.issuer, &cli.client_id);
+    let graph = GraphClient::connect(APP).await?;
+    let pr = |owner, repo, number| PrVariables {
+        owner,
+        repo,
+        number,
+    };
 
-    match &cli.cmd {
-        Command::Login => return cli_auth::commands::login(&oauth).await,
-        Command::Logout => return cli_auth::commands::logout(&oauth),
-        Command::Whoami => return cli_auth::commands::whoami(&oauth, base),
-        _ => {}
-    }
-
-    if let Command::Replay {
-        source,
-        file,
-        event,
-        event_type,
-    } = &cli.cmd
-    {
-        return run_replay(
-            &client,
-            base,
-            *source,
-            file,
-            event.as_deref(),
-            event_type.as_deref(),
-        )
-        .await;
-    }
-
-    let (method, path, body): (Method, String, Option<Value>) = match cli.cmd {
-        Command::Cron => (Method::POST, "/admin/cron".into(), None),
+    match cli.cmd {
+        Command::Cron => print(&graph.run(RunCron::build(())).await?.janitor_run_cron),
         Command::Evaluate {
             owner,
             repo,
             pr_number,
-        } => (
-            Method::POST,
-            format!("/admin/evaluate/{owner}/{repo}/{pr_number}"),
-            None,
+        } => print(
+            &graph
+                .run(EvaluatePr::build(pr(owner, repo, pr_number)))
+                .await?
+                .janitor_evaluate_pr,
         ),
         Command::DryRun {
             owner,
             repo,
             pr_number,
-        } => (
-            Method::POST,
-            format!("/admin/dry-run/{owner}/{repo}/{pr_number}"),
-            None,
+        } => print(
+            &graph
+                .run(DryRunQuery::build(pr(owner, repo, pr_number)))
+                .await?
+                .janitor_dry_run,
         ),
-        Command::MergeQueued => (Method::POST, "/admin/merge-queued".into(), None),
+        Command::MergeQueued => print(
+            &graph
+                .run(MergeQueued::build(()))
+                .await?
+                .janitor_merge_queued,
+        ),
         Command::Dispatch {
             kind,
             owner,
@@ -199,159 +148,67 @@ pub async fn run(cli: Cli) -> Result<()> {
             number,
             body,
         } => {
-            let kind = match kind {
-                CommandKind::Pr => "pr",
-                CommandKind::Issue => "issue",
+            let target = match kind {
+                CommandKind::Pr => CommandTarget::Pr,
+                CommandKind::Issue => CommandTarget::Issue,
             };
-            (
-                Method::POST,
-                "/admin/command".into(),
-                Some(serde_json::json!({
-                    "owner": owner,
-                    "repo": repo,
-                    "number": number,
-                    "kind": kind,
-                    "body": body,
-                })),
+            let input = CommandInput {
+                owner,
+                repo,
+                number,
+                target,
+                body,
+            };
+            print(
+                &graph
+                    .run(Dispatch::build(CommandVariables { input }))
+                    .await?
+                    .janitor_command,
             )
         }
-        Command::Metrics => (Method::GET, "/admin/metrics".into(), None),
-        Command::Logs => (Method::GET, "/admin/logs".into(), None),
-        Command::Rules => (Method::GET, "/admin/rules".into(), None),
-        Command::Health => (Method::GET, "/admin/health/deep".into(), None),
-        Command::Replay { .. } => unreachable!("replay is handled before this match"),
-        Command::Login | Command::Logout | Command::Whoami => {
-            unreachable!("session commands are handled before this match")
-        }
-    };
-
-    let url = format!("{base}{path}");
-    let mut req = client.request(method, &url);
-    // Prometheus scrapes /admin/metrics unauthenticated; everything else needs a bearer.
-    if path != "/admin/metrics" {
-        let token = match cli.token.filter(|token| !token.is_empty()) {
-            Some(token) => token,
-            None => TokenSource::acquire(oauth).await?.access_token(),
-        };
-        req = req.bearer_auth(token);
-    }
-    if let Some(b) = body {
-        req = req.json(&b);
-    }
-
-    let resp = req
-        .send()
-        .await
-        .with_context(|| format!("request to {url}"))?;
-    let status = resp.status();
-    let text = resp.text().await.unwrap_or_default();
-
-    if let Ok(v) = serde_json::from_str::<Value>(&text) {
-        println!("{}", serde_json::to_string_pretty(&v)?);
-    } else {
-        print!("{text}");
-    }
-
-    if !status.is_success() {
-        bail!("request failed: {status}");
-    }
-    Ok(())
-}
-
-fn require_env(var: &str) -> Result<String> {
-    std::env::var(var).with_context(|| format!("{var} must be set to sign/authorize the replay"))
-}
-
-async fn run_replay(
-    client: &reqwest::Client,
-    base: &str,
-    source: Source,
-    file: &std::path::Path,
-    event: Option<&str>,
-    event_type: Option<&str>,
-) -> Result<()> {
-    let body = std::fs::read(file).with_context(|| format!("reading {}", file.display()))?;
-
-    let (path, headers): (&str, Vec<(String, String)>) = match source {
-        Source::Github => {
-            let event = match event {
-                Some(e) => e.to_string(),
-                None => janitor_webhook::github::infer_event(&body)
-                    .context(
-                        "could not infer X-GitHub-Event from payload; pass --event \
-                         (status|check_run|push|workflow_run)",
-                    )?
-                    .to_string(),
-            };
-            let secret = require_env("GITHUB_WEBHOOK_SECRET")?;
-            let signature = janitor_webhook::github::sign_payload(&secret, &body);
-            (
-                "/github/webhook",
-                vec![
-                    ("X-GitHub-Event".into(), event),
-                    ("X-Hub-Signature-256".into(), signature),
-                ],
-            )
-        }
-        Source::Forgejo => {
-            let (event, inferred_type) = match event {
-                Some(e) => (e.to_string(), event_type),
-                None => {
-                    let (e, t) = janitor_webhook::forgejo::infer_event(&body).context(
-                        "could not infer X-Forgejo-Event from payload; pass --event \
-                         (pull_request|issue_comment|push)",
-                    )?;
-                    (e.to_string(), event_type.or(t))
-                }
-            };
-            let auth = require_env("FORGEJO_INCOMING_WEBHOOK_AUTH")?;
-            let mut headers = vec![
-                ("Authorization".into(), auth),
-                ("X-Forgejo-Event".into(), event),
-            ];
-            if let Some(t) = inferred_type {
-                headers.push(("X-Forgejo-Event-Type".into(), t.to_string()));
+        Command::Metrics => print(&graph.run(MetricsQuery::build(())).await?.janitor_metrics),
+        Command::Logs => print(
+            &graph
+                .run(EvaluationsQuery::build(()))
+                .await?
+                .janitor_evaluations,
+        ),
+        Command::Rules => print(&graph.run(RulesQuery::build(())).await?.janitor_rules),
+        Command::Health => {
+            let services = graph.run(HealthQuery::build(())).await?.janitor_health;
+            print(&services)?;
+            if services.iter().any(|s| !s.healthy) {
+                bail!("not every service is healthy");
             }
-            ("/forgejo/webhook", headers)
+            Ok(())
         }
-        Source::Flux => {
-            // notification-controller's generic-hmac provider signs like github does
-            let secret = require_env("FLUX_WEBHOOK_SECRET")?;
-            let signature = janitor_webhook::github::sign_payload(&secret, &body);
-            ("/flux/webhook", vec![("X-Signature".into(), signature)])
+        Command::Replay {
+            source,
+            file,
+            event,
+            event_type,
+        } => {
+            let payload = std::fs::read_to_string(&file)
+                .with_context(|| format!("reading {}", file.display()))?;
+            let source = match source {
+                Source::Forgejo => WebhookSource::Forgejo,
+                Source::Github => WebhookSource::Github,
+                Source::Flux => WebhookSource::Flux,
+            };
+            let status = graph
+                .run(Replay::build(ReplayVariables {
+                    source,
+                    event,
+                    event_type,
+                    payload,
+                }))
+                .await?
+                .janitor_replay_webhook;
+            println!("{status}");
+            if !(200..300).contains(&status) {
+                bail!("replay failed: {status}");
+            }
+            Ok(())
         }
-    };
-
-    let url = format!("{base}{path}");
-    let mut req = client
-        .post(&url)
-        .header("Content-Type", "application/json")
-        .body(body);
-    for (k, v) in &headers {
-        req = req.header(k, v);
     }
-
-    let event_desc = headers
-        .iter()
-        .filter(|(k, _)| k.starts_with("X-"))
-        .map(|(k, v)| format!("{k}: {v}"))
-        .collect::<Vec<_>>()
-        .join(", ");
-    eprintln!("replaying to {url} [{event_desc}]");
-
-    let resp = req
-        .send()
-        .await
-        .with_context(|| format!("request to {url}"))?;
-    let status = resp.status();
-    let text = resp.text().await.unwrap_or_default();
-    if !text.is_empty() {
-        print!("{text}");
-    }
-    println!("{status}");
-
-    if !status.is_success() {
-        bail!("replay failed: {status}");
-    }
-    Ok(())
 }

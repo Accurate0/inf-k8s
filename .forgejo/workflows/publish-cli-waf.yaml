@@ -5,9 +5,9 @@ on:
       - main
     paths:
       - platform-services/waf-manager/cli/**
-      - platform-services/waf-manager/api/**
       - crates/cli-auth/**
-      - platform-services/waf-manager/Cargo.lock
+      - crates/graph-client/**
+      - platform-services/graph/supergraph/schema.graphql
       - .forgejo/workflows/publish-cli-waf.yaml
   workflow_dispatch:
 

@@ -1,7 +1,8 @@
 [workspace]
-members = ["api", "cli"]
-# `cargo build --bin aig` from here, as the Dockerfile does, still finds the CLI.
-default-members = [".", "cli"]
+members = ["api"]
+# The CLI is published as the `ai` ortzi package and builds against the supergraph schema,
+# which sits outside this image's build context.
+exclude = ["cli"]
 
 [package]
 name = "ai-gateway"

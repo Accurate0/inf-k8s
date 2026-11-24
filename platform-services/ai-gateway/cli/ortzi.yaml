@@ -1,10 +1,11 @@
 package:
   name: ai
-  version: 0.1.2
+  version: 0.2.0
   completions: clap
-  description: ai-gateway admin CLI
+  description: ai-gateway admin CLI, through the graph
   binary: aig
   aliases: [aig]
 auth:
-  client_id: ai-gateway
-  token_env: AIG_ADMIN_TOKEN
+  client_id: graph
+  token_env: GRAPH_TOKEN
+  scopes: openid email profile groups

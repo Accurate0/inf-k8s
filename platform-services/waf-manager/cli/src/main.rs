@@ -1,55 +1,24 @@
-use anyhow::{Context, bail};
+mod graphql;
+
+use anyhow::bail;
 use clap::{CommandFactory, Parser, Subcommand};
-use cli_auth::{App, OAuthClient, TokenSource};
+use cli_auth::App;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
-use reqwest::{Method, StatusCode};
-use serde::{Serialize, de::DeserializeOwned};
-use waf_manager_api as api;
+use cynic::{MutationBuilder, QueryBuilder};
+use graph_client::GraphClient;
+use serde::Serialize;
+
+use graphql::*;
 
 const APP: App = App {
-    name: "wafctl",
-    scopes: "openid email profile",
-    login_hint: "run `ortzi login waf` or set WAFCTL_TOKEN",
+    name: "ortzi/waf",
+    scopes: "openid email profile groups",
+    login_hint: "run `ortzi login waf`",
 };
 
 #[derive(Parser)]
-#[command(name = "wafctl", about = "waf-manager admin CLI")]
+#[command(name = "wafctl", about = "waf-manager admin CLI, through the graph")]
 struct Cli {
-    #[arg(
-        long,
-        global = true,
-        env = "WAFCTL_URL",
-        default_value = "https://waf-manager.ortzi.cloud"
-    )]
-    url: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "WAFCTL_OIDC_ISSUER",
-        default_value = "https://idm.anurag.sh/oauth2/openid/waf-manager-cli",
-        hide_short_help = true
-    )]
-    issuer: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "WAFCTL_OIDC_CLIENT_ID",
-        default_value = "waf-manager-cli",
-        hide_short_help = true
-    )]
-    client_id: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "WAFCTL_TOKEN",
-        hide_env_values = true,
-        help = "Use this bearer token instead of the stored login"
-    )]
-    token: Option<String>,
-
     #[arg(long, global = true, help = "Print raw JSON")]
     json: bool,
 
@@ -59,12 +28,6 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Log in through the browser and store the session
-    Login,
-    /// Forget the stored session
-    Logout,
-    /// Show the logged in user
-    Whoami,
     /// Client IPs with WAF detections in the current window
     Candidates,
     /// List blocks, optionally filtered by CIDR substring
@@ -128,93 +91,32 @@ enum AllowlistAction {
     Remove { cidr: String },
 }
 
-struct Client {
-    base: String,
-    http: reqwest::Client,
-    bearer: String,
-}
-
-impl Client {
-    async fn request<T: DeserializeOwned>(
-        &self,
-        method: Method,
-        path: &str,
-        body: Option<&impl Serialize>,
-    ) -> anyhow::Result<Option<T>> {
-        let mut request = self
-            .http
-            .request(method, format!("{}{path}", self.base))
-            .bearer_auth(&self.bearer);
-        if let Some(body) = body {
-            request = request.json(body);
-        }
-
-        let response = request.send().await.context("calling waf-manager")?;
-        let status = response.status();
-        let text = response.text().await?;
-        if !status.is_success() && status != StatusCode::NOT_MODIFIED {
-            bail!("waf-manager returned {status}: {}", text.trim());
-        }
-        if text.is_empty() {
-            return Ok(None);
-        }
-        Ok(Some(serde_json::from_str(&text).with_context(|| {
-            format!("unexpected response from {path}")
-        })?))
+async fn resolve_block(graph: &GraphClient, target: &str) -> anyhow::Result<String> {
+    if !target.contains(['.', ':', '/']) {
+        return Ok(target.to_owned());
     }
 
-    async fn get<T: DeserializeOwned>(&self, path: &str) -> anyhow::Result<T> {
-        self.request(Method::GET, path, None::<&()>)
-            .await?
-            .with_context(|| format!("empty response from {path}"))
-    }
-
-    async fn send(
-        &self,
-        method: Method,
-        path: &str,
-        body: Option<&impl Serialize>,
-    ) -> anyhow::Result<()> {
-        self.request::<serde_json::Value>(method, path, body)
-            .await?;
-        Ok(())
-    }
-
-    async fn resolve_block(&self, target: &str) -> anyhow::Result<String> {
-        if !target.contains(['.', ':', '/']) {
-            return Ok(target.to_owned());
-        }
-        let blocks: api::Blocks = self
-            .get(&format!("/api/v1/blocks?q={}", encode(target)))
-            .await?;
-        let wanted = target.trim();
-        let matches: Vec<&api::Block> = blocks
-            .blocks
-            .iter()
-            .filter(|b| {
-                b.cidr == wanted
-                    || b.cidr.strip_suffix("/32") == Some(wanted)
-                    || b.cidr.strip_suffix("/128") == Some(wanted)
-            })
-            .collect();
-        match matches.as_slice() {
-            [only] => Ok(only.name.clone()),
-            [] => bail!("no block for {target}"),
-            _ => bail!("several blocks match {target}; pass the block name"),
-        }
-    }
-}
-
-fn encode(value: &str) -> String {
-    value
-        .bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
+    let blocks = graph
+        .run(BlocksQuery::build(BlocksVariables {
+            query: Some(target.to_owned()),
+        }))
+        .await?
+        .waf_blocks;
+    let wanted = target.trim();
+    let matches: Vec<&Block> = blocks
+        .blocks
+        .iter()
+        .filter(|b| {
+            b.cidr == wanted
+                || b.cidr.strip_suffix("/32") == Some(wanted)
+                || b.cidr.strip_suffix("/128") == Some(wanted)
         })
-        .collect()
+        .collect();
+    match matches.as_slice() {
+        [only] => Ok(only.name.clone()),
+        [] => bail!("no block for {target}"),
+        _ => bail!("several blocks match {target}; pass the block name"),
+    }
 }
 
 fn table(header: &[&str]) -> Table {
@@ -236,7 +138,7 @@ fn short(stamp: &chrono::DateTime<chrono::Utc>) -> String {
     stamp.format("%Y-%m-%d %H:%M").to_string()
 }
 
-fn print_blocks(blocks: &[api::Block]) {
+fn print_blocks(blocks: &[Block]) {
     let mut t = table(&[
         "name", "cidr", "reason", "by", "expires", "strikes", "enforced",
     ]);
@@ -262,35 +164,12 @@ fn print_blocks(blocks: &[api::Block]) {
 async fn main() -> anyhow::Result<()> {
     clap_complete::CompleteEnv::with_factory(Cli::command).complete();
     let cli = Cli::parse();
-    let oauth = OAuthClient::new(APP, &cli.issuer, &cli.client_id);
-    let base = cli.url.trim_end_matches('/').to_owned();
-
-    match &cli.command {
-        Command::Login => return cli_auth::commands::login(&oauth).await,
-        Command::Logout => return cli_auth::commands::logout(&oauth),
-        Command::Whoami => return cli_auth::commands::whoami(&oauth, &base),
-        _ => {}
-    }
-
-    let bearer = match cli.token.clone().filter(|t| !t.is_empty()) {
-        Some(token) => token,
-        None => TokenSource::acquire(oauth).await?.access_token(),
-    };
-    let client = Client {
-        base,
-        http: reqwest::Client::builder()
-            .user_agent(concat!("wafctl/", env!("CARGO_PKG_VERSION")))
-            .connect_timeout(std::time::Duration::from_secs(10))
-            .timeout(std::time::Duration::from_secs(60))
-            .build()?,
-        bearer,
-    };
+    let graph = GraphClient::connect(APP).await?;
     let json = cli.json;
 
     match cli.command {
-        Command::Login | Command::Logout | Command::Whoami => unreachable!(),
         Command::Candidates => {
-            let c: api::Candidates = client.get("/api/v1/candidates").await?;
+            let c = graph.run(CandidatesQuery::build(())).await?.waf_candidates;
             if json {
                 return print_json(&c);
             }
@@ -320,11 +199,10 @@ async fn main() -> anyhow::Result<()> {
             println!("{t}");
         }
         Command::Blocks { query } => {
-            let path = match query {
-                Some(q) => format!("/api/v1/blocks?q={}", encode(&q)),
-                None => "/api/v1/blocks".to_owned(),
-            };
-            let b: api::Blocks = client.get(&path).await?;
+            let b = graph
+                .run(BlocksQuery::build(BlocksVariables { query }))
+                .await?
+                .waf_blocks;
             if json {
                 return print_json(&b);
             }
@@ -339,19 +217,17 @@ async fn main() -> anyhow::Result<()> {
             ttl,
             gateway,
         } => {
-            let block: Option<api::Block> = client
-                .request(
-                    Method::POST,
-                    "/api/v1/blocks",
-                    Some(&api::CreateBlock {
+            let block = graph
+                .run(CreateBlock::build(CreateBlockVariables {
+                    input: CreateBlockInput {
                         cidr,
                         gateway,
                         reason,
-                        ttl_hours: ttl,
-                    }),
-                )
-                .await?;
-            let block = block.context("waf-manager returned no block")?;
+                        ttl_hours: ttl.map(i32::try_from).transpose()?,
+                    },
+                }))
+                .await?
+                .waf_create_block;
             if json {
                 return print_json(&block);
             }
@@ -366,35 +242,39 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Command::Unblock { target } => {
-            let name = client.resolve_block(&target).await?;
-            client
-                .send(
-                    Method::DELETE,
-                    &format!("/api/v1/blocks/{name}"),
-                    None::<&()>,
-                )
+            let name = resolve_block(&graph, &target).await?;
+            let deleted = graph
+                .run(DeleteBlock::build(NameVariables { name: name.clone() }))
                 .await?;
+            if json {
+                return print_json(&deleted.waf_delete_block);
+            }
             println!("unblocked {name}");
         }
         Command::Permanent { target } => {
-            let name = client.resolve_block(&target).await?;
-            client
-                .send(
-                    Method::POST,
-                    &format!("/api/v1/blocks/{name}/permanent"),
-                    None::<&()>,
-                )
-                .await?;
-            println!("{name} is permanent");
+            let name = resolve_block(&graph, &target).await?;
+            let block = graph
+                .run(MakeBlockPermanent::build(NameVariables {
+                    name: name.clone(),
+                }))
+                .await?
+                .waf_make_block_permanent;
+            if json {
+                return print_json(&block);
+            }
+            println!("{} is permanent", block.name);
         }
         Command::Ip { addr, logs } => {
-            let ip: api::IpDetail = client.get(&format!("/api/v1/ip/{}", encode(&addr))).await?;
+            let ip = graph
+                .run(IpQuery::build(IpVariables { addr }))
+                .await?
+                .waf_ip;
             if json {
                 return print_json(&ip);
             }
             println!("{} ({}), window {}", ip.client_ip, ip.cidr, ip.window);
             println!("strikes    {}", ip.strikes);
-            println!("protected  {}", or_dash(ip.protected.as_deref()));
+            println!("protected  {}", or_dash(ip.protected_by.as_deref()));
             if let Some(e) = &ip.enrichment {
                 println!("hostname   {}", or_dash(e.hostname.as_deref()));
                 println!(
@@ -463,9 +343,13 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Command::Audit { limit, offset } => {
-            let page: api::AuditPage = client
-                .get(&format!("/api/v1/audit?limit={limit}&offset={offset}"))
-                .await?;
+            let page = graph
+                .run(AuditQuery::build(AuditVariables {
+                    offset: i32::try_from(offset)?,
+                    limit: i32::try_from(limit)?,
+                }))
+                .await?
+                .waf_audit;
             if json {
                 return print_json(&page);
             }
@@ -488,11 +372,10 @@ async fn main() -> anyhow::Result<()> {
             );
         }
         Command::Workflows { workflow } => {
-            let path = match workflow {
-                Some(w) => format!("/api/v1/workflows?workflow={}", encode(&w)),
-                None => "/api/v1/workflows".to_owned(),
-            };
-            let w: api::Workflows = client.get(&path).await?;
+            let w = graph
+                .run(WorkflowsQuery::build(WorkflowsVariables { workflow }))
+                .await?
+                .waf_workflows;
             if json {
                 return print_json(&w);
             }
@@ -506,7 +389,7 @@ async fn main() -> anyhow::Result<()> {
                 "unblocked",
             ]);
             for wf in &w.workflows {
-                let score = w.scorecard.iter().find(|s| s.workflow == wf.name);
+                let score = wf.scorecard.as_ref();
                 t.add_row([
                     wf.name.clone(),
                     wf.enabled.clone(),
@@ -535,7 +418,7 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Allowlist { action } => match action.unwrap_or(AllowlistAction::List) {
             AllowlistAction::List => {
-                let a: api::Allowlist = client.get("/api/v1/allowlist").await?;
+                let a = graph.run(AllowlistQuery::build(())).await?.waf_allowlist;
                 if json {
                     return print_json(&a);
                 }
@@ -554,26 +437,26 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             AllowlistAction::Add { cidr, note } => {
-                client
-                    .send(
-                        Method::POST,
-                        "/api/v1/allowlist",
-                        Some(&api::CreateAllowlist {
-                            cidr: cidr.clone(),
-                            note,
-                        }),
-                    )
-                    .await?;
+                let allowlist = graph
+                    .run(AddAllowlist::build(AllowlistVariables {
+                        cidr: cidr.clone(),
+                        note,
+                    }))
+                    .await?
+                    .waf_add_allowlist;
+                if json {
+                    return print_json(&allowlist);
+                }
                 println!("allowlisted {cidr}");
             }
             AllowlistAction::Remove { cidr } => {
-                client
-                    .send(
-                        Method::DELETE,
-                        &format!("/api/v1/allowlist?cidr={}", encode(&cidr)),
-                        None::<&()>,
-                    )
-                    .await?;
+                let allowlist = graph
+                    .run(RemoveAllowlist::build(CidrVariables { cidr: cidr.clone() }))
+                    .await?
+                    .waf_remove_allowlist;
+                if json {
+                    return print_json(&allowlist);
+                }
                 println!("removed {cidr} from the allowlist");
             }
         },

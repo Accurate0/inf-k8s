@@ -6,62 +6,10 @@ use feature_flag_proto as pb;
 #[command(
     name = "ffctl",
     version,
-    about = "feature-flags admin CLI and TUI",
+    about = "feature-flags admin CLI and TUI, through the graph",
     long_about = "feature-flags admin CLI and TUI. Run without a subcommand to open the TUI."
 )]
 pub struct Cli {
-    #[arg(
-        long,
-        global = true,
-        env = "FFCTL_URL",
-        default_value = "https://feature-flags.ortzi.cloud",
-        help = "feature-flags gRPC endpoint"
-    )]
-    pub url: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "FFCTL_OIDC_ISSUER",
-        default_value = "https://idm.anurag.sh/oauth2/openid/feature-flags",
-        help = "OIDC issuer used to log in"
-    )]
-    pub issuer: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "FFCTL_OIDC_CLIENT_ID",
-        default_value = "feature-flags",
-        help = "OAuth client id"
-    )]
-    pub client_id: String,
-
-    #[arg(
-        long,
-        global = true,
-        env = "FFCTL_TOKEN",
-        hide_env_values = true,
-        help = "Use this bearer token instead of the stored login"
-    )]
-    pub token: Option<String>,
-
-    #[arg(
-        long,
-        global = true,
-        env = "FFCTL_NO_AUTH",
-        help = "Send no token, for a local server running without OIDC"
-    )]
-    pub no_auth: bool,
-
-    #[arg(
-        long,
-        global = true,
-        env = "FFCTL_ACTOR",
-        help = "Audit identity sent with --no-auth; defaults to `git config user.email`"
-    )]
-    pub actor: Option<String>,
-
     #[arg(
         long,
         short,
@@ -80,15 +28,6 @@ pub struct Cli {
 pub enum Command {
     #[command(about = "Open the interactive terminal UI")]
     Tui,
-
-    #[command(about = "Log in through the browser and store the session")]
-    Login,
-
-    #[command(about = "Forget the stored session")]
-    Logout,
-
-    #[command(about = "Show the logged in user")]
-    Whoami,
 
     #[command(about = "Manage flags")]
     Flag {

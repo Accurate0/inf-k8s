@@ -6,7 +6,8 @@ on:
     paths:
       - platform-services/janitor-bot/cli/**
       - crates/cli-auth/**
-      - platform-services/janitor-bot/webhook/**
+      - crates/graph-client/**
+      - platform-services/graph/supergraph/schema.graphql
       - .forgejo/workflows/publish-cli-janitor.yaml
   workflow_dispatch:
 

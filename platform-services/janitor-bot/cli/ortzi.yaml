@@ -1,11 +1,12 @@
 package:
   name: janitor
-  version: 0.2.0
+  version: 0.3.0
   completions: clap
-  description: janitor-bot admin CLI
+  description: janitor-bot admin CLI, through the graph
 build:
   cargo:
     package: janitor-cli
 auth:
-  client_id: janitor-bot
-  token_env: JANITOR_TOKEN
+  client_id: graph
+  token_env: GRAPH_TOKEN
+  scopes: openid email profile groups

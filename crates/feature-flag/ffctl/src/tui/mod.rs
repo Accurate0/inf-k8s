@@ -357,7 +357,7 @@ impl App {
                                 return;
                             }
                         }
-                        Some(Err(status)) => break status.message().to_owned(),
+                        Some(Err(e)) => break format!("{e:#}"),
                         None => break "stream closed".to_owned(),
                     }
                 },

@@ -146,7 +146,7 @@ impl Commands {
                 attributes,
             } => self.eval(targeting_key, flag, attrs, attributes).await,
             Command::Watch => self.watch().await,
-            Command::Tui | Command::Login | Command::Logout | Command::Whoami => {
+            Command::Tui => {
                 bail!("command does not run against the api")
             }
         }
@@ -485,8 +485,8 @@ impl Commands {
                     Ok(snapshot) => {
                         println!("{} {}", Self::now(), tracker.observe(snapshot).summary())
                     }
-                    Err(status) => {
-                        eprintln!("{} stream error: {}", Self::now(), status.message());
+                    Err(e) => {
+                        eprintln!("{} stream error: {e:#}", Self::now());
                         break;
                     }
                 }
