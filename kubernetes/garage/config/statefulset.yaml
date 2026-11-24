@@ -108,6 +108,37 @@ spec:
               mountPath: /meta
             - name: data
               mountPath: /data
+
+        - name: data-check
+          image: docker.io/library/busybox:1.37.0
+          command:
+            - sh
+            - -c
+            - |
+              trap 'exit 0' TERM
+              while true; do sleep 3600 & wait; done
+          readinessProbe:
+            exec:
+              command: ["timeout", "5", "ls", "/data"]
+            periodSeconds: 15
+            timeoutSeconds: 10
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 1m
+              memory: 4Mi
+            limits:
+              memory: 16Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: data
+              mountPath: /data
+              readOnly: true
       volumes:
         - name: config
           configMap:
