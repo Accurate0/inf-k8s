@@ -29,6 +29,16 @@ metadata:
   name: foo
 `;
 
+const sources = `apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: foo-manifests
+  annotations:
+    event.toolkit.fluxcd.io/app: foo
+spec:
+  interval: 1h
+`;
+
 const namespace = `apiVersion: v1
 kind: Namespace
 metadata:
@@ -41,6 +51,7 @@ test('flux publish stamps the revision on every flux object', () => {
       ['ks.yaml', ks],
       ['app/helmrelease.yaml', releases],
       ['app/namespace.yaml', namespace],
+      ['app/ocirepository.yaml', sources],
     ]),
     'abc',
   );
@@ -55,4 +66,9 @@ test('flux publish stamps the revision on every flux object', () => {
   assert.deepEqual(workload.spec.values.images, { 'curlimages/curl': '8.10.1' });
   assert.deepEqual(network.spec.values, {});
   assert.equal(stamped.get('app/namespace.yaml'), namespace);
+
+  const source = parse(stamped.get('app/ocirepository.yaml')!);
+  assert.equal(source.metadata.annotations['reconcile.fluxcd.io/requestedAt'], 'abc');
+  assert.equal(source.metadata.annotations['event.toolkit.fluxcd.io/app'], 'foo');
+  assert.equal(source.metadata.annotations[FLUX_COMMIT], undefined);
 });
