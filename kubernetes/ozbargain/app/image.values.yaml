@@ -1,4 +1,4 @@
 images:
   registry.anurag.sh/containers/ozb-discord-bot: v1.0.214-d833b3e # {"$imagepolicy": "flux-system:ozbargain-ozb-discord-bot:tag"}
   registry.anurag.sh/containers/ozb-finder: v1.0.214-d833b3e # {"$imagepolicy": "flux-system:ozbargain-ozb-finder:tag"}
-  registry.anurag.sh/containers/ozb-trigger: main-1795246700-d833b3e836e93fd35b4b9a28007da4f98bb3c780 # {"$imagepolicy": "flux-system:ozbargain-ozb-trigger:tag"}
+  registry.anurag.sh/containers/ozb-trigger: v1.0.214-d833b3e # {"$imagepolicy": "flux-system:ozbargain-ozb-trigger:tag"}
