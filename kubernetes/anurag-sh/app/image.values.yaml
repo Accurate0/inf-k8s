@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/anurag-sh: main-1795246700-6645c05da0b8de8c1324f1bca1fe4c29aed1c6a5 # {"$imagepolicy": "flux-system:anurag-sh-anurag-sh:tag"}
+  registry.anurag.sh/containers/anurag-sh: v1.0.58-6645c05 # {"$imagepolicy": "flux-system:anurag-sh-anurag-sh:tag"}
