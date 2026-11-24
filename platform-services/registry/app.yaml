@@ -58,6 +58,9 @@ resources:
     auth:
       clients: [graph]
       groups: [registry_users, registry_admins]
+      external:
+        # trusted publishers and grants decide what each repository may do
+        - {issuer: forgejo, claims: {repository: "*"}}
   - name: registry-public
     type: route
     auth:
@@ -92,8 +95,7 @@ resources:
     allowLocalhostRedirect: true
     groups:
       registry_admins: [platform_admins]
-      registry_users: [registry_admins, ci_deployer, ci_reader]
-      registry_deployers: [ci_deployer]
+      registry_users: [registry_admins]
     scopeMaps:
       registry_users: [openid, email, profile, groups]
   - name: harbor
@@ -135,8 +137,6 @@ workloads:
       - {secret: signing}
       - {secret: harbor-exchange}
       - {database: registry}
-      - {secretRef: {name: graph-ci-deployer-token, optional: true}, prefix: GRAPH_CI_DEPLOYER_}
-      - {secretRef: {name: graph-ci-reader-token, optional: true}, prefix: GRAPH_CI_READER_}
     mounts:
       config: {path: /etc/registry, config: config}
     service: {name: api}
