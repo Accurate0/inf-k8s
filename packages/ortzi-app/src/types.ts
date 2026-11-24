@@ -7,19 +7,19 @@ export interface Sidecar {
   env?: Record<string, unknown>;
   envFrom?: (string | Record<string, unknown>)[];
   mounts?: Record<string, unknown>;
-  release?: 'latest';
+  release?: string;
 }
 
 export interface Workload {
   image: string;
-  release?: 'latest';
+  release?: string;
   kind?: 'Deployment' | 'DaemonSet' | 'CronJob' | 'Job';
   replicas?: number;
   autoscale?: { min: number; max: number; cpu: number };
   schedule?: string;
   phase?: 'preSync' | 'postSync';
   service?: { name: string; trafficDistribution?: string };
-  initContainers?: { image: string; release?: 'latest' }[];
+  initContainers?: { image: string; release?: string }[];
   sidecars?: Sidecar[];
   resources?: Record<string, unknown>;
   env?: Record<string, unknown>[] | Record<string, unknown>;

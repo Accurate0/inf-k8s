@@ -5,7 +5,7 @@ import {
   imageSetter,
   imageValuesPath as clusterImageValuesPath,
 } from './flux-objects.ts';
-import { releaseImages, workloadImages } from './providers/workload.ts';
+import { pinnedImages, releaseImages, workloadImages } from './providers/workload.ts';
 import type { Kustomize, ResourceType } from './providers/provider.ts';
 import { HEADER } from './generated.ts';
 import { appNamespace, declared, sourcesOf } from './app.ts';
@@ -24,6 +24,8 @@ export function renderImageValues(app: App, current: string | undefined): string
   for (const image of workloadImages(app)) {
     images[image] ??= 'latest';
   }
+
+  Object.assign(images, pinnedImages(app));
 
   const document = new Document({ images });
   for (const image of releaseImages(app)) {

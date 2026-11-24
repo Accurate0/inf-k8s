@@ -663,10 +663,59 @@ test('released images follow their newest main build through a flux image policy
         ]),
         'x',
       ),
-    /released elsewhere; set release here too/,
+    /every container running registry\.anurag\.sh\/containers\/foo needs the same release/,
+  );
+  assert.throws(
+    () =>
+      validate(
+        app([
+          { name: 'api', image, release: 'latest' },
+          { name: 'worker', image, release: 'v1.0.3-abc1234' },
+        ]),
+        'x',
+      ),
+    /needs the same release/,
   );
   assert.throws(
     () => validate(app([{ name: 'api', image: 'ghcr.io/x/foo', release: 'latest' }]), 'x'),
     /only registry\.anurag\.sh\/ images follow their builds/,
+  );
+});
+
+test('release pins any other tag in image.values.yaml without a policy', () => {
+  const image = 'registry.anurag.sh/containers/foo';
+  const pinned = validate(
+    {
+      name: 'foo',
+      network: { ingress: [] },
+      workloads: [
+        { name: 'api', image, release: 'v1.0.7-abc1234' },
+        { name: 'curl', image: 'curlimages/curl', release: '8.10.1' },
+      ],
+    },
+    'x',
+  );
+
+  const plan = planApp(pinned, versions, target, {
+    platform,
+    apps: [pinned],
+    readValues: () => ({}),
+  });
+  assert.equal(plan.releases, undefined);
+  assert.equal(renderFlux(plan).has('kubernetes/foo/app/imagepolicy.yaml'), false);
+
+  const followed = [
+    'images:',
+    '  registry.anurag.sh/containers/foo: v1.0.9-def5678 # {"$imagepolicy": "flux-system:foo-foo:tag"}',
+    '',
+  ].join('\n');
+  assert.equal(
+    renderImageValues(pinned, followed),
+    [
+      'images:',
+      '  registry.anurag.sh/containers/foo: v1.0.7-abc1234',
+      '  curlimages/curl: 8.10.1',
+      '',
+    ].join('\n'),
   );
 });

@@ -26,9 +26,10 @@ const schema: Schema = {
         type: 'string',
       },
       release: {
-        enum: ['latest'],
+        type: 'string',
+        minLength: 1,
         description:
-          "Run the newest main build of the image: flux's ImagePolicy picks it from the registry and commits its tag to image.values.yaml.",
+          "latest runs the newest main build of the image: flux's ImagePolicy picks it from the registry and commits its tag to image.values.yaml. Any other value pins the image to that tag.",
       },
       kind: {
         enum: ['Deployment', 'DaemonSet', 'CronJob', 'Job'],
@@ -434,8 +435,10 @@ const schema: Schema = {
           type: 'object',
           properties: {
             release: {
-              enum: ['latest'],
-              description: 'Like the workload release: run the newest main build of the image.',
+              type: 'string',
+              minLength: 1,
+              description:
+                'Like the workload release: latest follows main builds, any other value pins that tag.',
             },
           },
         },
@@ -446,8 +449,10 @@ const schema: Schema = {
           type: 'object',
           properties: {
             release: {
-              enum: ['latest'],
-              description: 'Like the workload release: run the newest main build of the image.',
+              type: 'string',
+              minLength: 1,
+              description:
+                'Like the workload release: latest follows main builds, any other value pins that tag.',
             },
             inherit: {
               type: 'array',
@@ -535,13 +540,22 @@ const containersOf = (spec: Workload) => [
 
 const allContainers = (app: App) => Object.values(appWorkloads(app)).flatMap(containersOf);
 
+export const LATEST = 'latest';
+
 export const releaseImages = (app: App): string[] => [
   ...new Set(
     allContainers(app)
-      .filter((c) => c.release)
+      .filter((c) => c.release === LATEST)
       .map((c) => c.image),
   ),
 ];
+
+export const pinnedImages = (app: App): Record<string, string> =>
+  Object.fromEntries(
+    allContainers(app).flatMap((c) =>
+      c.release && c.release !== LATEST ? [[c.image, c.release]] : [],
+    ),
+  );
 
 export const workloadImages = (app: App) => allContainers(app).map((c) => c.image);
 
@@ -571,14 +585,22 @@ function validate(app: App, fail: Fail) {
     }
   }
 
-  const released = releaseImages(app);
+  const releases = new Map<string, string | undefined>();
+  for (const container of allContainers(app)) {
+    if (!releases.has(container.image)) {
+      releases.set(container.image, container.release);
+    }
+  }
+
   for (const [name, workload] of Object.entries(appWorkloads(app))) {
     for (const container of containersOf(workload)) {
-      if (container.release && !container.image.startsWith(RELEASE_REGISTRY)) {
+      if (container.release === LATEST && !container.image.startsWith(RELEASE_REGISTRY)) {
         fail(`workloads.${name}.release: only ${RELEASE_REGISTRY} images follow their builds`);
       }
-      if (!container.release && released.includes(container.image)) {
-        fail(`workloads.${name}: ${container.image} is released elsewhere; set release here too`);
+      if (releases.get(container.image) !== container.release) {
+        fail(
+          `workloads.${name}: every container running ${container.image} needs the same release`,
+        );
       }
     }
     if (workload.kind === 'Job' && !workload.phase) {

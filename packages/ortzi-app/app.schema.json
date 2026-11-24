@@ -65,10 +65,9 @@
             "type": "string"
           },
           "release": {
-            "enum": [
-              "latest"
-            ],
-            "description": "Run the newest main build of the image: flux's ImagePolicy picks it from the registry and commits its tag to image.values.yaml."
+            "type": "string",
+            "minLength": 1,
+            "description": "latest runs the newest main build of the image: flux's ImagePolicy picks it from the registry and commits its tag to image.values.yaml. Any other value pins the image to that tag."
           },
           "kind": {
             "enum": [
@@ -530,10 +529,9 @@
               "type": "object",
               "properties": {
                 "release": {
-                  "enum": [
-                    "latest"
-                  ],
-                  "description": "Like the workload release: run the newest main build of the image."
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Like the workload release: latest follows main builds, any other value pins that tag."
                 }
               }
             }
@@ -544,10 +542,9 @@
               "type": "object",
               "properties": {
                 "release": {
-                  "enum": [
-                    "latest"
-                  ],
-                  "description": "Like the workload release: run the newest main build of the image."
+                  "type": "string",
+                  "minLength": 1,
+                  "description": "Like the workload release: latest follows main builds, any other value pins that tag."
                 },
                 "inherit": {
                   "type": "array",

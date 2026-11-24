@@ -34,6 +34,7 @@ const TOP = [
 const WORKLOAD = [
   'name',
   'image',
+  'release',
   'kind',
   'schedule',
   'phase',
