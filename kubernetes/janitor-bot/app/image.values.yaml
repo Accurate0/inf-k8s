@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/janitor-bot: v1.0.295-bacc428 # {"$imagepolicy": "flux-system:janitor-bot-janitor-bot:tag"}
+  registry.anurag.sh/containers/janitor-bot: v1.0.296-95baa40 # {"$imagepolicy": "flux-system:janitor-bot-janitor-bot:tag"}
