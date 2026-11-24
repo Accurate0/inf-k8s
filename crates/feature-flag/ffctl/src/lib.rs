@@ -23,9 +23,9 @@ use tui::Tui;
 pub use cli::Cli;
 
 const APP: App = App {
-    name: "ortzi/ff",
+    name: "ortzi",
     scopes: "openid email profile groups",
-    login_hint: "run `ortzi login ff`",
+    login_hint: "run `ortzi login`",
 };
 
 async fn api() -> anyhow::Result<Api> {
