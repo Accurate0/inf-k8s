@@ -6,7 +6,7 @@ image:
   tag: "13.2.0"
 plugin:
   image:
-    repository: registry.erwanleboucher.dev/eleboucher/runner-k8s-plugin
+    repository: registry.anurag.sh/erwanleboucher-registry/eleboucher/runner-k8s-plugin
     tag: "13.2.1"
   resources:
     requests:

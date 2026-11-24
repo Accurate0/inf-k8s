@@ -76,7 +76,7 @@ sources:
     values: forgejo.values.yaml
   - type: helm
     chart: forgejo-runner
-    repo: oci://registry.anurag.sh/charts/forgejo-runner
+    repo: oci://registry.anurag.sh/erwanleboucher-git/eleboucher/charts/forgejo-runner
     version: 13.2.1
     values: forgejo-runner.values.yaml
     releaseName: forgejo-runner

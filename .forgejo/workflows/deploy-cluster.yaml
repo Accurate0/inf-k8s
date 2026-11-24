@@ -102,7 +102,7 @@ jobs:
       - name: Log in to harbor
         id: login
         run: |
-          ortzi registry login charts:pull
+          ortzi registry login erwanleboucher-git:pull
           echo "HELM_REGISTRY_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}/config.json" >> "$GITHUB_ENV"
       - name: Render and commit
         run: |
