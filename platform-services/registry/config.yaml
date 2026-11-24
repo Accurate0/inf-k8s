@@ -58,6 +58,7 @@ harbor:
         - {project: containers, actions: [pull, push]}
         - {project: charts, actions: [pull, push]}
         - {project: manifests, actions: [pull, push]}
+        - {project: erwanleboucher-*, actions: [pull]}
     - token: {}
       allow:
         - {project: ortzi-*, actions: [pull]}
@@ -69,6 +70,7 @@ harbor:
         - {project: ghcr, actions: [pull]}
         - {project: dockerhub, actions: [pull]}
         - {project: quay, actions: [pull]}
+        - {project: erwanleboucher-*, actions: [pull]}
     - forgejo: {repository: anurag/k8s, ref: refs/heads/main}
       allow:
         - {project: containers, actions: [pull, push]}
