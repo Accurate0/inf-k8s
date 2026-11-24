@@ -1,182 +1,199 @@
-use std::{fmt, path::Path, time::Duration};
+use std::path::Path;
 
 use anyhow::Context;
-use futures::TryStreamExt;
-use registry_api::{ArtifactUrl, ErrorBody, SHA256_HEADER};
-use reqwest::{Method, RequestBuilder, Response, StatusCode};
-use serde::{Serialize, de::DeserializeOwned};
+use cynic::{MutationBuilder, QueryBuilder};
+use graph_client::GraphClient;
+use registry_api::{HarborAccess, HarborAction, HarborToken, Target};
 use sha2::{Digest, Sha256};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
-use tokio_util::io::ReaderStream;
+use tokio::io::AsyncReadExt;
 
-#[derive(Debug)]
-pub struct ApiError {
-    pub status: StatusCode,
-    pub code: String,
-    pub message: String,
+use crate::graphql as gql;
+
+/// The registry, reached only through the graph.
+pub struct Client {
+    graph: GraphClient,
 }
 
-impl fmt::Display for ApiError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{} ({}): {}", self.code, self.status, self.message)
+pub fn not_found(e: &anyhow::Error) -> bool {
+    graph_client::error_code(e) == Some("not_found")
+}
+
+/// Turns a not_found error into `None`.
+pub fn found<T>(result: anyhow::Result<T>) -> anyhow::Result<Option<T>> {
+    match result {
+        Ok(value) => Ok(Some(value)),
+        Err(e) if not_found(&e) => Ok(None),
+        Err(e) => Err(e),
     }
 }
 
-impl std::error::Error for ApiError {}
-
-pub fn api_error(e: &anyhow::Error) -> Option<&ApiError> {
-    e.downcast_ref::<ApiError>()
+pub fn target_in(target: Target) -> gql::Target {
+    match target {
+        Target::DarwinArm64 => gql::Target::DarwinArm64,
+        Target::LinuxAmd64 => gql::Target::LinuxAmd64,
+        Target::Wasm => gql::Target::Wasm,
+    }
 }
 
-const UPLOAD_TIMEOUT: Duration = Duration::from_secs(30 * 60);
-
-pub struct Client {
-    base: String,
-    bearer: String,
-    http: reqwest::Client,
-    uploads: reqwest::Client,
+fn target_out(target: gql::Target) -> Target {
+    match target {
+        gql::Target::DarwinArm64 => Target::DarwinArm64,
+        gql::Target::LinuxAmd64 => Target::LinuxAmd64,
+        gql::Target::Wasm => Target::Wasm,
+    }
 }
 
-fn http_client() -> reqwest::ClientBuilder {
-    reqwest::Client::builder()
-        .user_agent(concat!("ortzi/", env!("ORTZI_VERSION")))
-        .connect_timeout(Duration::from_secs(10))
+pub fn artifact(artifact: gql::Artifact) -> registry_api::Artifact {
+    registry_api::Artifact {
+        target: target_out(artifact.target),
+        sha256: artifact.sha256,
+        size: artifact.size.into(),
+    }
+}
+
+fn action_in(action: HarborAction) -> gql::HarborAction {
+    match action {
+        HarborAction::Pull => gql::HarborAction::Pull,
+        HarborAction::Push => gql::HarborAction::Push,
+    }
+}
+
+fn action_out(action: gql::HarborAction) -> HarborAction {
+    match action {
+        gql::HarborAction::Pull => HarborAction::Pull,
+        gql::HarborAction::Push => HarborAction::Push,
+    }
+}
+
+/// A registry graph id, from either the id itself or the bare key older output printed.
+pub fn registry_id(node: &str, id: &str) -> cynic::Id {
+    if id.starts_with("registry:") {
+        cynic::Id::new(id)
+    } else {
+        cynic::Id::new(format!("registry:{node}:{id}"))
+    }
 }
 
 impl Client {
-    pub fn new(base: &str, bearer: String) -> Self {
+    pub fn new(url: &str, token: String) -> Self {
         Self {
-            base: base.trim_end_matches('/').to_owned(),
-            bearer,
-            http: http_client()
-                .read_timeout(Duration::from_secs(60))
-                .build()
-                .expect("failed to build http client"),
-            uploads: http_client()
-                .timeout(UPLOAD_TIMEOUT)
-                .build()
-                .expect("failed to build http client"),
+            graph: GraphClient::with_token(url, token),
         }
     }
 
-    fn request(&self, method: Method, path: &str) -> RequestBuilder {
-        self.http
-            .request(method, format!("{}{path}", self.base))
-            .bearer_auth(&self.bearer)
+    pub fn graph(&self) -> &GraphClient {
+        &self.graph
     }
 
-    async fn check(response: Response) -> anyhow::Result<Response> {
-        let status = response.status();
-        if status.is_success() {
-            return Ok(response);
-        }
-
-        let body = response.text().await.unwrap_or_default();
-        let (code, message) = match serde_json::from_str::<ErrorBody>(&body) {
-            Ok(error) => (error.error.code, error.error.message),
-            Err(_) => ("http".to_owned(), body),
-        };
-        Err(ApiError {
-            status,
-            code,
-            message,
-        }
-        .into())
+    pub async fn whoami(&self) -> anyhow::Result<gql::WhoAmI> {
+        Ok(self
+            .graph
+            .run(gql::WhoAmIQuery::build(()))
+            .await?
+            .registry_whoami)
     }
 
-    async fn json<T: DeserializeOwned>(request: RequestBuilder) -> anyhow::Result<T> {
-        let response = Self::check(request.send().await?).await?;
-        Ok(response.json().await?)
+    pub async fn catalog(&self) -> anyhow::Result<registry_api::CatalogRef> {
+        let current = self
+            .graph
+            .run(gql::CatalogQuery::build(()))
+            .await?
+            .registry_catalog;
+        Ok(registry_api::CatalogRef {
+            seq: current.seq.into(),
+            digest: current.digest,
+        })
     }
 
-    pub async fn get<T: DeserializeOwned>(&self, path: &str) -> anyhow::Result<T> {
-        Self::json(self.request(Method::GET, path)).await
-    }
-
-    pub async fn find<T: DeserializeOwned>(&self, path: &str) -> anyhow::Result<Option<T>> {
-        match self.get(path).await {
-            Ok(value) => Ok(Some(value)),
-            Err(e) if api_error(&e).is_some_and(|e| e.status == StatusCode::NOT_FOUND) => Ok(None),
-            Err(e) => Err(e),
-        }
-    }
-
-    pub async fn send<B: Serialize, T: DeserializeOwned>(
+    pub async fn harbor_credential(
         &self,
-        method: Method,
-        path: &str,
-        body: &B,
-    ) -> anyhow::Result<T> {
-        Self::json(self.request(method, path).json(body)).await
+        access: Vec<HarborAccess>,
+    ) -> anyhow::Result<HarborToken> {
+        let access = access
+            .into_iter()
+            .map(|item| gql::HarborAccessInput {
+                project: item.project,
+                actions: item.actions.into_iter().map(action_in).collect(),
+                package: item.package,
+            })
+            .collect();
+        let credential = self
+            .graph
+            .run(gql::CreateHarborCredential::build(
+                gql::HarborCredentialVariables { access },
+            ))
+            .await?
+            .registry_create_harbor_credential;
+
+        Ok(HarborToken {
+            registry: credential.registry,
+            username: credential.username,
+            password: credential.password,
+            expires_at: credential.expires_at,
+            access: credential
+                .access
+                .into_iter()
+                .map(|item| HarborAccess {
+                    project: item.project,
+                    actions: item.actions.into_iter().map(action_out).collect(),
+                    package: item.package,
+                })
+                .collect(),
+        })
     }
 
-    pub async fn post_empty<T: DeserializeOwned>(&self, path: &str) -> anyhow::Result<T> {
-        Self::json(self.request(Method::POST, path)).await
+    /// Returns the revoked robot's username.
+    pub async fn revoke_harbor_credential(&self, username: &str) -> anyhow::Result<String> {
+        Ok(self
+            .graph
+            .run(gql::RevokeHarborCredential::build(gql::UsernameVariables {
+                username: username.to_owned(),
+            }))
+            .await?
+            .registry_revoke_harbor_credential)
     }
 
-    pub async fn delete(&self, path: &str) -> anyhow::Result<()> {
-        Self::check(self.request(Method::DELETE, path).send().await?).await?;
-        Ok(())
-    }
-
-    pub async fn download_artifact(&self, path: &str, dest: &Path) -> anyhow::Result<String> {
-        match self.find::<ArtifactUrl>(&format!("{path}/url")).await? {
-            Some(presigned) => {
-                let response = self
-                    .http
-                    .get(&presigned.url)
-                    .send()
-                    .await
-                    .context("downloading from object storage")?;
-                write_body(Self::check(response).await?, dest).await
-            }
-            None => self.download(path, dest).await,
-        }
-    }
-
-    pub async fn download(&self, path: &str, dest: &Path) -> anyhow::Result<String> {
-        let response = Self::check(self.request(Method::GET, path).send().await?).await?;
-        write_body(response, dest).await
-    }
-
-    pub async fn upload<T: DeserializeOwned>(
+    pub async fn sign_image(
         &self,
-        path: &str,
-        file: &Path,
-        sha256: &str,
-    ) -> anyhow::Result<T> {
-        let handle = tokio::fs::File::open(file)
-            .await
-            .with_context(|| format!("opening {}", file.display()))?;
-        let size = handle.metadata().await?.len();
-        let body = reqwest::Body::wrap_stream(ReaderStream::new(handle));
+        repository: &str,
+        digest: &str,
+    ) -> anyhow::Result<gql::ImageSignature> {
+        Ok(self
+            .graph
+            .run(gql::SignImage::build(gql::SignImageVariables {
+                repository: repository.to_owned(),
+                digest: digest.to_owned(),
+            }))
+            .await?
+            .registry_sign_image)
+    }
 
-        Self::json(
-            self.uploads
-                .put(format!("{}{path}", self.base))
-                .bearer_auth(&self.bearer)
-                .header(SHA256_HEADER, sha256)
-                .header(reqwest::header::CONTENT_LENGTH, size)
-                .body(body),
+    pub async fn version(
+        &self,
+        package: &str,
+        version: &str,
+    ) -> anyhow::Result<Option<gql::Version>> {
+        found(
+            self.graph
+                .run(gql::VersionQuery::build(gql::VersionVariables {
+                    package: package.to_owned(),
+                    version: version.to_owned(),
+                }))
+                .await
+                .map(|found| found.registry_version),
         )
-        .await
     }
-}
 
-async fn write_body(response: Response, dest: &Path) -> anyhow::Result<String> {
-    let mut file = tokio::fs::File::create(dest)
-        .await
-        .with_context(|| format!("creating {}", dest.display()))?;
-    let mut hasher = Sha256::new();
-    let mut stream = response.bytes_stream();
-
-    while let Some(chunk) = stream.try_next().await? {
-        hasher.update(&chunk);
-        file.write_all(&chunk).await?;
+    pub async fn package(&self, name: &str) -> anyhow::Result<Option<gql::Package>> {
+        found(
+            self.graph
+                .run(gql::PackageQuery::build(gql::NameVariables {
+                    name: name.to_owned(),
+                }))
+                .await
+                .map(|found| found.registry_package),
+        )
     }
-    file.flush().await?;
-
-    Ok(hex::encode(hasher.finalize()))
 }
 
 pub async fn sha256_file(path: &Path) -> anyhow::Result<String> {

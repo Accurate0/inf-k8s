@@ -5,12 +5,13 @@ use std::{
 
 use cli_auth::Credentials;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
-use registry_api::{Target, Version};
+use registry_api::Target;
 
 use crate::{
-    client::{self, Client},
+    client,
     commands::packages::{self, SELF},
     dispatch, package_auth,
+    remote::Remote,
     session::Settings,
     store::{Installed, InstalledPackage, Store},
     trust,
@@ -49,20 +50,30 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
     findings.extend(store_findings(&store, &installed));
 
     let client = match settings.reader_without_login().await {
-        Ok(Some(client)) => match client.get::<registry_api::WhoAmI>("/api/v1/whoami").await {
+        Ok(Some(client)) => match client.whoami().await {
             Ok(me) => {
                 findings.push(Finding::new(
                     "registry",
                     Level::Ok,
-                    format!("{} as {}", settings.registry, me.subject),
+                    format!("{} as {}", settings.graph, me.subject),
                 ));
-                Some(client)
+                match Remote::open(client).await {
+                    Ok(remote) => Some(remote),
+                    Err(e) => {
+                        findings.push(Finding::new(
+                            "registry",
+                            Level::Fail,
+                            format!("reading the catalog: {e:#}"),
+                        ));
+                        None
+                    }
+                }
             }
             Err(e) => {
                 findings.push(Finding::new(
                     "registry",
                     Level::Fail,
-                    format!("{}: {e:#}", settings.registry),
+                    format!("{}: {e:#}", settings.graph),
                 ));
                 None
             }
@@ -85,8 +96,9 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
         }
     };
 
+    let remote = client;
     let mut latest = None;
-    if let (Some(client), Some(target)) = (&client, target) {
+    if let (Some(remote), Some(target)) = (&remote, target) {
         let names: Vec<&str> = installed
             .packages
             .iter()
@@ -94,7 +106,7 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
             .map(|(name, _)| name.as_str())
             .chain((!installed.self_pinned).then_some(SELF))
             .collect();
-        match packages::latest_versions(client, &names, target).await {
+        match remote.latest_versions(&names, target).await {
             Ok(versions) => latest = Some(versions),
             Err(e) => findings.push(Finding::new(
                 "registry",
@@ -109,8 +121,8 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
 
     for (name, package) in &installed.packages {
         let mut problems = package_findings(&store, name, package).await;
-        if let Some(client) = &client {
-            problems.extend(remote_findings(client, name, package, latest.as_ref()).await);
+        if let Some(remote) = &remote {
+            problems.extend(remote_findings(remote, name, package, latest.as_ref()).await);
         }
         if problems.is_empty() {
             let pin = if package.pinned { " (pinned)" } else { "" };
@@ -122,6 +134,10 @@ pub async fn run(settings: &Settings) -> anyhow::Result<()> {
         } else {
             findings.extend(problems);
         }
+    }
+
+    if let Some(remote) = remote {
+        remote.close().await;
     }
 
     let mut table = Table::new();
@@ -286,16 +302,18 @@ fn self_finding(latest: &BTreeMap<String, String>, pinned: bool) -> Finding {
 }
 
 async fn remote_findings(
-    client: &Client,
+    remote: &Remote,
     name: &str,
     package: &InstalledPackage,
     latest: Option<&BTreeMap<String, String>>,
 ) -> Vec<Finding> {
     let mut findings = Vec::new();
 
-    let path = format!("/cli/v1/packages/{name}/versions/{}", package.version);
-    match client.find::<Version>(&path).await {
-        Ok(Some(version)) => {
+    match remote
+        .resolve(name, Some(&package.version), package.target)
+        .await
+    {
+        Ok(version) => {
             match trust::verified_statement(name, &version) {
                 Ok(statement) => {
                     if !statement
@@ -324,11 +342,6 @@ async fn remote_findings(
                 ));
             }
         }
-        Ok(None) => findings.push(Finding::new(
-            name,
-            Level::Warn,
-            format!("{} is no longer in the registry", package.version),
-        )),
         Err(e) => findings.push(Finding::new(name, Level::Warn, format!("{e:#}"))),
     }
 

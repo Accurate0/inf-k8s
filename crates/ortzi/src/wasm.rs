@@ -813,8 +813,7 @@ impl registry::Host for State {
                 let api = settings.reader().await?;
                 crate::remote::exchange(&api, access).await
             })
-            .map_err(|e| format!("registry: {e:#}"))?
-            .ok_or("registry: the registry has no harbor token exchange")?;
+            .map_err(|e| format!("registry: {e:#}"))?;
 
         match write_pull_config(&token) {
             Ok(path) => {
@@ -1093,10 +1092,9 @@ mod tests {
             registry: vec![],
             pull: vec![],
             settings: Settings {
-                registry: "https://registry.example.test".to_owned(),
+                graph: "https://graph.example.test/v1/graphql".to_owned(),
                 issuer: String::new(),
                 client_id: String::new(),
-                token: None,
                 audience: String::new(),
             },
             auth: None,

@@ -4,6 +4,14 @@ fn main() {
     println!("cargo:rerun-if-changed=ortzi.yaml");
     println!("cargo:rerun-if-changed=keys");
 
+    let schema = "../../platform-services/graph/supergraph/schema.graphql";
+    println!("cargo:rerun-if-changed={schema}");
+    cynic_codegen::register_schema("graph")
+        .from_sdl_file(schema)
+        .expect("the supergraph schema is readable")
+        .as_default()
+        .expect("the supergraph schema registers");
+
     let manifest = std::fs::read_to_string("ortzi.yaml").expect("reading ortzi.yaml");
     let version = manifest
         .lines()

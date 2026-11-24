@@ -3,15 +3,13 @@ use std::{collections::BTreeMap, path::Path};
 use anyhow::{Context, bail};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::{
-    LatestRequest, Permissions, Target, Version, VersionSummary, validate_binary_name,
-    validate_package_name, version_key,
+    Permissions, Target, Version, VersionSummary, validate_binary_name, validate_package_name,
+    version_key,
 };
-
-use reqwest::{Method, StatusCode};
 
 use super::resolve::{self, Catalog, Root};
 use crate::{
-    client::{self, Client},
+    client,
     remote::Remote,
     session::Settings,
     store::{self, Installed, InstalledPackage, Store},
@@ -36,55 +34,6 @@ fn split_spec(spec: &str) -> (&str, Option<&str>) {
         Some((name, version)) => (name, Some(version)),
         None => (spec, None),
     }
-}
-
-pub async fn resolve(
-    client: &Client,
-    name: &str,
-    version: Option<&str>,
-    target: Target,
-) -> anyhow::Result<Version> {
-    let found = match version {
-        Some(version) => {
-            client
-                .find(&format!("/cli/v1/packages/{name}/versions/{version}"))
-                .await?
-        }
-        None => {
-            client
-                .find(&format!("/cli/v1/packages/{name}/latest?target={target}"))
-                .await?
-        }
-    };
-    found.with_context(|| match version {
-        Some(version) => format!("{name}@{version} not found"),
-        None => format!("no published {name} for {target}; see `ortzi search`"),
-    })
-}
-
-pub async fn latest_versions(
-    client: &Client,
-    names: &[&str],
-    target: Target,
-) -> anyhow::Result<BTreeMap<String, String>> {
-    let request = LatestRequest {
-        target,
-        names: names.iter().map(|name| (*name).to_owned()).collect(),
-    };
-    match client.send(Method::POST, "/cli/v1/latest", &request).await {
-        Ok(latest) => return Ok(latest),
-        Err(e) if client::api_error(&e).is_some_and(|e| e.status == StatusCode::NOT_FOUND) => {}
-        Err(e) => return Err(e),
-    }
-
-    let mut latest = BTreeMap::new();
-    for name in names {
-        let path = format!("/cli/v1/packages/{name}/latest?target={target}");
-        if let Some(version) = client.find::<Version>(&path).await? {
-            latest.insert((*name).to_owned(), version.version);
-        }
-    }
-    Ok(latest)
 }
 
 struct RemoteCatalog<'a> {
@@ -211,7 +160,7 @@ async fn install_version(
         version.version,
         client::human_size(artifact.size)
     );
-    let sha = remote.download(name, version, &artifact, &download).await?;
+    let sha = remote.download(name, &artifact, &download).await?;
     if sha != artifact.sha256 {
         let _ = std::fs::remove_file(&download);
         bail!(
@@ -628,7 +577,7 @@ async fn self_update_with(
     let staged = exe.with_file_name(format!(".ortzi-{}-{}", release.version, std::process::id()));
     eprintln!("downloading ortzi@{} ({target})", release.version);
     let sha = remote
-        .download(SELF, &release, &artifact, &staged)
+        .download(SELF, &artifact, &staged)
         .await
         .with_context(|| format!("writing next to {}", exe.display()))?;
     if sha != artifact.sha256 {
@@ -923,18 +872,6 @@ async fn show_info(remote: &Remote, name: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn urlencode(value: &str) -> String {
-    value
-        .bytes()
-        .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
-                (b as char).to_string()
-            }
-            _ => format!("%{b:02X}"),
-        })
-        .collect()
-}
-
 #[cfg(test)]
 mod revision_tests {
     use super::is_newer;
@@ -956,11 +893,5 @@ mod tests {
     fn specs_split_on_at() {
         assert_eq!(split_spec("ff"), ("ff", None));
         assert_eq!(split_spec("ff@1.2.0"), ("ff", Some("1.2.0")));
-    }
-
-    #[test]
-    fn encodes_queries() {
-        assert_eq!(urlencode("feature flags"), "feature%20flags");
-        assert_eq!(urlencode("a&b"), "a%26b");
     }
 }

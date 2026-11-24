@@ -3,26 +3,23 @@ use std::{collections::BTreeMap, path::Path, time::Duration};
 use anyhow::{Context, bail};
 use registry_api::{
     Artifact, CATALOG_MEDIA_TYPE, CATALOG_PROJECT, CATALOG_REPOSITORY, Catalog, CatalogRef,
-    HarborAccess, HarborAction, HarborToken, HarborTokenRequest, MAX_CATALOG_BYTES,
-    PACKAGES_PROJECT, Package, PackageDetail, SIGNATURES_ARTIFACT, SIGNATURES_MEDIA_TYPE, Target,
-    Version, VersionSummary,
+    HarborAccess, HarborAction, HarborToken, MAX_CATALOG_BYTES, PACKAGES_PROJECT, Package,
+    PackageDetail, SIGNATURES_ARTIFACT, SIGNATURES_MEDIA_TYPE, Target, Version, VersionSummary,
     oci::{self, Credentials, Manifest},
     signing::{self, Envelope, Signatures},
     version_key,
 };
-use reqwest::{Method, StatusCode};
 
-use crate::{
-    client::{self, Client},
-    trust,
-};
+use crate::{client::Client, trust};
 
 const MAX_SIGNATURES_BYTES: u64 = 1024 * 1024;
 
+/// Installs resolve from the registry's signed catalog in harbor; the graph only hands out the
+/// catalog's digest and a short-lived pull robot.
 pub struct Remote {
     api: Client,
-    oci: Option<Oci>,
-    token: Option<HarborToken>,
+    oci: Oci,
+    token: HarborToken,
 }
 
 struct Oci {
@@ -38,27 +35,8 @@ pub fn access(project: &str, actions: &[HarborAction], package: Option<&str>) ->
     }
 }
 
-pub async fn exchange(
-    api: &Client,
-    access: Vec<HarborAccess>,
-) -> anyhow::Result<Option<HarborToken>> {
-    match api
-        .send::<_, HarborToken>(
-            Method::POST,
-            "/api/v1/harbor/token",
-            &HarborTokenRequest { access },
-        )
-        .await
-    {
-        Ok(token) => Ok(Some(token)),
-        Err(e)
-            if client::api_error(&e)
-                .is_some_and(|e| e.status == StatusCode::NOT_FOUND || e.code == "harbor") =>
-        {
-            Ok(None)
-        }
-        Err(e) => Err(e),
-    }
+pub async fn exchange(api: &Client, access: Vec<HarborAccess>) -> anyhow::Result<HarborToken> {
+    api.harbor_credential(access).await
 }
 
 pub async fn revoke(api: &Client, token: &HarborToken) {
@@ -71,11 +49,8 @@ pub async fn revoke(api: &Client, token: &HarborToken) {
 }
 
 pub async fn revoke_robot(api: &Client, username: &str) -> anyhow::Result<()> {
-    let path = format!(
-        "/api/v1/harbor/token/{}",
-        crate::commands::packages::urlencode(username)
-    );
-    api.delete(&path).await
+    api.revoke_harbor_credential(username).await?;
+    Ok(())
 }
 
 pub fn oci_client(token: &HarborToken) -> anyhow::Result<oci::Client> {
@@ -131,29 +106,19 @@ async fn load_catalog(client: &oci::Client, current: &CatalogRef) -> anyhow::Res
 
 impl Remote {
     pub async fn open(api: Client) -> anyhow::Result<Self> {
-        let legacy = |api| {
-            Ok(Self {
-                api,
-                oci: None,
-                token: None,
-            })
-        };
+        let current = api.catalog().await?;
+        if current.digest.is_none() {
+            bail!("the registry has no catalog yet");
+        }
 
-        let current = match api.find::<CatalogRef>("/cli/v1/catalog").await? {
-            Some(current) if current.digest.is_some() => current,
-            _ => return legacy(api),
-        };
-        let Some(token) = exchange(
+        let token = exchange(
             &api,
             vec![
                 access(CATALOG_PROJECT, &[HarborAction::Pull], None),
                 access(PACKAGES_PROJECT, &[HarborAction::Pull], None),
             ],
         )
-        .await?
-        else {
-            return legacy(api);
-        };
+        .await?;
 
         let client = oci_client(&token)?;
         let catalog = match load_catalog(&client, &current).await {
@@ -165,15 +130,13 @@ impl Remote {
         };
         Ok(Self {
             api,
-            oci: Some(Oci { client, catalog }),
-            token: Some(token),
+            oci: Oci { client, catalog },
+            token,
         })
     }
 
     pub async fn close(self) {
-        if let Some(token) = &self.token {
-            revoke(&self.api, token).await;
-        }
+        revoke(&self.api, &self.token).await;
     }
 
     pub async fn resolve(
@@ -182,10 +145,7 @@ impl Remote {
         version: Option<&str>,
         target: Target,
     ) -> anyhow::Result<Version> {
-        let Some(oci) = &self.oci else {
-            return crate::commands::packages::resolve(&self.api, name, version, target).await;
-        };
-
+        let oci = &self.oci;
         let found = match version {
             Some(version) => oci.catalog.version(name, version),
             None => oci.catalog.latest(name, Some(target), false),
@@ -207,13 +167,10 @@ impl Remote {
         names: &[&str],
         target: Target,
     ) -> anyhow::Result<BTreeMap<String, String>> {
-        let Some(oci) = &self.oci else {
-            return crate::commands::packages::latest_versions(&self.api, names, target).await;
-        };
         Ok(names
             .iter()
             .filter_map(|name| {
-                let (version, _) = oci.catalog.latest(name, Some(target), false)?;
+                let (version, _) = self.oci.catalog.latest(name, Some(target), false)?;
                 Some(((*name).to_owned(), version.to_owned()))
             })
             .collect())
@@ -222,23 +179,10 @@ impl Remote {
     pub async fn download(
         &self,
         name: &str,
-        version: &Version,
         artifact: &Artifact,
         dest: &Path,
     ) -> anyhow::Result<String> {
-        let Some(oci) = &self.oci else {
-            return self
-                .api
-                .download_artifact(
-                    &format!(
-                        "/cli/v1/packages/{name}/versions/{}/artifacts/{}",
-                        version.version, artifact.target
-                    ),
-                    dest,
-                )
-                .await;
-        };
-
+        let oci = &self.oci;
         oci.client
             .blob_to_file(
                 &oci.catalog.repository(name),
@@ -250,16 +194,7 @@ impl Remote {
     }
 
     pub async fn search(&self, query: Option<&str>) -> anyhow::Result<Vec<Package>> {
-        let Some(oci) = &self.oci else {
-            let path = match query {
-                Some(q) => format!(
-                    "/cli/v1/packages?q={}",
-                    crate::commands::packages::urlencode(q)
-                ),
-                None => "/cli/v1/packages".to_owned(),
-            };
-            return self.api.get(&path).await;
-        };
+        let oci = &self.oci;
 
         let query = query.map(str::to_lowercase);
         Ok(oci
@@ -277,9 +212,7 @@ impl Remote {
     }
 
     pub async fn detail(&self, name: &str) -> anyhow::Result<PackageDetail> {
-        let Some(oci) = &self.oci else {
-            return self.api.get(&format!("/cli/v1/packages/{name}")).await;
-        };
+        let oci = &self.oci;
 
         let package = oci
             .catalog

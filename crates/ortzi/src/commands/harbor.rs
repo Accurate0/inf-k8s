@@ -2,8 +2,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context, bail};
 use base64::{Engine, engine::general_purpose::STANDARD};
-use registry_api::{HarborAccess, HarborAction, HarborSignRequest, HarborSignature};
-use reqwest::Method;
+use registry_api::{HarborAccess, HarborAction};
 use serde_json::{Value, json};
 
 use crate::{client::Client, remote};
@@ -134,9 +133,7 @@ pub async fn login(api: &Client, specs: &[String]) -> anyhow::Result<String> {
         .iter()
         .map(|s| parse_spec(s))
         .collect::<anyhow::Result<Vec<_>>>()?;
-    let Some(token) = remote::exchange(api, access).await? else {
-        bail!("the registry has no harbor token exchange");
-    };
+    let token = remote::exchange(api, access).await?;
 
     match current_robot(&token.registry).await {
         Ok(Some(username)) => {
@@ -201,16 +198,7 @@ pub async fn sign(api: &Client, image: &str) -> anyhow::Result<()> {
         _ => name,
     };
 
-    let signed: HarborSignature = api
-        .send(
-            Method::POST,
-            "/api/v1/harbor/sign",
-            &HarborSignRequest {
-                repository: repository.to_owned(),
-                digest: digest.to_owned(),
-            },
-        )
-        .await?;
+    let signed = api.sign_image(repository, digest).await?;
     println!(
         "signed {}@{} ({})",
         signed.repository, signed.digest, signed.tag

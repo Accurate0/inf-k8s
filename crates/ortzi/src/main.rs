@@ -2,6 +2,7 @@ mod client;
 mod commands;
 mod completions;
 mod dispatch;
+mod graphql;
 mod manifest;
 mod package_auth;
 mod proxy;
@@ -15,7 +16,7 @@ use std::{ffi::OsString, path::PathBuf};
 
 use clap::{Parser, Subcommand};
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
-use registry_api::{Target, WhoAmI};
+use registry_api::Target;
 
 use commands::{doctor, init, packages, publish, registry::RegistryCommand};
 use session::Settings;
@@ -266,20 +267,14 @@ async fn dev(
 }
 
 async fn whoami(settings: &Settings) -> anyhow::Result<()> {
-    let me: WhoAmI = settings.reader().await?.get("/api/v1/whoami").await?;
+    let me = settings.reader().await?.whoami().await?;
     let mut table = Table::new();
     table.load_preset(UTF8_BORDERS_ONLY);
     table.add_row(["subject", &me.subject]);
-    table.add_row(["kind", &me.kind]);
     table.add_row(["admin", if me.admin { "yes" } else { "no" }]);
-    table.add_row(["registry", &settings.registry]);
-    if !me.scopes.is_empty() {
-        let scopes: Vec<String> = me
-            .scopes
-            .iter()
-            .map(|s| format!("{}/{}", s.ecosystem, s.package))
-            .collect();
-        table.add_row(["scopes", &scopes.join(", ")]);
+    table.add_row(["graph", &settings.graph]);
+    if !me.groups.is_empty() {
+        table.add_row(["groups", &me.groups.join(", ")]);
     }
     println!("{table}");
     Ok(())

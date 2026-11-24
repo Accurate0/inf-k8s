@@ -138,9 +138,7 @@ pub async fn push_dir(
         &[HarborAction::Pull, HarborAction::Push],
         None,
     );
-    let Some(token) = remote::exchange(api, vec![access]).await? else {
-        bail!("the registry has no harbor token exchange");
-    };
+    let token = remote::exchange(api, vec![access]).await?;
 
     let pushed = upload(&token, &target, &layer, tags, revision).await;
     remote::revoke(api, &token).await;

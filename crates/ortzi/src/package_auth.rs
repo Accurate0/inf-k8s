@@ -29,13 +29,13 @@ pub fn installed(package: &str) -> anyhow::Result<(String, PackageAuth)> {
     Ok((name.clone(), auth))
 }
 
-const GRAPH_CLIENT: &str = "graph";
 const GRAPH_AUDIENCE: &str = "graph.ortzi.cloud";
 
 /// In forgejo actions a graph package sends the run's own id token, which the graph trusts as an
 /// external issuer; everywhere else it's the user's kanidm login.
 pub async fn token(package: &str, auth: &PackageAuth) -> anyhow::Result<String> {
-    if auth.client_id == GRAPH_CLIENT && std::env::var_os("ACTIONS_ID_TOKEN_REQUEST_URL").is_some()
+    if auth.client_id == graph_client::CLIENT_ID
+        && std::env::var_os("ACTIONS_ID_TOKEN_REQUEST_URL").is_some()
     {
         return crate::session::forgejo_id_token(GRAPH_AUDIENCE).await;
     }

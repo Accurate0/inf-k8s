@@ -2,14 +2,14 @@ use std::path::PathBuf;
 
 use clap::Subcommand;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
-use registry_api::{
-    AuditEntry, CreatePackage, CreateToken, CreatedToken, ECOSYSTEM_CLI, NewTrustedPublisher,
-    Package, Scope, TokenInfo, TrustedPublisher, UpdatePackage, Version, Yank,
-};
-use reqwest::Method;
+use cynic::{MutationBuilder, QueryBuilder};
 
-use super::{artifact, harbor, packages::urlencode};
-use crate::{client::Client, session::Settings};
+use super::{artifact, harbor};
+use crate::{
+    client::{Client, registry_id},
+    graphql as gql,
+    session::Settings,
+};
 
 #[derive(Subcommand)]
 pub enum RegistryCommand {
@@ -39,7 +39,10 @@ pub enum RegistryCommand {
         specs: Vec<String>,
     },
     /// Revoke the Harbor robot in the docker config and remove it
-    Logout,
+    Logout {
+        #[arg(long, default_value = "registry.anurag.sh")]
+        registry: String,
+    },
     /// Push a directory as a single-layer OCI artifact, e.g. rendered manifests for Flux
     Push {
         dir: PathBuf,
@@ -63,7 +66,7 @@ pub enum RegistryCommand {
         #[arg(long)]
         package: Option<String>,
         #[arg(long, default_value_t = 50)]
-        limit: i64,
+        limit: i32,
     },
 }
 
@@ -134,7 +137,7 @@ pub enum TokenAction {
         #[arg(long)]
         name: Option<String>,
         #[arg(long)]
-        expires_in_days: Option<i64>,
+        expires_in_days: Option<i32>,
     },
     List,
     Revoke {
@@ -165,7 +168,7 @@ pub async fn run(settings: &Settings, command: RegistryCommand) -> anyhow::Resul
         RegistryCommand::Version { action } => version(&client, action).await,
         RegistryCommand::Audit { package, limit } => audit(&client, package, limit).await,
         RegistryCommand::Login { specs } => harbor::login(&client, &specs).await.map(|_| ()),
-        RegistryCommand::Logout => harbor::logout(&client, &settings.registry).await,
+        RegistryCommand::Logout { registry } => harbor::logout(&client, &registry).await,
         RegistryCommand::Sign { image } => harbor::sign(&client, &image).await,
         RegistryCommand::Push {
             dir,
@@ -177,23 +180,38 @@ pub async fn run(settings: &Settings, command: RegistryCommand) -> anyhow::Resul
     }
 }
 
+fn publisher_row(publisher: gql::TrustedPublisher) -> [String; 5] {
+    [
+        publisher.id.into_inner(),
+        format!(
+            "{}/{}",
+            publisher.ecosystem,
+            publisher.package.map(|p| p.name).unwrap_or_default()
+        ),
+        publisher.repository,
+        publisher.ref_pattern.unwrap_or_else(|| "*".to_owned()),
+        publisher.workflow.unwrap_or_else(|| "*".to_owned()),
+    ]
+}
+
 async fn add_publisher(client: &Client, package: &str, trust: TrustArgs) -> anyhow::Result<()> {
     let Some(repository) = trust.repository else {
         anyhow::bail!("--forgejo-repo is required");
     };
-    let publisher: TrustedPublisher = client
-        .send(
-            Method::POST,
-            "/api/v1/trusted-publishers",
-            &NewTrustedPublisher {
-                ecosystem: ECOSYSTEM_CLI.to_owned(),
-                package: package.to_owned(),
-                repository,
-                ref_pattern: trust.ref_pattern,
-                workflow: trust.workflow,
+    let publisher = client
+        .graph()
+        .run(gql::CreateTrustedPublisher::build(
+            gql::CreateTrustedPublisherVariables {
+                input: gql::CreateTrustedPublisherInput {
+                    package: package.to_owned(),
+                    repository,
+                    ref_pattern: trust.ref_pattern,
+                    workflow: trust.workflow,
+                },
             },
-        )
-        .await?;
+        ))
+        .await?
+        .registry_create_trusted_publisher;
     println!(
         "trusted {} ({}{}) to publish {package} [{}]",
         publisher.repository,
@@ -202,12 +220,17 @@ async fn add_publisher(client: &Client, package: &str, trust: TrustArgs) -> anyh
             .workflow
             .map(|w| format!(", {w}"))
             .unwrap_or_default(),
-        publisher.id
+        publisher.id.inner()
     );
     Ok(())
 }
 
 async fn package(client: &Client, action: PackageAction) -> anyhow::Result<()> {
+    let graph = client.graph();
+    let named = |name: &str| gql::NameVariables {
+        name: name.to_owned(),
+    };
+
     match action {
         PackageAction::Create {
             name,
@@ -216,18 +239,17 @@ async fn package(client: &Client, action: PackageAction) -> anyhow::Result<()> {
             aliases,
             trust,
         } => {
-            let package: Package = client
-                .send(
-                    Method::POST,
-                    "/cli/v1/packages",
-                    &CreatePackage {
+            let package = graph
+                .run(gql::CreatePackage::build(gql::CreatePackageVariables {
+                    input: gql::CreatePackageInput {
                         name: name.clone(),
                         description,
                         binary_name: binary,
                         aliases,
                     },
-                )
-                .await?;
+                }))
+                .await?
+                .registry_create_package;
             println!("created {} (binary {})", package.name, package.binary_name);
             if trust.repository.is_some() {
                 add_publisher(client, &name, trust).await?;
@@ -239,34 +261,39 @@ async fn package(client: &Client, action: PackageAction) -> anyhow::Result<()> {
             binary,
             aliases,
         } => {
-            let package: Package = client
-                .send(
-                    Method::PATCH,
-                    &format!("/cli/v1/packages/{name}"),
-                    &UpdatePackage {
+            let package = graph
+                .run(gql::UpdatePackage::build(gql::UpdatePackageVariables {
+                    name,
+                    input: gql::UpdatePackageInput {
                         description,
                         binary_name: binary,
                         aliases,
                     },
-                )
-                .await?;
+                }))
+                .await?
+                .registry_update_package;
             println!("updated {}", package.name);
         }
         PackageAction::Archive { name } => {
-            let _: Package = client
-                .post_empty(&format!("/cli/v1/packages/{name}/archive"))
-                .await?;
-            println!("archived {name}");
+            let package = graph
+                .run(gql::ArchivePackage::build(named(&name)))
+                .await?
+                .registry_archive_package;
+            println!("archived {}", package.name);
         }
         PackageAction::Unarchive { name } => {
-            let _: Package = client
-                .post_empty(&format!("/cli/v1/packages/{name}/unarchive"))
-                .await?;
-            println!("unarchived {name}");
+            let package = graph
+                .run(gql::UnarchivePackage::build(named(&name)))
+                .await?
+                .registry_unarchive_package;
+            println!("unarchived {}", package.name);
         }
         PackageAction::Delete { name } => {
-            client.delete(&format!("/cli/v1/packages/{name}")).await?;
-            println!("deleted {name}");
+            let deleted = graph
+                .run(gql::DeletePackage::build(named(&name)))
+                .await?
+                .registry_delete_package;
+            println!("deleted {name} [{}]", deleted.inner());
         }
     }
     Ok(())
@@ -276,11 +303,13 @@ async fn publisher(client: &Client, action: PublisherAction) -> anyhow::Result<(
     match action {
         PublisherAction::Add { package, trust } => add_publisher(client, &package, trust).await?,
         PublisherAction::List { package } => {
-            let path = match package {
-                Some(p) => format!("/api/v1/trusted-publishers?package={}", urlencode(&p)),
-                None => "/api/v1/trusted-publishers".to_owned(),
-            };
-            let publishers: Vec<TrustedPublisher> = client.get(&path).await?;
+            let publishers = client
+                .graph()
+                .run(gql::TrustedPublishersQuery::build(
+                    gql::PackageFilterVariables { package },
+                ))
+                .await?
+                .registry_trusted_publishers;
             let mut table = Table::new();
             table.load_preset(UTF8_BORDERS_ONLY).set_header([
                 "id",
@@ -290,21 +319,19 @@ async fn publisher(client: &Client, action: PublisherAction) -> anyhow::Result<(
                 "workflow",
             ]);
             for p in publishers {
-                table.add_row([
-                    p.id.to_string(),
-                    format!("{}/{}", p.ecosystem, p.package),
-                    p.repository,
-                    p.ref_pattern.unwrap_or_else(|| "*".to_owned()),
-                    p.workflow.unwrap_or_else(|| "*".to_owned()),
-                ]);
+                table.add_row(publisher_row(p));
             }
             println!("{table}");
         }
         PublisherAction::Rm { id } => {
-            client
-                .delete(&format!("/api/v1/trusted-publishers/{id}"))
-                .await?;
-            println!("removed {id}");
+            let removed = client
+                .graph()
+                .run(gql::DeleteTrustedPublisher::build(gql::IdVariables {
+                    id: registry_id("trustedPublisher", &id),
+                }))
+                .await?
+                .registry_delete_trusted_publisher;
+            println!("removed {}", removed.inner());
         }
     }
     Ok(())
@@ -317,31 +344,31 @@ async fn token(client: &Client, action: TokenAction) -> anyhow::Result<()> {
             name,
             expires_in_days,
         } => {
-            let created: CreatedToken = client
-                .send(
-                    Method::POST,
-                    "/api/v1/tokens",
-                    &CreateToken {
-                        name: name.unwrap_or_else(|| packages.join("+")),
-                        scopes: packages
-                            .into_iter()
-                            .map(|package| Scope {
-                                ecosystem: ECOSYSTEM_CLI.to_owned(),
-                                package,
-                            })
-                            .collect(),
-                        expires_in_days,
+            let created = client
+                .graph()
+                .run(gql::CreatePublishToken::build(
+                    gql::CreatePublishTokenVariables {
+                        input: gql::CreatePublishTokenInput {
+                            name: name.unwrap_or_else(|| packages.join("+")),
+                            packages,
+                            expires_in_days,
+                        },
                     },
-                )
-                .await?;
+                ))
+                .await?
+                .registry_create_publish_token;
             eprintln!(
-                "token {} (shown once; store it as ORTZI_TOKEN):",
-                created.id
+                "token {} (shown once; install.sh reads it as ORTZI_TOKEN):",
+                created.token.id.inner()
             );
-            println!("{}", created.token);
+            println!("{}", created.secret);
         }
         TokenAction::List => {
-            let tokens: Vec<TokenInfo> = client.get("/api/v1/tokens").await?;
+            let tokens = client
+                .graph()
+                .run(gql::PublishTokensQuery::build(()))
+                .await?
+                .registry_publish_tokens;
             let mut table = Table::new();
             table.load_preset(UTF8_BORDERS_ONLY).set_header([
                 "id",
@@ -358,7 +385,7 @@ async fn token(client: &Client, action: TokenAction) -> anyhow::Result<()> {
                     (None, None) => "active".to_owned(),
                 };
                 table.add_row([
-                    t.id.to_string(),
+                    t.id.into_inner(),
                     t.name,
                     t.prefix,
                     t.scopes
@@ -375,55 +402,78 @@ async fn token(client: &Client, action: TokenAction) -> anyhow::Result<()> {
             println!("{table}");
         }
         TokenAction::Revoke { id } => {
-            client.delete(&format!("/api/v1/tokens/{id}")).await?;
-            println!("revoked {id}");
+            let revoked = client
+                .graph()
+                .run(gql::RevokePublishToken::build(gql::IdVariables {
+                    id: registry_id("publishToken", &id),
+                }))
+                .await?
+                .registry_revoke_publish_token;
+            println!("revoked {}", revoked.name);
         }
     }
     Ok(())
 }
 
 async fn version(client: &Client, action: VersionAction) -> anyhow::Result<()> {
-    let (package, version, path, body) = match action {
+    let graph = client.graph();
+    let id = |package: &str, version: &str| registry_id("version", &format!("{package}@{version}"));
+
+    let (package, version, result) = match action {
         VersionAction::Yank {
             package,
             version,
             reason,
         } => {
-            let path = format!("/cli/v1/packages/{package}/versions/{version}/yank");
-            (package, version, path, Some(Yank { reason }))
+            let result = graph
+                .run(gql::YankVersion::build(gql::YankVariables {
+                    id: id(&package, &version),
+                    reason,
+                }))
+                .await?
+                .registry_yank_version;
+            (package, version, result)
         }
         VersionAction::Unyank { package, version } => {
-            let path = format!("/cli/v1/packages/{package}/versions/{version}/unyank");
-            (package, version, path, None)
+            let result = graph
+                .run(gql::UnyankVersion::build(gql::IdVariables {
+                    id: id(&package, &version),
+                }))
+                .await?
+                .registry_unyank_version;
+            (package, version, result)
         }
     };
 
-    let result: Version = match &body {
-        Some(body) => client.send(Method::POST, &path, body).await?,
-        None => client.post_empty(&path).await?,
-    };
-    let state = if result.yanked.is_some() {
-        "yanked"
-    } else {
-        "unyanked"
-    };
-    println!("{state} {package}@{version}");
+    match result.yanked {
+        Some(yanked) => println!(
+            "yanked {package}@{version}{}",
+            yanked
+                .reason
+                .map(|reason| format!(" ({reason})"))
+                .unwrap_or_default()
+        ),
+        None => println!("unyanked {package}@{version}"),
+    }
     Ok(())
 }
 
-async fn audit(client: &Client, package: Option<String>, limit: i64) -> anyhow::Result<()> {
-    let mut path = format!("/api/v1/audit?limit={limit}");
-    if let Some(package) = package {
-        path.push_str(&format!("&package={}", urlencode(&package)));
-    }
-    let entries: Vec<AuditEntry> = client.get(&path).await?;
+async fn audit(client: &Client, package: Option<String>, limit: i32) -> anyhow::Result<()> {
+    let entries = client
+        .graph()
+        .run(gql::AuditQuery::build(gql::AuditVariables {
+            package,
+            limit,
+        }))
+        .await?
+        .registry_audit;
 
     let mut table = Table::new();
     table
         .load_preset(UTF8_BORDERS_ONLY)
         .set_header(["at", "actor", "action", "target"]);
     for e in entries {
-        let target = [e.package, e.version]
+        let target = [e.package_name, e.version]
             .into_iter()
             .flatten()
             .collect::<Vec<_>>()

@@ -1,17 +1,17 @@
 use std::path::Path;
 
 use anyhow::bail;
+use cynic::MutationBuilder;
 use registry_api::{
-    Artifact, BINARY_ARTIFACT, CreateVersion, ECOSYSTEM_CLI, HarborAction, HarborToken,
-    PACKAGES_PROJECT, PackageDetail, RegisterArtifact, Target, Version,
+    Artifact, BINARY_ARTIFACT, HarborAction, HarborToken, PACKAGES_PROJECT, Target,
     oci::{self, Manifest},
     package_repository,
-    signing::{self, CertificateRequest, Envelope, PublishRequest, Statement},
+    signing::{self, Envelope, Statement},
 };
-use reqwest::{Method, StatusCode};
 
 use crate::{
-    client::{Client, api_error, human_size, sha256_file},
+    client::{self, Client, human_size, sha256_file},
+    graphql as gql,
     manifest::Loaded,
     remote,
     session::Settings,
@@ -26,7 +26,6 @@ struct Built {
 async fn push_to_harbor(
     client: &Client,
     token: &HarborToken,
-    base: &str,
     name: &str,
     version: &str,
     binary: &str,
@@ -52,13 +51,27 @@ async fn push_to_harbor(
     oci.put_manifest(&repository, &digest, oci::MANIFEST, &manifest)
         .await?;
 
-    client
-        .send(
-            Method::PUT,
-            &format!("{base}/{version}/artifacts/{}/manifest", built.target),
-            &RegisterArtifact { manifest: digest },
-        )
-        .await
+    let registered = client
+        .graph()
+        .run(gql::RegisterArtifact::build(
+            gql::RegisterArtifactVariables {
+                package: name.to_owned(),
+                version: version.to_owned(),
+                target: client::target_in(built.target),
+                manifest: digest,
+            },
+        ))
+        .await?
+        .registry_register_artifact;
+    Ok(client::artifact(registered))
+}
+
+fn envelope_in(envelope: Envelope) -> gql::EnvelopeInput {
+    gql::EnvelopeInput {
+        payload: envelope.payload,
+        signature: envelope.signature,
+        key_id: envelope.key_id,
+    }
 }
 
 pub struct Options<'a> {
@@ -101,12 +114,11 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
 
     let (client, via) = settings.publisher().await?;
     eprintln!(
-        "publishing {name}@{version} to {} (auth: {via})",
-        settings.registry
+        "publishing {name}@{version} through {} (auth: {via})",
+        settings.graph
     );
 
-    let base = format!("/cli/v1/packages/{name}/versions");
-    if let Some(existing) = client.find::<Version>(&format!("{base}/{version}")).await?
+    if let Some(existing) = client.version(&name, &version).await?
         && existing.status == "published"
     {
         if options.fail_if_exists {
@@ -118,14 +130,11 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
 
     for (dependency, req) in &loaded.manifest.dependencies {
         let range = registry_api::requirement(req).map_err(anyhow::Error::msg)?;
-        let detail: Option<PackageDetail> = client
-            .find(&format!("/cli/v1/packages/{dependency}"))
-            .await?;
-        let published = detail.is_some_and(|detail| {
-            detail
+        let published = client.package(dependency).await?.is_some_and(|package| {
+            package
                 .versions
                 .iter()
-                .any(|v| !v.yanked && registry_api::satisfies(&range, &v.version))
+                .any(|v| v.yanked.is_none() && registry_api::satisfies(&range, &v.version))
         });
         if !published {
             bail!("{name} depends on {dependency} {req}, which has no matching published version");
@@ -143,23 +152,41 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
         });
     }
 
-    let draft = CreateVersion {
+    let draft = gql::CreateVersionInput {
+        package: name.clone(),
         version: version.clone(),
-        targets: declared.clone(),
+        targets: declared.iter().copied().map(client::target_in).collect(),
         description: Some(loaded.manifest.package.description.clone()),
         binary_name: Some(loaded.binary().to_owned()),
         aliases: Some(loaded.manifest.package.aliases.clone()),
-        auth: loaded.manifest.auth.as_ref().map(|a| a.resolve()),
+        auth: loaded.manifest.auth.as_ref().map(|a| {
+            let auth = a.resolve();
+            gql::PackageAuthInput {
+                issuer: auth.issuer,
+                client_id: auth.client_id,
+                scopes: auth.scopes,
+                token_env: auth.token_env,
+                lazy: auth.lazy,
+            }
+        }),
     };
-    if let Err(e) = client.send::<_, Version>(Method::POST, &base, &draft).await {
-        if api_error(&e).is_some_and(|e| e.status == StatusCode::NOT_FOUND) {
+    let created = client
+        .graph()
+        .run(gql::CreateVersion::build(gql::CreateVersionVariables {
+            input: draft,
+        }))
+        .await;
+    let created = match created {
+        Ok(created) => created.registry_create_version,
+        Err(e) if client::not_found(&e) => {
             bail!(
                 "package {name} does not exist in the registry; an admin needs to run\n  \
                  ortzi registry package create {name} --forgejo-repo <owner/repo>"
             );
         }
-        return Err(e);
-    }
+        Err(e) => return Err(e),
+    };
+    eprintln!("{name}@{} is a {}", created.version, created.status);
 
     let token = remote::exchange(
         &client,
@@ -170,55 +197,28 @@ pub async fn publish(settings: &Settings, options: Options<'_>) -> anyhow::Resul
         )],
     )
     .await?;
-    let result = finish(
-        &client,
-        token.as_ref(),
-        &loaded,
-        &options,
-        &base,
-        &name,
-        &version,
-        &built,
-    )
-    .await;
-    if let Some(token) = &token {
-        remote::revoke(&client, token).await;
-    }
+    let result = finish(&client, &token, &loaded, &options, &name, &version, &built).await;
+    remote::revoke(&client, &token).await;
     result
 }
 
-#[allow(clippy::too_many_arguments)]
 async fn finish(
     client: &Client,
-    token: Option<&HarborToken>,
+    token: &HarborToken,
     loaded: &Loaded,
     options: &Options<'_>,
-    base: &str,
     name: &str,
     version: &str,
     built: &[Built],
 ) -> anyhow::Result<()> {
     let (name, version) = (name.to_owned(), version.to_owned());
     for item in built {
-        let target = item.target;
-        let artifact: Artifact = match token {
-            Some(token) => {
-                push_to_harbor(client, token, base, &name, &version, loaded.binary(), item).await?
-            }
-            None => {
-                client
-                    .upload(
-                        &format!("{base}/{version}/artifacts/{target}"),
-                        &item.path,
-                        &item.sha,
-                    )
-                    .await?
-            }
-        };
+        let artifact =
+            push_to_harbor(client, token, &name, &version, loaded.binary(), item).await?;
         eprintln!(
-            "uploaded {target} ({}{})",
-            human_size(artifact.size),
-            if token.is_some() { ", harbor" } else { "" }
+            "uploaded {} ({}, harbor)",
+            item.target,
+            human_size(artifact.size)
         );
     }
 
@@ -229,10 +229,13 @@ async fn finish(
         return Ok(());
     }
 
-    let draft: Version = client.get(&format!("{base}/{version}")).await?;
+    let draft = client
+        .version(&name, &version)
+        .await?
+        .ok_or_else(|| anyhow::anyhow!("the draft {name}@{version} disappeared"))?;
+    let artifacts: Vec<Artifact> = draft.artifacts.into_iter().map(client::artifact).collect();
     for item in built {
-        if !draft
-            .artifacts
+        if !artifacts
             .iter()
             .any(|a| a.target == item.target && a.sha256 == item.sha)
         {
@@ -244,23 +247,22 @@ async fn finish(
     }
 
     let key = signing::generate();
-    let certificate: Envelope = client
-        .send(
-            Method::POST,
-            "/api/v1/signing/certificate",
-            &CertificateRequest {
-                ecosystem: ECOSYSTEM_CLI.to_owned(),
+    let certificate = client
+        .graph()
+        .run(gql::IssueSigningCertificate::build(
+            gql::CertificateVariables {
                 package: name.clone(),
                 public_key: signing::encode_key(key.verifying_key()),
             },
-        )
-        .await?;
+        ))
+        .await?
+        .registry_issue_signing_certificate;
     let statement = signing::sign(
         &key,
         &Statement {
             package: name.clone(),
             version: version.clone(),
-            artifacts: draft.artifacts,
+            artifacts,
             permissions: loaded.manifest.permissions.clone(),
             completions: loaded.manifest.package.completions,
             env: loaded.manifest.package.env.clone(),
@@ -268,16 +270,20 @@ async fn finish(
         },
     );
 
-    let published: Version = client
-        .send(
-            Method::POST,
-            &format!("{base}/{version}/publish"),
-            &PublishRequest {
-                statement,
-                certificate,
+    let published = client
+        .graph()
+        .run(gql::PublishVersion::build(gql::PublishVariables {
+            package: name.clone(),
+            version: version.clone(),
+            statement: envelope_in(statement),
+            certificate: gql::EnvelopeInput {
+                payload: certificate.payload,
+                signature: certificate.signature,
+                key_id: certificate.key_id,
             },
-        )
-        .await?;
+        }))
+        .await?
+        .registry_publish_version;
     println!(
         "published {name}@{}; install with `ortzi install {name}`",
         published.version

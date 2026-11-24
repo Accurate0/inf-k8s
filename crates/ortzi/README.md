@@ -1,7 +1,8 @@
 # ortzi
 
-Pluggable CLI for the platform. Packages are native binaries published to the registry at
-`registry.anurag.sh` (`platform-services/registry`) and run as `ortzi <package> ...`.
+Pluggable CLI for the platform. Packages are native binaries published to the registry
+(`platform-services/registry`) and run as `ortzi <package> ...`. ortzi reaches the registry only
+through the graph (`graph.ortzi.cloud`); package blobs and the signed catalog come from Harbor.
 
 ## Using it
 
@@ -38,9 +39,9 @@ ortzi registry package create <name> --forgejo-repo <owner/repo> \
 Pushing to `main` then publishes whenever `version` in `ortzi.yaml` is bumped; an
 already-published version is skipped. The
 workflow runs on the `ortzi` runner label, which has cargo-zigbuild and both targets
-(`darwin-arm64`, `linux-amd64`), and authenticates with Forgejo Actions OIDC, so no
-secrets are needed. For anywhere else, mint a scoped token with
-`ortzi registry token create --package <name>` and set `ORTZI_TOKEN`.
+(`darwin-arm64`, `linux-amd64`), and authenticates with Forgejo Actions OIDC, which the graph
+trusts as an external issuer, so no secrets are needed. Anywhere else, publish with your
+`ortzi login`. Publish tokens (`ortzi registry token create`) only bootstrap `install.sh`.
 
 ### ortzi.yaml
 

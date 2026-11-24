@@ -7,7 +7,7 @@ use crate::client::Client;
 pub const APP: App = App {
     name: "ortzi",
     scopes: "openid email profile groups",
-    login_hint: "run `ortzi login` or set ORTZI_TOKEN",
+    login_hint: "run `ortzi login`",
 };
 
 #[derive(Debug, Clone, clap::Args)]
@@ -15,16 +15,17 @@ pub struct Settings {
     #[arg(
         long,
         global = true,
-        env = "ORTZI_REGISTRY_URL",
-        default_value = "https://registry.anurag.sh"
+        env = "ORTZI_GRAPH_URL",
+        default_value = graph_client::DEFAULT_URL,
+        help = "The graph the registry is reached through"
     )]
-    pub registry: String,
+    pub graph: String,
 
     #[arg(
         long,
         global = true,
         env = "ORTZI_OIDC_ISSUER",
-        default_value = "https://idm.anurag.sh/oauth2/openid/registry",
+        default_value = graph_client::ISSUER,
         hide_short_help = true
     )]
     pub issuer: String,
@@ -33,7 +34,7 @@ pub struct Settings {
         long,
         global = true,
         env = "ORTZI_OIDC_CLIENT_ID",
-        default_value = "registry",
+        default_value = graph_client::CLIENT_ID,
         hide_short_help = true
     )]
     pub client_id: String,
@@ -41,17 +42,9 @@ pub struct Settings {
     #[arg(
         long,
         global = true,
-        env = "ORTZI_TOKEN",
-        hide_env_values = true,
-        help = "Registry publish token to use instead of the stored login"
-    )]
-    pub token: Option<String>,
-
-    #[arg(
-        long,
-        global = true,
         env = "ORTZI_AUDIENCE",
-        default_value = "registry.anurag.sh",
+        default_value = "graph.ortzi.cloud",
+        help = "Audience of the forgejo actions id token sent to the graph in CI",
         hide_short_help = true
     )]
     pub audience: String,
@@ -62,21 +55,14 @@ impl Settings {
         OAuthClient::new(APP, &self.issuer, &self.client_id)
     }
 
-    fn token(&self) -> Option<String> {
-        self.token.clone().filter(|t| !t.is_empty())
-    }
-
     async fn user_bearer(&self) -> anyhow::Result<String> {
         Ok(TokenSource::acquire(self.oauth()).await?.access_token())
     }
 
     async fn ambient_reader(&self) -> anyhow::Result<Option<Client>> {
-        if let Some(token) = self.token() {
-            return Ok(Some(Client::new(&self.registry, token)));
-        }
         if std::env::var_os("ACTIONS_ID_TOKEN_REQUEST_URL").is_some() {
             let token = forgejo_id_token(&self.audience).await?;
-            return Ok(Some(Client::new(&self.registry, token)));
+            return Ok(Some(Client::new(&self.graph, token)));
         }
         Ok(None)
     }
@@ -85,7 +71,7 @@ impl Settings {
         if let Some(client) = self.ambient_reader().await? {
             return Ok(client);
         }
-        Ok(Client::new(&self.registry, self.user_bearer().await?))
+        Ok(Client::new(&self.graph, self.user_bearer().await?))
     }
 
     pub async fn reader_without_login(&self) -> anyhow::Result<Option<Client>> {
@@ -103,21 +89,17 @@ impl Settings {
         } else {
             return Ok(None);
         };
-        Ok(Some(Client::new(&self.registry, credentials.access_token)))
+        Ok(Some(Client::new(&self.graph, credentials.access_token)))
     }
 
     pub async fn publisher(&self) -> anyhow::Result<(Client, &'static str)> {
-        if let Some(token) = self.token() {
-            return Ok((Client::new(&self.registry, token), "ORTZI_TOKEN"));
-        }
-
         if std::env::var_os("ACTIONS_ID_TOKEN_REQUEST_URL").is_some() {
             let token = forgejo_id_token(&self.audience).await?;
-            return Ok((Client::new(&self.registry, token), "forgejo actions oidc"));
+            return Ok((Client::new(&self.graph, token), "forgejo actions oidc"));
         }
 
         Ok((
-            Client::new(&self.registry, self.user_bearer().await?),
+            Client::new(&self.graph, self.user_bearer().await?),
             "ortzi login",
         ))
     }

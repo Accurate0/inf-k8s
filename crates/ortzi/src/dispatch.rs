@@ -56,7 +56,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
                     .map(|a| a.into_string())
                     .collect::<Result<Vec<_>, _>>()
                     .map_err(|_| anyhow::anyhow!("arguments must be valid utf-8"))?;
-                let mut vars = vec![("ORTZI_REGISTRY_URL".to_owned(), settings.registry.clone())];
+                let mut vars = vec![("GRAPH_URL".to_owned(), settings.graph.clone())];
                 vars.extend(token);
                 vars.extend(unset_env(&package.env).map(|(k, v)| (k.clone(), v.clone())));
                 let mut sandbox = wasm::Sandbox::new(
@@ -98,7 +98,7 @@ pub async fn exec(settings: &Settings, args: Vec<OsString>) -> anyhow::Result<()
         .args(args)
         .env_remove("ORTZI_TOKEN")
         .env("ORTZI", "1")
-        .env("ORTZI_REGISTRY_URL", &settings.registry)
+        .env("GRAPH_URL", &settings.graph)
         .exec();
     Err(error).with_context(|| format!("running {command}"))
 }
