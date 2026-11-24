@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-20T14:48:21.549Z
+# generated at 2026-11-24T09:21:45.790Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/source.toolkit.fluxcd.io/ocirepository_v1.json
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
@@ -116,12 +116,14 @@ metadata:
     event.toolkit.fluxcd.io/app: forgejo
 spec:
   interval: 1h
-  url: oci://git.erwanleboucher.dev/eleboucher/charts/forgejo-runner
+  url: oci://registry.anurag.sh/charts/forgejo-runner
   ref:
     tag: 13.2.1
   layerSelector:
     mediaType: application/vnd.cncf.helm.chart.content.v1.tar+gzip
     operation: copy
+  secretRef:
+    name: harbor
 ---
 apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository

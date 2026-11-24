@@ -99,12 +99,20 @@ jobs:
           path: .cache/kubeconform
           key: kubeconform-schemas-${{ steps.schemas.outputs.version }}
           restore-keys: kubeconform-schemas-
+      - name: Log in to harbor
+        id: login
+        run: |
+          ortzi registry login charts:pull
+          echo "HELM_REGISTRY_CONFIG=${DOCKER_CONFIG:-$HOME/.docker}/config.json" >> "$GITHUB_ENV"
       - name: Render and commit
         run: |
           git config user.name "reconciler[bot]"
           git config user.email "reconciler@noreply.git.anurag.sh"
           export START="$(git rev-parse HEAD)"
           .forgejo/scripts/retry.sh 3 30 bash -c 'ortzi app render --commit || { git reset --quiet --hard "$START"; git clean -fdq; exit 1; }'
+      - name: Log out of harbor
+        if: ${{ always() && steps.login.outcome == 'success' }}
+        run: ortzi registry logout
       - name: Publish and push
         env:
           RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
