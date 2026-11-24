@@ -123,7 +123,7 @@ impl Settings {
     }
 }
 
-async fn forgejo_id_token(audience: &str) -> anyhow::Result<String> {
+pub(crate) async fn forgejo_id_token(audience: &str) -> anyhow::Result<String> {
     #[derive(Deserialize)]
     struct IdToken {
         value: String,

@@ -114,11 +114,6 @@ impl Client {
         Self::json(self.request(Method::POST, path)).await
     }
 
-    pub async fn post<B: Serialize>(&self, path: &str, body: &B) -> anyhow::Result<()> {
-        Self::check(self.request(Method::POST, path).json(body).send().await?).await?;
-        Ok(())
-    }
-
     pub async fn delete(&self, path: &str) -> anyhow::Result<()> {
         Self::check(self.request(Method::DELETE, path).send().await?).await?;
         Ok(())

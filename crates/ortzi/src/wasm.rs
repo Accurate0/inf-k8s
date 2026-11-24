@@ -178,7 +178,6 @@ struct State {
     server: Option<Server>,
     tokens: Option<tokio::runtime::Runtime>,
     pulls: Vec<(PathBuf, registry_api::HarborToken)>,
-    graph: Option<registry_api::GraphToken>,
     docker_login: Option<String>,
 }
 
@@ -688,41 +687,9 @@ impl auth::Host for State {
             ),
         };
 
-        let ci_account = std::env::var("ORTZI_GRAPH_ACCOUNT")
-            .ok()
-            .filter(|a| !a.is_empty())
-            .or_else(|| auth.ci_account.clone())
-            .filter(|_| std::env::var_os("ACTIONS_ID_TOKEN_REQUEST_URL").is_some());
-        let Some(account) = ci_account else {
-            return runtime
-                .block_on(crate::package_auth::token(package, auth))
-                .map_err(|e| format!("auth: {e:#}"));
-        };
-
-        if let Some(token) = &self.graph
-            && token.account == account
-            && token.expires_at > chrono::Utc::now() + chrono::Duration::seconds(60)
-        {
-            return Ok(token.access_token.clone());
-        }
-
-        let settings = self.sandbox.settings.clone();
-        let token = runtime
-            .block_on(async {
-                let (api, _) = settings.publisher().await?;
-                api.send::<_, registry_api::GraphToken>(
-                    reqwest::Method::POST,
-                    "/api/v1/graph/token",
-                    &registry_api::GraphTokenRequest { account },
-                )
-                .await
-            })
-            .map_err(|e| format!("auth: exchanging the forgejo token for a graph token: {e:#}"))?;
-        let access_token = token.access_token.clone();
-        if let Some(previous) = self.graph.replace(token) {
-            self.revoke_graph(previous);
-        }
-        Ok(access_token)
+        runtime
+            .block_on(crate::package_auth::token(package, auth))
+            .map_err(|e| format!("auth: {e:#}"))
     }
 }
 
@@ -739,28 +706,7 @@ impl State {
         self.tokens.as_ref().ok_or_else(|| "no runtime".to_owned())
     }
 
-    fn revoke_graph(&mut self, token: registry_api::GraphToken) {
-        let settings = self.sandbox.settings.clone();
-        let Ok(runtime) = self.runtime() else {
-            return;
-        };
-        let revoked = runtime.block_on(async {
-            let (api, _) = settings.publisher().await?;
-            api.post(
-                "/api/v1/graph/token/revoke",
-                &serde_json::json!({ "token": token.access_token }),
-            )
-            .await
-        });
-        if let Err(e) = revoked {
-            eprintln!("warning: could not revoke graph token {}: {e:#}", token.id);
-        }
-    }
-
     fn close(&mut self) {
-        if let Some(token) = self.graph.take() {
-            self.revoke_graph(token);
-        }
         if let Some(registry) = self.docker_login.take() {
             let settings = self.sandbox.settings.clone();
             if let Ok(runtime) = self.runtime() {
@@ -1111,7 +1057,6 @@ pub fn run(wasm: &Path, sandbox: Sandbox) -> anyhow::Result<i32> {
             server: None,
             tokens: None,
             pulls: vec![],
-            graph: None,
             docker_login: None,
         },
     );

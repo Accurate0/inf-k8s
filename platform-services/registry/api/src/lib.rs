@@ -499,9 +499,6 @@ pub struct PackageAuth {
     /// Fetch the token only when the package asks the host for one, not before it starts.
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub lazy: bool,
-    /// The registry graph service account a forgejo actions run exchanges its token for.
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub ci_account: Option<String>,
 }
 
 pub const DEFAULT_SCOPES: &str = "openid email profile groups";
@@ -967,7 +964,6 @@ mod tests {
             scopes: DEFAULT_SCOPES.to_owned(),
             token_env: "FFCTL_TOKEN".to_owned(),
             lazy: false,
-            ci_account: None,
         };
         assert!(auth.validate().is_ok());
         assert!(
@@ -1051,19 +1047,6 @@ pub struct ImageRepository {
     pub name: String,
     pub latest: Image,
     pub image_count: i64,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphTokenRequest {
-    pub account: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct GraphToken {
-    pub id: String,
-    pub account: String,
-    pub access_token: String,
-    pub expires_at: DateTime<Utc>,
 }
 
 pub const DOCKER_CONFIG_MEDIA_TYPE: &str = "application/vnd.docker.config+json";

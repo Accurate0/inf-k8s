@@ -7,7 +7,6 @@ auth:
   client_id: graph
   token_env: GRAPH_TOKEN
   lazy: true
-  ci_account: ci_deployer
 permissions:
   exec: [diff, docker, git, helm, kustomize, kubeconform]
   fs: [.]
