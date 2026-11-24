@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { body, failed, parseVars } from './graphql.ts';
+import { graphqlBody as body, graphqlFailed as failed, parseVars } from './graphql.ts';
 
 test('vars parse as JSON when they can', () => {
   assert.deepEqual(parseVars(['id=registry:package:app', 'limit=5', 'on=true', 'eq=a=b']), {

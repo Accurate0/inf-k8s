@@ -1,12 +1,19 @@
-export interface Body {
+export const GRAPH_URL = 'https://graph.ortzi.cloud/v1/graphql';
+
+export interface GraphQLBody {
   query: string;
   variables?: Record<string, unknown>;
   operationName?: string;
 }
 
-export interface Response {
-  data?: unknown;
-  errors?: { message: string }[];
+export interface GraphQLError {
+  message: string;
+  extensions?: { code?: string };
+}
+
+export interface GraphQLResponse<T = unknown> {
+  data?: T;
+  errors?: GraphQLError[];
 }
 
 /** `--var name=value` takes JSON when the value parses as JSON, the raw string otherwise. */
@@ -29,12 +36,12 @@ export function parseVars(pairs: string[]): Record<string, unknown> {
   );
 }
 
-export function body(
+export function graphqlBody(
   query: string,
   variables?: string,
   vars: string[] = [],
   operation?: string,
-): Body {
+): GraphQLBody {
   let parsed: Record<string, unknown> = {};
   if (variables !== undefined) {
     try {
@@ -56,5 +63,5 @@ export function body(
   };
 }
 
-export const failed = (status: number, response: Response | undefined) =>
+export const graphqlFailed = (status: number, response: GraphQLResponse | undefined) =>
   status < 200 || status >= 300 || !!response?.errors?.length;

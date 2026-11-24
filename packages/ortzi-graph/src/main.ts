@@ -1,9 +1,7 @@
-import { authToken, env, fs, httpSend, readStdin, serve, stdinIsTerminal } from '@ortzi/host';
-import { UsageError, cli } from '@ortzi/kit';
-import * as graphql from './graphql';
+import { authToken, env, fs, readStdin, serve, stdinIsTerminal } from '@ortzi/host';
+import { GRAPH_URL, UsageError, cli, graphqlBody, graphqlFailed, sendGraphQL } from '@ortzi/kit';
 import { labPage } from './lab';
 
-const DEFAULT_URL = 'https://graph.ortzi.cloud/v1/graphql';
 const LAB_PORT = 4280;
 
 const USAGE = `usage: ortzi graph <command> [flags]
@@ -14,7 +12,7 @@ commands:
   lab                      run GraphiQL on localhost, signed in as you
 
 flags:
-  --url URL                GraphQL endpoint (default: $GRAPH_URL or ${DEFAULT_URL})
+  --url URL                GraphQL endpoint (default: $GRAPH_URL or ${GRAPH_URL})
 
 query:
   --file FILE, -f FILE     read the document from a file instead of the argument or stdin
@@ -53,7 +51,7 @@ export const run = cli({
   },
   setup: (values) => {
     const vars = env();
-    return { url: values.url ?? vars.GRAPH_URL ?? DEFAULT_URL, token: vars.GRAPH_TOKEN };
+    return { url: values.url ?? vars.GRAPH_URL ?? GRAPH_URL, token: vars.GRAPH_TOKEN };
   },
   commands: {
     query: (ctx, values, [argument]) => {
@@ -62,30 +60,11 @@ export const run = cli({
         throw new UsageError('the document is empty');
       }
 
-      const body = graphql.body(document, values.variables, values.var, values.operation);
-      const token = ctx.token ?? authToken();
+      const body = graphqlBody(document, values.variables, values.var, values.operation);
+      const sent = sendGraphQL(body, { url: ctx.url, token: ctx.token ?? authToken() });
+      console.log(sent.response ? JSON.stringify(sent.response, null, 2) : sent.raw);
 
-      const response = httpSend({
-        method: 'POST',
-        url: ctx.url,
-        headers: {
-          authorization: `Bearer ${token}`,
-          'content-type': 'application/json',
-          accept: 'application/json',
-        },
-        body: JSON.stringify(body),
-        timeoutMs: 60_000,
-      });
-
-      let parsed: graphql.Response | undefined;
-      try {
-        parsed = JSON.parse(response.body);
-        console.log(JSON.stringify(parsed, null, 2));
-      } catch {
-        console.log(response.body);
-      }
-
-      return graphql.failed(response.status, parsed) ? 1 : 0;
+      return graphqlFailed(sent.status, sent.response) ? 1 : 0;
     },
 
     token: () => {

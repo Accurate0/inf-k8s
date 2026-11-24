@@ -1,7 +1,7 @@
 package:
   name: graph
   description: query the federated graph with your kanidm login, and hand that login to a local GraphiQL
-  version: 0.2.0
+  version: 0.3.0
   completions: cobra
 auth:
   client_id: graph

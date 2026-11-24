@@ -4,8 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "check": "tsc --noEmit",
-    "test": "node --test src/graphql.test.ts"
+    "check": "tsc --noEmit"
   },
   "dependencies": {
     "@ortzi/host": "workspace:*",
