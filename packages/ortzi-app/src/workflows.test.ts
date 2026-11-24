@@ -162,10 +162,16 @@ test('the release tag flux deploys is added only after build and test pass', () 
   assert.deepEqual(release.needs, ['build', 'test']);
   assert.match(release.if, /needs\.test\.result == 'success'/);
 
+  assert.deepEqual(release.steps[0], { uses: 'actions/checkout@aaa', with: { 'fetch-depth': 0 } });
+  const setup = release.steps.find((step: { uses?: string }) => step.uses?.includes('setup-ortzi'));
+  assert.deepEqual(setup.with, { packages: 'app' });
+
   const tag = release.steps.find((step: { name?: string }) => step.name === 'Tag release');
-  assert.equal(tag.env.TAG, 'main-${{ needs.build.outputs.committed-at }}-${{ github.sha }}');
   assert.equal(
     tag.run,
-    'docker buildx imagetools create --tag "registry.anurag.sh/containers/foo:$TAG" "registry.anurag.sh/containers/foo@$DIGEST"',
+    [
+      `TAG=$(ortzi app version ${workflow.on.push.paths.map((path: string) => `--path '${path}'`).join(' ')})`,
+      'docker buildx imagetools create --tag "registry.anurag.sh/containers/foo:$TAG" "registry.anurag.sh/containers/foo@$DIGEST"',
+    ].join('\n'),
   );
 });

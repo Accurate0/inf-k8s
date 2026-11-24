@@ -6,6 +6,19 @@ export const ciProvider = (app: App) => (app.build as Build).ci;
 
 export const workflowPath = (app: App) => `.${ciProvider(app)}/workflows/app-${app.name}.yaml`;
 
+export const triggerPaths = (app: App, target: Target) => {
+  const dir = `${target.location}/${app.name}`;
+
+  return [
+    `${dir}/**`,
+    `!${dir}/manifests/**`,
+    `!${dir}/app.yaml`,
+    `!${dir}/image.values.yaml`,
+    ...((app.build as Build).paths ?? []),
+    workflowPath(app),
+  ];
+};
+
 export function renderWorkflow(app: App, target: Target, actions: ActionVersions = {}): string {
   if (ciProvider(app) === 'forgejo') {
     return renderForgejoWorkflow(app, target, actions);
@@ -20,16 +33,7 @@ export function renderWorkflow(app: App, target: Target, actions: ActionVersions
   const workflow = {
     name: `app ${app.name}`,
     on: {
-      push: {
-        paths: [
-          `${dir}/**`,
-          `!${dir}/manifests/**`,
-          `!${dir}/app.yaml`,
-          `!${dir}/image.values.yaml`,
-          ...(build.paths ?? []),
-          workflowPath(app),
-        ],
-      },
+      push: { paths: triggerPaths(app, target) },
       workflow_dispatch: null,
     },
     jobs: {
@@ -105,7 +109,6 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
     'runs-on': 'docker',
     outputs: {
       digest: '${{ steps.build.outputs.digest }}',
-      'committed-at': '${{ steps.commit-meta.outputs.committed-at }}',
     },
     steps: [
       { uses: ACTIONS.checkout },
@@ -201,7 +204,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
     ],
   };
 
-  // flux's ImagePolicy deploys the newest main-<time>-<sha> tag, so it lands only once tests pass
+  // flux's ImagePolicy deploys the highest v1.0.<n>-<sha> tag, so it lands only once tests pass
   const needs = test ? ['build', 'test'] : ['build'];
   const releaseJob = {
     needs,
@@ -210,16 +213,19 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
     } }}`,
     'runs-on': 'docker',
     steps: [
+      { uses: ACTIONS.checkout, with: { 'fetch-depth': 0 } },
       { uses: ACTIONS.buildx },
-      { uses: SETUP_ORTZI },
+      { uses: SETUP_ORTZI, with: { packages: 'app' } },
       { name: 'Log in to harbor', id: 'login', run: `ortzi registry login ${project}:push` },
       {
         name: 'Tag release',
-        env: {
-          DIGEST: '${{ needs.build.outputs.digest }}',
-          TAG: 'main-${{ needs.build.outputs.committed-at }}-${{ github.sha }}',
-        },
-        run: `docker buildx imagetools create --tag "${build.image}:$TAG" "${build.image}@$DIGEST"`,
+        env: { DIGEST: '${{ needs.build.outputs.digest }}' },
+        run: [
+          `TAG=$(ortzi app version ${triggerPaths(app, target)
+            .map((path) => `--path '${path}'`)
+            .join(' ')})`,
+          `docker buildx imagetools create --tag "${build.image}:$TAG" "${build.image}@$DIGEST"`,
+        ].join('\n'),
       },
       {
         name: 'Log out of harbor',
@@ -232,16 +238,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   const workflow = {
     name: `app ${app.name}`,
     on: {
-      push: {
-        paths: [
-          `${dir}/**`,
-          `!${dir}/manifests/**`,
-          `!${dir}/app.yaml`,
-          `!${dir}/image.values.yaml`,
-          ...(build.paths ?? []),
-          workflowPath(app),
-        ],
-      },
+      push: { paths: triggerPaths(app, target) },
       workflow_dispatch: null,
     },
     'enable-openid-connect': true,

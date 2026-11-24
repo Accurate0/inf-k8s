@@ -11,6 +11,7 @@ import { history } from './commands/history';
 import { autosync, heal } from './commands/policy';
 import { buildApp } from './commands/build';
 import { rollback } from './commands/rollback';
+import { version } from './commands/version';
 import { status } from './commands/status';
 import { supergraph } from './commands/supergraph';
 import { parse, stringify } from 'yaml';
@@ -91,6 +92,8 @@ definition (run from the root of the k8s repo):
   publish [app...]         push the kustomize build of each app with an artifact and manifests to its oci
                            repo (default: all of them), then push kubernetes/ as the
                            platform/apps.yaml cluster artifact; unchanged pushes are skipped
+  version [--path P]...    print v1.0.<commits touching the paths>-<short sha>; paths use workflow
+                           on.push.paths syntax (!x excludes), default the whole repo
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
 
@@ -118,6 +121,7 @@ flags:
   --all            status: list every app
   --latest         status: also compare against ghcr's latest tag
   --image IMAGE    rollback: only this image
+  --path P         version: count commits touching P (repeatable)
   --platform P     build: target platform (default linux/amd64)
   --yes            apply; writes are a dry run without this
   --wait           rollback, autosync on: follow the change and fail if it doesn't finish
@@ -547,6 +551,7 @@ export const run = cli({
     all: { type: 'boolean' },
     latest: { type: 'boolean' },
     image: { type: 'string', multiple: true },
+    path: { type: 'string', multiple: true },
     platform: { type: 'string', default: 'linux/amd64' },
     yes: { type: 'boolean' },
     wait: { type: 'boolean' },
@@ -614,6 +619,7 @@ export const run = cli({
 
       return 0;
     },
+    version: (_ctx, values) => version(values.path),
     status: (ctx, values, [name]) => status(ctx.kube(), name, values.all, values.latest),
     env: (ctx, _, [name, workload]) => {
       const { app, world } = loadApp(name, 'env');

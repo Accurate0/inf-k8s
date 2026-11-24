@@ -611,7 +611,7 @@ test('released images follow their newest main build through a flux image policy
     flux.get('kubernetes/foo/app/imagepolicy.yaml')!,
   ).map((d) => d.toJS());
   assert.equal(policy.spec.imageRepositoryRef.name, 'foo-foo');
-  assert.equal(policy.spec.filterTags.extract, '$ts');
+  assert.equal(policy.spec.filterTags.extract, '$n');
   assert.deepEqual(policy.spec.policy, { numerical: { order: 'asc' } });
   assert.equal(sidecarPolicy.metadata.name, 'foo-foo-sidecar');
   const [kustomization] = parseAllDocuments(flux.get('kubernetes/foo/app/kustomization.yaml')!).map(

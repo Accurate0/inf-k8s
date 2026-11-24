@@ -152,8 +152,8 @@ export const kustomization = (
   },
 });
 
-// CI tags every main build main-<commit time>-<sha>, so the newest commit sorts last.
-export const RELEASE_TAG = '^main-(?P<ts>[0-9]+)-[0-9a-f]{40}$';
+// CI tags every main build v1.0.<commits touching the app>-<sha>, so the newest commit sorts last.
+export const RELEASE_TAG = '^v1\\.0\\.(?P<n>[0-9]+)-[0-9a-f]{7}$';
 
 export const imagePolicyName = (plan: Pick<Plan, 'name'>, image: string) =>
   `${plan.name}-${image.split('/').pop()}`;
@@ -178,7 +178,7 @@ export const imagePolicy = (plan: Plan, image: string) => ({
   metadata: metadata(plan, imagePolicyName(plan, image)),
   spec: {
     imageRepositoryRef: { name: imagePolicyName(plan, image) },
-    filterTags: { pattern: RELEASE_TAG, extract: '$ts' },
+    filterTags: { pattern: RELEASE_TAG, extract: '$n' },
     policy: { numerical: { order: 'asc' } },
   },
 });
