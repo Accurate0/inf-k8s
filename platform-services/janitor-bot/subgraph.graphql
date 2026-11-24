@@ -40,6 +40,20 @@ type JanitorMatchedRule {
 	actions: [JanitorRuleAction!]!
 }
 
+type JanitorMetricLabel {
+	name: String!
+	value: String!
+}
+
+"""
+One Prometheus sample from this replica's recorder.
+"""
+type JanitorMetricSample {
+	name: String!
+	labels: [JanitorMetricLabel!]!
+	value: Float!
+}
+
 type JanitorRule implements Node @key(fields: "id") {
 	name: String!
 	"""
@@ -62,6 +76,12 @@ type JanitorServiceHealth {
 	error: String
 }
 
+enum JanitorWebhookSource {
+	FORGEJO
+	GITHUB
+	FLUX
+}
+
 type Mutation {
 	"""
 	Re-evaluates every open PR in the background.
@@ -79,6 +99,11 @@ type Mutation {
 	Dispatches a comment command as if it had been posted on the PR or issue.
 	"""
 	janitorCommand(input: JanitorCommandInput!): JSON!
+	"""
+	Feeds a saved webhook payload through its handler as if the source had sent it; the
+	event is inferred from the payload when left out. Returns the handler's HTTP status.
+	"""
+	janitorReplayWebhook(source: JanitorWebhookSource!, event: String, eventType: String, payload: String!): Int!
 }
 
 interface Node {
@@ -87,6 +112,10 @@ interface Node {
 
 type Query {
 	janitorRules: [JanitorRule!]!
+	"""
+	This replica's counters and histograms, as Prometheus scrapes them.
+	"""
+	janitorMetrics: [JanitorMetricSample!]!
 	"""
 	Recent rule evaluations, oldest first.
 	"""

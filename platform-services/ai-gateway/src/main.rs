@@ -60,6 +60,11 @@ async fn main() -> anyhow::Result<()> {
     }
 
     let state = AppState::new(config, providers, pool, features, pricing, cache, auth);
+    ai_gateway::pricing::spawn_sync(
+        state.http.clone(),
+        state.pool.clone(),
+        state.pricing.clone(),
+    );
 
     for key in &state.config.keys {
         let claimed = state

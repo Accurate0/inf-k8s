@@ -2118,3 +2118,132 @@ async fn forgejo_tokens_reach_the_graph_with_the_graph_audience(pool: PgPool) {
         .await;
     assert_eq!(status, 401, "registry REST tokens don't work on the graph");
 }
+
+#[sqlx::test(migrations = "./migrations")]
+async fn publishing_through_the_graph(pool: PgPool) {
+    use registry_api::{BINARY_ARTIFACT, oci};
+
+    let registry = Registry::spawn(pool).await;
+    registry.create_package("tool").await;
+    let admin = registry.kanidm.sign(json!({
+        "aud": "graph",
+        "sub": "sub-root",
+        "preferred_username": "root",
+        "groups": ["registry_admins@idm.example.test"],
+    }));
+    let gql = |query: &'static str, variables: Value| {
+        let registry = &registry;
+        let admin = admin.clone();
+        async move {
+            let (status, body) = registry
+                .call(
+                    "POST",
+                    "/v1/graphql",
+                    Some(&admin),
+                    Some(json!({ "query": query, "variables": variables })),
+                )
+                .await;
+            assert_eq!(status, 200, "{body}");
+            assert!(body["errors"].is_null(), "{body}");
+            body["data"].clone()
+        }
+    };
+
+    let draft = gql(
+        "mutation($input: RegistryCreateVersionInput!) {
+            registryCreateVersion(input: $input) { version status }
+        }",
+        json!({ "input": { "package": "tool", "version": "3.0.0", "targets": ["LINUX_AMD_64"] } }),
+    )
+    .await;
+    assert_eq!(draft["registryCreateVersion"]["status"], "draft");
+
+    let client = oci::Client::new(reqwest::Client::new(), &registry.harbor.url, None).unwrap();
+    let repository = "ortzi-packages/tool";
+    let bytes = b"graph-linux-amd64".to_vec();
+    let path = std::env::temp_dir().join(format!("registry-graph-test-{}", std::process::id()));
+    std::fs::write(&path, &bytes).unwrap();
+    let layer = client
+        .push_file(repository, Target::LinuxAmd64.media_type(), &path)
+        .await
+        .unwrap();
+    std::fs::remove_file(&path).unwrap();
+    client
+        .push_bytes(repository, oci::EMPTY, oci::EMPTY_JSON)
+        .await
+        .unwrap();
+    let manifest = oci::Manifest::artifact(BINARY_ARTIFACT, vec![layer]);
+    let pushed = client
+        .push_json(
+            repository,
+            &oci_digest(&serde_json::to_vec(&manifest).unwrap()),
+            oci::MANIFEST,
+            &manifest,
+        )
+        .await
+        .unwrap();
+
+    let registered = gql(
+        "mutation($manifest: String!) {
+            registryRegisterArtifact(package: \"tool\", version: \"3.0.0\", target: LINUX_AMD_64, manifest: $manifest) { sha256 size }
+        }",
+        json!({ "manifest": pushed.digest }),
+    )
+    .await;
+    assert_eq!(
+        registered["registryRegisterArtifact"]["sha256"],
+        sha(&bytes)
+    );
+
+    let key = signing::generate();
+    let certificate = gql(
+        "mutation($key: String!) {
+            registryIssueSigningCertificate(package: \"tool\", publicKey: $key) { payload signature keyId }
+        }",
+        json!({ "key": signing::encode_key(key.verifying_key()) }),
+    )
+    .await["registryIssueSigningCertificate"]
+        .clone();
+
+    let statement = signing::sign(
+        &key,
+        &Statement {
+            package: "tool".to_owned(),
+            version: "3.0.0".to_owned(),
+            artifacts: vec![Artifact {
+                target: Target::LinuxAmd64,
+                sha256: sha(&bytes),
+                size: bytes.len() as i64,
+            }],
+            permissions: None,
+            completions: None,
+            env: Default::default(),
+            dependencies: Default::default(),
+        },
+    );
+    let published = gql(
+        "mutation($statement: RegistryEnvelopeInput!, $certificate: RegistryEnvelopeInput!) {
+            registryPublishVersion(package: \"tool\", version: \"3.0.0\", statement: $statement, certificate: $certificate) { status signed }
+        }",
+        json!({
+            "statement": {
+                "payload": statement.payload,
+                "signature": statement.signature,
+                "keyId": statement.key_id,
+            },
+            "certificate": certificate,
+        }),
+    )
+    .await;
+    assert_eq!(published["registryPublishVersion"]["status"], "published");
+    assert_eq!(published["registryPublishVersion"]["signed"], true);
+
+    let catalog = gql("{ registryCatalog { seq digest } }", json!({})).await;
+    assert!(catalog["registryCatalog"]["seq"].as_i64().unwrap() > 0);
+    assert_eq!(
+        fetch_catalog(&registry)
+            .latest("tool", Some(Target::LinuxAmd64), false)
+            .map(|(v, _)| v),
+        Some("3.0.0")
+    );
+}

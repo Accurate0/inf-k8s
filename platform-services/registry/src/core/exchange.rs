@@ -123,18 +123,44 @@ pub async fn create(
     headers: HeaderMap,
     Json(request): Json<HarborTokenRequest>,
 ) -> Result<Response> {
-    let (harbor, config) = configured(&state)?;
+    let token = issue(&state, &principal, request.access).await?;
+
+    let wants_docker_config = headers
+        .get(header::ACCEPT)
+        .and_then(|v| v.to_str().ok())
+        .is_some_and(|v| v.contains(DOCKER_CONFIG_MEDIA_TYPE));
+    if wants_docker_config {
+        let auth = STANDARD.encode(format!("{}:{}", token.username, token.password));
+        let body = json!({ "auths": { &token.registry: { "auth": auth } } });
+        return Ok((
+            [(header::CONTENT_TYPE, DOCKER_CONFIG_MEDIA_TYPE)],
+            body.to_string(),
+        )
+            .into_response());
+    }
+
+    Ok(Json(token).into_response())
+}
+
+/// Mints a short-lived harbor robot limited to `access`, after checking the caller's grants.
+pub async fn issue(
+    state: &AppState,
+    principal: &Principal,
+    access: Vec<HarborAccess>,
+) -> Result<HarborToken> {
+    let request = HarborTokenRequest { access };
+    let (harbor, config) = configured(state)?;
     validate_request(&request.access).map_err(ApiError::BadRequest)?;
 
     for item in &request.access {
-        authorize(&state, config, &principal, item).await?;
+        authorize(state, config, principal, item).await?;
     }
 
-    let name = robot_name(&principal);
+    let name = robot_name(principal);
     let robot = harbor
         .create_robot(
             &name,
-            &describe(&principal),
+            &describe(principal),
             config.robot_duration_days,
             &request.access,
         )
@@ -166,7 +192,7 @@ pub async fn create(
 
     audit::record_as(
         &state.pool,
-        &principal,
+        principal,
         Event {
             action: "harbor.token",
             ecosystem: None,
@@ -182,28 +208,13 @@ pub async fn create(
         "issued harbor robot"
     );
 
-    let wants_docker_config = headers
-        .get(header::ACCEPT)
-        .and_then(|v| v.to_str().ok())
-        .is_some_and(|v| v.contains(DOCKER_CONFIG_MEDIA_TYPE));
-    if wants_docker_config {
-        let auth = STANDARD.encode(format!("{}:{}", robot.name, robot.secret));
-        let body = json!({ "auths": { &config.registry: { "auth": auth } } });
-        return Ok((
-            [(header::CONTENT_TYPE, DOCKER_CONFIG_MEDIA_TYPE)],
-            body.to_string(),
-        )
-            .into_response());
-    }
-
-    Ok(Json(HarborToken {
+    Ok(HarborToken {
         registry: config.registry.clone(),
         username: robot.name,
         password: robot.secret,
         expires_at,
         access: request.access,
     })
-    .into_response())
 }
 
 pub async fn revoke(

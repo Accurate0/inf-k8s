@@ -159,12 +159,72 @@ pub struct ServiceHealth {
     pub error: Option<String>,
 }
 
+#[derive(SimpleObject)]
+#[graphql(name = "JanitorMetricLabel")]
+pub struct MetricLabel {
+    name: String,
+    value: String,
+}
+
+/// One Prometheus sample from this replica's recorder.
+#[derive(SimpleObject)]
+#[graphql(name = "JanitorMetricSample")]
+pub struct MetricSample {
+    name: String,
+    labels: Vec<MetricLabel>,
+    value: f64,
+}
+
+/// Parses the Prometheus text exposition format, skipping comments and unparsable lines.
+fn parse_metrics(text: &str) -> Vec<MetricSample> {
+    text.lines()
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter_map(|line| {
+            let (series, value) = line.rsplit_once(' ')?;
+            let value = value.parse().ok()?;
+            let (name, labels) = match series.split_once('{') {
+                Some((name, rest)) => (name, rest.strip_suffix('}')?),
+                None => (series, ""),
+            };
+            let labels = labels
+                .split(',')
+                .filter(|pair| !pair.is_empty())
+                .filter_map(|pair| {
+                    let (name, value) = pair.split_once('=')?;
+                    Some(MetricLabel {
+                        name: name.to_owned(),
+                        value: value.trim_matches('"').to_owned(),
+                    })
+                })
+                .collect();
+            Some(MetricSample {
+                name: name.to_owned(),
+                labels,
+                value,
+            })
+        })
+        .collect()
+}
+
+#[derive(Enum, Clone, Copy, PartialEq, Eq)]
+#[graphql(name = "JanitorWebhookSource")]
+pub enum WebhookSource {
+    Forgejo,
+    Github,
+    Flux,
+}
+
 pub struct QueryRoot;
 
 #[Object(name = "Query")]
 impl QueryRoot {
     async fn janitor_rules(&self, ctx: &Context<'_>) -> Vec<Rule> {
         rules(ctx)
+    }
+
+    /// This replica's counters and histograms, as Prometheus scrapes them.
+    async fn janitor_metrics(&self) -> Vec<MetricSample> {
+        parse_metrics(&janitor_bot::metrics::render())
     }
 
     /// Recent rule evaluations, oldest first.
@@ -293,6 +353,70 @@ impl MutationRoot {
         };
         outcome(routes::handle_admin_command(State(state(ctx)), axum::Json(request)).await)
     }
+
+    /// Feeds a saved webhook payload through its handler as if the source had sent it; the
+    /// event is inferred from the payload when left out. Returns the handler's HTTP status.
+    async fn janitor_replay_webhook(
+        &self,
+        ctx: &Context<'_>,
+        source: WebhookSource,
+        event: Option<String>,
+        event_type: Option<String>,
+        payload: String,
+    ) -> Result<i32> {
+        use axum::http::{HeaderMap, HeaderValue};
+        use janitor_webhook::{forgejo, github};
+
+        let state = state(ctx);
+        let body = axum::body::Bytes::from(payload.into_bytes());
+        let header = |value: &str| {
+            HeaderValue::from_str(value).map_err(|e| Error::new(format!("invalid header: {e}")))
+        };
+        let mut headers = HeaderMap::new();
+
+        let status = match source {
+            WebhookSource::Github => {
+                let event = match event {
+                    Some(event) => event,
+                    None => github::infer_event(&body)
+                        .ok_or_else(|| Error::new("could not infer the github event; pass event"))?
+                        .to_owned(),
+                };
+                headers.insert("X-GitHub-Event", header(&event)?);
+                headers.insert(
+                    "X-Hub-Signature-256",
+                    header(&github::sign_payload(&state.github_webhook_secret, &body))?,
+                );
+                routes::handle_github_webhook(State(state), headers, body).await
+            }
+            WebhookSource::Forgejo => {
+                let (event, event_type) = match event {
+                    Some(event) => (event, event_type),
+                    None => {
+                        let (event, inferred) = forgejo::infer_event(&body).ok_or_else(|| {
+                            Error::new("could not infer the forgejo event; pass event")
+                        })?;
+                        (event.to_owned(), event_type.or(inferred.map(str::to_owned)))
+                    }
+                };
+                headers.insert("Authorization", header(&state.forgejo_webhook_secret)?);
+                headers.insert("X-Forgejo-Event", header(&event)?);
+                if let Some(event_type) = event_type {
+                    headers.insert("X-Forgejo-Event-Type", header(&event_type)?);
+                }
+                routes::handle_forgejo_webhook(State(state), headers, body).await
+            }
+            WebhookSource::Flux => {
+                headers.insert(
+                    "X-Signature",
+                    header(&github::sign_payload(&state.flux_webhook_secret, &body))?,
+                );
+                routes::handle_flux_webhook(State(state), headers, body).await
+            }
+        };
+
+        Ok(i32::from(status.as_u16()))
+    }
 }
 
 pub struct SubscriptionRoot;
@@ -336,6 +460,22 @@ impl SubscriptionRoot {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn prometheus_text_parses_into_samples() {
+        let samples = super::parse_metrics(
+            "# TYPE janitor_webhooks_total counter\n\
+             janitor_webhooks_total{source=\"github\"} 3\n\
+             janitor_cron_runs_total 1\n\
+             garbage\n",
+        );
+        assert_eq!(samples.len(), 2);
+        assert_eq!(samples[0].name, "janitor_webhooks_total");
+        assert_eq!(samples[0].labels[0].name, "source");
+        assert_eq!(samples[0].labels[0].value, "github");
+        assert_eq!(samples[0].value, 3.0);
+        assert!(samples[1].labels.is_empty());
+    }
+
     #[test]
     fn subgraph_is_current() {
         let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("subgraph.graphql");

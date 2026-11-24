@@ -1,15 +1,22 @@
 use async_graphql::{Context, ID, InputObject, Object, Result, SimpleObject};
 use axum::Json;
 use axum::extract::{Path, State};
+use registry_api::signing::{CertificateRequest, PublishRequest};
 use registry_api::{
-    CreatePackage, CreateToken, ECOSYSTEM_CLI, NewTrustedPublisher, UpdatePackage, Yank,
+    CreatePackage, CreateToken, CreateVersion, ECOSYSTEM_CLI, HarborSignRequest,
+    NewTrustedPublisher, RegisterArtifact, UpdatePackage, Yank,
 };
 
-use super::objects::{Package, PublishToken, TrustedPublisher, Version, split_version_key};
+use super::objects::{
+    Artifact, Package, PublishToken, RegistryTarget, TrustedPublisher, Version, split_version_key,
+};
+use super::publishing::{
+    Access, CreateVersionInput, HarborCredential, ImageSignature, SignedEnvelope,
+};
 use super::query::uuid;
 use super::{Gql, IDS, principal, state};
-use crate::cli::{packages, versions};
-use crate::core::{publishers, tokens};
+use crate::cli::{artifacts, packages, versions};
+use crate::core::{exchange, publishers, signing, tokens};
 
 pub struct MutationRoot;
 
@@ -229,5 +236,162 @@ impl MutationRoot {
             .await
             .gql()?;
         Ok(id)
+    }
+
+    /// Starts a draft version; push each target to harbor, register it, then publish.
+    async fn registry_create_version(
+        &self,
+        ctx: &Context<'_>,
+        input: CreateVersionInput,
+    ) -> Result<Version> {
+        let (_, version) = versions::create(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Path(input.package),
+            Json(CreateVersion {
+                version: input.version,
+                targets: input.targets.into_iter().map(Into::into).collect(),
+                description: input.description,
+                binary_name: input.binary_name,
+                aliases: input.aliases,
+                auth: input.auth.map(Into::into),
+            }),
+        )
+        .await
+        .gql()?;
+        Ok(Version(version.0))
+    }
+
+    /// Records a target of a draft version already pushed to harbor as `manifest`.
+    async fn registry_register_artifact(
+        &self,
+        ctx: &Context<'_>,
+        package: String,
+        version: String,
+        target: RegistryTarget,
+        manifest: String,
+    ) -> Result<Artifact> {
+        let target: registry_api::Target = target.into();
+        let artifact = artifacts::register(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Path((package.clone(), version.clone(), target.as_str().to_owned())),
+            Json(RegisterArtifact { manifest }),
+        )
+        .await
+        .gql()?;
+        Ok(Artifact {
+            package,
+            version,
+            artifact: artifact.0,
+        })
+    }
+
+    /// Certifies a throwaway publish key for one package, after checking the caller may publish it.
+    async fn registry_issue_signing_certificate(
+        &self,
+        ctx: &Context<'_>,
+        package: String,
+        public_key: String,
+    ) -> Result<SignedEnvelope> {
+        let certificate = signing::certificate(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Json(CertificateRequest {
+                ecosystem: ECOSYSTEM_CLI.to_owned(),
+                package,
+                public_key,
+            }),
+        )
+        .await
+        .gql()?;
+        Ok(certificate.0.into())
+    }
+
+    /// Publishes a draft whose targets are all registered, with its signed statement.
+    async fn registry_publish_version(
+        &self,
+        ctx: &Context<'_>,
+        package: String,
+        version: String,
+        statement: SignedEnvelope,
+        certificate: SignedEnvelope,
+    ) -> Result<Version> {
+        let version = versions::publish(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Path((package, version)),
+            Json(PublishRequest {
+                statement: statement.into(),
+                certificate: certificate.into(),
+            }),
+        )
+        .await
+        .gql()?;
+        Ok(Version(version.0))
+    }
+
+    /// Mints a short-lived harbor robot limited to `access`.
+    async fn registry_create_harbor_credential(
+        &self,
+        ctx: &Context<'_>,
+        access: Vec<Access>,
+    ) -> Result<HarborCredential> {
+        let token = exchange::issue(
+            state(ctx),
+            &principal(ctx)?,
+            access.into_iter().map(Into::into).collect(),
+        )
+        .await
+        .gql()?;
+        Ok(token.into())
+    }
+
+    async fn registry_revoke_harbor_credential(
+        &self,
+        ctx: &Context<'_>,
+        username: String,
+    ) -> Result<String> {
+        exchange::revoke(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Path(username.clone()),
+        )
+        .await
+        .gql()?;
+        Ok(username)
+    }
+
+    /// Cosign-signs `repository@digest` in harbor with the registry key.
+    async fn registry_sign_image(
+        &self,
+        ctx: &Context<'_>,
+        repository: String,
+        digest: String,
+    ) -> Result<ImageSignature> {
+        let signature = exchange::sign(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Json(HarborSignRequest { repository, digest }),
+        )
+        .await
+        .gql()?;
+        Ok(signature.0.into())
+    }
+
+    /// Admins: push every published version missing from harbor, in the background.
+    async fn registry_admin_backfill(&self, ctx: &Context<'_>) -> Result<bool> {
+        let _ = packages::backfill(State(state(ctx).clone()), principal(ctx)?)
+            .await
+            .gql()?;
+        Ok(true)
+    }
+
+    /// Admins: re-render and sign the catalog now, returning its new seq.
+    async fn registry_admin_render_catalog(&self, ctx: &Context<'_>) -> Result<i64> {
+        let rendered = packages::render_catalog(State(state(ctx).clone()), principal(ctx)?)
+            .await
+            .gql()?;
+        Ok(rendered.0["seq"].as_i64().unwrap_or_default())
     }
 }

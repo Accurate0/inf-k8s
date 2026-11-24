@@ -9,9 +9,27 @@ use crate::error::Result;
 use crate::providers::Usage;
 
 /// How often the in-memory price map is refreshed from the database. Prices change at most
-/// daily (the `aig prices sync` CronJob), so a coarse refresh keeps every replica current
-/// without putting the lookup on the request hot path.
+/// daily (the upstream sync), so a coarse refresh keeps every replica current without putting
+/// the lookup on the request hot path.
 const REFRESH_INTERVAL: Duration = Duration::from_secs(15 * 60);
+
+const SYNC_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
+
+pub const UPSTREAM: &str = "https://www.llm-prices.com/current-v1.json";
+
+/// One entry from llm-prices.com `current-v1.json`. Rates are USD per million tokens.
+#[derive(Deserialize)]
+struct UpstreamPrice {
+    id: String,
+    input: Option<f64>,
+    output: Option<f64>,
+    input_cached: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct UpstreamPrices {
+    prices: Vec<UpstreamPrice>,
+}
 
 /// A model's rates in USD per one million tokens, as stored in `model_prices` and supplied
 /// by the pricing sync. `cached` is the discounted rate for cache-read input tokens, when
@@ -85,6 +103,49 @@ impl Pricing {
         let output = usage.output.max(0) as f64 / 1_000_000.0 * price.output_usd_per_mtok;
         input + output
     }
+}
+
+/// Fetches current prices from [`UPSTREAM`] and upserts every model priced for both input and
+/// output. Returns the number of rows written.
+pub async fn sync(http: &reqwest::Client, pool: &PgPool, pricing: &Pricing) -> Result<u64> {
+    let upstream: UpstreamPrices = http
+        .get(UPSTREAM)
+        .send()
+        .await?
+        .error_for_status()?
+        .json()
+        .await?;
+
+    let prices: Vec<ModelPrice> = upstream
+        .prices
+        .into_iter()
+        .filter_map(|p| {
+            Some(ModelPrice {
+                id: p.id,
+                input_usd_per_mtok: p.input?,
+                output_usd_per_mtok: p.output?,
+                cached_usd_per_mtok: p.input_cached,
+            })
+        })
+        .collect();
+
+    let written = upsert(pool, &prices).await?;
+    pricing.refresh(pool).await?;
+    Ok(written)
+}
+
+/// Syncs from upstream once a day; every replica does, and the upsert is idempotent.
+pub fn spawn_sync(http: reqwest::Client, pool: PgPool, pricing: Pricing) {
+    tokio::spawn(async move {
+        let mut ticker = tokio::time::interval(SYNC_INTERVAL);
+        loop {
+            ticker.tick().await;
+            match sync(&http, &pool, &pricing).await {
+                Ok(written) => tracing::info!(written, "synced model prices from {UPSTREAM}"),
+                Err(e) => tracing::warn!("model price sync failed: {e}"),
+            }
+        }
+    });
 }
 
 /// Upserts a batch of prices (from the sync) and refreshes the in-memory map. Returns the

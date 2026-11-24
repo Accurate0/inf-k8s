@@ -5,8 +5,8 @@ ARG BINARY_NAME
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends pkg-config libssl-dev protobuf-compiler libprotobuf-dev
 
-# Build context is the repository root: the aig CLI depends on crates/cli-auth and the
-# server on crates/subgraph via path dependencies, so those trees must be present.
+# Build context is the repository root: workspace members depend on crates/ via path
+# dependencies, so those trees must be present even though only the server is built.
 WORKDIR /app
 
 COPY crates/cli-auth ./crates/cli-auth
@@ -18,9 +18,8 @@ RUN \
     --mount=type=cache,target=/usr/local/cargo/registry/ \
     cargo build --locked --release \
     --manifest-path platform-services/ai-gateway/Cargo.toml \
-    --bin ${BINARY_NAME} --bin aig && \
-    cp platform-services/ai-gateway/target/release/${BINARY_NAME} /app/${BINARY_NAME} && \
-    cp platform-services/ai-gateway/target/release/aig /app/aig
+    --bin ${BINARY_NAME} && \
+    cp platform-services/ai-gateway/target/release/${BINARY_NAME} /app/${BINARY_NAME}
 
 FROM debian:trixie-slim AS final
 ARG BINARY_NAME
@@ -35,8 +34,7 @@ RUN useradd \
     appuser
 
 COPY --from=builder /app/${BINARY_NAME} /usr/local/bin/${BINARY_NAME}
-COPY --from=builder /app/aig /usr/local/bin/aig
-RUN chown appuser /usr/local/bin/${BINARY_NAME} /usr/local/bin/aig
+RUN chown appuser /usr/local/bin/${BINARY_NAME}
 
 USER appuser
 

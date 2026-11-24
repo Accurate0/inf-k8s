@@ -128,6 +128,14 @@ impl MutationRoot {
         Ok(written)
     }
 
+    /// Fetches current prices from llm-prices.com now instead of waiting for the daily sync.
+    async fn ai_gateway_sync_prices(&self, ctx: &Context<'_>) -> Result<u64> {
+        let state = state(ctx);
+        pricing::sync(&state.http, &state.pool, &state.pricing)
+            .await
+            .gql()
+    }
+
     /// A chat completion billed to the caller's own key.
     async fn ai_gateway_chat(&self, ctx: &Context<'_>, input: ChatInput) -> Result<ChatResult> {
         chat::complete(ctx, input).await

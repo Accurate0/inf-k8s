@@ -25,6 +25,39 @@ type Mutation {
 	registryRevokePublishToken(id: ID!): RegistryPublishToken!
 	registryCreateTrustedPublisher(input: RegistryCreateTrustedPublisherInput!): RegistryTrustedPublisher!
 	registryDeleteTrustedPublisher(id: ID!): ID!
+	"""
+	Starts a draft version; push each target to harbor, register it, then publish.
+	"""
+	registryCreateVersion(input: RegistryCreateVersionInput!): RegistryVersion!
+	"""
+	Records a target of a draft version already pushed to harbor as `manifest`.
+	"""
+	registryRegisterArtifact(package: String!, version: String!, target: RegistryTarget!, manifest: String!): RegistryArtifact!
+	"""
+	Certifies a throwaway publish key for one package, after checking the caller may publish it.
+	"""
+	registryIssueSigningCertificate(package: String!, publicKey: String!): RegistryEnvelope!
+	"""
+	Publishes a draft whose targets are all registered, with its signed statement.
+	"""
+	registryPublishVersion(package: String!, version: String!, statement: RegistryEnvelopeInput!, certificate: RegistryEnvelopeInput!): RegistryVersion!
+	"""
+	Mints a short-lived harbor robot limited to `access`.
+	"""
+	registryCreateHarborCredential(access: [RegistryHarborAccessInput!]!): RegistryHarborCredential!
+	registryRevokeHarborCredential(username: String!): String!
+	"""
+	Cosign-signs `repository@digest` in harbor with the registry key.
+	"""
+	registrySignImage(repository: String!, digest: String!): RegistryImageSignature!
+	"""
+	Admins: push every published version missing from harbor, in the background.
+	"""
+	registryAdminBackfill: Boolean!
+	"""
+	Admins: re-render and sign the catalog now, returning its new seq.
+	"""
+	registryAdminRenderCatalog: Int!
 }
 
 interface Node {
@@ -42,6 +75,10 @@ type Query {
 	registryPublishTokens: [RegistryPublishToken!]!
 	registryTrustedPublishers(package: String): [RegistryTrustedPublisher!]!
 	registryAudit(package: String, limit: Int! = 100): [RegistryAuditEntry!]!
+	"""
+	The current signed catalog in harbor.
+	"""
+	registryCatalog: RegistryCatalogRef!
 	registrySigningKeys: [RegistrySigningKey!]!
 	"""
 	Repositories with signed images, most recently signed first.
@@ -74,6 +111,14 @@ type RegistryAuditEntry implements Node @key(fields: "id") {
 	packageName: String
 }
 
+"""
+The signed package catalog in harbor that installs resolve from.
+"""
+type RegistryCatalogRef {
+	seq: Int!
+	digest: String
+}
+
 input RegistryCreatePackageInput {
 	name: String!
 	description: String! = ""
@@ -100,6 +145,16 @@ input RegistryCreateTrustedPublisherInput {
 	workflow: String
 }
 
+input RegistryCreateVersionInput {
+	package: String!
+	version: String!
+	targets: [RegistryTarget!]!
+	description: String
+	binaryName: String
+	aliases: [String!]
+	auth: RegistryPackageAuthInput
+}
+
 type RegistryCreatedPublishToken {
 	"""
 	Shown once; only its hash is stored.
@@ -111,6 +166,58 @@ type RegistryCreatedPublishToken {
 type RegistryDownloadUrl {
 	url: String!
 	expiresAt: DateTime!
+}
+
+"""
+A signed payload; payload and signature are base64, exactly as signed.
+"""
+type RegistryEnvelope {
+	payload: String!
+	signature: String!
+	keyId: String!
+}
+
+"""
+A signed payload; payload and signature are base64, exactly as signed.
+"""
+input RegistryEnvelopeInput {
+	payload: String!
+	signature: String!
+	keyId: String!
+}
+
+type RegistryHarborAccess {
+	project: String!
+	actions: [RegistryHarborAction!]!
+	"""
+	The ortzi package a push to a package project is for.
+	"""
+	package: String
+}
+
+input RegistryHarborAccessInput {
+	project: String!
+	actions: [RegistryHarborAction!]!
+	"""
+	The ortzi package a push to a package project is for.
+	"""
+	package: String
+}
+
+enum RegistryHarborAction {
+	PULL
+	PUSH
+}
+
+"""
+A short-lived harbor robot; revoke it when done.
+"""
+type RegistryHarborCredential {
+	registry: String!
+	username: String!
+	password: String!
+	expiresAt: DateTime!
+	access: [RegistryHarborAccess!]!
 }
 
 type RegistryImage implements Node @key(fields: "id") {
@@ -146,6 +253,16 @@ type RegistryImageRepository implements Node @key(fields: "id") {
 	images(limit: Int! = 50): [RegistryImage!]!
 }
 
+type RegistryImageSignature {
+	repository: String!
+	digest: String!
+	tag: String!
+	"""
+	Tag of the SLSA provenance attestation, when one was attached.
+	"""
+	attestation: String
+}
+
 type RegistryPackage implements Node @key(fields: "id") {
 	id: ID!
 	name: String!
@@ -161,6 +278,14 @@ type RegistryPackage implements Node @key(fields: "id") {
 	versions: [RegistryVersion!]!
 	version(version: String!): RegistryVersion!
 	trustedPublishers: [RegistryTrustedPublisher!]!
+}
+
+input RegistryPackageAuthInput {
+	issuer: String!
+	clientId: String!
+	scopes: String!
+	tokenEnv: String!
+	lazy: Boolean! = false
 }
 
 type RegistryPublishToken implements Node @key(fields: "id") {

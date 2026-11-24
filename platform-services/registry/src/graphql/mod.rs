@@ -1,5 +1,6 @@
 mod mutation;
 mod objects;
+mod publishing;
 mod query;
 mod subscription;
 

@@ -138,6 +138,10 @@ type Mutation {
 	"""
 	aiGatewayUpsertPrices(prices: [AiGatewayModelPriceInput!]!): Int!
 	"""
+	Fetches current prices from llm-prices.com now instead of waiting for the daily sync.
+	"""
+	aiGatewaySyncPrices: Int!
+	"""
 	A chat completion billed to the caller's own key.
 	"""
 	aiGatewayChat(input: AiGatewayChatInput!): AiGatewayChatResult!

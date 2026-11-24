@@ -5,7 +5,8 @@ use super::objects::{
     Artifact, AuditEntry, Image, ImageRepository, Package, PublishToken, SigningKey,
     TrustedPublisher, Version, WhoAmI, split_version_key,
 };
-use super::{Gql, IDS, principal};
+use super::publishing::CatalogRef;
+use super::{Gql, IDS, principal, state};
 use crate::error::ApiError;
 
 pub struct QueryRoot;
@@ -66,6 +67,18 @@ impl QueryRoot {
         #[graphql(default = 100)] limit: i64,
     ) -> Result<Vec<AuditEntry>> {
         AuditEntry::list(ctx, package, limit).await
+    }
+
+    /// The current signed catalog in harbor.
+    async fn registry_catalog(&self, ctx: &Context<'_>) -> Result<CatalogRef> {
+        let current =
+            crate::cli::catalog::current(axum::extract::State(state(ctx).clone()), principal(ctx)?)
+                .await
+                .gql()?;
+        Ok(CatalogRef {
+            seq: current.0.seq,
+            digest: current.0.digest,
+        })
     }
 
     async fn registry_signing_keys(&self, ctx: &Context<'_>) -> Vec<SigningKey> {
