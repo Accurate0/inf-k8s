@@ -47,7 +47,7 @@ pre-commit:
       run: ortzi app fmt --check {staged_files}
 
     render-apps:
-      glob: "{**/app.yaml,platform/versions.yaml,platform/apps.yaml,platform/exports/**,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml},{selfhosted,system-components}/*/*.values.yaml}"
+      glob: "{**/app.yaml,platform/versions.yaml,platform/apps.yaml,platform/exports/**,charts/**,**/application.yaml,**/*.application.yaml,**/manifests/**,**/kustomization.{yml,yaml},{selfhosted,system-components,platform-services}/*/*.values.yaml}"
       run: |
         out=$(ortzi update app && ortzi app render --changed) || { echo "$out"; exit 1; }
         echo "$out"
