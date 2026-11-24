@@ -27,6 +27,8 @@ persistence:
 
 database:
   type: external
+  maxIdleConns: 5
+  maxOpenConns: 12
   external:
     host: cloudnative-pg-cluster-pooler-rw.cnpg-system
     port: "5432"
