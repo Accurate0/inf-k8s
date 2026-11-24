@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-22T11:51:12.294Z
+# generated at 2026-11-24T13:22:21.760Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -631,6 +631,8 @@ spec:
           v4auth: true
     database:
       type: external
+      maxIdleConns: 5
+      maxOpenConns: 12
       external:
         host: cloudnative-pg-cluster-pooler-rw.cnpg-system
         port: "5432"
