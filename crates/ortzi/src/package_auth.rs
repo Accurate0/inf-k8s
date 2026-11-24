@@ -8,7 +8,12 @@ fn leak(value: String) -> &'static str {
     Box::leak(value.into_boxed_str())
 }
 
+/// Packages on the graph client share ortzi's own login, so one `ortzi login` covers them all.
 pub fn oauth(package: &str, auth: &PackageAuth) -> OAuthClient {
+    if auth.client_id == graph_client::CLIENT_ID {
+        return OAuthClient::new(crate::session::APP, &auth.issuer, &auth.client_id);
+    }
+
     let app = App {
         name: leak(format!("ortzi/{package}")),
         scopes: leak(auth.scopes.clone()),
