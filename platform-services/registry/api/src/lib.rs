@@ -1029,6 +1029,28 @@ pub struct HarborSignature {
     pub repository: String,
     pub digest: String,
     pub tag: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub attestation: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Image {
+    pub id: Uuid,
+    pub repository: String,
+    pub digest: String,
+    pub source: Option<Source>,
+    pub workflow_ref: Option<String>,
+    pub signed_by: String,
+    pub signed_by_kind: String,
+    pub signed_at: DateTime<Utc>,
+    pub attested_at: Option<DateTime<Utc>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImageRepository {
+    pub name: String,
+    pub latest: Image,
+    pub image_count: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

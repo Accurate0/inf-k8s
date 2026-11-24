@@ -43,6 +43,12 @@ type Query {
 	registryTrustedPublishers(package: String): [RegistryTrustedPublisher!]!
 	registryAudit(package: String, limit: Int! = 100): [RegistryAuditEntry!]!
 	registrySigningKeys: [RegistrySigningKey!]!
+	"""
+	Repositories with signed images, most recently signed first.
+	"""
+	registryImageRepositories: [RegistryImageRepository!]!
+	registryImageRepository(name: String!): RegistryImageRepository!
+	registryImage(repository: String!, digest: String!): RegistryImage!
 }
 
 type RegistryArtifact implements Node @key(fields: "id") {
@@ -105,6 +111,39 @@ type RegistryCreatedPublishToken {
 type RegistryDownloadUrl {
 	url: String!
 	expiresAt: DateTime!
+}
+
+type RegistryImage implements Node @key(fields: "id") {
+	id: ID!
+	repository: String!
+	digest: String!
+	source: RegistrySource
+	workflowRef: String
+	signedBy: String!
+	signedByKind: String!
+	signedAt: DateTime!
+	"""
+	Whether a registry-signed SLSA provenance attestation is attached.
+	"""
+	attested: Boolean!
+	attestedAt: DateTime
+}
+
+type RegistryImageRepository implements Node @key(fields: "id") {
+	id: ID!
+	"""
+	`<project>/<repository>` in Harbor.
+	"""
+	name: String!
+	"""
+	The most recently signed image.
+	"""
+	latest: RegistryImage!
+	imageCount: Int!
+	"""
+	Signed images, newest first.
+	"""
+	images(limit: Int! = 50): [RegistryImage!]!
 }
 
 type RegistryPackage implements Node @key(fields: "id") {

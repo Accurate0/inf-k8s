@@ -1611,6 +1611,128 @@ async fn ci_signs_its_images(pool: PgPool) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
+async fn signed_images_form_a_ledger(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    let image = |repository: &str, body: &str| {
+        let bytes = body.as_bytes().to_vec();
+        let digest = oci_digest(&bytes);
+        registry.harbor.calls.manifests.lock().unwrap().insert(
+            format!("{repository}@{digest}"),
+            ("application/vnd.oci.image.index.v1+json".to_owned(), bytes),
+        );
+        digest
+    };
+    let first = image("containers/app", r#"{"schemaVersion":2,"n":1}"#);
+    let second = image("containers/app", r#"{"schemaVersion":2,"n":2}"#);
+    let other = image("containers/other", r#"{"schemaVersion":2,"n":3}"#);
+
+    let ci = registry.forgejo.forgejo(json!({
+        "repository": "anurag/k8s",
+        "sha": "cafef00d",
+        "run_id": "42",
+        "workflow_ref": "anurag/k8s/.forgejo/workflows/app-x.yaml@refs/heads/main",
+    }));
+    let sign = |token: String, repository: &'static str, digest: String| {
+        let registry = &registry;
+        async move {
+            registry
+                .call(
+                    "POST",
+                    "/api/v1/harbor/sign",
+                    Some(&token),
+                    Some(json!({ "repository": repository, "digest": digest })),
+                )
+                .await
+        }
+    };
+
+    let (status, body) = sign(registry.admin.clone(), "containers/app", first.clone()).await;
+    assert_eq!(status, 200, "{body}");
+    assert!(
+        body.get("attestation").is_none(),
+        "only forgejo runs are attested"
+    );
+
+    let (status, body) = sign(ci.clone(), "containers/app", first.clone()).await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        body["attestation"],
+        format!("{}.att", first.replacen(':', "-", 1))
+    );
+    assert_attested(&registry, "containers/app", &first);
+
+    assert_eq!(
+        sign(ci.clone(), "containers/other", other.clone()).await.0,
+        200
+    );
+    assert_eq!(
+        sign(ci.clone(), "containers/app", second.clone()).await.0,
+        200
+    );
+    assert_eq!(
+        sign(ci.clone(), "containers/app", first.clone()).await.0,
+        200
+    );
+
+    let (status, repositories) = registry
+        .call("GET", "/api/v1/images", Some(&registry.admin), None)
+        .await;
+    assert_eq!(status, 200, "{repositories}");
+    let names: Vec<&str> = repositories
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|r| r["name"].as_str().unwrap())
+        .collect();
+    assert_eq!(names, ["containers/app", "containers/other"]);
+    assert_eq!(repositories[0]["latest"]["digest"], second);
+    assert_eq!(repositories[0]["image_count"], 2);
+
+    let (status, images) = registry
+        .call(
+            "GET",
+            "/api/v1/images/repository?name=containers/app",
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 200, "{images}");
+    let digests: Vec<&str> = images
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|i| i["digest"].as_str().unwrap())
+        .collect();
+    assert_eq!(digests, [second.as_str(), first.as_str()]);
+
+    let backfilled = &images[1];
+    assert_eq!(
+        backfilled["signed_by"], "anurag",
+        "the first signer is kept"
+    );
+    assert_eq!(backfilled["source"]["repository"], "anurag/k8s");
+    assert_eq!(backfilled["source"]["sha"], "cafef00d");
+    assert_eq!(backfilled["source"]["run_id"], "42");
+    assert!(backfilled["attested_at"].is_string());
+
+    let (status, _) = registry
+        .call(
+            "GET",
+            &format!("/api/v1/images/digest?repository=containers/app&digest={other}"),
+            Some(&registry.admin),
+            None,
+        )
+        .await;
+    assert_eq!(status, 404);
+
+    let outsider = registry.kanidm.user("mallory", &[]);
+    let (status, _) = registry
+        .call("GET", "/api/v1/images", Some(&outsider), None)
+        .await;
+    assert_eq!(status, 403);
+}
+
+#[sqlx::test(migrations = "./migrations")]
 async fn harbor_token_for_ortzi_publishing(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
     registry.create_package("tool").await;
@@ -1979,6 +2101,44 @@ fn assert_cosign_signed(registry: &Registry, repository: &str, digest: &str) {
         .verifying_key()
         .verify(&payload, &Signature::from_der(&signature).unwrap())
         .expect("cosign signature verifies with the registry key");
+}
+
+fn assert_attested(registry: &Registry, repository: &str, digest: &str) {
+    use base64::Engine;
+    use p256::ecdsa::{Signature, signature::Verifier};
+
+    let b64 = &base64::engine::general_purpose::STANDARD;
+    let calls = &registry.harbor.calls;
+    let tag = format!("{}.att", digest.replacen(':', "-", 1));
+    let manifest = calls
+        .manifest(repository, &tag)
+        .unwrap_or_else(|| panic!("{repository}:{tag} is missing"));
+    let layer = &manifest["layers"][0];
+    assert_eq!(layer["mediaType"], "application/vnd.dsse.envelope.v1+json");
+    assert_eq!(
+        layer["annotations"]["predicateType"],
+        "https://slsa.dev/provenance/v1"
+    );
+
+    let envelope: Value =
+        serde_json::from_slice(&calls.blob(layer["digest"].as_str().unwrap()).unwrap()).unwrap();
+    let payload = b64.decode(envelope["payload"].as_str().unwrap()).unwrap();
+    let statement: Value = serde_json::from_slice(&payload).unwrap();
+    assert_eq!(
+        statement["subject"][0]["digest"]["sha256"],
+        digest.trim_start_matches("sha256:")
+    );
+
+    let mut pae = format!("DSSEv1 28 application/vnd.in-toto+json {} ", payload.len()).into_bytes();
+    pae.extend_from_slice(&payload);
+    let sig = b64
+        .decode(envelope["signatures"][0]["sig"].as_str().unwrap())
+        .unwrap();
+    registry
+        .signer
+        .verifying_key()
+        .verify(&pae, &Signature::from_der(&sig).unwrap())
+        .expect("attestation verifies with the registry key");
 }
 
 #[sqlx::test(migrations = "./migrations")]

@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE core_images SET attested_at = now()\n         WHERE repository = $1 AND digest = $2 AND attested_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Text",
+        "Text"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f96480f6273f54bf3edae46ce3f488cd46a647a49843caeafb6c524fd3965508"
+}

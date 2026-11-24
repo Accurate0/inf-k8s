@@ -14,10 +14,13 @@ use registry_api::{
 };
 use serde_json::json;
 
-use super::audit::{self, Event};
+use super::{
+    audit::{self, Event},
+    images,
+};
 use crate::{
     auth::{
-        Principal,
+        ForgejoClaims, Principal,
         grants::{allowed, valid_project, validate_request},
         policy::authorize_publish,
     },
@@ -336,11 +339,77 @@ pub async fn sign(
         );
     }
 
+    images::record(&state.pool, &principal, repository, digest).await?;
+
+    let attestation = match &principal {
+        Principal::Forgejo(claims) => {
+            Some(attest(&state, harbor, &principal, claims, repository, digest).await?)
+        }
+        _ => None,
+    };
+
     Ok(Json(HarborSignature {
         repository: request.repository.clone(),
         digest: request.digest.clone(),
         tag,
+        attestation,
     }))
+}
+
+fn forge_url(state: &AppState) -> String {
+    state
+        .config
+        .forgejo
+        .as_ref()
+        .map(|f| {
+            f.issuer
+                .trim_end_matches('/')
+                .trim_end_matches("/api/actions")
+                .to_owned()
+        })
+        .unwrap_or_default()
+}
+
+async fn attest(
+    state: &AppState,
+    harbor: &Harbor,
+    principal: &Principal,
+    claims: &ForgejoClaims,
+    repository: &str,
+    digest: &str,
+) -> Result<String> {
+    let tag = cosign::attestation_tag(digest);
+
+    if harbor.oci().manifest(repository, &tag).await?.is_none() {
+        let statement = cosign::provenance(
+            cosign_registry(state),
+            &forge_url(state),
+            repository,
+            digest,
+            claims,
+        );
+        cosign::attest(harbor, &state.signer, repository, digest, &statement).await?;
+        audit::record_as(
+            &state.pool,
+            principal,
+            Event {
+                action: "harbor.attest",
+                ecosystem: None,
+                package: None,
+                version: None,
+                detail: json!({
+                    "repository": repository,
+                    "digest": digest,
+                    "predicate_type": cosign::SLSA_PROVENANCE,
+                }),
+            },
+        )
+        .await?;
+    }
+
+    images::mark_attested(&state.pool, repository, digest).await?;
+
+    Ok(tag)
 }
 
 #[cfg(test)]

@@ -2,8 +2,8 @@ use async_graphql::{Context, ID, Object, Result};
 use uuid::Uuid;
 
 use super::objects::{
-    Artifact, AuditEntry, Package, PublishToken, SigningKey, TrustedPublisher, Version,
-    WhoAmI, split_version_key,
+    Artifact, AuditEntry, Image, ImageRepository, Package, PublishToken, SigningKey,
+    TrustedPublisher, Version, WhoAmI, split_version_key,
 };
 use super::{Gql, IDS, principal};
 use crate::error::ApiError;
@@ -72,6 +72,28 @@ impl QueryRoot {
         SigningKey::list(ctx).await
     }
 
+    /// Repositories with signed images, most recently signed first.
+    async fn registry_image_repositories(&self, ctx: &Context<'_>) -> Result<Vec<ImageRepository>> {
+        ImageRepository::list(ctx).await
+    }
+
+    async fn registry_image_repository(
+        &self,
+        ctx: &Context<'_>,
+        name: String,
+    ) -> Result<ImageRepository> {
+        ImageRepository::load(ctx, &name).await
+    }
+
+    async fn registry_image(
+        &self,
+        ctx: &Context<'_>,
+        repository: String,
+        digest: String,
+    ) -> Result<Image> {
+        Image::by_digest(ctx, repository, digest).await
+    }
+
     #[graphql(entity)]
     async fn find_package_by_id(&self, ctx: &Context<'_>, id: ID) -> Result<Package> {
         Package::load(ctx, &IDS.decode_as(&id, "package")?).await
@@ -120,6 +142,20 @@ impl QueryRoot {
         .gql()?
         .ok_or_else(|| async_graphql::Error::new(format!("audit entry {row_id} not found")))?;
         Ok(entry.into())
+    }
+
+    #[graphql(entity)]
+    async fn find_image_by_id(&self, ctx: &Context<'_>, id: ID) -> Result<Image> {
+        Image::load(ctx, uuid(&IDS.decode_as(&id, "image")?)?).await
+    }
+
+    #[graphql(entity)]
+    async fn find_image_repository_by_id(
+        &self,
+        ctx: &Context<'_>,
+        id: ID,
+    ) -> Result<ImageRepository> {
+        ImageRepository::load(ctx, &IDS.decode_as(&id, "imageRepository")?).await
     }
 
     #[graphql(entity)]

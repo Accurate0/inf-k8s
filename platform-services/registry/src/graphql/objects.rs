@@ -8,7 +8,7 @@ use uuid::Uuid;
 
 use super::{Gql, IDS, principal, state};
 use crate::cli::{artifacts, packages};
-use crate::core::publishers;
+use crate::core::{images, publishers};
 
 #[derive(Interface)]
 #[allow(clippy::large_enum_variant)]
@@ -21,6 +21,8 @@ pub enum Node {
     TrustedPublisher(TrustedPublisher),
     AuditEntry(AuditEntry),
     SigningKey(SigningKey),
+    Image(Image),
+    ImageRepository(ImageRepository),
 }
 
 #[derive(Enum, Clone, Copy, PartialEq, Eq)]
@@ -585,4 +587,135 @@ pub struct WhoAmI {
     pub subject: String,
     pub admin: bool,
     pub groups: Vec<String>,
+}
+
+pub struct Image(pub registry_api::Image);
+
+#[Object(name = "RegistryImage")]
+impl Image {
+    async fn id(&self) -> ID {
+        IDS.encode("image", self.0.id)
+    }
+
+    async fn repository(&self) -> &str {
+        &self.0.repository
+    }
+
+    async fn digest(&self) -> &str {
+        &self.0.digest
+    }
+
+    async fn source(&self) -> Option<Source> {
+        self.0.source.clone().map(|source| Source {
+            repository: source.repository,
+            git_ref: source.git_ref,
+            sha: source.sha,
+            run_id: source.run_id,
+        })
+    }
+
+    async fn workflow_ref(&self) -> Option<&str> {
+        self.0.workflow_ref.as_deref()
+    }
+
+    async fn signed_by(&self) -> &str {
+        &self.0.signed_by
+    }
+
+    async fn signed_by_kind(&self) -> &str {
+        &self.0.signed_by_kind
+    }
+
+    async fn signed_at(&self) -> DateTime<Utc> {
+        self.0.signed_at
+    }
+
+    /// Whether a registry-signed SLSA provenance attestation is attached.
+    async fn attested(&self) -> bool {
+        self.0.attested_at.is_some()
+    }
+
+    async fn attested_at(&self) -> Option<DateTime<Utc>> {
+        self.0.attested_at
+    }
+}
+
+impl Image {
+    pub async fn load(ctx: &Context<'_>, id: Uuid) -> Result<Self> {
+        principal(ctx)?.require_reader().gql()?;
+        Ok(Self(images::find(&state(ctx).pool, id).await.gql()?))
+    }
+
+    pub async fn by_digest(ctx: &Context<'_>, repository: String, digest: String) -> Result<Self> {
+        let image = images::digest(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Query(images::DigestQuery { repository, digest }),
+        )
+        .await
+        .gql()?;
+        Ok(Self(image.0))
+    }
+}
+
+pub struct ImageRepository(pub registry_api::ImageRepository);
+
+#[Object(name = "RegistryImageRepository")]
+impl ImageRepository {
+    async fn id(&self) -> ID {
+        IDS.encode("imageRepository", &self.0.name)
+    }
+
+    /// `<project>/<repository>` in Harbor.
+    async fn name(&self) -> &str {
+        &self.0.name
+    }
+
+    /// The most recently signed image.
+    async fn latest(&self) -> Image {
+        Image(self.0.latest.clone())
+    }
+
+    async fn image_count(&self) -> i64 {
+        self.0.image_count
+    }
+
+    /// Signed images, newest first.
+    async fn images(
+        &self,
+        ctx: &Context<'_>,
+        #[graphql(default = 50)] limit: i64,
+    ) -> Result<Vec<Image>> {
+        let images = images::repository(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Query(images::RepositoryQuery {
+                name: self.0.name.clone(),
+                limit,
+            }),
+        )
+        .await
+        .gql()?;
+        Ok(images.0.into_iter().map(Image).collect())
+    }
+}
+
+impl ImageRepository {
+    pub async fn list(ctx: &Context<'_>) -> Result<Vec<Self>> {
+        let repositories = images::list(State(state(ctx).clone()), principal(ctx)?)
+            .await
+            .gql()?;
+        Ok(repositories.0.into_iter().map(Self).collect())
+    }
+
+    pub async fn load(ctx: &Context<'_>, name: &str) -> Result<Self> {
+        principal(ctx)?.require_reader().gql()?;
+        images::repositories(&state(ctx).pool, Some(name))
+            .await
+            .gql()?
+            .into_iter()
+            .next()
+            .map(Self)
+            .ok_or_else(|| async_graphql::Error::new(format!("no signed images in {name}")))
+    }
 }

@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod exchange;
 pub mod graph_exchange;
+pub mod images;
 pub mod publishers;
 pub mod signing;
 pub mod tokens;
@@ -36,6 +37,9 @@ pub fn router() -> Router<AppState> {
         .route("/harbor/sign", post(exchange::sign))
         .route("/graph/token", post(graph_exchange::create))
         .route("/graph/token/revoke", post(graph_exchange::revoke))
+        .route("/images", get(images::list))
+        .route("/images/repository", get(images::repository))
+        .route("/images/digest", get(images::digest))
 }
 
 async fn whoami(principal: Principal) -> Json<WhoAmI> {
