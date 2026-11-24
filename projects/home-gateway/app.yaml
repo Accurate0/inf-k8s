@@ -76,6 +76,7 @@ resources:
 workloads:
   - name: home-gateway
     image: registry.anurag.sh/containers/home-gateway
+    release: latest
     resources: {cpu: 30m, memory: 336Mi}
     ports:
       - {name: api, container: 8000, service: 80}
@@ -138,9 +139,9 @@ workloads:
         - ip: 10.0.2.15
           hostnames:
             - home-assistant.internal
-    release: latest
   - name: home-web
     image: registry.anurag.sh/containers/home-gateway-web
+    release: latest
     resources: {memory: 32Mi}
     ports:
       - {name: http, container: 8080, service: 80}
@@ -159,7 +160,6 @@ workloads:
                     operator: In
                     values:
                       - perth
-    release: latest
 sources:
   - type: git
     repo: https://github.com/Accurate0/home-gateway.git

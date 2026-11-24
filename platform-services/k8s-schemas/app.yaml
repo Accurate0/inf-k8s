@@ -13,6 +13,7 @@ resources:
 workloads:
   - name: k8s-schemas
     image: registry.anurag.sh/containers/k8s-schemas
+    release: latest
     kind: CronJob
     schedule: 0 0 * * 0
     backoffLimit: 2
@@ -28,9 +29,9 @@ workloads:
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     serviceAccount: k8s-schemas
-    release: latest
   - name: k8s-schemas-repo
     image: registry.anurag.sh/containers/k8s-schemas
+    release: latest
     kind: Job
     phase: postSync
     backoffLimit: 2
@@ -43,7 +44,6 @@ workloads:
       AWS_SECRET_ACCESS_KEY: {bucket: schemas, key: S3_SECRET_ACCESS_KEY}
     mounts:
       tmp: {path: /tmp, emptyDir: true}
-    release: latest
 build:
   image: registry.anurag.sh/containers/k8s-schemas
   ci: forgejo

@@ -8,6 +8,7 @@ resources:
 workloads:
   - name: firefly-up-sync
     image: registry.anurag.sh/containers/firefly-up-sync
+    release: latest
     kind: CronJob
     schedule: 15,45 * * * *
     backoffLimit: 1
@@ -31,7 +32,6 @@ workloads:
     overrides:
       restartPolicy: Never
       automountServiceAccountToken: false
-    release: latest
 build:
   image: registry.anurag.sh/containers/firefly-up-sync
   ci: forgejo

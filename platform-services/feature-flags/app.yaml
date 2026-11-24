@@ -47,6 +47,7 @@ resources:
 workloads:
   - name: feature-flags
     image: registry.anurag.sh/containers/feature-flags
+    release: latest
     kind: DaemonSet
     resources: {memory: 32Mi}
     ports:
@@ -73,7 +74,6 @@ workloads:
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
-    release: latest
 build:
   image: registry.anurag.sh/containers/feature-flags
   ci: forgejo

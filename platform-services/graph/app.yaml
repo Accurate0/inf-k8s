@@ -60,6 +60,7 @@ resources:
 workloads:
   - name: router
     image: registry.anurag.sh/containers/graph-router
+    release: latest
     autoscale: {min: 2, max: 4, cpu: 70}
     resources: {cpu: 20m, memory: 64Mi, memoryLimit: 256Mi}
     ports:
@@ -76,7 +77,6 @@ workloads:
     mounts:
       config: {path: /etc/graph, config: config}
     service: {name: router}
-    release: latest
   - name: supergraph-upload
     image: curlimages/curl
     kind: Job

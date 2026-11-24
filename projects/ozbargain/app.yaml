@@ -8,22 +8,22 @@ resources:
 workloads:
   - name: ozb-discord-bot
     image: registry.anurag.sh/containers/ozb-discord-bot
+    release: latest
     resources: {memory: 16Mi}
     envFrom:
       - {secret: ozbargain}
-    release: latest
   - name: ozb-finder
     image: registry.anurag.sh/containers/ozb-finder
+    release: latest
     resources: {memory: 16Mi}
     envFrom:
       - {secret: ozbargain}
-    release: latest
   - name: ozb-trigger
     image: registry.anurag.sh/containers/ozb-trigger
+    release: latest
     resources: {memory: 16Mi}
     envFrom:
       - {secret: ozbargain}
-    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/ozbargain
   tag: main

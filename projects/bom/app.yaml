@@ -36,6 +36,7 @@ resources:
 workloads:
   - name: bom
     image: registry.anurag.sh/containers/bom
+    release: latest
     resources: {cpu: 30m, memory: 56Mi, memoryLimit: 512Mi}
     ports:
       - {name: api, container: 8000, service: 8000}
@@ -57,7 +58,6 @@ workloads:
       - {secret: bom}
       - {database: bom}
     service: {name: bom-api}
-    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/bom
   tag: main

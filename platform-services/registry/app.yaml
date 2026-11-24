@@ -115,6 +115,7 @@ resources:
 workloads:
   - name: registry
     image: registry.anurag.sh/containers/registry
+    release: latest
     replicas: 2
     resources: {memory: 64Mi}
     ports:
@@ -159,7 +160,6 @@ workloads:
           labelSelector:
             matchLabels:
               app: registry
-    release: latest
 build:
   image: registry.anurag.sh/containers/registry
   ci: forgejo

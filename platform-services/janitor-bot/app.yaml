@@ -70,6 +70,7 @@ resources:
 workloads:
   - name: janitor-bot
     image: registry.anurag.sh/containers/janitor-bot
+    release: latest
     resources: {memory: 32Mi}
     ports:
       - {name: http, container: 3000, service: 80}
@@ -100,7 +101,6 @@ workloads:
         rollingUpdate:
           maxUnavailable: 0
           maxSurge: 1
-    release: latest
 build:
   image: registry.anurag.sh/containers/janitor-bot
   ci: forgejo

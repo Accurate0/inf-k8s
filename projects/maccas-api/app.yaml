@@ -38,14 +38,15 @@ resources:
 workloads:
   - name: maccas-migration
     image: registry.anurag.sh/containers/maccas-migration
+    release: latest
     kind: Job
     phase: preSync
     resources: {cpu: 50m, memory: 64Mi}
     envFrom:
       - {secret: migration}
-    release: latest
   - name: maccas-api
     image: registry.anurag.sh/containers/maccas-api
+    release: latest
     autoscale: {min: 2, max: 3, cpu: 70}
     resources: {cpu: 50m, memory: 144Mi, memoryLimit: 1Gi}
     ports:
@@ -77,9 +78,9 @@ workloads:
             matchLabels:
               app: maccas-api
           whenUnsatisfiable: ScheduleAnyway
-    release: latest
   - name: maccas-web
     image: registry.anurag.sh/containers/maccas-web
+    release: latest
     autoscale: {min: 2, max: 3, cpu: 70}
     resources: {cpu: 50m, memory: 312Mi}
     ports:
@@ -106,9 +107,9 @@ workloads:
             matchLabels:
               app: maccas-web
           whenUnsatisfiable: ScheduleAnyway
-    release: latest
   - name: maccas-scheduler
     image: registry.anurag.sh/containers/maccas-scheduler
+    release: latest
     resources: {memory: 32Mi}
     env:
       EVENT_API_BASE: {service: maccas-api, port: api, path: /v1}
@@ -124,9 +125,9 @@ workloads:
                 matchLabels:
                   app: maccas-scheduler
               topologyKey: kubernetes.io/hostname
-    release: latest
   - name: maccas-recommendations
     image: registry.anurag.sh/containers/maccas-recommendations
+    release: latest
     resources: {memory: 48Mi, memoryLimit: 1000Mi}
     ports:
       - {name: api, container: 8003, service: 8003}
@@ -143,6 +144,7 @@ workloads:
     sidecars:
       - name: maccas-clustering
         image: registry.anurag.sh/containers/maccas-clustering
+        release: latest
         resources: {cpu: 10m, memory: 192Mi}
         ports:
           - {name: clustering, container: 8004, service: 8004}
@@ -152,9 +154,7 @@ workloads:
         envFrom:
           - {secret: common}
           - {secret: api}
-        release: latest
     service: {name: maccas-recommendations}
-    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/maccas-api
   tag: main

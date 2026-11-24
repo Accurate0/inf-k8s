@@ -49,6 +49,7 @@ resources:
 workloads:
   - name: spotify-api
     image: registry.anurag.sh/containers/spotify
+    release: latest
     resources: {cpu: 30m, memory: 64Mi, memoryLimit: 512Mi}
     ports:
       - {name: http, container: 8000, service: 80}
@@ -68,9 +69,9 @@ workloads:
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     service: {name: api}
-    release: latest
   - name: spotify-web
     image: registry.anurag.sh/containers/spotify-web
+    release: latest
     resources: {memory: 32Mi}
     ports:
       - {name: http, container: 8080, service: 80}
@@ -80,9 +81,9 @@ workloads:
     mounts:
       tmp: {path: /tmp, emptyDir: true}
     service: {name: spotify-web}
-    release: latest
   - name: spotify-enrich
     image: registry.anurag.sh/containers/spotify
+    release: latest
     kind: CronJob
     schedule: "*/15 * * * *"
     backoffLimit: 0
@@ -95,9 +96,9 @@ workloads:
     envFrom:
       - {database: spotify}
       - {bucket: artwork}
-    release: latest
   - name: spotify-recent
     image: registry.anurag.sh/containers/spotify
+    release: latest
     kind: CronJob
     schedule: "*/30 * * * *"
     backoffLimit: 0
@@ -109,7 +110,6 @@ workloads:
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - {database: spotify}
-    release: latest
 artifact:
   repo: oci://registry.anurag.sh/manifests/spotify
   tag: main

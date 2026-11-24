@@ -46,6 +46,7 @@ resources:
 workloads:
   - name: ai-gateway
     image: registry.anurag.sh/containers/ai-gateway
+    release: latest
     replicas: 2
     resources: {memory: 32Mi}
     ports:
@@ -85,9 +86,9 @@ workloads:
           labelSelector:
             matchLabels:
               app: ai-gateway
-    release: latest
   - name: ai-gateway-pricing-sync
     image: registry.anurag.sh/containers/ai-gateway
+    release: latest
     kind: CronJob
     schedule: 17 4 * * *
     backoffLimit: 2
@@ -96,7 +97,6 @@ workloads:
     env:
       AIG_ADMIN_TOKEN: {secret: ai-gateway, key: ADMIN_TOKEN}
       AIG_URL: {service: api, port: http}
-    release: latest
 build:
   image: registry.anurag.sh/containers/ai-gateway
   ci: forgejo
