@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-21T07:57:51.006Z
+# generated at 2026-11-24T09:24:49.479Z
 name: app graph
 on:
   push:
@@ -17,7 +17,6 @@ jobs:
     runs-on: docker
     outputs:
       digest: ${{ steps.build.outputs.digest }}
-      committed-at: ${{ steps.commit-meta.outputs.committed-at }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
       - name: Compute commit metadata
@@ -75,16 +74,22 @@ jobs:
     if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.build.result == 'success' && needs.test.result == 'success' }}
     runs-on: docker
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
       - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+        with:
+          packages: app
       - name: Log in to harbor
         id: login
         run: ortzi registry login containers:push
       - name: Tag release
         env:
           DIGEST: ${{ needs.build.outputs.digest }}
-          TAG: main-${{ needs.build.outputs.committed-at }}-${{ github.sha }}
-        run: docker buildx imagetools create --tag "registry.anurag.sh/containers/graph-router:$TAG" "registry.anurag.sh/containers/graph-router@$DIGEST"
+        run: |-
+          TAG=$(ortzi app version --path 'platform-services/graph/**' --path '!platform-services/graph/manifests/**' --path '!platform-services/graph/app.yaml' --path '!platform-services/graph/image.values.yaml' --path 'crates/subgraph/**' --path '.forgejo/workflows/app-graph.yaml')
+          docker buildx imagetools create --tag "registry.anurag.sh/containers/graph-router:$TAG" "registry.anurag.sh/containers/graph-router@$DIGEST"
       - name: Log out of harbor
         if: ${{ always() && steps.login.outcome == 'success' }}
         run: ortzi registry logout
