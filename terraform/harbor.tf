@@ -24,6 +24,14 @@ locals {
       provider_name = "docker-registry"
       endpoint_url  = "https://quay.io"
     }
+    erwanleboucher-git = {
+      provider_name = "docker-registry"
+      endpoint_url  = "https://git.erwanleboucher.dev"
+    }
+    erwanleboucher-registry = {
+      provider_name = "docker-registry"
+      endpoint_url  = "https://registry.erwanleboucher.dev"
+    }
   }
 }
 
@@ -108,11 +116,11 @@ resource "harbor_robot_account" "flux" {
   secret_wo_version = 1
 
   dynamic "permissions" {
-    for_each = toset(["charts", "containers", "manifests"])
+    for_each = merge(harbor_project.own, harbor_project.proxy)
 
     content {
       kind      = "project"
-      namespace = harbor_project.own[permissions.value].name
+      namespace = permissions.value.name
 
       access {
         action   = "pull"
