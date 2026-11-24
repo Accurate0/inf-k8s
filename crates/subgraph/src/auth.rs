@@ -149,6 +149,8 @@ impl Claims {
 struct UserInfo {
     #[serde(default)]
     groups: Vec<String>,
+    #[serde(default)]
+    preferred_username: Option<String>,
 }
 
 /// Kanidm reports groups as SPNs (`name@domain`) or UUIDs; match on either full SPN or name.
@@ -288,8 +290,13 @@ impl Authenticator {
 
     async fn authorize_user(&self, issuer: &IssuerKeys, token: &str) -> Result<Claims, AuthError> {
         let mut claims: Claims = self.verify(issuer, token).await?;
-        if claims.groups.is_none() {
-            claims.groups = Some(self.userinfo_groups(issuer, token).await?);
+        // Kanidm access tokens carry neither groups nor a username; userinfo has both.
+        if claims.groups.is_none() || claims.preferred_username.is_none() {
+            let info = self.userinfo(issuer, token).await?;
+            claims.groups.get_or_insert(info.groups);
+            if claims.preferred_username.is_none() {
+                claims.preferred_username = info.preferred_username;
+            }
         }
 
         let allowed = &self.inner.groups;
@@ -311,11 +318,7 @@ impl Authenticator {
         self.authenticate(token).await
     }
 
-    async fn userinfo_groups(
-        &self,
-        issuer: &IssuerKeys,
-        token: &str,
-    ) -> Result<Vec<String>, AuthError> {
+    async fn userinfo(&self, issuer: &IssuerKeys, token: &str) -> Result<UserInfo, AuthError> {
         let info: UserInfo = self
             .inner
             .client
@@ -326,7 +329,7 @@ impl Authenticator {
             .error_for_status()?
             .json()
             .await?;
-        Ok(info.groups)
+        Ok(info)
     }
 
     /// Refreshes every issuer's keys, returning how many were loaded in all. One issuer failing

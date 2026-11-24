@@ -15,7 +15,7 @@ mod wasm;
 use std::{ffi::OsString, path::PathBuf};
 
 use clap::{Parser, Subcommand};
-use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
+use comfy_table::{ContentArrangement, Table, presets::UTF8_BORDERS_ONLY};
 use registry_api::Target;
 
 use commands::{doctor, init, packages, publish, registry::RegistryCommand};
@@ -266,16 +266,46 @@ async fn dev(
     std::process::exit(code);
 }
 
+/// Kanidm lists every group twice, as a uuid and as `name@domain`; keep the short names.
+fn group_names(groups: &[String]) -> Vec<&str> {
+    let mut names: Vec<&str> = groups
+        .iter()
+        .filter_map(|group| group.split_once('@').map(|(name, _)| name))
+        .collect();
+    names.sort_unstable();
+    names.dedup();
+    names
+}
+
 async fn whoami(settings: &Settings) -> anyhow::Result<()> {
     let me = settings.reader().await?.whoami().await?;
     let mut table = Table::new();
-    table.load_preset(UTF8_BORDERS_ONLY);
+    table
+        .load_preset(UTF8_BORDERS_ONLY)
+        .set_content_arrangement(ContentArrangement::Dynamic);
     table.add_row(["subject", &me.subject]);
     table.add_row(["admin", if me.admin { "yes" } else { "no" }]);
     table.add_row(["graph", &settings.graph]);
-    if !me.groups.is_empty() {
-        table.add_row(["groups", &me.groups.join(", ")]);
+    let groups = group_names(&me.groups);
+    if !groups.is_empty() {
+        table.add_row(["groups", &groups.join(", ")]);
     }
     println!("{table}");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn whoami_shows_short_group_names_once() {
+        let groups = [
+            "00000000-0000-0000-0000-000000000001",
+            "idm_admins@idm.anurag.sh",
+            "9c359857-cdc7-4b3f-8b88-537696a2201f",
+            "admins@idm.anurag.sh",
+            "admins@idm.anurag.sh",
+        ]
+        .map(String::from);
+        assert_eq!(super::group_names(&groups), ["admins", "idm_admins"]);
+    }
 }
