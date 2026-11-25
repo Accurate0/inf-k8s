@@ -46,7 +46,6 @@ agent:
 
     k8s-pve-1:
       ansible_host: k8s-pve-1.host.ortzi.cloud
-      ansible_user: root
       k3s_lxc: true
       tailscale_ip: 100.125.61.29
       lan_ip: 10.0.2.18
