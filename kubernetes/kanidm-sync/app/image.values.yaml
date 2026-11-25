@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/kanidm-sync: v1.0.89-1e208b1 # {"$imagepolicy": "flux-system:kanidm-sync-kanidm-sync:tag"}
+  registry.anurag.sh/containers/kanidm-sync: v1.0.90-2bede0f # {"$imagepolicy": "flux-system:kanidm-sync-kanidm-sync:tag"}

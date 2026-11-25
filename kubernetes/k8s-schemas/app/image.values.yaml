@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/k8s-schemas: v1.0.112-6a11572 # {"$imagepolicy": "flux-system:k8s-schemas-k8s-schemas:tag"}
+  registry.anurag.sh/containers/k8s-schemas: v1.0.114-2bede0f # {"$imagepolicy": "flux-system:k8s-schemas-k8s-schemas:tag"}
