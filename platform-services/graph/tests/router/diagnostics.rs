@@ -64,5 +64,11 @@ async fn caller_request_ids_are_echoed() {
         .post_with_request_id(Some(&stack.user()), "{ whoami }", Some("caller-123"))
         .await;
     assert_eq!(response.request_id.as_deref(), Some("caller-123"));
-    assert_eq!(response.diagnostics.unwrap()["requestId"], "caller-123");
+
+    let diagnostics = response.diagnostics.unwrap();
+    assert_eq!(diagnostics["requestId"], "caller-123");
+
+    let trace = diagnostics["traceUrl"].as_str().unwrap();
+    assert!(trace.starts_with("https://grafana.ortzi.cloud/explore?schemaVersion=1&panes="));
+    assert!(trace.contains("caller-123"), "{trace}");
 }

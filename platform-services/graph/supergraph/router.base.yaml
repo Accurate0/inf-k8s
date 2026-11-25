@@ -69,6 +69,8 @@ demand_control:
 plugins:
   diagnostics:
     enabled: true
+    config:
+      grafana_url: https://grafana.ortzi.cloud/
   ratelimit:
     enabled: true
     config:

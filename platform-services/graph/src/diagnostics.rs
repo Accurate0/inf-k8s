@@ -1,5 +1,5 @@
 //! Adds `extensions.diagnostics` (request id, trace id, phase and per-subgraph timings) to
-//! responses for callers with a valid JWT, along with an `x-request-id` header.
+//! responses for callers with a valid JWT, along with an `x-request-id` header and a Tempo link.
 
 use std::time::{Duration, Instant};
 
@@ -24,9 +24,18 @@ use hive_router::{
     query_planner::planner::plan_nodes::PlanNode,
     telemetry::logging::request_id::REQUEST_IDENTIFIERS,
 };
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+use url::Url;
 
-pub struct DiagnosticsPlugin;
+#[derive(Deserialize)]
+pub struct DiagnosticsConfig {
+    grafana_url: Url,
+}
+
+pub struct DiagnosticsPlugin {
+    explore: Url,
+}
 
 struct Started(Instant);
 
@@ -48,6 +57,7 @@ struct Fetch {
 struct Diagnostics {
     request_id: Option<String>,
     trace_id: Option<String>,
+    trace_url: Option<String>,
     duration_ms: f64,
     plan_ms: Option<f64>,
     execute_ms: f64,
@@ -73,14 +83,19 @@ struct SubgraphTiming {
 
 #[async_trait]
 impl RouterPlugin for DiagnosticsPlugin {
-    type Config = ();
+    type Config = DiagnosticsConfig;
 
     fn plugin_name() -> &'static str {
         "diagnostics"
     }
 
     fn on_plugin_init(payload: OnPluginInitPayload<Self>) -> OnPluginInitResult<Self> {
-        payload.initialize_plugin(Self)
+        let config = payload.config()?;
+        let explore = config
+            .grafana_url
+            .join("explore")
+            .map_err(|err| format!("diagnostics grafana_url: {err}"))?;
+        payload.initialize_plugin(Self { explore })
     }
 
     fn on_http_request<'req>(
@@ -192,11 +207,77 @@ impl RouterPlugin for DiagnosticsPlugin {
         let started = Instant::now();
         payload.on_end(move |mut end| {
             let execute = started.elapsed();
-            if let Some(diagnostics) = diagnostics(context, execute, end.demand_control_cost) {
+            if let Some(diagnostics) = self.diagnostics(context, execute, end.demand_control_cost) {
                 end.add_extension("diagnostics", diagnostics);
             }
             end.proceed()
         })
+    }
+}
+
+impl DiagnosticsPlugin {
+    fn diagnostics(
+        &self,
+        context: &PluginContext,
+        execute: Duration,
+        cost: Option<DemandControlCost>,
+    ) -> Option<Diagnostics> {
+        let duration = since_start(context);
+        let mut timings = context.get_mut::<Timings>()?;
+        let mut fetches = std::mem::take(&mut timings.fetches);
+        fetches.sort_by_key(|fetch| fetch.start);
+
+        let (request_id, trace_id) = identifiers();
+        Some(Diagnostics {
+            trace_url: request_id.as_deref().map(|id| self.trace_url(id)),
+            request_id,
+            trace_id,
+            duration_ms: ms(duration),
+            plan_ms: timings.plan.map(ms),
+            execute_ms: ms(execute),
+            subgraphs: fetches
+                .into_iter()
+                .map(|fetch| SubgraphTiming {
+                    name: fetch.name,
+                    start_ms: ms(fetch.start),
+                    duration_ms: ms(fetch.duration),
+                    errors: fetch.errors,
+                })
+                .collect(),
+            cost: cost.map(|cost| Cost {
+                estimated: cost.estimated,
+                actual: cost.actual,
+                max: cost.max,
+            }),
+        })
+    }
+
+    fn trace_url(&self, request_id: &str) -> String {
+        let panes = json!({
+            "trace": {
+                "datasource": "tempo",
+                "queries": [{
+                    "refId": "A",
+                    "datasource": { "type": "tempo", "uid": "tempo" },
+                    "queryType": "traceqlSearch",
+                    "filters": [{
+                        "id": "request-id",
+                        "operator": "=",
+                        "scope": "span",
+                        "tag": "guid:x-request-id",
+                        "value": [request_id],
+                        "valueType": "string",
+                    }],
+                }],
+                "range": { "from": "now-1h", "to": "now" },
+            },
+        });
+
+        let mut url = self.explore.clone();
+        url.query_pairs_mut()
+            .append_pair("schemaVersion", "1")
+            .append_pair("panes", &panes.to_string());
+        url.into()
     }
 }
 
@@ -216,40 +297,6 @@ fn since_start(context: &PluginContext) -> Duration {
         .get_ref::<Started>()
         .map(|started| started.0.elapsed())
         .unwrap_or_default()
-}
-
-fn diagnostics(
-    context: &PluginContext,
-    execute: Duration,
-    cost: Option<DemandControlCost>,
-) -> Option<Diagnostics> {
-    let duration = since_start(context);
-    let mut timings = context.get_mut::<Timings>()?;
-    let mut fetches = std::mem::take(&mut timings.fetches);
-    fetches.sort_by_key(|fetch| fetch.start);
-
-    let (request_id, trace_id) = identifiers();
-    Some(Diagnostics {
-        request_id,
-        trace_id,
-        duration_ms: ms(duration),
-        plan_ms: timings.plan.map(ms),
-        execute_ms: ms(execute),
-        subgraphs: fetches
-            .into_iter()
-            .map(|fetch| SubgraphTiming {
-                name: fetch.name,
-                start_ms: ms(fetch.start),
-                duration_ms: ms(fetch.duration),
-                errors: fetch.errors,
-            })
-            .collect(),
-        cost: cost.map(|cost| Cost {
-            estimated: cost.estimated,
-            actual: cost.actual,
-            max: cost.max,
-        }),
-    })
 }
 
 fn ms(duration: Duration) -> f64 {

@@ -2347,6 +2347,7 @@ dependencies = [
  "subgraph",
  "tokio",
  "tokio-tungstenite",
+ "url",
 ]
 
 [[package]]
