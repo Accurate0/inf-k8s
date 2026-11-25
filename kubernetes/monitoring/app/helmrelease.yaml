@@ -577,6 +577,10 @@ spec:
                   - 10.0.2.251:9100
                 labels:
                   instance: pve-node-2
+              - targets:
+                  - 10.0.2.252:9100
+                labels:
+                  instance: pve-node-3
           - job_name: pve-api
             metrics_path: "/pve"
             params:

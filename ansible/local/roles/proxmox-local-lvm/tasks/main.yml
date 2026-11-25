@@ -15,6 +15,11 @@
   changed_when: false
   run_once: true
 
+- name: Find the existing storage
+  ansible.builtin.set_fact:
+    proxmox_local_lvm_existing: "{{ proxmox_local_lvm_storages.stdout | from_json | selectattr('storage', 'equalto', proxmox_local_lvm_storage) | list }}"
+  run_once: true
+
 - name: Add the storage
   ansible.builtin.command:
     argv:
@@ -31,4 +36,17 @@
       - --nodes
       - "{{ proxmox_local_lvm_nodes | join(',') }}"
   run_once: true
-  when: proxmox_local_lvm_storage not in (proxmox_local_lvm_storages.stdout | from_json | map(attribute='storage') | list)
+  when: proxmox_local_lvm_existing | length == 0
+
+- name: Limit the storage to the play's nodes
+  ansible.builtin.command:
+    argv:
+      - pvesm
+      - set
+      - "{{ proxmox_local_lvm_storage }}"
+      - --nodes
+      - "{{ proxmox_local_lvm_nodes | join(',') }}"
+  run_once: true
+  when:
+    - proxmox_local_lvm_existing | length > 0
+    - (proxmox_local_lvm_existing[0].nodes | default('')).split(',') | sort != proxmox_local_lvm_nodes | sort

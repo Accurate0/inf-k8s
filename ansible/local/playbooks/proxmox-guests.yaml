@@ -155,6 +155,19 @@
         extra_config:
           - "dev0: /dev/net/tun"
 
+      - name: runner-3
+        vmid: 213
+        node: pve-node-3
+        storage: local-lvm
+        ip: 10.0.2.21/24
+        cores: 4
+        memory: 8192
+        disk: 64
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+        extra_config:
+          - "dev0: /dev/net/tun"
+
       - name: pbs
         vmid: 207
         ip: 10.0.2.16/24

@@ -15,3 +15,4 @@ unifi_client_aliases:
   - {mac: "bc:24:11:00:00:d2", name: k8s-pve-1}
   - {mac: "bc:24:11:00:00:d3", name: runner-1}
   - {mac: "bc:24:11:00:00:d4", name: runner-2}
+  - {mac: "bc:24:11:00:00:d5", name: runner-3}

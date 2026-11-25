@@ -40,8 +40,8 @@ it holds no state worth restoring, and is rebuilt from `proxmox-guests.yaml` plu
 
 ## Cluster
 
-`pve`, `pve-node-1` (`10.0.2.250`) and `pve-node-2` (`10.0.2.251`) form the
-`home` Proxmox cluster. Every node is managed from
+`pve`, `pve-node-1` (`10.0.2.250`), `pve-node-2` (`10.0.2.251`) and
+`pve-node-3` (`10.0.2.252`) form the `home` Proxmox cluster. Every node is managed from
 `pve.internal`. HA is not configured, so guests never move between nodes on
 their own; a guest only changes node if you migrate it by hand.
 
@@ -64,9 +64,9 @@ node-exporter run on every node.
 
 When a node joins, its own `storage.cfg` is replaced by the cluster's copy.
 The new nodes boot from small drives. `pve-node-2` keeps its guests on a 1TB
-NVMe instead. `pve-node-1` has no second disk, so `roles/proxmox-local-lvm`
-registers its boot disk's `pve/data` thin pool as `local-lvm`, limited to that
-node.
+NVMe instead. `pve-node-1` and `pve-node-3` have no second disk, so
+`roles/proxmox-local-lvm` registers their boot disks' `pve/data` thin pools as
+`local-lvm`, limited to those nodes.
 `roles/proxmox-ssd` builds a single-disk `ssd` pool on `proxmox_ssd_disk` and
 registers one `ssd` zfspool storage limited to the nodes in its play. It also limits `local-zfs` to `pve`. The role refuses to
 create a pool on a disk that still has partitions or signatures, so wipe a new
@@ -74,7 +74,7 @@ disk by hand first (`wipefs -a`, `sgdisk --zap-all`).
 
 Each guest in `proxmox-guests.yaml` takes an optional `node` and `storage`
 (default `pve` and `local-zfs`). `homeassistant`, `mirror` and `runner-2` live
-on `pve-node-2` on `ssd`; `runner-1` lives on `pve-node-1` on `local-lvm`. When a guest's declared node differs
+on `pve-node-2` on `ssd`; `runner-1` and `runner-3` live on `pve-node-1` and `pve-node-3` on `local-lvm`. When a guest's declared node differs
 from where it runs, the play moves it with
 `pct migrate --restart --target-storage`, which means a short outage while its
 disk is copied. Nothing else ever moves a guest.
@@ -86,31 +86,32 @@ restores quorum. With three nodes, any single node can be down.
 
 ## Forgejo runners
 
-`runner-1` (vmid 211, `10.0.2.19`) on `pve-node-1` and `runner-2` (vmid 212,
-`10.0.2.20`) on `pve-node-2` are Forgejo Actions runners, one LXC per node. They run in guests rather than on the nodes so docker's iptables rules
+`runner-1` (vmid 211, `10.0.2.19`) on `pve-node-1`, `runner-2` (vmid 212,
+`10.0.2.20`) on `pve-node-2` and `runner-3` (vmid 213, `10.0.2.21`) on
+`pve-node-3` are Forgejo Actions runners, one LXC per node. They run in guests rather than on the nodes so docker's iptables rules
 stay off the hypervisors. `roles/forgejo-runner` runs the runner in compose
 with the docker executor and mounts the guest's docker socket into jobs.
 
 They advertise every label the in-cluster runner does (`ubuntu-latest`,
 `default`, `docker`, `multiarch`), so jobs go to whichever runner is free. An unprivileged LXC can't register binfmt handlers, so
-`roles/proxmox-binfmt` installs `qemu-user-binfmt` on pve-node-1 and
-pve-node-2. Its handlers are registered with the fix-binary flag, so job
+`roles/proxmox-binfmt` installs `qemu-user-binfmt` on every node except
+pve. Its handlers are registered with the fix-binary flag, so job
 containers in the guests can use them.
 
 Each runner registers offline. A Forgejo runner's 40-hex secret is also its
 identity, so each one gets its own secret,
 `sha1("$FORGEJO_ACTIONS_SECRET:<hostname>")`. The role writes `.runner` once.
-Delete `/opt/forgejo-runner/data/.runner` to register again. Register both on
+Delete `/opt/forgejo-runner/data/.runner` to register again. Register each on
 Forgejo before the play runs:
 
 ```fish
-for n in runner-1 runner-2
+for n in runner-1 runner-2 runner-3
     set s (printf '%s:%s' $FORGEJO_ACTIONS_SECRET $n | sha1sum | cut -d' ' -f1)
     kubectl -n forgejo exec deploy/forgejo -c forgejo -- forgejo forgejo-cli actions register --name $n --secret $s
 end
 ```
 
-Both are left out of the PBS job. They hold no state.
+All are left out of the PBS job. They hold no state.
 
 ## Storage
 

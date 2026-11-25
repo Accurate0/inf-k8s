@@ -20,6 +20,9 @@ proxmox:
       ansible_host: 10.0.2.251
       proxmox_ssd_disk: /dev/disk/by-id/nvme-KINGSTON_SNV2S1000G_50026B7686F2F91A
       proxmox_nginx_domain: pve-node-2.internal
+    pve-node-3:
+      ansible_host: 10.0.2.252
+      proxmox_nginx_domain: pve-node-3.internal
   vars:
     proxmox_cluster_name: home
     proxmox_cluster_founder: pve
@@ -56,6 +59,8 @@ ci_runners:
       ansible_host: 10.0.2.19
     runner-2:
       ansible_host: 10.0.2.20
+    runner-3:
+      ansible_host: 10.0.2.21
 
 nas:
   hosts:
