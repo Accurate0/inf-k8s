@@ -23,7 +23,9 @@ resources:
   - name: runner
     type: secret
     secretName: forgejo-runner-secret
-    secretTemplate: {includeAllSecrets: false, data: {uuid: "{{ .UUID }}", token: "{{ .TOKEN }}"}}
+    secretTemplate:
+      includeAllSecrets: false
+      data: {uuid: "{{ .UUID }}", token: "{{ .TOKEN }}", cache-secret: "{{ .CACHE_SECRET }}"}
   - name: anubis
     type: secret
     secretName: forgejo-anubis-managed-secrets

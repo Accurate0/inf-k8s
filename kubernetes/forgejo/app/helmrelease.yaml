@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T08:03:36.471Z
+# generated at 2026-11-25T08:06:32.601Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -283,6 +283,7 @@ spec:
               data:
                 uuid: "{{ .UUID }}"
                 token: "{{ .TOKEN }}"
+                cache-secret: "{{ .CACHE_SECRET }}"
       - name: anubis
         managedSecrets:
           - secretName: forgejo-anubis-managed-secrets
@@ -648,8 +649,8 @@ spec:
     runnerConfig: |
       cache:
         enabled: true
-        dir: /data/cache
-        port: 8088
+        external_server: http://10.0.2.22:8088/
+        secret_url: file:/etc/forgejo-runner-secret/cache-secret
         proxy_port: 8089
       container:
         docker_host: "-"
