@@ -15,7 +15,6 @@ proxy_backends: >-
   {{ backends }}
 
 local_lans:
-  - 192.168.1.0/24 # Bunbury
   - 10.0.2.0/24 # Perth
 
 binarylane_vpc_cidr: 10.242.0.0/16
