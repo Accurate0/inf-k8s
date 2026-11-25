@@ -207,6 +207,13 @@
           (required - API tokens cannot create privileged containers), or
           PROMOX_API_KEY to use the token for unprivileged guests only.
 
+    - name: Refresh the template index on each node
+      ansible.builtin.command: pveam update
+      connection: ssh
+      delegate_to: "{{ item }}"
+      loop: "{{ proxmox_lxc_guests | map(attribute='node', default=proxmox_node) | unique | list }}"
+      changed_when: false
+
     - name: Download the container templates
       community.proxmox.proxmox_template:
         api_host: "{{ proxmox_api_host }}"
