@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/bridge: 19504691d7b2811256aa4e1d5ce527610d87508a-dirty-20261125135754 # {"$imagepolicy": "flux-system:bridge-bridge:tag"}
+  registry.anurag.sh/containers/bridge: v1.0.2-c1a2e37 # {"$imagepolicy": "flux-system:bridge-bridge:tag"}
