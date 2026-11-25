@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-24T14:44:54.519Z
+# generated at 2026-11-25T11:38:41.894Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -71,6 +71,8 @@ spec:
             value: /etc/registry/config.yaml
           - name: OTEL_TRACING_URL
             value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
+          - name: SUBGRAPH_AUTH
+            value: '{"providers":[{"issuer":"https://idm.anurag.sh/oauth2/openid/graph","audience":"graph"},{"issuer":"https://idm.anurag.sh/oauth2/openid/registry","audience":"registry"}],"scopes":["registry:package:read","registry:image:read","registry:package:write","registry:package:publish","registry:publisher:manage","registry:token:manage","registry:audit:read"],"external":[{"name":"forgejo","issuer":"https://git.anurag.sh/api/actions","jwks":"https://git.anurag.sh/api/actions/.well-known/keys","audience":"graph.ortzi.cloud","grants":[{"scope":"registry:package:read","claims":{"repository":"*"}},{"scope":"registry:image:read","claims":{"repository":"*"}},{"scope":"registry:package:publish","claims":{"repository":"*"}}]}]}'
         envFrom:
           - secretRef:
               name: registry-managed-secrets
@@ -336,6 +338,16 @@ spec:
             - email
             - profile
             - groups
+        supplementaryScopeMaps:
+          registry_admins:
+            - registry:audit:read
+            - registry:package:publish
+            - registry:package:write
+            - registry:publisher:manage
+            - registry:token:manage
+          registry_users:
+            - registry:image:read
+            - registry:package:read
         secretNamespace: registry
         annotations:
           inf-k8s.net/app: registry
