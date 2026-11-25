@@ -1,0 +1,92 @@
+export interface ForgejoRunJson {
+  id: number;
+  index_in_repo: number;
+  workflow_id: string;
+  commit_sha: string;
+  status: string;
+  title: string;
+  started?: string | null;
+  stopped?: string | null;
+  html_url: string;
+  prettyref?: string;
+  event?: string;
+}
+
+export interface ForgejoJobJson {
+  id: number;
+  name: string;
+  status: string;
+  html_url: string;
+}
+
+export interface ForgejoCommitJson {
+  sha: string;
+  html_url?: string;
+  commit: { message: string; author?: { name?: string; date?: string } };
+}
+
+export class Forgejo {
+  readonly #url: string;
+  readonly #token: string;
+  readonly #fetch: typeof fetch;
+  readonly #publicUrl: string;
+
+  constructor(url: string, token: string, publicUrl: string, fetcher: typeof fetch = fetch) {
+    this.#url = url.replace(/\/+$/, '');
+    this.#token = token;
+    this.#publicUrl = publicUrl.replace(/\/+$/, '');
+    this.#fetch = fetcher;
+  }
+
+  get publicUrl(): string {
+    return this.#publicUrl;
+  }
+
+  async #request(path: string): Promise<Response> {
+    const response = await this.#fetch(`${this.#url}/api/v1${path}`, {
+      headers: {
+        authorization: `token ${this.#token}`,
+        accept: 'application/json',
+      },
+    });
+    if (!response.ok && response.status !== 404) {
+      throw new Error(`forgejo ${path} returned ${response.status}`);
+    }
+    return response;
+  }
+
+  async #json<T>(path: string): Promise<T | undefined> {
+    const response = await this.#request(path);
+    return response.status === 404 ? undefined : ((await response.json()) as T);
+  }
+
+  commit(repository: string, sha: string): Promise<ForgejoCommitJson | undefined> {
+    return this.#json(`/repos/${repository}/git/commits/${sha}`);
+  }
+
+  async runs(repository: string, limit: number): Promise<ForgejoRunJson[]> {
+    const page = await this.#json<{ workflow_runs?: ForgejoRunJson[] }>(
+      `/repos/${repository}/actions/runs?limit=${limit}`,
+    );
+    return page?.workflow_runs ?? [];
+  }
+
+  run(repository: string, id: number): Promise<ForgejoRunJson | undefined> {
+    return this.#json(`/repos/${repository}/actions/runs/${id}`);
+  }
+
+  async jobs(repository: string, run: number): Promise<ForgejoJobJson[]> {
+    return (
+      (await this.#json<ForgejoJobJson[]>(`/repos/${repository}/actions/runs/${run}/jobs`)) ?? []
+    );
+  }
+
+  async logTail(repository: string, job: number, lines: number): Promise<string | undefined> {
+    const response = await this.#request(`/repos/${repository}/actions/jobs/${job}/logs`);
+    if (response.status === 404) {
+      return undefined;
+    }
+    const all = (await response.text()).replace(/\s+$/, '').split('\n');
+    return all.slice(-Math.min(Math.max(lines, 1), 500)).join('\n');
+  }
+}

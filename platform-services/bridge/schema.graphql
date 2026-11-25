@@ -1,0 +1,142 @@
+extend schema @link(url: "https://specs.apollo.dev/federation/v2.5", import: ["@key", "@requiresScopes"])
+
+scalar DateTime
+
+interface Node {
+	id: ID!
+}
+
+type Query {
+	"""
+	Every app Flux deploys, from its kustomization annotated with the app's own name.
+	"""
+	fluxApps: [FluxApp!]! @requiresScopes(scopes: [["flux:app:read"]])
+	fluxApp(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:read"]])
+	kubernetesWorkloads(namespace: String!): [KubernetesWorkload!]! @requiresScopes(scopes: [["kubernetes:workload:read"]])
+	forgejoCommit(repository: String!, sha: String!): ForgejoCommit @requiresScopes(scopes: [["forgejo:run:read"]])
+	forgejoRuns(repository: String!, workflow: String, limit: Int! = 20): [ForgejoRun!]! @requiresScopes(scopes: [["forgejo:run:read"]])
+}
+
+type FluxApp implements Node @key(fields: "id") @requiresScopes(scopes: [["flux:app:read"]]) {
+	id: ID!
+	name: String!
+	ready: Boolean!
+	"""
+	The Ready condition's message of the first object that isn't ready.
+	"""
+	message: String
+	suspended: Boolean!
+	"""
+	The commit Flux last applied.
+	"""
+	revision: String
+	lastDeployedAt: DateTime
+	helmReleases: [FluxHelmRelease!]!
+	images: [FluxImage!]!
+	workloads: [KubernetesWorkload!]! @requiresScopes(scopes: [["kubernetes:workload:read"]])
+}
+
+type FluxHelmRelease {
+	name: String!
+	ready: Boolean!
+	message: String
+	chartVersion: String
+	lastDeployedAt: DateTime
+}
+
+type FluxImage {
+	"""
+	e.g. registry.anurag.sh/containers/graph-router
+	"""
+	repository: String!
+	"""
+	The tag in git, which Flux applies.
+	"""
+	desiredTag: String
+	"""
+	The tag the ImagePolicy picked from the last scan.
+	"""
+	selectedTag: String
+	lastScanAt: DateTime
+	"""
+	Tags the app's workloads run.
+	"""
+	runningTags: [String!]!
+	"""
+	The commit the selected tag was built from.
+	"""
+	commit: ForgejoCommit @requiresScopes(scopes: [["forgejo:run:read"]])
+	"""
+	The newest run of the app's build workflow on main.
+	"""
+	latestBuild: ForgejoRun @requiresScopes(scopes: [["forgejo:run:read"]])
+	"""
+	How far the newest build has got towards running.
+	"""
+	stage: FluxDeliveryStage!
+	"""
+	Why it hasn't got further, when it's stuck.
+	"""
+	blocker: String
+}
+
+enum FluxDeliveryStage {
+	BUILDING
+	BUILD_FAILED
+	SCAN_PENDING
+	SELECTED
+	COMMITTED
+	ROLLING_OUT
+	DEGRADED
+	LIVE
+}
+
+type KubernetesWorkload {
+	kind: String!
+	name: String!
+	namespace: String!
+	ready: Int!
+	desired: Int!
+	images: [String!]!
+	restarts: Int!
+	"""
+	Why a container isn't running, e.g. CrashLoopBackOff or ImagePullBackOff.
+	"""
+	waitingReason: String
+}
+
+type ForgejoCommit implements Node @key(fields: "id") @requiresScopes(scopes: [["forgejo:run:read"]]) {
+	id: ID!
+	repository: String!
+	sha: String!
+	title: String
+	author: String
+	committedAt: DateTime
+	url: String!
+	runs: [ForgejoRun!]!
+}
+
+type ForgejoRun implements Node @key(fields: "id") @requiresScopes(scopes: [["forgejo:run:read"]]) {
+	id: ID!
+	repository: String!
+	number: Int!
+	workflow: String!
+	sha: String!
+	status: String!
+	title: String!
+	startedAt: DateTime
+	stoppedAt: DateTime
+	url: String!
+	jobs: [ForgejoJob!]!
+}
+
+type ForgejoJob {
+	id: ID!
+	name: String!
+	status: String!
+	url: String!
+	"""
+	The last lines of the job's log.
+	"""
+	logTail(lines: Int! = 40): String @requiresScopes(scopes: [["forgejo:log:read"]])
+}

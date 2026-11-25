@@ -1,0 +1,22 @@
+{
+  "name": "bridge",
+  "version": "0.1.0",
+  "description": "Proxies Forgejo, Flux and Kubernetes into the graph as a federation subgraph.",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=26"
+  },
+  "scripts": {
+    "start": "node src/main.ts",
+    "check": "tsc -p tsconfig.json",
+    "test": "node --test test/*.test.ts"
+  },
+  "dependencies": {
+    "graphql": "^17.0.2"
+  },
+  "devDependencies": {
+    "@types/node": "^26.0.0",
+    "typescript": "^7.0.0"
+  }
+}
