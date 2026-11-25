@@ -38,15 +38,18 @@
   run_once: true
   when: proxmox_local_lvm_existing | length == 0
 
-- name: Limit the storage to the play's nodes
+- name: Add the play's nodes to the storage
+  vars:
+    proxmox_local_lvm_current: "{{ (proxmox_local_lvm_existing[0].nodes | default('')).split(',') | select | list }}"
   ansible.builtin.command:
     argv:
       - pvesm
       - set
       - "{{ proxmox_local_lvm_storage }}"
       - --nodes
-      - "{{ proxmox_local_lvm_nodes | join(',') }}"
+      - "{{ (proxmox_local_lvm_current + proxmox_local_lvm_nodes) | unique | sort | join(',') }}"
   run_once: true
   when:
     - proxmox_local_lvm_existing | length > 0
-    - (proxmox_local_lvm_existing[0].nodes | default('')).split(',') | sort != proxmox_local_lvm_nodes | sort
+    - proxmox_local_lvm_existing[0].nodes is defined
+    - proxmox_local_lvm_nodes | difference(proxmox_local_lvm_current) | length > 0
