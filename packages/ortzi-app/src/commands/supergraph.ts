@@ -11,6 +11,7 @@ import {
 } from '../render.ts';
 import {
   compose,
+  ME_SUBGRAPH,
   NODE_SUBGRAPH,
   PERSISTED_DOCUMENTS,
   SCOPES,
@@ -152,6 +153,7 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
       sdls[subgraph.name],
     ]),
     ...(composed.node ? [[`${dir}/subgraphs/${NODE_SUBGRAPH}.graphql`, composed.node]] : []),
+    ...(composed.me ? [[`${dir}/subgraphs/${ME_SUBGRAPH}.graphql`, composed.me]] : []),
     [`${dir}/supergraph.graphql`, composed.supergraph],
     [`${dir}/schema.graphql`, composed.schema],
     [`${dir}/router.yaml`, composed.router],

@@ -25,6 +25,7 @@ export interface Composed {
   schema: string;
   router: string;
   node?: string;
+  me?: string;
   documents?: string;
   scopes?: string;
 }
@@ -32,6 +33,44 @@ export interface Composed {
 export const NODE_SUBGRAPH = 'node';
 export const KANIDM_ISSUER_BASE = 'https://idm.anurag.sh/oauth2/openid';
 export const NODE_SUBGRAPH_URL = 'http://node-plugin.invalid/graphql';
+export const ME_SUBGRAPH = 'me';
+export const ME_SUBGRAPH_URL = 'http://me-plugin.invalid/graphql';
+
+const ME_SDL = `extend schema @link(url: "https://specs.apollo.dev/federation/v2.3", import: ["@shareable"])
+
+type Query {
+  "The caller, from its verified token; null without one."
+  me: Me
+}
+
+"Who the router verified the caller as, served by the router itself."
+type Me {
+  "The token's subject."
+  subject: String!
+  username: String
+  email: String
+  kind: MeKind!
+  "The token's issuer."
+  issuer: String!
+  "The external issuer's name, e.g. forgejo, for EXTERNAL callers."
+  externalIssuer: String
+  "The OAuth client the token was issued to."
+  client: String
+  "Scopes the caller holds, from the token or the external issuer's claim patterns."
+  scopes: [String!]!
+  "Kanidm groups, as SPNs."
+  groups: [String!]!
+  "Subgraphs the caller may use."
+  subgraphs: [String!]!
+  "Seconds until the token expires."
+  expiresIn: Int
+}
+
+enum MeKind {
+  USER
+  EXTERNAL
+}
+`;
 export const PERSISTED_DOCUMENTS = 'persisted-documents.json';
 export const SCOPES = 'scopes.json';
 const RELAY_TYPES = ['Node', 'PageInfo'];
@@ -73,11 +112,13 @@ export function compose(
 
   const nodeTypes = nodeImplementers(subgraphs, services);
   const nodeSdl = nodeTypes.length ? nodeSubgraph(nodeTypes) : undefined;
+  const meSdl = subgraphs.some((subgraph) => subgraph.auth) ? ME_SDL : undefined;
   const result = composeServices([
     ...services,
     ...(nodeSdl
       ? [{ name: NODE_SUBGRAPH, url: NODE_SUBGRAPH_URL, typeDefs: parseGraphql(nodeSdl) }]
       : []),
+    ...(meSdl ? [{ name: ME_SUBGRAPH, url: ME_SUBGRAPH_URL, typeDefs: parseGraphql(meSdl) }] : []),
   ]);
 
   if (result.errors) {
@@ -103,6 +144,7 @@ export function compose(
     schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.publicSdl.trimEnd()}\n`,
     router: routerConfig(subgraphs, base, nodeTypes, documents !== undefined, externalIssuers),
     ...(nodeSdl ? { node: `# ${SUPERGRAPH_HEADER_TEXT}\n${nodeSdl}` } : {}),
+    ...(meSdl ? { me: `# ${SUPERGRAPH_HEADER_TEXT}\n${meSdl}` } : {}),
     ...(documents !== undefined ? { documents } : {}),
     ...(scopes !== undefined ? { scopes } : {}),
   };
@@ -463,6 +505,13 @@ export function routerConfig(
     };
   }
   const gated = subgraphs.filter((subgraph) => subgraph.auth);
+
+  if (gated.length) {
+    config.plugins = {
+      ...config.plugins,
+      me: { enabled: true, config: { subgraph: ME_SUBGRAPH } },
+    };
+  }
 
   if (gated.length) {
     const clients = [...new Set(gated.flatMap((subgraph) => subgraph.auth!.clients))].sort();

@@ -81,6 +81,7 @@ test('router config gates subgraphs that declare auth', () => {
     issuers,
   });
   assert.deepEqual(config.plugins, {
+    me: { enabled: true, config: { subgraph: 'me' } },
     access: {
       enabled: true,
       config: {
@@ -396,7 +397,7 @@ test('fields require declared scopes, enforced at the router as policies', () =>
 
   assert.match(
     composed.supergraph,
-    /registryTokens: \[String!\]! @policy\(policies: \[\["registry:token:create"\]\]\)/,
+    /registryTokens: \[String!\]! @join__field\(graph: REGISTRY\) @policy\(policies: \[\["registry:token:create"\]\]\)/,
   );
   assert.doesNotMatch(composed.supergraph, /@requiresScopes\(scopes: \[\["/);
   assert.match(
@@ -406,6 +407,13 @@ test('fields require declared scopes, enforced at the router as policies', () =>
   assert.match(composed.supergraph, /directive @policy\(policies: \[\[policy__Policy!\]!\]!\)/);
   parseGraphql(composed.supergraph);
   buildSchema(composed.schema);
+
+  assert.match(composed.schema, /me: Me\n/);
+  assert.match(composed.me!, /scopes: \[String!\]!/);
+  assert.match(
+    composed.supergraph,
+    /ME @join__graph\(name: "me", url: "http:\/\/me-plugin\.invalid\/graphql"\)/,
+  );
 
   assert.deepEqual(JSON.parse(composed.scopes!), {
     scopes: [
