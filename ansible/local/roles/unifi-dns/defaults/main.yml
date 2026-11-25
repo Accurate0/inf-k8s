@@ -4,6 +4,8 @@ unifi_host: 10.0.2.1
 unifi_site: default
 unifi_validate_certs: false
 
+unifi_gateway_ip: 10.0.2.1
+
 unifi_jellyfin_ip: 10.0.2.11
 unifi_media_apps_ip: 10.0.2.12
 unifi_transmission_ip: 10.0.2.13
@@ -20,6 +22,8 @@ unifi_dns_prune_domains:
   - internal
 
 unifi_dns_records:
+  - {key: unifi.internal, value: "{{ unifi_gateway_ip }}"}
+
   - {key: jellyfin.media.internal, value: "{{ unifi_jellyfin_ip }}"}
   - {key: media.internal, value: "{{ unifi_jellyfin_ip }}"}
 
