@@ -18,6 +18,10 @@ spec:
     bufferLimit: 2Mi
   headers:
     disableRateLimitHeaders: true
+    earlyRequestHeaders:
+      set:
+        - name: "x-real-ip"
+          value: "%DOWNSTREAM_REMOTE_ADDRESS_WITHOUT_PORT%"
     lateResponseHeaders:
       set:
         - name: "x-request-id"
