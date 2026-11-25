@@ -23,6 +23,7 @@ fi
 : "${K8S_VERSION:?K8S_VERSION must be set (e.g. release-1.30, master, v1.30.0)}"
 
 CATALOG_DIR="/tmp/CRDs-catalog"
+rm -rf "$CATALOG_DIR" "${HOME}/.datree"
 git clone --depth 1 https://github.com/datreeio/CRDs-catalog.git "$CATALOG_DIR"
 
 # Run CRD extractor script
