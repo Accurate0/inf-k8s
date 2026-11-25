@@ -24,6 +24,19 @@ resources:
     auth:
       clients: [graph]
       groups: [feature_flags_admins]
+      scopes:
+        - name: feature-flags:flag:read
+          description: read flags, segments, history and evaluations, and follow changes
+          groups: [feature_flags_admins]
+        - name: feature-flags:flag:write
+          description: create, update, toggle, archive and delete flags, their variants and rules
+          groups: [feature_flags_admins]
+        - name: feature-flags:segment:write
+          description: create, update and delete segments
+          groups: [feature_flags_admins]
+        - name: feature-flags:config:apply
+          description: reconcile flags and segments from a config file
+          groups: [feature_flags_admins]
   - name: feature-flags-api
     type: route
     auth:
@@ -58,6 +71,7 @@ workloads:
       readiness: {delay: 5, every: 15}
       liveness: {delay: 5, every: 60}
     env:
+      SUBGRAPH_AUTH: {subgraph: feature-flags}
       REDIS_URL: {resource: cache}
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/feature-flags
       OIDC_AUDIENCE: feature-flags

@@ -24,6 +24,9 @@ resources:
     auth:
       clients: [graph]
       groups: [bom_users]
+      scopes:
+        - {name: bom:radar:read, description: "list radar locations, satellites and frames", groups: [bom_users]}
+        - {name: bom:forecast:read, description: read forecasts, groups: [bom_users]}
   - name: images
     type: route
     auth: {mode: none, reason: radar and satellite images are public so they can be embedded anywhere}
@@ -45,6 +48,7 @@ workloads:
       readiness: {every: 10}
       liveness: {delay: 3, every: 30}
     env:
+      SUBGRAPH_AUTH: {subgraph: bom}
       BUCKET_NAME: {bucket: images, key: S3_BUCKET}
       BUCKET_ENDPOINT: {bucket: images, key: S3_ENDPOINT}
       BUCKET_REGION: {bucket: images, key: S3_REGION}

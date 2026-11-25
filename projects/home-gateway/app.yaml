@@ -30,6 +30,13 @@ resources:
     repository: https://github.com/Accurate0/home-gateway
     ref: main
     schema: subgraph.graphql
+    auth:
+      clients: [graph, home-gateway]
+      groups: [home_gateway_readers]
+      scopes:
+        - name: home:api:access
+          description: reach home-gateway, which then scopes each operation from your groups
+          groups: [home_gateway_readers]
   - name: home-web
     type: route
     auth: {mode: app, reason: "home-gateway verifies JWTs and api keys on /v1, the rest is a static spa"}
@@ -86,6 +93,7 @@ workloads:
       readiness: {every: 10, timeout: 2}
       liveness: {delay: 3, every: 30}
     env:
+      SUBGRAPH_AUTH: {subgraph: home}
       AWS_ACCESS_KEY_ID: {bucket: storage, key: S3_ACCESS_KEY_ID}
       AWS_SECRET_ACCESS_KEY: {bucket: storage, key: S3_SECRET_ACCESS_KEY}
       CONFIG_DIR: /etc/home-gateway/config

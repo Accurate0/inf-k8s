@@ -1,6 +1,235 @@
 {
   "scopes": [
     {
+      "name": "ai-gateway:chat:use",
+      "description": "chat through the gateway",
+      "subgraph": "ai-gateway",
+      "groups": [
+        "ai_gateway_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "ai-gateway:key:read",
+      "description": "list api keys and read your own",
+      "subgraph": "ai-gateway",
+      "groups": [
+        "ai_gateway_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "ai-gateway:key:write",
+      "description": "create, update, revoke and regenerate api keys",
+      "subgraph": "ai-gateway",
+      "groups": [
+        "ai_gateway_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "ai-gateway:model:read",
+      "description": "list models and prices",
+      "subgraph": "ai-gateway",
+      "groups": [
+        "ai_gateway_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "ai-gateway:price:write",
+      "description": "upsert and sync model prices",
+      "subgraph": "ai-gateway",
+      "groups": [
+        "ai_gateway_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "ai-gateway:usage:read",
+      "description": "read and follow usage",
+      "subgraph": "ai-gateway",
+      "groups": [
+        "ai_gateway_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "bom:forecast:read",
+      "description": "read forecasts",
+      "subgraph": "bom",
+      "groups": [
+        "bom_users"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "bom:radar:read",
+      "description": "list radar locations, satellites and frames",
+      "subgraph": "bom",
+      "groups": [
+        "bom_users"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "feature-flags:config:apply",
+      "description": "reconcile flags and segments from a config file",
+      "subgraph": "feature-flags",
+      "groups": [
+        "feature_flags_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "feature-flags:flag:read",
+      "description": "read flags, segments, history and evaluations, and follow changes",
+      "subgraph": "feature-flags",
+      "groups": [
+        "feature_flags_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "feature-flags:flag:write",
+      "description": "create, update, toggle, archive and delete flags, their variants and rules",
+      "subgraph": "feature-flags",
+      "groups": [
+        "feature_flags_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "feature-flags:segment:write",
+      "description": "create, update and delete segments",
+      "subgraph": "feature-flags",
+      "groups": [
+        "feature_flags_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "home:api:access",
+      "description": "reach home-gateway, which then scopes each operation from your groups",
+      "subgraph": "home",
+      "groups": [
+        "home_gateway_readers"
+      ],
+      "clients": [
+        "graph",
+        "home-gateway"
+      ],
+      "fields": []
+    },
+    {
+      "name": "janitor:action:run",
+      "description": "run cron rules, merge the queue, evaluate prs and dispatch commands",
+      "subgraph": "janitor",
+      "groups": [
+        "janitor_bot_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "janitor:rule:read",
+      "description": "read rules, metrics, evaluations, health and dry runs",
+      "subgraph": "janitor",
+      "groups": [
+        "janitor_bot_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "janitor:webhook:replay",
+      "description": "replay webhook events",
+      "subgraph": "janitor",
+      "groups": [
+        "janitor_bot_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "maccas:offer:read",
+      "description": "read offers, recommendations, locations and categories",
+      "subgraph": "maccas",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "maccas:offer:write",
+      "description": "add and remove offers",
+      "subgraph": "maccas",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "maccas:points:read",
+      "description": "read points balances",
+      "subgraph": "maccas",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
       "name": "registry:audit:read",
       "description": "read and follow the audit log",
       "subgraph": "registry",
@@ -149,6 +378,81 @@
         "Mutation.registryRevokePublishToken",
         "Query.registryPublishTokens"
       ]
+    },
+    {
+      "name": "spotify:account:write",
+      "description": "create and link spotify accounts",
+      "subgraph": "spotify",
+      "groups": [
+        "spotify_users"
+      ],
+      "clients": [
+        "graph",
+        "spotify"
+      ],
+      "fields": []
+    },
+    {
+      "name": "spotify:export:write",
+      "description": "upload and finalize listening history exports",
+      "subgraph": "spotify",
+      "groups": [
+        "spotify_users"
+      ],
+      "clients": [
+        "graph",
+        "spotify"
+      ],
+      "fields": []
+    },
+    {
+      "name": "spotify:history:read",
+      "description": "read accounts, listening stats, search, items, artists and enrichment",
+      "subgraph": "spotify",
+      "groups": [
+        "spotify_users"
+      ],
+      "clients": [
+        "graph",
+        "spotify"
+      ],
+      "fields": []
+    },
+    {
+      "name": "waf:allowlist:write",
+      "description": "add and remove allowlist entries",
+      "subgraph": "waf",
+      "groups": [
+        "waf_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "waf:block:read",
+      "description": "list offending ips, blocks, ip reports, audit, workflows and the allowlist",
+      "subgraph": "waf",
+      "groups": [
+        "waf_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
+    },
+    {
+      "name": "waf:block:write",
+      "description": "create, delete and make blocks permanent",
+      "subgraph": "waf",
+      "groups": [
+        "waf_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": []
     }
   ]
 }

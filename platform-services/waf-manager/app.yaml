@@ -55,6 +55,12 @@ resources:
     auth:
       clients: [graph]
       groups: [waf_admins]
+      scopes:
+        - name: waf:block:read
+          description: list offending ips, blocks, ip reports, audit, workflows and the allowlist
+          groups: [waf_admins]
+        - {name: waf:block:write, description: "create, delete and make blocks permanent", groups: [waf_admins]}
+        - {name: waf:allowlist:write, description: add and remove allowlist entries, groups: [waf_admins]}
   - name: waf-manager-route
     type: route
     auth:
@@ -116,6 +122,7 @@ workloads:
       readiness: {delay: 5, every: 15}
       liveness: {delay: 5, every: 60}
     env:
+      SUBGRAPH_AUTH: {subgraph: waf}
       POD_NAMESPACE: {field: metadata.namespace}
       POD_NAME: {field: metadata.name}
       DATABASE_URL: {database: waf-manager, key: DATABASE_URL}

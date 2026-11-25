@@ -25,6 +25,15 @@ resources:
     auth:
       clients: [graph]
       groups: [ai_gateway_admins]
+      scopes:
+        - {name: ai-gateway:key:read, description: list api keys and read your own, groups: [ai_gateway_admins]}
+        - name: ai-gateway:key:write
+          description: create, update, revoke and regenerate api keys
+          groups: [ai_gateway_admins]
+        - {name: ai-gateway:model:read, description: list models and prices, groups: [ai_gateway_admins]}
+        - {name: ai-gateway:price:write, description: upsert and sync model prices, groups: [ai_gateway_admins]}
+        - {name: ai-gateway:usage:read, description: read and follow usage, groups: [ai_gateway_admins]}
+        - {name: ai-gateway:chat:use, description: chat through the gateway, groups: [ai_gateway_admins]}
   - name: ai-gateway
     type: route
     auth: {mode: app, reason: "app verifies kanidm JWTs, gateway JWT not rolled out yet"}
@@ -56,6 +65,7 @@ workloads:
       readiness: {delay: 5, every: 15}
       liveness: {delay: 5, every: 60}
     env:
+      SUBGRAPH_AUTH: {subgraph: ai-gateway}
       CONFIG_PATH: /etc/ai-gateway/config.yaml
       REDIS_URL: {resource: cache}
       OTEL_TRACING_URL: {resource: traces}

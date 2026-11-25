@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T11:38:41.528Z
+# generated at 2026-11-25T12:26:05.821Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -322,6 +322,31 @@ spec:
             - profile
             - groups
         supplementaryScopeMaps:
+          ai_gateway_admins:
+            - ai-gateway:chat:use
+            - ai-gateway:key:read
+            - ai-gateway:key:write
+            - ai-gateway:model:read
+            - ai-gateway:price:write
+            - ai-gateway:usage:read
+          bom_users:
+            - bom:forecast:read
+            - bom:radar:read
+          feature_flags_admins:
+            - feature-flags:config:apply
+            - feature-flags:flag:read
+            - feature-flags:flag:write
+            - feature-flags:segment:write
+          home_gateway_readers:
+            - home:api:access
+          janitor_bot_admins:
+            - janitor:action:run
+            - janitor:rule:read
+            - janitor:webhook:replay
+          platform_admins:
+            - maccas:offer:read
+            - maccas:offer:write
+            - maccas:points:read
           registry_admins:
             - registry:audit:read
             - registry:package:publish
@@ -331,6 +356,14 @@ spec:
           registry_users:
             - registry:image:read
             - registry:package:read
+          spotify_users:
+            - spotify:account:write
+            - spotify:export:write
+            - spotify:history:read
+          waf_admins:
+            - waf:allowlist:write
+            - waf:block:read
+            - waf:block:write
         secretNamespace: graph
         annotations:
           inf-k8s.net/app: graph

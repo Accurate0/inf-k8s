@@ -57,12 +57,8 @@ resources:
     schema: subgraph.graphql
     auth:
       clients: [graph, registry]
-      # admits tokens issued before the scopes below; drop once every token carries them
-      groups:
-        - registry_users
-        - registry_admins
+      groups: [registry_users, registry_admins]
       scopes:
-        # trusted publishers and grants decide which packages each repository may publish
         - name: registry:package:read
           description: list and fetch packages, versions, artifacts and the catalog
           groups: [registry_users]
