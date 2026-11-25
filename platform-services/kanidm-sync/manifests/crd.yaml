@@ -149,6 +149,14 @@ spec:
                 type: string
               secretNamespace:
                 type: string
+              supplementaryScopeMaps:
+                additionalProperties:
+                  items:
+                    type: string
+                  type: array
+                default: {}
+                description: Group name -> scopes added to its members' tokens without gating login.
+                type: object
             required:
             - displayName
             - name

@@ -28,6 +28,9 @@ pub struct KanidmOAuth2ClientSpec {
     /// Group name -> OIDC scopes granted to its members.
     #[serde(default)]
     pub scope_maps: BTreeMap<String, Vec<String>>,
+    /// Group name -> scopes added to its members' tokens without gating login.
+    #[serde(default)]
+    pub supplementary_scope_maps: BTreeMap<String, Vec<String>>,
     /// Claim name -> group-membership-derived claim values. Lets an app
     /// auto-promote members of a kanidm group (e.g. expose a "forgejo" claim
     /// containing "admin" for platform_admins so Forgejo grants them admin).

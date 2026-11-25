@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-22T11:51:12.425Z
+# generated at 2026-11-25T10:17:33.714Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -326,6 +326,11 @@ spec:
         groups:
           waf_admins:
             - platform_admins
+        scopeMaps:
+          waf_admins:
+            - openid
+            - email
+            - profile
         secretKeys:
           clientId: client-id
           clientSecret: client-secret

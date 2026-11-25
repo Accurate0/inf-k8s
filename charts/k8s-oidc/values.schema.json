@@ -128,6 +128,14 @@
             "items": { "type": "string" }
           }
         },
+        "supplementaryScopeMaps": {
+          "type": "object",
+          "description": "Group name to scopes added to its members' tokens without gating login.",
+          "additionalProperties": {
+            "type": "array",
+            "items": { "type": "string" }
+          }
+        },
         "claimMaps": {
           "type": "object",
           "description": "Claim name to group-derived values, passed through verbatim."

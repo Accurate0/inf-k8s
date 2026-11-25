@@ -45,6 +45,7 @@ impl Reconcile for KanidmOAuth2Client {
         let groups: BTreeSet<&String> = spec
             .scope_maps
             .keys()
+            .chain(spec.supplementary_scope_maps.keys())
             .chain(
                 spec.claim_maps
                     .values()
@@ -190,11 +191,29 @@ impl Reconcile for KanidmOAuth2Client {
                 .map_err(kanidm_err)?;
         }
 
-        let current_scope_groups = scope_map_groups(entry.as_ref());
+        let current_scope_groups = scope_map_groups(entry.as_ref(), "oauth2_rs_scope_map");
         for group in current_scope_groups.difference(&spec.scope_maps.keys().cloned().collect()) {
             tracing::info!("removing stale scope map for group {group}");
             kanidm
                 .idm_oauth2_rs_delete_scope_map(name, group)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        for (group, scopes) in &spec.supplementary_scope_maps {
+            let scopes: Vec<&str> = scopes.iter().map(String::as_str).collect();
+            kanidm
+                .idm_oauth2_rs_update_sup_scope_map(name, group, scopes)
+                .await
+                .map_err(kanidm_err)?;
+        }
+
+        let current_sup_groups = scope_map_groups(entry.as_ref(), "oauth2_rs_sup_scope_map");
+        let wanted_sup_groups = spec.supplementary_scope_maps.keys().cloned().collect();
+        for group in current_sup_groups.difference(&wanted_sup_groups) {
+            tracing::info!("removing stale supplementary scope map for group {group}");
+            kanidm
+                .idm_oauth2_rs_delete_sup_scope_map(name, group)
                 .await
                 .map_err(kanidm_err)?;
         }
@@ -292,9 +311,9 @@ fn class_is_public(entry: &kanidm_proto::v1::Entry) -> bool {
         .is_some_and(|classes| classes.iter().any(|c| c == "oauth2_resource_server_public"))
 }
 
-fn scope_map_groups(entry: Option<&kanidm_proto::v1::Entry>) -> BTreeSet<String> {
+fn scope_map_groups(entry: Option<&kanidm_proto::v1::Entry>, attr: &str) -> BTreeSet<String> {
     entry
-        .and_then(|e| e.attrs.get("oauth2_rs_scope_map"))
+        .and_then(|e| e.attrs.get(attr))
         .map(|values| {
             values
                 .iter()
@@ -467,5 +486,40 @@ fn join_proto(join: ClaimMapJoin) -> Oauth2ClaimMapJoin {
         ClaimMapJoin::Array => Oauth2ClaimMapJoin::Array,
         ClaimMapJoin::Csv => Oauth2ClaimMapJoin::Csv,
         ClaimMapJoin::Ssv => Oauth2ClaimMapJoin::Ssv,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::collections::BTreeMap;
+
+    #[test]
+    fn scope_map_groups_reads_each_attribute_separately() {
+        let entry = kanidm_proto::v1::Entry {
+            attrs: BTreeMap::from([
+                (
+                    "oauth2_rs_scope_map".to_owned(),
+                    vec![r#"graph_users@idm.anurag.sh: {"email", "openid"}"#.to_owned()],
+                ),
+                (
+                    "oauth2_rs_sup_scope_map".to_owned(),
+                    vec![
+                        r#"registry_admins@idm.anurag.sh: {"registry:token:create"}"#.to_owned(),
+                        r#"registry_users@idm.anurag.sh: {"registry:package:read"}"#.to_owned(),
+                    ],
+                ),
+            ]),
+        };
+
+        assert_eq!(
+            scope_map_groups(Some(&entry), "oauth2_rs_scope_map"),
+            BTreeSet::from(["graph_users".to_owned()])
+        );
+        assert_eq!(
+            scope_map_groups(Some(&entry), "oauth2_rs_sup_scope_map"),
+            BTreeSet::from(["registry_admins".to_owned(), "registry_users".to_owned()])
+        );
+        assert!(scope_map_groups(None, "oauth2_rs_sup_scope_map").is_empty());
     }
 }

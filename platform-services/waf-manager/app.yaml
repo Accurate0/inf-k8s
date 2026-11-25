@@ -89,6 +89,8 @@ resources:
     allowInsecureClientDisablePkce: true
     groups:
       waf_admins: [platform_admins]
+    scopeMaps:
+      waf_admins: [openid, email, profile]
     secretKeys: {clientId: client-id, clientSecret: client-secret}
   - name: waf-manager-cli
     type: oidc

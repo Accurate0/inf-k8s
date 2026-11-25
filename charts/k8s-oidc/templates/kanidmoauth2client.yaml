@@ -48,6 +48,10 @@ spec:
   {{- end }}
   scopeMaps:
     {{- toYaml $scopeMaps | nindent 4 }}
+  {{- with $client.supplementaryScopeMaps }}
+  supplementaryScopeMaps:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
   {{- with $client.claimMaps }}
   claimMaps:
     {{- toYaml . | nindent 4 }}
