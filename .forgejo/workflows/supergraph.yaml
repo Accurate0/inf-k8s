@@ -1,0 +1,39 @@
+name: Supergraph
+on:
+  schedule:
+    - cron: "17 */6 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: supergraph
+  cancel-in-progress: false
+
+jobs:
+  compose:
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+        with:
+          packages: app
+
+      - name: Compose
+        run: .forgejo/scripts/retry.sh 3 30 ortzi app supergraph
+
+      - name: Commit and push
+        env:
+          RECONCILER_TOKEN: ${{ secrets.RECONCILER_TOKEN }}
+        run: |
+          if [ -z "$(git status --porcelain -- platform-services/graph/supergraph)" ]; then
+            exit
+          fi
+
+          git config user.name "reconciler[bot]"
+          git config user.email "reconciler@noreply.git.anurag.sh"
+          git add -A -- platform-services/graph/supergraph
+          git commit --quiet -m "chore(supergraph): update graph"
+
+          git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
+          .forgejo/scripts/retry.sh 5 15 bash -c 'git pull --rebase origin main || { git rebase --abort; exit 1; }; git push origin HEAD:main'

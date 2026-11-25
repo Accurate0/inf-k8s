@@ -9,6 +9,7 @@ on:
       - "**/kustomization.yaml"
       - "**/image.values.yaml"
       - kubernetes/**
+      - platform-services/graph/supergraph/**
       - selfhosted/*/*.values.yaml
       - charts/**
       - platform/versions.yaml
@@ -104,6 +105,7 @@ jobs:
           git config user.name "reconciler[bot]"
           git config user.email "reconciler@noreply.git.anurag.sh"
           export START="$(git rev-parse HEAD)"
+          .forgejo/scripts/retry.sh 3 30 ortzi app supergraph
           .forgejo/scripts/retry.sh 3 30 bash -c 'ortzi app render --commit || { git reset --quiet --hard "$START"; git clean -fdq; exit 1; }'
       - name: Publish and push
         env:
