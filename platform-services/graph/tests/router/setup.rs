@@ -77,6 +77,10 @@ impl Idp {
     }
 
     fn sign(&self, key: &EncodingKey, groups: &[&str]) -> String {
+        self.sign_scoped(key, groups, "openid email profile")
+    }
+
+    fn sign_scoped(&self, key: &EncodingKey, groups: &[&str], scope: &str) -> String {
         self.sign_claims(
             key,
             json!({
@@ -84,6 +88,7 @@ impl Idp {
                 "sub": "00000000-0000-0000-0000-000000000001",
                 "preferred_username": "tester",
                 "groups": groups,
+                "scope": scope,
             }),
         )
     }
@@ -303,6 +308,7 @@ impl Stack {
                 audience: AUDIENCE.to_owned(),
             }],
             groups: vec!["graph_users".to_owned()],
+            scopes: Vec::new(),
             external: vec![
                 serde_json::from_value(json!({
                     "name": "forgejo",
@@ -389,6 +395,15 @@ impl Stack {
 
     pub fn user(&self) -> String {
         self.idp.sign(&self.idp.key, &["graph_users"])
+    }
+
+    /// A plain user whose token also carries `scope`, as Kanidm's supplementary scope maps add it.
+    pub fn scoped(&self, scope: &str) -> String {
+        self.idp.sign_scoped(
+            &self.idp.key,
+            &["graph_users"],
+            &format!("openid email profile {scope}"),
+        )
     }
 
     pub fn tester(&self) -> String {

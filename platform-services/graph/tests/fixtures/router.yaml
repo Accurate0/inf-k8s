@@ -84,10 +84,16 @@ plugins:
     config:
       external_issuers:
         forgejo: "{forgejo}"
+      scopes:
+        "open:note:read":
+          external:
+            - issuer: forgejo
+              claims: {repository: "anurag/*", ref: refs/heads/main}
       subgraphs:
         gated:
           issuers: ["{issuer}"]
           groups: [graph_testers]
+          scopes: ["gated:secret:read"]
           external:
             - issuer: forgejo
               claims: {repository: "anurag/*", ref: refs/heads/main}

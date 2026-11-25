@@ -1,10 +1,12 @@
-//! Gates subgraphs on Kanidm groups at the router: fetches to a subgraph the caller can't use are
-//! skipped with a FORBIDDEN error so their fields come back null, subscriptions rooted in one are
-//! rejected, and introspection hides what only those subgraphs serve. It also decides `@policy`
-//! fields: a policy is a group name, granted to users holding it. Each subgraph still authorizes on
-//! its own.
+//! Gates subgraphs at the router on the scopes Kanidm puts in the token (or, while a subgraph still
+//! uses them, its groups): fetches to a subgraph the caller can't use are skipped with a FORBIDDEN
+//! error so their fields come back null, subscriptions rooted in one are rejected, and introspection
+//! hides what only those subgraphs serve. It also decides `@policy` fields, which composition
+//! rewrites from `@requiresScopes`: a policy is a scope, held from the token's `scope` claim or, for
+//! external issuers, from the claim patterns that grant it. Each subgraph still authorizes on its
+//! own.
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -45,13 +47,25 @@ pub struct AccessConfig {
     /// External issuer names to their `iss`, e.g. `forgejo` to the forgejo actions issuer.
     #[serde(default)]
     external_issuers: HashMap<String, String>,
+    /// Scopes external identities can hold, by the claim patterns that grant them.
+    #[serde(default)]
+    scopes: HashMap<String, ScopeGrants>,
+}
+
+#[derive(Deserialize)]
+struct ScopeGrants {
+    external: Vec<ClaimPattern>,
 }
 
 #[derive(Deserialize)]
 struct Gate {
     issuers: Vec<String>,
+    #[serde(default)]
     groups: Vec<String>,
-    /// External identities admitted by claims instead of groups; the subgraph checks them again.
+    /// Holding any of these scopes is enough.
+    #[serde(default)]
+    scopes: Vec<String>,
+    /// External identities admitted to the whole subgraph by claims; the subgraph checks them again.
     #[serde(default)]
     external: Vec<ClaimPattern>,
 }
@@ -61,32 +75,35 @@ enum Caller<'a> {
     User {
         issuer: &'a str,
         groups: Arc<Vec<String>>,
+        scopes: BTreeSet<String>,
     },
     External {
         name: &'a str,
         claims: serde_json::Value,
+        scopes: BTreeSet<String>,
     },
 }
 
 impl Caller<'_> {
-    /// Policies are group names; only users hold groups.
-    fn holds(&self, policy: &str) -> bool {
+    fn holds(&self, scope: &str) -> bool {
         match self {
-            Caller::User { groups, .. } => groups_match(groups, &[policy.to_owned()]),
-            Caller::Anonymous | Caller::External { .. } => false,
+            Caller::User { scopes, .. } | Caller::External { scopes, .. } => scopes.contains(scope),
+            Caller::Anonymous => false,
         }
     }
 }
 
 impl Gate {
     fn admits(&self, caller: &Caller<'_>) -> bool {
+        let scoped = self.scopes.iter().any(|scope| caller.holds(scope));
         match caller {
             Caller::Anonymous => false,
-            Caller::User { issuer, groups } => {
-                self.issuers.iter().any(|i| i == issuer) && groups_match(groups, &self.groups)
+            Caller::User { issuer, groups, .. } => {
+                self.issuers.iter().any(|i| i == issuer)
+                    && (scoped || groups_match(groups, &self.groups))
             }
-            Caller::External { name, claims } => {
-                subgraph::external::any_matches(&self.external, name, claims)
+            Caller::External { name, claims, .. } => {
+                scoped || subgraph::external::any_matches(&self.external, name, claims)
             }
         }
     }
@@ -96,6 +113,9 @@ pub struct AccessPlugin {
     subgraphs: HashMap<String, Gate>,
     /// `iss` to external issuer name.
     external_issuers: HashMap<String, String>,
+    scopes: HashMap<String, ScopeGrants>,
+    /// Some gate still admits by group, so users' groups are looked up.
+    needs_groups: bool,
     ownership: ArcSwap<Ownership>,
     groups: Cache<String, Arc<Vec<String>>>,
     client: reqwest::Client,
@@ -121,7 +141,13 @@ impl RouterPlugin for AccessPlugin {
 
     fn on_plugin_init(payload: OnPluginInitPayload<Self>) -> OnPluginInitResult<Self> {
         let config = payload.config()?;
+        let needs_groups = config
+            .subgraphs
+            .values()
+            .any(|gate| !gate.groups.is_empty());
         payload.initialize_plugin(Self {
+            needs_groups,
+            scopes: config.scopes,
             subgraphs: config.subgraphs,
             external_issuers: config
                 .external_issuers
@@ -171,24 +197,36 @@ impl RouterPlugin for AccessPlugin {
         }
 
         let caller = match payload.client_request_details.jwt.as_ref() {
-            JwtRequestDetails::Authenticated { token, claims, .. } => {
-                match claims.get("iss").and_then(|iss| iss.as_str()) {
-                    None => Caller::Anonymous,
-                    Some(issuer) => match self.external_issuers.get(issuer) {
-                        Some(name) => Caller::External {
+            JwtRequestDetails::Authenticated {
+                token,
+                claims,
+                scopes,
+                ..
+            } => match claims.get("iss").and_then(|iss| iss.as_str()) {
+                None => Caller::Anonymous,
+                Some(issuer) => match self.external_issuers.get(issuer) {
+                    Some(name) => {
+                        let claims: serde_json::Value = hive_router::sonic_rs::to_string(claims)
+                            .ok()
+                            .and_then(|json| serde_json::from_str(&json).ok())
+                            .unwrap_or_default();
+                        Caller::External {
+                            scopes: self.granted(name, &claims),
                             name,
-                            claims: hive_router::sonic_rs::to_string(claims)
-                                .ok()
-                                .and_then(|json| serde_json::from_str(&json).ok())
-                                .unwrap_or_default(),
+                            claims,
+                        }
+                    }
+                    None => Caller::User {
+                        issuer,
+                        groups: if self.needs_groups {
+                            self.held_groups(token, claims).await
+                        } else {
+                            Arc::default()
                         },
-                        None => Caller::User {
-                            issuer,
-                            groups: self.held_groups(token, claims).await,
-                        },
+                        scopes: token_scopes(scopes.as_deref(), claims),
                     },
-                }
-            }
+                },
+            },
             JwtRequestDetails::Unauthenticated => Caller::Anonymous,
         };
 
@@ -287,7 +325,32 @@ impl RouterPlugin for AccessPlugin {
     }
 }
 
+/// hive splits the configured scopes claim; fall back to Kanidm's space-separated `scope`.
+fn token_scopes(
+    parsed: Option<&[String]>,
+    claims: &hive_router::sonic_rs::Value,
+) -> BTreeSet<String> {
+    match parsed {
+        Some(scopes) => scopes.iter().cloned().collect(),
+        None => claims
+            .get("scope")
+            .and_then(|scope| scope.as_str())
+            .unwrap_or_default()
+            .split_whitespace()
+            .map(str::to_owned)
+            .collect(),
+    }
+}
+
 impl AccessPlugin {
+    fn granted(&self, issuer: &str, claims: &serde_json::Value) -> BTreeSet<String> {
+        self.scopes
+            .iter()
+            .filter(|(_, grants)| subgraph::external::any_matches(&grants.external, issuer, claims))
+            .map(|(scope, _)| scope.clone())
+            .collect()
+    }
+
     /// No context means analysis never ran for this request, so nothing gated is allowed.
     fn denied(&self, context: Option<Denied>) -> Denied {
         context.unwrap_or_else(|| Denied(Arc::new(self.subgraphs.keys().cloned().collect())))
@@ -743,20 +806,113 @@ mod tests {
     }
 
     #[test]
-    fn policies_are_granted_to_users_holding_the_group() {
-        let admin = user(
-            "https://idm.example.test",
-            &["registry_admins@idm.example.test"],
+    fn policies_are_scopes_held_by_the_caller() {
+        let admin = Caller::User {
+            issuer: "https://idm.example.test",
+            groups: Arc::default(),
+            scopes: ["registry:token:create".to_owned()].into(),
+        };
+        assert!(admin.holds("registry:token:create"));
+        assert!(!admin.holds("waf:block:write"));
+        assert!(!Caller::Anonymous.holds("registry:token:create"));
+    }
+
+    #[test]
+    fn external_callers_hold_the_scopes_their_claims_are_granted() {
+        let grants = |claims: serde_json::Value| ScopeGrants {
+            external: vec![
+                serde_json::from_value(
+                    serde_json::json!({ "issuer": "forgejo", "claims": claims }),
+                )
+                .unwrap(),
+            ],
+        };
+        let scopes: HashMap<String, ScopeGrants> = [
+            (
+                "registry:package:publish".to_owned(),
+                grants(serde_json::json!({ "repository": "anurag/*", "ref": "refs/heads/main" })),
+            ),
+            (
+                "registry:token:create".to_owned(),
+                grants(serde_json::json!({ "repository": "anurag/admin" })),
+            ),
+        ]
+        .into();
+        let granted = |claims| {
+            scopes
+                .iter()
+                .filter(|(_, g)| subgraph::external::any_matches(&g.external, "forgejo", &claims))
+                .map(|(s, _)| s.clone())
+                .collect::<BTreeSet<_>>()
+        };
+
+        assert_eq!(
+            granted(serde_json::json!({ "repository": "anurag/k8s", "ref": "refs/heads/main" })),
+            BTreeSet::from(["registry:package:publish".to_owned()])
         );
-        assert!(admin.holds("registry_admins"));
-        assert!(!admin.holds("waf_admins"));
-        assert!(!Caller::Anonymous.holds("registry_admins"));
         assert!(
-            !Caller::External {
-                name: "forgejo",
-                claims: serde_json::json!({ "repository": "anurag/k8s" }),
-            }
-            .holds("registry_admins")
+            granted(serde_json::json!({ "repository": "anurag/k8s", "ref": "refs/heads/x" }))
+                .is_empty()
+        );
+
+        let gate = Gate {
+            issuers: vec![],
+            groups: vec![],
+            scopes: vec!["registry:package:publish".to_owned()],
+            external: vec![],
+        };
+        assert!(gate.admits(&Caller::External {
+            name: "forgejo",
+            claims: serde_json::json!({}),
+            scopes: ["registry:package:publish".to_owned()].into(),
+        }));
+        assert!(!gate.admits(&Caller::External {
+            name: "forgejo",
+            claims: serde_json::json!({}),
+            scopes: BTreeSet::new(),
+        }));
+    }
+
+    #[test]
+    fn scoped_gates_admit_users_holding_any_scope_from_their_issuers() {
+        let gate = Gate {
+            issuers: vec!["https://idm.example.test/oauth2/openid/graph".to_owned()],
+            groups: vec![],
+            scopes: vec![
+                "registry:package:read".to_owned(),
+                "registry:token:create".to_owned(),
+            ],
+            external: vec![],
+        };
+        let caller = |issuer, scope: &str| Caller::User {
+            issuer,
+            groups: Arc::default(),
+            scopes: [scope.to_owned()].into(),
+        };
+        assert!(gate.admits(&caller(
+            "https://idm.example.test/oauth2/openid/graph",
+            "registry:package:read"
+        )));
+        assert!(!gate.admits(&caller(
+            "https://idm.example.test/oauth2/openid/graph",
+            "waf:block:write"
+        )));
+        assert!(!gate.admits(&caller(
+            "https://idm.example.test/oauth2/openid/spotify",
+            "registry:package:read"
+        )));
+    }
+
+    #[test]
+    fn token_scopes_fall_back_to_the_space_separated_claim() {
+        let claims = hive_router::sonic_rs::json!({ "scope": "openid registry:package:read" });
+        assert_eq!(
+            token_scopes(None, &claims),
+            BTreeSet::from(["openid".to_owned(), "registry:package:read".to_owned()])
+        );
+        assert_eq!(
+            token_scopes(Some(&["a".to_owned()]), &claims),
+            BTreeSet::from(["a".to_owned()])
         );
     }
 
@@ -779,6 +935,7 @@ mod tests {
         Caller::User {
             issuer,
             groups: Arc::new(groups.iter().map(|g| (*g).to_owned()).collect()),
+            scopes: BTreeSet::new(),
         }
     }
 
@@ -787,6 +944,7 @@ mod tests {
         let gate = Gate {
             issuers: vec!["https://idm.example.test/oauth2/openid/spotify".to_owned()],
             groups: vec!["spotify_users".to_owned()],
+            scopes: Vec::new(),
             external: Vec::new(),
         };
         let held = ["spotify_users@idm.example.test"];
@@ -806,6 +964,7 @@ mod tests {
         let gate = Gate {
             issuers: vec!["https://idm.example.test/oauth2/openid/graph".to_owned()],
             groups: vec!["registry_users".to_owned()],
+            scopes: Vec::new(),
             external: vec![
                 serde_json::from_value(serde_json::json!({
                     "issuer": "forgejo",
@@ -817,6 +976,7 @@ mod tests {
         let forgejo = |claims| Caller::External {
             name: "forgejo",
             claims,
+            scopes: BTreeSet::new(),
         };
 
         assert!(gate.admits(&forgejo(serde_json::json!({
@@ -830,11 +990,13 @@ mod tests {
         assert!(!gate.admits(&Caller::External {
             name: "github",
             claims: serde_json::json!({ "repository": "anurag/k8s", "ref": "refs/heads/main" }),
+            scopes: BTreeSet::new(),
         }));
 
         let ungated = Gate {
             issuers: gate.issuers.clone(),
             groups: gate.groups.clone(),
+            scopes: Vec::new(),
             external: Vec::new(),
         };
         assert!(!ungated.admits(&forgejo(serde_json::json!({

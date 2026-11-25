@@ -48,7 +48,7 @@ type Query @join__type(graph: GATED) @join__type(graph: NODE) @join__type(graph:
   whoami: String! @join__field(graph: OPEN)
   fail: String @join__field(graph: OPEN)
   slow(ms: Int!): Boolean! @join__field(graph: OPEN)
-  testerNote: String @join__field(graph: OPEN) @policy(policies: [["graph_testers"]])
+  testerNote: String @join__field(graph: OPEN) @policy(policies: [["open:note:read"]])
   secret: String @join__field(graph: GATED)
   node(id: ID!): Node @join__field(graph: NODE)
 }

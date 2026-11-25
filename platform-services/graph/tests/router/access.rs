@@ -108,7 +108,7 @@ async fn introspection_hides_gated_fields() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-async fn policy_fields_need_the_group() {
+async fn policy_fields_need_the_scope() {
     let stack = Stack::spawn().await;
 
     let user = stack
@@ -119,18 +119,52 @@ async fn policy_fields_need_the_group() {
     assert!(user.body["errors"].is_array(), "{}", user.body);
 
     let tester = stack.post(Some(&stack.tester()), "{ testerNote }").await;
-    assert_eq!(
-        tester.body["data"]["testerNote"], "for testers",
-        "{}",
+    assert!(
+        tester.body["data"]["testerNote"].is_null(),
+        "groups are not scopes: {}",
         tester.body
     );
-    assert!(tester.body.get("errors").is_none(), "{}", tester.body);
 
-    let ci = stack.forgejo("anurag/k8s", "refs/heads/main");
-    let external = stack.post(Some(&ci), "{ whoami testerNote }").await;
-    assert!(
-        external.body["data"]["testerNote"].is_null(),
+    let scoped = stack
+        .post(Some(&stack.scoped("open:note:read")), "{ testerNote }")
+        .await;
+    assert_eq!(
+        scoped.body["data"]["testerNote"], "for testers",
         "{}",
-        external.body
+        scoped.body
     );
+    assert!(scoped.body.get("errors").is_none(), "{}", scoped.body);
+
+    let main = stack.forgejo("anurag/k8s", "refs/heads/main");
+    let granted = stack.post(Some(&main), "{ testerNote }").await;
+    assert_eq!(
+        granted.body["data"]["testerNote"], "for testers",
+        "{}",
+        granted.body
+    );
+
+    let branch = stack.forgejo("anurag/k8s", "refs/heads/feature");
+    let denied = stack.post(Some(&branch), "{ whoami testerNote }").await;
+    assert!(
+        denied.body["data"]["testerNote"].is_null(),
+        "{}",
+        denied.body
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn scoped_gates_admit_callers_holding_a_scope_without_the_group() {
+    let stack = Stack::spawn().await;
+
+    let plain = stack.post(Some(&stack.user()), "{ secret }").await;
+    assert_eq!(
+        plain.body["errors"][0]["extensions"]["code"], "FORBIDDEN",
+        "{}",
+        plain.body
+    );
+
+    let scoped = stack
+        .post(Some(&stack.scoped("gated:secret:read")), "{ secret }")
+        .await;
+    assert_eq!(scoped.body["data"]["secret"], "hunter2", "{}", scoped.body);
 }
