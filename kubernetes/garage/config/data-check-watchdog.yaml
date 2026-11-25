@@ -1,0 +1,87 @@
+# yaml-language-server: $schema=https://k8s-schemas.anurag.sh/batch/cronjob_v1.json
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: garage-data-check-watchdog
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      template:
+        spec:
+          restartPolicy: Never
+          serviceAccountName: garage-data-check-watchdog
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: watchdog
+              image: alpine/k8s:1.36.4
+              command:
+                - /bin/sh
+                - -euc
+                - |
+                  if ! kubectl get pod garage-0 -o json | jq -e '
+                    def age: now - (. | fromdateiso8601);
+                    .status.phase == "Running"
+                    and (.status.startTime | age) > 600
+                    and any(.status.containerStatuses[]; .name == "data-check" and .ready == false)
+                    and any(.status.conditions[]; .type == "Ready" and .status == "False" and (.lastTransitionTime | age) > 300)
+                  ' > /dev/null; then
+                    exit 0
+                  fi
+
+                  echo "data-check unready for over 5m, deleting garage-0 to remount /data"
+                  kubectl delete pod garage-0 --wait=false
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop:
+                    - ALL
+              resources:
+                requests:
+                  cpu: 10m
+                  memory: 32Mi
+                limits:
+                  memory: 128Mi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: garage-data-check-watchdog
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: garage-data-check-watchdog
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    resourceNames:
+      - garage-0
+    verbs:
+      - get
+      - delete
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: garage-data-check-watchdog
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: garage-data-check-watchdog
+subjects:
+  - kind: ServiceAccount
+    name: garage-data-check-watchdog
