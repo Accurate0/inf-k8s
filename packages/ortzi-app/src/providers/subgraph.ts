@@ -208,6 +208,7 @@ const schema: Schema = {
 export interface SubgraphAuthValue {
   providers: { issuer: string; audience: string }[];
   scopes: string[];
+  groups: string[];
   external: {
     name: string;
     issuer: string;
@@ -230,6 +231,7 @@ export function subgraphAuthValue(resource: Subgraph, apps: App[]): SubgraphAuth
       audience: client,
     })),
     scopes: scopes.map((scope) => scope.name),
+    groups: resource.auth?.groups ?? [],
     external: issuers
       .map((issuer) => ({
         ...issuer,

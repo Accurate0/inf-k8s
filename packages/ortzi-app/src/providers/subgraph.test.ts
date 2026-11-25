@@ -291,6 +291,7 @@ test('a subgraph hands its workload the providers, scopes and external grants it
   assert.deepEqual(subgraphAuthValue(resource, [registry, forgejoRouter]), {
     providers: [{ issuer: 'https://idm.anurag.sh/oauth2/openid/graph', audience: 'graph' }],
     scopes: ['registry:package:read', 'registry:package:publish'],
+    groups: [],
     external: [
       {
         name: 'forgejo',
@@ -382,6 +383,7 @@ test('a subgraph declaring scopes must pass them to its workload', () => {
     {
       providers: [{ issuer: 'https://idm.anurag.sh/oauth2/openid/graph', audience: 'graph' }],
       scopes: ['registry:package:read'],
+      groups: [],
       external: [],
     },
   );
