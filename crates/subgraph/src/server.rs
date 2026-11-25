@@ -149,6 +149,7 @@ mod tests {
                     .unwrap(),
             ],
             groups: vec!["registry_users".to_owned()],
+            scopes: Vec::new(),
             external: Vec::new(),
         });
         let app = router(Schema::new(Query, EmptyMutation, EmptySubscription), auth);

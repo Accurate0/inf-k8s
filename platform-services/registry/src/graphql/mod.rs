@@ -49,6 +49,7 @@ pub fn router(state: AppState) -> Option<axum::Router> {
             .chain(&oauth.admin_groups)
             .cloned()
             .collect(),
+        scopes: Vec::new(),
         external: forgejo(&state, graph).into_iter().collect(),
     });
     tokio::spawn(auth.clone().run());
@@ -78,6 +79,7 @@ fn forgejo(state: &AppState, graph: &crate::config::GraphConfig) -> Option<Exter
             issuer: FORGEJO.to_owned(),
             claims: [("repository".to_owned(), OneOrMany::One("*".to_owned()))].into(),
         }],
+        grants: Vec::new(),
     })
 }
 

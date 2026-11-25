@@ -66,6 +66,8 @@ pub struct External {
     /// The issuer's name from `ExternalIssuer`, e.g. `forgejo`.
     pub issuer: String,
     pub claims: Value,
+    /// Scopes granted by the claim patterns this token matched.
+    pub scopes: std::collections::BTreeSet<String>,
 }
 
 impl External {

@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
@@ -39,15 +39,29 @@ impl IntoResponse for AuthError {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize)]
 pub struct Provider {
     pub issuer: String,
     pub audience: String,
 }
 
+/// `SUBGRAPH_AUTH`, rendered by ortzi-app from the subgraph resource's `auth`.
+#[derive(Debug, Clone, Deserialize)]
+struct SubgraphAuth {
+    providers: Vec<Provider>,
+    scopes: Vec<String>,
+    #[serde(default)]
+    external: Vec<ExternalAuth>,
+}
+
 impl AuthConfig {
-    /// OIDC_PROVIDERS (comma-separated `<issuer>=<audience>`) and OIDC_GROUPS (comma-separated).
+    /// SUBGRAPH_AUTH (scopes), or the older OIDC_PROVIDERS (comma-separated `<issuer>=<audience>`)
+    /// and OIDC_GROUPS (comma-separated).
     pub fn from_env() -> Result<Self, String> {
+        if let Ok(json) = std::env::var("SUBGRAPH_AUTH") {
+            return Self::from_subgraph_auth(&json);
+        }
+
         let list = |name: &str| -> Result<Vec<String>, String> {
             let value = std::env::var(name).map_err(|_| format!("{name} is not set"))?;
             Ok(value
@@ -75,7 +89,23 @@ impl AuthConfig {
         Ok(Self {
             providers,
             groups,
+            scopes: Vec::new(),
             external,
+        })
+    }
+
+    pub fn from_subgraph_auth(json: &str) -> Result<Self, String> {
+        let auth: SubgraphAuth =
+            serde_json::from_str(json).map_err(|e| format!("SUBGRAPH_AUTH is not valid: {e}"))?;
+        if auth.providers.is_empty() || auth.scopes.is_empty() {
+            return Err("SUBGRAPH_AUTH needs providers and scopes".to_owned());
+        }
+
+        Ok(Self {
+            providers: auth.providers,
+            groups: Vec::new(),
+            scopes: auth.scopes,
+            external: auth.external,
         })
     }
 }
@@ -99,8 +129,10 @@ impl std::str::FromStr for Provider {
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
     pub providers: Vec<Provider>,
-    /// The caller must hold one of these groups (short name or SPN).
+    /// The caller must hold one of these groups (short name or SPN), when no scopes are set.
     pub groups: Vec<String>,
+    /// The scopes this subgraph defines; the caller must hold one of them.
+    pub scopes: Vec<String>,
     /// External issuers (e.g. forgejo actions) admitted by claim patterns instead of groups.
     pub external: Vec<ExternalAuth>,
 }
@@ -109,7 +141,18 @@ pub struct AuthConfig {
 pub struct ExternalAuth {
     #[serde(flatten)]
     pub issuer: ExternalIssuer,
+    /// Admits the whole subgraph, before scopes.
+    #[serde(default)]
     pub patterns: Vec<ClaimPattern>,
+    /// Scopes held by tokens whose claims match.
+    #[serde(default)]
+    pub grants: Vec<Grant>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct Grant {
+    pub scope: String,
+    pub claims: BTreeMap<String, crate::external::OneOrMany>,
 }
 
 #[derive(Debug, Clone)]
@@ -132,11 +175,26 @@ pub struct Claims {
     pub preferred_username: Option<String>,
     #[serde(default)]
     pub groups: Option<Vec<String>>,
+    /// Space-separated, as Kanidm issues it; supplementary scope maps land here.
+    #[serde(default)]
+    pub scope: Option<String>,
 }
 
 impl Claims {
     pub fn identity(&self) -> &str {
         self.preferred_username.as_deref().unwrap_or(&self.sub)
+    }
+
+    pub fn scopes(&self) -> BTreeSet<&str> {
+        self.scope
+            .as_deref()
+            .unwrap_or_default()
+            .split_whitespace()
+            .collect()
+    }
+
+    pub fn has_scope(&self, scope: &str) -> bool {
+        self.scopes().contains(scope)
     }
 
     pub fn in_any(&self, allowed: &[&str]) -> bool {
@@ -177,6 +235,7 @@ pub struct Authenticator {
 struct Inner {
     client: reqwest::Client,
     groups: Vec<String>,
+    scopes: Vec<String>,
     issuers: Vec<IssuerKeys>,
 }
 
@@ -185,6 +244,7 @@ enum IssuerKind {
     External {
         name: String,
         patterns: Vec<ClaimPattern>,
+        grants: Vec<Grant>,
     },
 }
 
@@ -224,6 +284,7 @@ impl Authenticator {
             kind: IssuerKind::External {
                 name: external.issuer.name,
                 patterns: external.patterns,
+                grants: external.grants,
             },
             keys: RwLock::new(BTreeMap::new()),
             last_refresh: Mutex::new(None),
@@ -238,6 +299,7 @@ impl Authenticator {
                     .build()
                     .unwrap_or_default(),
                 groups: config.groups,
+                scopes: config.scopes,
                 issuers,
             }),
         }
@@ -256,7 +318,12 @@ impl Authenticator {
     /// Verifies a user token and its groups, or an external token against its claim patterns.
     pub async fn authenticate(&self, token: &str) -> Result<Principal, AuthError> {
         let issuer = self.issuer_for(token)?;
-        let IssuerKind::External { name, patterns } = &issuer.kind else {
+        let IssuerKind::External {
+            name,
+            patterns,
+            grants,
+        } = &issuer.kind
+        else {
             return self
                 .authorize_user(issuer, token)
                 .await
@@ -264,7 +331,8 @@ impl Authenticator {
         };
 
         let claims: serde_json::Value = self.verify(issuer, token).await?;
-        if !any_matches(patterns, name, &claims) {
+        let scopes = granted_scopes(grants, name, &claims);
+        if scopes.is_empty() && !any_matches(patterns, name, &claims) {
             return Err(AuthError::Forbidden(format!(
                 "this {name} identity is not allowed here"
             )));
@@ -273,6 +341,7 @@ impl Authenticator {
         Ok(Principal::External(External {
             issuer: name.clone(),
             claims,
+            scopes,
         }))
     }
 
@@ -290,13 +359,29 @@ impl Authenticator {
 
     async fn authorize_user(&self, issuer: &IssuerKeys, token: &str) -> Result<Claims, AuthError> {
         let mut claims: Claims = self.verify(issuer, token).await?;
-        // Kanidm access tokens carry neither groups nor a username; userinfo has both.
-        if claims.groups.is_none() || claims.preferred_username.is_none() {
+        // Kanidm access tokens carry neither groups nor a username; userinfo has both. Scoped
+        // subgraphs only need it for the username.
+        let need_groups = self.inner.scopes.is_empty() && claims.groups.is_none();
+        if need_groups || claims.preferred_username.is_none() {
             let info = self.userinfo(issuer, token).await?;
-            claims.groups.get_or_insert(info.groups);
+            if need_groups {
+                claims.groups = Some(info.groups);
+            }
             if claims.preferred_username.is_none() {
                 claims.preferred_username = info.preferred_username;
             }
+        }
+
+        if !self.inner.scopes.is_empty() {
+            let held = claims.scopes();
+            if !self.inner.scopes.iter().any(|scope| held.contains(scope.as_str())) {
+                return Err(AuthError::Forbidden(format!(
+                    "{} holds none of {:?}",
+                    claims.identity(),
+                    self.inner.scopes
+                )));
+            }
+            return Ok(claims);
         }
 
         let allowed = &self.inner.groups;
@@ -456,6 +541,29 @@ impl Authenticator {
     }
 }
 
+fn granted_scopes(grants: &[Grant], issuer: &str, claims: &serde_json::Value) -> BTreeSet<String> {
+    grants
+        .iter()
+        .filter(|grant| {
+            ClaimPattern {
+                issuer: issuer.to_owned(),
+                claims: grant.claims.clone(),
+            }
+            .matches(issuer, claims)
+        })
+        .map(|grant| grant.scope.clone())
+        .collect()
+}
+
+impl Principal {
+    pub fn scopes(&self) -> BTreeSet<String> {
+        match self {
+            Principal::User(claims) => claims.scopes().into_iter().map(str::to_owned).collect(),
+            Principal::External(external) => external.scopes.clone(),
+        }
+    }
+}
+
 pub fn bearer(value: &str) -> Option<&str> {
     let token = value.trim().strip_prefix("Bearer ")?.trim();
     (!token.is_empty()).then_some(token)
@@ -491,6 +599,7 @@ mod tests {
                     .unwrap(),
             ],
             groups: vec!["spotify_users".to_owned()],
+            scopes: Vec::new(),
             external: vec![
                 serde_json::from_value(serde_json::json!({
                     "name": "forgejo",
@@ -590,6 +699,43 @@ mod tests {
             "unauthorized: missing bearer token"
         );
         assert_eq!(body["errors"][0]["extensions"]["code"], "UNAUTHENTICATED");
+    }
+
+    #[test]
+    fn subgraph_auth_parses_providers_scopes_and_grants() {
+        let config = AuthConfig::from_subgraph_auth(
+            r#"{"providers":[{"issuer":"https://idm.example.test/oauth2/openid/graph","audience":"graph"}],
+                "scopes":["registry:package:read","registry:package:publish"],
+                "external":[{"name":"forgejo","issuer":"https://git.example.test/api/actions",
+                  "jwks":"https://git.example.test/keys","audience":"graph.example.test",
+                  "grants":[{"scope":"registry:package:publish","claims":{"repository":"anurag/*","ref":"refs/heads/main"}}]}]}"#,
+        )
+        .unwrap();
+        assert_eq!(config.providers[0].audience, "graph");
+        assert_eq!(config.scopes.len(), 2);
+        assert!(config.groups.is_empty());
+
+        let grants = &config.external[0].grants;
+        let main = serde_json::json!({ "repository": "anurag/k8s", "ref": "refs/heads/main" });
+        let branch = serde_json::json!({ "repository": "anurag/k8s", "ref": "refs/heads/x" });
+        assert_eq!(
+            granted_scopes(grants, "forgejo", &main),
+            BTreeSet::from(["registry:package:publish".to_owned()])
+        );
+        assert!(granted_scopes(grants, "forgejo", &branch).is_empty());
+
+        assert!(AuthConfig::from_subgraph_auth(r#"{"providers":[],"scopes":[]}"#).is_err());
+    }
+
+    #[test]
+    fn user_scopes_come_from_the_space_separated_claim() {
+        let claims: Claims = serde_json::from_value(serde_json::json!({
+            "sub": "u", "scope": "openid email registry:package:read"
+        }))
+        .unwrap();
+        assert!(claims.has_scope("registry:package:read"));
+        assert!(!claims.has_scope("registry:token:create"));
+        assert!(Principal::User(claims).scopes().contains("openid"));
     }
 
     #[test]
