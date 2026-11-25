@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Publish local helm chart values schemas and reference them from the Application schema.
+"""Publish local helm chart values schemas and reference them from the HelmRelease schema.
 
 Each charts/<name>/values.schema.json is copied to <output>/charts/<name>.json, then the
-argoproj.io Application schema is rewritten so that every helm valuesObject node is an
-anyOf over those chart schemas plus a permissive fallback. yaml-language-server resolves
-the remote refs and aggregates completions across the branches, so editing a valuesObject
-offers the chart's properties while Applications pointing at external charts still validate.
+Flux HelmRelease schema is rewritten so that spec.values is an anyOf over those chart
+schemas plus a permissive fallback. yaml-language-server resolves the remote refs and
+aggregates completions across the branches, so editing spec.values offers the chart's
+properties while HelmReleases pointing at external charts still validate.
 """
 import json
 import os
 import sys
 
 BASE_URL = "https://k8s-schemas.anurag.sh"
-APPLICATION_SCHEMA = "argoproj.io/application_v1alpha1.json"
+HELMRELEASE_SCHEMA = "helm.toolkit.fluxcd.io/helmrelease_v2.json"
 
 
 def collect_chart_schemas(charts_dir: str) -> list[str]:
@@ -38,24 +38,17 @@ def values_object_node(names: list[str]) -> dict:
     branches = [{"$ref": f"{BASE_URL}/charts/{name}.json"} for name in names]
     branches.append({"type": "object"})
     return {
-        "description": "Helm values. Local charts contribute completions; other charts are unconstrained.",
+        "description": "Values holds the values for this Helm release. Local charts contribute completions; other charts are unconstrained.",
         "anyOf": branches,
     }
 
 
-def patch(node, names: list[str]) -> int:
-    patched = 0
-    if isinstance(node, dict):
-        for key, value in node.items():
-            if key == "valuesObject" and isinstance(value, dict):
-                node[key] = values_object_node(names)
-                patched += 1
-                continue
-            patched += patch(value, names)
-    elif isinstance(node, list):
-        for item in node:
-            patched += patch(item, names)
-    return patched
+def patch(schema: dict, names: list[str]) -> bool:
+    spec = schema.get("properties", {}).get("spec", {}).get("properties", {})
+    if not isinstance(spec.get("values"), dict):
+        return False
+    spec["values"] = values_object_node(names)
+    return True
 
 
 def main(dst: str, charts_dir: str) -> None:
@@ -65,22 +58,21 @@ def main(dst: str, charts_dir: str) -> None:
 
     publish_chart_schemas(charts_dir, names, dst)
 
-    path = os.path.join(dst, APPLICATION_SCHEMA)
+    path = os.path.join(dst, HELMRELEASE_SCHEMA)
     if not os.path.isfile(path):
-        sys.exit(f"ERROR: {APPLICATION_SCHEMA} not found at {path}")
+        sys.exit(f"ERROR: {HELMRELEASE_SCHEMA} not found at {path}")
 
     with open(path) as f:
         schema = json.load(f)
 
-    patched = patch(schema, names)
-    if patched == 0:
-        sys.exit(f"ERROR: no valuesObject node found in {APPLICATION_SCHEMA}")
+    if not patch(schema, names):
+        sys.exit(f"ERROR: no spec.values node found in {HELMRELEASE_SCHEMA}")
 
     with open(path, "w") as f:
         json.dump(schema, f, indent=2)
 
     print(f"Published {len(names)} chart schemas ({', '.join(names)})")
-    print(f"Patched {patched} valuesObject nodes in {APPLICATION_SCHEMA}")
+    print(f"Patched spec.values in {HELMRELEASE_SCHEMA}")
 
 
 if __name__ == "__main__":

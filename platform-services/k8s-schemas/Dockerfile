@@ -10,10 +10,10 @@ ENV PATH="/opt/venv/bin:$PATH"
 COPY platform-services/k8s-schemas/entrypoint.sh /entrypoint.sh
 COPY platform-services/k8s-schemas/reorganize-schemas.py /reorganize-schemas.py
 COPY platform-services/k8s-schemas/build-index.py /build-index.py
-COPY platform-services/k8s-schemas/patch-application-schema.py /patch-application-schema.py
+COPY platform-services/k8s-schemas/patch-helmrelease-schema.py /patch-helmrelease-schema.py
 COPY packages/ortzi-app/app.schema.json /schemas-src/app.json
 COPY charts /schemas-src/charts
-RUN chmod +x /entrypoint.sh /reorganize-schemas.py /build-index.py /patch-application-schema.py
+RUN chmod +x /entrypoint.sh /reorganize-schemas.py /build-index.py /patch-helmrelease-schema.py
 
 USER 10001
 

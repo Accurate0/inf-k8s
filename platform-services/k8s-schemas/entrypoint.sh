@@ -49,7 +49,7 @@ openapi2jsonschema --kubernetes --stand-alone --expanded -o "$BUILTIN_TMP_DIR" "
 python3 /reorganize-schemas.py "$BUILTIN_TMP_DIR" "$OUTPUT_DIR"
 
 echo "Publishing helm chart values schemas..."
-python3 /patch-application-schema.py "$OUTPUT_DIR" "$SOURCE_DIR/charts"
+python3 /patch-helmrelease-schema.py "$OUTPUT_DIR" "$SOURCE_DIR/charts"
 cp "$SOURCE_DIR/app.json" "$OUTPUT_DIR/app.json"
 
 echo "Building index.json..."
