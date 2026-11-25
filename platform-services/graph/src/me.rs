@@ -142,7 +142,7 @@ fn me<'a>(ctx: &async_graphql::dynamic::ResolverContext<'a>) -> async_graphql::R
 
 fn text(name: &str, ty: TypeRef, get: fn(&Me) -> Option<String>) -> Field {
     Field::new(name, ty, move |ctx| {
-        FieldFuture::new(async move { Ok(get(me(&ctx)?).map(|v| FieldValue::value(v))) })
+        FieldFuture::new(async move { Ok(get(me(&ctx)?).map(FieldValue::value)) })
     })
 }
 
