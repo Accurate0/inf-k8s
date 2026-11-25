@@ -1,5 +1,5 @@
-import { fs, httpSend, type Run, runAll } from '@ortzi/host';
-import { helmTemplates, type Plan } from './plan';
+import { fs, httpSend, pullConfig, type Run, runAll } from '@ortzi/host';
+import { harborProjects, helmTemplates, type Plan } from './plan';
 
 export interface RenderedOutput {
   content: string;
@@ -68,6 +68,16 @@ export function validateManifests(
     .filter(([plan]) => wanted.has(plan))
     .map(([plan, contents]) => ({ plan, contents, templates: helmTemplates(plan) }));
 
+  const projects = harborProjects(selectedApps.map(({ plan }) => plan));
+  let helmEnv: Record<string, string> = {};
+  if (projects.length) {
+    try {
+      helmEnv = { HELM_REGISTRY_CONFIG: pullConfig(projects) };
+    } catch (error) {
+      return [`registry: could not get pull access to ${projects.join(', ')}: ${error}`];
+    }
+  }
+
   const kustomizations: string[] = [];
   for (const root of MANIFEST_ROOTS) {
     walk(root, (dir, file) => {
@@ -85,7 +95,7 @@ export function validateManifests(
       templates.map(({ args, values }) => ({
         program: 'helm',
         args,
-        options: { ...piped, stdin: values },
+        options: { ...piped, stdin: values, env: helmEnv },
       })),
     ),
     ...kustomizations.map((dir) => ({

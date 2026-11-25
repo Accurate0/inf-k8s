@@ -22,7 +22,7 @@ export const imageValuesPath = (plan: Pick<Plan, 'name' | 'namespace'>) =>
 
 export const imageValuesConfigMap = (name: string) => `${name}-image-values`;
 
-const HARBOR = 'oci://registry.anurag.sh/';
+export const HARBOR = 'oci://registry.anurag.sh/';
 const HELM_LAYER = 'application/vnd.cncf.helm.chart.content.v1.tar+gzip';
 const MANIFESTS_LAYER = 'application/vnd.oci.image.layer.v1.tar+gzip';
 

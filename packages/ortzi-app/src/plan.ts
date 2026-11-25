@@ -11,6 +11,7 @@ import { appNamespace, declared } from './app.ts';
 import { refsFor } from './refs.ts';
 import { releaseImages, workloads } from './providers/workload.ts';
 import { RESOURCES, sourceProvider } from './providers/index.ts';
+import { HARBOR } from './flux-objects.ts';
 
 export type { Plan, PlanSource, PlatformChart } from './providers/provider.ts';
 
@@ -180,4 +181,16 @@ export function helmTemplates(plan: Plan): { args: string[]; values: string }[] 
       },
     ];
   });
+}
+
+export function harborProjects(plans: Plan[]): string[] {
+  const projects = plans.flatMap((plan) =>
+    plan.sources.flatMap((source) =>
+      source.type === 'helm' && source.repo.startsWith(HARBOR)
+        ? [source.repo.slice(HARBOR.length).split('/')[0]!]
+        : [],
+    ),
+  );
+
+  return [...new Set(projects)].sort();
 }

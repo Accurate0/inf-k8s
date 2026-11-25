@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { helmTemplates, planApp } from '../../plan.ts';
+import { harborProjects, helmTemplates, planApp } from '../../plan.ts';
 import { type App, validate } from '../../render.ts';
 import { versions, target, platform, render, readValues } from '../../test-fixtures.ts';
 
@@ -90,4 +90,47 @@ test('helm templates pull upstream charts', () => {
     '--version',
     '2.0.0',
   ]);
+});
+
+test('harbor projects come from helm sources behind the registry', () => {
+  const harbor = (name: string, chart: string) =>
+    planApp(
+      {
+        name,
+        network: { ingress: [] },
+        sources: [
+          release,
+          {
+            type: 'helm',
+            chart,
+            repo: `oci://registry.anurag.sh/erwanleboucher-git/eleboucher/charts/${chart}`,
+            version: '1.0.0',
+            values: 'r.yaml',
+            releaseName: chart,
+          },
+          {
+            type: 'helm',
+            chart: 'reloader',
+            repo: 'https://example.com/charts',
+            version: '2.0.0',
+            values: 'r.yaml',
+            releaseName: 'rel',
+          },
+        ],
+      },
+      versions,
+      target,
+      { platform, apps: [], readValues },
+    );
+  const upstream = planApp(
+    { name: 'bar', network: { ingress: [] }, sources: [release] },
+    versions,
+    target,
+    { platform, apps: [], readValues },
+  );
+
+  assert.deepEqual(harborProjects([harbor('foo', 'runner'), harbor('baz', 'other'), upstream]), [
+    'erwanleboucher-git',
+  ]);
+  assert.deepEqual(harborProjects([upstream]), []);
 });
