@@ -244,6 +244,25 @@ test('expands probes around a shared target', () => {
   assert.equal(out.probes, undefined);
 });
 
+test('a probe can use its own http path', () => {
+  const out = short({
+    probes: {
+      http: { path: '/health', port: 4000 },
+      readiness: { path: '/readiness', every: 10 },
+      liveness: { every: 30 },
+    },
+  });
+
+  assert.deepEqual(out.readinessProbe, {
+    httpGet: { path: '/readiness', port: 4000 },
+    periodSeconds: 10,
+  });
+  assert.deepEqual(out.livenessProbe, {
+    httpGet: { path: '/health', port: 4000 },
+    periodSeconds: 30,
+  });
+});
+
 test('expands mounts to volumes and volume mounts', () => {
   const out = short({
     mounts: {
@@ -454,6 +473,10 @@ test('expands exec probes and rejects more than one target', () => {
   assert.throws(
     () => short({ probes: { exec: { command }, http: { path: '/', port: 80 }, liveness: {} } }),
     /use one of http, exec/,
+  );
+  assert.throws(
+    () => short({ probes: { exec: { command }, readiness: { path: '/ready' } } }),
+    /probes.readiness.path needs probes.http/,
   );
 });
 

@@ -13,7 +13,7 @@ import { buildApp } from './commands/build';
 import { rollback } from './commands/rollback';
 import { version } from './commands/version';
 import { status } from './commands/status';
-import { supergraph } from './commands/supergraph';
+import { supergraph, supergraphCheck } from './commands/supergraph';
 import { parse, stringify } from 'yaml';
 import {
   type App,
@@ -96,6 +96,10 @@ definition (run from the root of the k8s repo):
                            on.push.paths syntax (!x excludes), default the whole repo
   supergraph               fetch every subgraph resource's federation sdl and compose the supergraph,
                            public schema and router.yaml into the app declaring the supergraph
+  supergraph check <subgraph> --schema F [--documents F]
+                           compose with a candidate sdl (and persisted documents) for one subgraph
+                           against the others, fail if it doesn't compose or breaks a document,
+                           and list other breaking changes to the public schema
 
 cluster:
   status                   what needs attention (--all lists every app)
@@ -123,6 +127,8 @@ flags:
   --image IMAGE    rollback: only this image
   --path P         version: count commits touching P (repeatable)
   --platform P     build: target platform (default linux/amd64)
+  --schema F       supergraph check: the candidate subgraph sdl
+  --documents F    supergraph check: the candidate persisted documents manifest
   --yes            apply; writes are a dry run without this
   --wait           rollback, autosync on: follow the change and fail if it doesn't finish
   --timeout MIN    with --wait: minutes to allow for each step (default 5)`;
@@ -553,6 +559,8 @@ export const run = cli({
     image: { type: 'string', multiple: true },
     path: { type: 'string', multiple: true },
     platform: { type: 'string', default: 'linux/amd64' },
+    schema: { type: 'string' },
+    documents: { type: 'string' },
     yes: { type: 'boolean' },
     wait: { type: 'boolean' },
     timeout: { type: 'string' },
@@ -566,7 +574,10 @@ export const run = cli({
     diff: (_ctx, _values, rest) => diff(rest[0]),
     fmt: (_ctx, values, rest) => fmt(rest.length ? rest : appPaths(), values.check),
     publish: (_ctx, _values, rest) => publish(rest),
-    supergraph: (_ctx, values) => supergraph(discover(), values.check),
+    supergraph: (_ctx, values, rest) =>
+      rest[0] === 'check'
+        ? supergraphCheck(discover(), rest[1], values.schema, values.documents)
+        : supergraph(discover(), values.check),
     list: () => {
       const count = (block?: object) => {
         const size = block ? Object.keys(block).length : 0;

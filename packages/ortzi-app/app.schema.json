@@ -396,6 +396,10 @@
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "HTTP path for this probe instead of probes.http.path."
+                  },
                   "delay": {
                     "type": "integer"
                   },
@@ -414,6 +418,10 @@
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "HTTP path for this probe instead of probes.http.path."
+                  },
                   "delay": {
                     "type": "integer"
                   },
@@ -432,6 +440,10 @@
                 "type": "object",
                 "additionalProperties": false,
                 "properties": {
+                  "path": {
+                    "type": "string",
+                    "description": "HTTP path for this probe instead of probes.http.path."
+                  },
                   "delay": {
                     "type": "integer"
                   },

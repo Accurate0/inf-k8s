@@ -133,10 +133,10 @@ export function describeEnvFrom(from: unknown, refs: Refs): EnvSource {
 function expandProbes({ http, grpc, exec, ...probes }: Values) {
   const target = http ? { httpGet: http } : grpc ? { grpc } : { exec };
   return Object.fromEntries(
-    Object.entries(probes).map(([probe, timings]) => [
+    Object.entries(probes).map(([probe, { path, ...timings }]) => [
       PROBES[probe as keyof typeof PROBES],
       {
-        ...target,
+        ...(path ? { httpGet: { ...http, path } } : target),
         ...Object.fromEntries(
           Object.entries(timings as Values).map(([key, value]) => [
             TIMINGS[key as keyof typeof TIMINGS],

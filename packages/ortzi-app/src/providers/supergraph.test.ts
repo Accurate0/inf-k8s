@@ -8,7 +8,9 @@ import {
   routerConfig,
   unprefixedRootFields,
   unprefixedTypes,
+  validateDocuments,
 } from '../supergraph.ts';
+import { sha256Hex } from '../sha256.ts';
 import { resolveSubgraphs, validateResources } from '../render.ts';
 import { platform, subgraphApp, routerApp, readValues } from '../test-fixtures.ts';
 
@@ -307,6 +309,40 @@ test('persisted documents merge sorted, and the same id must mean the same docum
     /persisted document a differs between spotify and home/,
   );
   assert.throws(() => mergeDocuments({ spotify: '["{ a }"]' }), /JSON object of id to document/);
+});
+
+test('sha256 matches known digests', () => {
+  assert.equal(sha256Hex(''), 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855');
+  assert.equal(
+    sha256Hex('abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq'),
+    '248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1',
+  );
+  assert.equal(sha256Hex('a'.repeat(1000)).length, 64);
+});
+
+test('persisted documents must hash to their id and validate against the public schema', () => {
+  const schema = 'type Query { spotifyName: String! spotifyCount: Int! }';
+  const valid = 'query Name { spotifyName }';
+  const removed = 'query Count { spotifyGone }';
+  const manifest = (documents: string[]) =>
+    JSON.stringify(Object.fromEntries(documents.map((text) => [sha256Hex(text), text])));
+
+  validateDocuments(schema, { spotify: manifest([valid]) });
+
+  assert.throws(
+    () => validateDocuments(schema, { spotify: manifest([valid, removed]) }),
+    new RegExp(
+      `spotify: persisted document Count \\(${sha256Hex(removed)}\\): Cannot query field "spotifyGone"`,
+    ),
+  );
+  assert.throws(
+    () => validateDocuments(schema, { spotify: JSON.stringify({ abc: valid }) }),
+    /spotify: persisted document Name \(abc\): id is not the sha256 of its text/,
+  );
+  assert.throws(
+    () => validateDocuments(schema, { spotify: JSON.stringify({ abc: '{ broken' }) }),
+    /spotify: persisted document abc: Syntax Error/,
+  );
 });
 
 test('router config loads persisted documents beside the supergraph', () => {

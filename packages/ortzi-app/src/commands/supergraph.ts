@@ -1,4 +1,5 @@
 import { fs, httpSend } from '@ortzi/host';
+import { buildSchema, findBreakingChanges } from 'graphql';
 import {
   type App,
   declared,
@@ -23,12 +24,20 @@ function fetchText(url: string): string {
   return response.body;
 }
 
-export function supergraph(found: { app: App; target: Target }[], check: boolean): number {
+interface Inputs {
+  dir: string;
+  base: string;
+  externalIssuers: Parameters<typeof compose>[4];
+  subgraphs: ReturnType<typeof resolveSubgraphs>;
+  sdls: Record<string, string>;
+  manifests: Record<string, string>;
+}
+
+function gather(found: { app: App; target: Target }[], skip?: string): Inputs | undefined {
   const apps = found.map(({ app }) => app);
   const router = supergraphApp(apps);
   if (!router) {
-    console.log('no app declares a supergraph');
-    return 0;
+    return undefined;
   }
 
   const target = found.find(({ app }) => app === router)?.target as Target;
@@ -36,10 +45,11 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
   const [{ base, externalIssuers }] = declared(router, 'supergraph');
   const dir = `${appDir}/${base}`.replace(/\/[^/]*$/, '');
   const subgraphs = resolveSubgraphs(apps);
+  const fetched = subgraphs.filter((subgraph) => subgraph.name !== skip);
 
   const locations = new Map(found.map(({ app, target }) => [app.name, target.location]));
   const sdls = Object.fromEntries(
-    subgraphs.map((subgraph) => [
+    fetched.map((subgraph) => [
       subgraph.name,
       subgraph.schemaPath
         ? fs.readText(`${locations.get(subgraph.app)}/${subgraph.app}/${subgraph.schemaPath}`)
@@ -48,7 +58,7 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
   );
 
   const manifests = Object.fromEntries(
-    subgraphs.flatMap((subgraph) => {
+    fetched.flatMap((subgraph) => {
       if (subgraph.documentsPath) {
         return [
           [
@@ -62,13 +72,79 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
     }),
   );
 
-  const composed = compose(
+  return {
+    dir,
+    base: fs.readText(`${appDir}/${base}`),
+    externalIssuers,
     subgraphs,
     sdls,
-    fs.readText(`${appDir}/${base}`),
     manifests,
-    externalIssuers,
+  };
+}
+
+const withoutHeader = (sdl: string) => sdl.replace(/^(#[^\n]*\n)+/, '');
+
+export function supergraphCheck(
+  found: { app: App; target: Target }[],
+  name: string | undefined,
+  schema: string | undefined,
+  documents: string | undefined,
+): number {
+  if (!name || !schema) {
+    console.error('usage: supergraph check <subgraph> --schema FILE [--documents FILE]');
+    return 2;
+  }
+
+  const inputs = gather(found, name);
+  if (!inputs) {
+    console.log('no app declares a supergraph');
+    return 0;
+  }
+  if (!inputs.subgraphs.some((subgraph) => subgraph.name === name)) {
+    console.error(`no subgraph named ${name}`);
+    return 2;
+  }
+
+  const { dir, base, externalIssuers, subgraphs, sdls, manifests } = inputs;
+  sdls[name] = fs.readText(schema);
+  if (documents) {
+    manifests[name] = fs.readText(documents);
+  }
+
+  let composed;
+  try {
+    composed = compose(subgraphs, sdls, base, manifests, externalIssuers);
+  } catch (error) {
+    console.error((error as Error).message);
+    return 1;
+  }
+
+  const current = `${dir}/schema.graphql`;
+  const changes = fs.exists(current)
+    ? findBreakingChanges(
+        buildSchema(withoutHeader(fs.readText(current))),
+        buildSchema(withoutHeader(composed.schema)),
+      )
+    : [];
+  for (const change of changes) {
+    console.log(`breaking: ${change.description}`);
+  }
+
+  console.log(
+    `${name} composes${changes.length ? `, with ${changes.length} breaking change(s) no persisted document uses` : ''}`,
   );
+  return 0;
+}
+
+export function supergraph(found: { app: App; target: Target }[], check: boolean): number {
+  const inputs = gather(found);
+  if (!inputs) {
+    console.log('no app declares a supergraph');
+    return 0;
+  }
+
+  const { dir, base, externalIssuers, subgraphs, sdls, manifests } = inputs;
+  const composed = compose(subgraphs, sdls, base, manifests, externalIssuers);
   const wanted = [
     ...subgraphs.map((subgraph) => [
       `${dir}/subgraphs/${subgraph.name}.graphql`,

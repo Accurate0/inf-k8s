@@ -307,6 +307,10 @@ const schema: Schema = {
             type: 'object',
             additionalProperties: false,
             properties: {
+              path: {
+                type: 'string',
+                description: 'HTTP path for this probe instead of probes.http.path.',
+              },
               delay: {
                 type: 'integer',
               },
@@ -325,6 +329,10 @@ const schema: Schema = {
             type: 'object',
             additionalProperties: false,
             properties: {
+              path: {
+                type: 'string',
+                description: 'HTTP path for this probe instead of probes.http.path.',
+              },
               delay: {
                 type: 'integer',
               },
@@ -343,6 +351,10 @@ const schema: Schema = {
             type: 'object',
             additionalProperties: false,
             properties: {
+              path: {
+                type: 'string',
+                description: 'HTTP path for this probe instead of probes.http.path.',
+              },
               delay: {
                 type: 'integer',
               },
@@ -639,6 +651,12 @@ function validate(app: App, fail: Fail) {
       const targets = ['http', 'grpc', 'exec'].filter((target) => container.probes?.[target]);
       if (targets.length > 1) {
         fail(`workloads.${name}.probes: use one of ${targets.join(', ')}, not several`);
+      }
+      for (const probe of ['startup', 'readiness', 'liveness']) {
+        const timings = container.probes?.[probe] as { path?: string } | undefined;
+        if (timings?.path && !container.probes?.http) {
+          fail(`workloads.${name}.probes.${probe}.path needs probes.http`);
+        }
       }
       for (const [env, value] of Object.entries(
         !container.env || Array.isArray(container.env) ? {} : container.env,
