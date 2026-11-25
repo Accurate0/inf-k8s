@@ -56,11 +56,38 @@ resources:
     websocket: /v1/graphql/ws
     schema: subgraph.graphql
     auth:
-      clients: [graph]
-      groups: [registry_users, registry_admins]
-      external:
-        # trusted publishers and grants decide what each repository may do
-        - {issuer: forgejo, claims: {repository: "*"}}
+      clients: [graph, registry]
+      # admits tokens issued before the scopes below; drop once every token carries them
+      groups:
+        - registry_users
+        - registry_admins
+      scopes:
+        # trusted publishers and grants decide which packages each repository may publish
+        - name: registry:package:read
+          description: list and fetch packages, versions, artifacts and the catalog
+          groups: [registry_users]
+          external:
+            - {issuer: forgejo, claims: {repository: "*"}}
+        - name: registry:image:read
+          description: list image repositories and images
+          groups: [registry_users]
+          external:
+            - {issuer: forgejo, claims: {repository: "*"}}
+        - name: registry:package:write
+          description: create, update, archive and delete packages, unyank versions and rebuild the catalog
+          groups: [registry_admins]
+        - name: registry:package:publish
+          description: publish package versions and artifacts
+          groups: [registry_admins]
+          external:
+            - {issuer: forgejo, claims: {repository: "*"}}
+        - name: registry:publisher:manage
+          description: list, add and remove trusted publishers
+          groups: [registry_admins]
+        - name: registry:token:manage
+          description: list, create and revoke publish tokens, and revoke others' harbor credentials
+          groups: [registry_admins]
+        - {name: registry:audit:read, description: read and follow the audit log, groups: [registry_admins]}
   - name: registry-public
     type: route
     auth:
@@ -132,6 +159,7 @@ workloads:
       S3_SECRET_ACCESS_KEY: {bucket: storage, key: S3_SECRET_ACCESS_KEY}
       CONFIG_PATH: /etc/registry/config.yaml
       OTEL_TRACING_URL: {resource: traces}
+      SUBGRAPH_AUTH: {subgraph: registry}
     envFrom:
       - {secret: registry}
       - {secret: signing}

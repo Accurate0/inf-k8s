@@ -1,0 +1,119 @@
+{
+  "scopes": [
+    {
+      "name": "registry:audit:read",
+      "description": "read and follow the audit log",
+      "subgraph": "registry",
+      "groups": [
+        "registry_admins"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "fields": []
+    },
+    {
+      "name": "registry:image:read",
+      "description": "list image repositories and images",
+      "subgraph": "registry",
+      "groups": [
+        "registry_users"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "external": [
+        {
+          "issuer": "forgejo",
+          "claims": {
+            "repository": "*"
+          }
+        }
+      ],
+      "fields": []
+    },
+    {
+      "name": "registry:package:publish",
+      "description": "publish package versions and artifacts",
+      "subgraph": "registry",
+      "groups": [
+        "registry_admins"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "external": [
+        {
+          "issuer": "forgejo",
+          "claims": {
+            "repository": "*"
+          }
+        }
+      ],
+      "fields": []
+    },
+    {
+      "name": "registry:package:read",
+      "description": "list and fetch packages, versions, artifacts and the catalog",
+      "subgraph": "registry",
+      "groups": [
+        "registry_users"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "external": [
+        {
+          "issuer": "forgejo",
+          "claims": {
+            "repository": "*"
+          }
+        }
+      ],
+      "fields": []
+    },
+    {
+      "name": "registry:package:write",
+      "description": "create, update, archive and delete packages, unyank versions and rebuild the catalog",
+      "subgraph": "registry",
+      "groups": [
+        "registry_admins"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "fields": []
+    },
+    {
+      "name": "registry:publisher:manage",
+      "description": "list, add and remove trusted publishers",
+      "subgraph": "registry",
+      "groups": [
+        "registry_admins"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "fields": []
+    },
+    {
+      "name": "registry:token:manage",
+      "description": "list, create and revoke publish tokens, and revoke others' harbor credentials",
+      "subgraph": "registry",
+      "groups": [
+        "registry_admins"
+      ],
+      "clients": [
+        "graph",
+        "registry"
+      ],
+      "fields": []
+    }
+  ]
+}
