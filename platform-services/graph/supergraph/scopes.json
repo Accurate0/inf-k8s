@@ -101,7 +101,9 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.bomForecast"
+      ]
     },
     {
       "name": "bom:radar:read",
@@ -113,7 +115,11 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.bomRadarLocation",
+        "Query.bomRadarLocations",
+        "Query.bomSatellites"
+      ]
     },
     {
       "name": "feature-flags:config:apply",
@@ -259,7 +265,14 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.maccasCategories",
+        "Query.maccasLocation",
+        "Query.maccasOfferById",
+        "Query.maccasOffers",
+        "Query.maccasRecommendations",
+        "Query.maccasUpcomingOffers"
+      ]
     },
     {
       "name": "maccas:offer:write",
@@ -271,7 +284,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.maccasAddOffer",
+        "Mutation.maccasRemoveOffer"
+      ]
     },
     {
       "name": "maccas:points:read",
@@ -283,7 +299,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.maccasPoints",
+        "Query.maccasPointsByAccountId"
+      ]
     },
     {
       "name": "registry:audit:read",
@@ -446,7 +465,10 @@
         "graph",
         "spotify"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.spotifyCreateAccount",
+        "Mutation.spotifyLinkAccount"
+      ]
     },
     {
       "name": "spotify:export:write",
@@ -459,7 +481,12 @@
         "graph",
         "spotify"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.spotifyCreateExport",
+        "Mutation.spotifyFinalizeExport",
+        "Mutation.spotifyUploadExportFile",
+        "Query.spotifyFileExists"
+      ]
     },
     {
       "name": "spotify:history:read",
@@ -472,7 +499,16 @@
         "graph",
         "spotify"
       ],
-      "fields": []
+      "fields": [
+        "Query.spotifyAccount",
+        "Query.spotifyAccounts",
+        "Query.spotifyArtist",
+        "Query.spotifyClientId",
+        "Query.spotifyEnrichment",
+        "Query.spotifyItem",
+        "Query.spotifySearch",
+        "Query.spotifyStats"
+      ]
     },
     {
       "name": "waf:allowlist:write",

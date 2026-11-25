@@ -104,8 +104,12 @@ jobs:
         run: |
           git config user.name "reconciler[bot]"
           git config user.email "reconciler@noreply.git.anurag.sh"
-          export START="$(git rev-parse HEAD)"
           .forgejo/scripts/retry.sh 3 30 ortzi app supergraph
+          if [ -n "$(git status --porcelain -- platform-services/graph/supergraph)" ]; then
+            git add -A -- platform-services/graph/supergraph
+            git commit --quiet -m "chore(supergraph): update graph [skip ci]"
+          fi
+          export START="$(git rev-parse HEAD)"
           .forgejo/scripts/retry.sh 3 30 bash -c 'ortzi app render --commit || { git reset --quiet --hard "$START"; git clean -fdq; exit 1; }'
       - name: Publish and push
         env:

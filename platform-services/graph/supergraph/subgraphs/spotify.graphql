@@ -6,15 +6,15 @@ The input/output is a string in RFC3339 format.
 scalar DateTime
 
 type Mutation {
-	spotifyCreateAccount(input: SpotifyCreateAccountInput!): SpotifyCreateAccountPayload!
-	spotifyCreateExport(input: SpotifyCreateExportInput!): SpotifyCreateExportPayload! @inaccessible
-	spotifyUploadExportFile(input: SpotifyUploadExportFileInput!, file: Upload!): SpotifyUploadExportFilePayload! @inaccessible
-	spotifyFinalizeExport(input: SpotifyFinalizeExportInput!): SpotifyFinalizeExportPayload! @inaccessible
+	spotifyCreateAccount(input: SpotifyCreateAccountInput!): SpotifyCreateAccountPayload! @requiresScopes(scopes: [["spotify:account:write"]])
+	spotifyCreateExport(input: SpotifyCreateExportInput!): SpotifyCreateExportPayload! @inaccessible @requiresScopes(scopes: [["spotify:export:write"]])
+	spotifyUploadExportFile(input: SpotifyUploadExportFileInput!, file: Upload!): SpotifyUploadExportFilePayload! @inaccessible @requiresScopes(scopes: [["spotify:export:write"]])
+	spotifyFinalizeExport(input: SpotifyFinalizeExportInput!): SpotifyFinalizeExportPayload! @inaccessible @requiresScopes(scopes: [["spotify:export:write"]])
 	"""
 	Links an account to the Spotify user who authorized `code`, so their recently played
 	tracks are fetched until the next export covers them.
 	"""
-	spotifyLinkAccount(input: SpotifyLinkAccountInput!): SpotifyLinkAccountPayload! @inaccessible
+	spotifyLinkAccount(input: SpotifyLinkAccountInput!): SpotifyLinkAccountPayload! @inaccessible @requiresScopes(scopes: [["spotify:account:write"]])
 }
 
 """
@@ -55,32 +55,32 @@ type PageInfo @shareable {
 }
 
 type Query {
-	spotifyAccounts: [SpotifyAccount!]!
-	spotifyAccount(slug: String!): SpotifyAccount
+	spotifyAccounts: [SpotifyAccount!]! @requiresScopes(scopes: [["spotify:history:read"]])
+	spotifyAccount(slug: String!): SpotifyAccount @requiresScopes(scopes: [["spotify:history:read"]])
 	"""
 	The Spotify app's client id, for the CLI to send users to Spotify's authorize page.
 	Null when the server has no Spotify credentials.
 	"""
-	spotifyClientId: String @inaccessible
+	spotifyClientId: String @inaccessible @requiresScopes(scopes: [["spotify:history:read"]])
 	"""
 	Listening stats across the filtered plays.
 	"""
-	spotifyStats(filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): SpotifyStats!
+	spotifyStats(filter: SpotifyStatsFilter! = {accounts: [], from: null, to: null, kinds: [TRACK], minMsPlayed: 30000, timeZone: "Australia/Perth"}): SpotifyStats! @requiresScopes(scopes: [["spotify:history:read"]])
 	"""
 	Search tracks, episodes and artists by name.
 	"""
-	spotifySearch(query: String!): SpotifySearch!
-	spotifyItem(uri: String!): SpotifyItem
-	spotifyArtist(name: String!): SpotifyArtist
+	spotifySearch(query: String!): SpotifySearch! @requiresScopes(scopes: [["spotify:history:read"]])
+	spotifyItem(uri: String!): SpotifyItem @requiresScopes(scopes: [["spotify:history:read"]])
+	spotifyArtist(name: String!): SpotifyArtist @requiresScopes(scopes: [["spotify:history:read"]])
 	"""
 	Progress of Spotify Web API enrichment (metadata, genres, artwork).
 	"""
-	spotifyEnrichment: SpotifyEnrichment!
+	spotifyEnrichment: SpotifyEnrichment! @requiresScopes(scopes: [["spotify:history:read"]])
 	"""
 	Whether a file with this sha256 has already been imported for the account, so clients
 	can skip uploading it.
 	"""
-	spotifyFileExists(account: String!, sha256: String!): Boolean! @inaccessible
+	spotifyFileExists(account: String!, sha256: String!): Boolean! @inaccessible @requiresScopes(scopes: [["spotify:export:write"]])
 }
 
 type SpotifyAbandonedItem {
