@@ -3,6 +3,7 @@ mod diagnostics;
 mod hardening;
 mod http;
 mod limits;
+mod me;
 mod metrics;
 mod node;
 mod setup;

@@ -3,6 +3,7 @@
 mod access;
 mod anonymous;
 mod diagnostics;
+mod me;
 mod node;
 mod ratelimit;
 
@@ -23,7 +24,8 @@ async fn main() -> Result<(), RouterInitError> {
             .register::<ratelimit::RateLimitPlugin>()
             .register::<anonymous::AnonymousPlugin>()
             .register::<access::AccessPlugin>()
-            .register::<node::NodePlugin>(),
+            .register::<node::NodePlugin>()
+            .register::<me::MePlugin>(),
     )
     .await
 }

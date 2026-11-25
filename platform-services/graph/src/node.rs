@@ -59,20 +59,26 @@ impl RouterPlugin for NodePlugin {
             return payload.proceed();
         }
 
-        let response = respond(&self.schema, &payload.execution_request).await;
+        let response = respond(
+            &self.schema,
+            &payload.execution_request,
+            "NODE_PLUGIN",
+            |r| r,
+        )
+        .await;
         payload.end_with_response(response)
     }
 }
 
-async fn respond(
+/// Runs a fetch planned for a router-served subgraph against its in-process schema.
+pub(crate) async fn respond(
     schema: &Schema,
     request: &SubgraphExecutionRequest<'_>,
+    code: &str,
+    prepare: impl FnOnce(Request) -> Request,
 ) -> SubgraphResponse<'static> {
     let failed = |message: String| SubgraphResponse {
-        errors: Some(vec![GraphQLError::from_message_and_code(
-            message,
-            "NODE_PLUGIN",
-        )]),
+        errors: Some(vec![GraphQLError::from_message_and_code(message, code)]),
         ..Default::default()
     };
 
@@ -96,7 +102,7 @@ async fn respond(
         graphql = graphql.operation_name(name);
     }
 
-    let body = match serde_json::to_vec(&schema.execute(graphql).await) {
+    let body = match serde_json::to_vec(&schema.execute(prepare(graphql)).await) {
         Ok(body) => body,
         Err(error) => return failed(error.to_string()),
     };

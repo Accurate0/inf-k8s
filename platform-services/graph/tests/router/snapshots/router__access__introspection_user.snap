@@ -3,6 +3,7 @@ source: tests/router/access.rs
 expression: root_fields(&user)
 ---
 query:
+  - me
   - whoami
   - fail
   - slow

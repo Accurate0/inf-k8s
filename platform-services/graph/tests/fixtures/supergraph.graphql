@@ -36,6 +36,7 @@ enum link__Purpose {
 
 enum join__Graph {
   GATED @join__graph(name: "gated", url: "{subgraph}/v1/graphql")
+  ME @join__graph(name: "me", url: "http://me-plugin.invalid/graphql")
   NODE @join__graph(name: "node", url: "http://node-plugin.invalid/graphql")
   OPEN @join__graph(name: "open", url: "{subgraph}/v1/graphql")
 }
@@ -44,7 +45,8 @@ interface Node @join__type(graph: NODE) {
   id: ID!
 }
 
-type Query @join__type(graph: GATED) @join__type(graph: NODE) @join__type(graph: OPEN) {
+type Query @join__type(graph: GATED) @join__type(graph: ME) @join__type(graph: NODE) @join__type(graph: OPEN) {
+  me: Me @join__field(graph: ME)
   whoami: String! @join__field(graph: OPEN)
   fail: String @join__field(graph: OPEN)
   slow(ms: Int!): Boolean! @join__field(graph: OPEN)
@@ -67,4 +69,23 @@ type Tick @join__type(graph: GATED) @join__type(graph: OPEN) {
 type OpenThing implements Node @join__type(graph: NODE, key: "id", resolvable: false) @join__type(graph: OPEN, key: "id") @join__implements(graph: NODE, interface: "Node") {
   id: ID!
   name: String! @join__field(graph: OPEN)
+}
+
+type Me @join__type(graph: ME) {
+  subject: String!
+  username: String
+  email: String
+  kind: MeKind!
+  issuer: String!
+  externalIssuer: String
+  client: String
+  scopes: [String!]!
+  groups: [String!]!
+  subgraphs: [String!]!
+  expiresIn: Int
+}
+
+enum MeKind @join__type(graph: ME) {
+  USER @join__enumValue(graph: ME)
+  EXTERNAL @join__enumValue(graph: ME)
 }

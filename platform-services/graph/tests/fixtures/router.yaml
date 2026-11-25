@@ -74,6 +74,10 @@ plugins:
         anonymous: {budget: {budget}, per: 10s}
   anonymous:
     enabled: true
+  me:
+    enabled: true
+    config:
+      subgraph: me
   node:
     enabled: true
     config:

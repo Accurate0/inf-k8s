@@ -121,6 +121,28 @@ pub struct AccessPlugin {
     client: reqwest::Client,
 }
 
+/// The verified caller, for the router's own `me` field.
+#[derive(Clone)]
+pub struct CallerSummary {
+    pub kind: CallerKind,
+    pub subject: String,
+    pub issuer: String,
+    pub client: Option<String>,
+    pub username: Option<String>,
+    pub expires_at: Option<i64>,
+    pub scopes: BTreeSet<String>,
+    /// Gated subgraphs the caller may use.
+    pub subgraphs: Vec<String>,
+    pub token: String,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub enum CallerKind {
+    User,
+    /// An external issuer's identity, e.g. `forgejo`.
+    External(String),
+}
+
 /// Gated subgraphs whose clients didn't issue the caller's token, or whose groups it holds none of.
 #[derive(Clone, Default)]
 struct Denied(Arc<HashSet<String>>);
@@ -240,12 +262,45 @@ impl RouterPlugin for AccessPlugin {
             }
         }
 
-        let denied = self
+        let denied: HashSet<String> = self
             .subgraphs
             .iter()
             .filter(|(_, gate)| !gate.admits(&caller))
             .map(|(name, _)| name.clone())
             .collect();
+
+        if let JwtRequestDetails::Authenticated { token, claims, .. } =
+            payload.client_request_details.jwt.as_ref()
+        {
+            let text = |key: &str| claims.get(key).and_then(|v| v.as_str()).map(str::to_owned);
+            let (kind, scopes) = match &caller {
+                Caller::User { scopes, .. } => (CallerKind::User, scopes.clone()),
+                Caller::External { scopes, name, .. } => {
+                    (CallerKind::External((*name).to_owned()), scopes.clone())
+                }
+                Caller::Anonymous => (CallerKind::User, BTreeSet::new()),
+            };
+            let mut reachable: Vec<String> = self
+                .subgraphs
+                .keys()
+                .filter(|name| !denied.contains(*name))
+                .cloned()
+                .collect();
+            reachable.sort();
+
+            payload.context.insert(CallerSummary {
+                kind,
+                subject: text("sub").unwrap_or_default(),
+                issuer: text("iss").unwrap_or_default(),
+                client: text("aud").or_else(|| text("client_id")),
+                username: text("preferred_username"),
+                expires_at: claims.get("exp").and_then(|v| v.as_i64()),
+                scopes,
+                subgraphs: reachable,
+                token: token.clone(),
+            });
+        }
+
         payload.context.insert(Denied(Arc::new(denied)));
 
         OnGraphqlAnalysisHookResult::Proceed
