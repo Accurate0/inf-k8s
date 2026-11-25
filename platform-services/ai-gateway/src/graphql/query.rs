@@ -15,24 +15,29 @@ fn uuid(key: &str) -> Result<Uuid> {
 
 #[Object(name = "Query")]
 impl QueryRoot {
+    #[graphql(requires_scopes = "ai-gateway:key:read")]
     async fn ai_gateway_keys(&self, ctx: &Context<'_>) -> Result<Vec<Key>> {
         Key::list(ctx).await
     }
 
     /// The caller's own key, used for graph chat; minted on first use.
+    #[graphql(requires_scopes = "ai-gateway:key:read")]
     async fn ai_gateway_my_key(&self, ctx: &Context<'_>) -> Result<Key> {
         Key::load(ctx, user_key(ctx).await?.id).await
     }
 
+    #[graphql(requires_scopes = "ai-gateway:model:read")]
     async fn ai_gateway_models(&self, ctx: &Context<'_>) -> Vec<Model> {
         Model::list(ctx)
     }
 
+    #[graphql(requires_scopes = "ai-gateway:model:read")]
     async fn ai_gateway_prices(&self, ctx: &Context<'_>) -> Result<Vec<ModelPrice>> {
         ModelPrice::list(ctx).await
     }
 
     /// Usage per key and model over a window such as `24h`, `7d` or `30d`.
+    #[graphql(requires_scopes = "ai-gateway:usage:read")]
     async fn ai_gateway_usage(
         &self,
         ctx: &Context<'_>,
@@ -47,6 +52,7 @@ impl QueryRoot {
             .collect())
     }
 
+    #[graphql(requires_scopes = "ai-gateway:usage:read")]
     async fn ai_gateway_usage_events(
         &self,
         ctx: &Context<'_>,

@@ -126,25 +126,25 @@ The input/output is a string in RFC3339 format.
 scalar DateTime
 
 type Mutation {
-	aiGatewayCreateKey(input: AiGatewayCreateKeyInput!): AiGatewayCreatedKey!
-	aiGatewayUpdateKey(id: ID!, input: AiGatewayUpdateKeyInput!): AiGatewayKey!
-	aiGatewayRevokeKey(id: ID!): AiGatewayKey!
+	aiGatewayCreateKey(input: AiGatewayCreateKeyInput!): AiGatewayCreatedKey! @requiresScopes(scopes: [["ai-gateway:key:write"]])
+	aiGatewayUpdateKey(id: ID!, input: AiGatewayUpdateKeyInput!): AiGatewayKey! @requiresScopes(scopes: [["ai-gateway:key:write"]])
+	aiGatewayRevokeKey(id: ID!): AiGatewayKey! @requiresScopes(scopes: [["ai-gateway:key:write"]])
 	"""
 	Issues a new secret for the key; the old one stops working.
 	"""
-	aiGatewayRegenerateKey(id: ID!): AiGatewayCreatedKey!
+	aiGatewayRegenerateKey(id: ID!): AiGatewayCreatedKey! @requiresScopes(scopes: [["ai-gateway:key:write"]])
 	"""
 	Upserts prices and returns how many rows were written.
 	"""
-	aiGatewayUpsertPrices(prices: [AiGatewayModelPriceInput!]!): Int!
+	aiGatewayUpsertPrices(prices: [AiGatewayModelPriceInput!]!): Int! @requiresScopes(scopes: [["ai-gateway:price:write"]])
 	"""
 	Fetches current prices from llm-prices.com now instead of waiting for the daily sync.
 	"""
-	aiGatewaySyncPrices: Int!
+	aiGatewaySyncPrices: Int! @requiresScopes(scopes: [["ai-gateway:price:write"]])
 	"""
 	A chat completion billed to the caller's own key.
 	"""
-	aiGatewayChat(input: AiGatewayChatInput!): AiGatewayChatResult!
+	aiGatewayChat(input: AiGatewayChatInput!): AiGatewayChatResult! @requiresScopes(scopes: [["ai-gateway:chat:use"]])
 }
 
 interface Node {
@@ -152,18 +152,18 @@ interface Node {
 }
 
 type Query {
-	aiGatewayKeys: [AiGatewayKey!]!
+	aiGatewayKeys: [AiGatewayKey!]! @requiresScopes(scopes: [["ai-gateway:key:read"]])
 	"""
 	The caller's own key, used for graph chat; minted on first use.
 	"""
-	aiGatewayMyKey: AiGatewayKey!
-	aiGatewayModels: [AiGatewayModel!]!
-	aiGatewayPrices: [AiGatewayModelPrice!]!
+	aiGatewayMyKey: AiGatewayKey! @requiresScopes(scopes: [["ai-gateway:key:read"]])
+	aiGatewayModels: [AiGatewayModel!]! @requiresScopes(scopes: [["ai-gateway:model:read"]])
+	aiGatewayPrices: [AiGatewayModelPrice!]! @requiresScopes(scopes: [["ai-gateway:model:read"]])
 	"""
 	Usage per key and model over a window such as `24h`, `7d` or `30d`.
 	"""
-	aiGatewayUsage(since: String! = "30d"): [AiGatewayUsageSummary!]!
-	aiGatewayUsageEvents(keyId: ID, limit: Int! = 100): [AiGatewayUsageEvent!]!
+	aiGatewayUsage(since: String! = "30d"): [AiGatewayUsageSummary!]! @requiresScopes(scopes: [["ai-gateway:usage:read"]])
+	aiGatewayUsageEvents(keyId: ID, limit: Int! = 100): [AiGatewayUsageEvent!]! @requiresScopes(scopes: [["ai-gateway:usage:read"]])
 }
 
 type Subscription {

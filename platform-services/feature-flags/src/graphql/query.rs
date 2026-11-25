@@ -10,6 +10,7 @@ pub struct QueryRoot;
 
 #[Object(name = "Query")]
 impl QueryRoot {
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags(
         &self,
         ctx: &Context<'_>,
@@ -30,10 +31,12 @@ impl QueryRoot {
             .collect())
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flag(&self, ctx: &Context<'_>, key: String) -> Result<Flag> {
         Flag::load(ctx, &key).await
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags_segments(&self, ctx: &Context<'_>) -> Result<Vec<Segment>> {
         let services = ctx.data_unchecked::<Services>();
         let segments =
@@ -48,11 +51,13 @@ impl QueryRoot {
             .collect())
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags_segment(&self, ctx: &Context<'_>, key: String) -> Result<Segment> {
         Segment::load(ctx, &key).await
     }
 
     /// The audit log, newest first; targetKind is `flag` or `segment`.
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags_history(
         &self,
         ctx: &Context<'_>,
@@ -69,11 +74,13 @@ impl QueryRoot {
         .await
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags_config_version(&self, ctx: &Context<'_>) -> i64 {
         ctx.data_unchecked::<Services>().mgr.version()
     }
 
     /// Evaluates every unarchived flag for the context, as a client would see it.
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags_evaluate_all(
         &self,
         ctx: &Context<'_>,
@@ -98,6 +105,7 @@ impl QueryRoot {
             .collect())
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:read")]
     async fn feature_flags_evaluate(
         &self,
         ctx: &Context<'_>,

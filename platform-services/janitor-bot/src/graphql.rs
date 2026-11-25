@@ -24,6 +24,7 @@ pub fn builder() -> SchemaBuilder<QueryRoot, MutationRoot, SubscriptionRoot> {
         .enable_federation()
         .enable_subscription_in_federation()
         .extension(subgraph::Tracing)
+        .extension(subgraph::Scopes)
 }
 
 pub fn router(state: Arc<AppState>, auth: AuthConfig) -> axum::Router {
@@ -218,21 +219,25 @@ pub struct QueryRoot;
 
 #[Object(name = "Query")]
 impl QueryRoot {
+    #[graphql(requires_scopes = "janitor:rule:read")]
     async fn janitor_rules(&self, ctx: &Context<'_>) -> Vec<Rule> {
         rules(ctx)
     }
 
     /// This replica's counters and histograms, as Prometheus scrapes them.
+    #[graphql(requires_scopes = "janitor:rule:read")]
     async fn janitor_metrics(&self) -> Vec<MetricSample> {
         parse_metrics(&janitor_bot::metrics::render())
     }
 
     /// Recent rule evaluations, oldest first.
+    #[graphql(requires_scopes = "janitor:rule:read")]
     async fn janitor_evaluations(&self, ctx: &Context<'_>) -> Vec<Evaluation> {
         evaluations(ctx).await
     }
 
     /// Reachability of forgejo and github.
+    #[graphql(requires_scopes = "janitor:rule:read")]
     async fn janitor_health(&self, ctx: &Context<'_>) -> Result<Vec<ServiceHealth>> {
         let (_, body) = routes::handle_admin_health_deep(State(state(ctx))).await;
         let services = body
@@ -253,6 +258,7 @@ impl QueryRoot {
     }
 
     /// Which rules would match the PR, and which actions would run, without running them.
+    #[graphql(requires_scopes = "janitor:rule:read")]
     async fn janitor_dry_run(
         &self,
         ctx: &Context<'_>,
@@ -315,6 +321,7 @@ pub struct MutationRoot;
 #[Object(name = "Mutation")]
 impl MutationRoot {
     /// Re-evaluates every open PR in the background.
+    #[graphql(requires_scopes = "janitor:action:run")]
     async fn janitor_run_cron(&self, ctx: &Context<'_>) -> bool {
         routes::handle_admin_cron(State(state(ctx)))
             .await
@@ -322,11 +329,13 @@ impl MutationRoot {
     }
 
     /// Merges every PR labelled janitor/queued in the background.
+    #[graphql(requires_scopes = "janitor:action:run")]
     async fn janitor_merge_queued(&self, ctx: &Context<'_>) -> Result<bool> {
         outcome(routes::handle_admin_merge_queued(State(state(ctx))).await).map(|_| true)
     }
 
     /// Runs the PR's rules for real in the background.
+    #[graphql(requires_scopes = "janitor:action:run")]
     async fn janitor_evaluate_pr(
         &self,
         ctx: &Context<'_>,
@@ -340,6 +349,7 @@ impl MutationRoot {
     }
 
     /// Dispatches a comment command as if it had been posted on the PR or issue.
+    #[graphql(requires_scopes = "janitor:action:run")]
     async fn janitor_command(&self, ctx: &Context<'_>, input: CommandInput) -> Result<Json<Value>> {
         let request = routes::AdminCommandRequest {
             owner: input.owner,
@@ -356,6 +366,7 @@ impl MutationRoot {
 
     /// Feeds a saved webhook payload through its handler as if the source had sent it; the
     /// event is inferred from the payload when left out. Returns the handler's HTTP status.
+    #[graphql(requires_scopes = "janitor:webhook:replay")]
     async fn janitor_replay_webhook(
         &self,
         ctx: &Context<'_>,

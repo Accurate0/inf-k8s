@@ -54,6 +54,7 @@ fn admin<'a>(ctx: &Context<'a>) -> &'a crate::grpc::AdminService {
 
 #[Object(name = "Mutation")]
 impl MutationRoot {
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_create_flag(
         &self,
         ctx: &Context<'_>,
@@ -72,6 +73,7 @@ impl MutationRoot {
         Ok(flag.into_inner().into())
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_update_flag(
         &self,
         ctx: &Context<'_>,
@@ -91,6 +93,7 @@ impl MutationRoot {
     }
 
     /// Flips `enabled` without touching the default variant.
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_toggle_flag(
         &self,
         ctx: &Context<'_>,
@@ -102,6 +105,7 @@ impl MutationRoot {
             .await
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_archive_flag(
         &self,
         ctx: &Context<'_>,
@@ -117,6 +121,7 @@ impl MutationRoot {
         Ok(flag.into_inner().into())
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_delete_flag(&self, ctx: &Context<'_>, key: String) -> Result<ID> {
         Admin::delete_flag(
             admin(ctx),
@@ -127,6 +132,7 @@ impl MutationRoot {
         Ok(IDS.encode("flag", key))
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_upsert_variant(
         &self,
         ctx: &Context<'_>,
@@ -143,6 +149,7 @@ impl MutationRoot {
         Ok(flag.into_inner().into())
     }
 
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_delete_variant(
         &self,
         ctx: &Context<'_>,
@@ -160,6 +167,7 @@ impl MutationRoot {
     }
 
     /// Replaces every rule on the flag.
+    #[graphql(requires_scopes = "feature-flags:flag:write")]
     async fn feature_flags_set_flag_rules(
         &self,
         ctx: &Context<'_>,
@@ -176,6 +184,7 @@ impl MutationRoot {
         Ok(flag.into_inner().into())
     }
 
+    #[graphql(requires_scopes = "feature-flags:segment:write")]
     async fn feature_flags_create_segment(
         &self,
         ctx: &Context<'_>,
@@ -190,6 +199,7 @@ impl MutationRoot {
         Ok(segment.into_inner().into())
     }
 
+    #[graphql(requires_scopes = "feature-flags:segment:write")]
     async fn feature_flags_update_segment(
         &self,
         ctx: &Context<'_>,
@@ -204,6 +214,7 @@ impl MutationRoot {
         Ok(segment.into_inner().into())
     }
 
+    #[graphql(requires_scopes = "feature-flags:segment:write")]
     async fn feature_flags_delete_segment(&self, ctx: &Context<'_>, key: String) -> Result<ID> {
         Admin::delete_segment(
             admin(ctx),
@@ -215,6 +226,7 @@ impl MutationRoot {
     }
 
     /// Reconciles the whole config to these flags and segments, like `ffctl apply`.
+    #[graphql(requires_scopes = "feature-flags:config:apply")]
     async fn feature_flags_apply_config(
         &self,
         ctx: &Context<'_>,

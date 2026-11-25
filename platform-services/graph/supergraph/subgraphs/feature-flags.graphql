@@ -214,27 +214,27 @@ A scalar that can represent any JSON value.
 scalar JSON
 
 type Mutation {
-	featureFlagsCreateFlag(input: FeatureFlagsCreateFlagInput!): FeatureFlagsFlag!
-	featureFlagsUpdateFlag(key: String!, enabled: Boolean!, defaultVariantKey: String!): FeatureFlagsFlag!
+	featureFlagsCreateFlag(input: FeatureFlagsCreateFlagInput!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
+	featureFlagsUpdateFlag(key: String!, enabled: Boolean!, defaultVariantKey: String!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
 	"""
 	Flips `enabled` without touching the default variant.
 	"""
-	featureFlagsToggleFlag(key: String!, enabled: Boolean!): FeatureFlagsFlag!
-	featureFlagsArchiveFlag(key: String!, archived: Boolean! = true): FeatureFlagsFlag!
-	featureFlagsDeleteFlag(key: String!): ID!
-	featureFlagsUpsertVariant(flagKey: String!, variant: FeatureFlagsVariantInput!): FeatureFlagsFlag!
-	featureFlagsDeleteVariant(flagKey: String!, variantKey: String!): FeatureFlagsFlag!
+	featureFlagsToggleFlag(key: String!, enabled: Boolean!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
+	featureFlagsArchiveFlag(key: String!, archived: Boolean! = true): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
+	featureFlagsDeleteFlag(key: String!): ID! @requiresScopes(scopes: [["feature-flags:flag:write"]])
+	featureFlagsUpsertVariant(flagKey: String!, variant: FeatureFlagsVariantInput!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
+	featureFlagsDeleteVariant(flagKey: String!, variantKey: String!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
 	"""
 	Replaces every rule on the flag.
 	"""
-	featureFlagsSetFlagRules(flagKey: String!, rules: [FeatureFlagsRuleInput!]!): FeatureFlagsFlag!
-	featureFlagsCreateSegment(input: FeatureFlagsSegmentInput!): FeatureFlagsSegment!
-	featureFlagsUpdateSegment(input: FeatureFlagsSegmentInput!): FeatureFlagsSegment!
-	featureFlagsDeleteSegment(key: String!): ID!
+	featureFlagsSetFlagRules(flagKey: String!, rules: [FeatureFlagsRuleInput!]!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:write"]])
+	featureFlagsCreateSegment(input: FeatureFlagsSegmentInput!): FeatureFlagsSegment! @requiresScopes(scopes: [["feature-flags:segment:write"]])
+	featureFlagsUpdateSegment(input: FeatureFlagsSegmentInput!): FeatureFlagsSegment! @requiresScopes(scopes: [["feature-flags:segment:write"]])
+	featureFlagsDeleteSegment(key: String!): ID! @requiresScopes(scopes: [["feature-flags:segment:write"]])
 	"""
 	Reconciles the whole config to these flags and segments, like `ffctl apply`.
 	"""
-	featureFlagsApplyConfig(flags: [FeatureFlagsFlagInput!]!, segments: [FeatureFlagsSegmentInput!]!, dryRun: Boolean! = false, expectedVersion: Int! = 0): FeatureFlagsApplyResult!
+	featureFlagsApplyConfig(flags: [FeatureFlagsFlagInput!]!, segments: [FeatureFlagsSegmentInput!]!, dryRun: Boolean! = false, expectedVersion: Int! = 0): FeatureFlagsApplyResult! @requiresScopes(scopes: [["feature-flags:config:apply"]])
 }
 
 interface Node {
@@ -242,20 +242,20 @@ interface Node {
 }
 
 type Query {
-	featureFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]!
-	featureFlag(key: String!): FeatureFlagsFlag!
-	featureFlagsSegments: [FeatureFlagsSegment!]!
-	featureFlagsSegment(key: String!): FeatureFlagsSegment!
+	featureFlags(includeArchived: Boolean! = false): [FeatureFlagsFlag!]! @requiresScopes(scopes: [["feature-flags:flag:read"]])
+	featureFlag(key: String!): FeatureFlagsFlag! @requiresScopes(scopes: [["feature-flags:flag:read"]])
+	featureFlagsSegments: [FeatureFlagsSegment!]! @requiresScopes(scopes: [["feature-flags:flag:read"]])
+	featureFlagsSegment(key: String!): FeatureFlagsSegment! @requiresScopes(scopes: [["feature-flags:flag:read"]])
 	"""
 	The audit log, newest first; targetKind is `flag` or `segment`.
 	"""
-	featureFlagsHistory(targetKind: String, targetKey: String, limit: Int! = 100): [FeatureFlagsChange!]!
-	featureFlagsConfigVersion: Int!
+	featureFlagsHistory(targetKind: String, targetKey: String, limit: Int! = 100): [FeatureFlagsChange!]! @requiresScopes(scopes: [["feature-flags:flag:read"]])
+	featureFlagsConfigVersion: Int! @requiresScopes(scopes: [["feature-flags:flag:read"]])
 	"""
 	Evaluates every unarchived flag for the context, as a client would see it.
 	"""
-	featureFlagsEvaluateAll(context: FeatureFlagsContextInput!): [FeatureFlagsEvaluation!]!
-	featureFlagsEvaluate(flagKey: String!, context: FeatureFlagsContextInput!): FeatureFlagsEvaluation!
+	featureFlagsEvaluateAll(context: FeatureFlagsContextInput!): [FeatureFlagsEvaluation!]! @requiresScopes(scopes: [["feature-flags:flag:read"]])
+	featureFlagsEvaluate(flagKey: String!, context: FeatureFlagsContextInput!): FeatureFlagsEvaluation! @requiresScopes(scopes: [["feature-flags:flag:read"]])
 }
 
 type Subscription {

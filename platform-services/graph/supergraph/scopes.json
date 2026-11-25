@@ -10,7 +10,9 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.aiGatewayChat"
+      ]
     },
     {
       "name": "ai-gateway:key:read",
@@ -22,7 +24,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.aiGatewayKeys",
+        "Query.aiGatewayMyKey"
+      ]
     },
     {
       "name": "ai-gateway:key:write",
@@ -34,7 +39,12 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.aiGatewayCreateKey",
+        "Mutation.aiGatewayRegenerateKey",
+        "Mutation.aiGatewayRevokeKey",
+        "Mutation.aiGatewayUpdateKey"
+      ]
     },
     {
       "name": "ai-gateway:model:read",
@@ -46,7 +56,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.aiGatewayModels",
+        "Query.aiGatewayPrices"
+      ]
     },
     {
       "name": "ai-gateway:price:write",
@@ -58,7 +71,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.aiGatewaySyncPrices",
+        "Mutation.aiGatewayUpsertPrices"
+      ]
     },
     {
       "name": "ai-gateway:usage:read",
@@ -70,7 +86,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.aiGatewayUsage",
+        "Query.aiGatewayUsageEvents"
+      ]
     },
     {
       "name": "bom:forecast:read",
@@ -106,7 +125,9 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.featureFlagsApplyConfig"
+      ]
     },
     {
       "name": "feature-flags:flag:read",
@@ -118,7 +139,16 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.featureFlag",
+        "Query.featureFlags",
+        "Query.featureFlagsConfigVersion",
+        "Query.featureFlagsEvaluate",
+        "Query.featureFlagsEvaluateAll",
+        "Query.featureFlagsHistory",
+        "Query.featureFlagsSegment",
+        "Query.featureFlagsSegments"
+      ]
     },
     {
       "name": "feature-flags:flag:write",
@@ -130,7 +160,16 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.featureFlagsArchiveFlag",
+        "Mutation.featureFlagsCreateFlag",
+        "Mutation.featureFlagsDeleteFlag",
+        "Mutation.featureFlagsDeleteVariant",
+        "Mutation.featureFlagsSetFlagRules",
+        "Mutation.featureFlagsToggleFlag",
+        "Mutation.featureFlagsUpdateFlag",
+        "Mutation.featureFlagsUpsertVariant"
+      ]
     },
     {
       "name": "feature-flags:segment:write",
@@ -142,7 +181,11 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.featureFlagsCreateSegment",
+        "Mutation.featureFlagsDeleteSegment",
+        "Mutation.featureFlagsUpdateSegment"
+      ]
     },
     {
       "name": "home:api:access",
@@ -167,7 +210,12 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.janitorCommand",
+        "Mutation.janitorEvaluatePr",
+        "Mutation.janitorMergeQueued",
+        "Mutation.janitorRunCron"
+      ]
     },
     {
       "name": "janitor:rule:read",
@@ -179,7 +227,13 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.janitorDryRun",
+        "Query.janitorEvaluations",
+        "Query.janitorHealth",
+        "Query.janitorMetrics",
+        "Query.janitorRules"
+      ]
     },
     {
       "name": "janitor:webhook:replay",
@@ -191,7 +245,9 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.janitorReplayWebhook"
+      ]
     },
     {
       "name": "maccas:offer:read",
@@ -428,7 +484,10 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.wafAddAllowlist",
+        "Mutation.wafRemoveAllowlist"
+      ]
     },
     {
       "name": "waf:block:read",
@@ -440,7 +499,15 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Query.wafAllowlist",
+        "Query.wafAudit",
+        "Query.wafBlock",
+        "Query.wafBlocks",
+        "Query.wafCandidates",
+        "Query.wafIp",
+        "Query.wafWorkflows"
+      ]
     },
     {
       "name": "waf:block:write",
@@ -452,7 +519,11 @@
       "clients": [
         "graph"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.wafCreateBlock",
+        "Mutation.wafDeleteBlock",
+        "Mutation.wafMakeBlockPermanent"
+      ]
     }
   ]
 }

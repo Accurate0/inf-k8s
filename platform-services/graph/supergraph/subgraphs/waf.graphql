@@ -6,14 +6,14 @@ The input/output is a string in RFC3339 format.
 scalar DateTime
 
 type Mutation {
-	wafCreateBlock(input: WafCreateBlockInput!): WafBlock!
-	wafDeleteBlock(name: String!): ID!
+	wafCreateBlock(input: WafCreateBlockInput!): WafBlock! @requiresScopes(scopes: [["waf:block:write"]])
+	wafDeleteBlock(name: String!): ID! @requiresScopes(scopes: [["waf:block:write"]])
 	"""
 	Drops the block's expiry.
 	"""
-	wafMakeBlockPermanent(name: String!): WafBlock!
-	wafAddAllowlist(cidr: String!, note: String): WafAllowlist!
-	wafRemoveAllowlist(cidr: String!): WafAllowlist!
+	wafMakeBlockPermanent(name: String!): WafBlock! @requiresScopes(scopes: [["waf:block:write"]])
+	wafAddAllowlist(cidr: String!, note: String): WafAllowlist! @requiresScopes(scopes: [["waf:allowlist:write"]])
+	wafRemoveAllowlist(cidr: String!): WafAllowlist! @requiresScopes(scopes: [["waf:allowlist:write"]])
 }
 
 interface Node {
@@ -24,22 +24,22 @@ type Query {
 	"""
 	Offending IPs seen in the current window.
 	"""
-	wafCandidates: WafCandidates!
+	wafCandidates: WafCandidates! @requiresScopes(scopes: [["waf:block:read"]])
 	"""
 	Blocks newest first, optionally filtered by a CIDR substring.
 	"""
-	wafBlocks(query: String): WafBlocks!
-	wafBlock(name: String!): WafBlock!
+	wafBlocks(query: String): WafBlocks! @requiresScopes(scopes: [["waf:block:read"]])
+	wafBlock(name: String!): WafBlock! @requiresScopes(scopes: [["waf:block:read"]])
 	"""
 	Everything known about an IP or CIDR: strikes, rules hit, decisions and audit.
 	"""
-	wafIp(addr: String!): WafIpReport!
-	wafAudit(offset: Int! = 0, limit: Int! = 100): WafAuditPage!
+	wafIp(addr: String!): WafIpReport! @requiresScopes(scopes: [["waf:block:read"]])
+	wafAudit(offset: Int! = 0, limit: Int! = 100): WafAuditPage! @requiresScopes(scopes: [["waf:block:read"]])
 	"""
 	Workflows with their scorecards; `workflow` narrows the decisions to one.
 	"""
-	wafWorkflows(workflow: String): WafWorkflows!
-	wafAllowlist: WafAllowlist!
+	wafWorkflows(workflow: String): WafWorkflows! @requiresScopes(scopes: [["waf:block:read"]])
+	wafAllowlist: WafAllowlist! @requiresScopes(scopes: [["waf:block:read"]])
 }
 
 type Subscription {

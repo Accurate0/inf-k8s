@@ -86,24 +86,24 @@ type Mutation {
 	"""
 	Re-evaluates every open PR in the background.
 	"""
-	janitorRunCron: Boolean!
+	janitorRunCron: Boolean! @requiresScopes(scopes: [["janitor:action:run"]])
 	"""
 	Merges every PR labelled janitor/queued in the background.
 	"""
-	janitorMergeQueued: Boolean!
+	janitorMergeQueued: Boolean! @requiresScopes(scopes: [["janitor:action:run"]])
 	"""
 	Runs the PR's rules for real in the background.
 	"""
-	janitorEvaluatePr(owner: String!, repo: String!, number: Int!): Boolean!
+	janitorEvaluatePr(owner: String!, repo: String!, number: Int!): Boolean! @requiresScopes(scopes: [["janitor:action:run"]])
 	"""
 	Dispatches a comment command as if it had been posted on the PR or issue.
 	"""
-	janitorCommand(input: JanitorCommandInput!): JSON!
+	janitorCommand(input: JanitorCommandInput!): JSON! @requiresScopes(scopes: [["janitor:action:run"]])
 	"""
 	Feeds a saved webhook payload through its handler as if the source had sent it; the
 	event is inferred from the payload when left out. Returns the handler's HTTP status.
 	"""
-	janitorReplayWebhook(source: JanitorWebhookSource!, event: String, eventType: String, payload: String!): Int!
+	janitorReplayWebhook(source: JanitorWebhookSource!, event: String, eventType: String, payload: String!): Int! @requiresScopes(scopes: [["janitor:webhook:replay"]])
 }
 
 interface Node {
@@ -111,23 +111,23 @@ interface Node {
 }
 
 type Query {
-	janitorRules: [JanitorRule!]!
+	janitorRules: [JanitorRule!]! @requiresScopes(scopes: [["janitor:rule:read"]])
 	"""
 	This replica's counters and histograms, as Prometheus scrapes them.
 	"""
-	janitorMetrics: [JanitorMetricSample!]!
+	janitorMetrics: [JanitorMetricSample!]! @requiresScopes(scopes: [["janitor:rule:read"]])
 	"""
 	Recent rule evaluations, oldest first.
 	"""
-	janitorEvaluations: [JanitorEvaluation!]!
+	janitorEvaluations: [JanitorEvaluation!]! @requiresScopes(scopes: [["janitor:rule:read"]])
 	"""
 	Reachability of forgejo and github.
 	"""
-	janitorHealth: [JanitorServiceHealth!]!
+	janitorHealth: [JanitorServiceHealth!]! @requiresScopes(scopes: [["janitor:rule:read"]])
 	"""
 	Which rules would match the PR, and which actions would run, without running them.
 	"""
-	janitorDryRun(owner: String!, repo: String!, number: Int!): [JanitorMatchedRule!]!
+	janitorDryRun(owner: String!, repo: String!, number: Int!): [JanitorMatchedRule!]! @requiresScopes(scopes: [["janitor:rule:read"]])
 }
 
 type Subscription {

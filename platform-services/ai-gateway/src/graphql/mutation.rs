@@ -44,6 +44,7 @@ fn key_id(id: &ID) -> Result<Uuid> {
 
 #[Object(name = "Mutation")]
 impl MutationRoot {
+    #[graphql(requires_scopes = "ai-gateway:key:write")]
     async fn ai_gateway_create_key(
         &self,
         ctx: &Context<'_>,
@@ -64,6 +65,7 @@ impl MutationRoot {
         })
     }
 
+    #[graphql(requires_scopes = "ai-gateway:key:write")]
     async fn ai_gateway_update_key(
         &self,
         ctx: &Context<'_>,
@@ -85,6 +87,7 @@ impl MutationRoot {
             .ok_or_else(|| not_found(format!("key {}", id.as_str())))
     }
 
+    #[graphql(requires_scopes = "ai-gateway:key:write")]
     async fn ai_gateway_revoke_key(&self, ctx: &Context<'_>, id: ID) -> Result<Key> {
         let uuid = key_id(&id)?;
         if !state(ctx).keys.revoke(uuid).await.gql()? {
@@ -94,6 +97,7 @@ impl MutationRoot {
     }
 
     /// Issues a new secret for the key; the old one stops working.
+    #[graphql(requires_scopes = "ai-gateway:key:write")]
     async fn ai_gateway_regenerate_key(&self, ctx: &Context<'_>, id: ID) -> Result<CreatedKey> {
         let (secret, info) = state(ctx)
             .keys
@@ -108,6 +112,7 @@ impl MutationRoot {
     }
 
     /// Upserts prices and returns how many rows were written.
+    #[graphql(requires_scopes = "ai-gateway:price:write")]
     async fn ai_gateway_upsert_prices(
         &self,
         ctx: &Context<'_>,
@@ -129,6 +134,7 @@ impl MutationRoot {
     }
 
     /// Fetches current prices from llm-prices.com now instead of waiting for the daily sync.
+    #[graphql(requires_scopes = "ai-gateway:price:write")]
     async fn ai_gateway_sync_prices(&self, ctx: &Context<'_>) -> Result<u64> {
         let state = state(ctx);
         pricing::sync(&state.http, &state.pool, &state.pricing)
@@ -137,6 +143,7 @@ impl MutationRoot {
     }
 
     /// A chat completion billed to the caller's own key.
+    #[graphql(requires_scopes = "ai-gateway:chat:use")]
     async fn ai_gateway_chat(&self, ctx: &Context<'_>, input: ChatInput) -> Result<ChatResult> {
         chat::complete(ctx, input).await
     }

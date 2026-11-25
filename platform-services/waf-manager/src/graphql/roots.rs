@@ -18,6 +18,7 @@ pub struct QueryRoot;
 #[Object(name = "Query")]
 impl QueryRoot {
     /// Offending IPs seen in the current window.
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_candidates(&self, ctx: &Context<'_>) -> Result<Candidates> {
         Ok(Api::candidates(State(state(ctx).clone()))
             .await
@@ -27,6 +28,7 @@ impl QueryRoot {
     }
 
     /// Blocks newest first, optionally filtered by a CIDR substring.
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_blocks(&self, ctx: &Context<'_>, query: Option<String>) -> Result<Blocks> {
         let blocks = Api::blocks(
             State(state(ctx).clone()),
@@ -39,15 +41,18 @@ impl QueryRoot {
         Ok(blocks.0.into())
     }
 
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_block(&self, ctx: &Context<'_>, name: String) -> Result<Block> {
         Block::load(ctx, &name).await
     }
 
     /// Everything known about an IP or CIDR: strikes, rules hit, decisions and audit.
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_ip(&self, ctx: &Context<'_>, addr: String) -> Result<IpReport> {
         IpReport::load(ctx, addr).await
     }
 
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_audit(
         &self,
         ctx: &Context<'_>,
@@ -71,6 +76,7 @@ impl QueryRoot {
     }
 
     /// Workflows with their scorecards; `workflow` narrows the decisions to one.
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_workflows(
         &self,
         ctx: &Context<'_>,
@@ -79,6 +85,7 @@ impl QueryRoot {
         Workflows::load(ctx, workflow).await
     }
 
+    #[graphql(requires_scopes = "waf:block:read")]
     async fn waf_allowlist(&self, ctx: &Context<'_>) -> Result<Allowlist> {
         Allowlist::load(ctx).await
     }
@@ -135,6 +142,7 @@ pub struct CreateBlockInput {
 
 #[Object(name = "Mutation")]
 impl MutationRoot {
+    #[graphql(requires_scopes = "waf:block:write")]
     async fn waf_create_block(&self, ctx: &Context<'_>, input: CreateBlockInput) -> Result<Block> {
         let (_, block) = Api::create_block(
             State(state(ctx).clone()),
@@ -151,6 +159,7 @@ impl MutationRoot {
         Ok(block.0.into())
     }
 
+    #[graphql(requires_scopes = "waf:block:write")]
     async fn waf_delete_block(&self, ctx: &Context<'_>, name: String) -> Result<ID> {
         Api::delete_block(
             State(state(ctx).clone()),
@@ -163,6 +172,7 @@ impl MutationRoot {
     }
 
     /// Drops the block's expiry.
+    #[graphql(requires_scopes = "waf:block:write")]
     async fn waf_make_block_permanent(&self, ctx: &Context<'_>, name: String) -> Result<Block> {
         Api::make_permanent(
             State(state(ctx).clone()),
@@ -174,6 +184,7 @@ impl MutationRoot {
         Block::load(ctx, &name).await
     }
 
+    #[graphql(requires_scopes = "waf:allowlist:write")]
     async fn waf_add_allowlist(
         &self,
         ctx: &Context<'_>,
@@ -190,6 +201,7 @@ impl MutationRoot {
         Allowlist::load(ctx).await
     }
 
+    #[graphql(requires_scopes = "waf:allowlist:write")]
     async fn waf_remove_allowlist(&self, ctx: &Context<'_>, cidr: String) -> Result<Allowlist> {
         Api::delete_allowlist(
             State(state(ctx).clone()),
