@@ -14,7 +14,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: feature-flags
     type: subgraph
-    prefix: featureFlags
+    prefixes: [featureFlags]
     allowedRootFields: [featureFlags, featureFlag]
     workload: feature-flags
     port: graphql

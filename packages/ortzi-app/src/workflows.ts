@@ -56,7 +56,7 @@ export function renderWorkflow(app: App, target: Target, actions: ActionVersions
                 ...(test.toolchain || test.setup
                   ? {
                       'test-setup': [
-                        ...(test.toolchain ? [rustup(test.toolchain.rust)] : []),
+                        ...toolchainSetup(test.toolchain),
                         ...(test.setup ? [test.setup] : []),
                       ].join('\n'),
                     }
@@ -85,6 +85,14 @@ const pinned = (actions: ActionVersions, name: string) => {
 
 const rustup = (version: string) =>
   `curl -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal --default-toolchain ${version} && echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"`;
+
+const nodejs = (version: string) =>
+  `arch="$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')" && curl -fsSL "https://nodejs.org/dist/v${version}/node-v${version}-linux-$arch.tar.xz" | tar -xJ -C /opt && echo "/opt/node-v${version}-linux-$arch/bin" >> "$GITHUB_PATH" && "/opt/node-v${version}-linux-$arch/bin/npm" install -g pnpm`;
+
+const toolchainSetup = (toolchain?: { rust?: string; node?: string }) => [
+  ...(toolchain?.rust ? [rustup(toolchain.rust)] : []),
+  ...(toolchain?.node ? [nodejs(toolchain.node)] : []),
+];
 
 const SETUP_ORTZI = 'https://git.anurag.sh/anurag/workflows/setup-ortzi@main';
 
@@ -191,7 +199,7 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
       ...(test.packages
         ? [{ run: `apt-get update && apt-get install -y ${test.packages.join(' ')}` }]
         : []),
-      ...(test.toolchain ? [{ run: rustup(test.toolchain.rust) }] : []),
+      ...toolchainSetup(test.toolchain).map((run) => ({ run })),
       ...(test.setup ? [{ run: test.setup }] : []),
       {
         uses: ACTIONS.cache,

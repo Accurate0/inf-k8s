@@ -90,18 +90,20 @@ export function compose(
 
   const unprefixed = subgraphs.flatMap((subgraph, i) => {
     const sdl = services[i].typeDefs;
-    const fields = unprefixedRootFields(sdl, subgraph.prefix, subgraph.allowedRootFields);
-    const others = subgraphs.filter((other) => other !== subgraph).map((other) => other.prefix);
-    const types = unprefixedTypes(sdl, subgraph.prefix, others);
+    const fields = unprefixedRootFields(sdl, subgraph.prefixes, subgraph.allowedRootFields);
+    const others = subgraphs
+      .filter((other) => other !== subgraph)
+      .flatMap((other) => other.prefixes);
+    const types = unprefixedTypes(sdl, subgraph.prefixes, others);
     return [
       ...(fields.length
         ? [
-            `  ${subgraph.name}: root fields must start with ${subgraph.prefix}: ${fields.join(', ')}`,
+            `  ${subgraph.name}: root fields must start with ${subgraph.prefixes.join(' or ')}: ${fields.join(', ')}`,
           ]
         : []),
       ...(types.length
         ? [
-            `  ${subgraph.name}: types must start with ${pascal(subgraph.prefix)}, or another subgraph's prefix for an entity it references: ${types.join(', ')}`,
+            `  ${subgraph.name}: types must start with ${subgraph.prefixes.map(pascal).join(' or ')}, or another subgraph's prefix for an entity it references: ${types.join(', ')}`,
           ]
         : []),
     ];
@@ -419,11 +421,11 @@ function rootTypes(sdl: DocumentNode): Set<string> {
 
 export function unprefixedRootFields(
   sdl: DocumentNode,
-  prefix: string,
+  prefix: string | string[],
   allowed: string[] = [],
 ): string[] {
   const roots = rootTypes(sdl);
-  const prefixed = new RegExp(`^${prefix}[A-Z0-9]`);
+  const prefixed = new RegExp(`^(${[prefix].flat().join('|')})[A-Z0-9]`);
   return sdl.definitions.flatMap((definition) =>
     (definition.kind === Kind.OBJECT_TYPE_DEFINITION ||
       definition.kind === Kind.OBJECT_TYPE_EXTENSION) &&
@@ -438,7 +440,12 @@ export function unprefixedRootFields(
   );
 }
 
-export function unprefixedTypes(sdl: DocumentNode, prefix: string, others: string[]): string[] {
+export function unprefixedTypes(
+  sdl: DocumentNode,
+  prefix: string | string[],
+  others: string[],
+): string[] {
+  const own = [prefix].flat();
   const roots = rootTypes(sdl);
   const starts = (name: string, prefix: string) =>
     new RegExp(`^${pascal(prefix)}[A-Z0-9]`).test(name);
@@ -461,7 +468,7 @@ export function unprefixedTypes(sdl: DocumentNode, prefix: string, others: strin
     const federation = name.startsWith('_') || /^(link|federation)__/.test(name);
     const referenced = entity && others.some((other) => starts(name, other));
     const relay = RELAY_TYPES.includes(name);
-    return roots.has(name) || federation || relay || referenced || starts(name, prefix)
+    return roots.has(name) || federation || relay || referenced || own.some((p) => starts(name, p))
       ? []
       : [name];
   });

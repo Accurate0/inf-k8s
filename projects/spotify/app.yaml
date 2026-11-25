@@ -13,7 +13,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: spotify
     type: subgraph
-    prefix: spotify
+    prefixes: [spotify]
     workload: spotify-api
     port: http
     path: /v1/graphql

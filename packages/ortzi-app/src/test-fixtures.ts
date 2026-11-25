@@ -107,7 +107,7 @@ export const subgraphApp = (name: string, subgraph: Record<string, unknown> = {}
     {
       name,
       type: 'subgraph',
-      prefix: name.replace(/-./g, (c) => c[1]!.toUpperCase()),
+      prefixes: [name.replace(/-./g, (c) => c[1]!.toUpperCase())],
       workload: `${name}-api`,
       port: 'http',
       path: '/graphql',

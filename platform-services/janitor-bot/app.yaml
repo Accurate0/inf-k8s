@@ -31,7 +31,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: janitor
     type: subgraph
-    prefix: janitor
+    prefixes: [janitor]
     workload: janitor-bot
     port: http
     path: /v1/graphql

@@ -9,7 +9,7 @@ export const SCOPE_PATTERN = '^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*){2}$';
 export interface ResolvedSubgraph {
   name: string;
   app: string;
-  prefix: string;
+  prefixes: string[];
   allowedRootFields?: string[];
   url: string;
   websocket?: string;
@@ -85,8 +85,14 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         }
       }
 
-      if (!/^[a-z][a-zA-Z0-9]*$/.test(subgraph.prefix)) {
-        throw new Error(`${where}: prefix ${subgraph.prefix} must be lowerCamelCase`);
+      const prefixes = subgraph.prefixes;
+      if (!prefixes.length) {
+        throw new Error(`${where}: prefixes must list at least one prefix`);
+      }
+      for (const prefix of prefixes) {
+        if (!/^[a-z][a-zA-Z0-9]*$/.test(prefix)) {
+          throw new Error(`${where}: prefix ${prefix} must be lowerCamelCase`);
+        }
       }
 
       const clients = subgraph.auth?.clients;
@@ -110,7 +116,7 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
       return {
         name: subgraph.name,
         app: app.name,
-        prefix: subgraph.prefix,
+        prefixes,
         ...(subgraph.allowedRootFields?.length
           ? { allowedRootFields: subgraph.allowedRootFields }
           : {}),
@@ -162,8 +168,11 @@ export function validateSubgraphs(apps: App[]) {
       if (!new RegExp(SCOPE_PATTERN).test(scope.name)) {
         throw new Error(`${where}: scope ${scope.name} must be <subgraph>:<resource>:<action>`);
       }
-      if (scope.name.split(':')[0] !== subgraph.name) {
-        throw new Error(`${where}: scope ${scope.name} must start with ${subgraph.name}:`);
+      const owners = [subgraph.name, ...subgraph.prefixes];
+      if (!owners.includes(scope.name.split(':')[0]!)) {
+        throw new Error(
+          `${where}: scope ${scope.name} must start with ${[...new Set(owners)].map((o) => `${o}:`).join(' or ')}`,
+        );
       }
       const owner = scopeOwners.get(scope.name);
       if (owner) {
@@ -202,13 +211,15 @@ export function validateSubgraphs(apps: App[]) {
   for (const key of ['name', 'prefix'] as const) {
     const seen = new Map<string, string>();
     for (const subgraph of subgraphs) {
-      const other = seen.get(subgraph[key]);
-      if (other) {
-        throw new Error(
-          `subgraph ${key} ${subgraph[key]} is declared by both ${other} and ${subgraph.app}`,
-        );
+      for (const value of key === 'name' ? [subgraph.name] : subgraph.prefixes) {
+        const other = seen.get(value);
+        if (other) {
+          throw new Error(
+            `subgraph ${key} ${value} is declared by both ${other} and ${subgraph.app}`,
+          );
+        }
+        seen.set(value, subgraph.app);
       }
-      seen.set(subgraph[key], subgraph.app);
     }
   }
 }

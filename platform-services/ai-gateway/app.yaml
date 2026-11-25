@@ -16,7 +16,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: ai-gateway
     type: subgraph
-    prefix: aiGateway
+    prefixes: [aiGateway]
     workload: ai-gateway
     port: http
     path: /v1/graphql

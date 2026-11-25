@@ -221,13 +221,19 @@ export const APP_SCHEMA: Schema = {
             toolchain: {
               type: 'object',
               additionalProperties: false,
-              required: ['rust'],
+              minProperties: 1,
               properties: {
                 rust: {
                   type: 'string',
                   pattern: '^\\d+\\.\\d+\\.\\d+$',
                   description:
                     'Rust toolchain installed with rustup before the tests, e.g. 1.99.1.',
+                },
+                node: {
+                  type: 'string',
+                  pattern: '^\\d+\\.\\d+\\.\\d+$',
+                  description:
+                    'Node.js release installed from nodejs.org, with pnpm, before the tests, e.g. 26.12.1.',
                 },
               },
             },

@@ -476,3 +476,49 @@ test('supergraphs without scopes are left as composed', () => {
   assert.doesNotMatch(composed.supergraph, /policy/);
   assert.equal(composed.scopes, undefined);
 });
+
+test('a subgraph fronting several systems uses any of its prefixes', () => {
+  const bridge = subgraphApp('bridge', {
+    prefixes: ['forgejo', 'flux'],
+    auth: {
+      clients: ['graph'],
+      scopes: [
+        { name: 'forgejo:run:read', description: 'runs', groups: ['platform_admins'] },
+        { name: 'flux:app:read', description: 'apps', groups: ['platform_admins'] },
+      ],
+    },
+  });
+  const subgraphs = resolveSubgraphs([bridge]);
+  assert.deepEqual(subgraphs[0]!.prefixes, ['forgejo', 'flux']);
+
+  const link =
+    'extend schema @link(url: "https://specs.apollo.dev/federation/v2.5", import: ["@requiresScopes"])';
+  const composed = compose(
+    subgraphs,
+    {
+      bridge: `${link}
+        type Query {
+          forgejoRun(id: ID!): ForgejoRun @requiresScopes(scopes: [["forgejo:run:read"]])
+          fluxApp(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:read"]])
+        }
+        type ForgejoRun { id: ID! }
+        type FluxApp { name: String! }`,
+    },
+    '{}',
+  );
+  assert.match(composed.schema, /forgejoRun\(id: ID!\): ForgejoRun/);
+  assert.deepEqual(
+    JSON.parse(composed.scopes!).scopes.map((s: { name: string }) => s.name),
+    ['flux:app:read', 'forgejo:run:read'],
+  );
+
+  assert.throws(
+    () =>
+      compose(
+        subgraphs,
+        { bridge: 'type Query { bridgeThing: String kubeX: KubeX } type KubeX { a: Int }' },
+        '{}',
+      ),
+    /bridge: root fields must start with forgejo or flux: Query\.bridgeThing, Query\.kubeX\n {2}bridge: types must start with Forgejo or Flux/,
+  );
+});

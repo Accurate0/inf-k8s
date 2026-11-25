@@ -22,7 +22,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: home
     type: subgraph
-    prefix: home
+    prefixes: [home]
     workload: home-gateway
     port: api
     path: /v1/graphql

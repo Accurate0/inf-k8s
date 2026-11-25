@@ -50,7 +50,7 @@ export interface Build {
     db?: { image: string; databaseName?: string };
     packages?: string[];
     setup?: string;
-    toolchain?: { rust: string };
+    toolchain?: { rust?: string; node?: string };
   };
 }
 

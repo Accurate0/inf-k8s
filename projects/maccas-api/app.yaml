@@ -19,7 +19,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: maccas
     type: subgraph
-    prefix: maccas
+    prefixes: [maccas]
     workload: maccas-api
     port: api
     path: /v1/graphql

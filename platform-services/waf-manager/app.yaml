@@ -46,7 +46,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: waf
     type: subgraph
-    prefix: waf
+    prefixes: [waf]
     workload: waf-manager
     port: http
     path: /v1/graphql

@@ -31,7 +31,7 @@ export interface Subgraph {
   port: string | number;
   path: string;
   websocket?: string;
-  prefix: string;
+  prefixes: string[];
   allowedRootFields?: string[];
   auth?: SubgraphAuth;
   repository?: string;
@@ -73,7 +73,7 @@ const claimPattern: Schema = {
 const schema: Schema = {
   type: 'object',
   additionalProperties: false,
-  required: ['name', 'type', 'prefix', 'workload', 'port', 'path', 'schema'],
+  required: ['name', 'type', 'prefixes', 'workload', 'port', 'path', 'schema'],
   description:
     "Registers this app's GraphQL API as a federation subgraph of the app declaring a supergraph.",
   properties: {
@@ -83,11 +83,12 @@ const schema: Schema = {
     type: {
       enum: ['subgraph'],
     },
-    prefix: {
-      type: 'string',
-      pattern: '^[a-z][a-zA-Z0-9]*$',
+    prefixes: {
+      type: 'array',
+      minItems: 1,
+      items: { type: 'string', pattern: '^[a-z][a-zA-Z0-9]*$' },
       description:
-        'Prefix every root field of this subgraph must start with, e.g. home -> homeEntities.',
+        'Root fields and types start with one of these, e.g. [home] -> homeEntities, HomeLight. A subgraph fronting several systems lists each, e.g. [forgejo, flux, kubernetes]; its scopes may then start with any of them.',
     },
     allowedRootFields: {
       type: 'array',

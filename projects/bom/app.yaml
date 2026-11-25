@@ -13,7 +13,7 @@ resources:
   - {name: traces, type: platform, export: tracing}
   - name: bom
     type: subgraph
-    prefix: bom
+    prefixes: [bom]
     workload: bom
     port: api
     path: /v1/graphql

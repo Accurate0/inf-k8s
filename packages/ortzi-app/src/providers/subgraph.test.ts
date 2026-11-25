@@ -36,7 +36,7 @@ test('subgraphs resolve to their in-cluster url and raw schema', () => {
   assert.deepEqual(spotify, {
     name: 'spotify',
     app: 'spotify',
-    prefix: 'spotify',
+    prefixes: ['spotify'],
     url: 'http://api.spotify.svc.cluster.local/graphql',
     schemaUrl: 'https://raw.githubusercontent.com/Accurate0/spotify/main/subgraph.graphql',
   });
@@ -138,7 +138,7 @@ test('subgraph validation', () => {
     /graphql must start with \//,
   );
   assert.throws(
-    () => validateResources(world([routerApp, subgraphApp('spotify', { prefix: 'Spotify' })])),
+    () => validateResources(world([routerApp, subgraphApp('spotify', { prefixes: ['Spotify'] })])),
     /prefix Spotify must be lowerCamelCase/,
   );
   assert.throws(
@@ -151,7 +151,7 @@ test('subgraph validation', () => {
   assert.throws(
     () =>
       validateResources(
-        world([routerApp, subgraphApp('spotify'), subgraphApp('music', { prefix: 'spotify' })]),
+        world([routerApp, subgraphApp('spotify'), subgraphApp('music', { prefixes: ['spotify'] })]),
       ),
     /subgraph prefix spotify is declared by both spotify and music/,
   );
@@ -386,5 +386,21 @@ test('a subgraph declaring scopes must pass them to its workload', () => {
       groups: [],
       external: [],
     },
+  );
+});
+
+test('scopes may start with any of the subgraph prefixes', () => {
+  const app = (scope: string) =>
+    subgraphApp('bridge', {
+      prefixes: ['forgejo', 'flux'],
+      auth: { clients: ['graph'], scopes: [{ name: scope, description: 'd', groups: ['g'] }] },
+    });
+  assert.throws(
+    () => validateResources({ platform, apps: [forgejoRouter, app('waf:block:read')] }),
+    /scope waf:block:read must start with bridge: or forgejo: or flux:/,
+  );
+  assert.throws(
+    () => validateResources({ platform, apps: [forgejoRouter, app('flux:app:read')] }),
+    /auth.clients has no oidc resource named graph/,
   );
 });

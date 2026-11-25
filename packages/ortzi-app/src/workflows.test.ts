@@ -175,3 +175,33 @@ test('the release tag flux deploys is added only after build and test pass', () 
     ].join('\n'),
   );
 });
+
+test('installs node and pnpm for a typescript service', () => {
+  const app = {
+    name: 'bridge',
+    workloads: [{ name: 'bridge', image: 'registry.anurag.sh/containers/bridge' }],
+    build: {
+      ci: 'forgejo',
+      image: 'registry.anurag.sh/containers/bridge',
+      test: { run: 'pnpm test', toolchain: { node: '26.12.1' } },
+    },
+    network: { ingress: [] },
+  };
+  const actions = {
+    'actions/checkout': 'v7@aaa',
+    'docker/setup-buildx-action': 'v4@bbb',
+    'docker/build-push-action': 'v7@ddd',
+    'actions/cache': 'v6@eee',
+  };
+  const runs = parse(
+    renderWorkflow(app, { location: 'platform-services', hasManifests: false }, actions),
+  )
+    .jobs.test.steps.map((step: { run?: string }) => step.run)
+    .filter(Boolean);
+
+  assert.match(runs[0], /nodejs\.org\/dist\/v26\.12\.1\/node-v26\.12\.1-linux-\$arch\.tar\.xz/);
+  assert.match(runs[0], /npm" install -g pnpm/);
+  assert.doesNotMatch(runs[0], /rustup/);
+  assert.equal(runs.at(-1), 'pnpm test');
+  assert.equal(validate(app, 'x'), app);
+});
