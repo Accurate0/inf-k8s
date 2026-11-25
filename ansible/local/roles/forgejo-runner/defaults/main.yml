@@ -5,7 +5,7 @@ forgejo_runner_instance: https://git.anurag.sh
 forgejo_runner_image: data.forgejo.org/forgejo/runner
 # renovate: datasource=docker depName=data.forgejo.org/forgejo/runner
 forgejo_runner_image_tag: "13.2.0"
-forgejo_runner_job_image: ghcr.io/bjw-s-labs/forgejo-runner:ubuntu-24.04@sha256:4288050ddd71ac2e5f42465c474aec8b838792dec85bb284405db7c180138580
+forgejo_runner_job_image: registry.anurag.sh/ghcr/bjw-s-labs/forgejo-runner:ubuntu-24.04@sha256:4288050ddd71ac2e5f42465c474aec8b838792dec85bb284405db7c180138580
 forgejo_runner_capacity: 2
 forgejo_runner_registry: registry.anurag.sh
 forgejo_runner_registry_username: robot$node-pull
