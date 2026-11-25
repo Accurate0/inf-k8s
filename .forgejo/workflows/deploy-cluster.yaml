@@ -117,3 +117,15 @@ jobs:
           fi
           git remote set-url origin "$(git remote get-url origin | sed "s#://#://reconciler:${RECONCILER_TOKEN}@#")"
           .forgejo/scripts/retry.sh 5 15 bash -c 'git pull --rebase origin main || { git rebase --abort; exit 1; }; ortzi app publish && git push origin HEAD:main'
+      - name: Publish scopes
+        run: |
+          scopes=platform-services/graph/supergraph/scopes.json
+          if [ ! -f "$scopes" ]; then
+            exit
+          fi
+
+          dir="$(mktemp -d)"
+          cp "$scopes" "$dir/scopes.json"
+          revision="$(git rev-parse HEAD)"
+          .forgejo/scripts/retry.sh 3 30 ortzi registry push "$dir" oci://registry.anurag.sh/manifests/scopes \
+            --tag main --tag "${revision:0:7}" --revision "$revision" --sign
