@@ -146,7 +146,7 @@
             }
           },
           "env": {
-            "description": "Map of variable to a string, {resource, part}, {service, port}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
+            "description": "Map of variable to a string, {resource, part}, {service, port}, {subgraph}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.",
             "oneOf": [
               {
                 "type": "array",
@@ -205,6 +205,19 @@
                         },
                         "path": {
                           "type": "string"
+                        }
+                      }
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "subgraph"
+                      ],
+                      "properties": {
+                        "subgraph": {
+                          "type": "string",
+                          "description": "A subgraph resource of this app; the value is its auth config (token providers, scopes, external grants) as JSON."
                         }
                       }
                     },
@@ -1155,10 +1168,21 @@
                 "type": "object",
                 "additionalProperties": false,
                 "required": [
-                  "clients",
-                  "groups"
+                  "clients"
                 ],
-                "description": "Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups. The subgraph still authorizes on its own.",
+                "anyOf": [
+                  {
+                    "required": [
+                      "groups"
+                    ]
+                  },
+                  {
+                    "required": [
+                      "scopes"
+                    ]
+                  }
+                ],
+                "description": "Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups or scopes. The subgraph still authorizes on its own.",
                 "properties": {
                   "clients": {
                     "type": "array",
@@ -1176,11 +1200,11 @@
                       "type": "string",
                       "minLength": 1
                     },
-                    "description": "Kanidm groups, short name or SPN; holding any one of them is enough."
+                    "description": "Kanidm groups, short name or SPN; holding any one of them is enough. Superseded by scopes."
                   },
                   "external": {
                     "type": "array",
-                    "description": "Identities from the supergraph's externalIssuers admitted without groups. A token passes when every listed claim matches one of its globs; the subgraph checks them again and authorizes the operation itself.",
+                    "description": "Identities from the supergraph's externalIssuers admitted to the whole subgraph without groups. Superseded by scopes[].external.",
                     "items": {
                       "type": "object",
                       "additionalProperties": false,
@@ -1212,6 +1236,79 @@
                                 }
                               }
                             ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "scopes": {
+                    "type": "array",
+                    "description": "OAuth scopes this subgraph defines, named <subgraph>:<resource>:<action>. Each is added to the tokens of members of its groups on every client in clients (Kanidm supplementary scope maps); fields require them with @requiresScopes.",
+                    "items": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": [
+                        "name",
+                        "description",
+                        "groups"
+                      ],
+                      "properties": {
+                        "name": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*){2}$",
+                          "description": "e.g. registry:package:publish"
+                        },
+                        "description": {
+                          "type": "string",
+                          "minLength": 1,
+                          "description": "What holding the scope allows, shown in the published scope registry."
+                        },
+                        "groups": {
+                          "type": "array",
+                          "minItems": 1,
+                          "items": {
+                            "type": "string",
+                            "minLength": 1
+                          },
+                          "description": "Kanidm groups whose members get the scope, nested groups included."
+                        },
+                        "external": {
+                          "type": "array",
+                          "description": "Identities from the supergraph's externalIssuers that hold the scope when every listed claim matches.",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": false,
+                            "required": [
+                              "issuer",
+                              "claims"
+                            ],
+                            "properties": {
+                              "issuer": {
+                                "type": "string",
+                                "description": "Name of one of the externalIssuers, e.g. forgejo."
+                              },
+                              "claims": {
+                                "type": "object",
+                                "minProperties": 1,
+                                "description": "Claim name to a glob or list of globs, matched case-insensitively, e.g. {repository: \"anurag/*\", ref: refs/heads/main}.",
+                                "additionalProperties": {
+                                  "oneOf": [
+                                    {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    {
+                                      "type": "array",
+                                      "minItems": 1,
+                                      "items": {
+                                        "type": "string",
+                                        "minLength": 1
+                                      }
+                                    }
+                                  ]
+                                }
+                              }
+                            }
                           }
                         }
                       }

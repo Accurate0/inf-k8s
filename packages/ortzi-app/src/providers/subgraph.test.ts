@@ -10,6 +10,8 @@ import {
   releaseValues,
   readValues,
 } from '../test-fixtures.ts';
+import { subgraphAuthValue } from './subgraph.ts';
+import { supplementaryScopeMaps } from './oidc.ts';
 
 test('a subgraph lets the supergraph app in', () => {
   const spotify = subgraphApp('spotify');
@@ -94,11 +96,11 @@ test('subgraph validation', () => {
     });
   assert.throws(
     () => validateResources(world([routerApp, external('forgejo')])),
-    /auth.external names no external issuer forgejo; declare it in the supergraph's externalIssuers/,
+    /auth names no external issuer forgejo; declare it in the supergraph's externalIssuers/,
   );
   assert.throws(
     () => validateResources(world([trusting, external('github')])),
-    /auth.external names no external issuer github/,
+    /auth names no external issuer github/,
   );
   assert.throws(
     () =>
@@ -210,5 +212,177 @@ test('persisted documents resolve beside the schema', () => {
         }),
       ]),
     /persistedDocuments \/etc\/documents.json must stay inside the app directory/,
+  );
+});
+
+const scoped = (name: string, clients: string[], scopes: unknown[]) =>
+  subgraphApp(name, { auth: { clients, scopes } });
+
+const forgejoRouter: App = {
+  ...routerApp,
+  resources: [
+    {
+      name: 'graph',
+      type: 'supergraph',
+      base: 'router.base.yaml',
+      externalIssuers: [
+        {
+          name: 'forgejo',
+          issuer: 'https://git.example/api/actions',
+          jwks: 'https://git.example/keys',
+          audience: 'graph.example',
+        },
+      ],
+    },
+  ],
+};
+
+test('scopes become supplementary scope maps on every client allowed to call the subgraph', () => {
+  const apps = [
+    scoped(
+      'registry',
+      ['graph', 'registry'],
+      [
+        { name: 'registry:package:read', description: 'read', groups: ['registry_users'] },
+        { name: 'registry:token:create', description: 'mint', groups: ['registry_admins'] },
+      ],
+    ),
+    scoped(
+      'waf',
+      ['graph'],
+      [
+        {
+          name: 'waf:block:write',
+          description: 'block',
+          groups: ['waf_admins', 'registry_admins'],
+        },
+      ],
+    ),
+  ];
+
+  assert.deepEqual(supplementaryScopeMaps(apps, 'graph'), {
+    registry_admins: ['registry:token:create', 'waf:block:write'],
+    registry_users: ['registry:package:read'],
+    waf_admins: ['waf:block:write'],
+  });
+  assert.deepEqual(supplementaryScopeMaps(apps, 'registry'), {
+    registry_admins: ['registry:token:create'],
+    registry_users: ['registry:package:read'],
+  });
+  assert.equal(supplementaryScopeMaps(apps, 'spotify'), undefined);
+});
+
+test('a subgraph hands its workload the providers, scopes and external grants it enforces', () => {
+  const registry = scoped(
+    'registry',
+    ['graph'],
+    [
+      { name: 'registry:package:read', description: 'read', groups: ['registry_users'] },
+      {
+        name: 'registry:package:publish',
+        description: 'publish',
+        groups: ['registry_admins'],
+        external: [{ issuer: 'forgejo', claims: { repository: 'anurag/*' } }],
+      },
+    ],
+  );
+  const resource = registry.resources![0] as Parameters<typeof subgraphAuthValue>[0];
+
+  assert.deepEqual(subgraphAuthValue(resource, [registry, forgejoRouter]), {
+    providers: [{ issuer: 'https://idm.anurag.sh/oauth2/openid/graph', audience: 'graph' }],
+    scopes: ['registry:package:read', 'registry:package:publish'],
+    external: [
+      {
+        name: 'forgejo',
+        issuer: 'https://git.example/api/actions',
+        jwks: 'https://git.example/keys',
+        audience: 'graph.example',
+        grants: [{ scope: 'registry:package:publish', claims: { repository: 'anurag/*' } }],
+      },
+    ],
+  });
+});
+
+test('scope names are <subgraph>:<resource>:<action> and declared once', () => {
+  const check = (apps: App[]) => validateResources({ platform, apps: [forgejoRouter, ...apps] });
+  const scope = (name: string) => ({ name, description: 'd', groups: ['g'] });
+
+  assert.throws(
+    () => check([scoped('registry', ['graph'], [scope('registry:admin')])]),
+    /scope registry:admin must be <subgraph>:<resource>:<action>/,
+  );
+  assert.throws(
+    () => check([scoped('registry', ['graph'], [scope('waf:block:write')])]),
+    /scope waf:block:write must start with registry:/,
+  );
+  assert.throws(
+    () =>
+      check([
+        scoped(
+          'registry',
+          ['graph'],
+          [scope('registry:package:read'), scope('registry:package:read')],
+        ),
+      ]),
+    /scope registry:package:read is already declared/,
+  );
+  assert.throws(
+    () =>
+      check([
+        scoped(
+          'registry',
+          ['graph'],
+          [
+            {
+              ...scope('registry:package:read'),
+              external: [{ issuer: 'github', claims: { a: 'b' } }],
+            },
+          ],
+        ),
+      ]),
+    /auth names no external issuer github/,
+  );
+});
+
+test('a subgraph declaring scopes must pass them to its workload', () => {
+  const router: App = {
+    ...forgejoRouter,
+    resources: [
+      ...forgejoRouter.resources!,
+      {
+        name: 'graph',
+        type: 'oidc',
+        displayName: 'Graph',
+        preferShortUsername: true,
+        host: 'graph.example',
+        secretName: 'graph-oidc',
+      },
+    ],
+  };
+  const registry = (env: Record<string, unknown>) => {
+    const app = scoped(
+      'registry',
+      ['graph'],
+      [{ name: 'registry:package:read', description: 'read', groups: ['registry_users'] }],
+    );
+    return { ...app, workloads: [{ ...app.workloads![0], env }] } as App;
+  };
+
+  assert.throws(
+    () => validateResources({ platform, apps: [router, registry({})] }),
+    /declares scopes, so its workload needs env SUBGRAPH_AUTH: \{subgraph: registry\}/,
+  );
+  const wired = registry({ SUBGRAPH_AUTH: { subgraph: 'registry' } });
+  validateResources({ platform, apps: [router, wired] });
+
+  const env = releaseValues(render(wired, target, [router, wired]), 'k8s-workload').workloads[0]
+    .env;
+  assert.deepEqual(
+    JSON.parse(env.find((e: { name: string }) => e.name === 'SUBGRAPH_AUTH').value),
+    {
+      providers: [{ issuer: 'https://idm.anurag.sh/oauth2/openid/graph', audience: 'graph' }],
+      scopes: ['registry:package:read'],
+      external: [],
+    },
   );
 });

@@ -4,6 +4,8 @@ import { appNamespace, declared } from './app.ts';
 import { exportPort, serviceUrl } from './services.ts';
 import { appWorkloads } from './providers/workload.ts';
 
+export const SCOPE_PATTERN = '^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*){2}$';
+
 export interface ResolvedSubgraph {
   name: string;
   app: string;
@@ -87,11 +89,12 @@ export function resolveSubgraphs(apps: App[]): ResolvedSubgraph[] {
         throw new Error(`${where}: prefix ${subgraph.prefix} must be lowerCamelCase`);
       }
 
-      for (const key of ['clients', 'groups'] as const) {
-        const list = subgraph.auth?.[key];
-        if (subgraph.auth && (!list?.length || list.some((item) => !item))) {
-          throw new Error(`${where}: auth.${key} must list at least one non-empty name`);
-        }
+      const clients = subgraph.auth?.clients;
+      if (subgraph.auth && (!clients?.length || clients.some((item) => !item))) {
+        throw new Error(`${where}: auth.clients must list at least one non-empty name`);
+      }
+      if (subgraph.auth && !subgraph.auth.groups?.length && !subgraph.auth.scopes?.length) {
+        throw new Error(`${where}: auth needs groups or scopes`);
       }
 
       const spec = appWorkloads(app)[subgraph.workload];
@@ -150,13 +153,34 @@ export function validateSubgraphs(apps: App[]) {
     issuerNames.add(issuer.name);
   }
 
+  const scopeOwners = new Map<string, string>();
   for (const subgraph of subgraphs) {
-    const unknown = (subgraph.auth?.external ?? [])
+    const where = `${subgraph.app}: resources.${subgraph.name}`;
+    for (const scope of subgraph.auth?.scopes ?? []) {
+      if (!new RegExp(SCOPE_PATTERN).test(scope.name)) {
+        throw new Error(`${where}: scope ${scope.name} must be <subgraph>:<resource>:<action>`);
+      }
+      if (scope.name.split(':')[0] !== subgraph.name) {
+        throw new Error(`${where}: scope ${scope.name} must start with ${subgraph.name}:`);
+      }
+      const owner = scopeOwners.get(scope.name);
+      if (owner) {
+        throw new Error(`${where}: scope ${scope.name} is already declared by ${owner}`);
+      }
+      scopeOwners.set(scope.name, where);
+    }
+  }
+
+  for (const subgraph of subgraphs) {
+    const unknown = [
+      ...(subgraph.auth?.external ?? []),
+      ...(subgraph.auth?.scopes ?? []).flatMap((scope) => scope.external ?? []),
+    ]
       .map((pattern) => pattern.issuer)
       .filter((issuer) => !issuerNames.has(issuer));
     if (unknown.length) {
       throw new Error(
-        `${subgraph.app}: resources.${subgraph.name}: auth.external names no external issuer ${unknown.join(', ')}; declare it in the supergraph's externalIssuers`,
+        `${subgraph.app}: resources.${subgraph.name}: auth names no external issuer ${unknown.join(', ')}; declare it in the supergraph's externalIssuers`,
       );
     }
   }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { parse as parseGraphql } from 'graphql';
+import { buildSchema, parse as parseGraphql } from 'graphql';
 import {
   compose,
   mergeDocuments,
@@ -99,7 +99,7 @@ test('router config gates subgraphs that declare auth', () => {
   assert.throws(
     () =>
       resolveSubgraphs([subgraphApp('spotify', { auth: { clients: ['spotify'], groups: [] } })]),
-    /spotify: resources.spotify: auth.groups must list at least one non-empty name/,
+    /spotify: resources.spotify: auth needs groups or scopes/,
   );
 });
 
@@ -365,4 +365,106 @@ test('router config loads persisted documents beside the supergraph', () => {
     () => routerConfig([], 'supergraph:\n  source: file\n  path: x\n', [], true),
     /must load from storage/,
   );
+});
+
+const scopedRegistry = (scopes: unknown[]) =>
+  subgraphApp('registry', { auth: { clients: ['graph', 'registry'], scopes } });
+
+const REGISTRY_SCOPES = [
+  {
+    name: 'registry:package:read',
+    description: 'list packages',
+    groups: ['registry_users'],
+  },
+  {
+    name: 'registry:token:create',
+    description: 'mint publish tokens',
+    groups: ['registry_admins'],
+    external: [{ issuer: 'forgejo', claims: { repository: 'anurag/*' } }],
+  },
+];
+
+const REGISTRY_SDL = `extend schema @link(url: "https://specs.apollo.dev/federation/v2.5", import: ["@requiresScopes"])
+type Query {
+  registryPackages: [String!]! @requiresScopes(scopes: [["registry:package:read"]])
+  registryTokens: [String!]! @requiresScopes(scopes: [["registry:token:create"]])
+}`;
+
+test('fields require declared scopes, enforced at the router as policies', () => {
+  const subgraphs = resolveSubgraphs([scopedRegistry(REGISTRY_SCOPES)]);
+  const composed = compose(subgraphs, { registry: REGISTRY_SDL }, '{}');
+
+  assert.match(
+    composed.supergraph,
+    /registryTokens: \[String!\]! @policy\(policies: \[\["registry:token:create"\]\]\)/,
+  );
+  assert.doesNotMatch(composed.supergraph, /@requiresScopes\(scopes: \[\["/);
+  assert.match(
+    composed.supergraph,
+    /@link\(url: "https:\/\/specs\.apollo\.dev\/policy\/v0\.1", for: SECURITY\)/,
+  );
+  assert.match(composed.supergraph, /directive @policy\(policies: \[\[policy__Policy!\]!\]!\)/);
+  parseGraphql(composed.supergraph);
+  buildSchema(composed.schema);
+
+  assert.deepEqual(JSON.parse(composed.scopes!), {
+    scopes: [
+      {
+        name: 'registry:package:read',
+        description: 'list packages',
+        subgraph: 'registry',
+        groups: ['registry_users'],
+        clients: ['graph', 'registry'],
+        fields: ['Query.registryPackages'],
+      },
+      {
+        name: 'registry:token:create',
+        description: 'mint publish tokens',
+        subgraph: 'registry',
+        groups: ['registry_admins'],
+        clients: ['graph', 'registry'],
+        external: [{ issuer: 'forgejo', claims: { repository: 'anurag/*' } }],
+        fields: ['Query.registryTokens'],
+      },
+    ],
+  });
+
+  const config = parse(
+    routerConfig(subgraphs, '{}', [], false, [
+      {
+        name: 'forgejo',
+        issuer: 'https://git.example/api/actions',
+        jwks: 'https://git.example/keys',
+        audience: 'graph.example',
+      },
+    ]),
+  );
+  assert.deepEqual(config.plugins.access.config.subgraphs.registry, {
+    issuers: [
+      'https://idm.anurag.sh/oauth2/openid/graph',
+      'https://idm.anurag.sh/oauth2/openid/registry',
+    ],
+    scopes: ['registry:package:read', 'registry:token:create'],
+  });
+  assert.deepEqual(config.plugins.access.config.scopes, {
+    'registry:token:create': {
+      external: [{ issuer: 'forgejo', claims: { repository: 'anurag/*' } }],
+    },
+  });
+  assert.ok(config.jwt.issuers.includes('https://git.example/api/actions'));
+});
+
+test('a field cannot require a scope its subgraph does not declare', () => {
+  const subgraphs = resolveSubgraphs([scopedRegistry(REGISTRY_SCOPES.slice(0, 1))]);
+  assert.throws(
+    () => compose(subgraphs, { registry: REGISTRY_SDL }, '{}'),
+    /registry: Query\.registryTokens require registry:token:create, which its auth.scopes does not declare/,
+  );
+});
+
+test('supergraphs without scopes are left as composed', () => {
+  const subgraphs = resolveSubgraphs([subgraphApp('spotify')]);
+  const composed = compose(subgraphs, { spotify: 'type Query { spotifyName: String }' }, '{}');
+  assert.doesNotMatch(composed.supergraph, /policy/);
+  assert.equal(composed.scopes, undefined);
 });

@@ -14,6 +14,7 @@ export interface Refs {
   secret: (kind: SecretKind, name: string) => string;
   config: (name: string) => { configMap: string; files: string[]; secretName?: string };
   volume: (name: string) => string;
+  subgraph: (name: string) => string;
   service: (service: string, port: string | number, path?: string) => string;
 }
 
@@ -44,6 +45,9 @@ function expandEnv(env: Values, refs: Refs) {
     }
     if (value.service) {
       return { name, value: refs.service(value.service, value.port, value.path) };
+    }
+    if (value.subgraph) {
+      return { name, value: refs.subgraph(value.subgraph) };
     }
 
     const kind = secretKind(value);
@@ -107,6 +111,10 @@ export function describeEnv(env: Values, refs: Refs): EnvSource[] {
           optional: !!value.optional,
         },
       };
+    }
+
+    if (value.subgraph) {
+      return { name, from: `subgraph ${value.subgraph}`, value: refs.subgraph(value.subgraph) };
     }
 
     if (value.field) {

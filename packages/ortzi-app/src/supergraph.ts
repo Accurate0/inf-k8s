@@ -1,11 +1,16 @@
 import { composeServices } from '@theguild/federation-composition';
 import {
   buildSchema,
+  type ConstDirectiveNode,
+  type DefinitionNode,
   type DocumentNode,
   Kind,
   parse as parseGraphql,
   type OperationDefinitionNode,
+  print,
+  type SchemaDefinitionNode,
   validate,
+  visit,
 } from 'graphql';
 import { parse, stringify } from 'yaml';
 import type { ResolvedSubgraph } from './render.ts';
@@ -21,12 +26,14 @@ export interface Composed {
   router: string;
   node?: string;
   documents?: string;
+  scopes?: string;
 }
 
 export const NODE_SUBGRAPH = 'node';
 export const KANIDM_ISSUER_BASE = 'https://idm.anurag.sh/oauth2/openid';
 export const NODE_SUBGRAPH_URL = 'http://node-plugin.invalid/graphql';
 export const PERSISTED_DOCUMENTS = 'persisted-documents.json';
+export const SCOPES = 'scopes.json';
 const RELAY_TYPES = ['Node', 'PageInfo'];
 
 export function compose(
@@ -79,18 +86,153 @@ export function compose(
     );
   }
 
+  const required = Object.fromEntries(
+    subgraphs.map((subgraph, i) => [subgraph.name, requiredScopes(services[i].typeDefs)]),
+  );
+  checkRequiredScopes(subgraphs, required);
+
   const documents = Object.keys(manifests).length ? mergeDocuments(manifests) : undefined;
   if (documents !== undefined) {
     validateDocuments(result.publicSdl, manifests);
   }
 
+  const scopes = scopeRegistry(subgraphs, required);
+
   return {
-    supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.supergraphSdl.trimEnd()}\n`,
+    supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${scopesAsPolicies(result.supergraphSdl).trimEnd()}\n`,
     schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.publicSdl.trimEnd()}\n`,
     router: routerConfig(subgraphs, base, nodeTypes, documents !== undefined, externalIssuers),
     ...(nodeSdl ? { node: `# ${SUPERGRAPH_HEADER_TEXT}\n${nodeSdl}` } : {}),
     ...(documents !== undefined ? { documents } : {}),
+    ...(scopes !== undefined ? { scopes } : {}),
   };
+}
+
+const owner = (definition: DefinitionNode) =>
+  'name' in definition && definition.name ? definition.name.value : undefined;
+
+function scopeNames(directive: ConstDirectiveNode): string[] {
+  const argument = directive.arguments?.find((arg) => arg.name.value === 'scopes');
+  if (argument?.value.kind !== Kind.LIST) {
+    return [];
+  }
+  return argument.value.values.flatMap((group) =>
+    group.kind === Kind.LIST
+      ? group.values.flatMap((scope) => (scope.kind === Kind.STRING ? [scope.value] : []))
+      : [],
+  );
+}
+
+export function requiredScopes(sdl: DocumentNode): Map<string, string[]> {
+  const fields = new Map<string, string[]>();
+  const add = (path: string, directives: readonly ConstDirectiveNode[] = []) => {
+    for (const scope of directives
+      .filter((directive) => directive.name.value === 'requiresScopes')
+      .flatMap(scopeNames)) {
+      fields.set(scope, [...(fields.get(scope) ?? []), path]);
+    }
+  };
+
+  for (const definition of sdl.definitions) {
+    const name = owner(definition);
+    if (!name || !('directives' in definition)) {
+      continue;
+    }
+    add(name, definition.directives as readonly ConstDirectiveNode[] | undefined);
+    if ('fields' in definition) {
+      for (const field of definition.fields ?? []) {
+        add(`${name}.${field.name.value}`, field.directives);
+      }
+    }
+  }
+  return fields;
+}
+
+function checkRequiredScopes(
+  subgraphs: ResolvedSubgraph[],
+  required: Record<string, Map<string, string[]>>,
+) {
+  const problems = subgraphs.flatMap((subgraph) => {
+    const declared = new Set((subgraph.auth?.scopes ?? []).map((scope) => scope.name));
+    return [...required[subgraph.name]].flatMap(([scope, fields]) =>
+      declared.has(scope)
+        ? []
+        : [
+            `  ${subgraph.name}: ${fields.join(', ')} require ${scope}, which its auth.scopes does not declare`,
+          ],
+    );
+  });
+  if (problems.length) {
+    throw new Error(`supergraph composition failed:\n${problems.join('\n')}`);
+  }
+}
+
+const POLICY_SPEC = `
+  directive @policy(policies: [[policy__Policy!]!]!) on ENUM | FIELD_DEFINITION | INTERFACE | OBJECT | SCALAR
+  scalar policy__Policy
+`;
+
+// hive-router only reads @requiresScopes from the token itself, so external callers (forgejo)
+// could never hold one; as @policy the access plugin decides each scope for every caller
+export function scopesAsPolicies(supergraph: string): string {
+  if (!supergraph.includes('@requiresScopes(')) {
+    return supergraph;
+  }
+
+  const document = parseGraphql(supergraph);
+  const rewritten = visit(document, {
+    Directive(node) {
+      if (node.name.value !== 'requiresScopes') {
+        return undefined;
+      }
+      return {
+        ...node,
+        name: { ...node.name, value: 'policy' },
+        arguments: node.arguments?.map((arg) =>
+          arg.name.value === 'scopes' ? { ...arg, name: { ...arg.name, value: 'policies' } } : arg,
+        ),
+      };
+    },
+    SchemaDefinition(node) {
+      return {
+        ...node,
+        directives: [
+          ...(node.directives ?? []),
+          ...((
+            parseGraphql(
+              'schema @link(url: "https://specs.apollo.dev/policy/v0.1", for: SECURITY) { query: Q }',
+            ).definitions[0] as SchemaDefinitionNode
+          ).directives ?? []),
+        ],
+      };
+    },
+  });
+
+  return print({
+    ...rewritten,
+    definitions: [...rewritten.definitions, ...parseGraphql(POLICY_SPEC).definitions],
+  });
+}
+
+export function scopeRegistry(
+  subgraphs: ResolvedSubgraph[],
+  required: Record<string, Map<string, string[]>>,
+): string | undefined {
+  const scopes = subgraphs
+    .flatMap((subgraph) =>
+      (subgraph.auth?.scopes ?? []).map((scope) => ({
+        name: scope.name,
+        description: scope.description,
+        subgraph: subgraph.name,
+        groups: [...scope.groups].sort(),
+        clients: [...(subgraph.auth?.clients ?? [])].sort(),
+        ...(scope.external?.length ? { external: scope.external } : {}),
+        fields: [...(required[subgraph.name].get(scope.name) ?? [])].sort(),
+      })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  return scopes.length ? `${JSON.stringify({ scopes }, null, 2)}\n` : undefined;
 }
 
 export function validateDocuments(publicSdl: string, manifests: Record<string, string>): void {
@@ -325,11 +467,15 @@ export function routerConfig(
   if (gated.length) {
     const clients = [...new Set(gated.flatMap((subgraph) => subgraph.auth!.clients))].sort();
     const issuers = clients.map((client) => `${KANIDM_ISSUER_BASE}/${client}`);
+    const scopes = gated.flatMap((subgraph) => subgraph.auth!.scopes ?? []);
+    const patterns = [
+      ...gated.flatMap((subgraph) => subgraph.auth!.external ?? []),
+      ...scopes.flatMap((scope) => scope.external ?? []),
+    ];
     const external = externalIssuers.filter((issuer) =>
-      gated.some((subgraph) =>
-        subgraph.auth!.external?.some((pattern) => pattern.issuer === issuer.name),
-      ),
+      patterns.some((pattern) => pattern.issuer === issuer.name),
     );
+    const grants = scopes.filter((scope) => scope.external?.length);
 
     config.jwt = {
       enabled: true,
@@ -363,12 +509,22 @@ export function routerConfig(
                 ),
               }
             : {}),
+          ...(grants.length
+            ? {
+                scopes: Object.fromEntries(
+                  grants.map((scope) => [scope.name, { external: scope.external }]),
+                ),
+              }
+            : {}),
           subgraphs: Object.fromEntries(
             gated.map((subgraph) => [
               subgraph.name,
               {
                 issuers: subgraph.auth!.clients.map((client) => `${KANIDM_ISSUER_BASE}/${client}`),
-                groups: subgraph.auth!.groups,
+                ...(subgraph.auth!.groups?.length ? { groups: subgraph.auth!.groups } : {}),
+                ...(subgraph.auth!.scopes?.length
+                  ? { scopes: subgraph.auth!.scopes.map((scope) => scope.name) }
+                  : {}),
                 ...(subgraph.auth!.external?.length ? { external: subgraph.auth!.external } : {}),
               },
             ]),

@@ -13,6 +13,7 @@ import {
   compose,
   NODE_SUBGRAPH,
   PERSISTED_DOCUMENTS,
+  SCOPES,
   SUPERGRAPH_HEADER_TEXT,
 } from '../supergraph.ts';
 
@@ -155,6 +156,7 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
     [`${dir}/schema.graphql`, composed.schema],
     [`${dir}/router.yaml`, composed.router],
     ...(composed.documents ? [[`${dir}/${PERSISTED_DOCUMENTS}`, composed.documents]] : []),
+    ...(composed.scopes ? [[`${dir}/${SCOPES}`, composed.scopes]] : []),
   ] as [string, string][];
 
   const header = `# ${SUPERGRAPH_HEADER_TEXT}`;

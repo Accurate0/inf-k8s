@@ -97,7 +97,7 @@ const schema: Schema = {
       },
       env: {
         description:
-          'Map of variable to a string, {resource, part}, {service, port}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.',
+          'Map of variable to a string, {resource, part}, {service, port}, {subgraph}, {secret|database|bucket|oidc, key} or {field}. A list is the raw form.',
         oneOf: [
           {
             type: 'array',
@@ -140,6 +140,18 @@ const schema: Schema = {
                     },
                     path: {
                       type: 'string',
+                    },
+                  },
+                },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['subgraph'],
+                  properties: {
+                    subgraph: {
+                      type: 'string',
+                      description:
+                        'A subgraph resource of this app; the value is its auth config (token providers, scopes, external grants) as JSON.',
                     },
                   },
                 },

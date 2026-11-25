@@ -119,6 +119,34 @@ export function appOidc(app: App): Record<string, OidcClient> {
   return Object.fromEntries(specs(declared(app, 'oidc'))) as Record<string, OidcClient>;
 }
 
+export function supplementaryScopeMaps(
+  apps: App[],
+  client: string,
+): Record<string, string[]> | undefined {
+  const byGroup = new Map<string, Set<string>>();
+  for (const app of apps) {
+    for (const subgraph of declared(app, 'subgraph')) {
+      if (!subgraph.auth?.clients.includes(client)) {
+        continue;
+      }
+      for (const scope of subgraph.auth.scopes ?? []) {
+        for (const group of scope.groups) {
+          byGroup.set(group, (byGroup.get(group) ?? new Set()).add(scope.name));
+        }
+      }
+    }
+  }
+
+  if (!byGroup.size) {
+    return undefined;
+  }
+  return Object.fromEntries(
+    [...byGroup.entries()]
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([group, scopes]) => [group, [...scopes].sort()]),
+  );
+}
+
 function loginPolicy(app: App, client: string) {
   const route = Object.entries(appRoutes(app)).find(
     ([, r]) => r.auth?.mode === 'oidc' && r.auth.client === client,
@@ -138,7 +166,7 @@ export const oidc: ResourceProvider<'oidc'> = {
   type: 'oidc',
   schema,
 
-  plan({ app, namespace, annotations, chart }) {
+  plan({ app, namespace, annotations, chart, world }) {
     const clients = Object.entries(appOidc(app));
     if (!clients.length) {
       return {};
@@ -148,15 +176,19 @@ export const oidc: ResourceProvider<'oidc'> = {
         chart(
           'k8s-oidc',
           {
-            clients: clients.map(([client, spec]) => ({
-              name: client,
-              namespace,
-              ...spec,
-              ...loginPolicy(app, client),
-              secretName: spec.secretName,
-              secretNamespace: namespace,
-              annotations,
-            })),
+            clients: clients.map(([client, spec]) => {
+              const supplementary = supplementaryScopeMaps(world.apps, client);
+              return {
+                name: client,
+                namespace,
+                ...spec,
+                ...(supplementary ? { supplementaryScopeMaps: supplementary } : {}),
+                ...loginPolicy(app, client),
+                secretName: spec.secretName,
+                secretNamespace: namespace,
+                annotations,
+              };
+            }),
           },
           { retain: true },
         ),

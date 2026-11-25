@@ -1,17 +1,26 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { App } from '../types.ts';
-import { appNamespace } from '../app.ts';
-import { supergraphApp, validateSubgraphs } from '../subgraphs.ts';
+import { appNamespace, declared } from '../app.ts';
+import { SCOPE_PATTERN, supergraphApp, validateSubgraphs } from '../subgraphs.ts';
 import type { ResourceProvider } from './provider.ts';
+import { KANIDM_ISSUER_BASE } from '../supergraph.ts';
 
 export interface ClaimPattern {
   issuer: string;
   claims: Record<string, string | string[]>;
 }
 
+export interface SubgraphScope {
+  name: string;
+  description: string;
+  groups: string[];
+  external?: ClaimPattern[];
+}
+
 export interface SubgraphAuth {
   clients: string[];
-  groups: string[];
+  groups?: string[];
+  scopes?: SubgraphScope[];
   external?: ClaimPattern[];
 }
 
@@ -36,6 +45,30 @@ declare module './provider.ts' {
     subgraph: Subgraph;
   }
 }
+
+const claimPattern: Schema = {
+  type: 'object',
+  additionalProperties: false,
+  required: ['issuer', 'claims'],
+  properties: {
+    issuer: {
+      type: 'string',
+      description: 'Name of one of the externalIssuers, e.g. forgejo.',
+    },
+    claims: {
+      type: 'object',
+      minProperties: 1,
+      description:
+        'Claim name to a glob or list of globs, matched case-insensitively, e.g. {repository: "anurag/*", ref: refs/heads/main}.',
+      additionalProperties: {
+        oneOf: [
+          { type: 'string', minLength: 1 },
+          { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
+        ],
+      },
+    },
+  },
+};
 
 const schema: Schema = {
   type: 'object',
@@ -82,9 +115,10 @@ const schema: Schema = {
     auth: {
       type: 'object',
       additionalProperties: false,
-      required: ['clients', 'groups'],
+      required: ['clients'],
+      anyOf: [{ required: ['groups'] }, { required: ['scopes'] }],
       description:
-        'Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups. The subgraph still authorizes on its own.',
+        'Early check at the router: operations against this subgraph, and its part of introspection, need a Kanidm JWT from one of clients holding one of groups or scopes. The subgraph still authorizes on its own.',
       properties: {
         clients: {
           type: 'array',
@@ -103,32 +137,46 @@ const schema: Schema = {
             type: 'string',
             minLength: 1,
           },
-          description: 'Kanidm groups, short name or SPN; holding any one of them is enough.',
+          description:
+            'Kanidm groups, short name or SPN; holding any one of them is enough. Superseded by scopes.',
         },
         external: {
           type: 'array',
           description:
-            "Identities from the supergraph's externalIssuers admitted without groups. A token passes when every listed claim matches one of its globs; the subgraph checks them again and authorizes the operation itself.",
+            "Identities from the supergraph's externalIssuers admitted to the whole subgraph without groups. Superseded by scopes[].external.",
+          items: claimPattern,
+        },
+        scopes: {
+          type: 'array',
+          description:
+            'OAuth scopes this subgraph defines, named <subgraph>:<resource>:<action>. Each is added to the tokens of members of its groups on every client in clients (Kanidm supplementary scope maps); fields require them with @requiresScopes.',
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['issuer', 'claims'],
+            required: ['name', 'description', 'groups'],
             properties: {
-              issuer: {
+              name: {
                 type: 'string',
-                description: 'Name of one of the externalIssuers, e.g. forgejo.',
+                pattern: SCOPE_PATTERN,
+                description: 'e.g. registry:package:publish',
               },
-              claims: {
-                type: 'object',
-                minProperties: 1,
+              description: {
+                type: 'string',
+                minLength: 1,
                 description:
-                  'Claim name to a glob or list of globs, matched case-insensitively, e.g. {repository: "anurag/*", ref: refs/heads/main}.',
-                additionalProperties: {
-                  oneOf: [
-                    { type: 'string', minLength: 1 },
-                    { type: 'array', minItems: 1, items: { type: 'string', minLength: 1 } },
-                  ],
-                },
+                  'What holding the scope allows, shown in the published scope registry.',
+              },
+              groups: {
+                type: 'array',
+                minItems: 1,
+                items: { type: 'string', minLength: 1 },
+                description: 'Kanidm groups whose members get the scope, nested groups included.',
+              },
+              external: {
+                type: 'array',
+                description:
+                  "Identities from the supergraph's externalIssuers that hold the scope when every listed claim matches.",
+                items: claimPattern,
               },
             },
           },
@@ -157,9 +205,57 @@ const schema: Schema = {
   },
 };
 
+export interface SubgraphAuthValue {
+  providers: { issuer: string; audience: string }[];
+  scopes: string[];
+  external: {
+    name: string;
+    issuer: string;
+    jwks: string;
+    audience: string;
+    grants: { scope: string; claims: ClaimPattern['claims'] }[];
+  }[];
+}
+
+export function subgraphAuthValue(resource: Subgraph, apps: App[]): SubgraphAuthValue {
+  const scopes = resource.auth?.scopes ?? [];
+  const router = supergraphApp(apps);
+  const issuers = router
+    ? declared(router, 'supergraph').flatMap((supergraph) => supergraph.externalIssuers ?? [])
+    : [];
+
+  return {
+    providers: (resource.auth?.clients ?? []).map((client) => ({
+      issuer: `${KANIDM_ISSUER_BASE}/${client}`,
+      audience: client,
+    })),
+    scopes: scopes.map((scope) => scope.name),
+    external: issuers
+      .map((issuer) => ({
+        ...issuer,
+        grants: scopes.flatMap((scope) =>
+          (scope.external ?? [])
+            .filter((pattern) => pattern.issuer === issuer.name)
+            .map((pattern) => ({ scope: scope.name, claims: pattern.claims })),
+        ),
+      }))
+      .filter((issuer) => issuer.grants.length),
+  };
+}
+
 export const subgraph: ResourceProvider<'subgraph'> = {
   type: 'subgraph',
   schema,
+
+  check(_app, subgraphs, { uses, fail }) {
+    for (const resource of subgraphs) {
+      if (resource.auth?.scopes?.length && !uses.some((use) => use.subgraph === resource.name)) {
+        fail(
+          `resources.${resource.name}: declares scopes, so its workload needs env SUBGRAPH_AUTH: {subgraph: ${resource.name}} to enforce them`,
+        );
+      }
+    }
+  },
 
   checkWorld: (world) => validateSubgraphs(world.apps),
 

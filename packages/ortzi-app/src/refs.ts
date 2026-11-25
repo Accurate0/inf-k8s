@@ -4,6 +4,7 @@ import type { Resource } from './providers/provider.ts';
 import { declared, secretRef } from './app.ts';
 import { ownServiceUrl } from './services.ts';
 import { appWorkloads } from './providers/workload.ts';
+import { subgraphAuthValue } from './providers/subgraph.ts';
 import { isValueResource, resourceProvider } from './providers/index.ts';
 
 export type UrlPart = 'url' | 'host' | 'port';
@@ -59,6 +60,13 @@ export const refsFor = (app: App, world: World): Refs => ({
     return found.claimName;
   },
   service: (service, port, path) => ownServiceUrl(app, service, port, path),
+  subgraph: (name) => {
+    const found = declared(app, 'subgraph').find((subgraph) => subgraph.name === name);
+    if (!found) {
+      throw new Error(`${app.name}: no subgraph resource named ${name}`);
+    }
+    return JSON.stringify(subgraphAuthValue(found, world.apps));
+  },
 });
 
 export function containerEnv(app: App, world: World): { container: string; rows: EnvSource[] }[] {
