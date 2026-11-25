@@ -5,6 +5,8 @@ expression: root_fields(&user)
 query:
   - whoami
   - fail
+  - slow
+  - testerNote
   - node
 subscription:
   - ticks

@@ -93,6 +93,48 @@ async fn callers_over_their_limit_are_rejected() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+async fn anonymous_callers_are_limited_per_client_ip() {
+    let stack = Stack::spawn_with_rate_limit(1).await;
+
+    let first = stack.post_document_from("100.64.0.1", "whoami").await;
+    assert_ne!(first.status, 429, "{}", first.body);
+
+    let again = stack.post_document_from("100.64.0.1", "whoami").await;
+    assert_eq!(again.status, 429);
+
+    let other = stack.post_document_from("100.64.0.2", "whoami").await;
+    assert_ne!(other.status, 429, "each client ip has its own bucket");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn callers_over_their_cost_budget_are_rejected() {
+    const THINGS: &str =
+        r#"{ a: node(id: "open:thing:1") { id } b: node(id: "open:thing:2") { id } }"#;
+    let stack = Stack::spawn_with_budget(1).await;
+    let token = stack.user();
+
+    let first = stack.post(Some(&token), THINGS).await;
+    assert_eq!(first.status, 200, "{}", first.body);
+    let cost = first.diagnostics.unwrap()["cost"]["actual"]
+        .as_u64()
+        .unwrap();
+    assert!(
+        cost > 1,
+        "the query must cost more than the whole budget, got {cost}"
+    );
+
+    let limited = stack.post(Some(&token), THINGS).await;
+    assert_eq!(limited.status, 429);
+    let extensions = &limited.body["errors"][0]["extensions"];
+    assert_eq!(extensions["code"], "RATE_LIMITED");
+    assert_eq!(extensions["reason"], "cost");
+
+    let ci = stack.forgejo("anurag/k8s", "refs/heads/main");
+    let other = stack.post(Some(&ci), THINGS).await;
+    assert_ne!(other.status, 429, "each caller has its own budget");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 async fn diagnostics_report_the_cost() {
     let stack = Stack::spawn().await;
 

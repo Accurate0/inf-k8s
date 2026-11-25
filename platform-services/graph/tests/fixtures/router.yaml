@@ -1,10 +1,13 @@
 supergraph:
   source: file
   path: ./supergraph.graphql
+  poll_interval: 200ms
 http:
   host: 127.0.0.1
   graphql_endpoint: /v1/graphql
 traffic_shaping:
+  all:
+    request_timeout: 1s
   router:
     request_timeout: 2s
     max_long_lived_clients: 2
@@ -25,6 +28,20 @@ headers:
     request:
       - propagate:
           named: [Authorization]
+telemetry:
+  client_identification:
+    name_header: x-graph-client-name
+    version_header: x-graph-client-version
+  metrics:
+    exporters:
+      - kind: prometheus
+        enabled: true
+        path: /metrics
+authorization:
+  directives:
+    enabled: true
+    unauthorized:
+      mode: filter
 introspection:
   expression: .request.jwt.authenticated == true
 demand_control:
@@ -52,6 +69,9 @@ plugins:
     config:
       authenticated: {requests: {requests}, per: 10s}
       anonymous: {requests: {requests}, per: 10s}
+      cost:
+        authenticated: {budget: {budget}, per: 10s}
+        anonymous: {budget: {budget}, per: 10s}
   anonymous:
     enabled: true
   node:

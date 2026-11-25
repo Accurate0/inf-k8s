@@ -51,6 +51,8 @@ resources:
       janitor_bot_admins: [openid, email, profile, groups]
       waf_admins: [openid, email, profile, groups]
       bom_users: [openid, email, profile, groups]
+  - {name: router, type: metrics, workload: router, path: /metrics, port: metrics, interval: 30s}
+  - {name: dashboard, type: dashboard, configMap: graph-router-dashboard, file: dashboards/graph-router.json}
 workloads:
   - name: router
     image: registry.anurag.sh/containers/graph-router
@@ -59,9 +61,10 @@ workloads:
     resources: {cpu: 20m, memory: 64Mi, memoryLimit: 256Mi}
     ports:
       - {name: http, container: 4000, service: 80}
+      - {name: metrics, container: 9090, service: 9090}
     probes:
       http: {path: /health, port: 4000}
-      readiness: {delay: 3, every: 10}
+      readiness: {path: /readiness, delay: 3, every: 10}
       liveness: {delay: 3, every: 30}
     env:
       ROUTER_CONFIG_FILE_PATH: /etc/graph/supergraph/router.yaml
@@ -79,7 +82,7 @@ workloads:
     args:
       - |-
         set -e
-        for file in persisted-documents.json supergraph.graphql; do
+        for file in supergraph.graphql persisted-documents.json; do
           curl -fsS --retry 5 --retry-connrefused --retry-delay 2 \
             --aws-sigv4 "aws:amz:$S3_REGION:s3" \
             --user "$S3_ACCESS_KEY_ID:$S3_SECRET_ACCESS_KEY" \

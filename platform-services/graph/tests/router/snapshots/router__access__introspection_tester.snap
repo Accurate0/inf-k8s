@@ -5,6 +5,8 @@ expression: root_fields(&tester)
 query:
   - whoami
   - fail
+  - slow
+  - testerNote
   - secret
   - node
 subscription:

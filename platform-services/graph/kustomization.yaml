@@ -8,5 +8,13 @@ configMapGenerator:
       - supergraph/router.yaml
       - supergraph/supergraph.graphql
       - supergraph/persisted-documents.json
+  - name: graph-router-dashboard
+    namespace: graph
+    files:
+      - dashboards/graph-router.json
+    options:
+      disableNameSuffixHash: true
+      labels:
+        inf-k8s.net/grafana-dashboard: "true"
 generatorOptions:
   disableNameSuffixHash: true

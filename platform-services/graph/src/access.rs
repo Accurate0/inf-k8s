@@ -1,7 +1,8 @@
 //! Gates subgraphs on Kanidm groups at the router: fetches to a subgraph the caller can't use are
 //! skipped with a FORBIDDEN error so their fields come back null, subscriptions rooted in one are
-//! rejected, and introspection hides what only those subgraphs serve. Each subgraph still authorizes
-//! on its own.
+//! rejected, and introspection hides what only those subgraphs serve. It also decides `@policy`
+//! fields: a policy is a group name, granted to users holding it. Each subgraph still authorizes on
+//! its own.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
@@ -65,6 +66,16 @@ enum Caller<'a> {
         name: &'a str,
         claims: serde_json::Value,
     },
+}
+
+impl Caller<'_> {
+    /// Policies are group names; only users hold groups.
+    fn holds(&self, policy: &str) -> bool {
+        match self {
+            Caller::User { groups, .. } => groups_match(groups, &[policy.to_owned()]),
+            Caller::Anonymous | Caller::External { .. } => false,
+        }
+    }
 }
 
 impl Gate {
@@ -144,7 +155,18 @@ impl RouterPlugin for AccessPlugin {
         &'exec self,
         payload: &mut OnGraphqlAnalysisHookPayload<'exec>,
     ) -> OnGraphqlAnalysisHookResult {
-        if self.subgraphs.is_empty() {
+        let policies: Vec<String> = payload
+            .request_context
+            .read()
+            .ok()
+            .and_then(|context| {
+                context
+                    .authorization()
+                    .required_policies()
+                    .map(|policies| policies.keys().cloned().collect())
+            })
+            .unwrap_or_default();
+        if self.subgraphs.is_empty() && policies.is_empty() {
             return OnGraphqlAnalysisHookResult::Proceed;
         }
 
@@ -169,6 +191,16 @@ impl RouterPlugin for AccessPlugin {
             }
             JwtRequestDetails::Unauthenticated => Caller::Anonymous,
         };
+
+        if !policies.is_empty()
+            && let Ok(mut context) = payload.request_context.write()
+        {
+            let mut authorization = context.authorization();
+            for policy in policies {
+                let granted = caller.holds(&policy);
+                authorization.set_policy_decision(policy, granted);
+            }
+        }
 
         let denied = self
             .subgraphs
@@ -708,6 +740,24 @@ mod tests {
             "args": [{"name": "filter", "type": {"name": "SpotifyFilter"}}],
         }));
         assert!(hidden.field_hidden(Some("Query"), &field));
+    }
+
+    #[test]
+    fn policies_are_granted_to_users_holding_the_group() {
+        let admin = user(
+            "https://idm.example.test",
+            &["registry_admins@idm.example.test"],
+        );
+        assert!(admin.holds("registry_admins"));
+        assert!(!admin.holds("waf_admins"));
+        assert!(!Caller::Anonymous.holds("registry_admins"));
+        assert!(
+            !Caller::External {
+                name: "forgejo",
+                claims: serde_json::json!({ "repository": "anurag/k8s" }),
+            }
+            .holds("registry_admins")
+        );
     }
 
     #[test]

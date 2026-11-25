@@ -106,3 +106,31 @@ async fn introspection_hides_gated_fields() {
     let tester = stack.query(&stack.tester(), SCHEMA).await;
     assert_yaml_snapshot!("introspection_tester", root_fields(&tester));
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn policy_fields_need_the_group() {
+    let stack = Stack::spawn().await;
+
+    let user = stack
+        .post(Some(&stack.user()), "{ whoami testerNote }")
+        .await;
+    assert!(user.body["data"]["whoami"].is_string(), "{}", user.body);
+    assert!(user.body["data"]["testerNote"].is_null(), "{}", user.body);
+    assert!(user.body["errors"].is_array(), "{}", user.body);
+
+    let tester = stack.post(Some(&stack.tester()), "{ testerNote }").await;
+    assert_eq!(
+        tester.body["data"]["testerNote"], "for testers",
+        "{}",
+        tester.body
+    );
+    assert!(tester.body.get("errors").is_none(), "{}", tester.body);
+
+    let ci = stack.forgejo("anurag/k8s", "refs/heads/main");
+    let external = stack.post(Some(&ci), "{ whoami testerNote }").await;
+    assert!(
+        external.body["data"]["testerNote"].is_null(),
+        "{}",
+        external.body
+    );
+}

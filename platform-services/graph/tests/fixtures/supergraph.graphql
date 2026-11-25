@@ -1,6 +1,7 @@
 schema
   @link(url: "https://specs.apollo.dev/link/v1.0")
   @link(url: "https://specs.apollo.dev/join/v0.3", for: EXECUTION)
+  @link(url: "https://specs.apollo.dev/policy/v0.1", for: SECURITY)
 {
   query: Query
   subscription: Subscription
@@ -22,6 +23,10 @@ directive @link(url: String, as: String, for: link__Purpose, import: [link__Impo
 
 scalar join__FieldSet
 
+directive @policy(policies: [[policy__Policy!]!]!) on ENUM | FIELD_DEFINITION | INTERFACE | OBJECT | SCALAR
+
+scalar policy__Policy
+
 scalar link__Import
 
 enum link__Purpose {
@@ -42,6 +47,8 @@ interface Node @join__type(graph: NODE) {
 type Query @join__type(graph: GATED) @join__type(graph: NODE) @join__type(graph: OPEN) {
   whoami: String! @join__field(graph: OPEN)
   fail: String @join__field(graph: OPEN)
+  slow(ms: Int!): Boolean! @join__field(graph: OPEN)
+  testerNote: String @join__field(graph: OPEN) @policy(policies: [["graph_testers"]])
   secret: String @join__field(graph: GATED)
   node(id: ID!): Node @join__field(graph: NODE)
 }

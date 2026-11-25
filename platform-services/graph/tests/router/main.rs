@@ -3,6 +3,8 @@ mod diagnostics;
 mod hardening;
 mod http;
 mod limits;
+mod metrics;
 mod node;
 mod setup;
 mod subscriptions;
+mod supergraph;

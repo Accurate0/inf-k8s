@@ -23,7 +23,7 @@ cors:
   enabled: true
   allow_any_origin: false
   allow_credentials: false
-  allow_headers: [Content-Type, Authorization]
+  allow_headers: [Content-Type, Authorization, x-graph-client-name, x-graph-client-version]
   methods: [GET, POST, OPTIONS]
   policies:
     - origins: [https://spotify.ortzi.cloud]
@@ -42,6 +42,16 @@ telemetry:
   resource:
     attributes:
       service.name: graph-router
+  client_identification:
+    name_header: x-graph-client-name
+    version_header: x-graph-client-version
+    ip_header: x-real-ip
+  metrics:
+    exporters:
+      - kind: prometheus
+        enabled: true
+        port: 9090
+        path: /metrics
   tracing:
     collect:
       sampling: 1.0
@@ -54,6 +64,15 @@ telemetry:
         protocol: http
         endpoint:
           expression: env("OTEL_TRACING_URL")
+traffic_shaping:
+  all:
+    request_timeout: 15s
+    dedupe_enabled: true
+  router:
+    dedupe:
+      enabled: true
+      headers:
+        include: [authorization]
 introspection:
   expression: .request.jwt.authenticated == true
 demand_control:
@@ -76,6 +95,9 @@ plugins:
     config:
       authenticated: {requests: 20, per: 1s}
       anonymous: {requests: 5, per: 1s}
+      cost:
+        authenticated: {budget: 50000, per: 1m}
+        anonymous: {budget: 5000, per: 1m}
   anonymous:
     enabled: true
 laboratory:

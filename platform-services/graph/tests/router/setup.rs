@@ -133,6 +133,15 @@ impl Query {
         Err(Error::new("subgraph exploded"))
     }
 
+    async fn slow(&self, ms: u64) -> bool {
+        tokio::time::sleep(Duration::from_millis(ms)).await;
+        true
+    }
+
+    async fn tester_note(&self) -> Option<&str> {
+        Some("for testers")
+    }
+
     async fn secret(&self) -> Option<&str> {
         Some("hunter2")
     }
@@ -240,8 +249,11 @@ pub struct Stack {
     pub live: Live,
     router: Child,
     url: String,
+    dir: std::path::PathBuf,
     subgraph: JoinHandle<()>,
 }
+
+pub const BROKEN_SUPERGRAPH: &str = "type Query {";
 
 impl Stack {
     pub async fn spawn() -> Self {
@@ -249,6 +261,35 @@ impl Stack {
     }
 
     pub async fn spawn_with_rate_limit(requests: u32) -> Self {
+        Self::spawn_with_limits(requests, 1_000_000).await
+    }
+
+    pub async fn spawn_with_budget(budget: u64) -> Self {
+        Self::spawn_with_limits(1000, budget).await
+    }
+
+    async fn spawn_with_limits(requests: u32, budget: u64) -> Self {
+        let stack = Self::start(requests, budget, None).await;
+        stack.wait_ready().await;
+        stack
+    }
+
+    /// A router whose supergraph file never loads, so it should never become ready.
+    pub async fn spawn_broken() -> Self {
+        Self::start(1000, 1_000_000, Some(BROKEN_SUPERGRAPH)).await
+    }
+
+    pub fn replace_supergraph(&self, sdl: &str) {
+        std::fs::write(self.dir.join("supergraph.graphql"), sdl).unwrap();
+    }
+
+    pub async fn ready(&self) -> bool {
+        reqwest::get(format!("http://{}/readiness", self.url))
+            .await
+            .is_ok_and(|r| r.status().is_success())
+    }
+
+    async fn start(requests: u32, budget: u64, supergraph: Option<&str>) -> Self {
         let idp = Idp::spawn(7, KID).await;
         let forgejo = Idp::spawn(11, FORGEJO_KID).await;
 
@@ -291,15 +332,20 @@ impl Stack {
         std::fs::create_dir_all(&dir).unwrap();
 
         let fixtures = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
-        let supergraph = std::fs::read_to_string(format!("{fixtures}/supergraph.graphql"))
+        let fixture = std::fs::read_to_string(format!("{fixtures}/supergraph.graphql"))
             .unwrap()
             .replace("{subgraph}", &subgraph_url);
         let config = std::fs::read_to_string(format!("{fixtures}/router.yaml"))
             .unwrap()
             .replace("{issuer}", &idp.issuer)
             .replace("{forgejo}", &forgejo.issuer)
-            .replace("{requests}", &requests.to_string());
-        std::fs::write(dir.join("supergraph.graphql"), supergraph).unwrap();
+            .replace("{requests}", &requests.to_string())
+            .replace("{budget}", &budget.to_string());
+        std::fs::write(
+            dir.join("supergraph.graphql"),
+            supergraph.map_or(fixture, str::to_owned),
+        )
+        .unwrap();
         std::fs::write(dir.join("router.yaml"), config).unwrap();
         std::fs::copy(
             format!("{fixtures}/persisted-documents.json"),
@@ -316,29 +362,22 @@ impl Stack {
             .spawn()
             .unwrap();
 
-        let stack = Self {
+        Self {
             idp,
             forgejo,
             live,
             router,
             url: format!("127.0.0.1:{port}"),
+            dir,
             subgraph,
-        };
-        stack.wait_ready().await;
-        stack
+        }
     }
 
     async fn wait_ready(&self) {
-        let client = reqwest::Client::new();
         let deadline = tokio::time::Instant::now() + Duration::from_secs(30);
 
         while tokio::time::Instant::now() < deadline {
-            let ready = client
-                .get(format!("http://{}/readiness", self.url))
-                .send()
-                .await
-                .is_ok_and(|r| r.status().is_success());
-            if ready {
+            if self.ready().await {
                 return;
             }
 
@@ -376,12 +415,24 @@ impl Stack {
             .sign(&self.idp.forger, &["graph_users", "graph_testers"])
     }
 
+    pub async fn get_text(&self, path: &str) -> (u16, String) {
+        let response = reqwest::get(format!("http://{}{path}", self.url))
+            .await
+            .unwrap();
+        (response.status().as_u16(), response.text().await.unwrap())
+    }
+
     pub async fn post(&self, token: Option<&str>, query: &str) -> Response {
         self.post_with_request_id(token, query, None).await
     }
 
     pub async fn post_document(&self, token: Option<&str>, id: &str) -> Response {
-        self.send(token, json!({ "documentId": id }), None).await
+        self.send(token, json!({ "documentId": id }), &[]).await
+    }
+
+    pub async fn post_document_from(&self, ip: &str, id: &str) -> Response {
+        self.send(None, json!({ "documentId": id }), &[("x-real-ip", ip)])
+            .await
     }
 
     pub async fn post_with_request_id(
@@ -390,11 +441,14 @@ impl Stack {
         query: &str,
         request_id: Option<&str>,
     ) -> Response {
-        self.send(token, json!({ "query": query }), request_id)
-            .await
+        let headers: Vec<_> = request_id
+            .map(|id| ("x-request-id", id))
+            .into_iter()
+            .collect();
+        self.send(token, json!({ "query": query }), &headers).await
     }
 
-    async fn send(&self, token: Option<&str>, body: Value, request_id: Option<&str>) -> Response {
+    async fn send(&self, token: Option<&str>, body: Value, headers: &[(&str, &str)]) -> Response {
         let mut request = reqwest::Client::new()
             .post(format!("http://{}/v1/graphql", self.url))
             .json(&body);
@@ -402,8 +456,8 @@ impl Stack {
         if let Some(token) = token {
             request = request.bearer_auth(token);
         }
-        if let Some(request_id) = request_id {
-            request = request.header("x-request-id", request_id);
+        for (name, value) in headers {
+            request = request.header(*name, *value);
         }
 
         let response = request.send().await.unwrap();

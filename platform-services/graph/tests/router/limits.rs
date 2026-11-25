@@ -36,3 +36,20 @@ async fn closed_sockets_free_their_long_lived_client_slot() {
         socket.close().await;
     }
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn slow_subgraphs_time_out_instead_of_hanging() {
+    let stack = Stack::spawn().await;
+    let token = stack.user();
+
+    let quick = stack.post(Some(&token), "{ slow(ms: 10) }").await;
+    assert_eq!(quick.body["data"]["slow"], true, "{}", quick.body);
+
+    let started = std::time::Instant::now();
+    let slow = stack.post(Some(&token), "{ whoami slow(ms: 5000) }").await;
+    assert!(
+        started.elapsed() < std::time::Duration::from_millis(1900),
+        "the 1s subgraph timeout fires before the router's own 2s one"
+    );
+    assert!(slow.body["errors"].is_array(), "{}", slow.body);
+}

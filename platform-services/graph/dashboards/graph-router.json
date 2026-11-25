@@ -1,0 +1,488 @@
+{
+  "uid": "graph-router",
+  "title": "Graph Router",
+  "tags": [
+    "graph"
+  ],
+  "editable": true,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "annotations": {
+    "list": []
+  },
+  "templating": {
+    "list": []
+  },
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests/s",
+      "description": "All GraphQL requests through the router.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{namespace=\"graph\",http_route=\"/v1/graphql\"}[5m]))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "p95 latency",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_server_request_duration_seconds_bucket{namespace=\"graph\",http_route=\"/v1/graphql\"}[5m])))",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Rate limited/s",
+      "description": "Rejected by the ratelimit plugin (429), request count or cost budget.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_request_duration_seconds_count{namespace=\"graph\",http_route=\"/v1/graphql\",http_response_status_code=\"429\"}[5m])) or vector(0)",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Supergraph build failures (1h)",
+      "description": "Pods keep serving the last good supergraph when a new one fails to build.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 0
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "reduceOptions": {
+          "calcs": [
+            "lastNotNull"
+          ],
+          "fields": "",
+          "values": false
+        },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "value"
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(hive_router_supergraph_process_duration_seconds_count{namespace=\"graph\",status!=\"ok\"}[1h])) or vector(0)",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests by operation",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (graphql_operation_name) (rate(http_server_request_duration_seconds_count{namespace=\"graph\",http_route=\"/v1/graphql\"}[5m]))",
+          "legendFormat": "{{graphql_operation_name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "p95 by operation",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 5
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, graphql_operation_name) (rate(http_server_request_duration_seconds_bucket{namespace=\"graph\",http_route=\"/v1/graphql\"}[5m])))",
+          "legendFormat": "{{graphql_operation_name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Subgraph p95",
+      "description": "Router to subgraph fetch latency.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le, subgraph_name) (rate(http_client_request_duration_seconds_bucket{namespace=\"graph\"}[5m])))",
+          "legendFormat": "{{subgraph_name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Subgraph errors",
+      "description": "Fetches whose GraphQL response carried errors, or failed outright.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 13
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (subgraph_name) (rate(http_client_request_duration_seconds_count{namespace=\"graph\",graphql_response_status=\"error\"}[5m]))",
+          "legendFormat": "{{subgraph_name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "GraphQL errors by code",
+      "description": "FORBIDDEN comes from the access plugin, UNAUTHENTICATED from subgraphs; 429s are in Rate limited.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (code) (rate(hive_router_graphql_errors_total{namespace=\"graph\"}[5m]))",
+          "legendFormat": "{{code}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Operation cost p95",
+      "description": "Demand control estimate vs actual; tune the cost budget from this.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 21
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(hive_router_demand_control_cost_estimated_bucket{namespace=\"graph\"}[5m])))",
+          "legendFormat": "estimated"
+        },
+        {
+          "refId": "B",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(hive_router_demand_control_cost_actual_bucket{namespace=\"graph\"}[5m])))",
+          "legendFormat": "actual"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Supergraph polls",
+      "description": "",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (result) (increase(hive_router_supergraph_poll_total{namespace=\"graph\"}[15m]))",
+          "legendFormat": "{{result}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Persisted documents",
+      "description": "Requests missing a document id, and failures loading the manifest.",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps"
+        },
+        "overrides": []
+      },
+      "options": {
+        "legend": {
+          "displayMode": "list",
+          "placement": "bottom"
+        },
+        "tooltip": {
+          "mode": "multi"
+        }
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(hive_router_persisted_documents_extract_missing_id_total{namespace=\"graph\"}[5m]))",
+          "legendFormat": "missing id"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(rate(hive_router_persisted_documents_storage_failures_total{namespace=\"graph\"}[5m]))",
+          "legendFormat": "storage failures"
+        }
+      ]
+    }
+  ]
+}
