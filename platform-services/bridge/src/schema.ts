@@ -12,7 +12,7 @@ import {
 } from 'graphql';
 import type { Principal } from './auth.ts';
 
-export const SUBGRAPH_SDL = readFileSync(new URL('../subgraph.graphql', import.meta.url), 'utf8');
+export const SUBGRAPH_SDL = readFileSync(new URL('../schema.graphql', import.meta.url), 'utf8');
 
 // what composition and the router add around the committed sdl
 const FEDERATION = `

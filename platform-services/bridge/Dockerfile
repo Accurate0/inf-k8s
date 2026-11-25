@@ -10,7 +10,7 @@ FROM node:26.12.1-alpine3.24
 WORKDIR /opt/bridge
 
 COPY --from=deps /opt/bridge/node_modules ./node_modules
-COPY package.json subgraph.graphql ./
+COPY package.json schema.graphql ./
 COPY src ./src
 
 USER 10001

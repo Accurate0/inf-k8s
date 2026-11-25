@@ -166,7 +166,25 @@ function requireOnOff(
 const readValues = (path: string): Record<string, unknown> =>
   fs.exists(path) ? (parse(fs.readText(path)) ?? {}) : {};
 
-const worldOf = (apps: App[]): World => ({ platform: platformExports(), apps, readValues });
+// Image values are themselves rendered, so plan against what render would write: a new
+// app has no file yet, and a changed pin hasn't landed on disk.
+const worldOf = (apps: App[]): World => {
+  const rendered = new Map(
+    apps.filter((app) => app.workloads).map((app) => [imageValuesPath(app), app]),
+  );
+  return {
+    platform: platformExports(),
+    apps,
+    readValues: (path) => {
+      const app = rendered.get(path);
+      if (!app) {
+        return readValues(path);
+      }
+      const current = fs.exists(path) ? fs.readText(path) : undefined;
+      return parse(renderImageValues(app, current)) ?? {};
+    },
+  };
+};
 
 const appPaths = () =>
   LOCATIONS.flatMap((location) =>

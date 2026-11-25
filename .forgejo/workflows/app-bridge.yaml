@@ -1,0 +1,92 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-25T14:03:04.580Z
+name: app bridge
+on:
+  push:
+    paths:
+      - platform-services/bridge/**
+      - "!platform-services/bridge/manifests/**"
+      - "!platform-services/bridge/app.yaml"
+      - "!platform-services/bridge/image.values.yaml"
+      - .forgejo/workflows/app-bridge.yaml
+  workflow_dispatch: null
+enable-openid-connect: true
+jobs:
+  build:
+    runs-on: docker
+    outputs:
+      digest: ${{ steps.build.outputs.digest }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - name: Compute commit metadata
+        id: commit-meta
+        run: echo "committed-at=$(git show -s --format=%ct ${{ github.sha }})" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - name: Install ortzi
+        if: github.ref == 'refs/heads/main'
+        uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+      - name: Log in to harbor
+        id: login
+        if: github.ref == 'refs/heads/main'
+        run: ortzi registry login containers:push
+      - id: build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc
+        with:
+          context: platform-services/bridge
+          file: platform-services/bridge/Dockerfile
+          push: ${{ github.ref == 'refs/heads/main' }}
+          tags: registry.anurag.sh/containers/bridge:latest,registry.anurag.sh/containers/bridge:${{ github.sha }}
+          labels: |-
+            net.inf-k8s.commit-sha=${{ github.sha }}
+            net.inf-k8s.committed-at=${{ steps.commit-meta.outputs.committed-at }}
+          cache-from: type=registry,ref=registry.anurag.sh/containers/bridge:buildcache
+          cache-to: ${{ github.ref == 'refs/heads/main' && 'type=registry,ref=registry.anurag.sh/containers/bridge:buildcache,mode=max' || '' }}
+      - name: Sign image
+        if: github.ref == 'refs/heads/main'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: ortzi registry sign "registry.anurag.sh/containers/bridge@$DIGEST"
+      - name: Log out of harbor
+        if: ${{ always() && steps.login.outcome == 'success' }}
+        run: ortzi registry logout
+  test:
+    runs-on: docker
+    env:
+      SQLX_OFFLINE: "true"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+      - run: arch="$(uname -m | sed 's/x86_64/x64/;s/aarch64/arm64/')" && curl -fsSL "https://nodejs.org/dist/v26.12.1/node-v26.12.1-linux-$arch.tar.xz" | tar -xJ -C /opt && echo "/opt/node-v26.12.1-linux-$arch/bin" >> "$GITHUB_PATH" && "/opt/node-v26.12.1-linux-$arch/bin/npm" install -g pnpm
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+        with:
+          path: |-
+            platform-services/bridge/target
+            ~/.cargo/registry
+          key: ${{ runner.os }}-app-target-${{ hashFiles('platform-services/bridge/Cargo.lock') }}-bridge
+      - run: pnpm install --frozen-lockfile && pnpm check && pnpm test
+        working-directory: ${{ github.workspace }}/platform-services/bridge
+  release:
+    needs:
+      - build
+      - test
+    if: ${{ github.ref == 'refs/heads/main' && !cancelled() && needs.build.result == 'success' && needs.test.result == 'success' }}
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069
+      - uses: https://git.anurag.sh/anurag/workflows/setup-ortzi@main
+        with:
+          packages: app
+      - name: Log in to harbor
+        id: login
+        run: ortzi registry login containers:push
+      - name: Tag release
+        env:
+          DIGEST: ${{ needs.build.outputs.digest }}
+        run: |-
+          TAG=$(ortzi app version --path 'platform-services/bridge/**' --path '!platform-services/bridge/manifests/**' --path '!platform-services/bridge/app.yaml' --path '!platform-services/bridge/image.values.yaml' --path '.forgejo/workflows/app-bridge.yaml')
+          docker buildx imagetools create --tag "registry.anurag.sh/containers/bridge:$TAG" "registry.anurag.sh/containers/bridge@$DIGEST"
+      - name: Log out of harbor
+        if: ${{ always() && steps.login.outcome == 'success' }}
+        run: ortzi registry logout

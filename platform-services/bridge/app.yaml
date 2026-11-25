@@ -44,7 +44,7 @@ resources:
 workloads:
   - name: bridge
     image: registry.anurag.sh/containers/bridge
-    release: latest
+    release: 19504691d7b2811256aa4e1d5ce527610d87508a-dirty-20261125135754
     replicas: 2
     resources: {memory: 96Mi, memoryLimit: 256Mi}
     ports:
