@@ -129,9 +129,10 @@ impl std::str::FromStr for Provider {
 #[derive(Debug, Clone)]
 pub struct AuthConfig {
     pub providers: Vec<Provider>,
-    /// The caller must hold one of these groups (short name or SPN), when no scopes are set.
+    /// Holding one of these groups (short name or SPN) admits the caller, until subgraphs only
+    /// use scopes.
     pub groups: Vec<String>,
-    /// The scopes this subgraph defines; the caller must hold one of them.
+    /// The scopes this subgraph defines; holding one of them admits the caller.
     pub scopes: Vec<String>,
     /// External issuers (e.g. forgejo actions) admitted by claim patterns instead of groups.
     pub external: Vec<ExternalAuth>,
@@ -360,35 +361,33 @@ impl Authenticator {
     async fn authorize_user(&self, issuer: &IssuerKeys, token: &str) -> Result<Claims, AuthError> {
         let mut claims: Claims = self.verify(issuer, token).await?;
         // Kanidm access tokens carry neither groups nor a username; userinfo has both. Scoped
-        // subgraphs only need it for the username.
-        let need_groups = self.inner.scopes.is_empty() && claims.groups.is_none();
+        // subgraphs don't gate on the groups, but may still use them, e.g. for per-resource grants.
+        let need_groups = !self.inner.groups.is_empty() && claims.groups.is_none();
         if need_groups || claims.preferred_username.is_none() {
             let info = self.userinfo(issuer, token).await?;
-            if need_groups {
-                claims.groups = Some(info.groups);
-            }
+            claims.groups.get_or_insert(info.groups);
             if claims.preferred_username.is_none() {
                 claims.preferred_username = info.preferred_username;
             }
         }
 
-        if !self.inner.scopes.is_empty() {
-            let held = claims.scopes();
-            if !self.inner.scopes.iter().any(|scope| held.contains(scope.as_str())) {
-                return Err(AuthError::Forbidden(format!(
-                    "{} holds none of {:?}",
-                    claims.identity(),
-                    self.inner.scopes
-                )));
-            }
-            return Ok(claims);
-        }
-
-        let allowed = &self.inner.groups;
-        if !groups_match(claims.groups.as_deref().unwrap_or_default(), allowed) {
+        let held = claims.scopes();
+        let scoped = self
+            .inner
+            .scopes
+            .iter()
+            .any(|scope| held.contains(scope.as_str()));
+        let grouped = !self.inner.groups.is_empty()
+            && groups_match(
+                claims.groups.as_deref().unwrap_or_default(),
+                &self.inner.groups,
+            );
+        if !scoped && !grouped {
             return Err(AuthError::Forbidden(format!(
-                "{} is not in any of {allowed:?}",
-                claims.identity()
+                "{} holds none of {:?} and is in none of {:?}",
+                claims.identity(),
+                self.inner.scopes,
+                self.inner.groups
             )));
         }
         Ok(claims)
@@ -541,7 +540,11 @@ impl Authenticator {
     }
 }
 
-fn granted_scopes(grants: &[Grant], issuer: &str, claims: &serde_json::Value) -> BTreeSet<String> {
+pub fn granted_scopes(
+    grants: &[Grant],
+    issuer: &str,
+    claims: &serde_json::Value,
+) -> BTreeSet<String> {
     grants
         .iter()
         .filter(|grant| {

@@ -126,7 +126,10 @@ mod tests {
         let denied = schema
             .execute(Request::new("{ open tokens }").data(claims("openid registry:package:read")))
             .await;
-        assert_eq!(denied.errors[0].message, "missing scope registry:token:create");
+        assert_eq!(
+            denied.errors[0].message,
+            "missing scope registry:token:create"
+        );
         assert_eq!(
             denied.errors[0].extensions.as_ref().unwrap().get("code"),
             Some(&Value::from("FORBIDDEN"))
@@ -150,7 +153,9 @@ mod tests {
         assert!(
             schema
                 .sdl_with_options(async_graphql::SDLExportOptions::new().federation())
-                .contains(r#"tokens: Boolean! @requiresScopes(scopes: [["registry:token:create"]])"#)
+                .contains(
+                    r#"tokens: Boolean! @requiresScopes(scopes: [["registry:token:create"]])"#
+                )
         );
     }
 
