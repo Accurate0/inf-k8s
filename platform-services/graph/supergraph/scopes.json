@@ -194,6 +194,55 @@
       ]
     },
     {
+      "name": "flux:app:read",
+      "description": "read flux apps, their images and how far each build has got",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "FluxApp",
+        "Query.fluxApp",
+        "Query.fluxApps"
+      ]
+    },
+    {
+      "name": "forgejo:log:read",
+      "description": "read ci job logs",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "ForgejoJob.logTail"
+      ]
+    },
+    {
+      "name": "forgejo:run:read",
+      "description": "read commits, ci runs and their jobs",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "FluxImage.commit",
+        "FluxImage.latestBuild",
+        "ForgejoCommit",
+        "ForgejoRun",
+        "Query.forgejoCommit",
+        "Query.forgejoRuns"
+      ]
+    },
+    {
       "name": "home:api:access",
       "description": "reach home-gateway, which then scopes each operation from your groups",
       "subgraph": "home",
@@ -253,6 +302,21 @@
       ],
       "fields": [
         "Mutation.janitorReplayWebhook"
+      ]
+    },
+    {
+      "name": "kubernetes:workload:read",
+      "description": "read workloads and their pods' health",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "FluxApp.workloads",
+        "Query.kubernetesWorkloads"
       ]
     },
     {
