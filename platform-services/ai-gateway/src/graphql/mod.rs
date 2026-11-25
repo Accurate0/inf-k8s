@@ -27,22 +27,34 @@ pub fn builder() -> SchemaBuilder<QueryRoot, MutationRoot, SubscriptionRoot> {
 }
 
 pub fn router(state: AppState) -> Option<axum::Router> {
-    let graph = state.config.graph.as_ref()?;
-    let groups = state
-        .config
-        .oauth
-        .as_ref()
-        .map(|oauth| oauth.groups.clone())
-        .filter(|groups| !groups.is_empty())?;
-    let auth = Authenticator::new(AuthConfig {
-        providers: vec![Provider {
-            issuer: graph.issuer.clone(),
-            audience: graph.audience.clone(),
-        }],
-        groups,
-        scopes: Vec::new(),
-        external: Vec::new(),
-    });
+    let config = match std::env::var("SUBGRAPH_AUTH") {
+        Ok(json) => match AuthConfig::from_subgraph_auth(&json) {
+            Ok(config) => config,
+            Err(e) => {
+                tracing::error!("graph api disabled: {e}");
+                return None;
+            }
+        },
+        Err(_) => {
+            let graph = state.config.graph.as_ref()?;
+            let groups = state
+                .config
+                .oauth
+                .as_ref()
+                .map(|oauth| oauth.groups.clone())
+                .filter(|groups| !groups.is_empty())?;
+            AuthConfig {
+                providers: vec![Provider {
+                    issuer: graph.issuer.clone(),
+                    audience: graph.audience.clone(),
+                }],
+                groups,
+                scopes: Vec::new(),
+                external: Vec::new(),
+            }
+        }
+    };
+    let auth = Authenticator::new(config);
     tokio::spawn(auth.clone().run());
 
     let schema = builder().data(state).finish();

@@ -50,6 +50,9 @@ pub struct Provider {
 struct SubgraphAuth {
     providers: Vec<Provider>,
     scopes: Vec<String>,
+    /// Still admitted while their tokens predate the scopes.
+    #[serde(default)]
+    groups: Vec<String>,
     #[serde(default)]
     external: Vec<ExternalAuth>,
 }
@@ -103,7 +106,7 @@ impl AuthConfig {
 
         Ok(Self {
             providers: auth.providers,
-            groups: Vec::new(),
+            groups: auth.groups,
             scopes: auth.scopes,
             external: auth.external,
         })
