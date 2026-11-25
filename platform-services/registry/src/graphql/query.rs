@@ -29,6 +29,7 @@ impl QueryRoot {
     }
 
     /// Unarchived packages, optionally filtered by name or description.
+    #[graphql(requires_scopes = "registry:package:read")]
     async fn registry_packages(
         &self,
         ctx: &Context<'_>,
@@ -37,10 +38,12 @@ impl QueryRoot {
         Package::list(ctx, query.filter(|q| !q.is_empty())).await
     }
 
+    #[graphql(requires_scopes = "registry:package:read")]
     async fn registry_package(&self, ctx: &Context<'_>, name: String) -> Result<Package> {
         Package::load(ctx, &name).await
     }
 
+    #[graphql(requires_scopes = "registry:package:read")]
     async fn registry_version(
         &self,
         ctx: &Context<'_>,
@@ -50,10 +53,12 @@ impl QueryRoot {
         Version::load(ctx, &package, &version).await
     }
 
+    #[graphql(requires_scopes = "registry:token:manage")]
     async fn registry_publish_tokens(&self, ctx: &Context<'_>) -> Result<Vec<PublishToken>> {
         PublishToken::list(ctx).await
     }
 
+    #[graphql(requires_scopes = "registry:publisher:manage")]
     async fn registry_trusted_publishers(
         &self,
         ctx: &Context<'_>,
@@ -62,6 +67,7 @@ impl QueryRoot {
         TrustedPublisher::list(ctx, package).await
     }
 
+    #[graphql(requires_scopes = "registry:audit:read")]
     async fn registry_audit(
         &self,
         ctx: &Context<'_>,
@@ -72,6 +78,7 @@ impl QueryRoot {
     }
 
     /// The current signed catalog in harbor.
+    #[graphql(requires_scopes = "registry:package:read")]
     async fn registry_catalog(&self, ctx: &Context<'_>) -> Result<CatalogRef> {
         let current =
             crate::cli::catalog::current(axum::extract::State(state(ctx).clone()), principal(ctx)?)
@@ -83,15 +90,18 @@ impl QueryRoot {
         })
     }
 
+    #[graphql(requires_scopes = "registry:package:read")]
     async fn registry_signing_keys(&self, ctx: &Context<'_>) -> Vec<SigningKey> {
         SigningKey::list(ctx).await
     }
 
     /// Repositories with signed images, most recently signed first.
+    #[graphql(requires_scopes = "registry:image:read")]
     async fn registry_image_repositories(&self, ctx: &Context<'_>) -> Result<Vec<ImageRepository>> {
         ImageRepository::list(ctx).await
     }
 
+    #[graphql(requires_scopes = "registry:image:read")]
     async fn registry_image_repository(
         &self,
         ctx: &Context<'_>,
@@ -100,6 +110,7 @@ impl QueryRoot {
         ImageRepository::load(ctx, &name).await
     }
 
+    #[graphql(requires_scopes = "registry:image:read")]
     async fn registry_image(
         &self,
         ctx: &Context<'_>,

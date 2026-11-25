@@ -11,36 +11,36 @@ A scalar that can represent any JSON value.
 scalar JSON
 
 type Mutation {
-	registryCreatePackage(input: RegistryCreatePackageInput!): RegistryPackage!
-	registryUpdatePackage(name: String!, input: RegistryUpdatePackageInput!): RegistryPackage!
-	registryArchivePackage(name: String!): RegistryPackage!
-	registryUnarchivePackage(name: String!): RegistryPackage!
+	registryCreatePackage(input: RegistryCreatePackageInput!): RegistryPackage! @requiresScopes(scopes: [["registry:package:write"]])
+	registryUpdatePackage(name: String!, input: RegistryUpdatePackageInput!): RegistryPackage! @requiresScopes(scopes: [["registry:package:write"]])
+	registryArchivePackage(name: String!): RegistryPackage! @requiresScopes(scopes: [["registry:package:write"]])
+	registryUnarchivePackage(name: String!): RegistryPackage! @requiresScopes(scopes: [["registry:package:write"]])
 	"""
 	Only packages without published versions can be deleted; archive the rest.
 	"""
-	registryDeletePackage(name: String!): ID!
-	registryYankVersion(id: ID!, reason: String): RegistryVersion!
-	registryUnyankVersion(id: ID!): RegistryVersion!
-	registryCreatePublishToken(input: RegistryCreatePublishTokenInput!): RegistryCreatedPublishToken!
-	registryRevokePublishToken(id: ID!): RegistryPublishToken!
-	registryCreateTrustedPublisher(input: RegistryCreateTrustedPublisherInput!): RegistryTrustedPublisher!
-	registryDeleteTrustedPublisher(id: ID!): ID!
+	registryDeletePackage(name: String!): ID! @requiresScopes(scopes: [["registry:package:write"]])
+	registryYankVersion(id: ID!, reason: String): RegistryVersion! @requiresScopes(scopes: [["registry:package:publish"]])
+	registryUnyankVersion(id: ID!): RegistryVersion! @requiresScopes(scopes: [["registry:package:write"]])
+	registryCreatePublishToken(input: RegistryCreatePublishTokenInput!): RegistryCreatedPublishToken! @requiresScopes(scopes: [["registry:token:manage"]])
+	registryRevokePublishToken(id: ID!): RegistryPublishToken! @requiresScopes(scopes: [["registry:token:manage"]])
+	registryCreateTrustedPublisher(input: RegistryCreateTrustedPublisherInput!): RegistryTrustedPublisher! @requiresScopes(scopes: [["registry:publisher:manage"]])
+	registryDeleteTrustedPublisher(id: ID!): ID! @requiresScopes(scopes: [["registry:publisher:manage"]])
 	"""
 	Starts a draft version; push each target to harbor, register it, then publish.
 	"""
-	registryCreateVersion(input: RegistryCreateVersionInput!): RegistryVersion!
+	registryCreateVersion(input: RegistryCreateVersionInput!): RegistryVersion! @requiresScopes(scopes: [["registry:package:publish"]])
 	"""
 	Records a target of a draft version already pushed to harbor as `manifest`.
 	"""
-	registryRegisterArtifact(package: String!, version: String!, target: RegistryTarget!, manifest: String!): RegistryArtifact!
+	registryRegisterArtifact(package: String!, version: String!, target: RegistryTarget!, manifest: String!): RegistryArtifact! @requiresScopes(scopes: [["registry:package:publish"]])
 	"""
 	Certifies a throwaway publish key for one package, after checking the caller may publish it.
 	"""
-	registryIssueSigningCertificate(package: String!, publicKey: String!): RegistryEnvelope!
+	registryIssueSigningCertificate(package: String!, publicKey: String!): RegistryEnvelope! @requiresScopes(scopes: [["registry:package:publish"]])
 	"""
 	Publishes a draft whose targets are all registered, with its signed statement.
 	"""
-	registryPublishVersion(package: String!, version: String!, statement: RegistryEnvelopeInput!, certificate: RegistryEnvelopeInput!): RegistryVersion!
+	registryPublishVersion(package: String!, version: String!, statement: RegistryEnvelopeInput!, certificate: RegistryEnvelopeInput!): RegistryVersion! @requiresScopes(scopes: [["registry:package:publish"]])
 	"""
 	Mints a short-lived harbor robot limited to `access`.
 	"""
@@ -53,11 +53,11 @@ type Mutation {
 	"""
 	Admins: push every published version missing from harbor, in the background.
 	"""
-	registryAdminBackfill: Boolean!
+	registryAdminBackfill: Boolean! @requiresScopes(scopes: [["registry:package:write"]])
 	"""
 	Admins: re-render and sign the catalog now, returning its new seq.
 	"""
-	registryAdminRenderCatalog: Int!
+	registryAdminRenderCatalog: Int! @requiresScopes(scopes: [["registry:package:write"]])
 }
 
 interface Node {
@@ -69,23 +69,23 @@ type Query {
 	"""
 	Unarchived packages, optionally filtered by name or description.
 	"""
-	registryPackages(query: String): [RegistryPackage!]!
-	registryPackage(name: String!): RegistryPackage!
-	registryVersion(package: String!, version: String!): RegistryVersion!
-	registryPublishTokens: [RegistryPublishToken!]!
-	registryTrustedPublishers(package: String): [RegistryTrustedPublisher!]!
-	registryAudit(package: String, limit: Int! = 100): [RegistryAuditEntry!]!
+	registryPackages(query: String): [RegistryPackage!]! @requiresScopes(scopes: [["registry:package:read"]])
+	registryPackage(name: String!): RegistryPackage! @requiresScopes(scopes: [["registry:package:read"]])
+	registryVersion(package: String!, version: String!): RegistryVersion! @requiresScopes(scopes: [["registry:package:read"]])
+	registryPublishTokens: [RegistryPublishToken!]! @requiresScopes(scopes: [["registry:token:manage"]])
+	registryTrustedPublishers(package: String): [RegistryTrustedPublisher!]! @requiresScopes(scopes: [["registry:publisher:manage"]])
+	registryAudit(package: String, limit: Int! = 100): [RegistryAuditEntry!]! @requiresScopes(scopes: [["registry:audit:read"]])
 	"""
 	The current signed catalog in harbor.
 	"""
-	registryCatalog: RegistryCatalogRef!
-	registrySigningKeys: [RegistrySigningKey!]!
+	registryCatalog: RegistryCatalogRef! @requiresScopes(scopes: [["registry:package:read"]])
+	registrySigningKeys: [RegistrySigningKey!]! @requiresScopes(scopes: [["registry:package:read"]])
 	"""
 	Repositories with signed images, most recently signed first.
 	"""
-	registryImageRepositories: [RegistryImageRepository!]!
-	registryImageRepository(name: String!): RegistryImageRepository!
-	registryImage(repository: String!, digest: String!): RegistryImage!
+	registryImageRepositories: [RegistryImageRepository!]! @requiresScopes(scopes: [["registry:image:read"]])
+	registryImageRepository(name: String!): RegistryImageRepository! @requiresScopes(scopes: [["registry:image:read"]])
+	registryImage(repository: String!, digest: String!): RegistryImage! @requiresScopes(scopes: [["registry:image:read"]])
 }
 
 type RegistryArtifact implements Node @key(fields: "id") {

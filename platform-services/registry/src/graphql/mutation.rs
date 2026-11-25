@@ -68,6 +68,7 @@ pub struct CreatedPublishToken {
 
 #[Object(name = "Mutation")]
 impl MutationRoot {
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_create_package(
         &self,
         ctx: &Context<'_>,
@@ -88,6 +89,7 @@ impl MutationRoot {
         Ok(Package(package.0))
     }
 
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_update_package(
         &self,
         ctx: &Context<'_>,
@@ -109,6 +111,7 @@ impl MutationRoot {
         Ok(Package(package.0))
     }
 
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_archive_package(&self, ctx: &Context<'_>, name: String) -> Result<Package> {
         let package = packages::archive(State(state(ctx).clone()), principal(ctx)?, Path(name))
             .await
@@ -116,6 +119,7 @@ impl MutationRoot {
         Ok(Package(package.0))
     }
 
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_unarchive_package(&self, ctx: &Context<'_>, name: String) -> Result<Package> {
         let package = packages::unarchive(State(state(ctx).clone()), principal(ctx)?, Path(name))
             .await
@@ -124,6 +128,7 @@ impl MutationRoot {
     }
 
     /// Only packages without published versions can be deleted; archive the rest.
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_delete_package(&self, ctx: &Context<'_>, name: String) -> Result<ID> {
         packages::delete(
             State(state(ctx).clone()),
@@ -135,6 +140,7 @@ impl MutationRoot {
         Ok(IDS.encode("package", name))
     }
 
+    #[graphql(requires_scopes = "registry:package:publish")]
     async fn registry_yank_version(
         &self,
         ctx: &Context<'_>,
@@ -154,6 +160,7 @@ impl MutationRoot {
         Ok(Version(version.0))
     }
 
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_unyank_version(&self, ctx: &Context<'_>, id: ID) -> Result<Version> {
         let key = IDS.decode_as(&id, "version")?;
         let (package, version) = split_version_key(&key)?;
@@ -167,6 +174,7 @@ impl MutationRoot {
         Ok(Version(version.0))
     }
 
+    #[graphql(requires_scopes = "registry:token:manage")]
     async fn registry_create_publish_token(
         &self,
         ctx: &Context<'_>,
@@ -197,6 +205,7 @@ impl MutationRoot {
         })
     }
 
+    #[graphql(requires_scopes = "registry:token:manage")]
     async fn registry_revoke_publish_token(
         &self,
         ctx: &Context<'_>,
@@ -209,6 +218,7 @@ impl MutationRoot {
         PublishToken::load(ctx, id).await
     }
 
+    #[graphql(requires_scopes = "registry:publisher:manage")]
     async fn registry_create_trusted_publisher(
         &self,
         ctx: &Context<'_>,
@@ -230,6 +240,7 @@ impl MutationRoot {
         Ok(TrustedPublisher(publisher.0))
     }
 
+    #[graphql(requires_scopes = "registry:publisher:manage")]
     async fn registry_delete_trusted_publisher(&self, ctx: &Context<'_>, id: ID) -> Result<ID> {
         let uuid = uuid(&IDS.decode_as(&id, "trustedPublisher")?)?;
         publishers::delete(State(state(ctx).clone()), principal(ctx)?, Path(uuid))
@@ -239,6 +250,7 @@ impl MutationRoot {
     }
 
     /// Starts a draft version; push each target to harbor, register it, then publish.
+    #[graphql(requires_scopes = "registry:package:publish")]
     async fn registry_create_version(
         &self,
         ctx: &Context<'_>,
@@ -263,6 +275,7 @@ impl MutationRoot {
     }
 
     /// Records a target of a draft version already pushed to harbor as `manifest`.
+    #[graphql(requires_scopes = "registry:package:publish")]
     async fn registry_register_artifact(
         &self,
         ctx: &Context<'_>,
@@ -288,6 +301,7 @@ impl MutationRoot {
     }
 
     /// Certifies a throwaway publish key for one package, after checking the caller may publish it.
+    #[graphql(requires_scopes = "registry:package:publish")]
     async fn registry_issue_signing_certificate(
         &self,
         ctx: &Context<'_>,
@@ -309,6 +323,7 @@ impl MutationRoot {
     }
 
     /// Publishes a draft whose targets are all registered, with its signed statement.
+    #[graphql(requires_scopes = "registry:package:publish")]
     async fn registry_publish_version(
         &self,
         ctx: &Context<'_>,
@@ -380,6 +395,7 @@ impl MutationRoot {
     }
 
     /// Admins: push every published version missing from harbor, in the background.
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_admin_backfill(&self, ctx: &Context<'_>) -> Result<bool> {
         let _ = packages::backfill(State(state(ctx).clone()), principal(ctx)?)
             .await
@@ -388,6 +404,7 @@ impl MutationRoot {
     }
 
     /// Admins: re-render and sign the catalog now, returning its new seq.
+    #[graphql(requires_scopes = "registry:package:write")]
     async fn registry_admin_render_catalog(&self, ctx: &Context<'_>) -> Result<i64> {
         let rendered = packages::render_catalog(State(state(ctx).clone()), principal(ctx)?)
             .await

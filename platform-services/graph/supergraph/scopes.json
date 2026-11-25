@@ -11,7 +11,9 @@
         "graph",
         "registry"
       ],
-      "fields": []
+      "fields": [
+        "Query.registryAudit"
+      ]
     },
     {
       "name": "registry:image:read",
@@ -32,7 +34,11 @@
           }
         }
       ],
-      "fields": []
+      "fields": [
+        "Query.registryImage",
+        "Query.registryImageRepositories",
+        "Query.registryImageRepository"
+      ]
     },
     {
       "name": "registry:package:publish",
@@ -53,7 +59,13 @@
           }
         }
       ],
-      "fields": []
+      "fields": [
+        "Mutation.registryCreateVersion",
+        "Mutation.registryIssueSigningCertificate",
+        "Mutation.registryPublishVersion",
+        "Mutation.registryRegisterArtifact",
+        "Mutation.registryYankVersion"
+      ]
     },
     {
       "name": "registry:package:read",
@@ -74,7 +86,13 @@
           }
         }
       ],
-      "fields": []
+      "fields": [
+        "Query.registryCatalog",
+        "Query.registryPackage",
+        "Query.registryPackages",
+        "Query.registrySigningKeys",
+        "Query.registryVersion"
+      ]
     },
     {
       "name": "registry:package:write",
@@ -87,7 +105,16 @@
         "graph",
         "registry"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.registryAdminBackfill",
+        "Mutation.registryAdminRenderCatalog",
+        "Mutation.registryArchivePackage",
+        "Mutation.registryCreatePackage",
+        "Mutation.registryDeletePackage",
+        "Mutation.registryUnarchivePackage",
+        "Mutation.registryUnyankVersion",
+        "Mutation.registryUpdatePackage"
+      ]
     },
     {
       "name": "registry:publisher:manage",
@@ -100,7 +127,11 @@
         "graph",
         "registry"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.registryCreateTrustedPublisher",
+        "Mutation.registryDeleteTrustedPublisher",
+        "Query.registryTrustedPublishers"
+      ]
     },
     {
       "name": "registry:token:manage",
@@ -113,7 +144,11 @@
         "graph",
         "registry"
       ],
-      "fields": []
+      "fields": [
+        "Mutation.registryCreatePublishToken",
+        "Mutation.registryRevokePublishToken",
+        "Query.registryPublishTokens"
+      ]
     }
   ]
 }

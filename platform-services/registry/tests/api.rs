@@ -2130,6 +2130,7 @@ async fn publishing_through_the_graph(pool: PgPool) {
         "sub": "sub-root",
         "preferred_username": "root",
         "groups": ["registry_admins@idm.example.test"],
+        "scope": "openid registry:package:read registry:image:read registry:package:write registry:package:publish registry:publisher:manage registry:token:manage registry:audit:read",
     }));
     let gql = |query: &'static str, variables: Value| {
         let registry = &registry;
@@ -2317,4 +2318,35 @@ async fn scopes_decide_what_people_may_do(pool: PgPool) {
         .await;
     assert_eq!(status, 200);
     assert_eq!(me["admin"], true);
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn graph_fields_need_their_scope_even_with_the_group(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+    let grouped = registry.kanidm.sign(json!({
+        "aud": "graph",
+        "sub": "sub-old",
+        "preferred_username": "old",
+        "groups": ["registry_admins@idm.example.test"],
+    }));
+
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/v1/graphql",
+            Some(&grouped),
+            Some(
+                json!({ "query": "{ registryWhoami { subject } registryPublishTokens { name } }" }),
+            ),
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert_eq!(
+        body["data"]["registryWhoami"]["subject"], "old",
+        "the group still admits"
+    );
+    assert_eq!(
+        body["errors"][0]["message"], "missing scope registry:token:manage",
+        "{body}"
+    );
 }
