@@ -7,6 +7,7 @@ use registry_api::{ECOSYSTEM_CLI, Target};
 use uuid::Uuid;
 
 use super::{Gql, IDS, principal, state};
+use crate::auth::scopes;
 use crate::cli::{artifacts, packages};
 use crate::core::{images, publishers};
 
@@ -585,7 +586,10 @@ impl SigningKey {
 #[graphql(name = "RegistryWhoAmI")]
 pub struct WhoAmI {
     pub subject: String,
+    /// Holds registry:package:write.
     pub admin: bool,
+    /// The registry scopes the caller holds.
+    pub scopes: Vec<String>,
     pub groups: Vec<String>,
 }
 
@@ -642,7 +646,7 @@ impl Image {
 
 impl Image {
     pub async fn load(ctx: &Context<'_>, id: Uuid) -> Result<Self> {
-        principal(ctx)?.require_reader().gql()?;
+        principal(ctx)?.require(scopes::IMAGE_READ).gql()?;
         Ok(Self(images::find(&state(ctx).pool, id).await.gql()?))
     }
 
@@ -709,7 +713,7 @@ impl ImageRepository {
     }
 
     pub async fn load(ctx: &Context<'_>, name: &str) -> Result<Self> {
-        principal(ctx)?.require_reader().gql()?;
+        principal(ctx)?.require(scopes::IMAGE_READ).gql()?;
         images::repositories(&state(ctx).pool, Some(name))
             .await
             .gql()?

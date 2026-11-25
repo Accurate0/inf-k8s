@@ -49,7 +49,7 @@ async fn whoami(principal: Principal) -> Json<WhoAmI> {
     Json(WhoAmI {
         subject: principal.actor(),
         kind: principal.kind().to_owned(),
-        admin: principal.is_admin(),
+        admin: principal.has(crate::auth::scopes::PACKAGE_WRITE),
         groups,
         scopes,
     })

@@ -188,8 +188,7 @@ mod tests {
         Principal::User {
             name: "someone".to_owned(),
             groups: groups.iter().map(|g| g.to_string()).collect(),
-            admin: false,
-            reader: true,
+            scopes: Default::default(),
         }
     }
 

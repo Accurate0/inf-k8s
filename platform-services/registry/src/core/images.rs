@@ -8,6 +8,7 @@ use serde::Deserialize;
 use sqlx::PgPool;
 use uuid::Uuid;
 
+use crate::auth::scopes;
 use crate::{
     auth::Principal,
     error::{ApiError, Result},
@@ -182,7 +183,7 @@ pub async fn list(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<Vec<ImageRepository>>> {
-    principal.require_reader()?;
+    principal.require(scopes::IMAGE_READ)?;
 
     Ok(Json(repositories(&state.pool, None).await?))
 }
@@ -203,7 +204,7 @@ pub async fn repository(
     principal: Principal,
     Query(query): Query<RepositoryQuery>,
 ) -> Result<Json<Vec<Image>>> {
-    principal.require_reader()?;
+    principal.require(scopes::IMAGE_READ)?;
 
     let images = images(&state.pool, &query.name, query.limit.clamp(1, 500)).await?;
     if images.is_empty() {
@@ -227,7 +228,7 @@ pub async fn digest(
     principal: Principal,
     Query(query): Query<DigestQuery>,
 ) -> Result<Json<Image>> {
-    principal.require_reader()?;
+    principal.require(scopes::IMAGE_READ)?;
 
     sqlx::query_as!(
         Row,

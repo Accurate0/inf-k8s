@@ -5,6 +5,7 @@ use futures::Stream;
 
 use super::objects::AuditEntry;
 use super::{Gql, principal, state};
+use crate::auth::scopes;
 use crate::error::ApiError;
 
 pub struct SubscriptionRoot;
@@ -18,7 +19,7 @@ impl SubscriptionRoot {
         &self,
         ctx: &Context<'_>,
     ) -> Result<impl Stream<Item = Result<AuditEntry>>> {
-        principal(ctx)?.require_admin().gql()?;
+        principal(ctx)?.require(scopes::AUDIT_READ).gql()?;
         let pool = state(ctx).pool.clone();
 
         let cursor =

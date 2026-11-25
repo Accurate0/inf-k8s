@@ -17,6 +17,7 @@ use super::{
     catalog,
     db::{self, PackageRow, VersionRow},
 };
+use crate::auth::scopes;
 use crate::{
     auth::Principal,
     core::{
@@ -61,7 +62,7 @@ pub async fn list(
     principal: Principal,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<Vec<Package>>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
 
     let packages =
         db::all_packages(&state.pool, query.q.as_deref().filter(|q| !q.is_empty())).await?;
@@ -92,7 +93,7 @@ pub async fn create(
     principal: Principal,
     Json(request): Json<CreatePackage>,
 ) -> Result<(StatusCode, Json<Package>)> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
 
     validate_package_name(&request.name).map_err(ApiError::BadRequest)?;
     validate_aliases(&request.aliases)?;
@@ -144,7 +145,7 @@ pub async fn get(
     principal: Principal,
     Path(name): Path<String>,
 ) -> Result<Json<PackageDetail>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
 
     let package = db::find_package(&state.pool, &name).await?;
     let mut versions = db::versions(&state.pool, package.id).await?;
@@ -164,7 +165,7 @@ pub async fn update(
     Path(name): Path<String>,
     Json(request): Json<UpdatePackage>,
 ) -> Result<Json<Package>> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
 
     if let Some(aliases) = &request.aliases {
         validate_aliases(aliases)?;
@@ -217,7 +218,7 @@ async fn set_archived(
     name: &str,
     archived: bool,
 ) -> Result<Package> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
 
     let row = sqlx::query_as!(
         PackageRow,
@@ -278,7 +279,7 @@ pub async fn delete(
     principal: Principal,
     Path(name): Path<String>,
 ) -> Result<StatusCode> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
 
     let package = db::find_package(&state.pool, &name).await?;
     let versions = db::versions(&state.pool, package.id).await?;
@@ -334,7 +335,7 @@ pub async fn latest_many(
     principal: Principal,
     Json(request): Json<LatestRequest>,
 ) -> Result<Json<BTreeMap<String, String>>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
 
     if request.names.len() > MAX_LATEST_NAMES {
         return Err(ApiError::BadRequest(format!(
@@ -363,7 +364,7 @@ pub async fn latest(
     Path(name): Path<String>,
     Query(query): Query<LatestQuery>,
 ) -> Result<Json<Version>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
 
     let package = db::find_package(&state.pool, &name).await?;
     let versions = db::versions(&state.pool, package.id).await?;
@@ -384,7 +385,7 @@ pub async fn backfill(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<(StatusCode, Json<serde_json::Value>)> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
     if state.harbor.is_none() {
         return Err(ApiError::Harbor("harbor is not configured".to_owned()));
     }
@@ -415,7 +416,7 @@ pub async fn render_catalog(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<serde_json::Value>> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
     if state.harbor.is_none() {
         return Err(ApiError::Harbor("harbor is not configured".to_owned()));
     }

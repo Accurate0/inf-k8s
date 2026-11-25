@@ -232,7 +232,7 @@ pub async fn revoke(
     .await?
     .ok_or_else(|| ApiError::NotFound(format!("no live robot named {username}")))?;
 
-    if robot.actor != principal.actor() && !principal.is_admin() {
+    if robot.actor != principal.actor() && !principal.has(crate::auth::scopes::TOKEN_MANAGE) {
         return Err(ApiError::Forbidden(format!(
             "{username} was issued to {}",
             robot.actor

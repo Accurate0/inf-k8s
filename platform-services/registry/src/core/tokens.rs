@@ -12,6 +12,7 @@ use super::{
     audit::{self, Event},
     ensure_package_exists,
 };
+use crate::auth::scopes;
 use crate::{
     auth::{Principal, tokens},
     error::{ApiError, Result},
@@ -23,7 +24,7 @@ pub async fn create(
     principal: Principal,
     Json(request): Json<CreateToken>,
 ) -> Result<(StatusCode, Json<CreatedToken>)> {
-    principal.require_admin()?;
+    principal.require(scopes::TOKEN_MANAGE)?;
 
     if request.name.trim().is_empty() {
         return Err(ApiError::BadRequest("token name is required".to_owned()));
@@ -88,7 +89,7 @@ pub async fn list(
     State(state): State<AppState>,
     principal: Principal,
 ) -> Result<Json<Vec<TokenInfo>>> {
-    principal.require_admin()?;
+    principal.require(scopes::TOKEN_MANAGE)?;
 
     let rows = sqlx::query!(
         "SELECT id, name, token_prefix, created_by, created_at, expires_at, last_used_at, revoked_at
@@ -130,7 +131,7 @@ pub async fn revoke(
     principal: Principal,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode> {
-    principal.require_admin()?;
+    principal.require(scopes::TOKEN_MANAGE)?;
 
     let revoked = sqlx::query!(
         "UPDATE core_publish_tokens SET revoked_at = now() WHERE id = $1 AND revoked_at IS NULL",

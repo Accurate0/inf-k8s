@@ -2247,3 +2247,74 @@ async fn publishing_through_the_graph(pool: PgPool) {
         Some("3.0.0")
     );
 }
+
+fn scoped(registry: &Registry, name: &str, scopes: &[&str]) -> String {
+    registry.kanidm.sign(json!({
+        "aud": KANIDM_AUDIENCE,
+        "sub": format!("sub-{name}"),
+        "preferred_username": name,
+        "groups": [],
+        "scope": format!("openid email profile {}", scopes.join(" ")),
+    }))
+}
+
+#[sqlx::test(migrations = "./migrations")]
+async fn scopes_decide_what_people_may_do(pool: PgPool) {
+    let registry = Registry::spawn(pool).await;
+
+    let reader = scoped(&registry, "friend", &["registry:package:read"]);
+    let (status, _) = registry
+        .call("GET", "/cli/v1/packages", Some(&reader), None)
+        .await;
+    assert_eq!(status, 200);
+
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/cli/v1/packages",
+            Some(&reader),
+            Some(json!({ "name": "ff" })),
+        )
+        .await;
+    assert_eq!(status, 403);
+    let (status, _) = registry
+        .call("GET", "/api/v1/tokens", Some(&reader), None)
+        .await;
+    assert_eq!(status, 403);
+
+    let writer = scoped(&registry, "maintainer", &["registry:package:write"]);
+    let (status, _) = registry
+        .call(
+            "POST",
+            "/cli/v1/packages",
+            Some(&writer),
+            Some(json!({ "name": "ff" })),
+        )
+        .await;
+    assert_eq!(status, 201, "package:write creates packages");
+    let (status, _) = registry
+        .call("GET", "/api/v1/tokens", Some(&writer), None)
+        .await;
+    assert_eq!(status, 403, "but does not manage tokens");
+
+    let tokens = scoped(&registry, "ops", &["registry:token:manage"]);
+    let (status, _) = registry
+        .call("GET", "/api/v1/tokens", Some(&tokens), None)
+        .await;
+    assert_eq!(status, 200);
+
+    let unrelated = scoped(&registry, "mallory", &["waf:block:write"]);
+    let (status, _) = registry
+        .call("GET", "/cli/v1/packages", Some(&unrelated), None)
+        .await;
+    assert_eq!(
+        status, 403,
+        "other services' scopes grant nothing here, and it has no registry groups"
+    );
+
+    let (status, me) = registry
+        .call("GET", "/api/v1/whoami", Some(&writer), None)
+        .await;
+    assert_eq!(status, 200);
+    assert_eq!(me["admin"], true);
+}

@@ -11,6 +11,7 @@ use sqlx::types::Json;
 use uuid::Uuid;
 
 use super::{db, release};
+use crate::auth::scopes;
 use crate::{
     error::{ApiError, Result},
     state::AppState,
@@ -249,7 +250,7 @@ pub async fn current(
     axum::extract::State(state): axum::extract::State<AppState>,
     principal: crate::auth::Principal,
 ) -> Result<axum::Json<registry_api::CatalogRef>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
     let row = sqlx::query!("SELECT seq, digest FROM core_catalog WHERE id")
         .fetch_one(&state.pool)
         .await?;

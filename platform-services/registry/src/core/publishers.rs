@@ -13,6 +13,7 @@ use super::{
     audit::{self, Event},
     ensure_package_exists,
 };
+use crate::auth::scopes;
 use crate::{
     auth::Principal,
     error::{ApiError, Result},
@@ -32,7 +33,7 @@ pub async fn list(
     principal: Principal,
     Query(query): Query<ListQuery>,
 ) -> Result<Json<Vec<TrustedPublisher>>> {
-    principal.require_admin()?;
+    principal.require(scopes::PUBLISHER_MANAGE)?;
 
     let publishers = sqlx::query_as!(
         TrustedPublisher,
@@ -55,7 +56,7 @@ pub async fn create(
     principal: Principal,
     Json(request): Json<NewTrustedPublisher>,
 ) -> Result<(StatusCode, Json<TrustedPublisher>)> {
-    principal.require_admin()?;
+    principal.require(scopes::PUBLISHER_MANAGE)?;
 
     let issuer = state.auth.forgejo_issuer().ok_or_else(|| {
         ApiError::BadRequest("forgejo trusted publishing is not configured".to_owned())
@@ -126,7 +127,7 @@ pub async fn delete(
     principal: Principal,
     Path(id): Path<Uuid>,
 ) -> Result<StatusCode> {
-    principal.require_admin()?;
+    principal.require(scopes::PUBLISHER_MANAGE)?;
 
     let row = sqlx::query!(
         "DELETE FROM core_trusted_publishers WHERE id = $1 RETURNING ecosystem, package",

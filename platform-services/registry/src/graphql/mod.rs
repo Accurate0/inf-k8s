@@ -12,7 +12,7 @@ use subgraph::{
     Provider,
 };
 
-use crate::auth::oidc::groups_match;
+use crate::auth::scopes;
 use crate::auth::{ForgejoClaims, Principal};
 use crate::error::ApiError;
 use crate::state::AppState;
@@ -38,20 +38,27 @@ pub fn builder() -> SchemaBuilder<QueryRoot, MutationRoot, SubscriptionRoot> {
 pub fn router(state: AppState) -> Option<axum::Router> {
     let graph = state.config.graph.as_ref()?;
     let oauth = &state.config.oauth;
-    let auth = Authenticator::new(AuthConfig {
-        providers: vec![Provider {
-            issuer: graph.issuer.clone(),
-            audience: graph.audience.clone(),
-        }],
-        groups: oauth
-            .read_groups
-            .iter()
-            .chain(&oauth.admin_groups)
-            .cloned()
-            .collect(),
-        scopes: Vec::new(),
-        external: forgejo(&state, graph).into_iter().collect(),
-    });
+    let groups = oauth
+        .read_groups
+        .iter()
+        .chain(&oauth.admin_groups)
+        .cloned()
+        .collect();
+
+    let config = match state.config.subgraph_auth.clone() {
+        // groups keep admitting callers whose tokens predate the registry's scopes
+        Some(auth) => AuthConfig { groups, ..auth },
+        None => AuthConfig {
+            providers: vec![Provider {
+                issuer: graph.issuer.clone(),
+                audience: graph.audience.clone(),
+            }],
+            groups,
+            scopes: Vec::new(),
+            external: forgejo(&state, graph).into_iter().collect(),
+        },
+    };
+    let auth = Authenticator::new(config);
     tokio::spawn(auth.clone().run());
 
     let schema = builder().data(state).finish();
@@ -95,19 +102,24 @@ fn principal(ctx: &Context<'_>) -> async_graphql::Result<Principal> {
                 external.issuer
             )));
         }
-        return Ok(Principal::Forgejo(external.claims_as::<ForgejoClaims>()?));
+        let mut claims = external.claims_as::<ForgejoClaims>()?;
+        claims.scopes = if state(ctx).config.subgraph_auth.is_some() {
+            external.scopes.clone()
+        } else {
+            scopes::owned(&scopes::TOKEN)
+        };
+        return Ok(Principal::Forgejo(claims));
     }
 
     let claims = ctx.data::<Claims>()?;
-    let groups = claims.groups.clone().unwrap_or_default();
     let oauth = &state(ctx).config.oauth;
-
-    Ok(Principal::User {
-        name: claims.identity().to_owned(),
-        admin: groups_match(&groups, &oauth.admin_groups),
-        reader: groups_match(&groups, &oauth.read_groups),
-        groups,
-    })
+    Ok(crate::auth::user(
+        &oauth.admin_groups,
+        &oauth.read_groups,
+        claims.identity(),
+        claims.scope.as_deref(),
+        claims.groups.clone().unwrap_or_default(),
+    ))
 }
 
 trait Gql<T> {

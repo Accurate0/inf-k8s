@@ -7,6 +7,7 @@ use serde::Deserialize;
 use serde_json::Value;
 use sqlx::PgPool;
 
+use crate::auth::scopes;
 use crate::{auth::Principal, error::Result, state::AppState};
 
 pub struct Event<'a> {
@@ -57,7 +58,7 @@ pub async fn list(
     principal: Principal,
     Query(query): Query<AuditQuery>,
 ) -> Result<Json<Vec<AuditEntry>>> {
-    principal.require_admin()?;
+    principal.require(scopes::AUDIT_READ)?;
 
     let entries = sqlx::query_as!(
         AuditEntry,

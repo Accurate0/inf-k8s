@@ -1,10 +1,13 @@
 pub mod grants;
 pub mod oidc;
 pub mod policy;
+pub mod scopes;
 pub mod tokens;
 
 use axum::{extract::FromRequestParts, http::request::Parts};
 use registry_api::TOKEN_PREFIX;
+use std::collections::BTreeSet;
+
 use serde::{Deserialize, Deserializer, Serialize};
 use sqlx::PgPool;
 
@@ -21,6 +24,8 @@ pub struct UserClaims {
     pub email: Option<String>,
     #[serde(default)]
     pub groups: Option<Vec<String>>,
+    #[serde(default)]
+    pub scope: Option<String>,
 }
 
 impl UserClaims {
@@ -49,6 +54,9 @@ pub struct ForgejoClaims {
     pub event_name: Option<String>,
     #[serde(default)]
     pub actor: Option<String>,
+    /// Granted by the subgraph's forgejo claim patterns, not part of the token.
+    #[serde(skip)]
+    pub scopes: BTreeSet<String>,
 }
 
 fn stringish<'de, D: Deserializer<'de>>(deserializer: D) -> Result<Option<String>, D::Error> {
@@ -66,8 +74,7 @@ pub enum Principal {
     User {
         name: String,
         groups: Vec<String>,
-        admin: bool,
-        reader: bool,
+        scopes: BTreeSet<String>,
     },
     Token(TokenPrincipal),
     Forgejo(ForgejoClaims),
@@ -97,30 +104,28 @@ impl Principal {
         }
     }
 
-    pub fn is_admin(&self) -> bool {
-        matches!(self, Principal::User { admin: true, .. })
-    }
-
-    pub fn require_reader(&self) -> Result<(), ApiError> {
+    pub fn has(&self, scope: &str) -> bool {
         match self {
-            Principal::User {
-                reader,
-                admin,
-                name,
-                ..
-            } if !reader && !admin => Err(ApiError::Forbidden(format!(
-                "{name} is not in a registry read group"
-            ))),
-            _ => Ok(()),
+            Principal::User { scopes, .. } => scopes.contains(scope),
+            Principal::Token(_) => scopes::TOKEN.contains(&scope),
+            Principal::Forgejo(claims) => claims.scopes.contains(scope),
         }
     }
 
-    pub fn require_admin(&self) -> Result<(), ApiError> {
-        if self.is_admin() {
+    pub fn scopes(&self) -> BTreeSet<String> {
+        match self {
+            Principal::User { scopes, .. } => scopes.clone(),
+            Principal::Token(_) => scopes::owned(&scopes::TOKEN),
+            Principal::Forgejo(claims) => claims.scopes.clone(),
+        }
+    }
+
+    pub fn require(&self, scope: &str) -> Result<(), ApiError> {
+        if self.has(scope) {
             Ok(())
         } else {
             Err(ApiError::Forbidden(format!(
-                "{} is not a registry admin",
+                "{} is missing scope {scope}",
                 self.actor()
             )))
         }
@@ -134,6 +139,8 @@ pub struct Auth {
     read_groups: Vec<String>,
     admin_groups: Vec<String>,
     forgejo: Option<Verifier>,
+    /// None until SUBGRAPH_AUTH is configured; forgejo then keeps read and publish.
+    forgejo_grants: Option<Vec<subgraph::Grant>>,
 }
 
 impl Auth {
@@ -171,6 +178,7 @@ impl Auth {
             read_groups: oauth.read_groups.clone(),
             admin_groups: oauth.admin_groups.clone(),
             forgejo,
+            forgejo_grants: forgejo_grants(config),
         }
     }
 
@@ -205,7 +213,13 @@ impl Auth {
         })?;
 
         if let Some(forgejo) = self.forgejo.as_ref().filter(|v| v.issuer() == issuer) {
-            let claims: ForgejoClaims = forgejo.verify(bearer).await.map_err(verify_error)?;
+            let raw: serde_json::Value = forgejo.verify(bearer).await.map_err(verify_error)?;
+            let mut claims: ForgejoClaims = serde_json::from_value(raw.clone())
+                .map_err(|e| ApiError::Unauthorized(format!("unexpected forgejo claims: {e}")))?;
+            claims.scopes = match &self.forgejo_grants {
+                Some(grants) => subgraph::auth::granted_scopes(grants, FORGEJO, &raw),
+                None => scopes::owned(&scopes::TOKEN),
+            };
             return Ok(Principal::Forgejo(claims));
         }
 
@@ -223,13 +237,48 @@ impl Auth {
                 .map_err(verify_error)?,
         };
 
-        Ok(Principal::User {
-            name: claims.identity().to_owned(),
-            admin: groups_match(&groups, &self.admin_groups),
-            reader: groups_match(&groups, &self.read_groups),
+        Ok(user(
+            &self.admin_groups,
+            &self.read_groups,
+            claims.identity(),
+            claims.scope.as_deref(),
             groups,
-        })
+        ))
     }
+}
+
+pub fn user(
+    admin_groups: &[String],
+    read_groups: &[String],
+    name: &str,
+    scope: Option<&str>,
+    groups: Vec<String>,
+) -> Principal {
+    let mut held = scopes::from_claim(scope);
+    if held.is_empty() {
+        held = scopes::from_groups(
+            groups_match(&groups, admin_groups),
+            groups_match(&groups, read_groups),
+        );
+    }
+
+    Principal::User {
+        name: name.to_owned(),
+        groups,
+        scopes: held,
+    }
+}
+
+pub const FORGEJO: &str = "forgejo";
+
+fn forgejo_grants(config: &Config) -> Option<Vec<subgraph::Grant>> {
+    config.subgraph_auth.as_ref().map(|auth| {
+        auth.external
+            .iter()
+            .filter(|external| external.issuer.name == FORGEJO)
+            .flat_map(|external| external.grants.clone())
+            .collect()
+    })
 }
 
 fn verify_error(e: VerifyError) -> ApiError {

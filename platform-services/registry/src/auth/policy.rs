@@ -74,7 +74,9 @@ pub async fn authorize_publish(
     };
 
     match principal {
-        Principal::User { admin: true, .. } => Ok(publisher(None)),
+        Principal::User { .. } if principal.has(super::scopes::PACKAGE_PUBLISH) => {
+            Ok(publisher(None))
+        }
         Principal::User { name, .. } => Err(ApiError::Forbidden(format!(
             "{name} may not publish {package}; use a publish token or trusted publishing"
         ))),

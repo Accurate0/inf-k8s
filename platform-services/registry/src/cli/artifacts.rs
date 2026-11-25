@@ -12,6 +12,7 @@ use registry_api::{
 };
 
 use super::{db, release};
+use crate::auth::scopes;
 use crate::{
     auth::{Principal, policy::authorize_publish},
     error::{ApiError, Result},
@@ -251,7 +252,7 @@ pub async fn download_url(
     principal: Principal,
     Path((name, version, target)): Path<(String, String, String)>,
 ) -> Result<Json<ArtifactUrl>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
     let target = parse_target(&target)?;
     let (_, artifact) = published_artifact(&state, &name, &version, target).await?;
 
@@ -284,7 +285,7 @@ pub async fn download(
     principal: Principal,
     Path((name, version, target)): Path<(String, String, String)>,
 ) -> Result<Response> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
     let target = parse_target(&target)?;
     let (row, artifact) = published_artifact(&state, &name, &version, target).await?;
 

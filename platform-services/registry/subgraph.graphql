@@ -363,7 +363,14 @@ type RegistryVersion implements Node @key(fields: "id") {
 
 type RegistryWhoAmI {
 	subject: String!
+	"""
+	Holds registry:package:write.
+	"""
 	admin: Boolean!
+	"""
+	The registry scopes the caller holds.
+	"""
+	scopes: [String!]!
 	groups: [String!]!
 }
 

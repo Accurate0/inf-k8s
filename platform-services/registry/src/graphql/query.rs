@@ -7,6 +7,7 @@ use super::objects::{
 };
 use super::publishing::CatalogRef;
 use super::{Gql, IDS, principal, state};
+use crate::auth::scopes;
 use crate::error::ApiError;
 
 pub struct QueryRoot;
@@ -21,7 +22,8 @@ impl QueryRoot {
         };
         Ok(WhoAmI {
             subject: principal.actor(),
-            admin: principal.is_admin(),
+            admin: principal.has(scopes::PACKAGE_WRITE),
+            scopes: principal.scopes().into_iter().collect(),
             groups,
         })
     }
@@ -141,7 +143,7 @@ impl QueryRoot {
     #[graphql(entity)]
     async fn find_audit_entry_by_id(&self, ctx: &Context<'_>, id: ID) -> Result<AuditEntry> {
         let row_id = IDS.decode_row_id(&id, "auditEntry")?;
-        principal(ctx)?.require_admin().gql()?;
+        principal(ctx)?.require(scopes::AUDIT_READ).gql()?;
 
         let entry = sqlx::query_as!(
             registry_api::AuditEntry,

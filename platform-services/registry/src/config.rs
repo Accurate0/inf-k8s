@@ -6,6 +6,8 @@ const CONFIG_YAML: &str = include_str!("../config.yaml");
 
 const CONFIG_PATH_ENV: &str = "CONFIG_PATH";
 
+const SUBGRAPH_AUTH_ENV: &str = "SUBGRAPH_AUTH";
+
 pub const CONFIG_SCHEMA_VERSION: u32 = 1;
 
 #[derive(Clone, Debug, Deserialize)]
@@ -22,6 +24,9 @@ pub struct Config {
     pub graph: Option<GraphConfig>,
     #[serde(default)]
     pub harbor: Option<HarborConfig>,
+    /// SUBGRAPH_AUTH, rendered from the registry subgraph's auth in app.yaml.
+    #[serde(skip)]
+    pub subgraph_auth: Option<subgraph::AuthConfig>,
 }
 
 #[derive(Clone, Debug, Deserialize)]
@@ -109,6 +114,15 @@ fn default_robot_duration_days() -> i64 {
 
 impl Config {
     pub fn load() -> anyhow::Result<Self> {
+        let mut config = Self::load_file()?;
+        if let Ok(json) = std::env::var(SUBGRAPH_AUTH_ENV) {
+            config.subgraph_auth =
+                Some(subgraph::AuthConfig::from_subgraph_auth(&json).map_err(anyhow::Error::msg)?);
+        }
+        Ok(config)
+    }
+
+    fn load_file() -> anyhow::Result<Self> {
         let Ok(path) = std::env::var(CONFIG_PATH_ENV) else {
             tracing::info!("{CONFIG_PATH_ENV} unset; using baked-in config");
             return Self::baked_in();

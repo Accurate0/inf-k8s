@@ -18,6 +18,7 @@ use super::{
     packages::{validate_aliases, validate_binary_name},
     release,
 };
+use crate::auth::scopes;
 use crate::{
     auth::{Principal, policy::authorize_publish},
     core::audit::{self, Event},
@@ -31,7 +32,7 @@ pub async fn get(
     principal: Principal,
     Path((name, version)): Path<(String, String)>,
 ) -> Result<Json<Version>> {
-    principal.require_reader()?;
+    principal.require(scopes::PACKAGE_READ)?;
 
     let package = db::find_package(&state.pool, &name).await?;
     let version = db::get_version(&state.pool, &package, &version).await?;
@@ -369,7 +370,7 @@ pub async fn unyank(
     principal: Principal,
     Path((name, version)): Path<(String, String)>,
 ) -> Result<Json<Version>> {
-    principal.require_admin()?;
+    principal.require(scopes::PACKAGE_WRITE)?;
     set_yanked(&state, &name, &version, None, &principal).await
 }
 
