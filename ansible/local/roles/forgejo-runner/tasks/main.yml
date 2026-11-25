@@ -16,6 +16,12 @@
           - forgejo_runner_registry_password | length > 0
         fail_msg: Export HARBOR_NODE_PULL_PASSWORD.
 
+    - name: Assert the cache secret is available
+      ansible.builtin.assert:
+        that:
+          - forgejo_runner_cache_secret | length > 0
+        fail_msg: Export FORGEJO_CACHE_SECRET.
+
     - name: Create the data directory
       ansible.builtin.file:
         path: "{{ forgejo_runner_root }}/data"
@@ -34,7 +40,8 @@
       ansible.builtin.template:
         src: config.yml.j2
         dest: "{{ forgejo_runner_root }}/data/config.yml"
-        mode: "0644"
+        mode: "0600"
+      no_log: true
       notify: Restart forgejo runner
 
     - name: Write the runner registration

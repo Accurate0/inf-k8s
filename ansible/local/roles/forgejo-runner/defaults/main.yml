@@ -10,7 +10,8 @@ forgejo_runner_capacity: 2
 forgejo_runner_registry: registry.anurag.sh
 forgejo_runner_registry_username: robot$node-pull
 forgejo_runner_registry_password: ""
-forgejo_runner_cache_port: 8088
+forgejo_runner_cache_server: "http://{{ hostvars['build-cache'].ansible_host }}:8088/"
+forgejo_runner_cache_secret: ""
 
 forgejo_runner_labels:
   ubuntu-latest: "{{ forgejo_runner_job_image }}"

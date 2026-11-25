@@ -1,0 +1,8 @@
+# SPDX-License-Identifier: MIT-0
+---
+forgejo_cache_root: /opt/forgejo-cache
+forgejo_cache_image: data.forgejo.org/forgejo/runner
+# renovate: datasource=docker depName=data.forgejo.org/forgejo/runner
+forgejo_cache_image_tag: "13.2.0"
+forgejo_cache_port: 8088
+forgejo_cache_secret: ""

@@ -168,6 +168,17 @@
         extra_config:
           - "dev0: /dev/net/tun"
 
+      - name: build-cache
+        vmid: 214
+        node: pve-node-2
+        storage: ssd
+        ip: 10.0.2.22/24
+        cores: 2
+        memory: 2048
+        disk: 128
+        unprivileged: true
+        features: [nesting=1, keyctl=1]
+
       - name: pbs
         vmid: 207
         ip: 10.0.2.16/24

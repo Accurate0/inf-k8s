@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: MIT-0
+---
+- name: Forgejo cache server
+  become: true
+  become_user: root
+  block:
+    - name: Assert the cache secret is available
+      ansible.builtin.assert:
+        that:
+          - forgejo_cache_secret | length > 0
+        fail_msg: Export FORGEJO_CACHE_SECRET.
+
+    - name: Create the data directory
+      ansible.builtin.file:
+        path: "{{ forgejo_cache_root }}/data"
+        state: directory
+        mode: "0700"
+
+    - name: Write the cache secret
+      ansible.builtin.copy:
+        content: "{{ forgejo_cache_secret }}"
+        dest: "{{ forgejo_cache_root }}/data/secret"
+        mode: "0600"
+      no_log: true
+      notify: Restart forgejo cache
+
+    - name: Template the cache server config
+      ansible.builtin.template:
+        src: config.yml.j2
+        dest: "{{ forgejo_cache_root }}/data/config.yml"
+        mode: "0644"
+      notify: Restart forgejo cache
+
+    - name: Template the compose file
+      ansible.builtin.template:
+        src: docker-compose.yml.j2
+        dest: "{{ forgejo_cache_root }}/docker-compose.yml"
+        mode: "0644"
+      notify: Restart forgejo cache
+
+    - name: Bring up the stack
+      community.docker.docker_compose_v2:
+        project_src: "{{ forgejo_cache_root }}"
+        state: present
+        pull: missing
+        remove_orphans: true

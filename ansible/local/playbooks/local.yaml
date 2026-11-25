@@ -79,7 +79,7 @@
     - proxmox-pve-exporter
 
 - name: Wait for guests to accept SSH
-  hosts: media_servers:home_automation:backup:mirror:ci_runners
+  hosts: media_servers:home_automation:backup:mirror:ci_runners:build_cache
   gather_facts: false
 
   tasks:
@@ -90,7 +90,7 @@
         timeout: 300
 
 - name: Base configuration
-  hosts: media_servers:home_automation:backup:mirror:ci_runners
+  hosts: media_servers:home_automation:backup:mirror:ci_runners:build_cache
   gather_facts: true
 
   roles:
@@ -128,12 +128,24 @@
     - docker
     - homeassistant
 
+- name: Forgejo cache
+  hosts: build_cache
+  gather_facts: true
+
+  vars:
+    forgejo_cache_secret: "{{ lookup('ansible.builtin.env', 'FORGEJO_CACHE_SECRET') }}"
+
+  roles:
+    - docker
+    - forgejo-cache
+
 - name: Forgejo runners
   hosts: ci_runners
   gather_facts: true
 
   vars:
     forgejo_runner_actions_secret: "{{ lookup('ansible.builtin.env', 'FORGEJO_ACTIONS_SECRET') }}"
+    forgejo_runner_cache_secret: "{{ lookup('ansible.builtin.env', 'FORGEJO_CACHE_SECRET') }}"
     forgejo_runner_registry_password: "{{ lookup('ansible.builtin.env', 'HARBOR_NODE_PULL_PASSWORD') }}"
 
   roles:

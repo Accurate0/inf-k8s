@@ -1,0 +1,13 @@
+name: forgejo-cache
+
+services:
+  cache:
+    image: {{ forgejo_cache_image }}:{{ forgejo_cache_image_tag }}
+    container_name: forgejo-cache
+    restart: unless-stopped
+    user: "0:0"
+    network_mode: host
+    working_dir: /data
+    command: forgejo-runner cache-server --config /data/config.yml
+    volumes:
+      - {{ forgejo_cache_root }}/data:/data

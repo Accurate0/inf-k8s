@@ -283,6 +283,7 @@ spec:
               data:
                 uuid: "{{ .UUID }}"
                 token: "{{ .TOKEN }}"
+                cache-secret: "{{ .CACHE_SECRET }}"
       - name: anubis
         managedSecrets:
           - secretName: forgejo-anubis-managed-secrets
@@ -648,8 +649,8 @@ spec:
     runnerConfig: |
       cache:
         enabled: true
-        dir: /data/cache
-        port: 8088
+        external_server: http://10.0.2.22:8088/
+        secret_url: file:/etc/forgejo-runner-secret/cache-secret
         proxy_port: 8089
       container:
         docker_host: "-"

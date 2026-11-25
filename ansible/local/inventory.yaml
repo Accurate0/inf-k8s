@@ -6,6 +6,7 @@ all:
     backup: {}
     mirror: {}
     ci_runners: {}
+    build_cache: {}
     nas: {}
     kubernetes: {}
 
@@ -61,6 +62,11 @@ ci_runners:
       ansible_host: 10.0.2.20
     runner-3:
       ansible_host: 10.0.2.21
+
+build_cache:
+  hosts:
+    build-cache:
+      ansible_host: 10.0.2.22
 
 nas:
   hosts:

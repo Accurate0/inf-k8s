@@ -13,9 +13,9 @@ runner:
 
 cache:
   enabled: true
-  dir: /data/cache
+  external_server: {{ forgejo_runner_cache_server }}
+  secret: {{ forgejo_runner_cache_secret }}
   host: {{ ansible_facts["default_ipv4"]["address"] }}
-  port: {{ forgejo_runner_cache_port }}
 
 container:
   # empty gives each job its own network, so services resolve by name (e.g. db)
