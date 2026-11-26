@@ -4,7 +4,7 @@ namespace:
   labels:
     gateway.inf-k8s.net/anurag-sh: "true"
 network:
-  ingress: [janitor-bot, monitoring]
+  ingress: [graph, janitor-bot, monitoring]
 resources:
   - name: ssh-signing
     type: secret

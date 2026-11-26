@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T08:06:32.601Z
+# generated at 2026-11-26T10:08:35.885Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -35,6 +35,7 @@ spec:
     namespace: forgejo
     ingress:
       - envoy-gateway-system
+      - graph
       - janitor-bot
       - monitoring
 ---
