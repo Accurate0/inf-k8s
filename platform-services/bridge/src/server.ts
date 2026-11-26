@@ -9,6 +9,7 @@ import {
   validate,
 } from 'graphql';
 import { AuthError, type Authenticator } from './auth.ts';
+import { socket } from './socket.ts';
 import { failed, SpanKind, traced, withParent } from './tracing.ts';
 
 export const GRAPHQL_PATH = '/v1/graphql';
@@ -110,5 +111,6 @@ export function server(schema: GraphQLSchema, auth: Authenticator): FastifyInsta
     ),
   );
 
+  socket(app, schema, auth);
   return app;
 }

@@ -1,4 +1,8 @@
-extend schema @link(url: "https://specs.apollo.dev/federation/v2.5", import: ["@key", "@requiresScopes"])
+extend schema
+	@link(
+		url: "https://specs.apollo.dev/federation/v2.9"
+		import: ["@key", "@requiresScopes", "@cost", "@listSize"]
+	)
 
 scalar DateTime
 
@@ -10,11 +14,60 @@ type Query {
 	"""
 	Every app Flux deploys, from its kustomization annotated with the app's own name.
 	"""
-	fluxApps: [FluxApp!] @requiresScopes(scopes: [["flux:app:read"]])
+	fluxApps: [FluxApp!] @requiresScopes(scopes: [["flux:app:read"]]) @listSize(assumedSize: 40)
 	fluxApp(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:read"]])
-	kubernetesWorkloads(namespace: String!): [KubernetesWorkload!] @requiresScopes(scopes: [["kubernetes:workload:read"]])
-	forgejoCommit(repository: String!, sha: String!): ForgejoCommit @requiresScopes(scopes: [["forgejo:run:read"]])
-	forgejoRuns(repository: String!, workflow: String, limit: Int! = 20): [ForgejoRun!] @requiresScopes(scopes: [["forgejo:run:read"]])
+	kubernetesWorkloads(namespace: String!): [KubernetesWorkload!]
+		@requiresScopes(scopes: [["kubernetes:workload:read"]])
+		@listSize(assumedSize: 10)
+	forgejoCommit(repository: String!, sha: String!): ForgejoCommit
+		@requiresScopes(scopes: [["forgejo:run:read"]])
+		@cost(weight: 5)
+	forgejoRuns(repository: String!, workflow: String, limit: Int! = 20): [ForgejoRun!]
+		@requiresScopes(scopes: [["forgejo:run:read"]])
+		@cost(weight: 5)
+		@listSize(slicingArguments: ["limit"], requireOneSlicingArgument: false)
+}
+
+type Mutation {
+	"""
+	Asks Flux to reconcile the app's kustomization now.
+	"""
+	fluxReconcile(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:write"]]) @cost(weight: 10)
+	"""
+	Stops Flux applying the app: every kustomization and helm release it owns is suspended.
+	"""
+	fluxSuspend(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:write"]]) @cost(weight: 10)
+	"""
+	Resumes what fluxSuspend stopped, then reconciles.
+	"""
+	fluxResume(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:write"]]) @cost(weight: 10)
+	"""
+	Rolls a Deployment, StatefulSet or DaemonSet's pods, as `kubectl rollout restart` does.
+	"""
+	kubernetesRestart(namespace: String!, kind: String!, name: String!): KubernetesWorkload
+		@requiresScopes(scopes: [["kubernetes:workload:write"]])
+		@cost(weight: 10)
+	"""
+	Runs a finished run's jobs again; id is the ForgejoRun's.
+	"""
+	forgejoRerun(id: ID!): ForgejoRun
+		@requiresScopes(scopes: [["forgejo:run:write"]])
+		@cost(weight: 10)
+	forgejoCancel(id: ID!): ForgejoRun
+		@requiresScopes(scopes: [["forgejo:run:write"]])
+		@cost(weight: 10)
+}
+
+type Subscription {
+	"""
+	The app now, then again whenever its Flux objects, workloads, pods or latest build change.
+	"""
+	fluxAppUpdates(name: String!): FluxApp! @requiresScopes(scopes: [["flux:app:read"]])
+	"""
+	Each workload in the namespace now, then each one again whenever it or its pods change.
+	"""
+	kubernetesWorkloadUpdates(namespace: String!): KubernetesWorkload!
+		@requiresScopes(scopes: [["kubernetes:workload:read"]])
 }
 
 type FluxApp implements Node @key(fields: "id") @requiresScopes(scopes: [["flux:app:read"]]) {
@@ -31,9 +84,11 @@ type FluxApp implements Node @key(fields: "id") @requiresScopes(scopes: [["flux:
 	"""
 	revision: String
 	lastDeployedAt: DateTime
-	helmReleases: [FluxHelmRelease!]!
-	images: [FluxImage!]!
-	workloads: [KubernetesWorkload!] @requiresScopes(scopes: [["kubernetes:workload:read"]])
+	helmReleases: [FluxHelmRelease!]! @listSize(assumedSize: 2)
+	images: [FluxImage!]! @listSize(assumedSize: 3)
+	workloads: [KubernetesWorkload!]
+		@requiresScopes(scopes: [["kubernetes:workload:read"]])
+		@listSize(assumedSize: 5)
 }
 
 type FluxHelmRelease {
@@ -65,19 +120,27 @@ type FluxImage {
 	"""
 	The commit the selected tag was built from.
 	"""
-	commit: ForgejoCommit @requiresScopes(scopes: [["forgejo:run:read"]])
+	commit: ForgejoCommit @requiresScopes(scopes: [["forgejo:run:read"]]) @cost(weight: 5)
 	"""
 	The newest run of the app's build workflow on main.
 	"""
-	latestBuild: ForgejoRun @requiresScopes(scopes: [["forgejo:run:read"]])
+	latestBuild: ForgejoRun @requiresScopes(scopes: [["forgejo:run:read"]]) @cost(weight: 5)
 	"""
 	How far the newest build has got towards running.
 	"""
-	stage: FluxDeliveryStage
+	stage: FluxDeliveryStage @cost(weight: 10)
 	"""
 	Why it hasn't got further, when it's stuck.
 	"""
-	blocker: String
+	blocker: String @cost(weight: 10)
+	"""
+	The registry's record of the repository, for images on registry.anurag.sh.
+	"""
+	registryRepository: RegistryImageRepository
+	"""
+	The registry's record of each image the app's pods run from this repository, by digest.
+	"""
+	runningImages: [RegistryImage!] @listSize(assumedSize: 2)
 }
 
 enum FluxDeliveryStage {
@@ -103,6 +166,67 @@ type KubernetesWorkload {
 	Why a container isn't running, e.g. CrashLoopBackOff or ImagePullBackOff.
 	"""
 	waitingReason: String
+	pods: [KubernetesPod!] @listSize(assumedSize: 3)
+	"""
+	Recent events of the workload, its replica sets and its pods, newest first.
+	"""
+	events(limit: Int! = 20): [KubernetesEvent!]
+		@cost(weight: 5)
+		@listSize(slicingArguments: ["limit"], requireOneSlicingArgument: false)
+}
+
+type KubernetesPod {
+	name: String!
+	phase: String
+	node: String
+	ready: Boolean!
+	restarts: Int!
+	startedAt: DateTime
+	containers: [KubernetesContainer!]! @listSize(assumedSize: 2)
+}
+
+type KubernetesContainer {
+	name: String!
+	image: String!
+	"""
+	sha256 digest of the image the container runs.
+	"""
+	imageDigest: String
+	ready: Boolean!
+	restarts: Int!
+	waitingReason: String
+	"""
+	How the previous run of this container ended, e.g. OOMKilled.
+	"""
+	lastTermination: KubernetesTermination
+	"""
+	The last lines of the container's log, or of its previous run's.
+	"""
+	logTail(lines: Int! = 40, previous: Boolean! = false): String
+		@requiresScopes(scopes: [["kubernetes:log:read"]])
+		@cost(weight: 25)
+	"""
+	The registry's record of the image the container runs, for images on registry.anurag.sh.
+	"""
+	registryImage: RegistryImage
+}
+
+type KubernetesTermination {
+	reason: String
+	exitCode: Int
+	finishedAt: DateTime
+}
+
+type KubernetesEvent {
+	type: String!
+	reason: String
+	message: String
+	count: Int!
+	"""
+	e.g. pod/router-6f9c-x2k4q
+	"""
+	object: String!
+	lastSeenAt: DateTime
 }
 
 type ForgejoCommit implements Node @key(fields: "id") @requiresScopes(scopes: [["forgejo:run:read"]]) {
@@ -113,7 +237,7 @@ type ForgejoCommit implements Node @key(fields: "id") @requiresScopes(scopes: [[
 	author: String
 	committedAt: DateTime
 	url: String!
-	runs: [ForgejoRun!]
+	runs: [ForgejoRun!] @cost(weight: 5) @listSize(assumedSize: 5)
 }
 
 type ForgejoRun implements Node @key(fields: "id") @requiresScopes(scopes: [["forgejo:run:read"]]) {
@@ -127,7 +251,7 @@ type ForgejoRun implements Node @key(fields: "id") @requiresScopes(scopes: [["fo
 	startedAt: DateTime
 	stoppedAt: DateTime
 	url: String!
-	jobs: [ForgejoJob!]
+	jobs: [ForgejoJob!] @cost(weight: 5) @listSize(assumedSize: 5)
 }
 
 type ForgejoJob {
@@ -138,5 +262,14 @@ type ForgejoJob {
 	"""
 	The last lines of the job's log.
 	"""
-	logTail(lines: Int! = 40): String @requiresScopes(scopes: [["forgejo:log:read"]])
+	logTail(lines: Int! = 40): String @requiresScopes(scopes: [["forgejo:log:read"]]) @cost(weight: 25)
+}
+
+type RegistryImageRepository @key(fields: "id", resolvable: false) {
+	id: ID!
+}
+
+type RegistryImage @key(fields: "repository digest", resolvable: false) {
+	repository: String!
+	digest: String!
 }

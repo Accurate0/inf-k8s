@@ -11,6 +11,9 @@ interface Condition {
 export interface Metadata {
   name: string;
   namespace?: string;
+  uid?: string;
+  resourceVersion?: string;
+  ownerReferences?: { kind: string; name: string }[];
   generation?: number;
   labels?: Record<string, string>;
   annotations?: Record<string, string>;
@@ -64,13 +67,24 @@ export interface Workload {
   };
 }
 
+export interface ContainerStatus {
+  name: string;
+  image?: string;
+  imageID?: string;
+  ready?: boolean;
+  restartCount?: number;
+  state?: { waiting?: { reason?: string }; running?: { startedAt?: string } };
+  lastState?: { terminated?: { reason?: string; exitCode?: number; finishedAt?: string } };
+}
+
 export interface Pod {
   metadata: Metadata;
+  spec?: { nodeName?: string; containers?: { name: string; image: string }[] };
   status?: {
-    containerStatuses?: {
-      restartCount?: number;
-      state?: { waiting?: { reason?: string } };
-    }[];
+    phase?: string;
+    startTime?: string;
+    conditions?: Condition[];
+    containerStatuses?: ContainerStatus[];
   };
 }
 
@@ -238,8 +252,17 @@ const selects = (selector: Record<string, string> | undefined, pod: Pod) =>
   Object.entries(selector).every(([key, value]) => pod.metadata.labels?.[key] === value);
 
 export function podsOf(workload: Workload, pods: Pod[]): Pod[] {
-  return pods.filter((pod) => selects(workload.spec.selector?.matchLabels, pod));
+  const namespace = workload.metadata.namespace ?? 'default';
+  return pods.filter(
+    (pod) =>
+      (pod.metadata.namespace ?? 'default') === namespace &&
+      selects(workload.spec.selector?.matchLabels, pod),
+  );
 }
+
+// imageID is `<repository>@sha256:…`, sometimes behind a docker-pullable:// prefix
+export const imageDigest = (status: ContainerStatus | undefined) =>
+  /@(sha256:[0-9a-f]{64})$/.exec(status?.imageID ?? '')?.[1];
 
 export function health(pods: Pod[]): {
   restarts: number;

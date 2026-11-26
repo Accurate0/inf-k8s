@@ -206,7 +206,24 @@
       "fields": [
         "FluxApp",
         "Query.fluxApp",
-        "Query.fluxApps"
+        "Query.fluxApps",
+        "Subscription.fluxAppUpdates"
+      ]
+    },
+    {
+      "name": "flux:app:write",
+      "description": "reconcile, suspend and resume flux apps",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "Mutation.fluxReconcile",
+        "Mutation.fluxResume",
+        "Mutation.fluxSuspend"
       ]
     },
     {
@@ -240,6 +257,21 @@
         "ForgejoRun",
         "Query.forgejoCommit",
         "Query.forgejoRuns"
+      ]
+    },
+    {
+      "name": "forgejo:run:write",
+      "description": "rerun and cancel ci runs",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "Mutation.forgejoCancel",
+        "Mutation.forgejoRerun"
       ]
     },
     {
@@ -305,6 +337,20 @@
       ]
     },
     {
+      "name": "kubernetes:log:read",
+      "description": "read container logs",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "KubernetesContainer.logTail"
+      ]
+    },
+    {
       "name": "kubernetes:workload:read",
       "description": "read workloads and their pods' health",
       "subgraph": "bridge",
@@ -316,7 +362,22 @@
       ],
       "fields": [
         "FluxApp.workloads",
-        "Query.kubernetesWorkloads"
+        "Query.kubernetesWorkloads",
+        "Subscription.kubernetesWorkloadUpdates"
+      ]
+    },
+    {
+      "name": "kubernetes:workload:write",
+      "description": "restart workloads",
+      "subgraph": "bridge",
+      "groups": [
+        "platform_admins"
+      ],
+      "clients": [
+        "graph"
+      ],
+      "fields": [
+        "Mutation.kubernetesRestart"
       ]
     },
     {

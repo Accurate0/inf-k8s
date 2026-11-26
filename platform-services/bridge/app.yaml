@@ -22,6 +22,11 @@ resources:
       - {apiGroups: [apps], resources: [deployments, statefulsets, daemonsets, replicasets], verbs: [get, list, watch]}
       - {apiGroups: [batch], resources: [cronjobs, jobs], verbs: [get, list, watch]}
       - {apiGroups: [''], resources: [pods, configmaps], verbs: [get, list, watch]}
+      - {apiGroups: [''], resources: [events], verbs: [list]}
+      - {apiGroups: [''], resources: [pods/log], verbs: [get]}
+      - {apiGroups: [kustomize.toolkit.fluxcd.io], resources: [kustomizations], verbs: [patch]}
+      - {apiGroups: [helm.toolkit.fluxcd.io], resources: [helmreleases], verbs: [patch]}
+      - {apiGroups: [apps], resources: [deployments, statefulsets, daemonsets], verbs: [patch]}
   - {name: forgejo, type: platform, export: forgejo-internal}
   - {name: traces, type: platform, export: tracing}
   - name: bridge
@@ -30,6 +35,7 @@ resources:
     workload: bridge
     port: http
     path: /v1/graphql
+    websocket: /v1/graphql/ws
     schema: schema.graphql
     auth:
       clients: [graph]
@@ -42,6 +48,10 @@ resources:
           groups: [platform_admins]
         - {name: forgejo:run:read, description: 'read commits, ci runs and their jobs', groups: [platform_admins]}
         - {name: forgejo:log:read, description: read ci job logs, groups: [platform_admins]}
+        - {name: flux:app:write, description: "reconcile, suspend and resume flux apps", groups: [platform_admins]}
+        - {name: kubernetes:workload:write, description: restart workloads, groups: [platform_admins]}
+        - {name: kubernetes:log:read, description: read container logs, groups: [platform_admins]}
+        - {name: forgejo:run:write, description: rerun and cancel ci runs, groups: [platform_admins]}
 workloads:
   - name: bridge
     image: registry.anurag.sh/containers/bridge

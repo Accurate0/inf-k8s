@@ -49,8 +49,9 @@ export class Forgejo {
     return this.#publicUrl;
   }
 
-  async #request(path: string, template: string): Promise<Response> {
+  async #request(path: string, template: string, method = 'GET'): Promise<Response> {
     const response = await this.#fetch(`${this.#url}/api/v1${path}`, {
+      method,
       template: `/api/v1${template}`,
       headers: {
         authorization: `token ${this.#token}`,
@@ -115,6 +116,23 @@ export class Forgejo {
         '/repos/{owner}/{repo}/actions/runs/{run}/jobs',
       )) ?? []
     );
+  }
+
+  async act(repository: string, run: number, action: 'rerun' | 'cancel'): Promise<void> {
+    const response = await this.#request(
+      `/repos/${repository}/actions/runs/${run}/${action}`,
+      `/repos/{owner}/{repo}/actions/runs/{run}/${action}`,
+      'POST',
+    );
+    if (!response.ok) {
+      throw new Error(`forgejo ${action} of run ${run} returned ${response.status}`);
+    }
+
+    for (const key of this.#cache.keys()) {
+      if (key.startsWith(`/repos/${repository}/actions/`)) {
+        this.#cache.delete(key);
+      }
+    }
   }
 
   async logTail(repository: string, job: number, lines: number): Promise<string | undefined> {

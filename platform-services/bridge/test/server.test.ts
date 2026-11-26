@@ -1,212 +1,9 @@
 import assert from 'node:assert/strict';
-import type { AddressInfo } from 'node:net';
 import { test } from 'node:test';
-import { Authenticator } from '../src/auth.ts';
-import { imageValues } from '../src/flux.ts';
-import { Forgejo } from '../src/forgejo.ts';
-import { Kubernetes } from '../src/kubernetes.ts';
-import { resolvers } from '../src/resolvers.ts';
-import { executableSchema } from '../src/schema.ts';
-import { server } from '../src/server.ts';
 import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
+import { imageValues } from '../src/flux.ts';
 import { startTracing } from '../src/tracing.ts';
-import { fetcher, ISSUER, keypair } from './helpers.ts';
-
-const APP = { annotations: { 'event.toolkit.fluxcd.io/app': 'graph' } };
-const ready = {
-  observedGeneration: 1,
-  conditions: [{ type: 'Ready', status: 'True' }],
-};
-
-const kube = {
-  '/kustomizations': {
-    items: [
-      {
-        metadata: { name: 'graph', generation: 1, ...APP },
-        spec: {},
-        status: { ...ready, lastAppliedRevision: 'main@sha1:dc81672' },
-      },
-    ],
-  },
-  '/helmreleases': {
-    items: [
-      {
-        metadata: { name: 'graph-k8s-workload', generation: 1, ...APP },
-        spec: { releaseName: 'graph-k8s-workload', targetNamespace: 'graph' },
-        status: {
-          ...ready,
-          history: [{ chartVersion: '1.2.0', lastDeployed: '2026-11-25T13:20:00Z' }],
-        },
-      },
-    ],
-  },
-  '/flux-system/configmaps': {
-    items: [
-      {
-        metadata: { name: 'graph-image-values' },
-        data: {
-          'values.yaml':
-            'images:\n  curlimages/curl: 8.18.0\n  registry.anurag.sh/containers/graph-router: v1.0.69-20740f6 # {"$imagepolicy": "flux-system:graph-graph-router:tag"}\n',
-        },
-      },
-    ],
-  },
-  '/imagepolicies': {
-    items: [
-      {
-        metadata: { name: 'graph-graph-router', ...APP },
-        spec: { imageRepositoryRef: { name: 'graph-graph-router' } },
-        status: {
-          latestRef: {
-            name: 'registry.anurag.sh/containers/graph-router',
-            tag: 'v1.0.69-20740f6',
-          },
-        },
-      },
-    ],
-  },
-  '/imagerepositories': {
-    items: [
-      {
-        metadata: { name: 'graph-graph-router', ...APP },
-        spec: { image: 'registry.anurag.sh/containers/graph-router' },
-        status: { lastScanResult: { scanTime: '2026-11-25T13:06:27Z' } },
-      },
-    ],
-  },
-  '/apis/apps/v1/deployments': {
-    items: [
-      {
-        metadata: {
-          name: 'router',
-          namespace: 'graph',
-          annotations: {
-            'meta.helm.sh/release-name': 'graph-k8s-workload',
-            'meta.helm.sh/release-namespace': 'graph',
-          },
-        },
-        spec: {
-          replicas: 2,
-          selector: { matchLabels: { app: 'router' } },
-          template: {
-            spec: {
-              containers: [
-                {
-                  name: 'router',
-                  image: 'registry.anurag.sh/containers/graph-router:v1.0.69-20740f6',
-                },
-              ],
-            },
-          },
-        },
-        status: { readyReplicas: 2 },
-      },
-    ],
-  },
-  '/statefulsets': { items: [] },
-  '/daemonsets': { items: [] },
-  '/cronjobs': { items: [] },
-  '/batch/v1/jobs': {
-    items: [
-      {
-        metadata: {
-          name: 'supergraph-upload',
-          namespace: 'graph',
-          annotations: {
-            'meta.helm.sh/release-name': 'graph-k8s-workload',
-            'meta.helm.sh/release-namespace': 'graph',
-          },
-        },
-        spec: {
-          template: { spec: { containers: [{ name: 'upload', image: 'curlimages/curl:8.18.0' }] } },
-        },
-      },
-    ],
-  },
-  '/namespaces/graph/pods': {
-    items: [
-      {
-        metadata: { name: 'router-1', labels: { app: 'router' } },
-        status: { containerStatuses: [{ restartCount: 1 }] },
-      },
-    ],
-  },
-};
-
-const forgejo = {
-  '/actions/runs?page=1&limit=50': {
-    workflow_runs: [
-      {
-        id: 3703,
-        index_in_repo: 2682,
-        workflow_id: 'app-graph.yaml',
-        commit_sha: '204a20cbb3b0bf88',
-        status: 'success',
-        title: 'graph: me plugin',
-        stopped: '2026-11-25T13:08:00Z',
-        html_url: 'https://git/runs/2682',
-        prettyref: 'main',
-      },
-    ],
-  },
-  '/actions/runs/3703/jobs': [
-    {
-      id: 6108,
-      name: 'release',
-      status: 'success',
-      html_url: 'https://git/jobs/2',
-    },
-  ],
-  '/actions/jobs/6108/logs': 'line 1\nline 2\npushed v1.0.75-204a20c\n',
-  '/git/commits/20740f6': {
-    sha: '20740f6aaa',
-    commit: {
-      message: 'update schemas\n\nbody',
-      author: { name: 'Anurag', date: '2026-11-25T11:05:00Z' },
-    },
-  },
-};
-
-async function stack() {
-  const key = keypair('graph-1');
-  const schema = executableSchema(
-    resolvers({
-      kubernetes: new Kubernetes({
-        url: 'https://kube',
-        token: async () => 't',
-        fetcher: fetcher(kube),
-      }),
-      forgejo: new Forgejo('https://git', 't', 'https://git.example.test', fetcher(forgejo)),
-      buildRepository: 'anurag/k8s',
-    }),
-  );
-  const auth = new Authenticator(
-    {
-      providers: [{ issuer: ISSUER, audience: 'graph' }],
-      scopes: ['flux:app:read', 'forgejo:run:read', 'forgejo:log:read', 'kubernetes:workload:read'],
-    },
-    fetcher({ '/public_key.jwk': { keys: [key.jwk] } }),
-  );
-  const app = server(schema, auth);
-  await app.listen({ port: 0, host: '127.0.0.1' });
-  const url = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
-
-  const post = async (scope: string, query: string, extra: Record<string, string> = {}) => {
-    const response = await fetch(`${url}/v1/graphql`, {
-      method: 'POST',
-      headers: {
-        ...extra,
-        'content-type': 'application/json',
-        authorization: `Bearer ${key.token({ iss: ISSUER, aud: 'graph', sub: 'u', scope })}`,
-      },
-      body: JSON.stringify({ query }),
-    });
-    return { status: response.status, body: (await response.json()) as any };
-  };
-  return { url, post, close: () => app.close() };
-}
-
-const ALL = 'flux:app:read forgejo:run:read forgejo:log:read kubernetes:workload:read';
+import { DIGEST, READ as ALL, stack } from './stack.ts';
 
 test('image values lines parse into repository tags', () => {
   assert.deepEqual(
@@ -308,11 +105,16 @@ test("requests continue the caller's trace with operation, field and outbound sp
   const exporter = new InMemorySpanExporter();
   const stop = startTracing(undefined, exporter);
   const s = await stack();
+  exporter.reset();
   try {
     const parent = '0af7651916cd43dd8448eb211c80319c';
-    await s.post(ALL, 'query Apps { fluxApp(name: "graph") { name } }', {
-      traceparent: `00-${parent}-b7ad6b7169203331-01`,
-    });
+    await s.post(
+      ALL,
+      'query Apps { fluxApp(name: "graph") { name workloads { events { reason } } } }',
+      {
+        traceparent: `00-${parent}-b7ad6b7169203331-01`,
+      },
+    );
 
     const spans = exporter.getFinishedSpans();
     const names = spans.map((span) => span.name);
@@ -322,7 +124,7 @@ test("requests continue the caller's trace with operation, field and outbound sp
       'graphql.validate',
       'graphql.Apps',
       'graphql.Query.fluxApp',
-      'GET kube/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/{namespace}/kustomizations',
+      'GET kube/api/v1/namespaces/{namespace}/events',
       'GET idm.example.test/oauth2/openid/graph/public_key.jwk',
     ]) {
       assert.ok(names.includes(name), `${name} in ${names.join(', ')}`);
@@ -355,6 +157,97 @@ test('bad requests get graphql-shaped errors', async () => {
     const missing = await s.post(ALL, '');
     assert.equal(missing.status, 400);
     assert.equal(missing.body.errors[0].message, 'missing query');
+  } finally {
+    await s.close();
+  }
+});
+
+test('workloads show their pods, containers, events and logs', async () => {
+  const s = await stack();
+  try {
+    const { body } = await s.post(
+      ALL,
+      `{ kubernetesWorkloads(namespace: "graph") {
+          name
+          events(limit: 5) { type reason count object lastSeenAt }
+          pods { name phase node ready restarts startedAt
+            containers { name imageDigest ready restarts
+              lastTermination { reason exitCode finishedAt }
+              logTail(lines: 2)
+              registryImage { repository digest } } }
+      } }`,
+    );
+    assert.equal(body.errors, undefined, JSON.stringify(body.errors));
+    const router = body.data.kubernetesWorkloads.find((w: { name: string }) => w.name === 'router');
+    assert.deepEqual(router.pods, [
+      {
+        name: 'router-1',
+        phase: 'Running',
+        node: 'k8s-1',
+        ready: true,
+        restarts: 1,
+        startedAt: '2026-11-25T13:30:00Z',
+        containers: [
+          {
+            name: 'router',
+            imageDigest: DIGEST,
+            ready: true,
+            restarts: 1,
+            lastTermination: {
+              reason: 'OOMKilled',
+              exitCode: 137,
+              finishedAt: '2026-11-25T13:29:00Z',
+            },
+            logTail: 'listening\nserving',
+            registryImage: { repository: 'containers/graph-router', digest: DIGEST },
+          },
+        ],
+      },
+    ]);
+    assert.deepEqual(router.events, [
+      {
+        type: 'Warning',
+        reason: 'BackOff',
+        count: 4,
+        object: 'pod/router-1',
+        lastSeenAt: '2026-11-25T13:29:30Z',
+      },
+      {
+        type: 'Normal',
+        reason: 'ScalingReplicaSet',
+        count: 1,
+        object: 'deployment/router',
+        lastSeenAt: '2026-11-25T13:28:00Z',
+      },
+    ]);
+
+    const noLogs = await s.post(
+      'kubernetes:workload:read',
+      '{ kubernetesWorkloads(namespace: "graph") { pods { containers { logTail } } } }',
+    );
+    assert.equal(noLogs.body.errors[0].message, 'missing scope kubernetes:log:read');
+  } finally {
+    await s.close();
+  }
+});
+
+test('images link to the registry by repository and by the digests the pods run', async () => {
+  const s = await stack();
+  try {
+    const { body } = await s.post(
+      ALL,
+      `{ fluxApp(name: "graph") { images { repository
+          registryRepository { id } runningImages { repository digest } } } }`,
+    );
+    assert.equal(body.errors, undefined, JSON.stringify(body.errors));
+    assert.deepEqual(body.data.fluxApp.images, [
+      { repository: 'curlimages/curl', registryRepository: null, runningImages: null },
+      {
+        repository: 'registry.anurag.sh/containers/graph-router',
+        registryRepository: { id: 'registry:imageRepository:containers/graph-router' },
+        runningImages: [{ repository: 'containers/graph-router', digest: DIGEST }],
+      },
+    ]);
   } finally {
     await s.close();
   }

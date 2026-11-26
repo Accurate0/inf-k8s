@@ -1,6 +1,6 @@
 import { Authenticator, parseConfig } from './auth.ts';
 import { Forgejo } from './forgejo.ts';
-import { Kubernetes } from './kubernetes.ts';
+import { Kubernetes, watched } from './kubernetes.ts';
 import { resolvers } from './resolvers.ts';
 import { executableSchema } from './schema.ts';
 import { server } from './server.ts';
@@ -16,9 +16,12 @@ const env = (name: string, fallback?: string) => {
 
 const stopTracing = startTracing(process.env.OTEL_TRACING_URL);
 
+const kubernetes = new Kubernetes();
+await kubernetes.watch(watched);
+
 const schema = executableSchema(
   resolvers({
-    kubernetes: new Kubernetes(),
+    kubernetes,
     forgejo: new Forgejo(
       env('FORGEJO_URL'),
       env('FORGEJO_TOKEN'),
@@ -36,6 +39,7 @@ console.log(`listening on :${port}`);
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   process.on(signal, () => {
+    kubernetes.stop();
     void app
       .close()
       .then(stopTracing)

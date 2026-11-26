@@ -20,6 +20,8 @@ const FEDERATION = `
 directive @link(url: String!, import: [String]) repeatable on SCHEMA
 directive @key(fields: String!, resolvable: Boolean = true) repeatable on OBJECT | INTERFACE
 directive @requiresScopes(scopes: [[String!]!]!) on FIELD_DEFINITION | OBJECT | INTERFACE | SCALAR | ENUM
+directive @cost(weight: Int!) on ARGUMENT_DEFINITION | ENUM | FIELD_DEFINITION | INPUT_FIELD_DEFINITION | OBJECT | SCALAR
+directive @listSize(assumedSize: Int, slicingArguments: [String!], sizedFields: [String!], requireOneSlicingArgument: Boolean = true) on FIELD_DEFINITION
 scalar _Any
 type _Service { sdl: String! }
 union _Entity = FluxApp | ForgejoCommit | ForgejoRun
@@ -87,13 +89,17 @@ export function executableSchema(resolvers: Resolvers): GraphQLSchema {
           ? resolve(source, args, context, info)
           : (source as Record<string, unknown>)?.[field.name];
       };
-      field.resolve =
-        type.name === 'Query'
-          ? (source, args, context, info) =>
-              traced(`graphql.Query.${field.name}`, { 'graphql.field.path': field.name }, () =>
-                run(source, args, context, info),
-              )
-          : run;
+      if (type.name === 'Subscription') {
+        field.subscribe = run;
+        field.resolve = (value) => value;
+        continue;
+      }
+      field.resolve = ['Query', 'Mutation'].includes(type.name)
+        ? (source, args, context, info) =>
+            traced(`graphql.${type.name}.${field.name}`, { 'graphql.field.path': field.name }, () =>
+              run(source, args, context, info),
+            )
+        : run;
     }
   }
 
