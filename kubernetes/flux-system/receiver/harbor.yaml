@@ -7,7 +7,7 @@ spec:
   type: harbor
   secretRef:
     name: harbor-receiver
-  # every manifests push: the cluster artifact and each app's own manifests artifact
+  # every manifests push reconciles the cluster artifact and each app's own manifests artifact
   resources:
     - apiVersion: source.toolkit.fluxcd.io/v1
       kind: OCIRepository
