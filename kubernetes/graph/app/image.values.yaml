@@ -1,3 +1,3 @@
 images:
-  registry.anurag.sh/containers/graph-router: v1.0.80-312d1a5 # {"$imagepolicy": "flux-system:graph-graph-router:tag"}
+  registry.anurag.sh/containers/graph-router: v1.0.81-d2be0e8 # {"$imagepolicy": "flux-system:graph-graph-router:tag"}
   curlimages/curl: 8.10.1
