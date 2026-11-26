@@ -25,11 +25,16 @@ export interface ForgejoCommitJson {
   commit: { message: string; author?: { name?: string; date?: string } };
 }
 
+const TIMEOUT_MS = 8_000;
+const TTL_MS = 15_000;
+
+// one query asks for the same run lists from many resolvers, and they're large
 export class Forgejo {
   readonly #url: string;
   readonly #token: string;
   readonly #fetch: typeof fetch;
   readonly #publicUrl: string;
+  readonly #cache = new Map<string, { at: number; value: Promise<unknown> }>();
 
   constructor(url: string, token: string, publicUrl: string, fetcher: typeof fetch = fetch) {
     this.#url = url.replace(/\/+$/, '');
@@ -48,6 +53,7 @@ export class Forgejo {
         authorization: `token ${this.#token}`,
         accept: 'application/json',
       },
+      signal: AbortSignal.timeout(TIMEOUT_MS),
     });
     if (!response.ok && response.status !== 404) {
       throw new Error(`forgejo ${path} returned ${response.status}`);
@@ -55,9 +61,26 @@ export class Forgejo {
     return response;
   }
 
-  async #json<T>(path: string): Promise<T | undefined> {
-    const response = await this.#request(path);
-    return response.status === 404 ? undefined : ((await response.json()) as T);
+  #json<T>(path: string): Promise<T | undefined> {
+    const cached = this.#cache.get(path);
+    if (cached && Date.now() - cached.at < TTL_MS) {
+      return cached.value as Promise<T | undefined>;
+    }
+
+    if (this.#cache.size > 500) {
+      for (const [key, entry] of this.#cache) {
+        if (Date.now() - entry.at >= TTL_MS) {
+          this.#cache.delete(key);
+        }
+      }
+    }
+
+    const value = this.#request(path).then((response) =>
+      response.status === 404 ? undefined : (response.json() as Promise<T>),
+    );
+    this.#cache.set(path, { at: Date.now(), value });
+    value.catch(() => this.#cache.delete(path));
+    return value;
   }
 
   commit(repository: string, sha: string): Promise<ForgejoCommitJson | undefined> {
@@ -66,7 +89,7 @@ export class Forgejo {
 
   async runs(repository: string, limit: number): Promise<ForgejoRunJson[]> {
     const page = await this.#json<{ workflow_runs?: ForgejoRunJson[] }>(
-      `/repos/${repository}/actions/runs?limit=${limit}`,
+      `/repos/${repository}/actions/runs?page=1&limit=${limit}`,
     );
     return page?.workflow_runs ?? [];
   }

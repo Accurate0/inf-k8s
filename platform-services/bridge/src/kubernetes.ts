@@ -42,6 +42,7 @@ export class Kubernetes {
         authorization: `Bearer ${await this.#token()}`,
         accept: 'application/json',
       },
+      signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) {
       throw new Error(`kubernetes ${path} returned ${response.status}`);

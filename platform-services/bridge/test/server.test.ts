@@ -115,7 +115,7 @@ const kube = {
 };
 
 const forgejo = {
-  '/actions/runs?limit=50': {
+  '/actions/runs?page=1&limit=50': {
     workflow_runs: [
       {
         id: 3703,
