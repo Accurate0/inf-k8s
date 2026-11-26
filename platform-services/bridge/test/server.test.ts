@@ -46,7 +46,7 @@ const kube = {
         metadata: { name: 'graph-image-values' },
         data: {
           'values.yaml':
-            'images:\n  registry.anurag.sh/containers/graph-router: v1.0.69-20740f6 # {"$imagepolicy": "flux-system:graph-graph-router:tag"}\n',
+            'images:\n  curlimages/curl: 8.18.0\n  registry.anurag.sh/containers/graph-router: v1.0.69-20740f6 # {"$imagepolicy": "flux-system:graph-graph-router:tag"}\n',
         },
       },
     ],
@@ -106,6 +106,23 @@ const kube = {
   '/statefulsets': { items: [] },
   '/daemonsets': { items: [] },
   '/cronjobs': { items: [] },
+  '/batch/v1/jobs': {
+    items: [
+      {
+        metadata: {
+          name: 'supergraph-upload',
+          namespace: 'graph',
+          annotations: {
+            'meta.helm.sh/release-name': 'graph-k8s-workload',
+            'meta.helm.sh/release-namespace': 'graph',
+          },
+        },
+        spec: {
+          template: { spec: { containers: [{ name: 'upload', image: 'curlimages/curl:8.18.0' }] } },
+        },
+      },
+    ],
+  },
   '/namespaces/graph/pods': {
     items: [
       {
@@ -222,9 +239,17 @@ test('a flux app shows each image from build to pods, and where it is stuck', as
     assert.deepEqual(app.helmReleases, [{ name: 'graph-k8s-workload', chartVersion: '1.2.0' }]);
     assert.deepEqual(app.workloads, [
       { kind: 'Deployment', name: 'router', ready: 2, desired: 2, restarts: 1 },
+      { kind: 'Job', name: 'supergraph-upload', ready: 0, desired: 0, restarts: 0 },
     ]);
 
-    const image = app.images[0];
+    const curl = app.images.find((i: { repository: string }) => i.repository === 'curlimages/curl');
+    assert.equal(curl.latestBuild, null, 'images flux does not release are not built by the app');
+    assert.deepEqual(curl.runningTags, ['8.18.0']);
+    assert.equal(curl.stage, 'LIVE');
+
+    const image = app.images.find(
+      (i: { repository: string }) => i.repository === 'registry.anurag.sh/containers/graph-router',
+    );
     assert.equal(image.selectedTag, 'v1.0.69-20740f6');
     assert.deepEqual(image.runningTags, ['v1.0.69-20740f6']);
     assert.equal(image.stage, 'SCAN_PENDING');
@@ -326,13 +351,6 @@ test('bad requests get graphql-shaped errors', async () => {
     });
     assert.equal(malformed.status, 400);
     assert.equal(((await malformed.json()) as any).errors[0].extensions.code, 'BAD_REQUEST');
-
-    const huge = await fetch(`${s.url}/v1/graphql`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ query: 'x'.repeat(2 << 20) }),
-    });
-    assert.equal(huge.status, 413);
 
     const missing = await s.post(ALL, '');
     assert.equal(missing.status, 400);

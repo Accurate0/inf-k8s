@@ -161,7 +161,7 @@ export function resolvers(sources: Sources): Resolvers {
     let result = stages.get(model);
     if (!result) {
       result = (async () => {
-        const build = await latestBuild(model.app);
+        const build = model.image.policy ? await latestBuild(model.app) : undefined;
         const failedJob =
           build && ['failure', 'cancelled'].includes(build.json.status)
             ? (await forgejo.jobs(build.repository, build.json.id)).find((job) =>
@@ -283,7 +283,8 @@ export function resolvers(sources: Sources): Resolvers {
         const sha = tagSha(image.policy?.status?.latestRef?.tag);
         return sha ? ((await commit(sources.buildRepository, sha)) ?? null) : null;
       },
-      latestBuild: async ({ app }: ImageModel) => (await latestBuild(app)) ?? null,
+      latestBuild: async ({ app, image }: ImageModel) =>
+        image.policy ? ((await latestBuild(app)) ?? null) : null,
       stage: async (model: ImageModel) => (await stageOf(model)).stage,
       blocker: async (model: ImageModel) => (await stageOf(model)).blocker ?? null,
     },

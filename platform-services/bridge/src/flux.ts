@@ -224,7 +224,7 @@ export function replicas(workload: Workload): {
       desired: status.desiredNumberScheduled ?? 0,
     };
   }
-  if (workload.kind === 'CronJob') {
+  if (workload.kind === 'CronJob' || workload.kind === 'Job') {
     return { ready: 0, desired: 0 };
   }
   return {

@@ -67,6 +67,7 @@ export const paths = {
       { kind: 'StatefulSet', path: `/apis/apps/v1${scope}/statefulsets` },
       { kind: 'DaemonSet', path: `/apis/apps/v1${scope}/daemonsets` },
       { kind: 'CronJob', path: `/apis/batch/v1${scope}/cronjobs` },
+      { kind: 'Job', path: `/apis/batch/v1${scope}/jobs` },
     ];
   },
   pods: (namespace: string) => `/api/v1/namespaces/${namespace}/pods`,
