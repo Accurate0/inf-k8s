@@ -8,6 +8,8 @@ concurrency:
   group: supergraph
   cancel-in-progress: false
 
+enable-openid-connect: true
+
 jobs:
   compose:
     runs-on: docker
