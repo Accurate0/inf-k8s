@@ -11,4 +11,10 @@ spec:
   resources:
     - apiVersion: source.toolkit.fluxcd.io/v1
       kind: OCIRepository
+      name: flux-system
+    # a wildcard needs a selector; every app's OCIRepository is applied by a flux-system kustomization
+    - apiVersion: source.toolkit.fluxcd.io/v1
+      kind: OCIRepository
       name: "*"
+      matchLabels:
+        kustomize.toolkit.fluxcd.io/namespace: flux-system

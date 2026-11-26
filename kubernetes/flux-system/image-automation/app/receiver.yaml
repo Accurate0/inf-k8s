@@ -12,3 +12,5 @@ spec:
     - apiVersion: image.toolkit.fluxcd.io/v1
       kind: ImageRepository
       name: "*"
+      matchLabels:
+        kustomize.toolkit.fluxcd.io/namespace: flux-system
