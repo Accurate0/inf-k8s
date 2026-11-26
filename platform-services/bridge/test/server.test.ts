@@ -8,6 +8,8 @@ import { Kubernetes } from '../src/kubernetes.ts';
 import { resolvers } from '../src/resolvers.ts';
 import { executableSchema } from '../src/schema.ts';
 import { server } from '../src/server.ts';
+import { InMemorySpanExporter } from '@opentelemetry/sdk-trace-base';
+import { startTracing } from '../src/tracing.ts';
 import { fetcher, ISSUER, keypair } from './helpers.ts';
 
 const APP = { annotations: { 'event.toolkit.fluxcd.io/app': 'graph' } };
@@ -172,10 +174,11 @@ async function stack() {
   await new Promise((resolve) => http.once('listening', resolve));
   const url = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
 
-  const post = async (scope: string, query: string) => {
+  const post = async (scope: string, query: string, extra: Record<string, string> = {}) => {
     const response = await fetch(`${url}/v1/graphql`, {
       method: 'POST',
       headers: {
+        ...extra,
         'content-type': 'application/json',
         authorization: `Bearer ${key.token({ iss: ISSUER, aud: 'graph', sub: 'u', scope })}`,
       },
@@ -273,5 +276,38 @@ test('node ids resolve as entities', async () => {
     assert.deepEqual(body.data._entities, [{ name: 'graph' }, { title: 'update schemas' }]);
   } finally {
     s.close();
+  }
+});
+
+test("requests continue the caller's trace with operation, field and outbound spans", async () => {
+  const exporter = new InMemorySpanExporter();
+  const stop = startTracing(undefined, exporter);
+  const s = await stack();
+  try {
+    const parent = '0af7651916cd43dd8448eb211c80319c';
+    await s.post(ALL, 'query Apps { fluxApp(name: "graph") { name } }', {
+      traceparent: `00-${parent}-b7ad6b7169203331-01`,
+    });
+
+    const spans = exporter.getFinishedSpans();
+    const names = spans.map((span) => span.name);
+    for (const name of [
+      'POST /v1/graphql',
+      'graphql.parse',
+      'graphql.validate',
+      'graphql.Apps',
+      'graphql.Query.fluxApp',
+      'kubernetes GET',
+      'auth GET',
+    ]) {
+      assert.ok(names.includes(name), `${name} in ${names.join(', ')}`);
+    }
+    const kube = spans.find((span) => span.name === 'kubernetes GET')!;
+    assert.equal(kube.attributes['http.response.status_code'], 200);
+    assert.equal(kube.attributes['server.address'], 'kube');
+    assert.ok(spans.every((span) => span.spanContext().traceId === parent));
+  } finally {
+    s.close();
+    await stop();
   }
 });

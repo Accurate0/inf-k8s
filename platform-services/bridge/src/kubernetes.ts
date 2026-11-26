@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { tracedFetch } from './tracing.ts';
 
 const SERVICE_ACCOUNT = '/var/run/secrets/kubernetes.io/serviceaccount/token';
 
@@ -20,7 +21,7 @@ export class Kubernetes {
   constructor(options: KubernetesOptions = {}) {
     this.#url = options.url ?? 'https://kubernetes.default.svc';
     this.#token = options.token ?? (async () => (await readFile(SERVICE_ACCOUNT, 'utf8')).trim());
-    this.#fetch = options.fetcher ?? fetch;
+    this.#fetch = tracedFetch('kubernetes', options.fetcher);
     this.#ttl = options.ttlMs ?? 10_000;
   }
 

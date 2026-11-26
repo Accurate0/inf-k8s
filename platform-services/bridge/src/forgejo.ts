@@ -1,3 +1,5 @@
+import { tracedFetch } from './tracing.ts';
+
 export interface ForgejoRunJson {
   id: number;
   index_in_repo: number;
@@ -40,7 +42,7 @@ export class Forgejo {
     this.#url = url.replace(/\/+$/, '');
     this.#token = token;
     this.#publicUrl = publicUrl.replace(/\/+$/, '');
-    this.#fetch = fetcher;
+    this.#fetch = tracedFetch('forgejo', fetcher);
   }
 
   get publicUrl(): string {

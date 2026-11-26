@@ -11,6 +11,7 @@ import {
   Kind,
 } from 'graphql';
 import type { Principal } from './auth.ts';
+import { traced } from './tracing.ts';
 
 export const SUBGRAPH_SDL = readFileSync(new URL('../schema.graphql', import.meta.url), 'utf8');
 
@@ -76,7 +77,7 @@ export function executableSchema(resolvers: Resolvers): GraphQLSchema {
         (list) => list.length,
       );
       const resolve = resolvers[type.name]?.[field.name] ?? field.resolve;
-      field.resolve = (source, args, context: Context, info) => {
+      const run: typeof field.resolve = (source, args, context: Context, info) => {
         for (const list of required) {
           if (!satisfied(list, context.principal.scopes)) {
             throw missingScope(list);
@@ -86,6 +87,13 @@ export function executableSchema(resolvers: Resolvers): GraphQLSchema {
           ? resolve(source, args, context, info)
           : (source as Record<string, unknown>)?.[field.name];
       };
+      field.resolve =
+        type.name === 'Query'
+          ? (source, args, context, info) =>
+              traced(`graphql.Query.${field.name}`, { 'graphql.field.path': field.name }, () =>
+                run(source, args, context, info),
+              )
+          : run;
     }
   }
 

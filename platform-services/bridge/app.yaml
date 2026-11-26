@@ -23,6 +23,7 @@ resources:
       - {apiGroups: [batch], resources: [cronjobs, jobs], verbs: [get, list, watch]}
       - {apiGroups: [''], resources: [pods, configmaps], verbs: [get, list, watch]}
   - {name: forgejo, type: platform, export: forgejo-internal}
+  - {name: traces, type: platform, export: tracing}
   - name: bridge
     type: subgraph
     prefixes: [flux, forgejo, kubernetes]
@@ -56,6 +57,7 @@ workloads:
     env:
       SUBGRAPH_AUTH: {subgraph: bridge}
       FORGEJO_URL: {resource: forgejo}
+      OTEL_TRACING_URL: {resource: traces}
       NODE_EXTRA_CA_CERTS: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
     envFrom:
       - {secret: bridge}

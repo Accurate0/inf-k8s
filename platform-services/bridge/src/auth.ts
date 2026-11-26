@@ -1,3 +1,4 @@
+import { tracedFetch } from './tracing.ts';
 import { createPublicKey, type KeyObject, verify } from 'node:crypto';
 
 export interface Provider {
@@ -138,7 +139,7 @@ export class Authenticator {
 
   constructor(config: AuthConfig, fetcher: typeof fetch = fetch) {
     this.#config = config;
-    this.#fetch = fetcher;
+    this.#fetch = tracedFetch('auth', fetcher);
 
     const base = (issuer: string) => issuer.replace(/\/+$/, '');
     this.#issuers = [

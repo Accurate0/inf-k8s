@@ -4,6 +4,7 @@ import { Kubernetes } from './kubernetes.ts';
 import { resolvers } from './resolvers.ts';
 import { executableSchema } from './schema.ts';
 import { server } from './server.ts';
+import { startTracing } from './tracing.ts';
 
 const env = (name: string, fallback?: string) => {
   const value = process.env[name] ?? fallback;
@@ -12,6 +13,8 @@ const env = (name: string, fallback?: string) => {
   }
   return value;
 };
+
+const stopTracing = startTracing(process.env.OTEL_TRACING_URL);
 
 const schema = executableSchema(
   resolvers({
@@ -29,5 +32,5 @@ const port = Number(env('PORT', '4000'));
 
 const http = server(schema, auth).listen(port, () => console.log(`listening on :${port}`));
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => http.close(() => process.exit(0)));
+  process.on(signal, () => http.close(() => void stopTracing().finally(() => process.exit(0))));
 }
