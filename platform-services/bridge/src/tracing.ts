@@ -69,21 +69,43 @@ export function withParent<T>(headers: Record<string, unknown>, run: () => T): T
   return context.with(propagation.extract(context.active(), headers), run);
 }
 
-// every outbound call is a client span, so slow sources show up in the trace
-export function tracedFetch(service: string, fetcher: typeof fetch = fetch): typeof fetch {
-  return ((input: string | URL | Request, init?: RequestInit) => {
-    const url = new URL(input instanceof Request ? input.url : String(input));
-    const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+export type TracedFetch = (
+  input: string | URL,
+  init?: RequestInit & { template?: string },
+) => Promise<Response>;
+
+const REDACTED = '{redacted}';
+
+function placeholder(segment: string): string {
+  if (/^\d+$/.test(segment)) {
+    return '{id}';
+  }
+  return segment.length >= 16 && /^[\w-]+$/.test(segment) ? REDACTED : segment;
+}
+
+// ids and opaque tokens in paths would make every span name unique
+export function redactedPath(url: URL): string {
+  const path = url.pathname.split('/').map(placeholder).join('/');
+  return url.search ? `${path}?${REDACTED}` : path;
+}
+
+// every outbound call is a client span named `<method> <host><template>`, as home-gateway names them
+export function tracedFetch(fetcher: typeof fetch = fetch): TracedFetch {
+  return (input, init) => {
+    const { template: given, ...rest } = init ?? {};
+    const url = new URL(String(input));
+    const method = rest.method ?? 'GET';
+    const template = given ?? redactedPath(url);
     return traced(
-      `${service} ${method}`,
+      `${method} ${url.host}${template}`,
       {
         'http.request.method': method,
         'server.address': url.hostname,
-        'url.full': `${url.origin}${url.pathname}`,
-        'url.query': url.search.slice(1),
+        'url.template': template,
+        'url.full': `${url.origin}${redactedPath(url)}`,
       },
       async () => {
-        const response = await fetcher(input, init);
+        const response = await fetcher(input, rest);
         trace.getActiveSpan()?.setAttribute('http.response.status_code', response.status);
         if (response.status >= 400) {
           failed(`${response.status}`);
@@ -92,5 +114,5 @@ export function tracedFetch(service: string, fetcher: typeof fetch = fetch): typ
       },
       SpanKind.CLIENT,
     );
-  }) as typeof fetch;
+  };
 }

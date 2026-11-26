@@ -1,4 +1,4 @@
-import { tracedFetch } from './tracing.ts';
+import { type TracedFetch, tracedFetch } from './tracing.ts';
 import { createPublicKey, type KeyObject, verify } from 'node:crypto';
 
 export interface Provider {
@@ -135,11 +135,11 @@ const groupsMatch = (held: string[], allowed: string[]) =>
 export class Authenticator {
   readonly #config: AuthConfig;
   readonly #issuers: Issuer[];
-  readonly #fetch: typeof fetch;
+  readonly #fetch: TracedFetch;
 
   constructor(config: AuthConfig, fetcher: typeof fetch = fetch) {
     this.#config = config;
-    this.#fetch = tracedFetch('auth', fetcher);
+    this.#fetch = tracedFetch(fetcher);
 
     const base = (issuer: string) => issuer.replace(/\/+$/, '');
     this.#issuers = [

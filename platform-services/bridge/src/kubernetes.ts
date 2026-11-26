@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { tracedFetch } from './tracing.ts';
+import { type TracedFetch, tracedFetch } from './tracing.ts';
 
 const SERVICE_ACCOUNT = '/var/run/secrets/kubernetes.io/serviceaccount/token';
 
@@ -14,14 +14,14 @@ export interface KubernetesOptions {
 export class Kubernetes {
   readonly #url: string;
   readonly #token: () => Promise<string>;
-  readonly #fetch: typeof fetch;
+  readonly #fetch: TracedFetch;
   readonly #ttl: number;
   readonly #cache = new Map<string, { at: number; items: Promise<unknown[]> }>();
 
   constructor(options: KubernetesOptions = {}) {
     this.#url = options.url ?? 'https://kubernetes.default.svc';
     this.#token = options.token ?? (async () => (await readFile(SERVICE_ACCOUNT, 'utf8')).trim());
-    this.#fetch = tracedFetch('kubernetes', options.fetcher);
+    this.#fetch = tracedFetch(options.fetcher);
     this.#ttl = options.ttlMs ?? 10_000;
   }
 
@@ -39,6 +39,7 @@ export class Kubernetes {
 
   async #get(path: string): Promise<unknown[]> {
     const response = await this.#fetch(`${this.#url}${path}`, {
+      template: path.replace(/\/namespaces\/[^/]+\//, '/namespaces/{namespace}/'),
       headers: {
         authorization: `Bearer ${await this.#token()}`,
         accept: 'application/json',

@@ -1,4 +1,4 @@
-import { tracedFetch } from './tracing.ts';
+import { type TracedFetch, tracedFetch } from './tracing.ts';
 
 export interface ForgejoRunJson {
   id: number;
@@ -34,7 +34,7 @@ const TTL_MS = 15_000;
 export class Forgejo {
   readonly #url: string;
   readonly #token: string;
-  readonly #fetch: typeof fetch;
+  readonly #fetch: TracedFetch;
   readonly #publicUrl: string;
   readonly #cache = new Map<string, { at: number; value: Promise<unknown> }>();
 
@@ -42,15 +42,16 @@ export class Forgejo {
     this.#url = url.replace(/\/+$/, '');
     this.#token = token;
     this.#publicUrl = publicUrl.replace(/\/+$/, '');
-    this.#fetch = tracedFetch('forgejo', fetcher);
+    this.#fetch = tracedFetch(fetcher);
   }
 
   get publicUrl(): string {
     return this.#publicUrl;
   }
 
-  async #request(path: string): Promise<Response> {
+  async #request(path: string, template: string): Promise<Response> {
     const response = await this.#fetch(`${this.#url}/api/v1${path}`, {
+      template: `/api/v1${template}`,
       headers: {
         authorization: `token ${this.#token}`,
         accept: 'application/json',
@@ -63,7 +64,7 @@ export class Forgejo {
     return response;
   }
 
-  #json<T>(path: string): Promise<T | undefined> {
+  #json<T>(path: string, template: string): Promise<T | undefined> {
     const cached = this.#cache.get(path);
     if (cached && Date.now() - cached.at < TTL_MS) {
       return cached.value as Promise<T | undefined>;
@@ -77,7 +78,7 @@ export class Forgejo {
       }
     }
 
-    const value = this.#request(path).then((response) =>
+    const value = this.#request(path, template).then((response) =>
       response.status === 404 ? undefined : (response.json() as Promise<T>),
     );
     this.#cache.set(path, { at: Date.now(), value });
@@ -86,28 +87,41 @@ export class Forgejo {
   }
 
   commit(repository: string, sha: string): Promise<ForgejoCommitJson | undefined> {
-    return this.#json(`/repos/${repository}/git/commits/${sha}`);
+    return this.#json(
+      `/repos/${repository}/git/commits/${sha}`,
+      '/repos/{owner}/{repo}/git/commits/{sha}',
+    );
   }
 
   async runs(repository: string, limit: number): Promise<ForgejoRunJson[]> {
     const page = await this.#json<{ workflow_runs?: ForgejoRunJson[] }>(
       `/repos/${repository}/actions/runs?page=1&limit=${limit}`,
+      '/repos/{owner}/{repo}/actions/runs',
     );
     return page?.workflow_runs ?? [];
   }
 
   run(repository: string, id: number): Promise<ForgejoRunJson | undefined> {
-    return this.#json(`/repos/${repository}/actions/runs/${id}`);
+    return this.#json(
+      `/repos/${repository}/actions/runs/${id}`,
+      '/repos/{owner}/{repo}/actions/runs/{run}',
+    );
   }
 
   async jobs(repository: string, run: number): Promise<ForgejoJobJson[]> {
     return (
-      (await this.#json<ForgejoJobJson[]>(`/repos/${repository}/actions/runs/${run}/jobs`)) ?? []
+      (await this.#json<ForgejoJobJson[]>(
+        `/repos/${repository}/actions/runs/${run}/jobs`,
+        '/repos/{owner}/{repo}/actions/runs/{run}/jobs',
+      )) ?? []
     );
   }
 
   async logTail(repository: string, job: number, lines: number): Promise<string | undefined> {
-    const response = await this.#request(`/repos/${repository}/actions/jobs/${job}/logs`);
+    const response = await this.#request(
+      `/repos/${repository}/actions/jobs/${job}/logs`,
+      '/repos/{owner}/{repo}/actions/jobs/{job}/logs',
+    );
     if (response.status === 404) {
       return undefined;
     }

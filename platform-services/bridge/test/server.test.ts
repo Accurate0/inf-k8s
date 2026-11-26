@@ -322,12 +322,12 @@ test("requests continue the caller's trace with operation, field and outbound sp
       'graphql.validate',
       'graphql.Apps',
       'graphql.Query.fluxApp',
-      'kubernetes GET',
-      'auth GET',
+      'GET kube/apis/kustomize.toolkit.fluxcd.io/v1/namespaces/{namespace}/kustomizations',
+      'GET idm.example.test/oauth2/openid/graph/public_key.jwk',
     ]) {
       assert.ok(names.includes(name), `${name} in ${names.join(', ')}`);
     }
-    const kube = spans.find((span) => span.name === 'kubernetes GET')!;
+    const kube = spans.find((span) => span.name.startsWith('GET kube/'))!;
     assert.equal(kube.attributes['http.response.status_code'], 200);
     assert.equal(kube.attributes['server.address'], 'kube');
     assert.ok(spans.every((span) => span.spanContext().traceId === parent));
