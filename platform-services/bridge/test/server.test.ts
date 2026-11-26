@@ -170,9 +170,9 @@ async function stack() {
     },
     fetcher({ '/public_key.jwk': { keys: [key.jwk] } }),
   );
-  const http = server(schema, auth).listen(0);
-  await new Promise((resolve) => http.once('listening', resolve));
-  const url = `http://127.0.0.1:${(http.address() as AddressInfo).port}`;
+  const app = server(schema, auth);
+  await app.listen({ port: 0, host: '127.0.0.1' });
+  const url = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
 
   const post = async (scope: string, query: string, extra: Record<string, string> = {}) => {
     const response = await fetch(`${url}/v1/graphql`, {
@@ -186,7 +186,7 @@ async function stack() {
     });
     return { status: response.status, body: (await response.json()) as any };
   };
-  return { url, post, close: () => http.close() };
+  return { url, post, close: () => app.close() };
 }
 
 const ALL = 'flux:app:read forgejo:run:read forgejo:log:read kubernetes:workload:read';
@@ -240,7 +240,7 @@ test('a flux app shows each image from build to pods, and where it is stuck', as
       jobs: [{ name: 'release', logTail: 'pushed v1.0.75-204a20c' }],
     });
   } finally {
-    s.close();
+    await s.close();
   }
 });
 
@@ -261,7 +261,7 @@ test('fields need their scopes', async () => {
     const health = await fetch(`${s.url}/health`);
     assert.equal(health.status, 200);
   } finally {
-    s.close();
+    await s.close();
   }
 });
 
@@ -275,7 +275,7 @@ test('node ids resolve as entities', async () => {
     );
     assert.deepEqual(body.data._entities, [{ name: 'graph' }, { title: 'update schemas' }]);
   } finally {
-    s.close();
+    await s.close();
   }
 });
 
@@ -307,7 +307,37 @@ test("requests continue the caller's trace with operation, field and outbound sp
     assert.equal(kube.attributes['server.address'], 'kube');
     assert.ok(spans.every((span) => span.spanContext().traceId === parent));
   } finally {
-    s.close();
+    await s.close();
     await stop();
+  }
+});
+
+test('bad requests get graphql-shaped errors', async () => {
+  const s = await stack();
+  try {
+    const notFound = await fetch(`${s.url}/nope`);
+    assert.equal(notFound.status, 404);
+    assert.equal(((await notFound.json()) as any).errors[0].extensions.code, 'NOT_FOUND');
+
+    const malformed = await fetch(`${s.url}/v1/graphql`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: '{',
+    });
+    assert.equal(malformed.status, 400);
+    assert.equal(((await malformed.json()) as any).errors[0].extensions.code, 'BAD_REQUEST');
+
+    const huge = await fetch(`${s.url}/v1/graphql`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ query: 'x'.repeat(2 << 20) }),
+    });
+    assert.equal(huge.status, 413);
+
+    const missing = await s.post(ALL, '');
+    assert.equal(missing.status, 400);
+    assert.equal(missing.body.errors[0].message, 'missing query');
+  } finally {
+    await s.close();
   }
 });

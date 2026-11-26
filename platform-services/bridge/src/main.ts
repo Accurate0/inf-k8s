@@ -30,7 +30,15 @@ const schema = executableSchema(
 const auth = new Authenticator(parseConfig(process.env.SUBGRAPH_AUTH));
 const port = Number(env('PORT', '4000'));
 
-const http = server(schema, auth).listen(port, () => console.log(`listening on :${port}`));
+const app = server(schema, auth);
+await app.listen({ port, host: '0.0.0.0' });
+console.log(`listening on :${port}`);
+
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
-  process.on(signal, () => http.close(() => void stopTracing().finally(() => process.exit(0))));
+  process.on(signal, () => {
+    void app
+      .close()
+      .then(stopTracing)
+      .finally(() => process.exit(0));
+  });
 }

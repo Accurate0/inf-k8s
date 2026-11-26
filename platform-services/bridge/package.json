@@ -20,6 +20,7 @@
     "@opentelemetry/resources": "2.12.1",
     "@opentelemetry/sdk-trace-base": "2.12.1",
     "@opentelemetry/semantic-conventions": "^1.45.0",
+    "fastify": "^5.12.8",
     "graphql": "^17.0.2"
   },
   "devDependencies": {
