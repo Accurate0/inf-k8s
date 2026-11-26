@@ -64,6 +64,11 @@ export function server(schema: GraphQLSchema, auth: Authenticator): Server {
         operationName,
         contextValue: { principal },
       });
+      for (const error of result.errors ?? []) {
+        if (error.originalError && !error.extensions?.code) {
+          console.error(`${error.path?.join('.') ?? 'query'}: ${error.originalError.message}`);
+        }
+      }
       json(200, JSON.stringify(result));
     } catch (error) {
       if (error instanceof AuthError) {

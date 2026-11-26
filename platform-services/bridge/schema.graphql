@@ -10,11 +10,11 @@ type Query {
 	"""
 	Every app Flux deploys, from its kustomization annotated with the app's own name.
 	"""
-	fluxApps: [FluxApp!]! @requiresScopes(scopes: [["flux:app:read"]])
+	fluxApps: [FluxApp!] @requiresScopes(scopes: [["flux:app:read"]])
 	fluxApp(name: String!): FluxApp @requiresScopes(scopes: [["flux:app:read"]])
-	kubernetesWorkloads(namespace: String!): [KubernetesWorkload!]! @requiresScopes(scopes: [["kubernetes:workload:read"]])
+	kubernetesWorkloads(namespace: String!): [KubernetesWorkload!] @requiresScopes(scopes: [["kubernetes:workload:read"]])
 	forgejoCommit(repository: String!, sha: String!): ForgejoCommit @requiresScopes(scopes: [["forgejo:run:read"]])
-	forgejoRuns(repository: String!, workflow: String, limit: Int! = 20): [ForgejoRun!]! @requiresScopes(scopes: [["forgejo:run:read"]])
+	forgejoRuns(repository: String!, workflow: String, limit: Int! = 20): [ForgejoRun!] @requiresScopes(scopes: [["forgejo:run:read"]])
 }
 
 type FluxApp implements Node @key(fields: "id") @requiresScopes(scopes: [["flux:app:read"]]) {
@@ -33,7 +33,7 @@ type FluxApp implements Node @key(fields: "id") @requiresScopes(scopes: [["flux:
 	lastDeployedAt: DateTime
 	helmReleases: [FluxHelmRelease!]!
 	images: [FluxImage!]!
-	workloads: [KubernetesWorkload!]! @requiresScopes(scopes: [["kubernetes:workload:read"]])
+	workloads: [KubernetesWorkload!] @requiresScopes(scopes: [["kubernetes:workload:read"]])
 }
 
 type FluxHelmRelease {
@@ -61,7 +61,7 @@ type FluxImage {
 	"""
 	Tags the app's workloads run.
 	"""
-	runningTags: [String!]!
+	runningTags: [String!]
 	"""
 	The commit the selected tag was built from.
 	"""
@@ -73,7 +73,7 @@ type FluxImage {
 	"""
 	How far the newest build has got towards running.
 	"""
-	stage: FluxDeliveryStage!
+	stage: FluxDeliveryStage
 	"""
 	Why it hasn't got further, when it's stuck.
 	"""
@@ -113,7 +113,7 @@ type ForgejoCommit implements Node @key(fields: "id") @requiresScopes(scopes: [[
 	author: String
 	committedAt: DateTime
 	url: String!
-	runs: [ForgejoRun!]!
+	runs: [ForgejoRun!]
 }
 
 type ForgejoRun implements Node @key(fields: "id") @requiresScopes(scopes: [["forgejo:run:read"]]) {
@@ -127,7 +127,7 @@ type ForgejoRun implements Node @key(fields: "id") @requiresScopes(scopes: [["fo
 	startedAt: DateTime
 	stoppedAt: DateTime
 	url: String!
-	jobs: [ForgejoJob!]!
+	jobs: [ForgejoJob!]
 }
 
 type ForgejoJob {
