@@ -7,6 +7,7 @@ import {
   Kind,
   parse as parseGraphql,
   type OperationDefinitionNode,
+  OperationTypeNode,
   print,
   type SchemaDefinitionNode,
   validate,
@@ -136,14 +137,14 @@ export function compose(
 
   const documents = Object.keys(manifests).length ? mergeDocuments(manifests) : undefined;
   if (documents !== undefined) {
-    validateDocuments(result.publicSdl, manifests);
+    validateDocuments(optionalQueries(result.publicSdl), manifests);
   }
 
   const scopes = scopeRegistry(subgraphs, required);
 
   return {
-    supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${scopesAsPolicies(result.supergraphSdl).trimEnd()}\n`,
-    schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${result.publicSdl.trimEnd()}\n`,
+    supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${scopesAsPolicies(optionalQueries(result.supergraphSdl)).trimEnd()}\n`,
+    schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${optionalQueries(result.publicSdl).trimEnd()}\n`,
     router: routerConfig(subgraphs, base, nodeTypes, documents !== undefined, externalIssuers),
     ...(nodeSdl ? { node: `# ${SUPERGRAPH_HEADER_TEXT}\n${nodeSdl}` } : {}),
     ...(meSdl ? { me: `# ${SUPERGRAPH_HEADER_TEXT}\n${meSdl}` } : {}),
@@ -215,6 +216,38 @@ const POLICY_SPEC = `
   directive @policy(policies: [[policy__Policy!]!]!) on ENUM | FIELD_DEFINITION | INTERFACE | OBJECT | SCALAR
   scalar policy__Policy
 `;
+
+// an error in a non-null root field nulls all of `data`, so one failing subgraph would blank every
+// other's results; nullable query fields keep the failure to that field
+export function optionalQueries(sdl: string): string {
+  const document = parseGraphql(sdl);
+  const schemaQuery = document.definitions
+    .flatMap((definition) =>
+      definition.kind === Kind.SCHEMA_DEFINITION || definition.kind === Kind.SCHEMA_EXTENSION
+        ? (definition.operationTypes ?? [])
+        : [],
+    )
+    .find((operation) => operation.operation === OperationTypeNode.QUERY)?.type.name.value;
+  const query = schemaQuery ?? 'Query';
+
+  let changed = false;
+  const rewritten = visit(document, {
+    FieldDefinition(node, _key, _parent, _path, ancestors) {
+      const owner = ancestors.at(-1);
+      const onQuery =
+        owner &&
+        'kind' in owner &&
+        (owner.kind === Kind.OBJECT_TYPE_DEFINITION || owner.kind === Kind.OBJECT_TYPE_EXTENSION) &&
+        owner.name.value === query;
+      if (!onQuery || node.type.kind !== Kind.NON_NULL_TYPE) {
+        return undefined;
+      }
+      changed = true;
+      return { ...node, type: node.type.type };
+    },
+  });
+  return changed ? print(rewritten) : sdl;
+}
 
 // hive-router only reads @requiresScopes from the token itself, so external callers (forgejo)
 // could never hold one; as @policy the access plugin decides each scope for every caller

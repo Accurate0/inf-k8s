@@ -397,7 +397,7 @@ test('fields require declared scopes, enforced at the router as policies', () =>
 
   assert.match(
     composed.supergraph,
-    /registryTokens: \[String!\]! @join__field\(graph: REGISTRY\) @policy\(policies: \[\["registry:token:create"\]\]\)/,
+    /registryTokens: \[String!\] @join__field\(graph: REGISTRY\) @policy\(policies: \[\["registry:token:create"\]\]\)/,
   );
   assert.doesNotMatch(composed.supergraph, /@requiresScopes\(scopes: \[\["/);
   assert.match(
@@ -521,4 +521,26 @@ test('a subgraph fronting several systems uses any of its prefixes', () => {
       ),
     /bridge: root fields must start with forgejo or flux: Query\.bridgeThing, Query\.kubeX\n {2}bridge: types must start with Forgejo or Flux/,
   );
+});
+
+test('query fields are nullable so one failing subgraph only nulls its own fields', () => {
+  const subgraphs = resolveSubgraphs([subgraphApp('spotify')]);
+  const composed = compose(
+    subgraphs,
+    {
+      spotify: `type Query { spotifyNames: [String!]! spotifyCount: Int! spotifyMaybe: String }
+        type Mutation { spotifyLink: Boolean! }
+        type SpotifyArtist { plays: Int! }
+        extend type Query { spotifyArtist: SpotifyArtist! }`,
+    },
+    '{}',
+  );
+
+  for (const sdl of [composed.schema, composed.supergraph]) {
+    assert.match(sdl, /spotifyNames: \[String!\][^!]/);
+    assert.match(sdl, /spotifyCount: Int[^!]/);
+    assert.match(sdl, /spotifyArtist: SpotifyArtist[^!]/);
+    assert.match(sdl, /spotifyLink: Boolean!/);
+    assert.match(sdl, /plays: Int!/);
+  }
 });
