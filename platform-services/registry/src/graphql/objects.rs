@@ -660,6 +660,24 @@ impl Image {
         .gql()?;
         Ok(Self(image.0))
     }
+
+    pub async fn find_by_digest(
+        ctx: &Context<'_>,
+        repository: String,
+        digest: String,
+    ) -> Result<Option<Self>> {
+        match images::digest(
+            State(state(ctx).clone()),
+            principal(ctx)?,
+            Query(images::DigestQuery { repository, digest }),
+        )
+        .await
+        {
+            Ok(image) => Ok(Some(Self(image.0))),
+            Err(crate::error::ApiError::NotFound(_)) => Ok(None),
+            Err(error) => Err(error).gql(),
+        }
+    }
 }
 
 pub struct ImageRepository(pub registry_api::ImageRepository);

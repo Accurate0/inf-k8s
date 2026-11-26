@@ -1683,6 +1683,35 @@ async fn signed_images_form_a_ledger(pool: PgPool) {
         .call("GET", "/api/v1/images", Some(&outsider), None)
         .await;
     assert_eq!(status, 403);
+
+    let graph = registry.kanidm.sign(json!({
+        "aud": "graph",
+        "sub": "sub-bridge",
+        "preferred_username": "bridge",
+        "groups": ["registry_users@idm.example.test"],
+        "scope": "openid registry:image:read",
+    }));
+    let (status, body) = registry
+        .call(
+            "POST",
+            "/v1/graphql",
+            Some(&graph),
+            Some(json!({
+                "query": "query($r: [_Any!]!) { _entities(representations: $r) { ... on RegistryImage { digest signedBy attested } } }",
+                "variables": { "r": [
+                    { "__typename": "RegistryImage", "repository": "containers/app", "digest": first },
+                    { "__typename": "RegistryImage", "repository": "containers/app", "digest": other },
+                ] },
+            })),
+        )
+        .await;
+    assert_eq!(status, 200, "{body}");
+    assert!(body["errors"].is_null(), "{body}");
+    assert_eq!(
+        body["data"]["_entities"],
+        json!([{ "digest": first, "signedBy": "anurag", "attested": true }, null]),
+        "images resolve by repository and digest, unknown digests are null"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]

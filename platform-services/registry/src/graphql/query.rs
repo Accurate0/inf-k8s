@@ -176,6 +176,16 @@ impl QueryRoot {
     }
 
     #[graphql(entity)]
+    async fn find_image_by_repository_and_digest(
+        &self,
+        ctx: &Context<'_>,
+        repository: String,
+        digest: String,
+    ) -> Result<Option<Image>> {
+        Image::find_by_digest(ctx, repository, digest).await
+    }
+
+    #[graphql(entity)]
     async fn find_image_repository_by_id(
         &self,
         ctx: &Context<'_>,

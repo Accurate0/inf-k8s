@@ -220,7 +220,7 @@ type RegistryHarborCredential {
 	access: [RegistryHarborAccess!]!
 }
 
-type RegistryImage implements Node @key(fields: "id") {
+type RegistryImage implements Node @key(fields: "id") @key(fields: "repository digest") {
 	id: ID!
 	repository: String!
 	digest: String!
