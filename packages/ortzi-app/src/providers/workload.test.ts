@@ -58,9 +58,8 @@ test('renders several workloads and routes to the named one', () => {
       {
         name: 'foo',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['foo.anurag.sh'] }],
         paths: ['/'],
-        hosts: ['foo.anurag.sh'],
         backend: { name: 'web', port: 8080 },
         auth: { mode: 'none', reason: 'public' },
       },

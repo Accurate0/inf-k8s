@@ -52,9 +52,8 @@ test('route and metrics open the network to their callers', () => {
       {
         name: 'foo',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['foo.anurag.sh'] }],
         paths: ['/'],
-        hosts: ['foo.anurag.sh'],
         backend: { name: 'foo', port: 3000 },
         auth: { mode: 'jwt', clients: ['foo'] },
       },
@@ -169,9 +168,8 @@ test('rejects invalid apps', () => {
             {
               name: 'foo',
               type: 'route',
-              gateway: 'public-gateway',
+              gateways: [{ gateway: 'public-gateway', hosts: ['foo.anurag.sh'] }],
               paths: ['/'],
-              hosts: ['foo.anurag.sh'],
               backend: { name: 'foo', port: 1 },
             },
           ],
@@ -272,8 +270,7 @@ test('rejects the removed shorthands', () => {
   const route = (extra: Record<string, unknown>) => ({
     name: 'r',
     type: 'route',
-    gateway: 'public-gateway',
-    hosts: ['a.sh'],
+    gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
     auth: { mode: 'none', reason: 'public' },
     ...extra,
   });
@@ -429,9 +426,8 @@ test('consumers outside workloads relax only the checks they can satisfy', () =>
       {
         name: 'web',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['foo.example.com'] }],
         paths: ['/'],
-        hosts: ['foo.example.com'],
         auth: { mode: 'app', reason: 'r' },
         backend: { name: 'chart-service', port: 80 },
       },
@@ -571,10 +567,9 @@ test('legacy route and argocd fields are rejected', () => {
   const route = {
     name: 'foo',
     type: 'route',
-    gateway: 'public-gateway',
+    gateways: [{ gateway: 'public-gateway', hosts: ['foo.example.com'] }],
     paths: ['/'],
     auth: { mode: 'none', reason: 'public' },
-    hosts: ['foo.example.com'],
     backend: { name: 'foo', port: 80 },
   };
 
@@ -609,9 +604,8 @@ test('routes, oidc clients and builds spell out what used to be defaulted', () =
   const route = {
     name: 'web',
     type: 'route',
-    gateway: 'public-gateway',
+    gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
     auth: { mode: 'none', reason: 'public' },
-    hosts: ['a.sh'],
     backend: { name: 'web', port: 80 },
     paths: ['/'],
   };
@@ -627,8 +621,8 @@ test('routes, oidc clients and builds spell out what used to be defaulted', () =
     Object.fromEntries(Object.entries(object).filter(([k]) => k !== key));
 
   assert.throws(
-    () => validate({ ...base, resources: [without(route, 'gateway')] }, 'x'),
-    /resources\[0\] requires property "gateway"/,
+    () => validate({ ...base, resources: [without(route, 'gateways')] }, 'x'),
+    /resources\[0\] requires property "gateways"/,
   );
   assert.throws(
     () => validate({ ...base, resources: [without(route, 'paths')] }, 'x'),

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { planApp } from '../plan.ts';
-import { type App, validate, validateGatewayAccess, validateResources } from '../render.ts';
+import { type App, validate, validateResources, withGatewayAccess } from '../render.ts';
 import {
   versions,
   target,
@@ -20,8 +20,7 @@ test('routes to an explicit backend without a workload', () => {
       {
         name: 'foo-route',
         type: 'route',
-        gateway: 'public-gateway',
-        hosts: ['a.sh', 'b.sh'],
+        gateways: [{ gateway: 'public-gateway', hosts: ['a.sh', 'b.sh'] }],
         backend: { name: 'svc', port: 80 },
         paths: ['/v1', { type: 'Exact', value: '/hook' }],
         auth: { mode: 'none', reason: 'public' },
@@ -30,8 +29,7 @@ test('routes to an explicit backend without a workload', () => {
         name: 'foo-api',
         type: 'route',
         paths: ['/'],
-        hosts: ['c.sh'],
-        gateway: 'internal-gateway',
+        gateways: [{ hosts: ['c.sh'], gateway: 'internal-gateway' }],
         backend: { name: 'svc', port: 80 },
       },
       {
@@ -82,18 +80,16 @@ test('jwt routes pass their clients to the chart', () => {
       {
         name: 'api',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
         paths: ['/'],
-        hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth: { mode: 'jwt', clients: ['foo', 'foo-cli'] },
       },
       {
         name: 'web',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
         paths: ['/'],
-        hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth: { mode: 'app', reason: 'api keys' },
       },
@@ -129,9 +125,8 @@ test('rejects invalid route auth', () => {
       {
         name: 'foo',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
         paths: ['/'],
-        hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth,
       },
@@ -201,9 +196,8 @@ test('rejects bad route and metrics resources', () => {
             {
               name: 'r',
               type: 'route',
-              gateway: 'public-gateway',
+              gateways: [{ gateway: 'public-gateway', hosts: ['a'] }],
               paths: ['/'],
-              hosts: ['a'],
               backend: { name: 'x', port: 1 },
             },
           ],
@@ -228,9 +222,8 @@ test('rejects a route backend that is not a service in the app', () => {
       {
         name: 'r',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
         paths: ['/'],
-        hosts: ['a.sh'],
         backend,
         auth: { mode: 'none', reason: 'public' },
       },
@@ -242,43 +235,162 @@ test('rejects a route backend that is not a service in the app', () => {
   assert.throws(() => checkRefs(route({ name: 'api', port: 81 })), /has no port 81/);
 });
 
-test('rejects a route whose namespace lacks the listener label', () => {
+test('routes put their listener labels on the namespace', () => {
   const listeners = [
     { gateway: 'public-gateway', hostname: '*.anurag.sh', labels: { wild: 'true' } },
     { gateway: 'public-gateway', hostname: 'git.anurag.sh', labels: { exact: 'true' } },
     { gateway: 'public-gateway', hostname: '*.same.sh' },
+    { gateway: 'lan-gateway', hostname: '*.anurag.sh', labels: { lan: 'true' } },
+    { gateway: 'lan-gateway', hostname: '*.other.sh', labels: { lan: 'false' } },
   ];
-  const app = (host: string, labels?: Record<string, string>): App => ({
+  const app = (
+    gateways: { gateway: string; hosts: string[] }[],
+    namespace: App['namespace'] = {},
+  ): App => ({
     ...base,
-    namespace: { labels },
+    namespace,
+    resources: [{ name: 'r', type: 'route', gateways, auth: { mode: 'none', reason: 'public' } }],
+  });
+  const labels = (apps: App[]) => withGatewayAccess(apps, listeners)[0].namespace?.labels;
+
+  assert.deepEqual(labels([app([{ gateway: 'public-gateway', hosts: ['a.anurag.sh'] }])]), {
+    wild: 'true',
+  });
+  assert.deepEqual(labels([app([{ gateway: 'public-gateway', hosts: ['git.anurag.sh'] }])]), {
+    exact: 'true',
+  });
+  assert.deepEqual(
+    labels([
+      app(
+        [
+          { gateway: 'public-gateway', hosts: ['a.anurag.sh'] },
+          { gateway: 'lan-gateway', hosts: ['a.anurag.sh'] },
+        ],
+        { labels: { other: 'x' } },
+      ),
+    ]),
+    { lan: 'true', other: 'x', wild: 'true' },
+  );
+  assert.throws(
+    () => labels([app([{ gateway: 'public-gateway', hosts: ['a.same.sh'] }])]),
+    /no public-gateway listener accepts a.same.sh/,
+  );
+
+  assert.throws(
+    () =>
+      labels([
+        app([{ gateway: 'public-gateway', hosts: ['a.anurag.sh'] }], { labels: { wild: 'true' } }),
+      ]),
+    /namespace.labels.wild comes from this route/,
+  );
+  assert.throws(
+    () => labels([app([{ gateway: 'lan-gateway', hosts: ['a.anurag.sh', 'b.other.sh'] }])]),
+    /needs lan: "false", another route needs "true"/,
+  );
+  assert.throws(
+    () =>
+      labels([app([{ gateway: 'public-gateway', hosts: ['a.anurag.sh'] }], { name: 'shared' })]),
+    /needs label wild: "true" on namespace shared, which this app does not own/,
+  );
+  assert.throws(
+    () => labels([app([{ gateway: 'public-gateway', hosts: ['nope.sh'] }])]),
+    /no public-gateway listener accepts nope.sh/,
+  );
+});
+
+test('a route on several gateways renders one HTTPRoute per gateway', () => {
+  const route = (gateways: unknown[], extra: Record<string, unknown> = {}) => ({
+    ...base,
     resources: [
       {
-        name: 'r',
+        name: 'web',
         type: 'route',
-        gateway: 'public-gateway',
-        hosts: [host],
+        gateways,
+        paths: ['/'],
         auth: { mode: 'none', reason: 'public' },
+        backend: { name: 'svc', port: 80 },
+        ...extra,
       },
     ],
   });
-  validateGatewayAccess([app('a.anurag.sh', { wild: 'true' })], listeners);
-  validateGatewayAccess([app('git.anurag.sh', { exact: 'true' })], listeners);
+  const app = validate(
+    route([
+      {
+        gateway: 'public-gateway',
+        hosts: ['a.sh'],
+        dns: { provider: 'cloudflare', proxied: true },
+      },
+      { gateway: 'lan-gateway', hosts: ['a.internal'], dns: { provider: 'unifi' } },
+    ]),
+    'test',
+  );
+  const routes = releaseValues(render(app), 'k8s-http-routes').routes;
+
+  assert.deepEqual(
+    routes.map((r: any) => [r.name, r.gateway.name, r.hostnames, r.rules[0].matches[0].path.value]),
+    [
+      ['web-public', 'public-gateway', ['a.sh'], '/'],
+      ['web-lan', 'lan-gateway', ['a.internal'], '/'],
+    ],
+  );
+  assert.equal(routes[0].annotations['external-dns.kubernetes.io/cloudflare-proxied'], 'true');
+  assert.equal(routes[1].annotations['external-dns.kubernetes.io/managed-unifi'], 'true');
 
   assert.throws(
-    () => validateGatewayAccess([app('a.anurag.sh')], listeners),
-    /needs namespace.labels wild/,
+    () =>
+      validate(
+        route([
+          { gateway: 'lan-gateway', hosts: ['a.sh'] },
+          { gateway: 'lan-gateway', hosts: ['b.sh'] },
+        ]),
+        'test',
+      ),
+    /lists a gateway twice/,
   );
   assert.throws(
-    () => validateGatewayAccess([app('git.anurag.sh', { wild: 'true' })], listeners),
-    /needs namespace.labels exact/,
+    () =>
+      validate(
+        route(
+          [
+            { gateway: 'public-gateway', hosts: ['a.sh'] },
+            { gateway: 'lan-gateway', hosts: ['a.sh'] },
+          ],
+          { auth: { mode: 'oidc', client: 'web' } },
+        ),
+        'test',
+      ),
+    /an oidc route takes one gateway/,
   );
   assert.throws(
-    () => validateGatewayAccess([app('a.same.sh')], listeners),
-    /no public-gateway listener accepts a.same.sh/,
+    () =>
+      validate(
+        {
+          ...route([
+            { gateway: 'public-gateway', hosts: ['a.sh'] },
+            { gateway: 'lan-gateway', hosts: ['a.sh'] },
+          ]),
+          resources: [
+            ...route([
+              { gateway: 'public-gateway', hosts: ['a.sh'] },
+              { gateway: 'lan-gateway', hosts: ['a.sh'] },
+            ]).resources,
+            {
+              name: 'web-lan',
+              type: 'route',
+              gateways: [{ gateway: 'lan-gateway', hosts: ['b.sh'] }],
+              paths: ['/'],
+              auth: { mode: 'none', reason: 'public' },
+              backend: { name: 'svc', port: 80 },
+            },
+          ],
+        },
+        'test',
+      ),
+    /another route also renders an HTTPRoute named web-lan/,
   );
   assert.throws(
-    () => validateGatewayAccess([app('nope.sh')], listeners),
-    /no public-gateway listener/,
+    () => validate(route([{ gateway: 'lan-gateway' }]), 'test'),
+    /gateways\[0\].hosts is required/,
   );
 });
 
@@ -304,8 +416,7 @@ test('route rules send paths to different backends', () => {
         {
           name: 'r',
           type: 'route',
-          hosts: ['a.sh'],
-          gateway: 'lan-gateway',
+          gateways: [{ hosts: ['a.sh'], gateway: 'lan-gateway' }],
           auth: { mode: 'app', reason: 'r' },
           rules: [
             { paths: ['/v1'], backend: { name: 'a', port: 80 } },
@@ -333,12 +444,10 @@ test('route dns becomes external-dns annotations', () => {
   const route = (dns: unknown) => ({
     name: 'foo',
     type: 'route',
-    gateway: 'public-gateway',
+    gateways: [{ gateway: 'public-gateway', hosts: ['foo.example.com'], dns }],
     paths: ['/'],
     auth: { mode: 'none', reason: 'public' },
-    hosts: ['foo.example.com'],
     backend: { name: 'foo', port: 80 },
-    dns,
   });
   const annotations = (dns: unknown) => {
     const app = validate({ name: 'foo', network: { ingress: [] }, resources: [route(dns)] }, 'x');
@@ -368,10 +477,9 @@ test('ratelimit renders a distinct header rule', () => {
         {
           name: 'foo',
           type: 'route',
-          gateway: 'public-gateway',
+          gateways: [{ gateway: 'public-gateway', hosts: ['foo.example.com'] }],
           paths: ['/'],
           auth: { mode: 'none', reason: 'public' },
-          hosts: ['foo.example.com'],
           backend: { name: 'foo', port: 80 },
           ratelimit: { requests: 5, per: 'Second', header: 'x-real-ip' },
         },
@@ -403,9 +511,8 @@ test('route loadBalancer renders to envoy and checks headers', () => {
       {
         name: 'web',
         type: 'route',
-        gateway: 'public-gateway',
+        gateways: [{ gateway: 'public-gateway', hosts: ['a.sh'] }],
         paths: ['/'],
-        hosts: ['a.sh'],
         backend: { name: 'svc', port: 80 },
         auth: { mode: 'app', reason: 'sessions' },
         loadBalancer,
@@ -437,7 +544,7 @@ test('route loadBalancer renders to envoy and checks headers', () => {
 });
 
 test('a tcp route attaches to a gateway listener', () => {
-  const tcp = (extra: Record<string, unknown> = {}) =>
+  const tcp = (extra: Record<string, unknown> = {}, entry: Record<string, unknown> = {}) =>
     validate(
       {
         ...base,
@@ -445,9 +552,8 @@ test('a tcp route attaches to a gateway listener', () => {
           {
             name: 'ssh',
             type: 'route',
-            gateway: 'public-gateway',
+            gateways: [{ gateway: 'public-gateway', listener: 'git-ssh', ...entry }],
             protocol: 'tcp',
-            listener: 'git-ssh',
             auth: { mode: 'app', reason: 'ssh keys' },
             backend: { name: 'foo', port: 22 },
             ...extra,
@@ -481,9 +587,9 @@ test('a tcp route attaches to a gateway listener', () => {
   });
   assert.deepEqual(releaseValues(rendered, 'k8s-network').ingress, ['envoy-gateway-system']);
 
-  assert.throws(() => tcp({ listener: undefined }), /listener is required for protocol tcp/);
-  assert.throws(() => tcp({ hosts: ['a.sh'] }), /hosts is only for protocol http/);
-  assert.throws(() => tcp({ dns: { provider: 'unifi' } }), /dns is only for protocol http/);
+  assert.throws(() => tcp({}, { listener: undefined }), /listener is required for protocol tcp/);
+  assert.throws(() => tcp({}, { hosts: ['a.sh'] }), /hosts is only for protocol http/);
+  assert.throws(() => tcp({}, { dns: { provider: 'unifi' } }), /dns is only for protocol http/);
   assert.throws(
     () => tcp({ auth: { mode: 'jwt', clients: ['x'] } }),
     /auth.mode must be app or none for protocol tcp/,
@@ -498,10 +604,8 @@ test('a tcp route attaches to a gateway listener', () => {
             {
               name: 'web',
               type: 'route',
-              gateway: 'public-gateway',
+              gateways: [{ gateway: 'public-gateway', listener: 'git-ssh', hosts: ['a.sh'] }],
               paths: ['/'],
-              listener: 'git-ssh',
-              hosts: ['a.sh'],
               auth: { mode: 'none', reason: 'public' },
               backend: { name: 'foo', port: 80 },
             },
@@ -525,14 +629,17 @@ test('a tcp route attaches to a gateway listener', () => {
     },
     { gateway: 'public-gateway', name: 'web', protocol: 'HTTPS', hostname: 'a.sh', labels: {} },
   ];
-  validateGatewayAccess([app], listeners);
+  assert.equal(withGatewayAccess([app], listeners)[0], app);
   assert.throws(
-    () => validateGatewayAccess([tcp({ listener: 'web' })], listeners),
+    () => withGatewayAccess([tcp({}, { listener: 'web' })], listeners),
     /no TCP listener web on public-gateway/,
   );
   assert.throws(
-    () =>
-      validateGatewayAccess([{ ...app, name: 'bar' }], [{ ...listeners[0], labels: { x: 'y' } }]),
-    /git-ssh needs namespace.labels x/,
+    () => withGatewayAccess([{ ...app, name: 'bar' }], listeners),
+    /git-ssh only admits namespace foo/,
+  );
+  assert.deepEqual(
+    withGatewayAccess([app], [{ ...listeners[0], labels: { x: 'y' } }])[0].namespace?.labels,
+    { x: 'y' },
   );
 });

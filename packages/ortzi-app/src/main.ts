@@ -39,7 +39,7 @@ import {
   type Target,
   passthroughWarnings,
   validate,
-  validateGatewayAccess,
+  withGatewayAccess,
   validateIngress,
   validateResources,
   workflowPath,
@@ -242,12 +242,12 @@ function discover(): { app: App; target: Target }[] {
     external: new Set(external.map(({ app }) => app.name)),
   });
 
-  validateGatewayAccess(
+  const apps = withGatewayAccess(
     found.map(({ app }) => app),
     gatewayListeners(),
   );
 
-  return found;
+  return found.map((entry, index) => ({ ...entry, app: apps[index] }));
 }
 
 function loadApp(name: string | undefined, command: string) {

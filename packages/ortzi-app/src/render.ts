@@ -43,12 +43,7 @@ export {
 export { appDatabases, appRoles, databaseHost, databaseRole } from './providers/database.ts';
 export { appMetrics } from './providers/metrics.ts';
 export { appOidc } from './providers/oidc.ts';
-export {
-  appRoutes,
-  appTcpRoutes,
-  type Listener,
-  validateGatewayAccess,
-} from './providers/route.ts';
+export { appRoutes, appTcpRoutes, type Listener, withGatewayAccess } from './providers/route.ts';
 export { appSecrets } from './providers/secret.ts';
 export { rbacPath, renderRbac } from './providers/service-account.ts';
 export { storageClass } from './providers/volume.ts';

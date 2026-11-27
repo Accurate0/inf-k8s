@@ -1369,7 +1369,7 @@
               "name",
               "type",
               "auth",
-              "gateway"
+              "gateways"
             ],
             "properties": {
               "name": {
@@ -1385,14 +1385,71 @@
                   "http",
                   "tcp"
                 ],
-                "description": "Defaults to http. tcp attaches a TCPRoute to a gateway listener and takes only gateway, listener, backend and auth."
+                "description": "Defaults to http. tcp attaches a TCPRoute to a gateway listener and takes only gateways, backend and auth."
               },
-              "listener": {
-                "type": "string",
-                "description": "TCP listener on the gateway, for tcp."
-              },
-              "gateway": {
-                "type": "string"
+              "gateways": {
+                "type": "array",
+                "minItems": 1,
+                "description": "Gateways the route attaches to. Each gets its own HTTPRoute: named after the route with one gateway, <route>-<gateway without -gateway> with several.",
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "gateway"
+                  ],
+                  "properties": {
+                    "gateway": {
+                      "type": "string"
+                    },
+                    "hosts": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "listener": {
+                      "type": "string",
+                      "description": "TCP listener on the gateway, for tcp."
+                    },
+                    "dns": {
+                      "description": "Publish this gateway's hosts in DNS.",
+                      "oneOf": [
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "provider",
+                            "proxied"
+                          ],
+                          "properties": {
+                            "provider": {
+                              "enum": [
+                                "cloudflare"
+                              ]
+                            },
+                            "proxied": {
+                              "type": "boolean"
+                            }
+                          }
+                        },
+                        {
+                          "type": "object",
+                          "additionalProperties": false,
+                          "required": [
+                            "provider"
+                          ],
+                          "properties": {
+                            "provider": {
+                              "enum": [
+                                "unifi"
+                              ]
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
               },
               "auth": {
                 "type": "object",
@@ -1444,12 +1501,6 @@
                     "type": "object",
                     "description": "Verify the login token at the gateway, for oidc."
                   }
-                }
-              },
-              "hosts": {
-                "type": "array",
-                "items": {
-                  "type": "string"
                 }
               },
               "backend": {
@@ -1602,43 +1653,6 @@
                     }
                   }
                 }
-              },
-              "dns": {
-                "description": "Publish the route's hosts in DNS.",
-                "oneOf": [
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "provider",
-                      "proxied"
-                    ],
-                    "properties": {
-                      "provider": {
-                        "enum": [
-                          "cloudflare"
-                        ]
-                      },
-                      "proxied": {
-                        "type": "boolean"
-                      }
-                    }
-                  },
-                  {
-                    "type": "object",
-                    "additionalProperties": false,
-                    "required": [
-                      "provider"
-                    ],
-                    "properties": {
-                      "provider": {
-                        "enum": [
-                          "unifi"
-                        ]
-                      }
-                    }
-                  }
-                ]
               }
             }
           },
