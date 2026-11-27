@@ -15,6 +15,7 @@ import {
 } from 'graphql';
 import { parse, stringify } from 'yaml';
 import type { ResolvedSubgraph } from './render.ts';
+import { scopeGrants } from './subgraphs.ts';
 import type { ExternalIssuer } from './providers/supergraph.ts';
 import { sha256Hex } from './sha256.ts';
 
@@ -297,15 +298,18 @@ export function scopeRegistry(
 ): string | undefined {
   const scopes = subgraphs
     .flatMap((subgraph) =>
-      (subgraph.auth?.scopes ?? []).map((scope) => ({
-        name: scope.name,
-        description: scope.description,
-        subgraph: subgraph.name,
-        groups: [...scope.groups].sort(),
-        clients: [...(subgraph.auth?.clients ?? [])].sort(),
-        ...(scope.external?.length ? { external: scope.external } : {}),
-        fields: [...(required[subgraph.name].get(scope.name) ?? [])].sort(),
-      })),
+      (subgraph.auth?.scopes ?? []).map((scope) => {
+        const grants = scopeGrants(scope);
+        return {
+          name: scope.name,
+          description: scope.description,
+          subgraph: subgraph.name,
+          groups: [...grants.groups].sort(),
+          clients: [...(subgraph.auth?.clients ?? [])].sort(),
+          ...(grants.external.length ? { external: grants.external } : {}),
+          fields: [...(required[subgraph.name].get(scope.name) ?? [])].sort(),
+        };
+      }),
     )
     .sort((a, b) => a.name.localeCompare(b.name));
 
@@ -559,12 +563,14 @@ export function routerConfig(
     const scopes = gated.flatMap((subgraph) => subgraph.auth!.scopes ?? []);
     const patterns = [
       ...gated.flatMap((subgraph) => subgraph.auth!.external ?? []),
-      ...scopes.flatMap((scope) => scope.external ?? []),
+      ...scopes.flatMap((scope) => scopeGrants(scope).external),
     ];
     const external = externalIssuers.filter((issuer) =>
       patterns.some((pattern) => pattern.issuer === issuer.name),
     );
-    const grants = scopes.filter((scope) => scope.external?.length);
+    const grants = scopes
+      .map((scope) => ({ name: scope.name, external: scopeGrants(scope).external }))
+      .filter((scope) => scope.external.length);
 
     config.jwt = {
       enabled: true,

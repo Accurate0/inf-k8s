@@ -1253,8 +1253,38 @@
                       "additionalProperties": false,
                       "required": [
                         "name",
-                        "description",
-                        "groups"
+                        "description"
+                      ],
+                      "oneOf": [
+                        {
+                          "required": [
+                            "grantedBy"
+                          ],
+                          "not": {
+                            "anyOf": [
+                              {
+                                "required": [
+                                  "groups"
+                                ]
+                              },
+                              {
+                                "required": [
+                                  "external"
+                                ]
+                              }
+                            ]
+                          }
+                        },
+                        {
+                          "required": [
+                            "groups"
+                          ],
+                          "not": {
+                            "required": [
+                              "grantedBy"
+                            ]
+                          }
+                        }
                       ],
                       "properties": {
                         "name": {
@@ -1267,6 +1297,78 @@
                           "minLength": 1,
                           "description": "What holding the scope allows, shown in the published scope registry."
                         },
+                        "grantedBy": {
+                          "type": "array",
+                          "minItems": 1,
+                          "description": "Who holds the scope; holding any one entry is enough.",
+                          "items": {
+                            "oneOf": [
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "groups"
+                                ],
+                                "properties": {
+                                  "groups": {
+                                    "type": "array",
+                                    "minItems": 1,
+                                    "items": {
+                                      "type": "string",
+                                      "minLength": 1
+                                    },
+                                    "description": "Kanidm groups whose members get the scope, nested groups included."
+                                  }
+                                }
+                              },
+                              {
+                                "type": "object",
+                                "additionalProperties": false,
+                                "required": [
+                                  "external"
+                                ],
+                                "properties": {
+                                  "external": {
+                                    "type": "object",
+                                    "additionalProperties": false,
+                                    "required": [
+                                      "issuer",
+                                      "claims"
+                                    ],
+                                    "properties": {
+                                      "issuer": {
+                                        "type": "string",
+                                        "description": "Name of one of the externalIssuers, e.g. forgejo."
+                                      },
+                                      "claims": {
+                                        "type": "object",
+                                        "minProperties": 1,
+                                        "description": "Claim name to a glob or list of globs, matched case-insensitively, e.g. {repository: \"anurag/*\", ref: refs/heads/main}.",
+                                        "additionalProperties": {
+                                          "oneOf": [
+                                            {
+                                              "type": "string",
+                                              "minLength": 1
+                                            },
+                                            {
+                                              "type": "array",
+                                              "minItems": 1,
+                                              "items": {
+                                                "type": "string",
+                                                "minLength": 1
+                                              }
+                                            }
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "description": "An identity from the supergraph's externalIssuers that holds the scope when every listed claim matches."
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
                         "groups": {
                           "type": "array",
                           "minItems": 1,
@@ -1274,11 +1376,11 @@
                             "type": "string",
                             "minLength": 1
                           },
-                          "description": "Kanidm groups whose members get the scope, nested groups included."
+                          "description": "Deprecated, use grantedBy[].groups."
                         },
                         "external": {
                           "type": "array",
-                          "description": "Identities from the supergraph's externalIssuers that hold the scope when every listed claim matches.",
+                          "description": "Deprecated, use grantedBy[].external.",
                           "items": {
                             "type": "object",
                             "additionalProperties": false,

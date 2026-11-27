@@ -10,7 +10,8 @@ import {
   releaseValues,
   readValues,
 } from '../test-fixtures.ts';
-import { subgraphAuthValue } from './subgraph.ts';
+import { type Schema, Validator } from 'jsonschema/lib/index.js';
+import { subgraph, subgraphAuthValue } from './subgraph.ts';
 import { supplementaryScopeMaps } from './oidc.ts';
 
 test('a subgraph lets the supergraph app in', () => {
@@ -402,5 +403,106 @@ test('scopes may start with any of the subgraph prefixes', () => {
   assert.throws(
     () => validateResources({ platform, apps: [forgejoRouter, app('flux:app:read')] }),
     /auth.clients has no oidc resource named graph/,
+  );
+});
+
+test('grantedBy renders the same grants as groups and external did', () => {
+  const legacy = scoped(
+    'registry',
+    ['graph'],
+    [
+      {
+        name: 'registry:package:publish',
+        description: 'publish',
+        groups: ['registry_admins', 'registry_users'],
+        external: [
+          { issuer: 'forgejo', claims: { repository: 'anurag/*' } },
+          { issuer: 'forgejo', claims: { repository: 'accurate0/*' } },
+        ],
+      },
+    ],
+  );
+  const granted = scoped(
+    'registry',
+    ['graph'],
+    [
+      {
+        name: 'registry:package:publish',
+        description: 'publish',
+        grantedBy: [
+          { groups: ['registry_admins'] },
+          { external: { issuer: 'forgejo', claims: { repository: 'anurag/*' } } },
+          { groups: ['registry_users', 'registry_admins'] },
+          { external: { issuer: 'forgejo', claims: { repository: 'accurate0/*' } } },
+        ],
+      },
+    ],
+  );
+  const auth = (app: App) =>
+    subgraphAuthValue(app.resources![0] as Parameters<typeof subgraphAuthValue>[0], [
+      app,
+      forgejoRouter,
+    ]);
+
+  assert.deepEqual(auth(granted), auth(legacy));
+  assert.deepEqual(
+    supplementaryScopeMaps([granted], 'graph'),
+    supplementaryScopeMaps([legacy], 'graph'),
+  );
+});
+
+test('a scope declares its grants in grantedBy or the deprecated fields, not both', () => {
+  const check = (scope: Record<string, unknown>) => () =>
+    validateResources({
+      platform,
+      apps: [
+        forgejoRouter,
+        scoped(
+          'registry',
+          ['graph'],
+          [{ name: 'registry:package:read', description: 'd', ...scope }],
+        ),
+      ],
+    });
+
+  assert.throws(
+    check({ grantedBy: [{ groups: ['a'] }], groups: ['b'] }),
+    /scope registry:package:read uses grantedBy, move groups and external into it/,
+  );
+  assert.throws(check({}), /scope registry:package:read needs grantedBy/);
+  assert.throws(
+    check({ grantedBy: [{ external: { issuer: 'github', claims: { repository: '*' } } }] }),
+    /auth names no external issuer github/,
+  );
+});
+
+test('the scope schema takes one source per grantedBy entry', () => {
+  const scopeSchema = (
+    subgraph.schema as {
+      properties: { auth: { properties: { scopes: { items: Schema } } } };
+    }
+  ).properties.auth.properties.scopes.items;
+  const valid = (grantedBy: unknown) =>
+    new Validator().validate(
+      { name: 'registry:package:read', description: 'd', grantedBy },
+      scopeSchema,
+    ).valid;
+  const pattern = { issuer: 'forgejo', claims: { repository: '*' } };
+
+  assert.ok(valid([{ groups: ['a'] }, { external: pattern }, { external: pattern }]));
+  assert.ok(!valid([]));
+  assert.ok(!valid([{ groups: ['a'], external: pattern }]));
+  assert.ok(!valid([{ external: [pattern] }]));
+  assert.ok(!valid([{ groups: [] }]));
+  assert.ok(
+    !new Validator().validate(
+      {
+        name: 'registry:package:read',
+        description: 'd',
+        grantedBy: [{ groups: ['a'] }],
+        groups: ['a'],
+      },
+      scopeSchema,
+    ).valid,
   );
 });

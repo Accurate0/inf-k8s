@@ -1,6 +1,7 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { App } from '../types.ts';
 import { declared, specs } from '../app.ts';
+import { scopeGrants } from '../subgraphs.ts';
 import { fail, type KubeObject, ok, unmet } from '../checks.ts';
 import { appRoutes, type RouteAuth } from './route.ts';
 import type { ResourceProvider } from './provider.ts';
@@ -130,7 +131,7 @@ export function supplementaryScopeMaps(
         continue;
       }
       for (const scope of subgraph.auth.scopes ?? []) {
-        for (const group of scope.groups) {
+        for (const group of scopeGrants(scope).groups) {
           byGroup.set(group, (byGroup.get(group) ?? new Set()).add(scope.name));
         }
       }

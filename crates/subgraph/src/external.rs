@@ -29,7 +29,8 @@ impl OneOrMany {
     }
 }
 
-/// Admits an external token when every listed claim is a string matching one of its globs.
+/// Admits an external token when every listed claim is a string, or a list holding a string,
+/// matching one of its globs.
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
 pub struct ClaimPattern {
     pub issuer: String,
@@ -43,15 +44,19 @@ impl ClaimPattern {
         }
 
         self.claims.iter().all(|(name, allowed)| {
-            let Some(value) = claims.get(name).and_then(Value::as_str) else {
-                return false;
+            let matches = |value: &str| {
+                let value = value.to_lowercase();
+                allowed
+                    .globs()
+                    .iter()
+                    .any(|glob| WildMatch::new(&glob.to_lowercase()).matches(&value))
             };
 
-            let value = value.to_lowercase();
-            allowed
-                .globs()
-                .iter()
-                .any(|glob| WildMatch::new(&glob.to_lowercase()).matches(&value))
+            match claims.get(name) {
+                Some(Value::String(value)) => matches(value),
+                Some(Value::Array(values)) => values.iter().filter_map(Value::as_str).any(matches),
+                _ => false,
+            }
         })
     }
 }
@@ -107,6 +112,24 @@ mod tests {
         assert!(!pattern(json!({ "repository": "anurag/spotify" })).matches("forgejo", &claims));
         assert!(!pattern(json!({ "workflow_ref": "*" })).matches("forgejo", &claims));
         assert!(!pattern(json!({ "repository": "*" })).matches("github", &claims));
+    }
+
+    #[test]
+    fn a_list_claim_matches_when_any_string_in_it_does() {
+        let admin = json!({ "roles": ["points", "Admin"] });
+        let user = json!({ "roles": ["points"] });
+        let none = json!({ "roles": [] });
+        let odd = json!({ "roles": [1, true, null, { "name": "admin" }] });
+        let is_admin = pattern(json!({ "roles": "admin" }));
+
+        assert!(is_admin.matches("forgejo", &admin));
+        assert!(!is_admin.matches("forgejo", &user));
+        assert!(!is_admin.matches("forgejo", &none));
+        assert!(!is_admin.matches("forgejo", &odd));
+        assert!(pattern(json!({ "roles": "*" })).matches("forgejo", &user));
+        assert!(!pattern(json!({ "roles": "*" })).matches("forgejo", &none));
+        assert!(pattern(json!({ "roles": ["admin", "points"] })).matches("forgejo", &user));
+        assert!(!pattern(json!({ "roles": "admin" })).matches("forgejo", &json!({ "roles": 1 })));
     }
 
     #[test]

@@ -1,10 +1,25 @@
 import type { App } from './types.ts';
-import type { Subgraph, SubgraphAuth } from './providers/subgraph.ts';
+import type { ClaimPattern, Subgraph, SubgraphAuth, SubgraphScope } from './providers/subgraph.ts';
 import { appNamespace, declared } from './app.ts';
 import { exportPort, serviceUrl } from './services.ts';
 import { appWorkloads } from './providers/workload.ts';
 
 export const SCOPE_PATTERN = '^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*){2}$';
+
+export function scopeGrants(scope: SubgraphScope): { groups: string[]; external: ClaimPattern[] } {
+  const groups = new Set(scope.groups ?? []);
+  const external = [...(scope.external ?? [])];
+
+  for (const grant of scope.grantedBy ?? []) {
+    if ('groups' in grant) {
+      grant.groups.forEach((group) => groups.add(group));
+    } else {
+      external.push(grant.external);
+    }
+  }
+
+  return { groups: [...groups], external };
+}
 
 export interface ResolvedSubgraph {
   name: string;
@@ -165,6 +180,14 @@ export function validateSubgraphs(apps: App[]) {
   for (const subgraph of subgraphs) {
     const where = `${subgraph.app}: resources.${subgraph.name}`;
     for (const scope of subgraph.auth?.scopes ?? []) {
+      if (scope.grantedBy && (scope.groups || scope.external)) {
+        throw new Error(
+          `${where}: scope ${scope.name} uses grantedBy, move groups and external into it`,
+        );
+      }
+      if (!scope.grantedBy && !scope.groups) {
+        throw new Error(`${where}: scope ${scope.name} needs grantedBy`);
+      }
       if (!new RegExp(SCOPE_PATTERN).test(scope.name)) {
         throw new Error(`${where}: scope ${scope.name} must be <subgraph>:<resource>:<action>`);
       }
@@ -185,7 +208,7 @@ export function validateSubgraphs(apps: App[]) {
   for (const subgraph of subgraphs) {
     const unknown = [
       ...(subgraph.auth?.external ?? []),
-      ...(subgraph.auth?.scopes ?? []).flatMap((scope) => scope.external ?? []),
+      ...(subgraph.auth?.scopes ?? []).flatMap((scope) => scopeGrants(scope).external),
     ]
       .map((pattern) => pattern.issuer)
       .filter((issuer) => !issuerNames.has(issuer));

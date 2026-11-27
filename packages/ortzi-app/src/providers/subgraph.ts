@@ -1,7 +1,7 @@
 import type { Schema } from 'jsonschema/lib/index.js';
 import type { App } from '../types.ts';
 import { appNamespace, declared } from '../app.ts';
-import { SCOPE_PATTERN, supergraphApp, validateSubgraphs } from '../subgraphs.ts';
+import { SCOPE_PATTERN, scopeGrants, supergraphApp, validateSubgraphs } from '../subgraphs.ts';
 import type { ResourceProvider } from './provider.ts';
 import { KANIDM_ISSUER_BASE } from '../supergraph.ts';
 
@@ -10,10 +10,13 @@ export interface ClaimPattern {
   claims: Record<string, string | string[]>;
 }
 
+export type ScopeGrant = { groups: string[] } | { external: ClaimPattern };
+
 export interface SubgraphScope {
   name: string;
   description: string;
-  groups: string[];
+  grantedBy?: ScopeGrant[];
+  groups?: string[];
   external?: ClaimPattern[];
 }
 
@@ -154,7 +157,14 @@ const schema: Schema = {
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['name', 'description', 'groups'],
+            required: ['name', 'description'],
+            oneOf: [
+              {
+                required: ['grantedBy'],
+                not: { anyOf: [{ required: ['groups'] }, { required: ['external'] }] },
+              },
+              { required: ['groups'], not: { required: ['grantedBy'] } },
+            ],
             properties: {
               name: {
                 type: 'string',
@@ -167,16 +177,50 @@ const schema: Schema = {
                 description:
                   'What holding the scope allows, shown in the published scope registry.',
               },
+              grantedBy: {
+                type: 'array',
+                minItems: 1,
+                description: 'Who holds the scope; holding any one entry is enough.',
+                items: {
+                  oneOf: [
+                    {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['groups'],
+                      properties: {
+                        groups: {
+                          type: 'array',
+                          minItems: 1,
+                          items: { type: 'string', minLength: 1 },
+                          description:
+                            'Kanidm groups whose members get the scope, nested groups included.',
+                        },
+                      },
+                    },
+                    {
+                      type: 'object',
+                      additionalProperties: false,
+                      required: ['external'],
+                      properties: {
+                        external: {
+                          ...claimPattern,
+                          description:
+                            "An identity from the supergraph's externalIssuers that holds the scope when every listed claim matches.",
+                        },
+                      },
+                    },
+                  ],
+                },
+              },
               groups: {
                 type: 'array',
                 minItems: 1,
                 items: { type: 'string', minLength: 1 },
-                description: 'Kanidm groups whose members get the scope, nested groups included.',
+                description: 'Deprecated, use grantedBy[].groups.',
               },
               external: {
                 type: 'array',
-                description:
-                  "Identities from the supergraph's externalIssuers that hold the scope when every listed claim matches.",
+                description: 'Deprecated, use grantedBy[].external.',
                 items: claimPattern,
               },
             },
@@ -237,8 +281,8 @@ export function subgraphAuthValue(resource: Subgraph, apps: App[]): SubgraphAuth
       .map((issuer) => ({
         ...issuer,
         grants: scopes.flatMap((scope) =>
-          (scope.external ?? [])
-            .filter((pattern) => pattern.issuer === issuer.name)
+          scopeGrants(scope)
+            .external.filter((pattern) => pattern.issuer === issuer.name)
             .map((pattern) => ({ scope: scope.name, claims: pattern.claims })),
         ),
       }))
