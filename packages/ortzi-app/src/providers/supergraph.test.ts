@@ -375,13 +375,15 @@ const REGISTRY_SCOPES = [
   {
     name: 'registry:package:read',
     description: 'list packages',
-    groups: ['registry_users'],
+    grantedBy: [{ groups: ['registry_users'] }],
   },
   {
     name: 'registry:token:create',
     description: 'mint publish tokens',
-    groups: ['registry_admins'],
-    external: [{ issuer: 'forgejo', claims: { repository: 'anurag/*' } }],
+    grantedBy: [
+      { groups: ['registry_admins'] },
+      { external: { issuer: 'forgejo', claims: { repository: 'anurag/*' } } },
+    ],
   },
 ];
 
@@ -483,8 +485,16 @@ test('a subgraph fronting several systems uses any of its prefixes', () => {
     auth: {
       clients: ['graph'],
       scopes: [
-        { name: 'forgejo:run:read', description: 'runs', groups: ['platform_admins'] },
-        { name: 'flux:app:read', description: 'apps', groups: ['platform_admins'] },
+        {
+          name: 'forgejo:run:read',
+          description: 'runs',
+          grantedBy: [{ groups: ['platform_admins'] }],
+        },
+        {
+          name: 'flux:app:read',
+          description: 'apps',
+          grantedBy: [{ groups: ['platform_admins'] }],
+        },
       ],
     },
   });

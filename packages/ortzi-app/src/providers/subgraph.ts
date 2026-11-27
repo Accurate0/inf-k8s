@@ -15,9 +15,7 @@ export type ScopeGrant = { groups: string[] } | { external: ClaimPattern };
 export interface SubgraphScope {
   name: string;
   description: string;
-  grantedBy?: ScopeGrant[];
-  groups?: string[];
-  external?: ClaimPattern[];
+  grantedBy: ScopeGrant[];
 }
 
 export interface SubgraphAuth {
@@ -157,14 +155,7 @@ const schema: Schema = {
           items: {
             type: 'object',
             additionalProperties: false,
-            required: ['name', 'description'],
-            oneOf: [
-              {
-                required: ['grantedBy'],
-                not: { anyOf: [{ required: ['groups'] }, { required: ['external'] }] },
-              },
-              { required: ['groups'], not: { required: ['grantedBy'] } },
-            ],
+            required: ['name', 'description', 'grantedBy'],
             properties: {
               name: {
                 type: 'string',
@@ -211,17 +202,6 @@ const schema: Schema = {
                     },
                   ],
                 },
-              },
-              groups: {
-                type: 'array',
-                minItems: 1,
-                items: { type: 'string', minLength: 1 },
-                description: 'Deprecated, use grantedBy[].groups.',
-              },
-              external: {
-                type: 'array',
-                description: 'Deprecated, use grantedBy[].external.',
-                items: claimPattern,
               },
             },
           },

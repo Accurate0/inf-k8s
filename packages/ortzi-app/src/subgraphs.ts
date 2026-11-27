@@ -7,10 +7,10 @@ import { appWorkloads } from './providers/workload.ts';
 export const SCOPE_PATTERN = '^[a-z][a-z0-9-]*(:[a-z][a-z0-9-]*){2}$';
 
 export function scopeGrants(scope: SubgraphScope): { groups: string[]; external: ClaimPattern[] } {
-  const groups = new Set(scope.groups ?? []);
-  const external = [...(scope.external ?? [])];
+  const groups = new Set<string>();
+  const external: ClaimPattern[] = [];
 
-  for (const grant of scope.grantedBy ?? []) {
+  for (const grant of scope.grantedBy) {
     if ('groups' in grant) {
       grant.groups.forEach((group) => groups.add(group));
     } else {
@@ -180,14 +180,6 @@ export function validateSubgraphs(apps: App[]) {
   for (const subgraph of subgraphs) {
     const where = `${subgraph.app}: resources.${subgraph.name}`;
     for (const scope of subgraph.auth?.scopes ?? []) {
-      if (scope.grantedBy && (scope.groups || scope.external)) {
-        throw new Error(
-          `${where}: scope ${scope.name} uses grantedBy, move groups and external into it`,
-        );
-      }
-      if (!scope.grantedBy && !scope.groups) {
-        throw new Error(`${where}: scope ${scope.name} needs grantedBy`);
-      }
       if (!new RegExp(SCOPE_PATTERN).test(scope.name)) {
         throw new Error(`${where}: scope ${scope.name} must be <subgraph>:<resource>:<action>`);
       }
