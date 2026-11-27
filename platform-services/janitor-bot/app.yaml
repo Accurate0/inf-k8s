@@ -43,11 +43,16 @@ resources:
       scopes:
         - name: janitor:rule:read
           description: read rules, metrics, evaluations, health and dry runs
-          groups: [janitor_bot_admins]
+          grantedBy:
+            - {groups: [janitor_bot_admins]}
         - name: janitor:action:run
           description: run cron rules, merge the queue, evaluate prs and dispatch commands
-          groups: [janitor_bot_admins]
-        - {name: janitor:webhook:replay, description: replay webhook events, groups: [janitor_bot_admins]}
+          grantedBy:
+            - {groups: [janitor_bot_admins]}
+        - name: janitor:webhook:replay
+          description: replay webhook events
+          grantedBy:
+            - {groups: [janitor_bot_admins]}
   - name: janitor-bot-route
     type: route
     auth: {mode: app, reason: "app verifies kanidm JWTs, gateway JWT not rolled out yet"}

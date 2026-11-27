@@ -36,7 +36,8 @@ resources:
       scopes:
         - name: home:api:access
           description: reach home-gateway, which then scopes each operation from your groups
-          groups: [home_gateway_readers]
+          grantedBy:
+            - {groups: [home_gateway_readers]}
   - name: home-web
     type: route
     auth: {mode: app, reason: "home-gateway verifies JWTs and api keys on /v1, the rest is a static spa"}

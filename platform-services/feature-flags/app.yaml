@@ -27,16 +27,20 @@ resources:
       scopes:
         - name: feature-flags:flag:read
           description: read flags, segments, history and evaluations, and follow changes
-          groups: [feature_flags_admins]
+          grantedBy:
+            - {groups: [feature_flags_admins]}
         - name: feature-flags:flag:write
           description: create, update, toggle, archive and delete flags, their variants and rules
-          groups: [feature_flags_admins]
+          grantedBy:
+            - {groups: [feature_flags_admins]}
         - name: feature-flags:segment:write
           description: create, update and delete segments
-          groups: [feature_flags_admins]
+          grantedBy:
+            - {groups: [feature_flags_admins]}
         - name: feature-flags:config:apply
           description: reconcile flags and segments from a config file
-          groups: [feature_flags_admins]
+          grantedBy:
+            - {groups: [feature_flags_admins]}
   - name: feature-flags-api
     type: route
     auth:

@@ -58,9 +58,16 @@ resources:
       scopes:
         - name: waf:block:read
           description: list offending ips, blocks, ip reports, audit, workflows and the allowlist
-          groups: [waf_admins]
-        - {name: waf:block:write, description: "create, delete and make blocks permanent", groups: [waf_admins]}
-        - {name: waf:allowlist:write, description: add and remove allowlist entries, groups: [waf_admins]}
+          grantedBy:
+            - {groups: [waf_admins]}
+        - name: waf:block:write
+          description: "create, delete and make blocks permanent"
+          grantedBy:
+            - {groups: [waf_admins]}
+        - name: waf:allowlist:write
+          description: add and remove allowlist entries
+          grantedBy:
+            - {groups: [waf_admins]}
   - name: waf-manager-route
     type: route
     auth:

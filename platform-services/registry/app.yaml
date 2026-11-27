@@ -61,29 +61,35 @@ resources:
       scopes:
         - name: registry:package:read
           description: list and fetch packages, versions, artifacts and the catalog
-          groups: [registry_users]
-          external:
-            - {issuer: forgejo, claims: {repository: "*"}}
+          grantedBy:
+            - {groups: [registry_users]}
+            - {external: {issuer: forgejo, claims: {repository: "*"}}}
         - name: registry:image:read
           description: list image repositories and images
-          groups: [registry_users]
-          external:
-            - {issuer: forgejo, claims: {repository: "*"}}
+          grantedBy:
+            - {groups: [registry_users]}
+            - {external: {issuer: forgejo, claims: {repository: "*"}}}
         - name: registry:package:write
           description: create, update, archive and delete packages, unyank versions and rebuild the catalog
-          groups: [registry_admins]
+          grantedBy:
+            - {groups: [registry_admins]}
         - name: registry:package:publish
           description: publish package versions and artifacts
-          groups: [registry_admins]
-          external:
-            - {issuer: forgejo, claims: {repository: "*"}}
+          grantedBy:
+            - {groups: [registry_admins]}
+            - {external: {issuer: forgejo, claims: {repository: "*"}}}
         - name: registry:publisher:manage
           description: list, add and remove trusted publishers
-          groups: [registry_admins]
+          grantedBy:
+            - {groups: [registry_admins]}
         - name: registry:token:manage
           description: list, create and revoke publish tokens, and revoke others' harbor credentials
-          groups: [registry_admins]
-        - {name: registry:audit:read, description: read and follow the audit log, groups: [registry_admins]}
+          grantedBy:
+            - {groups: [registry_admins]}
+        - name: registry:audit:read
+          description: read and follow the audit log
+          grantedBy:
+            - {groups: [registry_admins]}
   - name: registry-public
     type: route
     auth:

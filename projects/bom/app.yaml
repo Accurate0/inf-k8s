@@ -25,8 +25,11 @@ resources:
       clients: [graph]
       groups: [bom_users]
       scopes:
-        - {name: bom:radar:read, description: "list radar locations, satellites and frames", groups: [bom_users]}
-        - {name: bom:forecast:read, description: read forecasts, groups: [bom_users]}
+        - name: bom:radar:read
+          description: "list radar locations, satellites and frames"
+          grantedBy:
+            - {groups: [bom_users]}
+        - {name: bom:forecast:read, description: read forecasts, grantedBy: [{groups: [bom_users]}]}
   - name: images
     type: route
     auth: {mode: none, reason: radar and satellite images are public so they can be embedded anywhere}

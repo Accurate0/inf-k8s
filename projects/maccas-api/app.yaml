@@ -32,9 +32,10 @@ resources:
       scopes:
         - name: maccas:offer:read
           description: read offers, recommendations, locations and categories
-          groups: [platform_admins]
-        - {name: maccas:offer:write, description: add and remove offers, groups: [platform_admins]}
-        - {name: maccas:points:read, description: read points balances, groups: [platform_admins]}
+          grantedBy:
+            - {groups: [platform_admins]}
+        - {name: maccas:offer:write, description: add and remove offers, grantedBy: [{groups: [platform_admins]}]}
+        - {name: maccas:points:read, description: read points balances, grantedBy: [{groups: [platform_admins]}]}
   - name: maccas-web-route
     type: route
     auth: {mode: none, reason: "public website, the app handles its own logins"}

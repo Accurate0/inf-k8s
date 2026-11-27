@@ -27,11 +27,16 @@ resources:
       scopes:
         - name: spotify:history:read
           description: read accounts, listening stats, search, items, artists and enrichment
-          groups: [spotify_users]
-        - {name: spotify:account:write, description: create and link spotify accounts, groups: [spotify_users]}
+          grantedBy:
+            - {groups: [spotify_users]}
+        - name: spotify:account:write
+          description: create and link spotify accounts
+          grantedBy:
+            - {groups: [spotify_users]}
         - name: spotify:export:write
           description: upload and finalize listening history exports
-          groups: [spotify_users]
+          grantedBy:
+            - {groups: [spotify_users]}
   - name: spotify
     type: route
     auth: {mode: app, reason: "spotify-api verifies Kanidm JWTs on /v1/graphql, the rest is a static spa"}

@@ -42,16 +42,24 @@ resources:
       scopes:
         - name: flux:app:read
           description: read flux apps, their images and how far each build has got
-          groups: [platform_admins]
+          grantedBy:
+            - {groups: [platform_admins]}
         - name: kubernetes:workload:read
           description: read workloads and their pods' health
-          groups: [platform_admins]
-        - {name: forgejo:run:read, description: 'read commits, ci runs and their jobs', groups: [platform_admins]}
-        - {name: forgejo:log:read, description: read ci job logs, groups: [platform_admins]}
-        - {name: flux:app:write, description: "reconcile, suspend and resume flux apps", groups: [platform_admins]}
-        - {name: kubernetes:workload:write, description: restart workloads, groups: [platform_admins]}
-        - {name: kubernetes:log:read, description: read container logs, groups: [platform_admins]}
-        - {name: forgejo:run:write, description: rerun and cancel ci runs, groups: [platform_admins]}
+          grantedBy:
+            - {groups: [platform_admins]}
+        - name: forgejo:run:read
+          description: 'read commits, ci runs and their jobs'
+          grantedBy:
+            - {groups: [platform_admins]}
+        - {name: forgejo:log:read, description: read ci job logs, grantedBy: [{groups: [platform_admins]}]}
+        - name: flux:app:write
+          description: "reconcile, suspend and resume flux apps"
+          grantedBy:
+            - {groups: [platform_admins]}
+        - {name: kubernetes:workload:write, description: restart workloads, grantedBy: [{groups: [platform_admins]}]}
+        - {name: kubernetes:log:read, description: read container logs, grantedBy: [{groups: [platform_admins]}]}
+        - {name: forgejo:run:write, description: rerun and cancel ci runs, grantedBy: [{groups: [platform_admins]}]}
 workloads:
   - name: bridge
     image: registry.anurag.sh/containers/bridge
