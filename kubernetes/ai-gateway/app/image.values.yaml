@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/ai-gateway: v1.0.214-31a9921 # {"$imagepolicy": "flux-system:ai-gateway-ai-gateway:tag"}
+  registry.anurag.sh/containers/ai-gateway: v1.0.215-60dc346 # {"$imagepolicy": "flux-system:ai-gateway-ai-gateway:tag"}
