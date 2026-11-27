@@ -34,6 +34,7 @@ import {
   type PlatformExport,
   sourcesOf,
   validateManifestSources,
+  renderAppWorkflow,
   renderWorkflow,
   stamped,
   type Target,
@@ -42,6 +43,8 @@ import {
   withGatewayAccess,
   validateIngress,
   validateResources,
+  appWorkflowPath,
+  appWorkflowPaths,
   workflowPath,
   type World,
 } from './render';
@@ -261,7 +264,7 @@ function loadApp(name: string | undefined, command: string) {
 }
 
 function staleFiles(only?: string, force = false): { path: string; wanted: string }[] {
-  const { charts: versions, actions } = parse(fs.readText(VERSIONS));
+  const { charts: versions, actions, tools = {} } = parse(fs.readText(VERSIONS));
   const stale = [];
   const apps = discover();
   const world = worldOf(apps.map(({ app }) => app));
@@ -285,6 +288,14 @@ function staleFiles(only?: string, force = false): { path: string; wanted: strin
       const rendered = renderWorkflow(app, target, actions);
       if (force || !fs.exists(workflow) || !isCurrent(fs.readText(workflow), rendered)) {
         stale.push({ path: workflow, wanted: stamped(rendered, new Date()) });
+      }
+    }
+
+    for (const workflow of app.workflows ?? []) {
+      const path = appWorkflowPath(app, workflow);
+      const rendered = renderAppWorkflow(app, workflow, actions, tools);
+      if (force || !fs.exists(path) || !isCurrent(fs.readText(path), rendered)) {
+        stale.push({ path, wanted: stamped(rendered, new Date()) });
       }
     }
 
@@ -346,7 +357,10 @@ function clusterTree(): ClusterTree {
 }
 
 function staleWorkflows(apps: App[]): string[] {
-  const wanted = new Set(apps.filter((app) => app.build).map(workflowPath));
+  const wanted = new Set([
+    ...apps.filter((app) => app.build).map(workflowPath),
+    ...apps.flatMap(appWorkflowPaths),
+  ]);
   return ['.github/workflows', '.forgejo/workflows'].flatMap((dir) =>
     fs
       .readDir(dir)

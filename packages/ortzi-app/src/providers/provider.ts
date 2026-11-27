@@ -62,6 +62,7 @@ export interface PlanContext {
 export interface Secrets {
   synced?: Record<string, unknown>[];
   generated?: Record<string, unknown>[];
+  pushed?: Record<string, unknown>[];
   templates?: Record<string, unknown>[];
 }
 

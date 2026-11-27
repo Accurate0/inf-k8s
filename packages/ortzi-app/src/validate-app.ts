@@ -7,6 +7,7 @@ import { exportPort } from './services.ts';
 import { refsFor } from './refs.ts';
 import { needsKustomization } from './manifests.ts';
 import { ciProvider } from './workflows.ts';
+import { validateCi, workflowRefs } from './ci.ts';
 import { APP_SCHEMA } from './schema.ts';
 import { appWorkloads, workloadImages, workloadRefs, workloads } from './providers/workload.ts';
 import { isValueResource, RESOURCES, resourceProvider, SOURCES } from './providers/index.ts';
@@ -96,6 +97,8 @@ export function validate(raw: unknown, where: string): App {
     }
   }
 
+  validateCi(app, fail);
+
   const kustomized = needsKustomization(app);
   for (const provider of SOURCES) {
     provider.validate?.({ app, kustomized, fail }, sourcesOf(app, provider.type) as never[]);
@@ -171,6 +174,7 @@ export function validateResources(world: World) {
     const refs = refsFor(app, world);
     const uses = [
       ...workloadRefs(app),
+      ...workflowRefs(app),
       ...RESOURCES.flatMap(
         (provider) => provider.uses?.(app, resourcesOf(app, provider.type)) ?? [],
       ),

@@ -70,4 +70,12 @@ export {
   needsKustomization,
   renderKustomization,
 } from './manifests.ts';
-export { type ActionVersions, ciProvider, renderWorkflow, workflowPath } from './workflows.ts';
+export {
+  type ActionVersions,
+  appWorkflowPath,
+  appWorkflowPaths,
+  ciProvider,
+  renderAppWorkflow,
+  renderWorkflow,
+  workflowPath,
+} from './workflows.ts';

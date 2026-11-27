@@ -241,6 +241,115 @@ export const APP_SCHEMA: Schema = {
         },
       },
     },
+    ci: {
+      type: 'object',
+      additionalProperties: false,
+      properties: {
+        secrets: {
+          type: 'object',
+          description:
+            "Forgejo repositories whose main-branch workflows may read these resources' OpenBao secrets with `ortzi secrets`, logging in with the run's id token.",
+          additionalProperties: false,
+          required: ['repos', 'resources'],
+          properties: {
+            repos: {
+              type: 'array',
+              minItems: 1,
+              description: 'Forgejo repositories, e.g. anurag/k8s.',
+              items: {
+                type: 'string',
+                pattern: '^[^/]+/[^/]+$',
+              },
+            },
+            resources: {
+              type: 'array',
+              minItems: 1,
+              description:
+                'bucket, secret and serviceAccount resources. A serviceAccount gets a token pushed to OpenBao at <namespace>/generated/serviceaccount-<name>.',
+              items: {
+                type: 'string',
+              },
+            },
+          },
+        },
+      },
+    },
+    workflows: {
+      type: 'array',
+      description:
+        'Forgejo workflows in this repository, run on main when their paths change, on a schedule and by hand.',
+      items: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['name', 'run'],
+        properties: {
+          name: {
+            type: 'string',
+            pattern: '^[a-z0-9]([a-z0-9-]*[a-z0-9])?$',
+          },
+          schedule: {
+            type: 'string',
+            description: 'Cron schedule, in UTC.',
+          },
+          paths: {
+            type: 'array',
+            description: 'Paths that run the workflow when they change on main.',
+            items: {
+              type: 'string',
+            },
+          },
+          serviceAccount: {
+            type: 'string',
+            description:
+              'A serviceAccount resource in ci.secrets.resources; kubectl is installed and KUBECONFIG points at the cluster as it.',
+          },
+          setup: {
+            type: 'string',
+            description: 'Shell run before run, from the repository root.',
+          },
+          run: {
+            type: 'string',
+            description: 'Shell run from the repository root.',
+          },
+          env: {
+            type: 'object',
+            additionalProperties: {
+              oneOf: [
+                {
+                  type: 'string',
+                },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['bucket', 'key'],
+                  properties: {
+                    bucket: {
+                      type: 'string',
+                    },
+                    key: {
+                      type: 'string',
+                    },
+                  },
+                },
+                {
+                  type: 'object',
+                  additionalProperties: false,
+                  required: ['secret', 'key'],
+                  properties: {
+                    secret: {
+                      type: 'string',
+                    },
+                    key: {
+                      type: 'string',
+                    },
+                  },
+                },
+              ],
+            },
+          },
+        },
+      },
+    },
     namespace: {
       type: 'object',
       additionalProperties: false,

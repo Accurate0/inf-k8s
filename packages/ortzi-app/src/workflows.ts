@@ -1,5 +1,7 @@
 import { stringify } from 'yaml';
-import type { App, Build, Target } from './types.ts';
+import type { App, AppWorkflow, Build, Target } from './types.ts';
+import { appNamespace } from './app.ts';
+import { envResource, openbaoPath, workflowResources } from './ci.ts';
 import { HEADER } from './generated.ts';
 
 export const ciProvider = (app: App) => (app.build as Build).ci;
@@ -258,4 +260,109 @@ function renderForgejoWorkflow(app: App, target: Target, actions: ActionVersions
   };
 
   return `${HEADER}\n${stringify(workflow, { lineWidth: 0, aliasDuplicateObjects: false })}`;
+}
+
+const READ_SECRETS = 'https://git.anurag.sh/anurag/workflows/read-secrets@main';
+const KUBE_SERVER = 'https://10.0.2.188:6443';
+
+export const appWorkflowPath = (app: App, workflow: AppWorkflow) =>
+  `.forgejo/workflows/app-${app.name}-${workflow.name}.yaml`;
+
+export const appWorkflowPaths = (app: App) =>
+  (app.workflows ?? []).map((workflow) => appWorkflowPath(app, workflow));
+
+const envPrefix = (name: string) => `CI_${name.toUpperCase().replace(/[^A-Z0-9]/g, '_')}_`;
+
+const kubeconfig = (namespace: string, kubectl: string) =>
+  [
+    'set -euo pipefail',
+    'arch="$(uname -m | sed \'s/x86_64/amd64/;s/aarch64/arm64/\')"',
+    `curl -fsSLo "$RUNNER_TEMP/kubectl" "https://dl.k8s.io/release/${kubectl}/bin/linux/$arch/kubectl"`,
+    'chmod +x "$RUNNER_TEMP/kubectl"',
+    'echo "$RUNNER_TEMP" >> "$GITHUB_PATH"',
+    'export KUBECONFIG="$RUNNER_TEMP/kubeconfig"',
+    'printf \'%s\\n\' "$KUBE_CA_CRT" > "$RUNNER_TEMP/kube-ca.crt"',
+    `"$RUNNER_TEMP/kubectl" config set-cluster cluster --server=${KUBE_SERVER} --certificate-authority="$RUNNER_TEMP/kube-ca.crt" --embed-certs`,
+    '"$RUNNER_TEMP/kubectl" config set-credentials ci --token="$KUBE_TOKEN"',
+    `"$RUNNER_TEMP/kubectl" config set-context ci --cluster=cluster --user=ci --namespace=${namespace}`,
+    '"$RUNNER_TEMP/kubectl" config use-context ci',
+    'rm "$RUNNER_TEMP/kube-ca.crt"',
+    'echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"',
+  ].join('\n');
+
+export function renderAppWorkflow(
+  app: App,
+  workflow: AppWorkflow,
+  actions: ActionVersions,
+  tools: Record<string, string>,
+): string {
+  const path = appWorkflowPath(app, workflow);
+  const resources = workflowResources(workflow);
+  const env = Object.entries(workflow.env ?? {}).map(([key, value]) => {
+    const resource = envResource(value);
+    return [
+      key,
+      resource && typeof value !== 'string'
+        ? `\${{ env.${envPrefix(resource)}${value.key} }}`
+        : value,
+    ];
+  });
+
+  const kubectl = tools.kubectl;
+  if (workflow.serviceAccount && !kubectl) {
+    throw new Error(
+      'platform/versions.yaml: tools.kubectl is needed for workflows with serviceAccount',
+    );
+  }
+
+  const steps = [
+    { uses: pinned(actions, 'actions/checkout'), with: { 'persist-credentials': false } },
+    ...resources.map((name) => ({
+      name: `Read ${name} secrets`,
+      uses: READ_SECRETS,
+      with: { paths: openbaoPath(app, name), prefix: envPrefix(name) },
+    })),
+    ...(workflow.serviceAccount
+      ? [
+          {
+            name: `Read ${workflow.serviceAccount} token`,
+            uses: READ_SECRETS,
+            with: { paths: openbaoPath(app, workflow.serviceAccount), prefix: 'KUBE_' },
+          },
+          {
+            name: `Connect kubectl as ${workflow.serviceAccount}`,
+            run: kubeconfig(appNamespace(app), kubectl),
+          },
+        ]
+      : []),
+    ...(workflow.setup ? [{ name: 'Setup', run: workflow.setup }] : []),
+    {
+      name: 'Run',
+      ...(env.length ? { env: Object.fromEntries(env) } : {}),
+      run: workflow.run,
+      'working-directory': '${{ github.workspace }}',
+    },
+  ];
+
+  const rendered = {
+    name: `app ${app.name} ${workflow.name}`,
+    on: {
+      ...(workflow.schedule ? { schedule: [{ cron: workflow.schedule }] } : {}),
+      ...(workflow.paths?.length
+        ? { push: { branches: ['main'], paths: [...workflow.paths, path] } }
+        : {}),
+      workflow_dispatch: null,
+    },
+    concurrency: { group: `app-${app.name}-${workflow.name}`, 'cancel-in-progress': false },
+    'enable-openid-connect': true,
+    jobs: {
+      run: {
+        if: `\${{ ${ON_MAIN} }}`,
+        'runs-on': 'docker',
+        steps,
+      },
+    },
+  };
+
+  return `${HEADER}\n${stringify(rendered, { lineWidth: 0, aliasDuplicateObjects: false })}`;
 }

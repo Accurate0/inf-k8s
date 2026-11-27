@@ -54,6 +54,22 @@ export interface Build {
   };
 }
 
+export type WorkflowEnv = string | { bucket?: string; secret?: string; key: string };
+
+export interface AppWorkflow {
+  name: string;
+  schedule?: string;
+  paths?: string[];
+  serviceAccount?: string;
+  setup?: string;
+  run: string;
+  env?: Record<string, WorkflowEnv>;
+}
+
+export interface Ci {
+  secrets?: { repos: string[]; resources: string[] };
+}
+
 export interface Artifact {
   repo: string;
   tag: string;
@@ -76,6 +92,8 @@ export interface App {
   artifact?: Artifact;
   overrides?: { flux?: FluxOverrides };
   build?: Build;
+  ci?: Ci;
+  workflows?: AppWorkflow[];
   network: { ingress: string[]; policy?: boolean };
   namespace?: { name?: string; labels?: Record<string, string> };
 }

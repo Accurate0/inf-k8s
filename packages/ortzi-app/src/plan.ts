@@ -107,8 +107,9 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
   const secrets = contributions.flatMap((contribution) => contribution.secrets ?? []);
   const synced = secrets.flatMap((s) => s.synced ?? []);
   const generated = secrets.flatMap((s) => s.generated ?? []);
+  const pushed = secrets.flatMap((s) => s.pushed ?? []);
   const templates = secrets.flatMap((s) => s.templates ?? []);
-  if (synced.length || generated.length || templates.length) {
+  if (synced.length || generated.length || pushed.length || templates.length) {
     charts.push(
       chart('k8s-secrets', {
         defaults: {
@@ -119,6 +120,7 @@ export function planApp(app: App, versions: Versions, target: Target, world: Wor
         },
         secrets: synced,
         ...(generated.length ? { generated } : {}),
+        ...(pushed.length ? { pushed } : {}),
         ...(templates.length ? { templates } : {}),
       }),
     );

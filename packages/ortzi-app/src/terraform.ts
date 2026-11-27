@@ -3,6 +3,7 @@ import type { Block, ResourceType } from './providers/provider.ts';
 import { HEADER_TEXT } from './generated.ts';
 import { declared } from './app.ts';
 import { RESOURCES } from './providers/index.ts';
+import { ciTerraform } from './ci.ts';
 
 export const TERRAFORM_APPS = 'terraform/apps';
 
@@ -22,9 +23,12 @@ const json = (value: Record<string, unknown>) =>
 export const appTerraformPath = (app: App) => `${TERRAFORM_APPS}/${app.name}.tf.json`;
 
 export function renderAppTerraform(app: App): string | undefined {
-  const blocks = RESOURCES.flatMap(
-    (provider) => provider.terraform?.(app, declared(app, provider.type as ResourceType)) ?? [],
-  );
+  const blocks = [
+    ...RESOURCES.flatMap(
+      (provider) => provider.terraform?.(app, declared(app, provider.type as ResourceType)) ?? [],
+    ),
+    ...ciTerraform(app),
+  ];
   return blocks.length ? json({ resource: merge(blocks) }) : undefined;
 }
 
