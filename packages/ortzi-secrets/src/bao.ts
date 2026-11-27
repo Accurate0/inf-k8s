@@ -29,6 +29,13 @@ interface Body {
   errors?: string[];
 }
 
+export interface Auth {
+  mount: string;
+  role: string;
+}
+
+export const CLI: Auth = { mount: 'jwt', role: 'cli' };
+
 const trimSlashes = (path: string) => path.replace(/^\/+|\/+$/g, '');
 
 function failure(status: number, body: string): Error {
@@ -53,12 +60,12 @@ export class Bao {
     return new Bao(addr.replace(/\/+$/, ''), trimSlashes(mount), token);
   }
 
-  static login(addr: string, mount: string, jwt: string): Bao {
+  static login(addr: string, mount: string, jwt: string, auth: Auth = CLI): Bao {
     const base = addr.replace(/\/+$/, '');
-    const response = request(`${base}/v1/auth/jwt/login`, {
+    const response = request(`${base}/v1/auth/${auth.mount}/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ role: 'cli', jwt }),
+      body: JSON.stringify({ role: auth.role, jwt }),
     });
     if (response.status < 200 || response.status >= 300) {
       throw new Error(

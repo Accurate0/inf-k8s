@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { collect, isName, quote } from './env.ts';
+import { collect, issuer, isName, namespaceOf, quote } from './env.ts';
 
 test('names', () => {
   assert.ok(isName('DATABASE_URL'));
@@ -29,4 +29,19 @@ test('later paths win and bad names are skipped', () => {
   assert.equal(vars.get('B'), '2');
   assert.equal(vars.get('N'), '3');
   assert.ok(!vars.has('bad-key'));
+});
+
+test('issuer reads the unverified iss claim', () => {
+  const payload = btoa(JSON.stringify({ iss: 'https://git.anurag.sh/api/actions', sub: '?>?' }))
+    .replace(/\+/g, '-')
+    .replace(/\//g, '_')
+    .replace(/=+$/, '');
+
+  assert.equal(issuer(`e30.${payload}.sig`), 'https://git.anurag.sh/api/actions');
+  assert.equal(issuer('not-a-jwt'), undefined);
+});
+
+test('namespace is the first path segment', () => {
+  assert.equal(namespaceOf('k8s-schemas/resource-schemas'), 'k8s-schemas');
+  assert.equal(namespaceOf('/forgejo'), 'forgejo');
 });

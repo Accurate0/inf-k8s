@@ -28,3 +28,16 @@ export function collect(secrets: [string, Data][], prefix: string): Map<string, 
 
   return vars;
 }
+
+export const FORGEJO_ISSUER = 'https://git.anurag.sh/api/actions';
+
+export function issuer(jwt: string): string | undefined {
+  try {
+    const payload = jwt.split('.')[1].replace(/-/g, '+').replace(/_/g, '/');
+    return (JSON.parse(atob(payload)) as { iss?: string }).iss;
+  } catch {
+    return undefined;
+  }
+}
+
+export const namespaceOf = (path: string) => path.replace(/^\/+/, '').split('/')[0];

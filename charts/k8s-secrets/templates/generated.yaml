@@ -1,6 +1,9 @@
 {{- $defaults := .Values.defaults }}
 {{- $openbaoServer := default "http://openbao-active.openbao.svc.cluster.local:8200" $defaults.openbaoServer }}
 {{- $namespaces := dict }}
+{{- range $pushed := .Values.pushed }}
+{{- $_ := set $namespaces (default $defaults.namespace $pushed.namespace) true }}
+{{- end }}
 {{- range $generated := .Values.generated }}
 {{- $namespace := default $defaults.namespace $generated.namespace }}
 {{- $_ := set $namespaces $namespace true }}

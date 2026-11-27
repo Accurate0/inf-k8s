@@ -112,6 +112,39 @@
         }
       }
     },
+    "pushed": {
+      "type": "array",
+      "description": "Existing secrets in the cluster pushed to OpenBao at kv/<namespace>/generated/<name>, e.g. a service account token for CI.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["name", "secretName", "keys"],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Names the OpenBao path kv/<namespace>/generated/<name>."
+          },
+          "namespace": { "$ref": "#/definitions/namespace" },
+          "secretName": {
+            "type": "string",
+            "description": "Name of the secret to push, and of the PushSecret."
+          },
+          "keys": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["secretKey", "property"],
+              "properties": {
+                "secretKey": { "type": "string", "description": "Key in the secret." },
+                "property": { "type": "string", "description": "Property in OpenBao." }
+              }
+            }
+          }
+        }
+      }
+    },
     "templates": {
       "type": "array",
       "description": "Secrets rendered from configmap templates, filled with keys of other secrets in the namespace.",

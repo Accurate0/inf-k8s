@@ -1,7 +1,16 @@
 import { env, fs, prompt, readLine, run as exec, stdinIsTerminal } from '@ortzi/host';
 import { Kube, UsageError, cli, columns } from '@ortzi/kit';
-import { Bao } from './bao';
-import { type Data, collect, display, exports, isName } from './env';
+import { type Auth, Bao, CLI } from './bao';
+import {
+  type Data,
+  FORGEJO_ISSUER,
+  collect,
+  display,
+  exports,
+  isName,
+  issuer,
+  namespaceOf,
+} from './env';
 import { fullName, isReady, keys, readsOpenbao, ready } from './externalsecrets';
 import { listExternalSecrets, sync } from './sync';
 
@@ -27,7 +36,7 @@ flags:
   --token TOKEN            Kanidm access token to log in with (default: $SECRETSCTL_TOKEN)
   --bao-token TOKEN        use this OpenBao token directly (default: $BAO_TOKEN)
   --context CTX            kube context (default: current)
-  --json                   ls, get: print JSON
+  --json                   ls, get, env: print JSON
   --reveal                 get: show values
   --file KEY=PATH          set: read a key's value from a file (repeatable)
   --no-sync                set, rm: don't sync ExternalSecrets afterwards
@@ -40,21 +49,38 @@ log in with \`ortzi login secrets\``;
 
 interface Ctx {
   kube: () => Kube;
-  bao: () => Bao;
+  bao: (path?: string) => Bao;
 }
 
-function connect(addr: string, mount: string, token?: string, baoToken?: string): Bao {
+type Login = { direct: string } | { jwt: string; auth: (path?: string) => Auth };
+
+function credentials(token?: string, baoToken?: string): Login {
   const vars = env();
   const direct = baoToken || vars.BAO_TOKEN;
   if (direct) {
-    return Bao.fromToken(addr, mount, direct);
+    return { direct };
   }
 
   const jwt = token || vars.SECRETSCTL_TOKEN;
   if (!jwt) {
     throw new Error('not logged in; run `ortzi login secrets` or set SECRETSCTL_TOKEN');
   }
-  return Bao.login(addr, mount, jwt);
+  if (issuer(jwt) !== FORGEJO_ISSUER) {
+    return { jwt, auth: () => CLI };
+  }
+
+  return {
+    jwt,
+    auth: (path) => {
+      const namespace = path && namespaceOf(path);
+      if (!namespace) {
+        throw new UsageError(
+          'in forgejo actions pass a path; its namespace picks the OpenBao role',
+        );
+      }
+      return { mount: 'forgejo', role: namespace };
+    },
+  };
 }
 
 function readSecret(key: string): string {
@@ -111,11 +137,28 @@ export const run = cli({
   },
   setup: (values): Ctx => {
     let kube: Kube | undefined;
-    let bao: Bao | undefined;
+    let login: Login | undefined;
+    const sessions = new Map<string, Bao>();
     const addr = values.addr ?? env().BAO_ADDR ?? DEFAULT_ADDR;
+    const mount = values.mount ?? 'kv';
+
     return {
       kube: () => (kube ??= Kube.connect(values.context)),
-      bao: () => (bao ??= connect(addr, values.mount ?? 'kv', values.token, values['bao-token'])),
+      bao: (path) => {
+        login ??= credentials(values.token, values['bao-token']);
+        if ('direct' in login) {
+          return Bao.fromToken(addr, mount, login.direct);
+        }
+
+        const auth = login.auth(path);
+        const key = `${auth.mount}/${auth.role}`;
+        let bao = sessions.get(key);
+        if (!bao) {
+          bao = Bao.login(addr, mount, login.jwt, auth);
+          sessions.set(key, bao);
+        }
+        return bao;
+      },
     };
   },
   commands: {
@@ -130,7 +173,7 @@ export const run = cli({
       return 0;
     },
     ls: (ctx, values, [prefix]) => {
-      const found = ctx.bao().list(prefix ?? '');
+      const found = ctx.bao(prefix).list(prefix ?? '');
       if (values.json) {
         console.log(JSON.stringify(found, null, 2));
         return 0;
@@ -144,7 +187,7 @@ export const run = cli({
       return 0;
     },
     get: (ctx, values, [path, key]) => {
-      const secret = ctx.bao().require(needed(path, 'PATH'));
+      const secret = ctx.bao(path).require(needed(path, 'PATH'));
       if (key !== undefined) {
         if (!Object.hasOwn(secret.data, key)) {
           throw new Error(`${path} has no key ${key}`);
@@ -194,14 +237,14 @@ export const run = cli({
         changes[file.slice(0, split)] = fs.readText(file.slice(split + 1));
       }
 
-      const version = ctx.bao().patch(path, changes);
+      const version = ctx.bao(path).patch(path, changes);
       console.log(`wrote ${path} version ${version}`);
 
       return syncAfter(ctx, path, values['no-sync']);
     },
     rm: (ctx, values, [path, ...names]) => {
       needed(path, 'PATH');
-      const bao = ctx.bao();
+      const bao = ctx.bao(path);
       if (values.all) {
         if (!values.yes && !confirm(`delete the latest version of ${path}?`)) {
           throw new Error('cancelled');
@@ -227,7 +270,7 @@ export const run = cli({
       return syncAfter(ctx, path, values['no-sync']);
     },
     history: (ctx, _values, [path]) => {
-      const meta = ctx.bao().metadata(needed(path, 'PATH'));
+      const meta = ctx.bao(path).metadata(needed(path, 'PATH'));
       const rows = Object.entries(meta.versions ?? {})
         .sort(([a], [b]) => Number(b) - Number(a))
         .map(([number, v]) => [
@@ -264,8 +307,14 @@ export const run = cli({
       if (!paths.length) {
         throw new UsageError(`missing PATH\n\n${USAGE}`);
       }
-      const secrets = paths.map((path): [string, Data] => [path, ctx.bao().require(path).data]);
-      const lines = exports(collect(secrets, values.prefix ?? ''));
+      const secrets = paths.map((path): [string, Data] => [path, ctx.bao(path).require(path).data]);
+      const vars = collect(secrets, values.prefix ?? '');
+      if (values.json) {
+        console.log(JSON.stringify(Object.fromEntries(vars), null, 2));
+        return 0;
+      }
+
+      const lines = exports(vars);
       if (lines) {
         console.log(lines.trimEnd());
       }

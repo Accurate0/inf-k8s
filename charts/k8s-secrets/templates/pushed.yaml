@@ -1,0 +1,33 @@
+{{- $defaults := .Values.defaults }}
+{{- range $pushed := .Values.pushed }}
+{{- $namespace := default $defaults.namespace $pushed.namespace }}
+apiVersion: external-secrets.io/v1alpha1
+kind: PushSecret
+metadata:
+  name: {{ $pushed.secretName }}
+  namespace: {{ $namespace }}
+  {{- if $defaults.annotations }}
+  annotations:
+    {{ $defaults.annotations | toYaml | nindent 4 | trim }}
+  {{- end }}
+spec:
+  refreshInterval: 1h0m0s
+  updatePolicy: Replace
+  deletionPolicy: Delete
+  secretStoreRefs:
+    - name: openbao-push
+      kind: SecretStore
+  selector:
+    secret:
+      name: {{ $pushed.secretName }}
+  data:
+    {{- range $key := $pushed.keys }}
+    - conversionStrategy: None
+      match:
+        secretKey: {{ $key.secretKey }}
+        remoteRef:
+          remoteKey: {{ printf "%s/generated/%s" $namespace $pushed.name }}
+          property: {{ $key.property }}
+    {{- end }}
+---
+{{- end }}
