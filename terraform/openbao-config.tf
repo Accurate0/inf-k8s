@@ -129,3 +129,10 @@ resource "vault_jwt_auth_backend_role" "cli" {
   token_ttl       = 900
   token_max_ttl   = 3600
 }
+
+resource "vault_jwt_auth_backend" "forgejo" {
+  path               = "forgejo"
+  type               = "jwt"
+  oidc_discovery_url = "https://git.anurag.sh/api/actions"
+  bound_issuer       = "https://git.anurag.sh/api/actions"
+}

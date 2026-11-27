@@ -1,0 +1,5 @@
+awscli
+pyyaml
+click<8.0
+jsonref>=0.2.0,<0.3.0
+colorama

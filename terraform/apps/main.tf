@@ -30,6 +30,10 @@ variable "kubernetes_auth_path" {
   type = string
 }
 
+variable "forgejo_auth_path" {
+  type = string
+}
+
 variable "kv_mount" {
   type = string
 }

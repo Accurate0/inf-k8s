@@ -3,55 +3,37 @@ name: k8s-schemas
 network:
   ingress: []
 resources:
-  - {name: k8s-schemas, type: secret, secretName: k8s-schemas-managed-secrets}
   - {name: schemas, type: bucket, provider: r2, bucket: k8s-schemas, secretName: schemas-bucket-secrets}
   - name: k8s-schemas
     type: serviceAccount
     clusterRole: k8s-schemas-crd-reader
     clusterRules:
       - {apiGroups: [apiextensions.k8s.io], resources: [customresourcedefinitions], verbs: [get, list]}
-workloads:
-  - name: k8s-schemas
-    image: registry.anurag.sh/containers/k8s-schemas
-    release: latest
-    kind: CronJob
-    schedule: 0 0 * * 0
-    backoffLimit: 2
-    resources: {cpu: 50m, memory: 128Mi, memoryLimit: 512Mi}
-    env:
-      S3_BUCKET: {bucket: schemas, key: S3_BUCKET}
-      S3_ENDPOINT: {bucket: schemas, key: S3_ENDPOINT}
-      AWS_ACCESS_KEY_ID: {bucket: schemas, key: S3_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: {bucket: schemas, key: S3_SECRET_ACCESS_KEY}
-      K8S_VERSION: v1.37.1
-    envFrom:
-      - {secret: k8s-schemas}
-    mounts:
-      tmp: {path: /tmp, emptyDir: true}
-    serviceAccount: k8s-schemas
-  - name: k8s-schemas-repo
-    image: registry.anurag.sh/containers/k8s-schemas
-    release: latest
-    kind: Job
-    phase: postSync
-    backoffLimit: 2
-    args: [repo]
-    resources: {cpu: 10m, memory: 64Mi, memoryLimit: 256Mi}
-    env:
-      S3_BUCKET: {bucket: schemas, key: S3_BUCKET}
-      S3_ENDPOINT: {bucket: schemas, key: S3_ENDPOINT}
-      AWS_ACCESS_KEY_ID: {bucket: schemas, key: S3_ACCESS_KEY_ID}
-      AWS_SECRET_ACCESS_KEY: {bucket: schemas, key: S3_SECRET_ACCESS_KEY}
-    mounts:
-      tmp: {path: /tmp, emptyDir: true}
-build:
-  image: registry.anurag.sh/containers/k8s-schemas
-  ci: forgejo
-  context: .
-  paths: [packages/ortzi-app/app.schema.json, charts/*/values.schema.json]
 sources:
   - type: manifests
     path: .
 artifact:
   repo: oci://registry.anurag.sh/manifests/k8s-schemas
   tag: main
+ci:
+  secrets:
+    repos: [anurag/k8s]
+    resources: [schemas, k8s-schemas]
+workflows:
+  - name: publish
+    schedule: 0 0 * * 0
+    paths:
+      - platform-services/k8s-schemas/*.sh
+      - platform-services/k8s-schemas/*.py
+      - platform-services/k8s-schemas/requirements.txt
+      - packages/ortzi-app/app.schema.json
+      - charts/*/values.schema.json
+    serviceAccount: k8s-schemas
+    setup: platform-services/k8s-schemas/setup.sh
+    run: platform-services/k8s-schemas/publish.sh
+    env:
+      S3_BUCKET: {bucket: schemas, key: S3_BUCKET}
+      S3_ENDPOINT: {bucket: schemas, key: S3_ENDPOINT}
+      AWS_ACCESS_KEY_ID: {bucket: schemas, key: S3_ACCESS_KEY_ID}
+      AWS_SECRET_ACCESS_KEY: {bucket: schemas, key: S3_SECRET_ACCESS_KEY}
+      K8S_VERSION: v1.37.1

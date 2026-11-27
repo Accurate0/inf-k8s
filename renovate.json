@@ -77,10 +77,12 @@
     {
       "customType": "regex",
       "managerFilePatterns": [
-        "/platform-services/k8s-schemas/manifests/cronjob\\.yaml$/"
+        "/platform-services/k8s-schemas/app\\.yaml$/",
+        "/platform/versions\\.yaml$/"
       ],
       "matchStrings": [
-        "name: K8S_VERSION\\s*\\n\\s*value:\\s*(?<currentValue>v\\S+)"
+        "K8S_VERSION:\\s*(?<currentValue>v\\S+)",
+        "kubectl:\\s*(?<currentValue>v\\S+)"
       ],
       "depNameTemplate": "k3s-io/k3s",
       "datasourceTemplate": "github-releases",

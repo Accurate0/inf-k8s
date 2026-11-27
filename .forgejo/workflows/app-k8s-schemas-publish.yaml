@@ -1,0 +1,65 @@
+# generated from app.yaml by `ortzi app render`; edit app.yaml instead
+# generated at 2026-11-27T15:56:12.081Z
+name: app k8s-schemas publish
+on:
+  schedule:
+    - cron: 0 0 * * 0
+  push:
+    branches:
+      - main
+    paths:
+      - platform-services/k8s-schemas/*.sh
+      - platform-services/k8s-schemas/*.py
+      - platform-services/k8s-schemas/requirements.txt
+      - packages/ortzi-app/app.schema.json
+      - charts/*/values.schema.json
+      - .forgejo/workflows/app-k8s-schemas-publish.yaml
+  workflow_dispatch: null
+concurrency:
+  group: app-k8s-schemas-publish
+  cancel-in-progress: false
+enable-openid-connect: true
+jobs:
+  run:
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: docker
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - name: Read schemas secrets
+        uses: https://git.anurag.sh/anurag/workflows/read-secrets@main
+        with:
+          paths: k8s-schemas/resource-schemas
+          prefix: CI_SCHEMAS_
+      - name: Read k8s-schemas token
+        uses: https://git.anurag.sh/anurag/workflows/read-secrets@main
+        with:
+          paths: k8s-schemas/generated/serviceaccount-k8s-schemas
+          prefix: KUBE_
+      - name: Connect kubectl as k8s-schemas
+        run: |-
+          set -euo pipefail
+          arch="$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
+          curl -fsSLo "$RUNNER_TEMP/kubectl" "https://dl.k8s.io/release/v1.37.1/bin/linux/$arch/kubectl"
+          chmod +x "$RUNNER_TEMP/kubectl"
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+          export KUBECONFIG="$RUNNER_TEMP/kubeconfig"
+          printf '%s\n' "$KUBE_CA_CRT" > "$RUNNER_TEMP/kube-ca.crt"
+          "$RUNNER_TEMP/kubectl" config set-cluster cluster --server=https://10.0.2.188:6443 --certificate-authority="$RUNNER_TEMP/kube-ca.crt" --embed-certs
+          "$RUNNER_TEMP/kubectl" config set-credentials ci --token="$KUBE_TOKEN"
+          "$RUNNER_TEMP/kubectl" config set-context ci --cluster=cluster --user=ci --namespace=k8s-schemas
+          "$RUNNER_TEMP/kubectl" config use-context ci
+          rm "$RUNNER_TEMP/kube-ca.crt"
+          echo "KUBECONFIG=$KUBECONFIG" >> "$GITHUB_ENV"
+      - name: Setup
+        run: platform-services/k8s-schemas/setup.sh
+      - name: Run
+        env:
+          S3_BUCKET: ${{ env.CI_SCHEMAS_S3_BUCKET }}
+          S3_ENDPOINT: ${{ env.CI_SCHEMAS_S3_ENDPOINT }}
+          AWS_ACCESS_KEY_ID: ${{ env.CI_SCHEMAS_S3_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ env.CI_SCHEMAS_S3_SECRET_ACCESS_KEY }}
+          K8S_VERSION: v1.37.1
+        run: platform-services/k8s-schemas/publish.sh
+        working-directory: ${{ github.workspace }}
