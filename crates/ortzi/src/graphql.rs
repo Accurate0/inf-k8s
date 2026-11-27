@@ -230,13 +230,13 @@ pub struct CreatePublishTokenInput {
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct WhoAmIQuery {
-    pub registry_whoami: WhoAmI,
+    pub registry_whoami: Option<WhoAmI>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct CatalogQuery {
-    pub registry_catalog: CatalogRef,
+    pub registry_catalog: Option<CatalogRef>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -249,7 +249,7 @@ pub struct VersionVariables {
 #[cynic(graphql_type = "Query", variables = "VersionVariables")]
 pub struct VersionQuery {
     #[arguments(package: $package, version: $version)]
-    pub registry_version: Version,
+    pub registry_version: Option<Version>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -261,7 +261,7 @@ pub struct NameVariables {
 #[cynic(graphql_type = "Query", variables = "NameVariables")]
 pub struct PackageQuery {
     #[arguments(name: $name)]
-    pub registry_package: Package,
+    pub registry_package: Option<Package>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -273,13 +273,13 @@ pub struct PackageFilterVariables {
 #[cynic(graphql_type = "Query", variables = "PackageFilterVariables")]
 pub struct TrustedPublishersQuery {
     #[arguments(package: $package)]
-    pub registry_trusted_publishers: Vec<TrustedPublisher>,
+    pub registry_trusted_publishers: Option<Vec<TrustedPublisher>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct PublishTokensQuery {
-    pub registry_publish_tokens: Vec<PublishToken>,
+    pub registry_publish_tokens: Option<Vec<PublishToken>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -292,7 +292,7 @@ pub struct AuditVariables {
 #[cynic(graphql_type = "Query", variables = "AuditVariables")]
 pub struct AuditQuery {
     #[arguments(package: $package, limit: $limit)]
-    pub registry_audit: Vec<AuditEntry>,
+    pub registry_audit: Option<Vec<AuditEntry>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]

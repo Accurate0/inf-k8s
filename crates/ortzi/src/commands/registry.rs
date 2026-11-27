@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use anyhow::Context;
 use clap::Subcommand;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
 use cynic::{MutationBuilder, QueryBuilder};
@@ -309,7 +310,8 @@ async fn publisher(client: &Client, action: PublisherAction) -> anyhow::Result<(
                     gql::PackageFilterVariables { package },
                 ))
                 .await?
-                .registry_trusted_publishers;
+                .registry_trusted_publishers
+                .context("the graph returned no registryTrustedPublishers")?;
             let mut table = Table::new();
             table.load_preset(UTF8_BORDERS_ONLY).set_header([
                 "id",
@@ -368,7 +370,8 @@ async fn token(client: &Client, action: TokenAction) -> anyhow::Result<()> {
                 .graph()
                 .run(gql::PublishTokensQuery::build(()))
                 .await?
-                .registry_publish_tokens;
+                .registry_publish_tokens
+                .context("the graph returned no registryPublishTokens")?;
             let mut table = Table::new();
             table.load_preset(UTF8_BORDERS_ONLY).set_header([
                 "id",
@@ -466,7 +469,8 @@ async fn audit(client: &Client, package: Option<String>, limit: i32) -> anyhow::
             limit,
         }))
         .await?
-        .registry_audit;
+        .registry_audit
+        .context("the graph returned no registryAudit")?;
 
     let mut table = Table::new();
     table

@@ -141,16 +141,21 @@ impl GraphClient {
 
         let status = response.status();
         let body = response.text().await?;
-        let parsed: GraphQlResponse<T, serde_json::Value> = serde_json::from_str(&body)
-            .with_context(|| format!("unexpected response from {} ({status}): {body}", self.url))?;
+        let parsed: GraphQlResponse<serde_json::Value, serde_json::Value> =
+            serde_json::from_str(&body).with_context(|| {
+                format!("unexpected response from {} ({status}): {body}", self.url)
+            })?;
 
         if let Some(error) = parsed.errors.as_ref().and_then(|errors| errors.first()) {
             return Err(Error::from(error).into());
         }
 
-        parsed
+        let data = parsed
             .data
-            .with_context(|| format!("{} returned no data ({status})", self.url))
+            .with_context(|| format!("{} returned no data ({status})", self.url))?;
+
+        serde_json::from_value(data)
+            .with_context(|| format!("unexpected response from {} ({status}): {body}", self.url))
     }
 
     /// Opens a graphql-transport-ws subscription on the same endpoint.

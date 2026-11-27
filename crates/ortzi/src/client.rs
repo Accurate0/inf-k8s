@@ -86,11 +86,11 @@ impl Client {
     }
 
     pub async fn whoami(&self) -> anyhow::Result<gql::WhoAmI> {
-        Ok(self
-            .graph
+        self.graph
             .run(gql::WhoAmIQuery::build(()))
             .await?
-            .registry_whoami)
+            .registry_whoami
+            .context("the graph returned no registryWhoami")
     }
 
     pub async fn catalog(&self) -> anyhow::Result<registry_api::CatalogRef> {
@@ -98,7 +98,8 @@ impl Client {
             .graph
             .run(gql::CatalogQuery::build(()))
             .await?
-            .registry_catalog;
+            .registry_catalog
+            .context("the graph returned no registryCatalog")?;
         Ok(registry_api::CatalogRef {
             seq: current.seq.into(),
             digest: current.digest,
@@ -182,6 +183,7 @@ impl Client {
                 .await
                 .map(|found| found.registry_version),
         )
+        .map(Option::flatten)
     }
 
     pub async fn package(&self, name: &str) -> anyhow::Result<Option<gql::Package>> {
@@ -193,6 +195,7 @@ impl Client {
                 .await
                 .map(|found| found.registry_package),
         )
+        .map(Option::flatten)
     }
 }
 
