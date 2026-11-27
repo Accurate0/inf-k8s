@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: graph
-namespace:
-  labels:
-    internal-gateway-access: "true"
 network:
   ingress: []
 exports:
@@ -25,9 +22,8 @@ resources:
   - name: graph
     type: route
     auth: {mode: app, reason: "the router forwards credentials, each subgraph verifies kanidm and forgejo actions jwts"}
-    gateway: internal-gateway
-    hosts: [graph.ortzi.cloud]
-    dns: {provider: cloudflare, proxied: false}
+    gateways:
+      - {gateway: internal-gateway, hosts: [graph.ortzi.cloud], dns: {provider: cloudflare, proxied: false}}
     backend: {name: router, port: 80}
     paths: [/v1/graphql]
     timeouts: {request: 0s}

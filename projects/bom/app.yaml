@@ -1,9 +1,6 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: bom
 repository: https://github.com/Accurate0/bom
-namespace:
-  labels:
-    gateway.inf-k8s.net/anurag-sh: "true"
 network:
   ingress: []
 resources:
@@ -33,11 +30,10 @@ resources:
   - name: images
     type: route
     auth: {mode: none, reason: radar and satellite images are public so they can be embedded anywhere}
-    gateway: public-gateway
-    hosts: [bom.anurag.sh]
+    gateways:
+      - {gateway: public-gateway, hosts: [bom.anurag.sh], dns: {provider: cloudflare, proxied: true}}
     backend: {name: bom-api, port: 8000}
     paths: [/radar/, /satellite/]
-    dns: {provider: cloudflare, proxied: true}
     ratelimit: {requests: 20, per: Second, header: x-real-ip}
 workloads:
   - name: bom

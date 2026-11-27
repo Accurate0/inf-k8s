@@ -5,8 +5,6 @@ chartRegistry: oci://ghcr.io/accurate0/charts
 namespace:
   labels:
     internal-gateway-access: "true"
-    gateway.inf-k8s.net/anurag-sh: "true"
-    inf-k8s.net/lan-gateway-access: "true"
 network:
   ingress: [forgejo]
 resources:
@@ -90,30 +88,18 @@ resources:
           description: read and follow the audit log
           grantedBy:
             - {groups: [registry_admins]}
-  - name: registry-public
+  - name: registry
     type: route
     auth:
       mode: app
       reason: ortzi accepts opaque registry tokens and forgejo OIDC, harbor issues its own registry tokens behind a kanidm login or robot account
-    gateway: public-gateway
-    hosts: [registry.anurag.sh]
+    gateways:
+      - {gateway: public-gateway, hosts: [registry.anurag.sh], dns: {provider: cloudflare, proxied: true}}
+      - {gateway: lan-gateway, hosts: [registry.anurag.sh], dns: {provider: unifi}}
     rules:
       - {paths: [/api/v1, /cli/v1, /install.sh], backend: {name: api, port: 80}}
       - {paths: [/], backend: {name: harbor, port: 80}}
     timeouts: {request: 0s, backendRequest: 0s}
-    dns: {provider: cloudflare, proxied: true}
-  - name: registry-lan
-    type: route
-    auth:
-      mode: app
-      reason: ortzi accepts opaque registry tokens and forgejo OIDC, harbor issues its own registry tokens behind a kanidm login or robot account
-    gateway: lan-gateway
-    hosts: [registry.anurag.sh]
-    rules:
-      - {paths: [/api/v1, /cli/v1, /install.sh], backend: {name: api, port: 80}}
-      - {paths: [/], backend: {name: harbor, port: 80}}
-    timeouts: {request: 0s, backendRequest: 0s}
-    dns: {provider: unifi}
   - name: registry
     type: oidc
     secretName: kanidm-registry-oidc

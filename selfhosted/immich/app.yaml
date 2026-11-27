@@ -21,11 +21,10 @@ resources:
   - name: immich
     type: route
     auth: {mode: app, reason: immich requires a kanidm login or api key on every api route}
-    gateway: public-gateway
-    hosts: [photos.anurag.sh]
+    gateways:
+      - {gateway: public-gateway, hosts: [photos.anurag.sh], dns: {provider: cloudflare, proxied: false}}
     backend: {name: immich-server, port: 80}
     paths: [/]
-    dns: {provider: cloudflare, proxied: false}
     timeouts: {request: 3600s, backendRequest: 3600s}
   - name: immich
     type: oidc

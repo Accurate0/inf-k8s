@@ -44,20 +44,19 @@ resources:
   - name: forgejo
     type: route
     auth: {mode: app, reason: "forgejo requires a kanidm login or token, with anubis in front of the web ui"}
-    gateway: public-gateway
-    hosts: [git.anurag.sh]
+    gateways:
+      - {gateway: public-gateway, hosts: [git.anurag.sh], dns: {provider: cloudflare, proxied: false}}
     backend: {name: forgejo-anubis, port: 8923}
     paths: [/]
-    dns: {provider: cloudflare, proxied: false}
     timeouts: {request: 90s, backendRequest: 90s}
     loadBalancer: {type: consistentHash, headers: [Cookie, User-Agent]}
   - name: forgejo-ssh
     type: route
     protocol: tcp
-    listener: git-ssh
     auth: {mode: app, reason: forgejo checks the ssh key of every git connection}
-    gateway: public-gateway
     backend: {name: forgejo-ssh, port: 22}
+    gateways:
+      - {gateway: public-gateway, listener: git-ssh}
   - name: forgejo
     type: oidc
     secretName: kanidm-forgejo-oidc

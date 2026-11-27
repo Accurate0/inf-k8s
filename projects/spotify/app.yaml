@@ -1,9 +1,6 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: spotify
 repository: https://github.com/Accurate0/spotify
-namespace:
-  labels:
-    internal-gateway-access: "true"
 network:
   ingress: []
 resources:
@@ -40,9 +37,8 @@ resources:
   - name: spotify
     type: route
     auth: {mode: app, reason: "spotify-api verifies Kanidm JWTs on /v1/graphql, the rest is a static spa"}
-    gateway: internal-gateway
-    hosts: [spotify.ortzi.cloud]
-    dns: {provider: cloudflare, proxied: false}
+    gateways:
+      - {gateway: internal-gateway, hosts: [spotify.ortzi.cloud], dns: {provider: cloudflare, proxied: false}}
     rules:
       - {paths: [/v1/graphql, /health, /art], backend: {name: api, port: 80}}
       - {paths: [/], backend: {name: spotify-web, port: 80}}

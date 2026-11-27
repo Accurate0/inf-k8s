@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: waf-manager
-namespace:
-  labels:
-    internal-gateway-access: "true"
 network:
   ingress: []
 resources:
@@ -82,15 +79,15 @@ resources:
           - {claim: name, header: x-waf-user-name}
           - {claim: email, header: x-waf-user-email}
           - {claim: sub, header: x-waf-user-sub}
-    gateway: internal-gateway
-    hosts: [waf-manager.ortzi.cloud]
+    gateways:
+      - {gateway: internal-gateway, hosts: [waf-manager.ortzi.cloud]}
     backend: {name: api, port: 80}
     paths: [/]
   - name: waf-manager-api
     type: route
     auth: {mode: jwt, clients: [waf-manager-cli, waf-manager]}
-    gateway: internal-gateway
-    hosts: [waf-manager.ortzi.cloud]
+    gateways:
+      - {gateway: internal-gateway, hosts: [waf-manager.ortzi.cloud]}
     backend: {name: api, port: 80}
     paths: [/api/]
   - name: waf-manager

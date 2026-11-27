@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: ai-gateway
-namespace:
-  labels:
-    internal-gateway-access: "true"
 network:
   ingress: []
 exports:
@@ -44,8 +41,8 @@ resources:
   - name: ai-gateway
     type: route
     auth: {mode: app, reason: "app verifies kanidm JWTs, gateway JWT not rolled out yet"}
-    gateway: internal-gateway
-    hosts: [ai-gateway.ortzi.cloud]
+    gateways:
+      - {gateway: internal-gateway, hosts: [ai-gateway.ortzi.cloud]}
     backend: {name: api, port: 80}
     paths: [/]
   - name: ai-gateway

@@ -3,7 +3,6 @@ name: maccas-api
 repository: https://github.com/Accurate0/maccas-api
 namespace:
   labels:
-    gateway.inf-k8s.net/maccas-one: "true"
     internal-gateway-access: "true"
 network:
   ingress: []
@@ -39,11 +38,10 @@ resources:
   - name: maccas-web-route
     type: route
     auth: {mode: none, reason: "public website, the app handles its own logins"}
-    gateway: public-gateway
-    hosts: [maccas.one]
+    gateways:
+      - {gateway: public-gateway, hosts: [maccas.one], dns: {provider: cloudflare, proxied: true}}
     backend: {name: maccas-web, port: 3000}
     paths: [/]
-    dns: {provider: cloudflare, proxied: true}
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
 workloads:
   - name: maccas-migration

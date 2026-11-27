@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T12:26:05.657Z
+# generated at 2026-11-27T09:28:50.575Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -39,8 +39,8 @@ spec:
     namespace: home-gateway
     namespaceLabels:
       gateway.inf-k8s.net/anurag-sh: "true"
-      internal-gateway-access: "true"
       inf-k8s.net/lan-gateway-access: "true"
+      internal-gateway-access: "true"
     workloads:
       - name: home-gateway
         image: registry.anurag.sh/containers/home-gateway
@@ -300,7 +300,7 @@ spec:
     mode: enabled
   values:
     routes:
-      - name: home-web
+      - name: home-web-internal
         gateway:
           name: internal-gateway
           namespace: envoy-gateway-system

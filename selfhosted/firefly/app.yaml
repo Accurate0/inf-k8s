@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: firefly
-namespace:
-  labels:
-    internal-gateway-access: "true"
 network:
   ingress: [firefly-up-sync]
 resources:
@@ -21,21 +18,21 @@ resources:
     backup: daily
   - name: firefly
     type: route
-    gateway: internal-gateway
+    gateways:
+      - {gateway: internal-gateway, hosts: [firefly.ortzi.cloud]}
     auth:
       mode: oidc
       client: firefly
       scopes: [openid, email, profile]
       jwt: {cacheDuration: 3600s, idToken: true, claimToHeaders: [{claim: email, header: x-firefly-user-email}]}
-    hosts: [firefly.ortzi.cloud]
     backend: {name: firefly, port: 80}
     paths: [/]
     timeouts: {request: 0s}
   - name: firefly-importer
     type: route
-    gateway: internal-gateway
+    gateways:
+      - {gateway: internal-gateway, hosts: [firefly-importer.ortzi.cloud]}
     auth: {mode: oidc, client: firefly-importer, scopes: [openid, email, profile]}
-    hosts: [firefly-importer.ortzi.cloud]
     backend: {name: firefly-importer, port: 80}
     paths: [/]
     timeouts: {request: 0s}

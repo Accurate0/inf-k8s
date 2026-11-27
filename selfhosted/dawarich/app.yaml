@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: dawarich
-namespace:
-  labels:
-    gateway.inf-k8s.net/anurag-sh: "true"
 network:
   ingress: []
 resources:
@@ -20,11 +17,10 @@ resources:
   - name: dawarich
     type: route
     auth: {mode: app, reason: "dawarich requires a kanidm login or api key, password login is disabled"}
-    gateway: public-gateway
-    hosts: [timeline.anurag.sh]
+    gateways:
+      - {gateway: public-gateway, hosts: [timeline.anurag.sh], dns: {provider: cloudflare, proxied: false}}
     backend: {name: dawarich, port: 80}
     paths: [/]
-    dns: {provider: cloudflare, proxied: false}
     timeouts: {request: 90s, backendRequest: 90s}
   - name: dawarich
     type: oidc

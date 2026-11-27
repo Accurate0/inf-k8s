@@ -1,8 +1,5 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: feature-flags
-namespace:
-  labels:
-    internal-gateway-access: "true"
 network:
   ingress: []
 exports:
@@ -46,8 +43,8 @@ resources:
     auth:
       mode: app
       reason: admin verified by the app; evaluation only checks client-id, gateway JWT not rolled out yet
-    gateway: internal-gateway
-    hosts: [feature-flags.ortzi.cloud]
+    gateways:
+      - {gateway: internal-gateway, hosts: [feature-flags.ortzi.cloud]}
     backend: {name: api, port: 50051}
     paths: [/featureflag.v1.Admin/, /featureflag.v1.Evaluation/]
     timeouts: {request: 0s}

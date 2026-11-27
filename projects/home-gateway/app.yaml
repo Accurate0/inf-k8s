@@ -1,11 +1,6 @@
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/app.json
 name: home-gateway
 repository: https://github.com/Accurate0/home-gateway
-namespace:
-  labels:
-    gateway.inf-k8s.net/anurag-sh: "true"
-    internal-gateway-access: "true"
-    inf-k8s.net/lan-gateway-access: "true"
 network:
   ingress: []
 resources:
@@ -41,29 +36,19 @@ resources:
   - name: home-web
     type: route
     auth: {mode: app, reason: "home-gateway verifies JWTs and api keys on /v1, the rest is a static spa"}
-    gateway: internal-gateway
-    hosts: [home.ortzi.cloud]
-    dns: {provider: cloudflare, proxied: false}
-    rules:
-      - {paths: [/v1], backend: {name: home-gateway, port: 80}}
-      - {paths: [/], backend: {name: home-web, port: 80}}
-  - name: home-web-lan
-    type: route
-    auth: {mode: app, reason: "home-gateway verifies JWTs and api keys on /v1, the rest is a static spa"}
-    gateway: lan-gateway
-    hosts: [home.internal]
-    dns: {provider: unifi}
+    gateways:
+      - {gateway: internal-gateway, hosts: [home.ortzi.cloud], dns: {provider: cloudflare, proxied: false}}
+      - {gateway: lan-gateway, hosts: [home.internal], dns: {provider: unifi}}
     rules:
       - {paths: [/v1], backend: {name: home-gateway, port: 80}}
       - {paths: [/], backend: {name: home-web, port: 80}}
   - name: api-route
     type: route
     auth: {mode: app, reason: accepts X-Api-Key as well as JWTs}
-    gateway: public-gateway
-    hosts: [home.anurag.sh]
+    gateways:
+      - {gateway: public-gateway, hosts: [home.anurag.sh], dns: {provider: cloudflare, proxied: false}}
     backend: {name: home-gateway, port: 80}
     paths: [/v1]
-    dns: {provider: cloudflare, proxied: false}
     ratelimit: {requests: 5, per: Second, header: x-real-ip}
   - name: home-gateway
     type: oidc
