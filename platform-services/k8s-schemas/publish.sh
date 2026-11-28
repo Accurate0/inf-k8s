@@ -28,7 +28,7 @@ curl -fsSL \
 
 echo "Generating built-in k8s schemas..."
 BUILTIN_TMP_DIR="$WORK/k8s-builtin-schemas"
-openapi2jsonschema --kubernetes --stand-alone --expanded -o "$BUILTIN_TMP_DIR" "$SWAGGER_FILE"
+(cd "$WORK" && openapi2jsonschema --kubernetes --stand-alone --expanded -o k8s-builtin-schemas "$SWAGGER_FILE")
 python3 "$DIR/reorganize-schemas.py" "$BUILTIN_TMP_DIR" "$OUTPUT_DIR"
 
 echo "Publishing helm chart values schemas..."
