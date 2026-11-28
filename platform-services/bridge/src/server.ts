@@ -8,7 +8,7 @@ import {
   specifiedRules,
   validate,
 } from 'graphql';
-import { AuthError, type Authenticator } from './auth.ts';
+import { AuthError, type Authenticator, PASSPORT_HEADER } from './auth.ts';
 import { socket } from './socket.ts';
 import { failed, SpanKind, traced, withParent } from './tracing.ts';
 
@@ -55,7 +55,10 @@ export function server(schema: GraphQLSchema, auth: Authenticator): FastifyInsta
         async () => {
           let principal;
           try {
-            principal = await auth.authenticate(request.headers.authorization);
+            const passport = request.headers[PASSPORT_HEADER];
+            principal = await auth.authenticate(
+              typeof passport === 'string' ? passport : undefined,
+            );
           } catch (error) {
             if (error instanceof AuthError) {
               return send(reply, error.status, errors(error.message, error.code));

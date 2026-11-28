@@ -16,7 +16,8 @@ import {
 import { parse, stringify } from 'yaml';
 import type { ResolvedSubgraph } from './render.ts';
 import { scopeGrants } from './subgraphs.ts';
-import type { ExternalIssuer } from './providers/supergraph.ts';
+import type { ExternalIssuer, RouterAuth } from './providers/supergraph.ts';
+import type { ClaimPattern } from './providers/subgraph.ts';
 import { sha256Hex } from './sha256.ts';
 
 export const SUPERGRAPH_HEADER_TEXT =
@@ -82,7 +83,7 @@ export function compose(
   sdls: Record<string, string>,
   base: string,
   manifests: Record<string, string> = {},
-  externalIssuers: ExternalIssuer[] = [],
+  auth: RouterAuth = { externalIssuers: [] },
 ): Composed {
   const services = subgraphs.map((subgraph) => ({
     name: subgraph.name,
@@ -146,7 +147,7 @@ export function compose(
   return {
     supergraph: `# ${SUPERGRAPH_HEADER_TEXT}\n${scopesAsPolicies(optionalQueries(result.supergraphSdl)).trimEnd()}\n`,
     schema: `# ${SUPERGRAPH_HEADER_TEXT}\n${optionalQueries(result.publicSdl).trimEnd()}\n`,
-    router: routerConfig(subgraphs, base, nodeTypes, documents !== undefined, externalIssuers),
+    router: routerConfig(subgraphs, base, nodeTypes, documents !== undefined, auth),
     ...(nodeSdl ? { node: `# ${SUPERGRAPH_HEADER_TEXT}\n${nodeSdl}` } : {}),
     ...(meSdl ? { me: `# ${SUPERGRAPH_HEADER_TEXT}\n${meSdl}` } : {}),
     ...(documents !== undefined ? { documents } : {}),
@@ -518,8 +519,9 @@ export function routerConfig(
   base: string,
   nodeTypes: string[],
   persistedDocuments = false,
-  externalIssuers: ExternalIssuer[] = [],
+  auth: RouterAuth = { externalIssuers: [] },
 ): string {
+  const { externalIssuers, passport } = auth;
   const config = (parse(base) ?? {}) as Record<string, any>;
 
   if (persistedDocuments) {
@@ -592,37 +594,54 @@ export function routerConfig(
         ? { audiences: [...clients, ...external.map((issuer) => issuer.audience)] }
         : {}),
     };
+    if (!passport) {
+      throw new Error('gated subgraphs need the supergraph passport, which signs their requests');
+    }
+
     config.plugins = {
       ...config.plugins,
       access: {
         enabled: true,
         config: {
-          ...(external.length
-            ? {
-                external_issuers: Object.fromEntries(
-                  external.map((issuer) => [issuer.name, issuer.issuer]),
-                ),
-              }
-            : {}),
+          passport: { seed_env: passport.seedEnv, ttl_secs: passport.ttlSeconds },
+          issuers: {
+            kanidm: { kind: 'kanidm', base: KANIDM_ISSUER_BASE },
+            ...Object.fromEntries(
+              external.map((issuer) => [issuer.name, { kind: 'external', issuer: issuer.issuer }]),
+            ),
+          },
           ...(grants.length
             ? {
                 scopes: Object.fromEntries(
-                  grants.map((scope) => [scope.name, { external: scope.external }]),
+                  grants.map((scope) => [scope.name, byIssuer(scope.external)]),
                 ),
               }
             : {}),
           subgraphs: Object.fromEntries(
-            gated.map((subgraph) => [
-              subgraph.name,
-              {
-                issuers: subgraph.auth!.clients.map((client) => `${KANIDM_ISSUER_BASE}/${client}`),
-                ...(subgraph.auth!.groups?.length ? { groups: subgraph.auth!.groups } : {}),
-                ...(subgraph.auth!.scopes?.length
-                  ? { scopes: subgraph.auth!.scopes.map((scope) => scope.name) }
-                  : {}),
-                ...(subgraph.auth!.external?.length ? { external: subgraph.auth!.external } : {}),
-              },
-            ]),
+            gated.map((subgraph) => {
+              const auth = subgraph.auth!;
+              const scopeNames = (auth.scopes ?? []).map((scope) => scope.name);
+              const patterns = byIssuer(auth.external ?? []);
+              const granted = byIssuer(
+                (auth.scopes ?? []).flatMap((scope) => scopeGrants(scope).external),
+              );
+              const issuers = external
+                .map((issuer) => issuer.name)
+                .filter((name) => patterns[name] || granted[name]);
+
+              return [
+                subgraph.name,
+                {
+                  ...(scopeNames.length ? { scopes: scopeNames } : {}),
+                  kanidm: {
+                    clients: auth.clients,
+                    ...(auth.groups?.length ? { groups: auth.groups } : {}),
+                  },
+                  // an issuer whose tokens hold one of the scopes is listed even without patterns
+                  ...Object.fromEntries(issuers.map((name) => [name, patterns[name] ?? []])),
+                },
+              ];
+            }),
           ),
         },
       },
@@ -648,4 +667,12 @@ export function routerConfig(
   }
 
   return `# ${SUPERGRAPH_HEADER_TEXT}\n${stringify(config, { lineWidth: 0 })}`;
+}
+
+function byIssuer(patterns: ClaimPattern[]): Record<string, ClaimPattern['claims'][]> {
+  const grouped: Record<string, ClaimPattern['claims'][]> = {};
+  for (const pattern of patterns) {
+    (grouped[pattern.issuer] ??= []).push(pattern.claims);
+  }
+  return grouped;
 }

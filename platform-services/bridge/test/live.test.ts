@@ -56,7 +56,7 @@ test('watched lists follow the stream and relist when it expires', async () => {
 
 test('subscriptions push an app again only when something of its changes', async () => {
   const s = await stack();
-  const client = socket(s, { Authorization: `Bearer ${s.token(READ)}` });
+  const client = socket(s, { 'x-graph-passport': s.token(READ) });
   try {
     const updates = client.iterate<any>({
       query: 'subscription { fluxAppUpdates(name: "graph") { name workloads { name ready } } }',
@@ -91,7 +91,7 @@ test('subscriptions push an app again only when something of its changes', async
 
 test('workload subscriptions send each workload, then the ones that change', async () => {
   const s = await stack();
-  const client = socket(s, { authorization: `Bearer ${s.token(READ)}` });
+  const client = socket(s, { 'X-Graph-Passport': s.token(READ) });
   try {
     const updates = client.iterate<any>({
       query:
@@ -126,8 +126,8 @@ test('workload subscriptions send each workload, then the ones that change', asy
 test('sockets authenticate from connection_init and subscriptions need their scopes', async () => {
   const s = await stack();
   const anonymous = socket(s, {});
-  const forged = socket(s, { Authorization: 'Bearer not.a.token' });
-  const narrow = socket(s, { Authorization: `Bearer ${s.token('kubernetes:workload:read')}` });
+  const forged = socket(s, { 'x-graph-passport': 'not.a.token' });
+  const narrow = socket(s, { 'x-graph-passport': s.token('kubernetes:workload:read') });
   const query = 'subscription { fluxAppUpdates(name: "graph") { name } }';
   try {
     for (const client of [anonymous, forged]) {

@@ -12,7 +12,18 @@ import {
 } from '../supergraph.ts';
 import { sha256Hex } from '../sha256.ts';
 import { resolveSubgraphs, validateResources } from '../render.ts';
-import { platform, subgraphApp, routerApp, readValues } from '../test-fixtures.ts';
+import {
+  platform,
+  subgraphApp,
+  routerApp,
+  readValues,
+  render,
+  target,
+  releaseValues,
+} from '../test-fixtures.ts';
+
+const PASSPORT = { export: 'api', seedEnv: 'GRAPH_PASSPORT_SEED', ttlSeconds: 60 };
+const KANIDM = { kind: 'kanidm', base: 'https://idm.anurag.sh/oauth2/openid' };
 
 test('router config adds websocket paths for subgraphs with subscriptions', () => {
   const config = parse(
@@ -64,6 +75,8 @@ test('router config gates subgraphs that declare auth', () => {
       ]),
       '{}',
       [],
+      false,
+      { externalIssuers: [], passport: PASSPORT },
     ),
   );
 
@@ -85,13 +98,29 @@ test('router config gates subgraphs that declare auth', () => {
     access: {
       enabled: true,
       config: {
+        passport: { seed_env: 'GRAPH_PASSPORT_SEED', ttl_secs: 60 },
+        issuers: { kanidm: KANIDM },
         subgraphs: {
-          spotify: { issuers: [issuers[2], issuers[0]], groups: ['spotify_users'] },
-          home: { issuers: [issuers[1], issuers[0]], groups: ['home_gateway_readers'] },
+          spotify: { kanidm: { clients: ['spotify', 'graph'], groups: ['spotify_users'] } },
+          home: {
+            kanidm: { clients: ['home-gateway', 'graph'], groups: ['home_gateway_readers'] },
+          },
         },
       },
     },
   });
+
+  assert.throws(
+    () =>
+      routerConfig(
+        resolveSubgraphs([
+          subgraphApp('spotify', { auth: { clients: ['spotify'], groups: ['spotify_users'] } }),
+        ]),
+        '{}',
+        [],
+      ),
+    /gated subgraphs need the supergraph passport/,
+  );
 
   const open = parse(routerConfig(resolveSubgraphs([subgraphApp('spotify')]), '{}', []));
   assert.equal(open.jwt, undefined);
@@ -124,7 +153,7 @@ test('router config trusts external issuers only where a subgraph admits them', 
       '{}',
       [],
       false,
-      [forgejo, github],
+      { externalIssuers: [forgejo, github], passport: PASSPORT },
     ),
   );
 
@@ -137,10 +166,14 @@ test('router config trusts external issuers only where a subgraph admits them', 
     refresh_on_unknown_kid: '30s',
   });
   assert.deepEqual(config.plugins.access.config, {
-    external_issuers: { forgejo: forgejo.issuer },
+    passport: { seed_env: 'GRAPH_PASSPORT_SEED', ttl_secs: 60 },
+    issuers: { kanidm: KANIDM, forgejo: { kind: 'external', issuer: forgejo.issuer } },
     subgraphs: {
-      registry: { issuers: [kanidm('graph')], groups: ['registry_users'], external: patterns },
-      spotify: { issuers: [kanidm('spotify')], groups: ['spotify_users'] },
+      registry: {
+        kanidm: { clients: ['graph'], groups: ['registry_users'] },
+        forgejo: [{ repository: '*' }],
+      },
+      spotify: { kanidm: { clients: ['spotify'], groups: ['spotify_users'] } },
     },
   });
 });
@@ -395,7 +428,16 @@ type Query {
 
 test('fields require declared scopes, enforced at the router as policies', () => {
   const subgraphs = resolveSubgraphs([scopedRegistry(REGISTRY_SCOPES)]);
-  const composed = compose(subgraphs, { registry: REGISTRY_SDL }, '{}');
+  const composed = compose(
+    subgraphs,
+    { registry: REGISTRY_SDL },
+    '{}',
+    {},
+    {
+      externalIssuers: [],
+      passport: PASSPORT,
+    },
+  );
 
   assert.match(
     composed.supergraph,
@@ -440,26 +482,26 @@ test('fields require declared scopes, enforced at the router as policies', () =>
   });
 
   const config = parse(
-    routerConfig(subgraphs, '{}', [], false, [
-      {
-        name: 'forgejo',
-        issuer: 'https://git.example/api/actions',
-        jwks: 'https://git.example/keys',
-        audience: 'graph.example',
-      },
-    ]),
+    routerConfig(subgraphs, '{}', [], false, {
+      externalIssuers: [
+        {
+          name: 'forgejo',
+          issuer: 'https://git.example/api/actions',
+          jwks: 'https://git.example/keys',
+          audience: 'graph.example',
+        },
+      ],
+      passport: PASSPORT,
+    }),
   );
+  // forgejo holds one of the registry's scopes, so the registry gate lists it without patterns
   assert.deepEqual(config.plugins.access.config.subgraphs.registry, {
-    issuers: [
-      'https://idm.anurag.sh/oauth2/openid/graph',
-      'https://idm.anurag.sh/oauth2/openid/registry',
-    ],
     scopes: ['registry:package:read', 'registry:token:create'],
+    kanidm: { clients: ['graph', 'registry'] },
+    forgejo: [],
   });
   assert.deepEqual(config.plugins.access.config.scopes, {
-    'registry:token:create': {
-      external: [{ issuer: 'forgejo', claims: { repository: 'anurag/*' } }],
-    },
+    'registry:token:create': { forgejo: [{ repository: 'anurag/*' }] },
   });
   assert.ok(config.jwt.issuers.includes('https://git.example/api/actions'));
 });
@@ -515,6 +557,8 @@ test('a subgraph fronting several systems uses any of its prefixes', () => {
         type FluxApp { name: String! }`,
     },
     '{}',
+    {},
+    { externalIssuers: [], passport: PASSPORT },
   );
   assert.match(composed.schema, /forgejoRun\(id: ID!\): ForgejoRun/);
   assert.deepEqual(
@@ -553,4 +597,27 @@ test('query fields are nullable so one failing subgraph only nulls its own field
     assert.match(sdl, /spotifyLink: Boolean!/);
     assert.match(sdl, /plays: Int!/);
   }
+});
+
+test('the router lets subgraph apps in to fetch its passport keys', () => {
+  const spotify = subgraphApp('spotify');
+  const rendered = render(routerApp, target, [routerApp, spotify]);
+  assert.deepEqual(releaseValues(rendered, 'k8s-network').ingress, ['spotify']);
+
+  const other = { name: 'other', network: { ingress: [] } };
+  const unrelated = render(other, target, [routerApp, spotify, other]);
+  assert.deepEqual(releaseValues(unrelated, 'k8s-network').ingress, []);
+});
+
+test('the passport export must be one of the router app exports', () => {
+  const world = (apps: (typeof routerApp)[]) => ({ platform, apps, readValues });
+  validateResources(world([routerApp]));
+  const misnamed = {
+    ...routerApp,
+    resources: [{ ...routerApp.resources![0]!, passport: { ...PASSPORT, export: 'nope' } }],
+  } as typeof routerApp;
+  assert.throws(
+    () => validateResources(world([misnamed])),
+    /resources.graph: passport.export: graph has no export named nope/,
+  );
 });

@@ -76,8 +76,6 @@ workloads:
       REDIS_URL: {resource: cache}
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/feature-flags
       OIDC_AUDIENCE: feature-flags
-      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
-      OIDC_GROUPS: feature_flags_admins
       OTEL_TRACING_URL: {resource: traces}
     envFrom:
       - {secret: feature-flags}

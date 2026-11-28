@@ -22,7 +22,7 @@ use tokio::task::JoinHandle;
 
 const KANIDM_AUDIENCE: &str = "registry";
 const FORGEJO_AUDIENCE: &str = "registry.anurag.sh";
-const GRAPH_FORGEJO_AUDIENCE: &str = "graph.ortzi.cloud";
+const PASSPORT_SEED: &str = "registry-test-passport-seed-0123456789";
 
 struct Idp {
     issuer: String,
@@ -361,6 +361,9 @@ struct Registry {
     harbor: MockHarbor,
     signer: Signer,
     admin: String,
+    passport: subgraph::passport::Minter,
+    grants: subgraph::access::Grants,
+    jwks: JoinHandle<()>,
 }
 
 impl Registry {
@@ -377,9 +380,41 @@ impl Registry {
         });
         config.limits.max_artifact_bytes = 1024;
 
-        let graph = config.graph.as_mut().unwrap();
-        graph.issuer = kanidm.issuer.clone();
-        graph.forgejo_audience = Some(GRAPH_FORGEJO_AUDIENCE.to_owned());
+        // stands in for the graph router: its passport keys, and the registry's SUBGRAPH_AUTH
+        let passport = subgraph::passport::Minter::from_seed(
+            PASSPORT_SEED,
+            std::time::Duration::from_secs(60),
+        )
+        .unwrap();
+        let keys = passport.jwks().to_owned();
+        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let jwks_url = format!(
+            "http://{}{}",
+            listener.local_addr().unwrap(),
+            subgraph::passport::JWKS_PATH
+        );
+        let jwks = tokio::spawn(async move {
+            let app = axum::Router::new().route(
+                subgraph::passport::JWKS_PATH,
+                axum::routing::get(move || async move { keys }),
+            );
+            axum::serve(listener, app).await.unwrap();
+        });
+        let auth = subgraph::AuthConfig::from_subgraph_auth(
+            &json!({
+                "audience": "registry",
+                "jwks": jwks_url,
+                "grants": {
+                    "registry:package:read": { "forgejo": [{ "repository": "*" }] },
+                    "registry:image:read": { "forgejo": [{ "repository": "*" }] },
+                    "registry:package:publish": { "forgejo": [{ "repository": "*" }] },
+                },
+            })
+            .to_string(),
+        )
+        .unwrap();
+        let grants = auth.grants.clone();
+        config.subgraph_auth = Some(auth);
 
         let harbor = MockHarbor::spawn().await;
         let signer = Signer::new(signing::generate());
@@ -407,7 +442,72 @@ impl Registry {
             harbor,
             signer,
             admin,
+            passport,
+            grants,
+            jwks,
         }
+    }
+
+    fn user_passport(&self, name: &str, groups: &[&str], scope: &str) -> String {
+        self.passport
+            .mint(
+                &subgraph::access::Identity {
+                    issuer: "kanidm".to_owned(),
+                    kind: subgraph::access::IdentityKind::User,
+                    token_issuer: self.kanidm.issuer.clone(),
+                    subject: format!("sub-{name}"),
+                    username: Some(name.to_owned()),
+                    client: Some("graph".to_owned()),
+                    scopes: scope.split_whitespace().map(str::to_owned).collect(),
+                    groups: groups.iter().map(|g| (*g).to_owned()).collect(),
+                    claims: Value::Null,
+                    expires_at: None,
+                },
+                "registry",
+            )
+            .unwrap()
+    }
+
+    fn forgejo_passport(&self, claims: Value) -> String {
+        self.passport
+            .mint(
+                &subgraph::access::Identity {
+                    issuer: "forgejo".to_owned(),
+                    kind: subgraph::access::IdentityKind::External,
+                    token_issuer: self.forgejo.issuer.clone(),
+                    subject: claims["sub"].as_str().unwrap_or_default().to_owned(),
+                    username: None,
+                    client: None,
+                    scopes: subgraph::access::external::granted(&self.grants, "forgejo", &claims),
+                    groups: Vec::new(),
+                    claims,
+                    expires_at: None,
+                },
+                "registry",
+            )
+            .unwrap()
+    }
+
+    async fn graph(
+        &self,
+        passport: Option<&str>,
+        token: Option<&str>,
+        body: Value,
+    ) -> (u16, Value) {
+        let mut request = self
+            .http
+            .post(format!("{}/v1/graphql", self.url))
+            .json(&body);
+        if let Some(passport) = passport {
+            request = request.header(subgraph::passport::HEADER, passport);
+        }
+        if let Some(token) = token {
+            request = request.bearer_auth(token);
+        }
+        let response = request.send().await.unwrap();
+        let status = response.status().as_u16();
+        let text = response.text().await.unwrap();
+        (status, serde_json::from_str(&text).unwrap_or(Value::Null))
     }
 
     async fn call(
@@ -625,6 +725,7 @@ impl Registry {
 impl Drop for Registry {
     fn drop(&mut self) {
         self.handle.abort();
+        self.jwks.abort();
     }
 }
 
@@ -1684,25 +1785,22 @@ async fn signed_images_form_a_ledger(pool: PgPool) {
         .await;
     assert_eq!(status, 403);
 
-    let graph = registry.kanidm.sign(json!({
-        "aud": "graph",
-        "sub": "sub-bridge",
-        "preferred_username": "bridge",
-        "groups": ["registry_users@idm.example.test"],
-        "scope": "openid registry:image:read",
-    }));
+    let graph = registry.user_passport(
+        "bridge",
+        &["registry_users@idm.example.test"],
+        "openid registry:image:read",
+    );
     let (status, body) = registry
-        .call(
-            "POST",
-            "/v1/graphql",
+        .graph(
             Some(&graph),
-            Some(json!({
+            None,
+            json!({
                 "query": "query($r: [_Any!]!) { _entities(representations: $r) { ... on RegistryImage { digest signedBy attested } } }",
                 "variables": { "r": [
                     { "__typename": "RegistryImage", "repository": "containers/app", "digest": first },
                     { "__typename": "RegistryImage", "repository": "containers/app", "digest": other },
                 ] },
-            })),
+            }),
         )
         .await;
     assert_eq!(status, 200, "{body}");
@@ -2124,16 +2222,21 @@ fn assert_attested(registry: &Registry, repository: &str, digest: &str) {
 }
 
 #[sqlx::test(migrations = "./migrations")]
-async fn forgejo_tokens_reach_the_graph_with_the_graph_audience(pool: PgPool) {
+async fn forgejo_jobs_reach_the_graph_through_the_router_passport(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
     let whoami = json!({ "query": "{ registryWhoami { subject admin } }" });
 
-    let token = registry
-        .forgejo
-        .forgejo(json!({ "aud": GRAPH_FORGEJO_AUDIENCE }));
-    let (status, body) = registry
-        .call("POST", "/v1/graphql", Some(&token), Some(whoami.clone()))
-        .await;
+    let passport = registry.forgejo_passport(json!({
+        "sub": "repo:anurag/tools:ref:refs/heads/main",
+        "repository": "anurag/tools",
+        "repository_id": "42",
+        "ref": "refs/heads/main",
+        "sha": "deadbeef",
+        "run_id": "7",
+        "event_name": "push",
+        "workflow_ref": "anurag/tools/.forgejo/workflows/publish.yaml@refs/heads/main",
+    }));
+    let (status, body) = registry.graph(Some(&passport), None, whoami.clone()).await;
     assert_eq!(status, 200, "{body}");
     assert_eq!(
         body["data"]["registryWhoami"]["subject"],
@@ -2141,11 +2244,12 @@ async fn forgejo_tokens_reach_the_graph_with_the_graph_audience(pool: PgPool) {
     );
     assert_eq!(body["data"]["registryWhoami"]["admin"], false);
 
-    let rest_audience = registry.forgejo.forgejo(json!({}));
-    let (status, _) = registry
-        .call("POST", "/v1/graphql", Some(&rest_audience), Some(whoami))
-        .await;
-    assert_eq!(status, 401, "registry REST tokens don't work on the graph");
+    let token = registry.forgejo.forgejo(json!({}));
+    let (status, _) = registry.graph(None, Some(&token), whoami).await;
+    assert_eq!(
+        status, 401,
+        "the graph takes the router's passport, not the job's own token"
+    );
 }
 
 #[sqlx::test(migrations = "./migrations")]
@@ -2154,23 +2258,20 @@ async fn publishing_through_the_graph(pool: PgPool) {
 
     let registry = Registry::spawn(pool).await;
     registry.create_package("tool").await;
-    let admin = registry.kanidm.sign(json!({
-        "aud": "graph",
-        "sub": "sub-root",
-        "preferred_username": "root",
-        "groups": ["registry_admins@idm.example.test"],
-        "scope": "openid registry:package:read registry:image:read registry:package:write registry:package:publish registry:publisher:manage registry:token:manage registry:audit:read",
-    }));
+    let admin = registry.user_passport(
+        "root",
+        &["registry_admins@idm.example.test"],
+        "openid registry:package:read registry:image:read registry:package:write registry:package:publish registry:publisher:manage registry:token:manage registry:audit:read",
+    );
     let gql = |query: &'static str, variables: Value| {
         let registry = &registry;
         let admin = admin.clone();
         async move {
             let (status, body) = registry
-                .call(
-                    "POST",
-                    "/v1/graphql",
+                .graph(
                     Some(&admin),
-                    Some(json!({ "query": query, "variables": variables })),
+                    None,
+                    json!({ "query": query, "variables": variables }),
                 )
                 .await;
             assert_eq!(status, 200, "{body}");
@@ -2352,21 +2453,13 @@ async fn scopes_decide_what_people_may_do(pool: PgPool) {
 #[sqlx::test(migrations = "./migrations")]
 async fn graph_fields_need_their_scope_even_with_the_group(pool: PgPool) {
     let registry = Registry::spawn(pool).await;
-    let grouped = registry.kanidm.sign(json!({
-        "aud": "graph",
-        "sub": "sub-old",
-        "preferred_username": "old",
-        "groups": ["registry_admins@idm.example.test"],
-    }));
+    let grouped = registry.user_passport("old", &["registry_admins@idm.example.test"], "");
 
     let (status, body) = registry
-        .call(
-            "POST",
-            "/v1/graphql",
+        .graph(
             Some(&grouped),
-            Some(
-                json!({ "query": "{ registryWhoami { subject } registryPublishTokens { name } }" }),
-            ),
+            None,
+            json!({ "query": "{ registryWhoami { subject } registryPublishTokens { name } }" }),
         )
         .await;
     assert_eq!(status, 200, "{body}");

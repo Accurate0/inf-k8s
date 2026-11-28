@@ -3,7 +3,8 @@ import type { App } from '../types.ts';
 import { appNamespace, declared } from '../app.ts';
 import { SCOPE_PATTERN, scopeGrants, supergraphApp, validateSubgraphs } from '../subgraphs.ts';
 import type { ResourceProvider } from './provider.ts';
-import { KANIDM_ISSUER_BASE } from '../supergraph.ts';
+import { appExportUrl } from './app.ts';
+import { PASSPORT_JWKS_PATH } from './supergraph.ts';
 
 export interface ClaimPattern {
   issuer: string;
@@ -231,42 +232,41 @@ const schema: Schema = {
 };
 
 export interface SubgraphAuthValue {
-  providers: { issuer: string; audience: string }[];
-  scopes: string[];
-  groups: string[];
-  external: {
-    name: string;
-    issuer: string;
-    jwks: string;
-    audience: string;
-    grants: { scope: string; claims: ClaimPattern['claims'] }[];
-  }[];
+  audience: string;
+  jwks: string;
+  grants: Record<string, Record<string, ClaimPattern['claims'][]>>;
 }
 
 export function subgraphAuthValue(resource: Subgraph, apps: App[]): SubgraphAuthValue {
-  const scopes = resource.auth?.scopes ?? [];
   const router = supergraphApp(apps);
-  const issuers = router
-    ? declared(router, 'supergraph').flatMap((supergraph) => supergraph.externalIssuers ?? [])
-    : [];
+  const passport = router && declared(router, 'supergraph')[0]?.passport;
+  if (!router || !passport) {
+    throw new Error(
+      `resources.${resource.name}: SUBGRAPH_AUTH needs an app declaring a supergraph`,
+    );
+  }
+
+  const grants: SubgraphAuthValue['grants'] = {};
+  for (const scope of resource.auth?.scopes ?? []) {
+    for (const pattern of scopeGrants(scope).external) {
+      ((grants[scope.name] ??= {})[pattern.issuer] ??= []).push(pattern.claims);
+    }
+  }
 
   return {
-    providers: (resource.auth?.clients ?? []).map((client) => ({
-      issuer: `${KANIDM_ISSUER_BASE}/${client}`,
-      audience: client,
-    })),
-    scopes: scopes.map((scope) => scope.name),
-    groups: resource.auth?.groups ?? [],
-    external: issuers
-      .map((issuer) => ({
-        ...issuer,
-        grants: scopes.flatMap((scope) =>
-          scopeGrants(scope)
-            .external.filter((pattern) => pattern.issuer === issuer.name)
-            .map((pattern) => ({ scope: scope.name, claims: pattern.claims })),
-        ),
-      }))
-      .filter((issuer) => issuer.grants.length),
+    audience: resource.name,
+    jwks: appExportUrl(
+      router,
+      {
+        name: 'passport',
+        type: 'app',
+        app: router.name,
+        export: passport.export,
+        path: PASSPORT_JWKS_PATH,
+      },
+      apps,
+    ),
+    grants,
   };
 }
 
@@ -276,9 +276,9 @@ export const subgraph: ResourceProvider<'subgraph'> = {
 
   check(_app, subgraphs, { uses, fail }) {
     for (const resource of subgraphs) {
-      if (resource.auth?.scopes?.length && !uses.some((use) => use.subgraph === resource.name)) {
+      if (resource.auth && !uses.some((use) => use.subgraph === resource.name)) {
         fail(
-          `resources.${resource.name}: declares scopes, so its workload needs env SUBGRAPH_AUTH: {subgraph: ${resource.name}} to enforce them`,
+          `resources.${resource.name}: declares auth, so its workload needs env SUBGRAPH_AUTH: {subgraph: ${resource.name}} to verify the router's passports`,
         );
       }
     }

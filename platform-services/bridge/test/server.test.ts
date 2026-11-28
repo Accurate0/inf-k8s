@@ -76,8 +76,10 @@ test('fields need their scopes', async () => {
     assert.equal(noLogs.body.errors[0].message, 'missing scope forgejo:log:read');
     assert.equal(noLogs.body.errors[0].extensions.code, 'FORBIDDEN');
 
+    // the router only signs a bridge passport for callers its gate admits; fields still check
     const none = await s.post('openid', '{ fluxApps { name } }');
-    assert.equal(none.status, 403);
+    assert.deepEqual(none.body.data, { fluxApps: null });
+    assert.equal(none.body.errors[0].message, 'missing scope flux:app:read');
     assert.equal(none.body.errors[0].extensions.code, 'FORBIDDEN');
 
     const health = await fetch(`${s.url}/health`);
@@ -125,7 +127,7 @@ test("requests continue the caller's trace with operation, field and outbound sp
       'graphql.Apps',
       'graphql.Query.fluxApp',
       'GET kube/api/v1/namespaces/{namespace}/events',
-      'GET idm.example.test/oauth2/openid/graph/public_key.jwk',
+      'GET router.graph.svc.cluster.local/.well-known/passport.jwks',
     ]) {
       assert.ok(names.includes(name), `${name} in ${names.join(', ')}`);
     }

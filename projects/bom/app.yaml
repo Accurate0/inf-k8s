@@ -55,8 +55,6 @@ workloads:
       BUCKET_ACCESS_SECRET_KEY: {bucket: images, key: S3_SECRET_ACCESS_KEY}
       PUBLIC_URL: https://bom.anurag.sh
       OTEL_TRACING_URL: {resource: traces}
-      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
-      OIDC_GROUPS: bom_users
     envFrom:
       - {secret: bom}
       - {database: bom}

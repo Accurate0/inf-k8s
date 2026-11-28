@@ -21,8 +21,6 @@ pub struct Config {
     #[serde(default)]
     pub limits: Limits,
     #[serde(default)]
-    pub graph: Option<GraphConfig>,
-    #[serde(default)]
     pub harbor: Option<HarborConfig>,
     /// SUBGRAPH_AUTH, rendered from the registry subgraph's auth in app.yaml.
     #[serde(skip)]
@@ -38,15 +36,6 @@ pub struct HarborConfig {
     pub robot_duration_days: i64,
     #[serde(default)]
     pub grants: Vec<Grant>,
-}
-
-#[derive(Clone, Debug, Deserialize)]
-pub struct GraphConfig {
-    pub issuer: String,
-    pub audience: String,
-    /// Audience of forgejo actions tokens sent through the graph; unset keeps CI out of it.
-    #[serde(default)]
-    pub forgejo_audience: Option<String>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize)]
@@ -185,7 +174,6 @@ mod tests {
         assert_eq!(config.version, CONFIG_SCHEMA_VERSION);
         assert_eq!(config.storage.bucket, "registry");
         assert!(config.forgejo.is_some());
-        assert!(config.graph.unwrap().forgejo_audience.is_some());
         assert!(!config.harbor.unwrap().grants.is_empty());
     }
 }

@@ -151,7 +151,7 @@ const schema: Schema = {
                     subgraph: {
                       type: 'string',
                       description:
-                        'A subgraph resource of this app; the value is its auth config (token providers, scopes, external grants) as JSON.',
+                        "A subgraph resource of this app; the value is its auth config as JSON: the passport audience, the router's passport keys and the external grants of its scopes.",
                     },
                   },
                 },

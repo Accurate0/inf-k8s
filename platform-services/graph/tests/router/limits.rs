@@ -48,8 +48,13 @@ async fn slow_subgraphs_time_out_instead_of_hanging() {
     let started = std::time::Instant::now();
     let slow = stack.post(Some(&token), "{ whoami slow(ms: 5000) }").await;
     assert!(
-        started.elapsed() < std::time::Duration::from_millis(1900),
-        "the 1s subgraph timeout fires before the router's own 2s one"
+        started.elapsed() < std::time::Duration::from_millis(4500),
+        "the request waited out the 5s subgraph"
     );
-    assert!(slow.body["errors"].is_array(), "{}", slow.body);
+    assert_eq!(slow.status, 200, "{}", slow.body);
+    assert_eq!(
+        slow.body["errors"][0]["extensions"]["code"], "SUBGRAPH_REQUEST_TIMEOUT",
+        "the 1s subgraph timeout fires, not the router's own 2s one: {}",
+        slow.body
+    );
 }

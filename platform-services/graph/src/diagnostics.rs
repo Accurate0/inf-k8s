@@ -21,7 +21,6 @@ use hive_router::{
         plugin_context::PluginContext,
         plugin_trait::{EndHookPayload, RouterPlugin, StartHookPayload},
     },
-    query_planner::planner::plan_nodes::PlanNode,
     telemetry::logging::request_id::REQUEST_IDENTIFIERS,
 };
 use serde::{Deserialize, Serialize};
@@ -198,7 +197,7 @@ impl RouterPlugin for DiagnosticsPlugin {
         &'exec self,
         payload: OnExecuteStartHookPayload<'exec>,
     ) -> OnExecuteStartHookResult<'exec> {
-        let subscription = matches!(payload.query_plan.node, Some(PlanNode::Subscription(_)));
+        let subscription = payload.query_plan.split_subscription().is_some();
         if subscription || !payload.context.contains::<Timings>() {
             return payload.proceed();
         }

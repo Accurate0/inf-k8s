@@ -140,7 +140,7 @@ pub struct Auth {
     admin_groups: Vec<String>,
     forgejo: Option<Verifier>,
     /// None until SUBGRAPH_AUTH is configured; forgejo then keeps read and publish.
-    forgejo_grants: Option<Vec<subgraph::Grant>>,
+    forgejo_grants: Option<subgraph::access::Grants>,
 }
 
 impl Auth {
@@ -217,7 +217,7 @@ impl Auth {
             let mut claims: ForgejoClaims = serde_json::from_value(raw.clone())
                 .map_err(|e| ApiError::Unauthorized(format!("unexpected forgejo claims: {e}")))?;
             claims.scopes = match &self.forgejo_grants {
-                Some(grants) => subgraph::auth::granted_scopes(grants, FORGEJO, &raw),
+                Some(grants) => subgraph::access::external::granted(grants, FORGEJO, &raw),
                 None => scopes::owned(&scopes::TOKEN),
             };
             return Ok(Principal::Forgejo(claims));
@@ -271,14 +271,11 @@ pub fn user(
 
 pub const FORGEJO: &str = "forgejo";
 
-fn forgejo_grants(config: &Config) -> Option<Vec<subgraph::Grant>> {
-    config.subgraph_auth.as_ref().map(|auth| {
-        auth.external
-            .iter()
-            .filter(|external| external.issuer.name == FORGEJO)
-            .flat_map(|external| external.grants.clone())
-            .collect()
-    })
+fn forgejo_grants(config: &Config) -> Option<subgraph::access::Grants> {
+    config
+        .subgraph_auth
+        .as_ref()
+        .map(|auth| auth.grants.clone())
 }
 
 fn verify_error(e: VerifyError) -> ApiError {

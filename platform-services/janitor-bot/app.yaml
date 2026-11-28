@@ -91,7 +91,6 @@ workloads:
       OIDC_ISSUER: https://idm.anurag.sh/oauth2/openid/janitor-bot
       OIDC_AUDIENCE: janitor-bot
       OIDC_GROUPS: janitor_bot_admins
-      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
       RULES_CONFIGMAP_PATH: /etc/janitor-bot/rules/config.yaml
       FORGEJO_INSTANCE_URL: {resource: forgejo}
       OTEL_TRACING_URL: {resource: traces}

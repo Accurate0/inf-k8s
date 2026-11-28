@@ -122,6 +122,25 @@ export const subgraphApp = (name: string, subgraph: Record<string, unknown> = {}
 
 export const routerApp: App = {
   name: 'graph',
-  resources: [{ name: 'graph', type: 'supergraph', base: 'router.base.yaml' }],
+  exports: [{ name: 'api', workload: 'router', port: 'http' }],
+  workloads: [
+    {
+      name: 'router',
+      image: 'i',
+      ports: [{ name: 'http', container: 4000, service: 80 }],
+      service: { name: 'router' },
+    },
+  ],
+  resources: [
+    {
+      name: 'graph',
+      type: 'supergraph',
+      base: 'router.base.yaml',
+      passport: { export: 'api', seedEnv: 'GRAPH_PASSPORT_SEED', ttlSeconds: 60 },
+    },
+  ],
   network: { ingress: [] },
 };
+
+export const ROUTER_PASSPORT_JWKS =
+  'http://router.graph.svc.cluster.local/.well-known/passport.jwks';

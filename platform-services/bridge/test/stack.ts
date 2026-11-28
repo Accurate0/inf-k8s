@@ -5,7 +5,7 @@ import { Kubernetes, watched } from '../src/kubernetes.ts';
 import { resolvers } from '../src/resolvers.ts';
 import { executableSchema } from '../src/schema.ts';
 import { server } from '../src/server.ts';
-import { fetcher, ISSUER, keypair } from './helpers.ts';
+import { fetcher, JWKS, keypair, passport } from './helpers.ts';
 import { FakeKube } from './kube.ts';
 
 export const APP = { annotations: { 'event.toolkit.fluxcd.io/app': 'graph' } };
@@ -281,17 +281,14 @@ export async function stack() {
     }),
   );
   const auth = new Authenticator(
-    {
-      providers: [{ issuer: ISSUER, audience: 'graph' }],
-      scopes: `${READ} ${WRITE}`.split(' '),
-    },
-    fetcher({ '/public_key.jwk': { keys: [key.jwk] } }),
+    { audience: 'bridge', jwks: JWKS },
+    fetcher({ '/.well-known/passport.jwks': { keys: [key.jwk] } }),
   );
   const app = server(schema, auth);
   await app.listen({ port: 0, host: '127.0.0.1' });
   const url = `http://127.0.0.1:${(app.server.address() as AddressInfo).port}`;
 
-  const token = (scope: string) => key.token({ iss: ISSUER, aud: 'graph', sub: 'u', scope });
+  const token = (scope: string) => key.token(passport(scope.split(' ')));
 
   const post = async (
     scope: string,
@@ -304,7 +301,7 @@ export async function stack() {
       headers: {
         ...extra,
         'content-type': 'application/json',
-        authorization: `Bearer ${token(scope)}`,
+        'x-graph-passport': token(scope),
       },
       body: JSON.stringify({ query, variables }),
     });

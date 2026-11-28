@@ -35,10 +35,10 @@ enum link__Purpose {
 }
 
 enum join__Graph {
-  GATED @join__graph(name: "gated", url: "{subgraph}/v1/graphql")
+  GATED @join__graph(name: "gated", url: "{gated}/v1/graphql")
   ME @join__graph(name: "me", url: "http://me-plugin.invalid/graphql")
   NODE @join__graph(name: "node", url: "http://node-plugin.invalid/graphql")
-  OPEN @join__graph(name: "open", url: "{subgraph}/v1/graphql")
+  OPEN @join__graph(name: "open", url: "{open}/v1/graphql")
 }
 
 interface Node @join__type(graph: NODE) {

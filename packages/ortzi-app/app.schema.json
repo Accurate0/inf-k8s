@@ -217,7 +217,7 @@
                       "properties": {
                         "subgraph": {
                           "type": "string",
-                          "description": "A subgraph resource of this app; the value is its auth config (token providers, scopes, external grants) as JSON."
+                          "description": "A subgraph resource of this app; the value is its auth config as JSON: the passport audience, the router's passport keys and the external grants of its scopes."
                         }
                       }
                     },
@@ -1060,7 +1060,8 @@
             "required": [
               "name",
               "type",
-              "base"
+              "base",
+              "passport"
             ],
             "description": "Marks this app as the federation router; `ortzi app supergraph` composes every subgraph into it.",
             "properties": {
@@ -1075,6 +1076,32 @@
               "base": {
                 "type": "string",
                 "description": "Hand-written router config the generated router.yaml extends; router.yaml, supergraph.graphql, schema.graphql and subgraphs/ are written beside it."
+              },
+              "passport": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "export",
+                  "seedEnv",
+                  "ttlSeconds"
+                ],
+                "description": "The router signs a short-lived passport for every subgraph fetch, saying who the caller is; subgraphs verify it against the keys the router serves instead of verifying the caller themselves.",
+                "properties": {
+                  "export": {
+                    "type": "string",
+                    "description": "This app's export subgraphs fetch the router's keys from, at /.well-known/passport.jwks."
+                  },
+                  "seedEnv": {
+                    "type": "string",
+                    "pattern": "^[A-Z][A-Z0-9_]*$",
+                    "description": "Env var on the router holding the seed its signing key derives from, e.g. from a secret resource's generate; changing it rotates the key."
+                  },
+                  "ttlSeconds": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "description": "How long a passport is valid for after it is signed."
+                  }
+                }
               },
               "externalIssuers": {
                 "type": "array",

@@ -9,11 +9,13 @@ resources:
     type: config
     configMap: graph-router
     files: [supergraph/router.yaml, supergraph/supergraph.graphql, supergraph/persisted-documents.json]
+  - {name: passport, type: secret, secretName: graph-passport-secrets, generate: {SEED: {length: 64, symbols: 0}}}
   - {name: supergraph, type: bucket, provider: garage, bucket: graph-supergraph, secretName: supergraph-bucket-secrets}
   - {name: traces, type: platform, export: tracing}
   - name: graph
     type: supergraph
     base: supergraph/router.base.yaml
+    passport: {export: api, seedEnv: GRAPH_PASSPORT_SEED, ttlSeconds: 60}
     externalIssuers:
       - name: forgejo
         issuer: https://git.anurag.sh/api/actions
@@ -21,7 +23,9 @@ resources:
         audience: graph.ortzi.cloud
   - name: graph
     type: route
-    auth: {mode: app, reason: "the router forwards credentials, each subgraph verifies kanidm and forgejo actions jwts"}
+    auth:
+      mode: app
+      reason: "the router verifies kanidm and forgejo actions jwts and signs a passport each subgraph verifies"
     gateways:
       - {gateway: internal-gateway, hosts: [graph.ortzi.cloud], dns: {provider: cloudflare, proxied: false}}
     backend: {name: router, port: 80}
@@ -65,6 +69,7 @@ workloads:
     env:
       ROUTER_CONFIG_FILE_PATH: /etc/graph/supergraph/router.yaml
       OTEL_TRACING_URL: {resource: traces}
+      GRAPH_PASSPORT_SEED: {secret: passport, key: SEED}
     envFrom:
       - {bucket: supergraph}
     mounts:

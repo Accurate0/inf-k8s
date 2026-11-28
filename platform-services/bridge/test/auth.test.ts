@@ -1,99 +1,76 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { AuthError, Authenticator } from '../src/auth.ts';
-import { FORGEJO, fetcher, ISSUER, keypair } from './helpers.ts';
+import { AuthError, Authenticator, parseConfig } from '../src/auth.ts';
+import { fetcher, JWKS, keypair, passport } from './helpers.ts';
 
-const graph = keypair('graph-1');
-const forgejo = keypair('forgejo-1');
-const forger = keypair('graph-1');
+const router = keypair('router-1');
+const forger = keypair('router-1');
 
 const auth = () =>
   new Authenticator(
-    {
-      providers: [{ issuer: ISSUER, audience: 'graph' }],
-      scopes: ['flux:app:read', 'forgejo:run:read'],
-      groups: ['platform_admins'],
-      external: [
-        {
-          name: 'forgejo',
-          issuer: FORGEJO,
-          jwks: 'https://git.example.test/keys',
-          audience: 'graph.example.test',
-          grants: [
-            {
-              scope: 'forgejo:run:read',
-              claims: { repository: 'anurag/*', ref: 'refs/heads/main' },
-            },
-          ],
-        },
-      ],
-    },
-    fetcher({
-      '/graph/public_key.jwk': { keys: [graph.jwk] },
-      '/keys': { keys: [forgejo.jwk] },
-      '/graph/userinfo': { groups: ['platform_admins@idm.example.test'] },
-    }),
+    { audience: 'bridge', jwks: JWKS },
+    fetcher({ '/.well-known/passport.jwks': { keys: [router.jwk] } }),
   );
 
-const rejects = async (header: string | undefined, code: string, message: RegExp) => {
-  await assert.rejects(auth().authenticate(header), (error: unknown) => {
+const rejects = async (token: string | undefined, message: RegExp) => {
+  await assert.rejects(auth().authenticate(token), (error: unknown) => {
     assert.ok(error instanceof AuthError);
-    assert.equal(error.code, code);
+    assert.equal(error.code, 'UNAUTHENTICATED');
     assert.match(error.message, message);
     return true;
   });
 };
 
-test('users are admitted by a scope from the token', async () => {
-  const principal = await auth().authenticate(
-    `Bearer ${graph.token({ iss: ISSUER, aud: 'graph', sub: 'u', scope: 'openid flux:app:read' })}`,
-  );
+test('users carry the scopes the router resolved', async () => {
+  const principal = await auth().authenticate(router.token(passport(['flux:app:read'])));
   assert.equal(principal.kind, 'user');
+  assert.equal(principal.issuer, 'kanidm');
+  assert.equal(principal.subject, 'u');
   assert.ok(principal.scopes.has('flux:app:read'));
 });
 
-test('users without a scope fall back to the transition groups from userinfo', async () => {
+test('external identities carry the scopes their claims were granted', async () => {
   const principal = await auth().authenticate(
-    `Bearer ${graph.token({ iss: ISSUER, aud: 'graph', sub: 'u', scope: 'openid' })}`,
+    router.token(
+      passport([], {
+        identity: {
+          issuer: 'forgejo',
+          kind: 'external',
+          token_issuer: 'https://git.example.test/api/actions',
+          subject: 'repo:anurag/k8s:ref:refs/heads/main',
+          scopes: ['forgejo:run:read'],
+          claims: { repository: 'anurag/k8s' },
+        },
+      }),
+    ),
   );
-  assert.equal(principal.scopes.size, 1);
+  assert.equal(principal.kind, 'external');
+  assert.equal(principal.issuer, 'forgejo');
+  assert.deepEqual([...principal.scopes], ['forgejo:run:read']);
 });
 
-test('bad tokens are rejected', async () => {
-  await rejects(undefined, 'UNAUTHENTICATED', /missing bearer token/);
-  await rejects('Bearer nope', 'UNAUTHENTICATED', /malformed token/);
+test('anything but a current passport from the router for this subgraph is rejected', async () => {
+  await rejects(undefined, /missing graph passport/);
+  await rejects('nope', /malformed passport/);
+  await rejects(forger.token(passport(['flux:app:read'])), /bad signature/);
+  await rejects(router.token(passport([], { aud: 'registry' })), /wrong audience/);
   await rejects(
-    `Bearer ${forger.token({ iss: ISSUER, aud: 'graph', sub: 'u', scope: 'flux:app:read' })}`,
-    'UNAUTHENTICATED',
-    /bad signature/,
+    router.token(passport([], { iss: 'https://idm.example.test' })),
+    /not from the router/,
   );
-  await rejects(
-    `Bearer ${graph.token({ iss: ISSUER, aud: 'other', sub: 'u', scope: 'flux:app:read' })}`,
-    'UNAUTHENTICATED',
-    /wrong audience/,
-  );
-  await rejects(
-    `Bearer ${graph.token({ iss: ISSUER, aud: 'graph', sub: 'u', exp: 1 })}`,
-    'UNAUTHENTICATED',
-    /expired/,
-  );
-  await rejects(
-    `Bearer ${graph.token({ iss: 'https://elsewhere', aud: 'graph' })}`,
-    'UNAUTHENTICATED',
-    /untrusted issuer/,
-  );
+  await rejects(router.token(passport([], { exp: 1 })), /expired/);
+  await rejects(router.token(passport([], { identity: undefined })), /has no identity/);
 });
 
-test('forgejo tokens hold the scopes their claims are granted', async () => {
-  const main = await auth().authenticate(
-    `Bearer ${forgejo.token({ iss: FORGEJO, aud: 'graph.example.test', sub: 'repo', repository: 'anurag/k8s', ref: 'refs/heads/main' })}`,
-  );
-  assert.equal(main.kind, 'external');
-  assert.deepEqual([...main.scopes], ['forgejo:run:read']);
-
-  await rejects(
-    `Bearer ${forgejo.token({ iss: FORGEJO, aud: 'graph.example.test', repository: 'anurag/k8s', ref: 'refs/heads/x' })}`,
-    'FORBIDDEN',
-    /forgejo identity is not allowed here/,
+test('SUBGRAPH_AUTH needs an audience and the router keys', () => {
+  assert.deepEqual(parseConfig(JSON.stringify({ audience: 'bridge', jwks: JWKS, grants: {} })), {
+    audience: 'bridge',
+    jwks: JWKS,
+    grants: {},
+  });
+  assert.throws(() => parseConfig(undefined), /SUBGRAPH_AUTH is not set/);
+  assert.throws(
+    () => parseConfig(JSON.stringify({ providers: [], scopes: [] })),
+    /needs an audience and the router's jwks/,
   );
 });

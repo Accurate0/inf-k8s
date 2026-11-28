@@ -27,6 +27,24 @@ export function keypair(kid: string) {
   return { jwk, token };
 }
 
+export const JWKS = 'http://router.graph.svc.cluster.local/.well-known/passport.jwks';
+
+export const passport = (scopes: string[], overrides: Record<string, unknown> = {}) => ({
+  iss: 'graph-router',
+  aud: 'bridge',
+  sub: 'u',
+  identity: {
+    issuer: 'kanidm',
+    kind: 'user',
+    token_issuer: ISSUER,
+    subject: 'u',
+    scopes,
+    groups: [],
+    claims: null,
+  },
+  ...overrides,
+});
+
 export type Routes = Record<string, unknown>;
 
 // answers fetch from a path -> json table; strings are sent as text

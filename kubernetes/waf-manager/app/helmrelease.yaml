@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T12:26:05.949Z
+# generated at 2026-11-28T04:25:14.147Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -53,7 +53,7 @@ spec:
             containerPort: 3000
         env:
           - name: SUBGRAPH_AUTH
-            value: '{"providers":[{"issuer":"https://idm.anurag.sh/oauth2/openid/graph","audience":"graph"}],"scopes":["waf:block:read","waf:block:write","waf:allowlist:write"],"groups":["waf_admins"],"external":[]}'
+            value: '{"audience":"waf","jwks":"http://router.graph.svc.cluster.local/.well-known/passport.jwks","grants":{}}'
           - name: POD_NAMESPACE
             valueFrom:
               fieldRef:
@@ -96,10 +96,6 @@ spec:
                 name: kanidm-waf-manager-cli-oidc
                 key: client-id
                 optional: true
-          - name: OIDC_PROVIDERS
-            value: https://idm.anurag.sh/oauth2/openid/graph=graph
-          - name: OIDC_GROUPS
-            value: waf_admins
         envFrom:
           - secretRef:
               name: waf-manager-managed-secrets

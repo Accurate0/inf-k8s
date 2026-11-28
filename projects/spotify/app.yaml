@@ -68,7 +68,6 @@ workloads:
       liveness: {delay: 3, every: 30}
     env:
       SUBGRAPH_AUTH: {subgraph: spotify}
-      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/spotify=spotify,https://idm.anurag.sh/oauth2/openid/graph=graph
       OIDC_GROUPS: spotify_users
       SPOTIFY_CLIENT_ID: {secret: spotify, key: SPOTIFY_CLIENT_ID, optional: true}
       SPOTIFY_CLIENT_SECRET: {secret: spotify, key: SPOTIFY_CLIENT_SECRET, optional: true}

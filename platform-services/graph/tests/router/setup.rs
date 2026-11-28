@@ -9,7 +9,7 @@ use serde_json::{Value, json};
 use subgraph::async_graphql::{
     Context, EmptyMutation, Error, ID, Object, Result, Schema, SimpleObject, Subscription,
 };
-use subgraph::{AuthConfig, Authenticator, Claims, Provider};
+use subgraph::{AuthConfig, Authenticator, Claims};
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::process::{Child, Command};
@@ -24,8 +24,11 @@ const AUDIENCE: &str = "graph";
 const FORGEJO_KID: &str = "forgejo-key";
 const FORGEJO_AUDIENCE: &str = "graph.ortzi.test";
 const TIMEOUT: Duration = Duration::from_secs(10);
+const KANIDM_PATH: &str = "/oauth2/openid";
+const PASSPORT_SEED: &str = "graph-router-test-passport-seed-0123456789";
 
 struct Idp {
+    base: String,
     issuer: String,
     kid: &'static str,
     key: EncodingKey,
@@ -34,7 +37,7 @@ struct Idp {
 }
 
 impl Idp {
-    async fn spawn(seed: u8, kid: &'static str) -> Self {
+    async fn spawn(seed: u8, kid: &'static str, client: Option<&str>) -> Self {
         let secret = p256::SecretKey::from_slice(&[seed; 32]).unwrap();
         let key = EncodingKey::from_ec_der(secret.to_pkcs8_der().unwrap().as_bytes());
 
@@ -48,7 +51,11 @@ impl Idp {
         let jwks = json!({ "keys": [jwk] }).to_string();
 
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let issuer = format!("http://{}", listener.local_addr().unwrap());
+        let base = format!("http://{}{KANIDM_PATH}", listener.local_addr().unwrap());
+        let issuer = match client {
+            Some(client) => format!("{base}/{client}"),
+            None => format!("http://{}", listener.local_addr().unwrap()),
+        };
 
         let handle = tokio::spawn(async move {
             loop {
@@ -68,6 +75,7 @@ impl Idp {
         });
 
         Self {
+            base,
             issuer,
             kid,
             key,
@@ -244,7 +252,20 @@ pub struct Response {
 
 impl Response {
     pub fn snapshot(&self) -> Value {
-        json!({ "status": self.status, "body": self.body })
+        sorted(json!({ "status": self.status, "body": self.body }))
+    }
+}
+
+// keys in order, whether or not serde_json preserves insertion order
+pub fn sorted(value: Value) -> Value {
+    match value {
+        Value::Object(map) => {
+            let mut entries: Vec<_> = map.into_iter().collect();
+            entries.sort_by(|(a, _), (b, _)| a.cmp(b));
+            Value::Object(entries.into_iter().map(|(k, v)| (k, sorted(v))).collect())
+        }
+        Value::Array(items) => Value::Array(items.into_iter().map(sorted).collect()),
+        other => other,
     }
 }
 
@@ -255,7 +276,7 @@ pub struct Stack {
     router: Child,
     url: String,
     dir: std::path::PathBuf,
-    subgraph: JoinHandle<()>,
+    subgraphs: Vec<JoinHandle<()>>,
 }
 
 pub const BROKEN_SUPERGRAPH: &str = "type Query {";
@@ -295,38 +316,8 @@ impl Stack {
     }
 
     async fn start(requests: u32, budget: u64, supergraph: Option<&str>) -> Self {
-        let idp = Idp::spawn(7, KID).await;
-        let forgejo = Idp::spawn(11, FORGEJO_KID).await;
-
-        let live = Live::default();
-        let schema = Schema::build(Query, EmptyMutation, SubscriptionRoot)
-            .data(live.clone())
-            .finish();
-        let auth = Authenticator::new(AuthConfig {
-            providers: vec![Provider {
-                issuer: idp.issuer.clone(),
-                audience: AUDIENCE.to_owned(),
-            }],
-            groups: vec!["graph_users".to_owned()],
-            scopes: Vec::new(),
-            external: vec![
-                serde_json::from_value(json!({
-                    "name": "forgejo",
-                    "issuer": forgejo.issuer,
-                    "jwks": format!("{}/.well-known/keys", forgejo.issuer),
-                    "audience": FORGEJO_AUDIENCE,
-                    "patterns": [{ "issuer": "forgejo", "claims": { "repository": "anurag/*" } }],
-                }))
-                .unwrap(),
-            ],
-        });
-
-        let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
-        let subgraph_url = format!("http://{}", listener.local_addr().unwrap());
-        let app = subgraph::router(schema, auth);
-        let subgraph = tokio::spawn(async move {
-            axum::serve(listener, app).await.unwrap();
-        });
+        let idp = Idp::spawn(7, KID, Some(AUDIENCE)).await;
+        let forgejo = Idp::spawn(11, FORGEJO_KID, None).await;
 
         let port = TcpListener::bind("127.0.0.1:0")
             .await
@@ -334,16 +325,41 @@ impl Stack {
             .local_addr()
             .unwrap()
             .port();
+        let jwks = format!("http://127.0.0.1:{port}{}", subgraph::passport::JWKS_PATH);
+
+        let live = Live::default();
+        let mut subgraph_urls = Vec::new();
+        let mut subgraphs = Vec::new();
+        for name in ["open", "gated"] {
+            let schema = Schema::build(Query, EmptyMutation, SubscriptionRoot)
+                .data(live.clone())
+                .finish();
+            let auth = Authenticator::new(AuthConfig {
+                audience: name.to_owned(),
+                jwks: jwks.clone(),
+                grants: Default::default(),
+            });
+
+            let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            subgraph_urls.push(format!("http://{}", listener.local_addr().unwrap()));
+            let app = subgraph::router(schema, auth);
+            subgraphs.push(tokio::spawn(async move {
+                axum::serve(listener, app).await.unwrap();
+            }));
+        }
+
         let dir = std::env::temp_dir().join(format!("graph-router-test-{port}"));
         std::fs::create_dir_all(&dir).unwrap();
 
         let fixtures = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures");
         let fixture = std::fs::read_to_string(format!("{fixtures}/supergraph.graphql"))
             .unwrap()
-            .replace("{subgraph}", &subgraph_url);
+            .replace("{open}", &subgraph_urls[0])
+            .replace("{gated}", &subgraph_urls[1]);
         let config = std::fs::read_to_string(format!("{fixtures}/router.yaml"))
             .unwrap()
             .replace("{issuer}", &idp.issuer)
+            .replace("{kanidm}", &idp.base)
             .replace("{forgejo}", &forgejo.issuer)
             .replace("{requests}", &requests.to_string())
             .replace("{budget}", &budget.to_string());
@@ -363,6 +379,7 @@ impl Stack {
             .current_dir(&dir)
             .env("ROUTER_CONFIG_FILE_PATH", dir.join("router.yaml"))
             .env("PORT", port.to_string())
+            .env("GRAPH_PASSPORT_SEED", PASSPORT_SEED)
             .env("LOG_LEVEL", "error")
             .kill_on_drop(true)
             .spawn()
@@ -375,7 +392,7 @@ impl Stack {
             router,
             url: format!("127.0.0.1:{port}"),
             dir,
-            subgraph,
+            subgraphs,
         }
     }
 
@@ -439,6 +456,40 @@ impl Stack {
 
     pub async fn post(&self, token: Option<&str>, query: &str) -> Response {
         self.post_with_request_id(token, query, None).await
+    }
+
+    pub async fn post_with_headers(
+        &self,
+        token: Option<&str>,
+        body: Value,
+        headers: &[(&str, &str)],
+    ) -> Response {
+        self.send(token, body, headers).await
+    }
+
+    pub fn smuggled_passport(&self, audience: &str, username: &str) -> String {
+        let minter =
+            subgraph::passport::Minter::from_seed(PASSPORT_SEED, Duration::from_secs(60)).unwrap();
+        let identity = subgraph::access::Identity {
+            issuer: "kanidm".to_owned(),
+            kind: subgraph::access::IdentityKind::User,
+            token_issuer: self.idp.issuer.clone(),
+            subject: username.to_owned(),
+            username: Some(username.to_owned()),
+            client: Some(AUDIENCE.to_owned()),
+            scopes: Default::default(),
+            groups: vec!["graph_testers".to_owned()],
+            claims: Value::Null,
+            expires_at: None,
+        };
+        minter.mint(&identity, audience).unwrap()
+    }
+
+    pub fn passport_kid(&self) -> String {
+        subgraph::passport::Minter::from_seed(PASSPORT_SEED, Duration::from_secs(60))
+            .unwrap()
+            .kid()
+            .to_owned()
     }
 
     pub async fn post_document(&self, token: Option<&str>, id: &str) -> Response {
@@ -530,6 +581,15 @@ impl Stack {
         socket
     }
 
+    pub async fn connect_with(&self, payload: Value) -> Socket {
+        let mut socket = self.upgrade().await.unwrap();
+        socket
+            .send(json!({ "type": "connection_init", "payload": payload }))
+            .await;
+        assert_eq!(socket.recv().await["type"], "connection_ack");
+        socket
+    }
+
     pub async fn connect_anonymous(&self) -> Socket {
         let mut socket = self.upgrade().await.unwrap();
         socket
@@ -568,7 +628,9 @@ impl Stack {
 impl Drop for Stack {
     fn drop(&mut self) {
         let _ = self.router.start_kill();
-        self.subgraph.abort();
+        for subgraph in &self.subgraphs {
+            subgraph.abort();
+        }
     }
 }
 
@@ -618,7 +680,7 @@ impl Socket {
             assert_eq!(message["id"], id, "{message}");
 
             let done = matches!(message["type"].as_str(), Some("complete" | "error"));
-            messages.push(message);
+            messages.push(sorted(message));
 
             if done {
                 return messages;

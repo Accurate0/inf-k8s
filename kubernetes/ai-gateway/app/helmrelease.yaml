@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T12:26:05.755Z
+# generated at 2026-11-28T02:06:10.473Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -51,7 +51,7 @@ spec:
             containerPort: 3000
         env:
           - name: SUBGRAPH_AUTH
-            value: '{"providers":[{"issuer":"https://idm.anurag.sh/oauth2/openid/graph","audience":"graph"}],"scopes":["ai-gateway:key:read","ai-gateway:key:write","ai-gateway:model:read","ai-gateway:price:write","ai-gateway:usage:read","ai-gateway:chat:use"],"groups":["ai_gateway_admins"],"external":[]}'
+            value: '{"audience":"ai-gateway","jwks":"http://router.graph.svc.cluster.local/.well-known/passport.jwks","grants":{}}'
           - name: CONFIG_PATH
             value: /etc/ai-gateway/config.yaml
           - name: REDIS_URL

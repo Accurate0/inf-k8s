@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { execute, type GraphQLSchema, subscribe, validate } from 'graphql';
 import { useServer } from 'graphql-ws/use/ws';
 import { WebSocketServer } from 'ws';
-import { AuthError, type Authenticator, type Principal } from './auth.ts';
+import { AuthError, type Authenticator, PASSPORT_HEADER, type Principal } from './auth.ts';
 
 export const WEBSOCKET_PATH = '/v1/graphql/ws';
 
@@ -18,12 +18,15 @@ export function socket(app: FastifyInstance, schema: GraphQLSchema, auth: Authen
       subscribe,
       validate,
       onConnect: async (ctx) => {
+        // the router sends its fetch headers, the passport among them, as connectionParams
         const params = ctx.connectionParams ?? {};
-        const header = params.Authorization ?? params.authorization;
+        const passport = Object.entries(params).find(
+          ([key]) => key.toLowerCase() === PASSPORT_HEADER,
+        )?.[1];
         try {
           principals.set(
             ctx,
-            await auth.authenticate(typeof header === 'string' ? header : undefined),
+            await auth.authenticate(typeof passport === 'string' ? passport : undefined),
           );
           return true;
         } catch (error) {

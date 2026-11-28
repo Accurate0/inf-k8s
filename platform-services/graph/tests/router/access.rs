@@ -168,3 +168,66 @@ async fn scoped_gates_admit_callers_holding_a_scope_without_the_group() {
         .await;
     assert_eq!(scoped.body["data"]["secret"], "hunter2", "{}", scoped.body);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn the_router_serves_its_passport_keys() {
+    let stack = Stack::spawn().await;
+
+    let (status, body) = stack.get_text(subgraph::passport::JWKS_PATH).await;
+    assert_eq!(status, 200, "{body}");
+    let jwks: Value = serde_json::from_str(&body).unwrap();
+    assert_eq!(jwks["keys"][0]["kid"], stack.passport_kid());
+    assert_eq!(jwks["keys"][0]["alg"], "ES256");
+    assert!(
+        jwks["keys"][0].get("d").is_none(),
+        "the private key must not be served"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn client_sent_passports_never_reach_a_subgraph() {
+    let stack = Stack::spawn().await;
+    let smuggled = stack.smuggled_passport("open", "intruder");
+
+    let anonymous = stack
+        .post_with_headers(
+            None,
+            json!({ "documentId": "whoami" }),
+            &[(subgraph::passport::HEADER, &smuggled)],
+        )
+        .await;
+    assert!(anonymous.body["data"].is_null(), "{}", anonymous.body);
+    assert_eq!(
+        anonymous.body["errors"][0]["extensions"]["code"], "UNAUTHENTICATED",
+        "{}",
+        anonymous.body
+    );
+
+    let user = stack
+        .post_with_headers(
+            Some(&stack.user()),
+            json!({ "query": "{ whoami }" }),
+            &[(subgraph::passport::HEADER, &smuggled)],
+        )
+        .await;
+    assert_eq!(user.body["data"]["whoami"], "tester", "{}", user.body);
+
+    let mut socket = stack
+        .connect_with(json!({
+            "Authorization": format!("Bearer {}", stack.user()),
+            subgraph::passport::HEADER: smuggled,
+        }))
+        .await;
+    socket
+        .subscribe(
+            "1",
+            "subscription { ticks(count: 1, everyMs: 10) { n user } }",
+        )
+        .await;
+    let messages = socket.messages("1").await;
+    assert_eq!(
+        messages[0]["payload"]["data"]["ticks"]["user"], "tester",
+        "{messages:?}"
+    );
+    socket.close().await;
+}

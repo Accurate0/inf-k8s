@@ -7,6 +7,7 @@ import {
   render,
   subgraphApp,
   routerApp,
+  ROUTER_PASSPORT_JWKS,
   releaseValues,
   readValues,
 } from '../test-fixtures.ts';
@@ -161,7 +162,11 @@ test('subgraph validation', () => {
 
 test('subgraph auth clients must be oidc resources', () => {
   const world = (apps: App[]) => ({ platform, apps, readValues });
-  const spotify = subgraphApp('spotify', { auth: { clients: ['spotify'], groups: ['g'] } });
+  const unwired = subgraphApp('spotify', { auth: { clients: ['spotify'], groups: ['g'] } });
+  const spotify: App = {
+    ...unwired,
+    workloads: [{ ...unwired.workloads![0]!, env: { SUBGRAPH_AUTH: { subgraph: 'spotify' } } }],
+  };
 
   assert.throws(
     () => validateResources(world([routerApp, spotify])),
@@ -226,6 +231,7 @@ const forgejoRouter: App = {
       name: 'graph',
       type: 'supergraph',
       base: 'router.base.yaml',
+      passport: { export: 'api', seedEnv: 'GRAPH_PASSPORT_SEED', ttlSeconds: 60 },
       externalIssuers: [
         {
           name: 'forgejo',
@@ -281,7 +287,7 @@ test('scopes become supplementary scope maps on every client allowed to call the
   assert.equal(supplementaryScopeMaps(apps, 'spotify'), undefined);
 });
 
-test('a subgraph hands its workload the providers, scopes and external grants it enforces', () => {
+test('a subgraph hands its workload the passport audience, the router keys and its external grants', () => {
   const registry = scoped(
     'registry',
     ['graph'],
@@ -304,19 +310,14 @@ test('a subgraph hands its workload the providers, scopes and external grants it
   const resource = registry.resources![0] as Parameters<typeof subgraphAuthValue>[0];
 
   assert.deepEqual(subgraphAuthValue(resource, [registry, forgejoRouter]), {
-    providers: [{ issuer: 'https://idm.anurag.sh/oauth2/openid/graph', audience: 'graph' }],
-    scopes: ['registry:package:read', 'registry:package:publish'],
-    groups: [],
-    external: [
-      {
-        name: 'forgejo',
-        issuer: 'https://git.example/api/actions',
-        jwks: 'https://git.example/keys',
-        audience: 'graph.example',
-        grants: [{ scope: 'registry:package:publish', claims: { repository: 'anurag/*' } }],
-      },
-    ],
+    audience: 'registry',
+    jwks: ROUTER_PASSPORT_JWKS,
+    grants: { 'registry:package:publish': { forgejo: [{ repository: 'anurag/*' }] } },
   });
+  assert.throws(
+    () => subgraphAuthValue(resource, [registry]),
+    /SUBGRAPH_AUTH needs an app declaring a supergraph/,
+  );
 });
 
 test('scope names are <subgraph>:<resource>:<action> and declared once', () => {
@@ -360,7 +361,7 @@ test('scope names are <subgraph>:<resource>:<action> and declared once', () => {
   );
 });
 
-test('a subgraph declaring scopes must pass them to its workload', () => {
+test('a subgraph declaring auth must pass SUBGRAPH_AUTH to its workload', () => {
   const router: App = {
     ...forgejoRouter,
     resources: [
@@ -392,7 +393,7 @@ test('a subgraph declaring scopes must pass them to its workload', () => {
 
   assert.throws(
     () => validateResources({ platform, apps: [router, registry({})] }),
-    /declares scopes, so its workload needs env SUBGRAPH_AUTH: \{subgraph: registry\}/,
+    /declares auth, so its workload needs env SUBGRAPH_AUTH: \{subgraph: registry\}/,
   );
   const wired = registry({ SUBGRAPH_AUTH: { subgraph: 'registry' } });
   validateResources({ platform, apps: [router, wired] });
@@ -401,12 +402,7 @@ test('a subgraph declaring scopes must pass them to its workload', () => {
     .env;
   assert.deepEqual(
     JSON.parse(env.find((e: { name: string }) => e.name === 'SUBGRAPH_AUTH').value),
-    {
-      providers: [{ issuer: 'https://idm.anurag.sh/oauth2/openid/graph', audience: 'graph' }],
-      scopes: ['registry:package:read'],
-      groups: [],
-      external: [],
-    },
+    { audience: 'registry', jwks: ROUTER_PASSPORT_JWKS, grants: {} },
   );
 });
 
@@ -452,10 +448,11 @@ test('grantedBy unions its groups and keeps each external entry as its own grant
     registry_admins: ['registry:package:publish'],
     registry_users: ['registry:package:publish'],
   });
-  assert.deepEqual(subgraphAuthValue(resource, [registry, forgejoRouter]).external[0]?.grants, [
-    { scope: 'registry:package:publish', claims: { repository: 'anurag/*' } },
-    { scope: 'registry:package:publish', claims: { repository: 'accurate0/*' } },
-  ]);
+  assert.deepEqual(subgraphAuthValue(resource, [registry, forgejoRouter]).grants, {
+    'registry:package:publish': {
+      forgejo: [{ repository: 'anurag/*' }, { repository: 'accurate0/*' }],
+    },
+  });
 });
 
 test('the scope schema needs grantedBy, with one source per entry', () => {

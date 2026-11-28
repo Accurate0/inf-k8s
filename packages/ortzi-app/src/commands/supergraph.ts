@@ -29,7 +29,7 @@ function fetchText(url: string): string {
 interface Inputs {
   dir: string;
   base: string;
-  externalIssuers: Parameters<typeof compose>[4];
+  auth: NonNullable<Parameters<typeof compose>[4]>;
   subgraphs: ReturnType<typeof resolveSubgraphs>;
   sdls: Record<string, string>;
   manifests: Record<string, string>;
@@ -44,7 +44,7 @@ function gather(found: { app: App; target: Target }[], skip?: string): Inputs | 
 
   const target = found.find(({ app }) => app === router)?.target as Target;
   const appDir = `${target.location}/${router.name}`;
-  const [{ base, externalIssuers }] = declared(router, 'supergraph');
+  const [{ base, externalIssuers = [], passport }] = declared(router, 'supergraph');
   const dir = `${appDir}/${base}`.replace(/\/[^/]*$/, '');
   const subgraphs = resolveSubgraphs(apps);
   const fetched = subgraphs.filter((subgraph) => subgraph.name !== skip);
@@ -77,7 +77,7 @@ function gather(found: { app: App; target: Target }[], skip?: string): Inputs | 
   return {
     dir,
     base: fs.readText(`${appDir}/${base}`),
-    externalIssuers,
+    auth: { externalIssuers, passport },
     subgraphs,
     sdls,
     manifests,
@@ -107,7 +107,7 @@ export function supergraphCheck(
     return 2;
   }
 
-  const { dir, base, externalIssuers, subgraphs, sdls, manifests } = inputs;
+  const { dir, base, auth, subgraphs, sdls, manifests } = inputs;
   sdls[name] = fs.readText(schema);
   if (documents) {
     manifests[name] = fs.readText(documents);
@@ -115,7 +115,7 @@ export function supergraphCheck(
 
   let composed;
   try {
-    composed = compose(subgraphs, sdls, base, manifests, externalIssuers);
+    composed = compose(subgraphs, sdls, base, manifests, auth);
   } catch (error) {
     console.error((error as Error).message);
     return 1;
@@ -145,8 +145,8 @@ export function supergraph(found: { app: App; target: Target }[], check: boolean
     return 0;
   }
 
-  const { dir, base, externalIssuers, subgraphs, sdls, manifests } = inputs;
-  const composed = compose(subgraphs, sdls, base, manifests, externalIssuers);
+  const { dir, base, auth, subgraphs, sdls, manifests } = inputs;
+  const composed = compose(subgraphs, sdls, base, manifests, auth);
   const wanted = [
     ...subgraphs.map((subgraph) => [
       `${dir}/subgraphs/${subgraph.name}.graphql`,

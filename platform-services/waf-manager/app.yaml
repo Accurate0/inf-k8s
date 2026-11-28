@@ -141,8 +141,6 @@ workloads:
       OIDC_AUDIENCE: {oidc: waf-manager, key: client-id}
       OIDC_CLI_ISSUER: https://idm.anurag.sh/oauth2/openid/waf-manager-cli
       OIDC_CLI_AUDIENCE: {oidc: waf-manager-cli, key: client-id, optional: true}
-      OIDC_PROVIDERS: https://idm.anurag.sh/oauth2/openid/graph=graph
-      OIDC_GROUPS: waf_admins
     envFrom:
       - {secret: waf-manager, optional: true}
     mounts:

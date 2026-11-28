@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-27T09:28:50.575Z
+# generated at 2026-11-28T02:06:10.377Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -53,7 +53,7 @@ spec:
             containerPort: 8000
         env:
           - name: SUBGRAPH_AUTH
-            value: '{"providers":[{"issuer":"https://idm.anurag.sh/oauth2/openid/graph","audience":"graph"},{"issuer":"https://idm.anurag.sh/oauth2/openid/home-gateway","audience":"home-gateway"}],"scopes":["home:api:access"],"groups":["home_gateway_readers"],"external":[]}'
+            value: '{"audience":"home","jwks":"http://router.graph.svc.cluster.local/.well-known/passport.jwks","grants":{}}'
           - name: AWS_ACCESS_KEY_ID
             valueFrom:
               secretKeyRef:

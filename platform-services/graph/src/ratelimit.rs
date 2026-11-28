@@ -20,7 +20,6 @@ use hive_router::{
             EndHookPayload, FromGraphQLErrorToResponse, RouterPlugin, StartHookPayload,
         },
     },
-    query_planner::planner::plan_nodes::PlanNode,
     sonic_rs::JsonValueTrait,
 };
 use moka::future::Cache;
@@ -241,7 +240,7 @@ impl RouterPlugin for RateLimitPlugin {
         &'exec self,
         payload: OnExecuteStartHookPayload<'exec>,
     ) -> OnExecuteStartHookResult<'exec> {
-        let subscription = matches!(payload.query_plan.node, Some(PlanNode::Subscription(_)));
+        let subscription = payload.query_plan.split_subscription().is_some();
         let caller = payload
             .context
             .get_ref::<Caller>()

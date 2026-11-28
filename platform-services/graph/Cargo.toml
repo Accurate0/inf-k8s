@@ -11,7 +11,7 @@ path = "src/main.rs"
 [dependencies]
 async-graphql = { version = "7.2.1", default-features = false, features = ["dynamic-schema"] }
 bytes = "1"
-hive-router = "=0.3.13"
+hive-router = { git = "https://git.anurag.sh/anurag/hive-router.git", rev = "067e6f79a6776eb5aa384b863e783a4d09eef9c7" }
 moka = { version = "0.12", features = ["future", "sync"] }
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
 serde = { version = "1", features = ["derive"] }
@@ -23,6 +23,7 @@ url = "2"
 axum = "0.8"
 futures = "0.3"
 insta = { version = "1", features = ["yaml", "redactions"] }
+serde_yaml = "0.9"
 jsonwebtoken = { version = "11", features = ["rust_crypto"] }
 p256 = { version = "0.13", features = ["pkcs8", "jwk"] }
 tokio = { version = "1", features = ["macros", "rt", "rt-multi-thread", "net", "process", "time"] }

@@ -1,29 +1,12 @@
 import { type TracedFetch, tracedFetch } from './tracing.ts';
 import { createPublicKey, type KeyObject, verify } from 'node:crypto';
 
-export interface Provider {
-  issuer: string;
-  audience: string;
-}
-
-export interface Grant {
-  scope: string;
-  claims: Record<string, string | string[]>;
-}
-
-export interface ExternalAuth {
-  name: string;
-  issuer: string;
-  jwks: string;
-  audience: string;
-  grants?: Grant[];
-}
+export const PASSPORT_HEADER = 'x-graph-passport';
+export const PASSPORT_ISSUER = 'graph-router';
 
 export interface AuthConfig {
-  providers: Provider[];
-  scopes: string[];
-  groups?: string[];
-  external?: ExternalAuth[];
+  audience: string;
+  jwks: string;
 }
 
 export interface Principal {
@@ -31,6 +14,13 @@ export interface Principal {
   subject: string;
   issuer: string;
   scopes: Set<string>;
+}
+
+interface Identity {
+  issuer: string;
+  kind: 'user' | 'external';
+  subject: string;
+  scopes?: string[];
 }
 
 export class AuthError extends Error {
@@ -47,9 +37,6 @@ export class AuthError extends Error {
 export const unauthorized = (message: string) =>
   new AuthError(401, 'UNAUTHENTICATED', `unauthorized: ${message}`);
 
-export const forbidden = (message: string) =>
-  new AuthError(403, 'FORBIDDEN', `forbidden: ${message}`);
-
 const unavailable = (message: string) =>
   new AuthError(503, 'UNAVAILABLE', `jwks error: ${message}`);
 
@@ -59,20 +46,10 @@ export function parseConfig(json: string | undefined): AuthConfig {
   }
 
   const config = JSON.parse(json) as AuthConfig;
-  if (!config.providers?.length || !config.scopes?.length) {
-    throw new Error('SUBGRAPH_AUTH needs providers and scopes');
+  if (!config.audience || !config.jwks) {
+    throw new Error("SUBGRAPH_AUTH needs an audience and the router's jwks");
   }
   return config;
-}
-
-interface Issuer {
-  issuer: string;
-  audience: string;
-  jwks: string;
-  userinfo?: string;
-  external?: ExternalAuth;
-  keys: Map<string, { key: KeyObject; alg?: string }>;
-  refreshedAt?: number;
 }
 
 interface Jwt {
@@ -90,14 +67,14 @@ const ALGORITHMS: Record<string, { hash: string; ec: boolean }> = {
   RS512: { hash: 'sha512', ec: false },
 };
 
-const LEEWAY_SECONDS = 60;
+const LEEWAY_SECONDS = 5;
 const REFRESH_COOLDOWN_MS = 30_000;
 const REFRESH_INTERVAL_MS = 3_600_000;
 
 function decode(token: string): Jwt {
   const parts = token.split('.');
   if (parts.length !== 3) {
-    throw unauthorized('malformed token');
+    throw unauthorized('malformed passport');
   }
 
   const [header, payload, signature] = parts as [string, string, string];
@@ -109,134 +86,55 @@ function decode(token: string): Jwt {
       signature: Buffer.from(signature, 'base64url'),
     };
   } catch {
-    throw unauthorized('unreadable token');
+    throw unauthorized('unreadable passport');
   }
 }
 
-function glob(pattern: string, value: string): boolean {
-  const source = pattern
-    .toLowerCase()
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*')
-    .replace(/\?/g, '.');
-  return new RegExp(`^${source}$`).test(value.toLowerCase());
-}
-
-export function matches(claims: Record<string, string | string[]>, token: Record<string, unknown>) {
-  return Object.entries(claims).every(([name, allowed]) => {
-    const value = token[name];
-    return typeof value === 'string' && [allowed].flat().some((pattern) => glob(pattern, value));
-  });
-}
-
-const groupsMatch = (held: string[], allowed: string[]) =>
-  held.some((group) => allowed.some((a) => a === group || a === group.split('@')[0]));
-
 export class Authenticator {
   readonly #config: AuthConfig;
-  readonly #issuers: Issuer[];
   readonly #fetch: TracedFetch;
+  #keys = new Map<string, { key: KeyObject; alg?: string }>();
+  #refreshedAt?: number;
 
   constructor(config: AuthConfig, fetcher: typeof fetch = fetch) {
     this.#config = config;
     this.#fetch = tracedFetch(fetcher);
-
-    const base = (issuer: string) => issuer.replace(/\/+$/, '');
-    this.#issuers = [
-      ...config.providers.map((provider) => ({
-        issuer: provider.issuer,
-        audience: provider.audience,
-        jwks: `${base(provider.issuer)}/public_key.jwk`,
-        userinfo: `${base(provider.issuer)}/userinfo`,
-        keys: new Map(),
-      })),
-      ...(config.external ?? []).map((external) => ({
-        issuer: external.issuer,
-        audience: external.audience,
-        jwks: external.jwks,
-        external,
-        keys: new Map(),
-      })),
-    ];
   }
 
-  async authenticate(header: string | undefined): Promise<Principal> {
-    const token = header?.startsWith('Bearer ') ? header.slice(7).trim() : undefined;
-    if (!token) {
-      throw unauthorized('missing bearer token');
+  async authenticate(passport: string | undefined): Promise<Principal> {
+    if (!passport) {
+      throw unauthorized('missing graph passport');
     }
 
-    const jwt = decode(token);
-    const issuer = this.#issuers.find((candidate) => candidate.issuer === jwt.claims.iss);
-    if (!issuer) {
-      throw unauthorized(`untrusted issuer ${String(jwt.claims.iss)}`);
-    }
+    const jwt = decode(passport);
+    await this.#verify(jwt);
 
-    await this.#verify(issuer, jwt);
-    const subject = String(jwt.claims.sub ?? '');
-
-    if (issuer.external) {
-      const scopes = new Set(
-        (issuer.external.grants ?? [])
-          .filter((grant) => matches(grant.claims, jwt.claims))
-          .map((grant) => grant.scope),
-      );
-      if (!scopes.size) {
-        throw forbidden(`this ${issuer.external.name} identity is not allowed here`);
-      }
-      return { kind: 'external', subject, issuer: issuer.issuer, scopes };
+    const identity = jwt.claims.identity as Identity | undefined;
+    if (!identity || (identity.kind !== 'user' && identity.kind !== 'external')) {
+      throw unauthorized('passport has no identity');
     }
-
-    const scopes = new Set(
-      typeof jwt.claims.scope === 'string' ? jwt.claims.scope.split(/\s+/).filter(Boolean) : [],
-    );
-    const scoped = this.#config.scopes.some((scope) => scopes.has(scope));
-    const groups = this.#config.groups ?? [];
-    if (
-      !scoped &&
-      !(groups.length && groupsMatch(await this.#groups(issuer, token, jwt), groups))
-    ) {
-      throw forbidden(
-        `${subject} holds none of ${JSON.stringify(this.#config.scopes)} and is in none of ${JSON.stringify(groups)}`,
-      );
-    }
-    return { kind: 'user', subject, issuer: issuer.issuer, scopes };
+    return {
+      kind: identity.kind,
+      subject: identity.subject,
+      issuer: identity.issuer,
+      scopes: new Set(identity.scopes ?? []),
+    };
   }
 
-  async #groups(issuer: Issuer, token: string, jwt: Jwt): Promise<string[]> {
-    if (Array.isArray(jwt.claims.groups)) {
-      return jwt.claims.groups.map(String);
-    }
-    if (!issuer.userinfo) {
-      return [];
-    }
-
-    const response = await this.#fetch(issuer.userinfo, {
-      headers: { authorization: `Bearer ${token}` },
-    });
-    if (!response.ok) {
-      throw unauthorized(`userinfo returned ${response.status}`);
-    }
-    const info = (await response.json()) as { groups?: string[] };
-    return info.groups ?? [];
-  }
-
-  async #verify(issuer: Issuer, jwt: Jwt): Promise<void> {
+  async #verify(jwt: Jwt): Promise<void> {
     const kid = jwt.header.kid;
     if (!kid) {
-      throw unauthorized('token has no kid');
+      throw unauthorized('passport has no kid');
     }
 
     const now = Date.now();
-    const stale =
-      issuer.refreshedAt === undefined || now - issuer.refreshedAt > REFRESH_INTERVAL_MS;
-    const cooled =
-      issuer.refreshedAt === undefined || now - issuer.refreshedAt > REFRESH_COOLDOWN_MS;
-    if (stale || (!issuer.keys.has(kid) && cooled)) {
-      await this.#refresh(issuer);
+    const stale = this.#refreshedAt === undefined || now - this.#refreshedAt > REFRESH_INTERVAL_MS;
+    const cooled = this.#refreshedAt === undefined || now - this.#refreshedAt > REFRESH_COOLDOWN_MS;
+    if (stale || (!this.#keys.has(kid) && cooled)) {
+      await this.#refresh();
     }
 
-    const key = issuer.keys.get(kid);
+    const key = this.#keys.get(kid);
     if (!key) {
       throw unauthorized(`no key for kid ${kid}`);
     }
@@ -254,31 +152,34 @@ export class Authenticator {
       jwt.signature,
     );
     if (!valid) {
-      throw unauthorized('token rejected: bad signature');
+      throw unauthorized('passport rejected: bad signature');
     }
 
     const claims = jwt.claims;
-    const audiences = [claims.aud].flat();
-    if (!audiences.includes(issuer.audience)) {
-      throw unauthorized('token rejected: wrong audience');
+    if (claims.iss !== PASSPORT_ISSUER) {
+      throw unauthorized('passport rejected: not from the router');
+    }
+    if (![claims.aud].flat().includes(this.#config.audience)) {
+      throw unauthorized('passport rejected: wrong audience');
     }
     if (typeof claims.exp !== 'number' || claims.exp + LEEWAY_SECONDS < now / 1000) {
-      throw unauthorized('token rejected: expired');
+      throw unauthorized('passport rejected: expired');
     }
   }
 
-  async #refresh(issuer: Issuer): Promise<void> {
-    issuer.refreshedAt = Date.now();
+  async #refresh(): Promise<void> {
+    this.#refreshedAt = Date.now();
+    const jwks = this.#config.jwks;
 
     let set: { keys?: (JsonWebKey & { kid?: string; alg?: string })[] };
     try {
-      const response = await this.#fetch(issuer.jwks);
+      const response = await this.#fetch(jwks);
       if (!response.ok) {
-        throw new Error(`${issuer.jwks} returned ${response.status}`);
+        throw new Error(`${jwks} returned ${response.status}`);
       }
       set = (await response.json()) as typeof set;
     } catch (error) {
-      if (issuer.keys.size) {
+      if (this.#keys.size) {
         return;
       }
       throw unavailable((error as Error).message);
@@ -299,7 +200,7 @@ export class Authenticator {
       }
     }
     if (keys.size) {
-      issuer.keys = keys;
+      this.#keys = keys;
     }
   }
 }

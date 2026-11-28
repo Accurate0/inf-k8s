@@ -1,6 +1,8 @@
+pub mod access;
 pub mod auth;
 pub mod external;
 pub mod node;
+pub mod passport;
 pub mod scopes;
 pub mod server;
 pub mod telemetry;
@@ -8,10 +10,8 @@ pub mod telemetry;
 pub use async_graphql;
 pub use async_graphql_axum;
 
-pub use auth::{
-    AuthConfig, AuthError, Authenticator, Claims, ExternalAuth, Grant, Principal, Provider,
-};
-pub use external::{ClaimPattern, External, ExternalIssuer};
+pub use auth::{AuthConfig, AuthError, Authenticator, Claims, Principal};
+pub use external::{ClaimPattern, External};
 pub use scopes::{Scopes, require_scope};
 pub use server::{GRAPHQL_PATH, WEBSOCKET_PATH, router};
 pub use telemetry::Tracing;

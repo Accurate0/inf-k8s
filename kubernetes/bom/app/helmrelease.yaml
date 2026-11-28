@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-25T12:26:05.626Z
+# generated at 2026-11-28T04:25:13.814Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -53,7 +53,7 @@ spec:
             containerPort: 8000
         env:
           - name: SUBGRAPH_AUTH
-            value: '{"providers":[{"issuer":"https://idm.anurag.sh/oauth2/openid/graph","audience":"graph"}],"scopes":["bom:radar:read","bom:forecast:read"],"groups":["bom_users"],"external":[]}'
+            value: '{"audience":"bom","jwks":"http://router.graph.svc.cluster.local/.well-known/passport.jwks","grants":{}}'
           - name: BUCKET_NAME
             valueFrom:
               secretKeyRef:
@@ -83,10 +83,6 @@ spec:
             value: https://bom.anurag.sh
           - name: OTEL_TRACING_URL
             value: http://monitoring-tempo.monitoring.svc.cluster.local:4318/v1/traces
-          - name: OIDC_PROVIDERS
-            value: https://idm.anurag.sh/oauth2/openid/graph=graph
-          - name: OIDC_GROUPS
-            value: bom_users
         envFrom:
           - secretRef:
               name: bom-managed-secrets
