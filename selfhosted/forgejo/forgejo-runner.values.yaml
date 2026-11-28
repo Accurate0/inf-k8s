@@ -46,6 +46,7 @@ runnerConfig: |
             memory: 1Gi
   runner:
     capacity: 4
+    fetch_interval: 30s
     labels:
       - ubuntu-latest:k8s:///config/podspec-default.yaml
       - default:k8s:///config/podspec-default.yaml
