@@ -20,12 +20,6 @@ resources:
     type: secret
     secretName: forgejo-gpg-managed-secrets
     secretTemplate: {includeAllSecrets: false, data: {privateKey: "{{ .GPG_PRIVATE_KEY }}"}}
-  - name: runner
-    type: secret
-    secretName: forgejo-runner-secret
-    secretTemplate:
-      includeAllSecrets: false
-      data: {uuid: "{{ .UUID }}", token: "{{ .TOKEN }}", cache-secret: "{{ .CACHE_SECRET }}"}
   - name: anubis
     type: secret
     secretName: forgejo-anubis-managed-secrets
@@ -75,12 +69,6 @@ sources:
     repo: oci://code.forgejo.org/forgejo-helm/forgejo
     version: 17.3.3
     values: forgejo.values.yaml
-  - type: helm
-    chart: forgejo-runner
-    repo: oci://registry.anurag.sh/erwanleboucher-git/eleboucher/charts/forgejo-runner
-    version: 13.2.1
-    values: forgejo-runner.values.yaml
-    releaseName: forgejo-runner
   - type: manifests
     path: .
 artifact:
