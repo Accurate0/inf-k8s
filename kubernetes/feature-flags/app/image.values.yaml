@@ -1,2 +1,2 @@
 images:
-  registry.anurag.sh/containers/feature-flags: v1.0.221-b1d3faf # {"$imagepolicy": "flux-system:feature-flags-feature-flags:tag"}
+  registry.anurag.sh/containers/feature-flags: v1.0.221-a42d2aa # {"$imagepolicy": "flux-system:feature-flags-feature-flags:tag"}
