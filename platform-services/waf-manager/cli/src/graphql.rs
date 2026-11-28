@@ -177,7 +177,7 @@ pub struct Allowlist {
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct CandidatesQuery {
-    pub waf_candidates: Candidates,
+    pub waf_candidates: Option<Candidates>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -189,7 +189,7 @@ pub struct BlocksVariables {
 #[cynic(graphql_type = "Query", variables = "BlocksVariables")]
 pub struct BlocksQuery {
     #[arguments(query: $query)]
-    pub waf_blocks: Blocks,
+    pub waf_blocks: Option<Blocks>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -201,7 +201,7 @@ pub struct IpVariables {
 #[cynic(graphql_type = "Query", variables = "IpVariables")]
 pub struct IpQuery {
     #[arguments(addr: $addr)]
-    pub waf_ip: IpReport,
+    pub waf_ip: Option<IpReport>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -214,7 +214,7 @@ pub struct AuditVariables {
 #[cynic(graphql_type = "Query", variables = "AuditVariables")]
 pub struct AuditQuery {
     #[arguments(offset: $offset, limit: $limit)]
-    pub waf_audit: AuditPage,
+    pub waf_audit: Option<AuditPage>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -226,13 +226,13 @@ pub struct WorkflowsVariables {
 #[cynic(graphql_type = "Query", variables = "WorkflowsVariables")]
 pub struct WorkflowsQuery {
     #[arguments(workflow: $workflow)]
-    pub waf_workflows: Workflows,
+    pub waf_workflows: Option<Workflows>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct AllowlistQuery {
-    pub waf_allowlist: Allowlist,
+    pub waf_allowlist: Option<Allowlist>,
 }
 
 #[derive(cynic::InputObject, Debug)]

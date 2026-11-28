@@ -133,7 +133,8 @@ pub async fn run(cli: Cli) -> Result<()> {
             &graph
                 .run(DryRunQuery::build(pr(owner, repo, pr_number)))
                 .await?
-                .janitor_dry_run,
+                .janitor_dry_run
+                .context("the graph returned no janitorDryRun")?,
         ),
         Command::MergeQueued => print(
             &graph
@@ -166,16 +167,33 @@ pub async fn run(cli: Cli) -> Result<()> {
                     .janitor_command,
             )
         }
-        Command::Metrics => print(&graph.run(MetricsQuery::build(())).await?.janitor_metrics),
+        Command::Metrics => print(
+            &graph
+                .run(MetricsQuery::build(()))
+                .await?
+                .janitor_metrics
+                .context("the graph returned no janitorMetrics")?,
+        ),
         Command::Logs => print(
             &graph
                 .run(EvaluationsQuery::build(()))
                 .await?
-                .janitor_evaluations,
+                .janitor_evaluations
+                .context("the graph returned no janitorEvaluations")?,
         ),
-        Command::Rules => print(&graph.run(RulesQuery::build(())).await?.janitor_rules),
+        Command::Rules => print(
+            &graph
+                .run(RulesQuery::build(()))
+                .await?
+                .janitor_rules
+                .context("the graph returned no janitorRules")?,
+        ),
         Command::Health => {
-            let services = graph.run(HealthQuery::build(())).await?.janitor_health;
+            let services = graph
+                .run(HealthQuery::build(()))
+                .await?
+                .janitor_health
+                .context("the graph returned no janitorHealth")?;
             print(&services)?;
             if services.iter().any(|s| !s.healthy) {
                 bail!("not every service is healthy");

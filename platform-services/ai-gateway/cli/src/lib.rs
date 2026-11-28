@@ -2,6 +2,7 @@ mod graphql;
 mod usage;
 
 use ai_gateway_api::{UsageRow, Window};
+use anyhow::Context;
 use clap::{Parser, Subcommand};
 use cli_auth::App;
 use cynic::{MutationBuilder, QueryBuilder};
@@ -112,7 +113,13 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
     let graph = GraphClient::connect(APP).await?;
 
     match cli.command {
-        Command::Models => print(&graph.run(ModelsQuery::build(())).await?.ai_gateway_models),
+        Command::Models => print(
+            &graph
+                .run(ModelsQuery::build(()))
+                .await?
+                .ai_gateway_models
+                .context("the graph returned no aiGatewayModels")?,
+        ),
         Command::Keys { action } => match action {
             KeyAction::Create {
                 name,
@@ -131,7 +138,13 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                         .ai_gateway_create_key,
                 )
             }
-            KeyAction::List => print(&graph.run(KeysQuery::build(())).await?.ai_gateway_keys),
+            KeyAction::List => print(
+                &graph
+                    .run(KeysQuery::build(()))
+                    .await?
+                    .ai_gateway_keys
+                    .context("the graph returned no aiGatewayKeys")?,
+            ),
             KeyAction::Update {
                 id,
                 name,
@@ -174,7 +187,8 @@ pub async fn run(cli: Cli) -> anyhow::Result<()> {
                     since: since.to_string(),
                 }))
                 .await?
-                .ai_gateway_usage;
+                .ai_gateway_usage
+                .context("the graph returned no aiGatewayUsage")?;
             if json {
                 return print(&rows);
             }

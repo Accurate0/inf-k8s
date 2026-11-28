@@ -57,13 +57,13 @@ pub struct UsageSummary {
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct KeysQuery {
-    pub ai_gateway_keys: Vec<Key>,
+    pub ai_gateway_keys: Option<Vec<Key>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct ModelsQuery {
-    pub ai_gateway_models: Vec<Model>,
+    pub ai_gateway_models: Option<Vec<Model>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -75,7 +75,7 @@ pub struct UsageVariables {
 #[cynic(graphql_type = "Query", variables = "UsageVariables")]
 pub struct UsageQuery {
     #[arguments(since: $since)]
-    pub ai_gateway_usage: Vec<UsageSummary>,
+    pub ai_gateway_usage: Option<Vec<UsageSummary>>,
 }
 
 #[derive(cynic::InputObject, Debug)]

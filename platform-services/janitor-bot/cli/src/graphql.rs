@@ -68,25 +68,25 @@ pub struct MetricSample {
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct RulesQuery {
-    pub janitor_rules: Vec<Rule>,
+    pub janitor_rules: Option<Vec<Rule>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct EvaluationsQuery {
-    pub janitor_evaluations: Vec<Evaluation>,
+    pub janitor_evaluations: Option<Vec<Evaluation>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct HealthQuery {
-    pub janitor_health: Vec<ServiceHealth>,
+    pub janitor_health: Option<Vec<ServiceHealth>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct MetricsQuery {
-    pub janitor_metrics: Vec<MetricSample>,
+    pub janitor_metrics: Option<Vec<MetricSample>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -100,7 +100,7 @@ pub struct PrVariables {
 #[cynic(graphql_type = "Query", variables = "PrVariables")]
 pub struct DryRunQuery {
     #[arguments(owner: $owner, repo: $repo, number: $number)]
-    pub janitor_dry_run: Vec<MatchedRule>,
+    pub janitor_dry_run: Option<Vec<MatchedRule>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]

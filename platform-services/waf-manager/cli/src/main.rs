@@ -1,6 +1,6 @@
 mod graphql;
 
-use anyhow::bail;
+use anyhow::{Context, bail};
 use clap::{CommandFactory, Parser, Subcommand};
 use cli_auth::App;
 use comfy_table::{Table, presets::UTF8_BORDERS_ONLY};
@@ -101,7 +101,8 @@ async fn resolve_block(graph: &GraphClient, target: &str) -> anyhow::Result<Stri
             query: Some(target.to_owned()),
         }))
         .await?
-        .waf_blocks;
+        .waf_blocks
+        .context("the graph returned no wafBlocks")?;
     let wanted = target.trim();
     let matches: Vec<&Block> = blocks
         .blocks
@@ -169,7 +170,11 @@ async fn main() -> anyhow::Result<()> {
 
     match cli.command {
         Command::Candidates => {
-            let c = graph.run(CandidatesQuery::build(())).await?.waf_candidates;
+            let c = graph
+                .run(CandidatesQuery::build(()))
+                .await?
+                .waf_candidates
+                .context("the graph returned no wafCandidates")?;
             if json {
                 return print_json(&c);
             }
@@ -202,7 +207,8 @@ async fn main() -> anyhow::Result<()> {
             let b = graph
                 .run(BlocksQuery::build(BlocksVariables { query }))
                 .await?
-                .waf_blocks;
+                .waf_blocks
+                .context("the graph returned no wafBlocks")?;
             if json {
                 return print_json(&b);
             }
@@ -268,7 +274,8 @@ async fn main() -> anyhow::Result<()> {
             let ip = graph
                 .run(IpQuery::build(IpVariables { addr }))
                 .await?
-                .waf_ip;
+                .waf_ip
+                .context("the graph returned no wafIp")?;
             if json {
                 return print_json(&ip);
             }
@@ -349,7 +356,8 @@ async fn main() -> anyhow::Result<()> {
                     limit: i32::try_from(limit)?,
                 }))
                 .await?
-                .waf_audit;
+                .waf_audit
+                .context("the graph returned no wafAudit")?;
             if json {
                 return print_json(&page);
             }
@@ -375,7 +383,8 @@ async fn main() -> anyhow::Result<()> {
             let w = graph
                 .run(WorkflowsQuery::build(WorkflowsVariables { workflow }))
                 .await?
-                .waf_workflows;
+                .waf_workflows
+                .context("the graph returned no wafWorkflows")?;
             if json {
                 return print_json(&w);
             }
@@ -418,7 +427,11 @@ async fn main() -> anyhow::Result<()> {
         }
         Command::Allowlist { action } => match action.unwrap_or(AllowlistAction::List) {
             AllowlistAction::List => {
-                let a = graph.run(AllowlistQuery::build(())).await?.waf_allowlist;
+                let a = graph
+                    .run(AllowlistQuery::build(()))
+                    .await?
+                    .waf_allowlist
+                    .context("the graph returned no wafAllowlist")?;
                 if json {
                     return print_json(&a);
                 }

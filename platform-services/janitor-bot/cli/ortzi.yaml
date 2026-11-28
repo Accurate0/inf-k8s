@@ -1,6 +1,6 @@
 package:
   name: janitor
-  version: 0.3.0
+  version: 0.3.1
   completions: clap
   description: janitor-bot admin CLI, through the graph
 build:
