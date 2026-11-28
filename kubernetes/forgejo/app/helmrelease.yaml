@@ -1,5 +1,5 @@
 # generated from app.yaml by `ortzi app render`; edit app.yaml instead
-# generated at 2026-11-28T07:56:17.199Z
+# generated at 2026-11-28T07:59:48.127Z
 # yaml-language-server: $schema=https://k8s-schemas.anurag.sh/helm.toolkit.fluxcd.io/helmrelease_v2.json
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease
@@ -415,8 +415,8 @@ spec:
         readOnly: true
     image:
       rootless: true
-      tag: 17.0.1
-      digest: sha256:5ef02fbcf22beef56b8c844952ffad58cfe177b6f98e46e6abb5df90b88dc8d3
+      tag: 17.0.2
+      digest: sha256:39362ab93a94c0c9b8b330d2a877ddbb3f02fa8c0cba1b8d686d437b39f36a04
     replicaCount: 1
     affinity:
       nodeAffinity:

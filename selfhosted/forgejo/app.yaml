@@ -73,7 +73,7 @@ sources:
   - type: helm
     chart: forgejo
     repo: oci://code.forgejo.org/forgejo-helm/forgejo
-    version: 17.3.1
+    version: 17.3.3
     values: forgejo.values.yaml
   - type: helm
     chart: forgejo-runner
