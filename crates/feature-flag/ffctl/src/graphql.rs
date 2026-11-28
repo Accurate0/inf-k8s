@@ -250,7 +250,7 @@ pub struct FlagsVariables {
 #[cynic(graphql_type = "Query", variables = "FlagsVariables")]
 pub struct FlagsQuery {
     #[arguments(includeArchived: $include_archived)]
-    pub feature_flags: Vec<Flag>,
+    pub feature_flags: Option<Vec<Flag>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -262,29 +262,29 @@ pub struct KeyVariables {
 #[cynic(graphql_type = "Query", variables = "KeyVariables")]
 pub struct FlagQuery {
     #[arguments(key: $key)]
-    pub feature_flag: Flag,
+    pub feature_flag: Option<Flag>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct SegmentsQuery {
-    pub feature_flags_segments: Vec<Segment>,
+    pub feature_flags_segments: Option<Vec<Segment>>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query", variables = "KeyVariables")]
 pub struct SegmentQuery {
     #[arguments(key: $key)]
-    pub feature_flags_segment: Segment,
+    pub feature_flags_segment: Option<Segment>,
 }
 
 #[derive(cynic::QueryFragment, Debug)]
 #[cynic(graphql_type = "Query")]
 pub struct SnapshotQuery {
-    pub feature_flags_config_version: i32,
+    pub feature_flags_config_version: Option<i32>,
     #[arguments(includeArchived: false)]
-    pub feature_flags: Vec<Flag>,
-    pub feature_flags_segments: Vec<Segment>,
+    pub feature_flags: Option<Vec<Flag>>,
+    pub feature_flags_segments: Option<Vec<Segment>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -298,7 +298,7 @@ pub struct HistoryVariables {
 #[cynic(graphql_type = "Query", variables = "HistoryVariables")]
 pub struct HistoryQuery {
     #[arguments(targetKind: $target_kind, targetKey: $target_key, limit: $limit)]
-    pub feature_flags_history: Vec<Change>,
+    pub feature_flags_history: Option<Vec<Change>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -310,7 +310,7 @@ pub struct EvaluateAllVariables {
 #[cynic(graphql_type = "Query", variables = "EvaluateAllVariables")]
 pub struct EvaluateAllQuery {
     #[arguments(context: $context)]
-    pub feature_flags_evaluate_all: Vec<Evaluation>,
+    pub feature_flags_evaluate_all: Option<Vec<Evaluation>>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]
@@ -323,7 +323,7 @@ pub struct EvaluateVariables {
 #[cynic(graphql_type = "Query", variables = "EvaluateVariables")]
 pub struct EvaluateQuery {
     #[arguments(flagKey: $flag_key, context: $context)]
-    pub feature_flags_evaluate: Evaluation,
+    pub feature_flags_evaluate: Option<Evaluation>,
 }
 
 #[derive(cynic::QueryVariables, Debug)]

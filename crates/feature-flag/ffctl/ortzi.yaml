@@ -1,6 +1,6 @@
 package:
   name: ff
-  version: 0.2.1
+  version: 0.2.2
   completions: clap
   description: feature-flags admin CLI and TUI, through the graph
   binary: ffctl

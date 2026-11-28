@@ -59,6 +59,7 @@ impl Api {
             }))
             .await?
             .feature_flags
+            .context("the graph returned no featureFlags")?
             .into_iter()
             .map(flag)
             .collect();
@@ -74,7 +75,8 @@ impl Api {
                 key: key.to_owned(),
             }))
             .await?
-            .feature_flag;
+            .feature_flag
+            .context("the graph returned no featureFlag")?;
 
         Ok(flag(found))
     }
@@ -198,6 +200,7 @@ impl Api {
             .run(gql::SegmentsQuery::build(()))
             .await?
             .feature_flags_segments
+            .context("the graph returned no featureFlagsSegments")?
             .into_iter()
             .map(segment)
             .collect();
@@ -213,7 +216,8 @@ impl Api {
                 key: key.to_owned(),
             }))
             .await?
-            .feature_flags_segment;
+            .feature_flags_segment
+            .context("the graph returned no featureFlagsSegment")?;
 
         Ok(segment(found))
     }
@@ -300,7 +304,8 @@ impl Api {
                 limit: i32::try_from(limit)?,
             }))
             .await?
-            .feature_flags_history;
+            .feature_flags_history
+            .context("the graph returned no featureFlagsHistory")?;
 
         Ok(changes
             .into_iter()
@@ -404,6 +409,7 @@ impl Api {
             }))
             .await?
             .feature_flags_evaluate_all
+            .context("the graph returned no featureFlagsEvaluateAll")?
             .into_iter()
             .map(evaluated)
             .collect();
@@ -424,7 +430,8 @@ impl Api {
                 context: input.context(),
             }))
             .await?
-            .feature_flags_evaluate;
+            .feature_flags_evaluate
+            .context("the graph returned no featureFlagsEvaluate")?;
 
         Ok(evaluated(evaluation))
     }
@@ -433,10 +440,19 @@ impl Api {
         let snapshot = self.graph.run(gql::SnapshotQuery::build(())).await?;
 
         Ok(pb::SnapshotResponse {
-            version: snapshot.feature_flags_config_version.into(),
-            flags: snapshot.feature_flags.into_iter().map(flag).collect(),
+            version: snapshot
+                .feature_flags_config_version
+                .context("the graph returned no featureFlagsConfigVersion")?
+                .into(),
+            flags: snapshot
+                .feature_flags
+                .context("the graph returned no featureFlags")?
+                .into_iter()
+                .map(flag)
+                .collect(),
             segments: snapshot
                 .feature_flags_segments
+                .context("the graph returned no featureFlagsSegments")?
                 .into_iter()
                 .map(segment)
                 .collect(),
